@@ -14,6 +14,7 @@ from cdmw.core.archive import (
     build_archive_entry_basename_index,
     build_archive_entry_path_index,
     build_archive_preview_result,
+    build_archive_relationship_references,
 )
 from cdmw.models import ArchiveEntry
 
@@ -140,6 +141,67 @@ class ArchiveRelationshipTests(unittest.TestCase):
         self.assertIn("character/texture/body_a.dds", paths)
         self.assertIn("character/identityskeleton.pab", paths)
         self.assertIn("character/bin/body_a.hkx", paths)
+
+    def test_same_stem_metadata_relationships_include_prefab_and_animation_companions(self):
+        entries = self._entries(
+            (
+                ("character/model/body_a.pac", b"PAR "),
+                ("character/model/body_a.meshinfo", b"MeshInfo\x00"),
+                ("character/model/body_a.prefab", b"SceneObject\x00character/model/body_a.pac\x00"),
+                ("character/bin__/meshphysics/body_a.hkx", b"HKX"),
+                ("character/animation/body_a.motionblending", b"MotionBlend\x00"),
+                ("character/animation/body_a.paa_metabin", b"AnimationMetaData\x00"),
+            )
+        )
+
+        references = build_archive_relationship_references(
+            entries[0],
+            archive_entries_by_normalized_path=build_archive_entry_path_index(entries),
+            archive_entries_by_basename=build_archive_entry_basename_index(entries),
+        )
+        by_path = {reference.resolved_archive_path: reference for reference in references}
+
+        self.assertIn("character/model/body_a.meshinfo", by_path)
+        self.assertIn("character/model/body_a.prefab", by_path)
+        self.assertIn("character/bin__/meshphysics/body_a.hkx", by_path)
+        self.assertEqual(by_path["character/bin__/meshphysics/body_a.hkx"].relation_group, "Physics / Collision")
+        self.assertEqual(by_path["character/bin__/meshphysics/body_a.hkx"].reference_kind, "physics")
+
+    def test_binary_prefab_graph_resolves_model_socket_physics_and_textures(self):
+        entries = self._entries(
+            (
+                (
+                    "character/bin/_prefab/test_shield.prefab",
+                    b"SceneObject\x00"
+                    b"character/model/test_shield.pac\x00"
+                    b"character/descriptors/socketbonedata/test_shield.sockets.xml\x00"
+                    b"character/bin__/meshphysics/test_shield.hkx\x00",
+                ),
+                ("character/model/test_shield.pac", b"PAR "),
+                ("character/modelproperty/test_shield.pac_xml", '<ResourceReferencePath_ITexture value="character/texture/test_shield.dds"/>'),
+                ("character/texture/test_shield.dds", b"DDS "),
+                ("character/descriptors/socketbonedata/test_shield.sockets.xml", "<Sockets />"),
+                ("character/bin__/meshphysics/test_shield.hkx", b"HKX"),
+            )
+        )
+
+        plan = build_archive_relationship_plan(
+            entries[0],
+            entries,
+            path_index=build_archive_entry_path_index(entries),
+            basename_index=build_archive_entry_basename_index(entries),
+        )
+        paths = {edge.related_path for edge in plan.edges}
+        roles = {edge.related_path: edge.role for edge in plan.edges}
+
+        self.assertIn("character/model/test_shield.pac", paths)
+        self.assertIn("character/descriptors/socketbonedata/test_shield.sockets.xml", paths)
+        self.assertIn("character/bin__/meshphysics/test_shield.hkx", paths)
+        self.assertIn("character/modelproperty/test_shield.pac_xml", paths)
+        self.assertIn("character/texture/test_shield.dds", paths)
+        self.assertEqual(roles["character/model/test_shield.pac"], "prefab_model_resource")
+        self.assertEqual(roles["character/descriptors/socketbonedata/test_shield.sockets.xml"], "prefab_socket_descriptor")
+        self.assertEqual(roles["character/bin__/meshphysics/test_shield.hkx"], "prefab_physics_context")
 
     def test_material_sidecar_preview_referenced_files_dedupes_graph_texture(self):
         entries = self._entries(

@@ -393,12 +393,18 @@ It only opens external pages in your browser when you explicitly trigger actions
 - `PySide6`
 - `Pillow`
 - `numpy`
-- `opencv-python`
+- `opencv-python-headless`
 - `PyInstaller`
 - `lz4`
 - `cryptography`
 
-Build requirements are listed in `requirements-build.txt`.
+Install the source/runtime dependencies with:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+Build-only requirements are listed in `requirements-build.txt`.
 
 ### External tools used by the app
 

@@ -7,7 +7,12 @@ import threading
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from cdmw.core.archive import hashlittle, iter_archive_character_equipment_root_alias_stems, read_archive_entry_data
+from cdmw.core.archive import (
+    hashlittle,
+    iter_archive_character_equipment_root_alias_stems,
+    iter_archive_equipment_model_alias_stems,
+    read_archive_entry_data,
+)
 from cdmw.core.common import raise_if_cancelled
 from cdmw.models import ArchiveEntry
 from cdmw.models import RunCancelled
@@ -22,6 +27,39 @@ class ArchiveItemRecord:
     prefab_hashes: List[int] = field(default_factory=list)
     model_stems: List[str] = field(default_factory=list)
     pac_files: List[str] = field(default_factory=list)
+    icon_paths: List[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class ArchiveAssetCatalogEntry:
+    item_id: int
+    internal_name: str
+    display_name: str
+    category: str
+    group: str = ""
+    pac_files: tuple[str, ...] = ()
+    model_stems: tuple[str, ...] = ()
+    icon_paths: tuple[str, ...] = ()
+    localized_names: tuple[str, ...] = ()
+    variant_count: int = 1
+    evidence: str = ""
+    scope_filter: str = ""
+
+    def to_cache_dict(self) -> Dict[str, object]:
+        return {
+            "item_id": int(self.item_id),
+            "internal_name": self.internal_name,
+            "display_name": self.display_name,
+            "category": self.category,
+            "group": self.group,
+            "pac_files": list(self.pac_files),
+            "model_stems": list(self.model_stems),
+            "icon_paths": list(self.icon_paths),
+            "localized_names": list(self.localized_names),
+            "variant_count": int(self.variant_count),
+            "evidence": self.evidence,
+            "scope_filter": self.scope_filter,
+        }
 
 
 @dataclass(slots=True)
@@ -32,6 +70,7 @@ class ArchiveItemSearchIndex:
     model_base_display_names: Dict[str, str]
     model_base_exact_display_names: Dict[str, str]
     model_base_related_display_names: Dict[str, str]
+    asset_catalog: List[ArchiveAssetCatalogEntry] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -40,6 +79,7 @@ class _ArchiveItemIndexSources:
     iteminfo_entry: Optional[ArchiveEntry] = None
     stringinfo_entry: Optional[ArchiveEntry] = None
     model_entries: List[ArchiveEntry] = field(default_factory=list)
+    icon_entries: List[ArchiveEntry] = field(default_factory=list)
 
 
 _ITEMINFO_MARKER = b"\x00\x01\x00\x00\x00\x00\x00\x00\x00\x07\x70\x00\x00\x00"
@@ -184,7 +224,8 @@ def _collect_archive_item_index_sources(
         wants_iteminfo = "iteminfo.pabgb" in lower_path
         wants_stringinfo = os.path.basename(lower_path) == "stringinfo.pabgb"
         wants_model_hash = lower_path.endswith((".prefab", ".pac", ".pact"))
-        if not (wants_localization or wants_iteminfo or wants_stringinfo or wants_model_hash):
+        wants_item_icon = lower_path.endswith(".dds") and "itemicon" in lower_path
+        if not (wants_localization or wants_iteminfo or wants_stringinfo or wants_model_hash or wants_item_icon):
             continue
         group = _entry_package_group(entry)
         if wants_localization and group == "0020":
@@ -198,6 +239,8 @@ def _collect_archive_item_index_sources(
             sources.stringinfo_entry = entry
         elif wants_model_hash and group == "0009":
             sources.model_entries.append(entry)
+        elif wants_item_icon:
+            sources.icon_entries.append(entry)
     return sources
 
 
@@ -341,6 +384,38 @@ def _parse_archive_stringinfo_model_icon_hashes(
     return _parse_stringinfo_model_icon_hashes_from_data(data)
 
 
+def _add_icon_path(index: Dict[str, List[str]], key: str, path: str) -> None:
+    normalized_key = str(key or "").strip().lower()
+    normalized_path = str(path or "").replace("\\", "/").strip()
+    if not normalized_key or not normalized_path:
+        return
+    paths = index.setdefault(normalized_key, [])
+    if normalized_path not in paths:
+        paths.append(normalized_path)
+
+
+def _build_archive_item_icon_path_index(icon_entries: Sequence[ArchiveEntry]) -> Dict[str, List[str]]:
+    index: Dict[str, List[str]] = {}
+    for entry in icon_entries:
+        lower_path = entry.path.replace("\\", "/").lower()
+        basename = lower_path.rsplit("/", 1)[-1]
+        stem = os.path.splitext(basename)[0]
+        model_stem = ""
+        if stem.startswith(_ITEM_ICON_PREFAB_PREFIX):
+            model_stem = _normalize_item_icon_model_stem(stem[len(_ITEM_ICON_PREFAB_PREFIX) :])
+        elif "cd_" in stem:
+            model_stem = _normalize_item_icon_model_stem(stem[stem.find("cd_") :])
+        if not model_stem:
+            continue
+        for key in _iter_archive_model_hash_candidate_bases(model_stem):
+            _add_icon_path(index, key, entry.path)
+            for alias_stem in iter_archive_character_equipment_root_alias_stems(key):
+                _add_icon_path(index, alias_stem, entry.path)
+            for alias_stem in iter_archive_equipment_model_alias_stems(key):
+                _add_icon_path(index, alias_stem, entry.path)
+    return index
+
+
 def _item_icon_model_reference_is_compatible(internal_name: str, model_stem: str) -> bool:
     normalized_internal = str(internal_name or "").strip().lower()
     normalized_model = str(model_stem or "").strip().lower()
@@ -404,7 +479,7 @@ def _parse_archive_iteminfo_data(
         prefab_hashes: List[int] = []
         search_end = min(len(data), pos + 800)
         for scan in range(pos + 14, search_end - 15):
-            if data[scan] != 0x0E:
+            if data[scan] not in {0x0E, 0x0F}:
                 continue
             count1 = struct.unpack_from("<I", data, scan + 3)[0]
             count2 = struct.unpack_from("<I", data, scan + 7)[0]
@@ -527,10 +602,390 @@ def _add_display_name(display_names: Dict[str, str], base: str, display_name: st
         display_names[normalized_base] = f"{existing_display} / {normalized_name}"
 
 
+_DISPLAY_VARIANT_SUFFIX_RE = re.compile(r"(?:\s*\(\+\d+\)|\s+\+\d+)$")
+_INTERNAL_VARIANT_SUFFIX_RE = re.compile(r"(?:_?\+\d+|_lv\d+|_level\d+|_grade\d+)$", re.IGNORECASE)
+
+
+def _catalog_display_base(display_name: str) -> str:
+    normalized = str(display_name or "").strip()
+    return _DISPLAY_VARIANT_SUFFIX_RE.sub("", normalized).strip() or normalized
+
+
+def _catalog_internal_base(internal_name: str) -> str:
+    normalized = str(internal_name or "").strip().lower()
+    return _INTERNAL_VARIANT_SUFFIX_RE.sub("", normalized).strip("_") or normalized
+
+
+def _friendly_internal_item_name(internal_name: str) -> str:
+    text = _catalog_internal_base(internal_name)
+    text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", str(text or ""))
+    text = re.sub(r"[_\-]+", " ", text)
+    text = re.sub(r"\b(?:item|abyssreward|reward|equip|equipment)\b", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return str(internal_name or "").strip() or "Unnamed asset"
+    return " ".join(part[:1].upper() + part[1:] for part in text.split())
+
+
+def _catalog_text_matches_any(text: str, tokens: Sequence[str]) -> bool:
+    raw_text = str(text or "").lower()
+    normalized_text = " " + re.sub(r"[^a-z0-9]+", " ", raw_text).strip() + " "
+    compact_text = re.sub(r"[^a-z0-9]+", "", raw_text)
+    for token in tokens:
+        raw_token = str(token or "").strip().lower()
+        if not raw_token:
+            continue
+        if "_" in raw_token or raw_token.startswith("_") or raw_token.endswith("_"):
+            if raw_token in raw_text:
+                return True
+            continue
+        normalized_token = re.sub(r"[^a-z0-9]+", " ", raw_token).strip()
+        if normalized_token and f" {normalized_token} " in normalized_text:
+            return True
+        compact_token = re.sub(r"[^a-z0-9]+", "", raw_token)
+        if len(compact_token) >= 7 and compact_token in compact_text:
+            return True
+    return False
+
+
+def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> Tuple[str, str]:
+    primary_text = " ".join(
+        token.lower()
+        for token in (
+            item.internal_name,
+            item.display_name,
+            " ".join(item.localized_names),
+        )
+        if token
+    )
+    relation_text = " ".join(
+        token.lower()
+        for token in (
+            " ".join(item.pac_files),
+            " ".join(item.model_stems),
+            " ".join(item.icon_paths),
+        )
+        if token
+    )
+    text = " ".join(part for part in (primary_text, relation_text) if part)
+    high_priority_document_tests: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+        ("Key / Permit", ("homekey", "visitorpass", "license", "permit", "permission", " key ", " pass ")),
+        ("Clue / Report", ("sighting", "news", "report", "record", "clue", "evidence")),
+        ("Book / Diary", ("diary", "journal", "epistle")),
+        ("Document", ("letter", "note", "contract", "memo", "notepad", "noticepaper", "notice paper", "blueprint", "manual", "document", "scroll", "paper")),
+    )
+    for group, tokens in high_priority_document_tests:
+        if _catalog_text_matches_any(primary_text, tokens) or _catalog_text_matches_any(relation_text, tokens):
+            return "Quest / Document", group
+    compact_primary_text = re.sub(r"[^a-z0-9]+", "", primary_text)
+    if "lostletter" in compact_primary_text or (
+        "letter" in compact_primary_text and compact_primary_text.endswith("letter")
+    ):
+        return "Quest / Document", "Document"
+    if _catalog_text_matches_any(primary_text, ("recipe", "craftingrecipe", "crafting recipe")):
+        return "Crafting / Recipe", "Recipe Book" if _catalog_text_matches_any(primary_text, ("recipe",)) else "Crafting"
+    if _catalog_text_matches_any(text, ("itemcatch_fishingrod", "fishingrod", "fishing rod")):
+        return "Tool", "Fishing"
+    if _catalog_text_matches_any(
+        text,
+        (
+            "petarmor",
+            "pet armor",
+            "catarmor",
+            "cat armor",
+            "dogarmor",
+            "dog armor",
+            "puppy",
+            "cat outfit",
+            "dog outfit",
+            "pet outfit",
+            "cat hat",
+            "dog hat",
+            "pet hat",
+            "cat helm",
+            "dog helm",
+            "pet helm",
+        ),
+    ):
+        return "Mount / Pet", "Pet Gear"
+    if _catalog_text_matches_any(primary_text, ("potion", "medicine", "elixir", "tonic", "remedy", "recovery")):
+        return "Consumable", "Potion / Medicine"
+    if _catalog_text_matches_any(primary_text, ("food", "drink", "meal", "bread", "meat", "fruit", "carrot", "pear")):
+        return "Consumable", "Food / Drink"
+    category_tests: Tuple[Tuple[str, Tuple[Tuple[str, Tuple[str, ...]], ...]], ...] = (
+        (
+            "Weapon",
+            (
+                ("Sword", ("onehandsword", "twohandsword", "twohandgiantbastard", "bastard", "sword", "01_sword", "02_sword")),
+                ("Shield", ("shield", "03_shield")),
+                ("Dagger / Rapier", ("onehanddagger", "dagger", "rapier")),
+                ("Axe / Mace / Hammer", ("onehandaxe", "twohandaxe", "twohandgiantaxe", "onehandmace", "twohandmace", "warhammer", "warhamme", "axe", "mace", "hammer")),
+                ("Polearm / Spear", ("onehandspear", "twohandspear", "onehandlance", "lance", "spear", "halberd", "alebard", "pike", "scythe")),
+                ("Bow / Crossbow", ("onehandbow", "twohandbow", "bow", "crossbow")),
+                ("Firearm", ("pistol", "musket", "shotgun", "cannon", "flamethrower", "icethrower", "lightningthrower", "thrower", "magicbullet", "gatling", "laser")),
+                ("Fist / Martial", ("fist", "knuckle")),
+                ("Wand / Fan", ("priestwand", "wand", "wingfan")),
+                ("Other Weapon", ("weapon",)),
+            ),
+        ),
+        (
+            "Armor",
+            (
+                ("Head", ("helmet", "helm", "_hel", "head", "hood", "hat", "cap", "crown", "circlet", "headdress")),
+                ("Face", ("face", "mask", "veil")),
+                ("Back / Cloak", ("cloak", "cape", "mantle", "shawl", "back")),
+                ("Body", ("armor", "plate", "_ub", "body", "cuirass", "coat", "jacket", "vest", "shirt", "tunic", "robe", "dress", "gown", "mail", "hauberk", "jerkin", "chest")),
+                ("Hands", ("glove", "gloves", "hand", "gauntlet", "gauntlets", "bracer", "bracers", "vambrace", "wrist", "sleeve")),
+                ("Legs", ("pants", "trouser", "trousers", "skirt", "leg", "legs", "_lb")),
+                ("Feet", ("boot", "boots", "foot", "feet", "shoe", "shoes", "sandal", "sabaton", "greave", "greaves", "_sho")),
+                ("Other Armor", ("costume", "outfit", "uniform")),
+            ),
+        ),
+        (
+            "Accessory",
+            (
+                ("Earrings", ("earring", "earrings")),
+                ("Necklace", ("necklace", "testneck", "neck")),
+                ("Ring", ("ring",)),
+                ("Amulet / Charm", ("amulet", "charm", "talisman", "pendant", "necklace", "neck")),
+                ("Belt / Band", ("belt", "band")),
+                ("Other Accessory", ("accessory", "jewelry", "jewel", "glasses", "eyewear")),
+            ),
+        ),
+        (
+            "Mount / Pet",
+            (
+                ("Horse Gear", ("horsegear", "horse gear", "horse", "saddle", "stirrup", "bridle", "mount", "riding")),
+                ("Pet Gear", ("petgear", "pet gear", "companionpet")),
+                ("Vehicle", ("vehicle",)),
+            ),
+        ),
+        (
+            "Consumable",
+            (
+                ("Potion / Medicine", ("potion", "medicine", "elixir", "tonic", "remedy", "recovery")),
+                ("Food / Drink", ("food", "drink", "meal", "bread", "meat", "fruit", "carrot", "pear")),
+                ("Other Consumable", ("consumable",)),
+            ),
+        ),
+        (
+            "Crafting / Recipe",
+            (
+                ("Recipe Book", ("recipe", "craftingrecipe", "crafting recipe")),
+                ("Crafting", ("craft", "crafting")),
+            ),
+        ),
+        (
+            "Tool",
+            (
+                ("Backpack / Pack", ("backpack", "back_pack", "thrusterpack", "pack")),
+                ("Gathering Tool", ("pickaxe", "axe_tool", "gathering", "mining", "lumbering", "drill", "chainsaw", "hoe", "sickle", "trirake", "woodrake", "repairtool")),
+                ("Light / Lantern", ("lantern", "torch")),
+                ("Fishing", ("fishing", "rod")),
+                ("Throwable / Utility", ("bomb", "installationbomb", "bola", "dart")),
+                ("Hand Tool", ("broom", "rake", "saw", "stick", "abacus", "pen", "drum", "trumpet", "chain")),
+                ("Other Tool", ("tool",)),
+            ),
+        ),
+        (
+            "Material",
+            (
+                ("Ore / Metal", ("ore", "ingot", "metal")),
+                ("Cloth / Leather", ("cloth", "leather", "fabric")),
+                ("Wood / Stone", ("wood", "stone", "branch")),
+                ("Creature Part", ("horn", "tooth", "claw", "scale")),
+                ("Crystal / Gem", ("crystal", "gem")),
+                ("Other Material", ("material",)),
+            ),
+        ),
+        (
+            "Character Customization",
+            (
+                ("Hair", ("charactercustomize", "hair", "defulthair", "defaulthair", "tiehair")),
+                ("Body / Appearance", ("aging", "deaging", "scar", "customize")),
+            ),
+        ),
+        (
+            "Gimmick / Interactive",
+            (
+                ("Gimmick", ("gimmick", "circusmachine")),
+                ("Machine Part", ("machine", "core", "tank", "fusion")),
+            ),
+        ),
+        (
+            "Housing / Prop",
+            (
+                ("Furniture", ("furniture", "bookcase", "cabinet", "closet", "chair", "table", "bed", "shelf")),
+                ("Decor", ("flowerpot", "pot", "lamp", "picture", "painting", "trophy", "ornament", "doll", "bell", "thurible", "sphere", "globe", "pillar")),
+                ("Collection Prop", ("collection_prop", "collection prop", "housing")),
+                ("Container", ("chest", "box", "barrel", "crate")),
+            ),
+        ),
+        (
+            "Quest / Document",
+            (
+                ("Quest", ("quest",)),
+                ("Key / Permit", ("key", "homekey", "permit", "pass", "visitorpass", "license", "permission")),
+                ("Book / Diary", ("book", "diary", "journal", "epistle")),
+                ("Map / Treasure", ("map", "treasure", "treasuremap")),
+                ("Clue / Report", ("clue", "report", "record", "log", "evidence", "degree")),
+                ("Flag / Marker", ("flag", "marker", "picket")),
+                ("Document", ("document", "scroll", "letter", "paper", "bundle", "blueprint", "memo", "notepad", "manual")),
+                ("Token / Seal", ("token", "seal")),
+            ),
+        ),
+        (
+            "Progression / Reward",
+            (
+                ("Skill", ("skill",)),
+                ("Stat", ("stat", "attack", "defense", "resistance", "critical")),
+                ("Artifact", ("artifact",)),
+                ("Reward", ("reward", "bounty", "income", "contribution")),
+                ("Currency", ("money", "gold", "golden", "golden999k", "coin")),
+            ),
+        ),
+    )
+    for category, group_tests in category_tests:
+        for group, tokens in group_tests:
+            if _catalog_text_matches_any(text, tokens):
+                return category, group
+    return "Item", "Unclassified"
+
+
+def _catalog_scope_filter_for_item(item: ArchiveItemRecord) -> str:
+    patterns: List[str] = []
+    seen: set[str] = set()
+
+    def add(value: str, *, wildcard: bool = False) -> None:
+        normalized = str(value or "").replace("\\", "/").strip()
+        if not normalized:
+            return
+        if wildcard:
+            normalized = f"*{normalized.strip('*')}*"
+        lowered = normalized.lower()
+        if lowered not in seen:
+            patterns.append(normalized)
+            seen.add(lowered)
+
+    if item.display_name:
+        add(_catalog_display_base(item.display_name) or item.display_name)
+    add(item.internal_name)
+    for value in (*item.pac_files, *item.model_stems):
+        base = os.path.splitext(str(value or "").replace("\\", "/").rsplit("/", 1)[-1])[0]
+        add(base, wildcard=True)
+    for value in item.icon_paths[:6]:
+        base = os.path.splitext(str(value or "").replace("\\", "/").rsplit("/", 1)[-1])[0]
+        add(base, wildcard=True)
+    return "; ".join(patterns[:18])
+
+
+def _merge_catalog_entry(existing: ArchiveAssetCatalogEntry, item: ArchiveItemRecord) -> ArchiveAssetCatalogEntry:
+    def merged_tuple(*sources: Sequence[str]) -> tuple[str, ...]:
+        values: List[str] = []
+        seen: set[str] = set()
+        for source in sources:
+            for raw in source:
+                value = str(raw or "").strip()
+                lowered = value.lower()
+                if value and lowered not in seen:
+                    values.append(value)
+                    seen.add(lowered)
+        return tuple(values)
+
+    display_name = existing.display_name
+    item_display_base = _catalog_display_base(item.display_name)
+    if item_display_base and (_DISPLAY_VARIANT_SUFFIX_RE.search(display_name) or not display_name):
+        display_name = item_display_base
+    pac_files = merged_tuple(existing.pac_files, item.pac_files)
+    model_stems = merged_tuple(existing.model_stems, item.model_stems)
+    icon_paths = merged_tuple(existing.icon_paths, item.icon_paths)
+    localized_names = merged_tuple(existing.localized_names, item.localized_names)
+    variant_count = existing.variant_count + 1
+    scope_item = ArchiveItemRecord(
+        item_id=existing.item_id,
+        internal_name=existing.internal_name,
+        display_name=display_name,
+        localized_names=localized_names,
+        model_stems=list(model_stems),
+        pac_files=list(pac_files),
+        icon_paths=list(icon_paths),
+    )
+    evidence_parts = [existing.evidence]
+    if item.icon_paths:
+        evidence_parts.append("inventory icon path")
+    evidence = "; ".join(part for part in evidence_parts if part)
+    return ArchiveAssetCatalogEntry(
+        item_id=existing.item_id,
+        internal_name=existing.internal_name,
+        display_name=display_name or existing.internal_name,
+        category=existing.category,
+        group=existing.group,
+        pac_files=pac_files,
+        model_stems=model_stems,
+        icon_paths=icon_paths,
+        localized_names=localized_names,
+        variant_count=variant_count,
+        evidence=evidence or existing.evidence,
+        scope_filter=_catalog_scope_filter_for_item(scope_item),
+    )
+
+
+def _build_archive_asset_catalog_entries(items: Sequence[ArchiveItemRecord]) -> List[ArchiveAssetCatalogEntry]:
+    groups: Dict[str, ArchiveAssetCatalogEntry] = {}
+    for item in items:
+        display_base = _catalog_display_base(item.display_name)
+        internal_base = _catalog_internal_base(item.internal_name)
+        identity_basis = display_base.casefold() if display_base else internal_base
+        scope_basis = "|".join(sorted(_strip_archive_model_variant_suffix(value) for value in item.pac_files or item.model_stems))
+        group_key = f"{identity_basis}|{scope_basis or internal_base}"
+        category, catalog_group = _classify_archive_asset_catalog_category_group(item)
+        generated_display_name = not bool(display_base or item.display_name)
+        evidence_parts = []
+        if item.prefab_hashes:
+            evidence_parts.append("iteminfo prefab hash")
+        if item.model_stems:
+            evidence_parts.append("icon/model reference")
+        if item.display_name:
+            evidence_parts.append("localized display name")
+        if generated_display_name:
+            evidence_parts.append("generated friendly name")
+        if item.icon_paths:
+            evidence_parts.append("inventory icon path")
+        entry = ArchiveAssetCatalogEntry(
+            item_id=item.item_id,
+            internal_name=item.internal_name,
+            display_name=display_base or item.display_name or _friendly_internal_item_name(item.internal_name),
+            category=category,
+            group=catalog_group,
+            pac_files=tuple(item.pac_files),
+            model_stems=tuple(item.model_stems),
+            icon_paths=tuple(item.icon_paths),
+            localized_names=tuple(item.localized_names),
+            variant_count=1,
+            evidence="; ".join(evidence_parts) or "item database record",
+            scope_filter=_catalog_scope_filter_for_item(item),
+        )
+        if group_key in groups:
+            groups[group_key] = _merge_catalog_entry(groups[group_key], item)
+        else:
+            groups[group_key] = entry
+
+    return sorted(
+        groups.values(),
+        key=lambda entry: (
+            entry.category.lower(),
+            entry.group.lower(),
+            entry.display_name.lower(),
+            entry.internal_name.lower(),
+        ),
+    )
+
+
 def _build_archive_item_search_index_from_records(
     items: Sequence[ArchiveItemRecord],
     model_entries: Sequence[ArchiveEntry],
     *,
+    icon_path_index: Optional[Mapping[str, Sequence[str]]] = None,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> ArchiveItemSearchIndex:
     hash_table = _build_archive_model_hash_table_from_entries(model_entries)
@@ -543,6 +998,7 @@ def _build_archive_item_search_index_from_records(
     model_base_exact_display_names: Dict[str, str] = {}
     model_base_related_display_names: Dict[str, str] = {}
     items_with_models: List[ArchiveItemRecord] = []
+    icon_index = {str(key).strip().lower(): tuple(value) for key, value in (icon_path_index or {}).items()}
 
     for item in items:
         exact_model_names: List[str] = []
@@ -561,6 +1017,15 @@ def _build_archive_item_search_index_from_records(
                 and normalized_model_stem not in related_model_names
             ):
                 related_model_names.append(normalized_model_stem)
+
+        icon_paths: List[str] = []
+        for resolved in (*exact_model_names, *related_model_names):
+            for candidate_key in _iter_archive_model_hash_candidate_bases(resolved):
+                for icon_path in icon_index.get(candidate_key, ()):
+                    if icon_path not in icon_paths:
+                        icon_paths.append(str(icon_path))
+        if icon_paths:
+            item.icon_paths = icon_paths
 
         for resolved, match_kind in (
             *((value, "exact") for value in exact_model_names),
@@ -601,7 +1066,7 @@ def _build_archive_item_search_index_from_records(
                         _add_display_name(model_base_exact_display_names, base, item.display_name)
                 else:
                     _add_display_name(model_base_related_display_names, base, item.display_name)
-        if item.display_name and item.pac_files:
+        if item.pac_files:
             items_with_models.append(item)
 
     if on_log is not None:
@@ -612,6 +1077,9 @@ def _build_archive_item_search_index_from_records(
             f"linked {len(items_with_models):,} item(s) to model asset(s); "
             f"{exact_count:,} exact name key(s), {related_count:,} related/inferred name key(s)."
         )
+        catalog_count = len(_build_archive_asset_catalog_entries(items_with_models))
+        if catalog_count:
+            on_log(f"Item-name search: built {catalog_count:,} deduped asset catalog row(s).")
 
     return ArchiveItemSearchIndex(
         items=items_with_models,
@@ -620,6 +1088,7 @@ def _build_archive_item_search_index_from_records(
         model_base_display_names=model_base_display_names,
         model_base_exact_display_names=model_base_exact_display_names,
         model_base_related_display_names=model_base_related_display_names,
+        asset_catalog=_build_archive_asset_catalog_entries(items_with_models),
     )
 
 
@@ -644,6 +1113,10 @@ def build_archive_item_search_index(
                 on_log("Item-name search: iteminfo.pabgb was not found in package 0008.")
             items = []
         else:
+            icon_path_index = _build_archive_item_icon_path_index(sources.icon_entries)
+            if on_log is not None and icon_path_index:
+                path_count = sum(len(paths) for paths in icon_path_index.values())
+                on_log(f"Item-name search: indexed {path_count:,} item icon archive path link(s).")
             icon_model_hashes = _parse_archive_stringinfo_model_icon_hashes(
                 sources.stringinfo_entry,
                 stop_event=stop_event,
@@ -664,5 +1137,6 @@ def build_archive_item_search_index(
     return _build_archive_item_search_index_from_records(
         items,
         sources.model_entries,
+        icon_path_index=icon_path_index if "icon_path_index" in locals() else {},
         on_log=on_log,
     )

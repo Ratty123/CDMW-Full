@@ -8,7 +8,10 @@ from pathlib import PurePosixPath
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.archive import (
+    _binary_sidecar_asset_reference_rows,
+    _binary_sidecar_schema_declarations,
     _extract_archive_sidecar_texture_lookup_paths,
+    _extract_binary_string_records,
     _find_archive_model_sidecar_entries,
     read_archive_entry_data,
     try_decode_text_like_archive_data,
@@ -30,9 +33,21 @@ SWAP_SCOPE_FULL_APPEARANCE_REDIRECT = "full_appearance_redirect"
 
 _XML_DESCRIPTOR_EXTENSIONS = {".xml", ".app_xml", ".prefabdata_xml", ".paccd", ".pac_xml", ".pami"}
 _MATERIAL_SIDECAR_EXTENSIONS = {".pac_xml", ".pam_xml", ".pamlod_xml", ".pami", ".xml"}
-_SKELETON_EXTENSIONS = {".pab", ".pabc", ".pabv", ".papr"}
+_SKELETON_EXTENSIONS = {".pab", ".pabc", ".pabv", ".pabgb", ".pabgh", ".papr"}
 _PHYSICS_EXTENSIONS = {".hkx", ".hkt"}
-_ANIMATION_EXTENSIONS = {".pam", ".paa", ".pacb"}
+_ANIMATION_EXTENSIONS = {
+    ".pam",
+    ".paa",
+    ".paa_metabin",
+    ".pacb",
+    ".motionblending",
+    ".pae",
+    ".paem",
+    ".paseq",
+    ".paschedule",
+    ".paschedulepath",
+    ".pastage",
+}
 _UNRESOLVED_DESCRIPTOR_SUFFIXES = (".pabc", ".pabv", ".papr", ".hkt")
 _PATH_INDEX_CACHE: Dict[Tuple[int, int, str, str], Dict[str, List[ArchiveEntry]]] = {}
 _BASENAME_INDEX_CACHE: Dict[Tuple[int, int, str, str], Dict[str, List[ArchiveEntry]]] = {}
@@ -562,6 +577,108 @@ def _expand_prefabdata_graph(
     return _dedupe_edges(edges)
 
 
+def _prefab_declared_name_set(data: bytes) -> set[str]:
+    try:
+        schema = _binary_sidecar_schema_declarations(data, ".prefab")
+    except Exception:
+        return set()
+    rows = schema.get("declared_member_rows") if isinstance(schema, Mapping) else ()
+    return {
+        str(row.get("name") or "").strip().lstrip("_").lower()
+        for row in tuple(rows or ())
+        if isinstance(row, Mapping)
+    }
+
+
+def _prefab_role_for_reference(raw_reference: str, entry: Optional[ArchiveEntry], declared_names: set[str]) -> str:
+    reference_path = str(getattr(entry, "path", "") or raw_reference).replace("\\", "/").lower()
+    basename = PurePosixPath(reference_path).name
+    extension = str(getattr(entry, "extension", "") or PurePosixPath(reference_path).suffix).lower()
+    if "socket" in basename or basename.endswith(".sockets.xml"):
+        return "prefab_socket_descriptor"
+    if extension in {".pab", ".pabc", ".pabv", ".pabgb", ".pabgh"} or "skeleton" in basename:
+        return "prefab_skeleton_context"
+    if extension in _PHYSICS_EXTENSIONS or "physics" in reference_path or "ragdoll" in reference_path:
+        return "prefab_physics_context"
+    if extension in ARCHIVE_MESH_EXTENSIONS:
+        if any(name in declared_names for name in ("skinnedmeshfile", "skinnedmeshfilename", "skeletonfilename")):
+            return "prefab_skinned_model_resource"
+        return "prefab_model_resource"
+    if extension in _MATERIAL_SIDECAR_EXTENSIONS or "modelproperty" in reference_path:
+        return "prefab_material_context"
+    if extension == ".dds":
+        return "prefab_texture_hint"
+    if extension in _XML_DESCRIPTOR_EXTENSIONS:
+        return "prefab_descriptor"
+    return "prefab_reference"
+
+
+def _expand_binary_prefab_graph(
+    source_path: str,
+    prefab_entry: ArchiveEntry,
+    archive_entries: Sequence[ArchiveEntry] = (),
+    *,
+    basename_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    path_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+) -> Tuple[ArchiveRelationEdge, ...]:
+    if basename_index is None:
+        basename_index = _build_basename_index(archive_entries)
+    if path_index is None:
+        path_index = _build_path_index(archive_entries)
+    try:
+        data, _decompressed, _note = read_archive_entry_data(prefab_entry)
+    except Exception:
+        return ()
+
+    declared_names = _prefab_declared_name_set(data)
+    try:
+        string_records = _extract_binary_string_records(data, sample_limit=262_144, max_strings=512)
+        reference_rows = _binary_sidecar_asset_reference_rows(string_records, max_references=128)
+    except Exception:
+        reference_rows = ()
+
+    edges: List[ArchiveRelationEdge] = []
+    for row in tuple(reference_rows or ()):
+        if not isinstance(row, Mapping):
+            continue
+        raw_reference = str(row.get("path") or "").replace("\\", "/").strip()
+        if not raw_reference:
+            continue
+        resolved_entries = _resolve_basenames(
+            raw_reference,
+            "PrefabBinaryReference",
+            basename_index,
+            source_path=prefab_entry.path,
+            path_index=path_index,
+        )
+        if not resolved_entries:
+            suffix = PurePosixPath(raw_reference).suffix.lower()
+            if suffix in _UNRESOLVED_DESCRIPTOR_SUFFIXES:
+                edges.append(
+                    _unresolved_edge(
+                        source_path,
+                        raw_reference,
+                        "PrefabBinaryReference",
+                        role="prefab_unresolved_reference",
+                        reason=f"{prefab_entry.basename} contains an unresolved binary prefab reference",
+                    )
+                )
+            continue
+        for related in resolved_entries[:8]:
+            role = _prefab_role_for_reference(raw_reference, related, declared_names)
+            edges.append(
+                _edge_for_entry(
+                    source_path,
+                    related,
+                    role=role,
+                    confidence="prefab_binary_reference",
+                    reason=f"Referenced by binary prefab metadata in {prefab_entry.basename}",
+                )
+            )
+
+    return _dedupe_edges(edges)
+
+
 def build_archive_relationship_plan(
     entry: ArchiveEntry,
     archive_entries: Sequence[ArchiveEntry] = (),
@@ -674,6 +791,17 @@ def build_archive_relationship_plan(
     if relation_kind == "prefab_data":
         edges.extend(
             _expand_prefabdata_graph(
+                source_path,
+                entry,
+                archive_entries,
+                basename_index=basename_index,
+                path_index=path_index,
+            )
+        )
+
+    if relation_kind == "prefab":
+        edges.extend(
+            _expand_binary_prefab_graph(
                 source_path,
                 entry,
                 archive_entries,

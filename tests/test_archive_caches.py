@@ -192,6 +192,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 item_display_names={"a": "Test Item"},
                 item_exact_display_names={"a": "Test Item"},
                 item_related_display_names={"b": "Related Item"},
+                item_asset_catalog=[{"display_name": "Test Item", "scope_filter": "test item"}],
                 path_index=build_archive_entry_path_index(entries),
                 basename_index=build_archive_entry_basename_index(entries),
                 extension_index=build_archive_entry_extension_index(entries),
@@ -205,6 +206,7 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertEqual(payload.get("item_display_names"), {"a": "Test Item"})
             self.assertEqual(payload.get("item_exact_display_names"), {"a": "Test Item"})
             self.assertEqual(payload.get("item_related_display_names"), {"b": "Related Item"})
+            self.assertEqual(payload.get("item_asset_catalog"), [{"display_name": "Test Item", "scope_filter": "test item"}])
             self.assertNotIn("path_index", payload)
             self.assertNotIn("basename_index", payload)
             self.assertNotIn("extension_index", payload)
@@ -227,6 +229,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 item_display_names={"a": "Test Item"},
                 item_exact_display_names={"a": "Test Item"},
                 item_related_display_names={"b": "Related Item"},
+                item_asset_catalog=[{"display_name": "Test Item", "scope_filter": "test item"}],
                 path_index=build_archive_entry_path_index(entries),
                 basename_index=build_archive_entry_basename_index(entries),
                 extension_index=build_archive_entry_extension_index(entries),
@@ -236,7 +239,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 resolve_archive_derived_index_cache_path(root, cache_root)
             )
 
-            self.assertEqual(raw_payload.get("version"), 3)
+            self.assertEqual(raw_payload.get("version"), 5)
             self.assertNotIn("path_rows", raw_payload)
             self.assertNotIn("basename_rows", raw_payload)
             self.assertNotIn("extension_rows", raw_payload)

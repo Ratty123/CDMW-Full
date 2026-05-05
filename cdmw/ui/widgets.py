@@ -3,8 +3,9 @@ from __future__ import annotations
 from array import array
 from ctypes import byref, c_int
 from dataclasses import dataclass, fields as dataclass_fields
+import json
 import math
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 import re
 import time
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -76,6 +77,11 @@ from PySide6.QtWidgets import (
 from cdmw.models import (
     MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS,
     MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS,
+    HkxPhysicsOverlayAnchor,
+    HkxPhysicsOverlayBone,
+    HkxPhysicsOverlayConstraint,
+    HkxPhysicsOverlayData,
+    HkxPhysicsOverlayShape,
     ModelPreviewData,
     ModelPreviewMesh,
     ModelPreviewRenderSettings,
@@ -432,6 +438,8 @@ class _ModelPreviewDrawBatch:
     bitangent_finite_ratio: float = 1.0
     uv_finite_ratio: float = 1.0
     smooth_normal_ratio: float = 0.0
+    position_y_min: float = 0.0
+    position_y_max: float = 0.0
 
 
 @dataclass(slots=True)
@@ -450,6 +458,14 @@ class _TextureUploadDiagnostic:
     mipmaps_generated: bool = False
     gl_error: str = ""
     failure_reason: str = ""
+    native_texture_backend: str = ""
+    native_texture_status: str = ""
+    native_texture_format: str = ""
+    native_texture_slot: str = ""
+    native_texture_normal_space: str = ""
+    native_texture_normal_strength: float = 0.0
+    native_texture_alpha_coverage: float = 0.0
+    native_texture_scalar_range: Tuple[float, float] = ()
 
 
 @dataclass(slots=True)
@@ -527,6 +543,14 @@ class _BatchRenderDiagnostic:
     texture_uv_scale: Tuple[float, float] = ()
     visibility_guard: str = ""
     final_bucket: str = ""
+    native_texture_backend: str = ""
+    native_texture_status: str = ""
+    native_texture_format: str = ""
+    native_texture_slot: str = ""
+    native_texture_normal_space: str = ""
+    native_texture_normal_strength: float = 0.0
+    native_texture_alpha_coverage: float = 0.0
+    native_texture_scalar_range: Tuple[float, float] = ()
 
 
 @dataclass(slots=True)
@@ -1253,6 +1277,7 @@ class PreviewLabel(QLabel):
 class ModelPreviewWidget(QOpenGLWidget):
     view_state_changed = Signal(float, bool)
     debug_details_changed = Signal(str)
+    physics_overlay_target_selected = Signal(str, str, int, str, str)
     alignment_translate_requested = Signal(float, float, float)
     alignment_drag_started = Signal()
     alignment_drag_changed = Signal(float, float, float)
@@ -1298,6 +1323,7 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._overlay_text_color = QColor(get_theme(theme_key)["text_muted"])
         self._debug_overlay_lines: Tuple[str, ...] = ()
         self._debug_detail_lines: Tuple[str, ...] = ()
+        self._last_emitted_debug_details_text = ""
         self._model_summary = ""
         self._vertex_blob = b""
         self._vertex_count = 0
@@ -1357,6 +1383,10 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._shininess_min_uniform_location = -1
         self._shininess_max_uniform_location = -1
         self._height_shininess_boost_uniform_location = -1
+        self._cloth_preview_strength_uniform_location = -1
+        self._cloth_preview_time_uniform_location = -1
+        self._cloth_preview_bounds_uniform_location = -1
+        self._cloth_preview_offset_uniform_location = -1
         self._fit_to_view = True
         self._zoom_factor = 1.0
         self._distance = self._FIT_DISTANCE
@@ -1387,6 +1417,16 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._texture_objects: Dict[Tuple[str, bool, bool], QOpenGLTexture] = {}
         self._texture_upload_diagnostics: Dict[Tuple[str, bool, bool], _TextureUploadDiagnostic] = {}
         self._batch_render_diagnostics: Dict[int, _BatchRenderDiagnostic] = {}
+        self._physics_overlay: Optional[HkxPhysicsOverlayData] = None
+        self._physics_overlay_bones_visible = True
+        self._physics_hover_target: Tuple[str, str, int, str, Tuple[float, float, float]] = ()
+        self._physics_selected_target: Tuple[str, str, int, str, Tuple[float, float, float]] = ()
+        self._pending_physics_click_target: Tuple[str, str, int, str, Tuple[float, float, float]] = ()
+        self._pending_physics_click_pos = QPointF()
+        self._physics_edited_viewer_ids: set[str] = set()
+        self._physics_simulation_state: Dict[Tuple[str, int, str], Dict[str, object]] = {}
+        self._physics_simulation_last_step = time.monotonic()
+        self._physics_simulation_last_debug_refresh = 0.0
         self._batch_luma_diagnostics: Dict[int, _TextureVisibilitySample] = {}
         self._batch_material_luma_diagnostics: Dict[int, _TextureVisibilitySample] = {}
         self._batch_height_luma_diagnostics: Dict[int, _TextureVisibilitySample] = {}
@@ -1403,6 +1443,9 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._pan_poll_timer = QTimer(self)
         self._pan_poll_timer.setInterval(16)
         self._pan_poll_timer.timeout.connect(self._poll_pan_drag)
+        self._physics_simulation_timer = QTimer(self)
+        self._physics_simulation_timer.setInterval(33)
+        self._physics_simulation_timer.timeout.connect(self._step_physics_simulation_preview)
 
     def set_theme(self, theme_key: str) -> None:
         self._theme_key = theme_key
@@ -1527,11 +1570,17 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._message = message
         self._debug_overlay_lines = ()
         self._debug_detail_lines = ()
+        self._last_emitted_debug_details_text = ""
         self.debug_details_changed.emit("")
         self._model_summary = ""
         self._vertex_blob = b""
         self._vertex_count = 0
         self._current_model = None
+        self._physics_overlay = None
+        self._physics_hover_target = ()
+        self._physics_selected_target = ()
+        self._physics_simulation_state.clear()
+        self._physics_simulation_timer.stop()
         self._mesh_batches = []
         self._texture_upload_diagnostics.clear()
         self._batch_render_diagnostics.clear()
@@ -1606,12 +1655,23 @@ class ModelPreviewWidget(QOpenGLWidget):
                         texture_brightness=float(batch.preview_texture_brightness or 1.0),
                         texture_tint=tuple(batch.preview_texture_tint or ()),
                         texture_uv_scale=tuple(batch.preview_texture_uv_scale or ()),
+                        position_y_min=float(getattr(batch, "position_y_min", 0.0) or 0.0),
+                        position_y_max=float(getattr(batch, "position_y_max", 0.0) or 0.0),
                     )
                 )
                 first_vertex += int(batch.index_count)
         else:
             vertex_blob, vertex_count, mesh_batches = self._build_vertex_blob(cloned_model)
         self._current_model = cloned_model
+        self._physics_overlay = (
+            getattr(cloned_model, "physics_overlay", None)
+            if isinstance(getattr(cloned_model, "physics_overlay", None), HkxPhysicsOverlayData)
+            else None
+        )
+        self._physics_hover_target = ()
+        self._physics_selected_target = ()
+        self._physics_simulation_state.clear()
+        self._physics_simulation_last_step = time.monotonic()
         self._model_summary = getattr(cloned_model, "summary", "") or ""
         self._message = self._model_summary or "Model preview ready."
         self._vertex_blob = vertex_blob
@@ -1629,6 +1689,8 @@ class ModelPreviewWidget(QOpenGLWidget):
             self._alignment_live_translation = QVector3D(0.0, 0.0, 0.0)
         if not self._alignment_rotation_drag_active:
             self._alignment_live_rotation = QVector3D(0.0, 0.0, 0.0)
+        self._refresh_debug_overlay_lines()
+        self._sync_physics_simulation_timer()
         self._refresh_debug_overlay_lines()
         self._upload_geometry()
         self.view_state_changed.emit(self._zoom_factor, self._fit_to_view)
@@ -1683,6 +1745,8 @@ class ModelPreviewWidget(QOpenGLWidget):
                     texture_wrap_repeat=bool(batch.texture_wrap_repeat),
                     preview_debug_flip_base_v=False,
                     preview_debug_disable_support_maps=bool(batch.support_maps_disabled),
+                    position_y_min=float(getattr(batch, "position_y_min", 0.0) or 0.0),
+                    position_y_max=float(getattr(batch, "position_y_max", 0.0) or 0.0),
                 )
             )
         return cloned_model, PreparedModelPreviewData(
@@ -2742,6 +2806,14 @@ class ModelPreviewWidget(QOpenGLWidget):
             texture_brightness=float(batch.texture_brightness or 1.0),
             texture_tint=tuple(batch.texture_tint or ()),
             texture_uv_scale=tuple(batch.texture_uv_scale or ()),
+            native_texture_backend=str(upload_diagnostic.native_texture_backend if upload_diagnostic else ""),
+            native_texture_status=str(upload_diagnostic.native_texture_status if upload_diagnostic else ""),
+            native_texture_format=str(upload_diagnostic.native_texture_format if upload_diagnostic else ""),
+            native_texture_slot=str(upload_diagnostic.native_texture_slot if upload_diagnostic else ""),
+            native_texture_normal_space=str(upload_diagnostic.native_texture_normal_space if upload_diagnostic else ""),
+            native_texture_normal_strength=float(upload_diagnostic.native_texture_normal_strength if upload_diagnostic else 0.0),
+            native_texture_alpha_coverage=float(upload_diagnostic.native_texture_alpha_coverage if upload_diagnostic else 0.0),
+            native_texture_scalar_range=tuple(upload_diagnostic.native_texture_scalar_range if upload_diagnostic else ()),
         )
         if not batch.texture_key:
             diagnostic.failure_bucket = "image"
@@ -2935,6 +3007,15 @@ class ModelPreviewWidget(QOpenGLWidget):
         )
         relief_sources = sorted({item.relief_source for item in diagnostics if item.relief_source})
         relief_reason_text = relief_reasons[0] if relief_reasons else "All eligible batches have calibrated relief."
+        native_decoded = sum(1 for item in diagnostics if item.native_texture_status == "decoded")
+        native_backend_names = sorted({item.native_texture_backend for item in diagnostics if item.native_texture_backend})
+        native_backend_text = (
+            f"rust decoded {native_decoded:,}/{len(diagnostics):,} batch(es)"
+            if native_decoded
+            else "texconv fallback or non-native cache"
+        )
+        if native_backend_names:
+            native_backend_text = f"{native_backend_text}; backend={','.join(native_backend_names[:3])}"
         framebuffer = self._framebuffer_visibility_diagnostic
         dark_output = bool(framebuffer.visible_pixels > 0 and framebuffer.average_luma < 0.075 and framebuffer.dark_ratio > 0.60)
         settings = self.render_settings()
@@ -2962,6 +3043,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                 f"shader_mode_uniform_loc={int(getattr(self, '_render_diagnostic_mode_uniform_location', -1))}"
             ),
             f"Sampled base textures: {sampled:,} / {len(diagnostics):,}",
+            f"Native Texture Backend: {native_backend_text}",
             f"Blocked by image load: {blocked_image:,}",
             f"Blocked by UVs: {blocked_uv:,}",
             f"Blocked by GL upload: {blocked_upload:,}",
@@ -3041,6 +3123,25 @@ class ModelPreviewWidget(QOpenGLWidget):
                     )
                     support_parts.append(f"derived_relief_contrast={item.derived_relief_sampled_contrast:.3f}")
                 support_text = f", support_samples={' '.join(support_parts)}"
+            native_text = ""
+            if item.native_texture_backend:
+                native_parts = [
+                    f"backend={item.native_texture_backend}",
+                    f"status={item.native_texture_status or '-'}",
+                    f"format={item.native_texture_format or '-'}",
+                    f"slot={item.native_texture_slot or '-'}",
+                ]
+                if item.native_texture_normal_space:
+                    native_parts.append(f"normal_space={item.native_texture_normal_space}")
+                if item.native_texture_normal_strength > 0.0:
+                    native_parts.append(f"normal_strength={item.native_texture_normal_strength:.2f}")
+                if item.native_texture_alpha_coverage > 0.0:
+                    native_parts.append(f"alpha_coverage={item.native_texture_alpha_coverage:.0%}")
+                if len(item.native_texture_scalar_range) >= 2:
+                    native_parts.append(
+                        f"scalar_range={item.native_texture_scalar_range[0]:.3f}-{item.native_texture_scalar_range[1]:.3f}"
+                    )
+                native_text = f", native_texture={' '.join(native_parts)}"
             final_bucket = item.final_bucket
             if item.alpha_discard_risk and item.alpha_handling_mode == "default":
                 final_bucket = "alpha discard hid base"
@@ -3083,7 +3184,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                 f"wrap={self._yes_no(item.texture_wrap_repeat)}, brightness={item.texture_brightness:.2f}, "
                 f"tint={self._format_float_tuple(item.texture_tint, default='1/1/1')}, "
                 f"uv_scale={self._format_float_tuple(item.texture_uv_scale, default='1/1')}"
-                f"{luma_text}{support_text}"
+                f"{luma_text}{support_text}{native_text}"
             )
             if final_bucket:
                 line = f"{line}, final_bucket={final_bucket}"
@@ -3101,7 +3202,9 @@ class ModelPreviewWidget(QOpenGLWidget):
         if not meshes:
             self._debug_overlay_lines = ()
             self._debug_detail_lines = ()
-            self.debug_details_changed.emit("")
+            if self._last_emitted_debug_details_text:
+                self._last_emitted_debug_details_text = ""
+                self.debug_details_changed.emit("")
             return
         base_names: List[str] = []
         normal_names: List[str] = []
@@ -3212,11 +3315,61 @@ class ModelPreviewWidget(QOpenGLWidget):
                 + (f" while {'/'.join(disabled_adjustments)} adjustment(s) are disabled." if disabled_adjustments else ".")
             )
         self._debug_overlay_lines = (
-            f"Visible Mode: {self._visible_texture_mode_label()}",
+            (
+                f"Visible Mode: {self._visible_texture_mode_label()} | "
+                f"{self._physics_overlay.summary}"
+                if isinstance(self._physics_overlay, HkxPhysicsOverlayData) and self._physics_overlay.shapes
+                else f"Visible Mode: {self._visible_texture_mode_label()}"
+            ),
         )
         render_diagnostic_lines = self._render_sampling_diagnostic_lines()
+        physics_overlay_detail_lines: Tuple[str, ...] = ()
+        if isinstance(self._physics_overlay, HkxPhysicsOverlayData) and self._physics_overlay.shapes:
+            dynamic_shape_count = sum(
+                1
+                for shape in tuple(self._physics_overlay.shapes)
+                if isinstance(shape, HkxPhysicsOverlayShape)
+                and self._physics_simulation_role_is_dynamic(str(getattr(shape, "simulation_role", "") or ""))
+                and bool(self._physics_shape_rest_position(shape))
+            )
+            dynamic_guide_count = sum(
+                1
+                for constraint in tuple(self._physics_overlay.constraints)
+                if isinstance(constraint, HkxPhysicsOverlayConstraint)
+                and self._physics_simulation_role_is_dynamic(str(getattr(constraint, "simulation_role", "") or ""))
+            )
+            cloth_deform_count = self._cloth_deformation_preview_batch_count()
+            role_counts = tuple(getattr(self._physics_overlay, "simulation_role_counts", ()) or ())
+            role_text = ", ".join(f"{role}={count}" for role, count in role_counts[:6]) if role_counts else "none decoded"
+            simulation_enabled = bool(getattr(self.render_settings(), "show_physics_simulation_preview", True))
+            overlay_enabled = bool(getattr(self.render_settings(), "show_physics_overlay", True))
+            sim_status = "running" if self._physics_simulation_timer.isActive() else "available"
+            if not simulation_enabled:
+                sim_status = "disabled: animation checkbox off"
+            elif not overlay_enabled and cloth_deform_count > 0:
+                sim_status = "running: cloth mesh physics preview" if self._physics_simulation_timer.isActive() else "available: cloth mesh physics preview"
+            elif not overlay_enabled:
+                sim_status = "disabled: overlay hidden"
+            elif not (dynamic_shape_count or dynamic_guide_count or cloth_deform_count):
+                sim_status = "no decoded dynamic roles"
+            physics_overlay_detail_lines = (
+                (
+                    f"Physics Overlay Counts: shapes={len(self._physics_overlay.shapes):,}, "
+                    f"anchors={len(self._physics_overlay.anchors):,}, "
+                    f"guides={len(self._physics_overlay.constraints):,}, "
+                    f"bones={len(self._physics_overlay.bones):,}"
+                ),
+                (
+                    f"Physics Animation Preview: {sim_status}; "
+                    f"dynamic_shapes={dynamic_shape_count:,}, dynamic_guides={dynamic_guide_count:,}, "
+                    f"mesh_deform_batches={cloth_deform_count:,}, roles={role_text}"
+                ),
+                f"Physics Overlay Sources: {self._summarize_overlay_values(self._physics_overlay.source_paths)}",
+                f"Physics Overlay Limitations: {self._summarize_overlay_values(self._physics_overlay.limitations)}",
+            )
         self._debug_detail_lines = (
             self._debug_overlay_lines[0],
+            *physics_overlay_detail_lines,
             f"Base: {self._summarize_overlay_values(base_names)}",
             f"Normal: {self._summarize_overlay_values(normal_names)}",
             f"Material: {self._summarize_overlay_values(material_names)}",
@@ -3239,7 +3392,10 @@ class ModelPreviewWidget(QOpenGLWidget):
             f"Overrides: {', '.join(override_labels) if override_labels else 'None'}",
             *render_diagnostic_lines,
         )
-        self.debug_details_changed.emit("\n".join(self._debug_detail_lines))
+        details_text = "\n".join(self._debug_detail_lines)
+        if details_text != self._last_emitted_debug_details_text:
+            self._last_emitted_debug_details_text = details_text
+            self.debug_details_changed.emit(details_text)
 
     def _visible_texture_mode_label(self) -> str:
         settings = self.render_settings()
@@ -3293,6 +3449,14 @@ class ModelPreviewWidget(QOpenGLWidget):
             self._clear_gl_textures()
             self._rebuild_gl_textures()
             self.doneCurrent()
+        if previous.show_physics_overlay != clamped.show_physics_overlay or (
+            getattr(previous, "show_physics_simulation_preview", True)
+            != getattr(clamped, "show_physics_simulation_preview", True)
+        ):
+            if not bool(getattr(clamped, "show_physics_simulation_preview", True)):
+                self._physics_simulation_state.clear()
+            self._sync_physics_simulation_timer()
+            self._refresh_debug_overlay_lines()
         self.update()
 
     def set_high_quality_textures(self, enabled: bool) -> None:
@@ -3468,6 +3632,10 @@ class ModelPreviewWidget(QOpenGLWidget):
             attribute vec3 smooth_normal;
             uniform mat4 mvp_matrix;
             uniform mat4 model_matrix;
+            uniform float cloth_preview_strength;
+            uniform float cloth_preview_time;
+            uniform vec2 cloth_preview_y_bounds;
+            uniform vec3 cloth_preview_offset;
             varying vec3 frag_position;
             varying vec3 frag_normal;
             varying vec3 frag_smooth_normal;
@@ -3487,14 +3655,29 @@ class ModelPreviewWidget(QOpenGLWidget):
                 return normalized;
             }
             void main() {
-                frag_position = (model_matrix * vec4(position, 1.0)).xyz;
+                vec3 preview_position = position;
+                if (cloth_preview_strength > 0.0001) {
+                    float span_y = max(0.0001, cloth_preview_y_bounds.y - cloth_preview_y_bounds.x);
+                    float free_weight = clamp((cloth_preview_y_bounds.y - position.y) / span_y, 0.0, 1.0);
+                    free_weight = free_weight * free_weight * (3.0 - 2.0 * free_weight);
+                    float wave_a = sin((cloth_preview_time * 2.35) + (position.y * 3.10) + (position.x * 1.35));
+                    float wave_b = cos((cloth_preview_time * 1.80) + (position.z * 2.05));
+                    vec3 sway = vec3(
+                        (wave_a * 0.060) + (wave_b * 0.030),
+                        sin((cloth_preview_time * 1.45) + (position.x * 0.80)) * 0.012,
+                        (wave_b * 0.045) + (wave_a * 0.020)
+                    );
+                    vec3 spring_offset = cloth_preview_offset * (0.40 + free_weight * 1.35);
+                    preview_position += (sway + spring_offset) * cloth_preview_strength * free_weight;
+                }
+                frag_position = (model_matrix * vec4(preview_position, 1.0)).xyz;
                 frag_normal = safe_normalize((model_matrix * vec4(normal, 0.0)).xyz, vec3(0.0, 0.0, 1.0));
                 frag_smooth_normal = safe_normalize((model_matrix * vec4(smooth_normal, 0.0)).xyz, frag_normal);
                 frag_tangent = safe_normalize((model_matrix * vec4(tangent, 0.0)).xyz, vec3(1.0, 0.0, 0.0));
                 frag_bitangent = safe_normalize((model_matrix * vec4(bitangent, 0.0)).xyz, vec3(0.0, 1.0, 0.0));
                 frag_color = color;
                 frag_texcoord = texcoord;
-                gl_Position = mvp_matrix * vec4(position, 1.0);
+                gl_Position = mvp_matrix * vec4(preview_position, 1.0);
             }
             """,
         ):
@@ -4539,6 +4722,10 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._shininess_min_uniform_location = program.uniformLocation("shininess_min")
         self._shininess_max_uniform_location = program.uniformLocation("shininess_max")
         self._height_shininess_boost_uniform_location = program.uniformLocation("height_shininess_boost")
+        self._cloth_preview_strength_uniform_location = program.uniformLocation("cloth_preview_strength")
+        self._cloth_preview_time_uniform_location = program.uniformLocation("cloth_preview_time")
+        self._cloth_preview_bounds_uniform_location = program.uniformLocation("cloth_preview_y_bounds")
+        self._cloth_preview_offset_uniform_location = program.uniformLocation("cloth_preview_offset")
         self._vertex_array.create()
         self._vertex_buffer.create()
         self._vertex_buffer.setUsagePattern(QOpenGLBuffer.StaticDraw)
@@ -4886,6 +5073,14 @@ class ModelPreviewWidget(QOpenGLWidget):
                 texture_brightness=float(batch.texture_brightness or 1.0),
                 texture_tint=tuple(batch.texture_tint or ()),
                 texture_uv_scale=tuple(batch.texture_uv_scale or ()),
+                native_texture_backend=str(upload_diagnostic.native_texture_backend if upload_diagnostic else ""),
+                native_texture_status=str(upload_diagnostic.native_texture_status if upload_diagnostic else ""),
+                native_texture_format=str(upload_diagnostic.native_texture_format if upload_diagnostic else ""),
+                native_texture_slot=str(upload_diagnostic.native_texture_slot if upload_diagnostic else ""),
+                native_texture_normal_space=str(upload_diagnostic.native_texture_normal_space if upload_diagnostic else ""),
+                native_texture_normal_strength=float(upload_diagnostic.native_texture_normal_strength if upload_diagnostic else 0.0),
+                native_texture_alpha_coverage=float(upload_diagnostic.native_texture_alpha_coverage if upload_diagnostic else 0.0),
+                native_texture_scalar_range=tuple(upload_diagnostic.native_texture_scalar_range if upload_diagnostic else ()),
                 visibility_guard=(
                     "active"
                     if bool(use_texture) and luma is not None and luma.average_luma >= 0.075
@@ -4986,6 +5181,34 @@ class ModelPreviewWidget(QOpenGLWidget):
                 self._render_diagnostic_mode_uniform_location,
                 int(render_mode_code),
             )
+            cloth_preview_strength = self._batch_cloth_deformation_strength(batch)
+            if cloth_preview_strength > 0.0:
+                y_min = float(getattr(batch, "position_y_min", 0.0) or 0.0)
+                y_max = float(getattr(batch, "position_y_max", 0.0) or 0.0)
+                if y_max <= y_min:
+                    y_max = y_min + 1.0
+                cloth_offset = self._cloth_deformation_preview_offset()
+                self._program.setUniformValue(
+                    self._cloth_preview_strength_uniform_location,
+                    float(cloth_preview_strength),
+                )
+                self._program.setUniformValue(
+                    self._cloth_preview_time_uniform_location,
+                    float(time.monotonic()),
+                )
+                self._program.setUniformValue(
+                    self._cloth_preview_bounds_uniform_location,
+                    QVector2D(y_min, y_max),
+                )
+                self._program.setUniformValue(
+                    self._cloth_preview_offset_uniform_location,
+                    QVector3D(float(cloth_offset[0]), float(cloth_offset[1]), float(cloth_offset[2])),
+                )
+            else:
+                self._program.setUniformValue(self._cloth_preview_strength_uniform_location, 0.0)
+                self._program.setUniformValue(self._cloth_preview_time_uniform_location, 0.0)
+                self._program.setUniformValue(self._cloth_preview_bounds_uniform_location, QVector2D(0.0, 1.0))
+                self._program.setUniformValue(self._cloth_preview_offset_uniform_location, QVector3D(0.0, 0.0, 0.0))
             bind_error = ""
             if use_texture and diffuse_draw_texture is not None:
                 try:
@@ -5169,12 +5392,13 @@ class ModelPreviewWidget(QOpenGLWidget):
         color: QColor,
         *,
         width: float = 1.0,
+        style: Qt.PenStyle = Qt.SolidLine,
     ) -> None:
         line_points = self._project_preview_line(mvp, start, end)
         if line_points is None:
             return
         start_point, end_point = line_points
-        painter.setPen(QPen(color, width))
+        painter.setPen(QPen(color, width, style))
         painter.drawLine(start_point, end_point)
 
     def _clamped_overlay_point(self, point: QPointF, *, margin: float = 12.0) -> QPointF:
@@ -5259,6 +5483,1285 @@ class ModelPreviewWidget(QOpenGLWidget):
             painter.setPen(QPen(QColor(255, 255, 255, 105), 1.0))
             painter.drawEllipse(center, 2.0, 2.0)
         self._draw_alignment_corner_axis_gizmo(painter)
+
+    @staticmethod
+    def _physics_simulation_role_color(role: str) -> QColor:
+        normalized = str(role or "").strip().lower()
+        if normalized == "hair":
+            return QColor(192, 132, 252, 220)
+        if normalized == "cloth":
+            return QColor(45, 212, 191, 220)
+        if normalized == "body_soft":
+            return QColor(244, 114, 182, 220)
+        if normalized == "attachment":
+            return QColor(129, 140, 248, 215)
+        if normalized == "ragdoll":
+            return QColor(251, 146, 60, 215)
+        return QColor()
+
+    @staticmethod
+    def _physics_simulation_role_is_dynamic(role: str) -> bool:
+        return str(role or "").strip().lower() in {"hair", "cloth", "body_soft", "attachment"}
+
+    def _physics_overlay_has_dynamic_guides(self) -> bool:
+        overlay = self._physics_overlay
+        if not isinstance(overlay, HkxPhysicsOverlayData) or not overlay.shapes:
+            return False
+        for constraint in tuple(getattr(overlay, "constraints", ()) or ()):
+            if not isinstance(constraint, HkxPhysicsOverlayConstraint):
+                continue
+            if not self._physics_simulation_role_is_dynamic(str(getattr(constraint, "simulation_role", "") or "")):
+                continue
+            if len(tuple(getattr(constraint, "start", ()) or ())) >= 3 and len(tuple(getattr(constraint, "end", ()) or ())) >= 3:
+                return True
+        for shape in tuple(getattr(overlay, "shapes", ()) or ()):
+            if not isinstance(shape, HkxPhysicsOverlayShape):
+                continue
+            if not self._physics_simulation_role_is_dynamic(str(getattr(shape, "simulation_role", "") or "")):
+                continue
+            if self._physics_shape_rest_position(shape):
+                return True
+        return False
+
+    def _physics_overlay_dynamic_roles(self) -> set[str]:
+        overlay = self._physics_overlay
+        if not isinstance(overlay, HkxPhysicsOverlayData):
+            return set()
+        roles: set[str] = set()
+        for shape in tuple(getattr(overlay, "shapes", ()) or ()):
+            if not isinstance(shape, HkxPhysicsOverlayShape):
+                continue
+            role = str(getattr(shape, "simulation_role", "") or "").strip().lower()
+            if self._physics_simulation_role_is_dynamic(role):
+                roles.add(role)
+        for constraint in tuple(getattr(overlay, "constraints", ()) or ()):
+            if not isinstance(constraint, HkxPhysicsOverlayConstraint):
+                continue
+            role = str(getattr(constraint, "simulation_role", "") or "").strip().lower()
+            if self._physics_simulation_role_is_dynamic(role):
+                roles.add(role)
+        return roles
+
+    def _batch_cloth_deformation_strength(self, batch: _ModelPreviewDrawBatch) -> float:
+        if not bool(getattr(self.render_settings(), "show_physics_simulation_preview", True)):
+            return 0.0
+        dynamic_roles = self._physics_overlay_dynamic_roles()
+        if not dynamic_roles:
+            return 0.0
+        label_text = " ".join(
+            str(value or "").strip().lower()
+            for value in (
+                batch.material_name,
+                batch.texture_name,
+                batch.texture_key,
+                batch.normal_texture_key,
+                batch.material_texture_key,
+                batch.height_texture_key,
+            )
+            if str(value or "").strip()
+        )
+        cloth_tokens = ("cloak", "cloth", "cape", "skirt", "dress", "fur", "hair", "tail", "ribbon")
+        body_soft_tokens = ("body", "breast", "belly", "soft")
+        if "cloth" in dynamic_roles and any(token in label_text for token in cloth_tokens):
+            return 1.0
+        if "hair" in dynamic_roles and any(token in label_text for token in ("hair", "fur", "tail")):
+            return 0.75
+        if "body_soft" in dynamic_roles and any(token in label_text for token in body_soft_tokens):
+            return 0.45
+        if "attachment" in dynamic_roles and any(token in label_text for token in cloth_tokens):
+            return 0.55
+        return 0.0
+
+    def _cloth_deformation_preview_batch_count(self) -> int:
+        if not self._mesh_batches:
+            return 0
+        return sum(1 for batch in self._mesh_batches if self._batch_cloth_deformation_strength(batch) > 0.0)
+
+    def _cloth_deformation_preview_offset(self) -> Tuple[float, float, float]:
+        accum = [0.0, 0.0, 0.0]
+        count = 0
+        for key, state in tuple(self._physics_simulation_state.items()):
+            if not isinstance(state, dict):
+                continue
+            source_key = str(key[0] if key else "")
+            if not source_key.startswith("shape:"):
+                continue
+            position = self._physics_tuple3(tuple(state.get("position", ()) or ()))
+            rest = self._physics_tuple3(tuple(state.get("rest", ()) or ()))
+            if not position or not rest:
+                continue
+            accum[0] += position[0] - rest[0]
+            accum[1] += position[1] - rest[1]
+            accum[2] += position[2] - rest[2]
+            count += 1
+        if count <= 0:
+            return (0.0, 0.0, 0.0)
+        return (
+            max(-0.18, min(0.18, accum[0] / count)),
+            max(-0.12, min(0.12, accum[1] / count)),
+            max(-0.18, min(0.18, accum[2] / count)),
+        )
+
+    def _sync_physics_simulation_timer(self) -> None:
+        was_active = self._physics_simulation_timer.isActive()
+        simulation_enabled = bool(getattr(self.render_settings(), "show_physics_simulation_preview", True))
+        overlay_enabled = bool(getattr(self.render_settings(), "show_physics_overlay", True))
+        enabled = (
+            simulation_enabled
+            and (
+                (overlay_enabled and self._physics_overlay_has_dynamic_guides())
+                or self._cloth_deformation_preview_batch_count() > 0
+            )
+        )
+        if enabled:
+            self._physics_simulation_last_step = time.monotonic()
+            if not self._physics_simulation_timer.isActive():
+                self._physics_simulation_timer.start()
+        else:
+            self._physics_simulation_timer.stop()
+        if was_active != self._physics_simulation_timer.isActive():
+            self._refresh_debug_overlay_lines()
+
+    @staticmethod
+    def _physics_simulation_key(constraint: HkxPhysicsOverlayConstraint, index: int) -> Tuple[str, int, str]:
+        return (
+            str(getattr(constraint, "source_path", "") or ""),
+            int(index),
+            str(getattr(constraint, "label", "") or getattr(constraint, "constraint_type", "") or ""),
+        )
+
+    @staticmethod
+    def _physics_shape_simulation_key(shape: HkxPhysicsOverlayShape, index: int) -> Tuple[str, int, str]:
+        source_index = int(getattr(shape, "source_shape_index", index) if getattr(shape, "source_shape_index", -1) >= 0 else index)
+        return (
+            "shape:" + str(getattr(shape, "source_path", "") or ""),
+            source_index,
+            str(getattr(shape, "label", "") or getattr(shape, "shape_type", "") or ""),
+        )
+
+    @staticmethod
+    def _physics_simulation_params(role: str) -> Tuple[float, float, float, float]:
+        normalized = str(role or "").strip().lower()
+        if normalized == "hair":
+            return 10.0, 2.2, 0.20, 0.08
+        if normalized == "cloth":
+            return 14.0, 3.0, 0.16, 0.06
+        if normalized == "body_soft":
+            return 24.0, 5.2, 0.09, 0.035
+        if normalized == "attachment":
+            return 18.0, 3.8, 0.13, 0.05
+        return 18.0, 4.0, 0.10, 0.04
+
+    @staticmethod
+    def _physics_tuple3(value: Sequence[object]) -> Tuple[float, float, float]:
+        if len(value) < 3:
+            return ()
+        try:
+            result = (float(value[0]), float(value[1]), float(value[2]))
+        except (TypeError, ValueError, OverflowError):
+            return ()
+        return result if all(math.isfinite(component) for component in result) else ()
+
+    def _physics_shape_rest_position(self, shape: HkxPhysicsOverlayShape) -> Tuple[float, float, float]:
+        for value in (
+            tuple(getattr(shape, "center", ()) or ()),
+            tuple(getattr(shape, "capsule_end", ()) or ()),
+            tuple(getattr(shape, "capsule_start", ()) or ()),
+        ):
+            point = self._physics_tuple3(value)
+            if point:
+                return point
+        vertices = tuple(getattr(shape, "vertices", ()) or ())
+        if vertices:
+            accum = [0.0, 0.0, 0.0]
+            count = 0
+            for vertex in vertices[:128]:
+                point = self._physics_tuple3(tuple(vertex))
+                if not point:
+                    continue
+                accum[0] += point[0]
+                accum[1] += point[1]
+                accum[2] += point[2]
+                count += 1
+            if count:
+                return (accum[0] / count, accum[1] / count, accum[2] / count)
+        bounds_min = self._physics_tuple3(tuple(getattr(shape, "bounds_min", ()) or ()))
+        bounds_max = self._physics_tuple3(tuple(getattr(shape, "bounds_max", ()) or ()))
+        if bounds_min and bounds_max:
+            return (
+                (bounds_min[0] + bounds_max[0]) * 0.5,
+                (bounds_min[1] + bounds_max[1]) * 0.5,
+                (bounds_min[2] + bounds_max[2]) * 0.5,
+            )
+        return ()
+
+    def _physics_shape_motion_limit(self, shape: HkxPhysicsOverlayShape, rest: Tuple[float, float, float]) -> float:
+        radius = abs(float(getattr(shape, "radius", 0.0) or 0.0))
+        bounds_min = self._physics_tuple3(tuple(getattr(shape, "bounds_min", ()) or ()))
+        bounds_max = self._physics_tuple3(tuple(getattr(shape, "bounds_max", ()) or ()))
+        extent = 0.0
+        if bounds_min and bounds_max:
+            dx = bounds_max[0] - bounds_min[0]
+            dy = bounds_max[1] - bounds_min[1]
+            dz = bounds_max[2] - bounds_min[2]
+            extent = math.sqrt(max(0.0, dx * dx + dy * dy + dz * dz))
+        capsule_start = self._physics_tuple3(tuple(getattr(shape, "capsule_start", ()) or ()))
+        capsule_end = self._physics_tuple3(tuple(getattr(shape, "capsule_end", ()) or ()))
+        if capsule_start and capsule_end:
+            dx = capsule_end[0] - capsule_start[0]
+            dy = capsule_end[1] - capsule_start[1]
+            dz = capsule_end[2] - capsule_start[2]
+            extent = max(extent, math.sqrt(dx * dx + dy * dy + dz * dz))
+        vertices = tuple(getattr(shape, "vertices", ()) or ())
+        if vertices:
+            sampled_extent = 0.0
+            for vertex in vertices[:128]:
+                point = self._physics_tuple3(tuple(vertex))
+                if not point:
+                    continue
+                dx = point[0] - rest[0]
+                dy = point[1] - rest[1]
+                dz = point[2] - rest[2]
+                sampled_extent = max(sampled_extent, math.sqrt(dx * dx + dy * dy + dz * dz))
+            extent = max(extent, sampled_extent)
+        base = max(radius * 0.75, extent * 0.08, 0.025)
+        return max(0.025, min(0.42, base))
+
+    def _step_physics_simulation_preview(self) -> None:
+        overlay = self._physics_overlay
+        simulation_enabled = bool(getattr(self.render_settings(), "show_physics_simulation_preview", True))
+        overlay_enabled = bool(getattr(self.render_settings(), "show_physics_overlay", True))
+        if (
+            not simulation_enabled
+            or not isinstance(overlay, HkxPhysicsOverlayData)
+            or not overlay.shapes
+            or (not overlay_enabled and self._cloth_deformation_preview_batch_count() <= 0)
+        ):
+            self._physics_simulation_timer.stop()
+            return
+        now = time.monotonic()
+        dt = max(0.001, min(0.05, now - float(self._physics_simulation_last_step or now)))
+        self._physics_simulation_last_step = now
+        active_keys: set[Tuple[str, int, str]] = set()
+        changed = False
+        if overlay_enabled:
+            for index, constraint in enumerate(tuple(getattr(overlay, "constraints", ()) or ())[:160]):
+                if not isinstance(constraint, HkxPhysicsOverlayConstraint):
+                    continue
+                role = str(getattr(constraint, "simulation_role", "") or "")
+                if not self._physics_simulation_role_is_dynamic(role):
+                    continue
+                rest = self._physics_tuple3(tuple(getattr(constraint, "start", ()) or ()))
+                fixed = self._physics_tuple3(tuple(getattr(constraint, "end", ()) or ()))
+                if not rest or not fixed:
+                    continue
+                key = self._physics_simulation_key(constraint, index)
+                active_keys.add(key)
+                state = self._physics_simulation_state.get(key)
+                if not isinstance(state, dict):
+                    state = {"position": rest, "velocity": (0.0, 0.0, 0.0)}
+                    self._physics_simulation_state[key] = state
+                position = self._physics_tuple3(tuple(state.get("position", rest) or rest))
+                velocity = self._physics_tuple3(tuple(state.get("velocity", (0.0, 0.0, 0.0)) or (0.0, 0.0, 0.0)))
+                if not position or not velocity:
+                    position = rest
+                    velocity = (0.0, 0.0, 0.0)
+                stiffness, damping, wind_scale, gravity_scale = self._physics_simulation_params(role)
+                tx = position[0] - fixed[0]
+                ty = position[1] - fixed[1]
+                tz = position[2] - fixed[2]
+                distance = max(1e-5, math.sqrt(tx * tx + ty * ty + tz * tz))
+                rx = rest[0] - fixed[0]
+                ry = rest[1] - fixed[1]
+                rz = rest[2] - fixed[2]
+                rest_length = max(1e-5, math.sqrt(rx * rx + ry * ry + rz * rz))
+                stretch = distance - rest_length
+                wind = math.sin(now * 1.7 + index * 0.61) * wind_scale
+                force = (
+                    (-stiffness * stretch * (tx / distance)) + ((rest[0] - position[0]) * stiffness * 0.35) + wind,
+                    (-stiffness * stretch * (ty / distance)) + ((rest[1] - position[1]) * stiffness * 0.35) - gravity_scale,
+                    (-stiffness * stretch * (tz / distance)) + ((rest[2] - position[2]) * stiffness * 0.35) + (wind * 0.35),
+                )
+                new_velocity = (
+                    (velocity[0] + force[0] * dt) * max(0.0, 1.0 - damping * dt),
+                    (velocity[1] + force[1] * dt) * max(0.0, 1.0 - damping * dt),
+                    (velocity[2] + force[2] * dt) * max(0.0, 1.0 - damping * dt),
+                )
+                max_offset = rest_length * 0.85 + 0.08
+                new_position = (
+                    position[0] + new_velocity[0] * dt,
+                    position[1] + new_velocity[1] * dt,
+                    position[2] + new_velocity[2] * dt,
+                )
+                ox = new_position[0] - rest[0]
+                oy = new_position[1] - rest[1]
+                oz = new_position[2] - rest[2]
+                offset = math.sqrt(ox * ox + oy * oy + oz * oz)
+                if offset > max_offset > 0.0:
+                    scale = max_offset / offset
+                    new_position = (rest[0] + ox * scale, rest[1] + oy * scale, rest[2] + oz * scale)
+                    new_velocity = (new_velocity[0] * 0.35, new_velocity[1] * 0.35, new_velocity[2] * 0.35)
+                state["position"] = new_position
+                state["velocity"] = new_velocity
+                changed = True
+        for index, shape in enumerate(tuple(getattr(overlay, "shapes", ()) or ())[:96]):
+            if not isinstance(shape, HkxPhysicsOverlayShape):
+                continue
+            role = str(getattr(shape, "simulation_role", "") or "")
+            if not self._physics_simulation_role_is_dynamic(role):
+                continue
+            rest = self._physics_shape_rest_position(shape)
+            if not rest:
+                continue
+            key = self._physics_shape_simulation_key(shape, index)
+            active_keys.add(key)
+            state = self._physics_simulation_state.get(key)
+            if not isinstance(state, dict):
+                state = {"position": rest, "velocity": (0.0, 0.0, 0.0)}
+                self._physics_simulation_state[key] = state
+            position = self._physics_tuple3(tuple(state.get("position", rest) or rest))
+            velocity = self._physics_tuple3(tuple(state.get("velocity", (0.0, 0.0, 0.0)) or (0.0, 0.0, 0.0)))
+            if not position or not velocity:
+                position = rest
+                velocity = (0.0, 0.0, 0.0)
+            stiffness, damping, wind_scale, gravity_scale = self._physics_simulation_params(role)
+            phase = index * 0.47 + float(getattr(shape, "source_shape_index", index) if getattr(shape, "source_shape_index", -1) >= 0 else index) * 0.13
+            wind_x = math.sin(now * 1.35 + phase) * wind_scale * 2.4
+            wind_z = math.cos(now * 1.05 + phase * 0.7) * wind_scale * 1.15
+            shape_stiffness = stiffness * 0.28
+            force = (
+                ((rest[0] - position[0]) * shape_stiffness) + wind_x,
+                ((rest[1] - position[1]) * shape_stiffness) - gravity_scale * 0.95,
+                ((rest[2] - position[2]) * shape_stiffness) + wind_z,
+            )
+            new_velocity = (
+                (velocity[0] + force[0] * dt) * max(0.0, 1.0 - damping * 0.65 * dt),
+                (velocity[1] + force[1] * dt) * max(0.0, 1.0 - damping * 0.65 * dt),
+                (velocity[2] + force[2] * dt) * max(0.0, 1.0 - damping * 0.65 * dt),
+            )
+            new_position = (
+                position[0] + new_velocity[0] * dt,
+                position[1] + new_velocity[1] * dt,
+                position[2] + new_velocity[2] * dt,
+            )
+            ox = new_position[0] - rest[0]
+            oy = new_position[1] - rest[1]
+            oz = new_position[2] - rest[2]
+            offset = math.sqrt(ox * ox + oy * oy + oz * oz)
+            max_offset = self._physics_shape_motion_limit(shape, rest)
+            if offset > max_offset > 0.0:
+                scale = max_offset / offset
+                new_position = (rest[0] + ox * scale, rest[1] + oy * scale, rest[2] + oz * scale)
+                new_velocity = (new_velocity[0] * 0.45, new_velocity[1] * 0.45, new_velocity[2] * 0.45)
+            state["position"] = new_position
+            state["velocity"] = new_velocity
+            state["rest"] = rest
+            changed = True
+        for key in tuple(self._physics_simulation_state):
+            if key not in active_keys:
+                self._physics_simulation_state.pop(key, None)
+        if changed:
+            if now - float(self._physics_simulation_last_debug_refresh or 0.0) >= 0.50:
+                self._physics_simulation_last_debug_refresh = now
+                self._refresh_debug_overlay_lines()
+            self.update()
+        else:
+            self._sync_physics_simulation_timer()
+
+    @staticmethod
+    def _physics_overlay_color(shape: HkxPhysicsOverlayShape) -> QColor:
+        role_color = ModelPreviewWidget._physics_simulation_role_color(
+            str(getattr(shape, "simulation_role", "") or "")
+        )
+        if role_color.isValid():
+            return role_color
+        shape_type = str(getattr(shape, "shape_type", "") or "").lower()
+        if "capsule" in shape_type:
+            return QColor(45, 212, 191, 205)
+        if "sphere" in shape_type:
+            return QColor(250, 204, 21, 205)
+        if "mesh" in shape_type:
+            return QColor(168, 85, 247, 190)
+        if "box" in shape_type:
+            return QColor(96, 165, 250, 205)
+        return QColor(248, 113, 113, 205)
+
+    @staticmethod
+    def _physics_constraint_overlay_color(constraint: HkxPhysicsOverlayConstraint) -> QColor:
+        role_color = ModelPreviewWidget._physics_simulation_role_color(
+            str(getattr(constraint, "simulation_role", "") or "")
+        )
+        if role_color.isValid():
+            return role_color
+        constraint_type = str(getattr(constraint, "constraint_type", "") or "").lower()
+        if "hinge" in constraint_type:
+            return QColor(251, 146, 60, 215)
+        if "ragdoll" in constraint_type:
+            return QColor(244, 114, 182, 215)
+        return QColor(250, 204, 21, 210)
+
+    @staticmethod
+    def _physics_anchor_overlay_color(anchor: HkxPhysicsOverlayAnchor) -> QColor:
+        role_color = ModelPreviewWidget._physics_simulation_role_color(
+            str(getattr(anchor, "simulation_role", "") or "")
+        )
+        if role_color.isValid():
+            return role_color
+        if str(getattr(anchor, "confidence", "") or "") == "skeleton_context":
+            return QColor(34, 197, 94, 230)
+        material = str(getattr(anchor, "physics_material_name", "") or "").lower()
+        if "cloth" in material or "slide" in material:
+            return QColor(45, 212, 191, 230)
+        return QColor(226, 232, 240, 215)
+
+    @staticmethod
+    def _physics_overlay_anchor_is_context_skeleton(anchor: HkxPhysicsOverlayAnchor) -> bool:
+        return (
+            str(getattr(anchor, "confidence", "") or "") == "skeleton_context"
+            or bool(str(getattr(anchor, "skeleton_bone_name", "") or "").strip())
+            or bool(str(getattr(anchor, "skeleton_source_path", "") or "").strip())
+        )
+
+    @staticmethod
+    def _physics_overlay_constraint_is_context_skeleton(constraint: HkxPhysicsOverlayConstraint) -> bool:
+        return str(getattr(constraint, "confidence", "") or "") == "skeleton_context"
+
+    @staticmethod
+    def _physics_target_matches(
+        target: Tuple[str, str, int, str, Tuple[float, float, float]],
+        *,
+        kind: str,
+        index: int,
+        label: str = "",
+    ) -> bool:
+        if not target:
+            return False
+        target_kind, target_label, target_index, _target_source, _target_position = target
+        if target_kind != kind or int(target_index) != int(index):
+            return False
+        return not label or not target_label or target_label == label
+
+    def _physics_overlay_target_at(self, point: QPointF) -> Tuple[str, str, int, str, Tuple[float, float, float]]:
+        overlay = self._physics_overlay
+        if (
+            self._vertex_count <= 0
+            or not bool(getattr(self.render_settings(), "show_physics_overlay", True))
+            or not isinstance(overlay, HkxPhysicsOverlayData)
+            or not overlay.shapes
+        ):
+            return ()
+        mvp = self._preview_mvp_matrix()
+        candidates: List[Tuple[float, float, str, str, int, str, Tuple[float, float, float]]] = []
+
+        def add_candidate(
+            kind: str,
+            label: str,
+            index: int,
+            source_path: str,
+            position: Sequence[object],
+            *,
+            radius: float,
+            priority_penalty: float = 0.0,
+        ) -> None:
+            if len(position) < 3:
+                return
+            try:
+                world = (float(position[0]), float(position[1]), float(position[2]))
+            except (TypeError, ValueError, OverflowError):
+                return
+            projected = self._project_preview_point(mvp, world)
+            if projected is None:
+                return
+            distance = math.hypot(float(point.x() - projected.x()), float(point.y() - projected.y()))
+            if distance <= radius:
+                candidates.append((distance + float(priority_penalty), distance, kind, label, int(index), source_path, world))
+
+        for index, anchor in enumerate(tuple(getattr(overlay, "anchors", ()) or ())[:128]):
+            if not isinstance(anchor, HkxPhysicsOverlayAnchor):
+                continue
+            if self._physics_overlay_anchor_is_context_skeleton(anchor) and not self.physics_overlay_bones_visible():
+                continue
+            label = str(getattr(anchor, "label", "") or getattr(anchor, "socket_name", "") or f"anchor {index}")
+            add_candidate("anchor", label, index, str(getattr(anchor, "source_path", "") or ""), tuple(getattr(anchor, "position", ()) or ()), radius=14.0, priority_penalty=2.5)
+        if self.physics_overlay_bones_visible():
+            for index, bone in enumerate(tuple(getattr(overlay, "bones", ()) or ())[:384]):
+                if not isinstance(bone, HkxPhysicsOverlayBone):
+                    continue
+                label = str(getattr(bone, "name", "") or f"bone {index}")
+                add_candidate("bone", label, int(getattr(bone, "index", index)), str(getattr(bone, "source_path", "") or ""), tuple(getattr(bone, "position", ()) or ()), radius=8.0, priority_penalty=6.0)
+        for index, constraint in enumerate(tuple(getattr(overlay, "constraints", ()) or ())[:128]):
+            if not isinstance(constraint, HkxPhysicsOverlayConstraint):
+                continue
+            if self._physics_overlay_constraint_is_context_skeleton(constraint) and not self.physics_overlay_bones_visible():
+                continue
+            label = str(getattr(constraint, "label", "") or f"constraint {index}")
+            add_candidate("constraint", label, index, str(getattr(constraint, "source_path", "") or ""), tuple(getattr(constraint, "start", ()) or ()), radius=11.0, priority_penalty=0.5)
+            add_candidate("constraint", label, index, str(getattr(constraint, "source_path", "") or ""), tuple(getattr(constraint, "end", ()) or ()), radius=11.0, priority_penalty=0.5)
+        for index, shape in enumerate(tuple(getattr(overlay, "shapes", ()) or ())[:96]):
+            if not isinstance(shape, HkxPhysicsOverlayShape):
+                continue
+            label = str(getattr(shape, "label", "") or getattr(shape, "shape_type", "") or f"shape {index}")
+            source_index = int(getattr(shape, "source_shape_index", index) if getattr(shape, "source_shape_index", -1) >= 0 else index)
+            position = tuple(getattr(shape, "center", ()) or ())
+            if not position:
+                position = tuple(getattr(shape, "capsule_start", ()) or ())
+            if not position and getattr(shape, "vertices", ()):
+                position = tuple(shape.vertices[0])
+            add_candidate("shape", label, source_index, str(getattr(shape, "source_path", "") or ""), position, radius=14.0, priority_penalty=0.0)
+        if not candidates:
+            return ()
+        _weighted_distance, _distance, kind, label, index, source_path, world = min(candidates, key=lambda item: (item[0], item[1]))
+        return (kind, label, index, source_path, world)
+
+    def _update_physics_hover_target(self, point: QPointF) -> None:
+        target = self._physics_overlay_target_at(point)
+        if target == self._physics_hover_target:
+            return
+        self._physics_hover_target = target
+        if target and not self._alignment_hover_axis and not self._drag_active and not self._pan_drag_active:
+            self.setCursor(Qt.PointingHandCursor)
+        elif not self._alignment_hover_axis and not self._drag_active and not self._pan_drag_active:
+            self.unsetCursor()
+        self.update()
+
+    def _draw_physics_target_label(
+        self,
+        painter: QPainter,
+        mvp: QMatrix4x4,
+        target: Tuple[str, str, int, str, Tuple[float, float, float]],
+        *,
+        selected: bool,
+    ) -> None:
+        if not target:
+            return
+        kind, label, index, _source_path, position = target
+        if len(position) < 3:
+            return
+        point = self._project_preview_point(mvp, position[:3])
+        if point is None:
+            return
+        color = QColor(251, 191, 36, 240) if selected else QColor(125, 211, 252, 220)
+        radius = 7.5 if selected else 5.5
+        painter.setPen(QPen(color, 1.8 if selected else 1.3))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawEllipse(point, radius, radius)
+        target_text = f"{kind} {index}: {label}".strip()
+        label_point = self._clamped_overlay_point(point, margin=24.0)
+        painter.setPen(color)
+        painter.drawText(
+            QRect(int(label_point.x()) + 9, int(label_point.y()) + (10 if selected else -24), 300, 20),
+            Qt.AlignLeft | Qt.AlignVCenter,
+            painter.fontMetrics().elidedText(target_text, Qt.ElideRight, 290),
+        )
+
+    @staticmethod
+    def _physics_overlay_viewer_id(target: Tuple[str, str, int, str, Tuple[float, float, float]]) -> str:
+        if not target:
+            return ""
+        kind, _label, index, _source_path, _position = target
+        return f"{kind}/{int(index)}" if str(kind or "").strip() else ""
+
+    @staticmethod
+    def _normalize_physics_overlay_viewer_id(value: object) -> str:
+        text = str(value or "").strip().replace("\\", "/").replace("#", "/").replace(":", "/").casefold()
+        if not text:
+            return ""
+        parts = [part for part in text.split("/") if part]
+        if len(parts) < 2:
+            return ""
+        kind = parts[0]
+        if kind in {"hknpshape", "collisionshape", "collision_shape"}:
+            kind = "shape"
+        elif kind in {"constraintguide", "motor", "guide"}:
+            kind = "constraint"
+        elif kind in {"skeletonbone", "skeleton_bone"}:
+            kind = "bone"
+        elif kind not in {"shape", "constraint", "anchor", "bone"}:
+            return ""
+        requested_index = -1
+        for part in reversed(parts[1:]):
+            try:
+                requested_index = int(part)
+                break
+            except (TypeError, ValueError):
+                continue
+        return f"{kind}/{requested_index}" if requested_index >= 0 else ""
+
+    def set_physics_overlay_edited_targets(self, viewer_selection_ids: object) -> None:
+        """Mark overlay targets that have pending HKX edits."""
+        if viewer_selection_ids is None:
+            normalized: set[str] = set()
+        elif isinstance(viewer_selection_ids, str):
+            viewer_id = self._normalize_physics_overlay_viewer_id(viewer_selection_ids)
+            normalized = {viewer_id} if viewer_id else set()
+        else:
+            normalized = set()
+            try:
+                iterator = iter(viewer_selection_ids)  # type: ignore[arg-type]
+            except TypeError:
+                iterator = iter((viewer_selection_ids,))
+            for item in iterator:
+                viewer_id = self._normalize_physics_overlay_viewer_id(item)
+                if viewer_id:
+                    normalized.add(viewer_id)
+        if normalized == self._physics_edited_viewer_ids:
+            return
+        self._physics_edited_viewer_ids = normalized
+        self.update()
+
+    def physics_overlay_bones_visible(self) -> bool:
+        return bool(getattr(self, "_physics_overlay_bones_visible", True))
+
+    def set_physics_overlay_bones_visible(self, visible: bool) -> None:
+        visible = bool(visible)
+        if visible == bool(getattr(self, "_physics_overlay_bones_visible", True)):
+            return
+        self._physics_overlay_bones_visible = visible
+        if not visible:
+            if self._physics_hover_target and self._physics_hover_target[0] == "bone":
+                self._physics_hover_target = ()
+            if self._physics_selected_target and self._physics_selected_target[0] == "bone":
+                self._physics_selected_target = ()
+        self.update()
+
+    def _physics_overlay_target_key(self, kind: str, index: object) -> str:
+        return self._normalize_physics_overlay_viewer_id(f"{kind}/{index}")
+
+    def _physics_overlay_target_is_edited(self, kind: str, index: object) -> bool:
+        return self._physics_overlay_target_key(kind, index) in self._physics_edited_viewer_ids
+
+    @staticmethod
+    def _physics_edited_overlay_color(base: QColor) -> QColor:
+        return QColor(
+            min(255, max(230, base.red() + 24)),
+            max(64, min(130, base.green() // 2 + 42)),
+            min(255, max(180, base.blue() + 48)),
+            245,
+        )
+
+    def _draw_physics_edited_badge(self, painter: QPainter, point: QPointF, text: str = "edited") -> None:
+        label_point = self._clamped_overlay_point(point, margin=26.0)
+        metrics = painter.fontMetrics()
+        label = metrics.elidedText(text, Qt.ElideRight, 120)
+        width = min(132, max(52, metrics.horizontalAdvance(label) + 14))
+        rect = QRect(int(label_point.x()) + 9, int(label_point.y()) - 28, width, 20)
+        painter.setPen(QPen(QColor(244, 114, 182, 230), 1.0))
+        painter.setBrush(QBrush(QColor(88, 28, 60, 185)))
+        painter.drawRoundedRect(rect, 4, 4)
+        painter.setPen(QColor(255, 228, 230, 245))
+        painter.drawText(rect.adjusted(6, 0, -6, 0), Qt.AlignLeft | Qt.AlignVCenter, label)
+
+    def _set_physics_overlay_selected_target(
+        self,
+        target: Tuple[str, str, int, str, Tuple[float, float, float]],
+        *,
+        notify: bool,
+    ) -> None:
+        if not target:
+            return
+        self._physics_selected_target = target
+        self._physics_hover_target = target
+        self.update()
+        if notify:
+            kind, label, index, source_path, _position = target
+            viewer_id = self._physics_overlay_viewer_id(target)
+            self.physics_overlay_target_selected.emit(
+                str(kind or ""),
+                str(label or ""),
+                int(index),
+                str(source_path or ""),
+                viewer_id,
+            )
+
+    def select_physics_overlay_target(
+        self,
+        viewer_selection_id: object,
+        *,
+        label_hint: str = "",
+        source_path_hint: str = "",
+    ) -> bool:
+        """Select a decoded HKX overlay target from an editor/browser row."""
+        viewer_id = str(viewer_selection_id or "").strip()
+        if not viewer_id:
+            return False
+        overlay = self._physics_overlay
+        if (
+            self._vertex_count <= 0
+            or not isinstance(overlay, HkxPhysicsOverlayData)
+            or not bool(getattr(self.render_settings(), "show_physics_overlay", True))
+        ):
+            return False
+        normalized = viewer_id.replace("/", ":").replace("#", ":").strip().lower()
+        parts = [part for part in normalized.split(":") if part]
+        if not parts:
+            return False
+        kind = parts[0]
+        if kind in {"hknpshape", "collisionshape", "collision_shape"}:
+            kind = "shape"
+        if kind in {"constraintguide", "motor", "guide"}:
+            kind = "constraint"
+        if kind in {"skeletonbone", "skeleton_bone"}:
+            kind = "bone"
+        if kind == "bone" and not self.physics_overlay_bones_visible():
+            return False
+        requested_index = -1
+        for part in reversed(parts[1:]):
+            try:
+                requested_index = int(part)
+                break
+            except (TypeError, ValueError):
+                continue
+        if requested_index < 0:
+            return False
+
+        def _position_from_shape(shape: HkxPhysicsOverlayShape) -> Tuple[float, float, float]:
+            for candidate in (
+                tuple(getattr(shape, "center", ()) or ()),
+                tuple(getattr(shape, "capsule_start", ()) or ()),
+            ):
+                if len(candidate) >= 3:
+                    return (float(candidate[0]), float(candidate[1]), float(candidate[2]))
+            vertices = tuple(getattr(shape, "vertices", ()) or ())
+            if vertices and len(vertices[0]) >= 3:
+                return (float(vertices[0][0]), float(vertices[0][1]), float(vertices[0][2]))
+            return (0.0, 0.0, 0.0)
+
+        target: Tuple[str, str, int, str, Tuple[float, float, float]] = ()
+        if kind == "shape":
+            for fallback_index, shape in enumerate(tuple(getattr(overlay, "shapes", ()) or ())):
+                if not isinstance(shape, HkxPhysicsOverlayShape):
+                    continue
+                source_index = int(
+                    getattr(shape, "source_shape_index", fallback_index)
+                    if getattr(shape, "source_shape_index", -1) >= 0
+                    else fallback_index
+                )
+                if source_index != requested_index and fallback_index != requested_index:
+                    continue
+                target = (
+                    "shape",
+                    str(label_hint or getattr(shape, "label", "") or getattr(shape, "shape_type", "") or f"shape {source_index}"),
+                    source_index,
+                    str(source_path_hint or getattr(shape, "source_path", "") or ""),
+                    _position_from_shape(shape),
+                )
+                break
+        elif kind == "constraint":
+            constraints = tuple(getattr(overlay, "constraints", ()) or ())
+            if requested_index < len(constraints) and isinstance(constraints[requested_index], HkxPhysicsOverlayConstraint):
+                constraint = constraints[requested_index]
+                position = tuple(getattr(constraint, "start", ()) or getattr(constraint, "end", ()) or ())
+                if len(position) >= 3:
+                    target = (
+                        "constraint",
+                        str(label_hint or getattr(constraint, "label", "") or getattr(constraint, "constraint_type", "") or f"constraint {requested_index}"),
+                        requested_index,
+                        str(source_path_hint or getattr(constraint, "source_path", "") or ""),
+                        (float(position[0]), float(position[1]), float(position[2])),
+                    )
+        elif kind == "anchor":
+            anchors = tuple(getattr(overlay, "anchors", ()) or ())
+            if requested_index < len(anchors) and isinstance(anchors[requested_index], HkxPhysicsOverlayAnchor):
+                anchor = anchors[requested_index]
+                position = tuple(getattr(anchor, "position", ()) or ())
+                if len(position) >= 3:
+                    target = (
+                        "anchor",
+                        str(label_hint or getattr(anchor, "label", "") or getattr(anchor, "socket_name", "") or f"anchor {requested_index}"),
+                        requested_index,
+                        str(source_path_hint or getattr(anchor, "source_path", "") or ""),
+                        (float(position[0]), float(position[1]), float(position[2])),
+                    )
+        elif kind == "bone":
+            bones = tuple(getattr(overlay, "bones", ()) or ())
+            for fallback_index, bone in enumerate(bones):
+                if not isinstance(bone, HkxPhysicsOverlayBone):
+                    continue
+                bone_index = int(getattr(bone, "index", fallback_index))
+                if bone_index != requested_index and fallback_index != requested_index:
+                    continue
+                position = tuple(getattr(bone, "position", ()) or ())
+                if len(position) >= 3:
+                    target = (
+                        "bone",
+                        str(label_hint or getattr(bone, "name", "") or f"bone {bone_index}"),
+                        bone_index,
+                        str(source_path_hint or getattr(bone, "source_path", "") or ""),
+                        (float(position[0]), float(position[1]), float(position[2])),
+                    )
+                break
+        if not target:
+            return False
+        self._set_physics_overlay_selected_target(target, notify=False)
+        return True
+
+    @staticmethod
+    def _box_edges_from_bounds(
+        bounds_min: Tuple[float, float, float],
+        bounds_max: Tuple[float, float, float],
+    ) -> Tuple[Tuple[Tuple[float, float, float], Tuple[float, float, float]], ...]:
+        if len(bounds_min) < 3 or len(bounds_max) < 3:
+            return ()
+        min_x, min_y, min_z = bounds_min
+        max_x, max_y, max_z = bounds_max
+        corners = (
+            (min_x, min_y, min_z),
+            (max_x, min_y, min_z),
+            (max_x, max_y, min_z),
+            (min_x, max_y, min_z),
+            (min_x, min_y, max_z),
+            (max_x, min_y, max_z),
+            (max_x, max_y, max_z),
+            (min_x, max_y, max_z),
+        )
+        edge_indices = (
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (3, 0),
+            (4, 5),
+            (5, 6),
+            (6, 7),
+            (7, 4),
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7),
+        )
+        return tuple((corners[a], corners[b]) for a, b in edge_indices)
+
+    def _draw_physics_overlay_circle(
+        self,
+        painter: QPainter,
+        mvp: QMatrix4x4,
+        center: Tuple[float, float, float],
+        radius: float,
+        color: QColor,
+        *,
+        plane: str,
+    ) -> None:
+        if len(center) < 3 or radius <= 0.0:
+            return
+        segments = 32
+        points: List[Tuple[float, float, float]] = []
+        for index in range(segments + 1):
+            angle = (math.tau * index) / float(segments)
+            a = math.cos(angle) * radius
+            b = math.sin(angle) * radius
+            if plane == "xy":
+                points.append((center[0] + a, center[1] + b, center[2]))
+            elif plane == "xz":
+                points.append((center[0] + a, center[1], center[2] + b))
+            else:
+                points.append((center[0], center[1] + a, center[2] + b))
+        for start, end in zip(points, points[1:]):
+            self._draw_preview_line(painter, mvp, start, end, color, width=1.15)
+
+    def _draw_physics_motion_envelope(
+        self,
+        painter: QPainter,
+        mvp: QMatrix4x4,
+        anchor: Tuple[float, float, float],
+        target: Tuple[float, float, float],
+        color: QColor,
+    ) -> None:
+        if len(anchor) < 3 or len(target) < 3:
+            return
+        dx = float(target[0] - anchor[0])
+        dy = float(target[1] - anchor[1])
+        dz = float(target[2] - anchor[2])
+        distance = math.sqrt(dx * dx + dy * dy + dz * dz)
+        if distance <= 0.0 or not math.isfinite(distance):
+            return
+        envelope_color = QColor(color.red(), color.green(), color.blue(), 72)
+        radius = max(0.025, min(0.35, distance * 0.35))
+        self._draw_physics_overlay_circle(painter, mvp, anchor[:3], radius, envelope_color, plane="xy")
+        self._draw_physics_overlay_circle(painter, mvp, anchor[:3], radius, envelope_color, plane="xz")
+
+    @staticmethod
+    def _translated_physics_point(
+        point: Sequence[object],
+        delta: Tuple[float, float, float],
+    ) -> Tuple[float, float, float]:
+        if len(point) < 3:
+            return ()
+        try:
+            result = (
+                float(point[0]) + delta[0],
+                float(point[1]) + delta[1],
+                float(point[2]) + delta[2],
+            )
+        except (TypeError, ValueError, OverflowError):
+            return ()
+        return result if all(math.isfinite(component) for component in result) else ()
+
+    def _draw_simulated_physics_shape(
+        self,
+        painter: QPainter,
+        mvp: QMatrix4x4,
+        shape: HkxPhysicsOverlayShape,
+        delta: Tuple[float, float, float],
+        color: QColor,
+    ) -> None:
+        simulated_color = QColor(min(255, color.red() + 34), min(255, color.green() + 34), min(255, color.blue() + 34), 215)
+        vertices = tuple(getattr(shape, "vertices", ()) or ())
+        faces = tuple(getattr(shape, "faces", ()) or ())
+        drawn_edges = 0
+        if vertices and faces:
+            seen_edges: set[Tuple[int, int]] = set()
+            for face in faces[:128]:
+                if len(face) < 2:
+                    continue
+                for a_index, b_index in zip(face, face[1:] + face[:1]):
+                    try:
+                        a = int(a_index)
+                        b = int(b_index)
+                    except (TypeError, ValueError):
+                        continue
+                    if a < 0 or b < 0 or a >= len(vertices) or b >= len(vertices):
+                        continue
+                    edge_key = (min(a, b), max(a, b))
+                    if edge_key in seen_edges:
+                        continue
+                    seen_edges.add(edge_key)
+                    start = self._translated_physics_point(vertices[a], delta)
+                    end = self._translated_physics_point(vertices[b], delta)
+                    if start and end:
+                        self._draw_preview_line(painter, mvp, start, end, simulated_color, width=1.6)
+                        drawn_edges += 1
+                    if drawn_edges >= 256:
+                        break
+                if drawn_edges >= 256:
+                    break
+        bounds_min = self._physics_tuple3(tuple(getattr(shape, "bounds_min", ()) or ()))
+        bounds_max = self._physics_tuple3(tuple(getattr(shape, "bounds_max", ()) or ()))
+        if drawn_edges == 0 and bounds_min and bounds_max:
+            moved_min = self._translated_physics_point(bounds_min, delta)
+            moved_max = self._translated_physics_point(bounds_max, delta)
+            if moved_min and moved_max:
+                for start, end in self._box_edges_from_bounds(moved_min, moved_max):
+                    self._draw_preview_line(painter, mvp, start, end, simulated_color, width=1.45)
+        center = self._physics_tuple3(tuple(getattr(shape, "center", ()) or ()))
+        radius = float(getattr(shape, "radius", 0.0) or 0.0)
+        capsule_start = self._physics_tuple3(tuple(getattr(shape, "capsule_start", ()) or ()))
+        capsule_end = self._physics_tuple3(tuple(getattr(shape, "capsule_end", ()) or ()))
+        if capsule_start and capsule_end:
+            moved_start = self._translated_physics_point(capsule_start, delta)
+            moved_end = self._translated_physics_point(capsule_end, delta)
+            if moved_start and moved_end:
+                self._draw_preview_line(painter, mvp, moved_start, moved_end, simulated_color, width=2.25)
+                if radius > 0.0:
+                    self._draw_physics_overlay_circle(painter, mvp, moved_start, radius, simulated_color, plane="xy")
+                    self._draw_physics_overlay_circle(painter, mvp, moved_end, radius, simulated_color, plane="xy")
+        elif center and radius > 0.0:
+            moved_center = self._translated_physics_point(center, delta)
+            if moved_center:
+                self._draw_physics_overlay_circle(painter, mvp, moved_center, radius, simulated_color, plane="xy")
+                self._draw_physics_overlay_circle(painter, mvp, moved_center, radius, simulated_color, plane="xz")
+
+    def _draw_physics_simulation_preview(self, painter: QPainter, mvp: QMatrix4x4) -> None:
+        overlay = self._physics_overlay
+        if (
+            not bool(getattr(self.render_settings(), "show_physics_simulation_preview", True))
+            or not isinstance(overlay, HkxPhysicsOverlayData)
+            or not self._physics_simulation_state
+        ):
+            return
+        for index, constraint in enumerate(tuple(getattr(overlay, "constraints", ()) or ())[:160]):
+            if not isinstance(constraint, HkxPhysicsOverlayConstraint):
+                continue
+            if self._physics_overlay_constraint_is_context_skeleton(constraint) and not self.physics_overlay_bones_visible():
+                continue
+            role = str(getattr(constraint, "simulation_role", "") or "")
+            if not self._physics_simulation_role_is_dynamic(role):
+                continue
+            fixed = self._physics_tuple3(tuple(getattr(constraint, "end", ()) or ()))
+            rest = self._physics_tuple3(tuple(getattr(constraint, "start", ()) or ()))
+            if not fixed or not rest:
+                continue
+            state = self._physics_simulation_state.get(self._physics_simulation_key(constraint, index))
+            if not isinstance(state, dict):
+                continue
+            position = self._physics_tuple3(tuple(state.get("position", ()) or ()))
+            if not position:
+                continue
+            color = self._physics_constraint_overlay_color(constraint)
+            simulated_color = QColor(min(255, color.red() + 28), min(255, color.green() + 28), min(255, color.blue() + 28), 235)
+            ghost_color = QColor(color.red(), color.green(), color.blue(), 70)
+            self._draw_preview_line(painter, mvp, fixed[:3], position[:3], simulated_color, width=2.25)
+            self._draw_preview_line(painter, mvp, rest[:3], position[:3], ghost_color, width=1.0, style=Qt.DotLine)
+            point = self._project_preview_point(mvp, position[:3])
+            if point is None:
+                continue
+            painter.setPen(QPen(simulated_color, 1.4))
+            painter.setBrush(QBrush(QColor(simulated_color.red(), simulated_color.green(), simulated_color.blue(), 105)))
+            painter.drawEllipse(point, 5.0, 5.0)
+        for index, shape in enumerate(tuple(getattr(overlay, "shapes", ()) or ())[:96]):
+            if not isinstance(shape, HkxPhysicsOverlayShape):
+                continue
+            role = str(getattr(shape, "simulation_role", "") or "")
+            if not self._physics_simulation_role_is_dynamic(role):
+                continue
+            state = self._physics_simulation_state.get(self._physics_shape_simulation_key(shape, index))
+            if not isinstance(state, dict):
+                continue
+            rest = self._physics_shape_rest_position(shape)
+            position = self._physics_tuple3(tuple(state.get("position", ()) or ()))
+            if not rest or not position:
+                continue
+            delta = (position[0] - rest[0], position[1] - rest[1], position[2] - rest[2])
+            if math.sqrt(delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2]) < 0.001:
+                continue
+            color = self._physics_overlay_color(shape)
+            ghost_color = QColor(color.red(), color.green(), color.blue(), 75)
+            self._draw_preview_line(painter, mvp, rest[:3], position[:3], ghost_color, width=1.1, style=Qt.DotLine)
+            self._draw_simulated_physics_shape(painter, mvp, shape, delta, color)
+            point = self._project_preview_point(mvp, position[:3])
+            if point is None:
+                continue
+            marker_color = QColor(min(255, color.red() + 34), min(255, color.green() + 34), min(255, color.blue() + 34), 225)
+            painter.setPen(QPen(marker_color, 1.2))
+            painter.setBrush(QBrush(QColor(marker_color.red(), marker_color.green(), marker_color.blue(), 90)))
+            painter.drawEllipse(point, 3.8, 3.8)
+
+    def _draw_physics_overlay(self, painter: QPainter) -> None:
+        overlay = self._physics_overlay
+        if (
+            self._vertex_count <= 0
+            or not bool(getattr(self.render_settings(), "show_physics_overlay", True))
+            or not isinstance(overlay, HkxPhysicsOverlayData)
+            or not overlay.shapes
+        ):
+            return
+        mvp = self._preview_mvp_matrix()
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        label_count = 0
+        # Keep the default physics view readable. Hover/Ctrl-click labels provide
+        # object names on demand without flooding dense character rigs.
+        max_labels = 0
+        if self.physics_overlay_bones_visible():
+            for bone in tuple(getattr(overlay, "bones", ()) or ())[:384]:
+                if not isinstance(bone, HkxPhysicsOverlayBone):
+                    continue
+                position = tuple(getattr(bone, "position", ()) or ())
+                parent_position = tuple(getattr(bone, "parent_position", ()) or ())
+                if len(position) < 3:
+                    continue
+                bone_color = QColor(148, 163, 184, 85)
+                joint_color = QColor(187, 247, 208, 140)
+                if len(parent_position) >= 3:
+                    self._draw_preview_line(painter, mvp, parent_position[:3], position[:3], bone_color, width=0.95)
+                point = self._project_preview_point(mvp, position[:3])
+                if point is not None:
+                    painter.setPen(QPen(joint_color, 0.8))
+                    painter.setBrush(QBrush(QColor(34, 197, 94, 42)))
+                    painter.drawEllipse(point, 1.8, 1.8)
+        for constraint_index, constraint in enumerate(tuple(getattr(overlay, "constraints", ()) or ())[:96]):
+            if not isinstance(constraint, HkxPhysicsOverlayConstraint):
+                continue
+            if self._physics_overlay_constraint_is_context_skeleton(constraint) and not self.physics_overlay_bones_visible():
+                continue
+            start = tuple(getattr(constraint, "start", ()) or ())
+            end = tuple(getattr(constraint, "end", ()) or ())
+            edited = self._physics_overlay_target_is_edited("constraint", constraint_index)
+            color = self._physics_constraint_overlay_color(constraint)
+            if edited:
+                color = self._physics_edited_overlay_color(color)
+            if len(start) >= 3 and len(end) >= 3:
+                self._draw_preview_line(painter, mvp, start[:3], end[:3], color, width=2.8 if edited else 1.7, style=Qt.DashLine)
+                if self._physics_simulation_role_is_dynamic(str(getattr(constraint, "simulation_role", "") or "")):
+                    self._draw_physics_motion_envelope(painter, mvp, end[:3], start[:3], color)
+                for point in (start[:3], end[:3]):
+                    projected = self._project_preview_point(mvp, point)
+                    if projected is not None:
+                        painter.setPen(QPen(color, 2.0 if edited else 1.2))
+                        painter.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 100 if edited else 70)))
+                        painter.drawEllipse(projected, 6.5 if edited else 4.0, 6.5 if edited else 4.0)
+            elif len(start) >= 3:
+                projected = self._project_preview_point(mvp, start[:3])
+                if projected is not None:
+                    painter.setPen(QPen(color, 2.4 if edited else 1.4, Qt.DashLine))
+                    painter.setBrush(Qt.NoBrush)
+                    painter.drawEllipse(projected, 8.0 if edited else 6.0, 8.0 if edited else 6.0)
+            label_point = None
+            if len(start) >= 3:
+                label_point = self._project_preview_point(mvp, start[:3])
+            elif len(end) >= 3:
+                label_point = self._project_preview_point(mvp, end[:3])
+            if edited and label_point is not None:
+                self._draw_physics_edited_badge(painter, label_point, "edited constraint")
+            if label_point is not None and label_count < max_labels:
+                label_point = self._clamped_overlay_point(label_point, margin=24.0)
+                label = str(getattr(constraint, "label", "") or getattr(constraint, "constraint_type", "") or "HKX constraint")
+                hint = ""
+                motor_hints = tuple(getattr(constraint, "motor_hints", ()) or ())
+                limit_hints = tuple(getattr(constraint, "limit_hints", ()) or ())
+                if motor_hints:
+                    hint = motor_hints[0]
+                elif limit_hints:
+                    hint = limit_hints[0]
+                if hint:
+                    label = f"{label} | {hint}"
+                painter.setPen(color)
+                painter.drawText(
+                    QRect(int(label_point.x()) + 6, int(label_point.y()) + 8, 260, 20),
+                    Qt.AlignLeft | Qt.AlignVCenter,
+                    painter.fontMetrics().elidedText(label, Qt.ElideRight, 250),
+                )
+                label_count += 1
+        for shape_index, shape in enumerate(overlay.shapes[:96]):
+            if not isinstance(shape, HkxPhysicsOverlayShape):
+                continue
+            source_index = int(getattr(shape, "source_shape_index", shape_index) if getattr(shape, "source_shape_index", -1) >= 0 else shape_index)
+            edited = self._physics_overlay_target_is_edited("shape", source_index)
+            color = self._physics_overlay_color(shape)
+            if edited:
+                color = self._physics_edited_overlay_color(color)
+            vertices = tuple(getattr(shape, "vertices", ()) or ())
+            faces = tuple(getattr(shape, "faces", ()) or ())
+            drawn_edges = 0
+            if vertices and faces:
+                seen_edges: set[Tuple[int, int]] = set()
+                for face in faces[:256]:
+                    if len(face) < 2:
+                        continue
+                    for a_index, b_index in zip(face, face[1:] + face[:1]):
+                        try:
+                            a = int(a_index)
+                            b = int(b_index)
+                        except (TypeError, ValueError):
+                            continue
+                        if a < 0 or b < 0 or a >= len(vertices) or b >= len(vertices):
+                            continue
+                        edge_key = (min(a, b), max(a, b))
+                        if edge_key in seen_edges:
+                            continue
+                        seen_edges.add(edge_key)
+                        self._draw_preview_line(painter, mvp, vertices[a], vertices[b], color, width=2.4 if edited else 1.3)
+                        drawn_edges += 1
+                        if drawn_edges >= 768:
+                            break
+                    if drawn_edges >= 768:
+                        break
+            elif vertices:
+                for start, end in zip(vertices, vertices[1:]):
+                    self._draw_preview_line(painter, mvp, start, end, color, width=2.1 if edited else 1.1)
+                    drawn_edges += 1
+                    if drawn_edges >= 256:
+                        break
+            bounds_min = tuple(getattr(shape, "bounds_min", ()) or ())
+            bounds_max = tuple(getattr(shape, "bounds_max", ()) or ())
+            if drawn_edges == 0 and len(bounds_min) >= 3 and len(bounds_max) >= 3:
+                for start, end in self._box_edges_from_bounds(bounds_min[:3], bounds_max[:3]):
+                    self._draw_preview_line(painter, mvp, start, end, color, width=2.2 if edited else 1.2)
+            center = tuple(getattr(shape, "center", ()) or ())
+            radius = float(getattr(shape, "radius", 0.0) or 0.0)
+            capsule_start = tuple(getattr(shape, "capsule_start", ()) or ())
+            capsule_end = tuple(getattr(shape, "capsule_end", ()) or ())
+            if len(capsule_start) >= 3 and len(capsule_end) >= 3:
+                self._draw_preview_line(painter, mvp, capsule_start[:3], capsule_end[:3], color, width=3.0 if edited else 2.0)
+                if radius > 0.0:
+                    for point in (capsule_start[:3], capsule_end[:3]):
+                        self._draw_physics_overlay_circle(painter, mvp, point, radius, color, plane="xy")
+                        self._draw_physics_overlay_circle(painter, mvp, point, radius, color, plane="xz")
+            elif len(center) >= 3 and radius > 0.0:
+                self._draw_physics_overlay_circle(painter, mvp, center[:3], radius, color, plane="xy")
+                self._draw_physics_overlay_circle(painter, mvp, center[:3], radius, color, plane="xz")
+                self._draw_physics_overlay_circle(painter, mvp, center[:3], radius, color, plane="yz")
+            label_point = None
+            if len(center) >= 3:
+                label_point = self._project_preview_point(mvp, center[:3])
+            elif vertices:
+                label_point = self._project_preview_point(mvp, vertices[0])
+            elif len(capsule_start) >= 3:
+                label_point = self._project_preview_point(mvp, capsule_start[:3])
+            if edited and label_point is not None:
+                self._draw_physics_edited_badge(painter, label_point, "edited shape")
+            if label_point is not None and label_count < max_labels:
+                label_point = self._clamped_overlay_point(label_point, margin=24.0)
+                painter.setPen(color)
+                label = str(getattr(shape, "label", "") or getattr(shape, "shape_type", "") or f"HKX {shape_index}")
+                painter.drawText(
+                    QRect(int(label_point.x()) + 6, int(label_point.y()) - 10, 220, 20),
+                    Qt.AlignLeft | Qt.AlignVCenter,
+                    painter.fontMetrics().elidedText(label, Qt.ElideRight, 210),
+                )
+                label_count += 1
+        visible_anchors = tuple(
+            anchor
+            for anchor in tuple(getattr(overlay, "anchors", ()) or ())[:96]
+            if isinstance(anchor, HkxPhysicsOverlayAnchor)
+            and (
+                self.physics_overlay_bones_visible()
+                or not self._physics_overlay_anchor_is_context_skeleton(anchor)
+            )
+        )
+        for anchor in visible_anchors:
+            if not isinstance(anchor, HkxPhysicsOverlayAnchor):
+                continue
+            position = tuple(getattr(anchor, "position", ()) or ())
+            if len(position) < 3:
+                continue
+            point = self._project_preview_point(mvp, position[:3])
+            if point is None:
+                continue
+            color = self._physics_anchor_overlay_color(anchor)
+            painter.setPen(QPen(color, 1.35))
+            painter.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 80)))
+            painter.drawEllipse(point, 3.5, 3.5)
+            painter.drawLine(QPointF(point.x() - 6.0, point.y()), QPointF(point.x() + 6.0, point.y()))
+            painter.drawLine(QPointF(point.x(), point.y() - 6.0), QPointF(point.x(), point.y() + 6.0))
+            if label_count < max_labels:
+                label_point = self._clamped_overlay_point(point, margin=24.0)
+                label = str(getattr(anchor, "label", "") or getattr(anchor, "socket_name", "") or "HKX body")
+                bone_name = str(getattr(anchor, "skeleton_bone_name", "") or "")
+                if bone_name and bone_name.casefold() not in label.casefold():
+                    label = f"{label} @ {bone_name}"
+                hints = tuple(getattr(anchor, "tuning_hints", ()) or ())
+                if hints:
+                    label = f"{label} | {hints[0]}"
+                painter.setPen(color)
+                painter.drawText(
+                    QRect(int(label_point.x()) + 7, int(label_point.y()) - 22, 240, 20),
+                    Qt.AlignLeft | Qt.AlignVCenter,
+                    painter.fontMetrics().elidedText(label, Qt.ElideRight, 230),
+                )
+                label_count += 1
+        self._draw_physics_simulation_preview(painter, mvp)
+        legend = f"HKX overlay: {len(overlay.shapes):,} shape(s)"
+        hidden_context_anchor_count = max(0, len(tuple(getattr(overlay, "anchors", ()) or ())) - len(visible_anchors))
+        if visible_anchors:
+            legend += f", {len(visible_anchors):,} anchor(s)"
+        if getattr(overlay, "constraints", ()):
+            legend += f", {len(overlay.constraints):,} guide(s)"
+        if getattr(overlay, "bones", ()):
+            if self.physics_overlay_bones_visible():
+                legend += f", {len(overlay.bones):,} bone(s)"
+            else:
+                legend += " | context skeleton hidden"
+        elif hidden_context_anchor_count:
+            legend += " | context skeleton hidden"
+        if self._physics_edited_viewer_ids:
+            legend += f" | edited {len(self._physics_edited_viewer_ids):,}"
+        role_counts = tuple(getattr(overlay, "simulation_role_counts", ()) or ())
+        if role_counts:
+            role_text = ", ".join(f"{role}={count}" for role, count in role_counts[:3])
+            legend += f" | {role_text}"
+        if self._physics_simulation_timer.isActive():
+            legend += " | live sim"
+        self._draw_physics_target_label(painter, mvp, self._physics_hover_target, selected=False)
+        self._draw_physics_target_label(painter, mvp, self._physics_selected_target, selected=True)
+        painter.setPen(QPen(QColor(15, 23, 42, 150), 1))
+        painter.setBrush(QBrush(QColor(15, 23, 42, 125)))
+        painter.drawRoundedRect(QRect(12, max(58, self.height() - 42), min(340, max(160, self.width() - 24)), 26), 5, 5)
+        painter.setPen(QColor(226, 232, 240, 220))
+        painter.drawText(
+            QRect(20, max(61, self.height() - 39), min(324, max(144, self.width() - 40)), 20),
+            Qt.AlignLeft | Qt.AlignVCenter,
+            painter.fontMetrics().elidedText(legend, Qt.ElideRight, min(324, max(144, self.width() - 40))),
+        )
+        painter.restore()
 
     def _alignment_handle_origin(self, *, include_live_translation: bool = True) -> tuple[float, float, float]:
         positions = []
@@ -5386,6 +6889,7 @@ class ModelPreviewWidget(QOpenGLWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
         self._draw_alignment_guides(painter)
+        self._draw_physics_overlay(painter)
         self._draw_alignment_edit_handles(painter)
         self._draw_texture_debug_strip(painter)
         painter.setPen(self._overlay_text_color)
@@ -5393,6 +6897,12 @@ class ModelPreviewWidget(QOpenGLWidget):
             painter.drawText(self.rect().adjusted(24, 24, -24, -24), Qt.AlignCenter | Qt.TextWordWrap, self._message)
         else:
             help_text = "Drag: orbit | Middle/Right-drag or Shift+Drag: pan | Wheel: zoom | Double-click: reset"
+            if (
+                isinstance(self._physics_overlay, HkxPhysicsOverlayData)
+                and self._physics_overlay.shapes
+                and bool(getattr(self.render_settings(), "show_physics_overlay", True))
+            ):
+                help_text = "Click/Ctrl-click overlay: show linked HKX rows | Drag: orbit | Shift/Middle/Right-drag: pan | Wheel: zoom"
             if self._alignment_editing_enabled:
                 help_text = "Drag axes: move (Shift fine/Ctrl coarse) | Alt+Drag: rotate X/Y | Alt+Shift: roll | Wheel: zoom"
             painter.drawText(
@@ -5416,6 +6926,17 @@ class ModelPreviewWidget(QOpenGLWidget):
         painter.end()
 
     def mousePressEvent(self, event) -> None:  # type: ignore[override]
+        if (
+            self._vertex_count > 0
+            and event.button() == Qt.LeftButton
+            and bool(event.modifiers() & Qt.ControlModifier)
+        ):
+            target = self._physics_overlay_target_at(event.position())
+            if target:
+                self._pending_physics_click_target = ()
+                self._set_physics_overlay_selected_target(target, notify=True)
+                event.accept()
+                return
         if (
             self._alignment_editing_enabled
             and self._vertex_count > 0
@@ -5463,6 +6984,11 @@ class ModelPreviewWidget(QOpenGLWidget):
             event.accept()
             return
         if self._vertex_count > 0 and event.button() == Qt.LeftButton:
+            if not bool(event.modifiers() & (Qt.AltModifier | Qt.ShiftModifier)):
+                self._pending_physics_click_target = self._physics_overlay_target_at(event.position())
+                self._pending_physics_click_pos = QPointF(event.position())
+            else:
+                self._pending_physics_click_target = ()
             self._drag_active = True
             self._last_mouse_pos = event.position()
             self._last_global_mouse_pos = event.globalPosition().toPoint()
@@ -5540,10 +7066,16 @@ class ModelPreviewWidget(QOpenGLWidget):
                 self._alignment_hover_axis = axis
                 self.setCursor(Qt.SizeAllCursor if axis else Qt.ArrowCursor)
                 self.update()
+        if not self._alignment_hover_axis and not self._drag_active and not self._pan_drag_active:
+            self._update_physics_hover_target(event.position())
         if self._drag_active:
             current_pos = event.position()
             delta = current_pos - self._last_mouse_pos
             self._last_mouse_pos = current_pos
+            if self._pending_physics_click_target:
+                press_delta = current_pos - self._pending_physics_click_pos
+                if math.hypot(float(press_delta.x()), float(press_delta.y())) > 6.0:
+                    self._pending_physics_click_target = ()
             # Orbit should feel like dragging the model rather than steering a
             # camera rig, so both axes follow the more common DCC-style signs.
             settings = self.render_settings()
@@ -5590,9 +7122,17 @@ class ModelPreviewWidget(QOpenGLWidget):
             event.accept()
             return
         if self._drag_active and event.button() == Qt.LeftButton:
+            click_target = self._pending_physics_click_target
+            if click_target:
+                release_delta = event.position() - self._pending_physics_click_pos
+                if math.hypot(float(release_delta.x()), float(release_delta.y())) > 6.0:
+                    click_target = ()
+            self._pending_physics_click_target = ()
             self._drag_active = False
             self.releaseMouse()
             self.unsetCursor()
+            if click_target:
+                self._set_physics_overlay_selected_target(click_target, notify=True)
             event.accept()
             return
         if self._pan_drag_active and event.button() == self._pan_drag_button:
@@ -5604,6 +7144,12 @@ class ModelPreviewWidget(QOpenGLWidget):
             event.accept()
             return
         super().mouseReleaseEvent(event)
+
+    def leaveEvent(self, event) -> None:  # type: ignore[override]
+        if self._physics_hover_target:
+            self._physics_hover_target = ()
+            self.update()
+        super().leaveEvent(event)
 
     def mouseDoubleClickEvent(self, event) -> None:  # type: ignore[override]
         if self._vertex_count > 0 and event.button() == Qt.LeftButton:
@@ -6133,6 +7679,8 @@ class ModelPreviewWidget(QOpenGLWidget):
             ):
                 texture_wrap_repeat = True
             vertex_total = max(1, len(positions))
+            position_y_min = min((float(position[1]) for position in positions), default=0.0)
+            position_y_max = max((float(position[1]) for position in positions), default=0.0)
             batches.append(
                 _ModelPreviewDrawBatch(
                     mesh_index=mesh_index,
@@ -6170,6 +7718,8 @@ class ModelPreviewWidget(QOpenGLWidget):
                     bitangent_finite_ratio=max(0.0, 1.0 - (float(bitangent_repair_count) / float(vertex_total))),
                     uv_finite_ratio=max(0.0, 1.0 - (float(uv_repair_count) / float(vertex_total))) if has_texture_coordinates else 0.0,
                     smooth_normal_ratio=max(0.0, min(1.0, float(smooth_normal_ratio))),
+                    position_y_min=position_y_min,
+                    position_y_max=position_y_max,
                 )
             )
         return vertex_data.tobytes(), vertex_count, batches
@@ -6313,6 +7863,51 @@ class ModelPreviewWidget(QOpenGLWidget):
             return None
         return image
 
+    @staticmethod
+    def _load_native_texture_report(texture_key: str) -> Dict[str, object]:
+        normalized_key = str(texture_key or "").strip()
+        if not normalized_key or normalized_key.lower().startswith("in_memory"):
+            return {}
+        try:
+            from cdmw.core.texture_native import native_texture_report_sidecar_path
+
+            report_path = native_texture_report_sidecar_path(Path(normalized_key))
+            if not report_path.is_file():
+                return {}
+            data = json.loads(report_path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    @staticmethod
+    def _apply_native_texture_report(
+        diagnostic: _TextureUploadDiagnostic,
+        report: Mapping[str, object],
+    ) -> None:
+        if not report:
+            return
+        diagnostic.native_texture_backend = str(report.get("backend") or report.get("native_backend") or "").strip()
+        diagnostic.native_texture_status = str(report.get("status") or "").strip()
+        diagnostic.native_texture_format = str(report.get("format") or "").strip()
+        diagnostic.native_texture_slot = str(report.get("slot") or "").strip()
+        diagnostic.native_texture_normal_space = str(report.get("likely_normal_space") or report.get("normal_space") or "").strip()
+        try:
+            diagnostic.native_texture_normal_strength = float(report.get("normal_strength") or 0.0)
+        except (TypeError, ValueError, OverflowError):
+            diagnostic.native_texture_normal_strength = 0.0
+        channel_stats = report.get("channel_stats")
+        if isinstance(channel_stats, Mapping):
+            try:
+                diagnostic.native_texture_alpha_coverage = float(channel_stats.get("alpha_coverage") or 0.0)
+            except (TypeError, ValueError, OverflowError):
+                diagnostic.native_texture_alpha_coverage = 0.0
+        scalar_range = report.get("scalar_range")
+        if isinstance(scalar_range, Sequence) and not isinstance(scalar_range, (str, bytes)) and len(scalar_range) >= 2:
+            try:
+                diagnostic.native_texture_scalar_range = (float(scalar_range[0]), float(scalar_range[1]))
+            except (TypeError, ValueError, OverflowError):
+                diagnostic.native_texture_scalar_range = ()
+
     def _rebuild_gl_textures(self) -> None:
         if not self._gl_ready:
             return
@@ -6395,6 +7990,10 @@ class ModelPreviewWidget(QOpenGLWidget):
                     upload_diagnostic.failure_reason = f"DDS preview PNG missing or unreadable: {texture_key}"
                     continue
                 upload_diagnostic.image_loaded = True
+                self._apply_native_texture_report(
+                    upload_diagnostic,
+                    self._load_native_texture_report(texture_key),
+                )
                 upload_diagnostic.image_width = int(texture_image.width())
                 upload_diagnostic.image_height = int(texture_image.height())
                 upload_diagnostic.gl_max_texture_size = self._read_gl_max_texture_size()
@@ -7496,13 +9095,14 @@ class LogHighlighter(QSyntaxHighlighter):
 
 class ArchiveDetailsHighlighter(QSyntaxHighlighter):
     _section_re = re.compile(
-        r"^(Entry Metadata|Import Summary|Preview / Texture Notes|Preview Diagnostics|Render Sampling Diagnostics|Readable Strings|Binary Header Preview)\s*$"
+        r"^(Entry Metadata|Import Summary|Preview / Texture Notes|Preview Diagnostics|Render Sampling Diagnostics|Readable Strings|Binary Header Preview|Simplified values for .+|HKX tagfile preview for .+|What this appears to contain:|Recognized fields:|Format summary:|Tag item map:|Detected classes/types:|Prefab evidence|Declared Fields|Schema Declarations)\s*$"
     )
-    _label_re = re.compile(r"^([A-Za-z][A-Za-z0-9 /()_-]+:)")
+    _label_re = re.compile(r"^\s*(?:[-*]\s*)?([A-Za-z][A-Za-z0-9 /()_-]+:)")
     _warning_re = re.compile(r"\b(warning|failed|missing|truncated|unsupported|fallback|skipped|unavailable|error)\b", re.IGNORECASE)
     _windows_path_re = re.compile(r"[A-Za-z]:\\[^\r\n<>|\"*?]+")
     _relative_path_re = re.compile(r"(?<![\w.-])(?:[\w.-]+[\\/]){2,}[\w./\\-]+")
     _number_re = re.compile(r"(?<![\w./\\-])\d[\d,]*(?:\.\d+)?\b")
+    _hex_value_re = re.compile(r"\b0x[0-9A-Fa-f]+\b")
     _hex_offset_re = re.compile(r"^\s*([0-9A-F]{4})(?=\s)")
     _hex_byte_re = re.compile(r"\b[0-9A-F]{2}\b")
 
@@ -7594,6 +9194,8 @@ class ArchiveDetailsHighlighter(QSyntaxHighlighter):
             self.setFormat(match.start(), match.end() - match.start(), self.path_format)
         for match in self._relative_path_re.finditer(text):
             self.setFormat(match.start(), match.end() - match.start(), self.path_format)
+        for match in self._hex_value_re.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.hex_offset_format)
         for match in self._number_re.finditer(text):
             self.setFormat(match.start(), match.end() - match.start(), self.number_format)
         for match in self._warning_re.finditer(text):

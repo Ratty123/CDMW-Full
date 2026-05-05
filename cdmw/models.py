@@ -850,6 +850,95 @@ class ModelPreviewMesh:
 
 
 @dataclass(slots=True)
+class HkxPhysicsOverlayShape:
+    shape_type: str = ""
+    label: str = ""
+    source_path: str = ""
+    source_shape_index: int = -1
+    simulation_role: str = ""
+    simulation_role_description: str = ""
+    body_name: str = ""
+    socket_name: str = ""
+    fixed_socket_name: str = ""
+    physics_material_name: str = ""
+    confidence: str = "experimental"
+    read_only_reason: str = ""
+    bounds_min: Tuple[float, float, float] = ()
+    bounds_max: Tuple[float, float, float] = ()
+    center: Tuple[float, float, float] = ()
+    radius: float = 0.0
+    capsule_start: Tuple[float, float, float] = ()
+    capsule_end: Tuple[float, float, float] = ()
+    vertices: Tuple[Tuple[float, float, float], ...] = ()
+    faces: Tuple[Tuple[int, ...], ...] = ()
+    placement_source: str = ""
+    placement_target: str = ""
+    placement_delta: Tuple[float, float, float] = ()
+
+
+@dataclass(slots=True)
+class HkxPhysicsOverlayAnchor:
+    label: str = ""
+    source_path: str = ""
+    simulation_role: str = ""
+    simulation_role_description: str = ""
+    body_name: str = ""
+    socket_name: str = ""
+    fixed_socket_name: str = ""
+    physics_material_name: str = ""
+    skeleton_bone_name: str = ""
+    skeleton_bone_index: int = -1
+    skeleton_source_path: str = ""
+    confidence: str = "experimental"
+    position: Tuple[float, float, float] = ()
+    shape_indices: Tuple[int, ...] = ()
+    tuning_hints: Tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
+class HkxPhysicsOverlayConstraint:
+    label: str = ""
+    source_path: str = ""
+    constraint_type: str = ""
+    simulation_role: str = ""
+    simulation_role_description: str = ""
+    body_name: str = ""
+    socket_name: str = ""
+    fixed_socket_name: str = ""
+    confidence: str = "experimental"
+    start: Tuple[float, float, float] = ()
+    end: Tuple[float, float, float] = ()
+    motor_hints: Tuple[str, ...] = ()
+    limit_hints: Tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
+class HkxPhysicsOverlayBone:
+    name: str = ""
+    source_path: str = ""
+    index: int = -1
+    parent_index: int = -1
+    parent_name: str = ""
+    position: Tuple[float, float, float] = ()
+    parent_position: Tuple[float, float, float] = ()
+    confidence: str = "skeleton_context"
+
+
+@dataclass(slots=True)
+class HkxPhysicsOverlayData:
+    summary: str = ""
+    source_paths: Tuple[str, ...] = ()
+    simulation_role_counts: Tuple[Tuple[str, int], ...] = ()
+    shapes: Tuple[HkxPhysicsOverlayShape, ...] = ()
+    anchors: Tuple[HkxPhysicsOverlayAnchor, ...] = ()
+    constraints: Tuple[HkxPhysicsOverlayConstraint, ...] = ()
+    bones: Tuple[HkxPhysicsOverlayBone, ...] = ()
+    body_count: int = 0
+    constraint_count: int = 0
+    limitations: Tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
 class ArchiveModelTextureReference:
     reference_name: str = ""
     material_name: str = ""
@@ -888,6 +977,7 @@ class ModelPreviewData:
     normalization_center: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     normalization_scale: float = 1.0
     meshes: List[ModelPreviewMesh] = field(default_factory=list)
+    physics_overlay: Optional[HkxPhysicsOverlayData] = None
 
 
 @dataclass(slots=True)
@@ -913,6 +1003,8 @@ class PreparedModelPreviewBatch:
     texture_wrap_repeat: bool = False
     preview_debug_flip_base_v: bool = False
     preview_debug_disable_support_maps: bool = False
+    position_y_min: float = 0.0
+    position_y_max: float = 0.0
 
 
 @dataclass(slots=True)
@@ -1137,6 +1229,8 @@ class ModelPreviewRenderSettings:
     disable_lighting: bool = False
     disable_depth_test: bool = False
     show_texture_debug_strip: bool = False
+    show_physics_overlay: bool = True
+    show_physics_simulation_preview: bool = True
     solo_batch_index: int = -1
     preview_texture_max_dimension: int = 16384
     low_quality_texture_max_dimension: int = 2048

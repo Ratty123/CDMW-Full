@@ -48,9 +48,13 @@ from cdmw.core.model_preview import (
     ensure_model_preview_is_reasonable,
 )
 from cdmw.core.archive_modding import (
+    build_hkx_descriptor_hint_from_xml_text,
+    build_hkx_editable_geometry_document,
+    build_hkx_physics_overlay_from_document,
     build_hkx_preview,
     build_mesh_preview_from_bytes,
     build_pab_preview,
+    merge_hkx_physics_overlays,
 )
 from cdmw.core.pipeline import ensure_dds_display_preview_png, parse_dds
 from cdmw.core.upscale_profiles import (
@@ -60,7 +64,7 @@ from cdmw.core.upscale_profiles import (
     normalize_texture_reference_for_sidecar_lookup,
     parse_texture_sidecar_bindings,
 )
-from cdmw.modding.skeleton_parser import iter_pab_candidate_basenames
+from cdmw.modding.skeleton_parser import iter_pab_candidate_basenames, parse_pab
 
 if TYPE_CHECKING:
     from cdmw.modding.mesh_parser import ParsedMesh
@@ -73,7 +77,7 @@ _ARCHIVE_SIDECAR_CACHE_MAGIC = b"CTFSIDE1"
 _ARCHIVE_SIDECAR_CACHE_VERSION = 9
 _ARCHIVE_SIDECAR_ENTRY_SIGNATURE_FORMAT = 1
 _ARCHIVE_DERIVED_INDEX_CACHE_MAGIC = b"CTFDERI1"
-_ARCHIVE_DERIVED_INDEX_CACHE_VERSION = 3
+_ARCHIVE_DERIVED_INDEX_CACHE_VERSION = 5
 _ARCHIVE_DERIVED_INDEX_CACHE_MAX_SAFE_BYTES = 64 * 1024 * 1024
 _INITIAL_MODEL_PREVIEW_RENDER_SETTINGS = clamp_model_preview_render_settings()
 # Keep visible base textures closer to their source resolution in the 3D preview.
@@ -317,6 +321,12 @@ class _StructuredBinaryPreviewBundle:
     metadata_label: str = ""
 
 
+@dataclass(slots=True)
+class _BinarySidecarStringRecord:
+    offset: int
+    text: str
+
+
 _MODEL_SIDECAR_PARSE_CACHE_LIMIT = 512
 _MODEL_SIDECAR_PARSE_CACHE: OrderedDict[
     Tuple[object, ...],
@@ -398,6 +408,7 @@ _STRUCTURED_BINARY_ASSET_REFERENCE_EXTENSIONS: frozenset[str] = frozenset(
         ".pami",
         ".meshinfo",
         ".hkx",
+        ".hkt",
         ".pam",
         ".pamlod",
         ".pac",
@@ -408,6 +419,7 @@ _STRUCTURED_BINARY_ASSET_REFERENCE_EXTENSIONS: frozenset[str] = frozenset(
         ".pabgh",
         ".papr",
         ".paa",
+        ".paa_metabin",
         ".pae",
         ".paem",
         ".paseq",
@@ -461,7 +473,7 @@ _ARCHIVE_STRUCTURED_BINARY_PREVIEW_EXTENSIONS: Tuple[str, ...] = (
 )
 _ARCHIVE_SCAN_CACHE_SUPPORTED_VERSIONS = {1, 2}
 _ARCHIVE_SIDECAR_CACHE_SUPPORTED_VERSIONS = {8, 9}
-_ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS = {3}
+_ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS = {5}
 CHACHA20_HASH_INITVAL = 0x000C5EDE
 CHACHA20_IV_XOR = 0x60616263
 CHACHA20_XOR_DELTAS = (
@@ -2029,8 +2041,16 @@ def archive_entry_role(entry: ArchiveEntry) -> str:
     path_lower = entry.path.lower()
     extension = entry.extension
 
-    if extension in ARCHIVE_MODEL_EXTENSIONS or extension in {".hkx"}:
+    if extension in {".hkx", ".hkt"}:
+        if any(token in path_lower for token in ("meshphysics", "havokphysics", "ragdoll", "physics")):
+            return "physics"
+        return "animation"
+    if extension in ARCHIVE_MODEL_EXTENSIONS:
         return "model"
+    if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".papr", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+        return "animation"
+    if extension in {".meshinfo", ".prefab", ".pabgb", ".pabgh", ".pabc", ".pabv", ".levelinfo", ".palevel", ".roadsector", ".road", ".nav", ".seqmt", ".uianiminit"}:
+        return "metadata"
     if extension == ".pathc":
         return "metadata"
     if extension in ARCHIVE_VIDEO_EXTENSIONS:
@@ -2221,7 +2241,21 @@ def _archive_entry_matches_text_pattern(path_lower: str, basename_lower: str, pa
             or fnmatch.fnmatch(basename_lower, pattern)
             or bool(alias_lower and fnmatch.fnmatch(alias_lower, pattern))
         )
-    return pattern in path_lower or pattern in basename_lower or bool(alias_lower and pattern in alias_lower)
+    return (
+        pattern in path_lower
+        or pattern in basename_lower
+        or bool(alias_lower and (pattern in alias_lower or _archive_alias_token_prefix_match(alias_lower, pattern)))
+    )
+
+
+def _archive_alias_token_prefix_match(alias_lower: str, query_lower: str) -> bool:
+    query_tokens = tuple(re.findall(r"[a-z0-9]+", str(query_lower or "").lower()))
+    if not query_tokens:
+        return False
+    alias_tokens = tuple(re.findall(r"[a-z0-9]+", str(alias_lower or "").lower()))
+    if not alias_tokens:
+        return False
+    return all(any(alias_token.startswith(query_token) for alias_token in alias_tokens) for query_token in query_tokens)
 
 
 def _archive_entry_search_relevance_rank(
@@ -2653,6 +2687,7 @@ def save_archive_derived_index_cache(
     item_display_names: Optional[Mapping[str, str]] = None,
     item_exact_display_names: Optional[Mapping[str, str]] = None,
     item_related_display_names: Optional[Mapping[str, str]] = None,
+    item_asset_catalog: Optional[Sequence[Mapping[str, object]]] = None,
     path_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     basename_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     extension_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
@@ -2672,6 +2707,7 @@ def save_archive_derived_index_cache(
         "item_display_names": dict(item_display_names or {}),
         "item_exact_display_names": dict(item_exact_display_names or {}),
         "item_related_display_names": dict(item_related_display_names or {}),
+        "item_asset_catalog": [dict(row) for row in (item_asset_catalog or []) if isinstance(row, Mapping)],
     }
     _write_raw_pickle_cache_payload_to_path(
         cache_path,
@@ -2757,6 +2793,11 @@ def load_archive_derived_index_cache(
                 str(key): str(value)
                 for key, value in (data.get("item_related_display_names", {}) or {}).items()
             },
+            "item_asset_catalog": [
+                dict(row)
+                for row in (data.get("item_asset_catalog", []) or [])
+                if isinstance(row, Mapping)
+            ],
             "cache_path": str(cache_path),
         }
         _record_timing(timings, "derived_cache_load_s", load_started_at)
@@ -5040,6 +5081,95 @@ def _normalize_model_texture_reference(value: str) -> str:
     return normalized
 
 
+_ARCHIVE_TEXTURE_FAMILY_STOP_TOKENS = {
+    "actor",
+    "animation",
+    "armor",
+    "base",
+    "bin",
+    "character",
+    "color",
+    "common",
+    "dds",
+    "diff",
+    "diffuse",
+    "disp",
+    "game",
+    "height",
+    "hkx",
+    "material",
+    "mesh",
+    "meshphysics",
+    "model",
+    "modelproperty",
+    "normal",
+    "object",
+    "overlay",
+    "pac",
+    "pamlod",
+    "paz",
+    "pc",
+    "phm",
+    "phw",
+    "ptm",
+    "rough",
+    "sp",
+    "texture",
+    "textures",
+    "wrinkle",
+    "xml",
+}
+
+
+def _archive_reference_family_tokens(value: str) -> set[str]:
+    normalized = _normalize_model_texture_reference(value)
+    if not normalized:
+        return set()
+    tokens: set[str] = set()
+    for token in re.findall(r"[a-z0-9]+", normalized):
+        token = token.strip().lower()
+        if len(token) < 3:
+            continue
+        if token in _ARCHIVE_TEXTURE_FAMILY_STOP_TOKENS:
+            continue
+        if token.isdigit() or re.fullmatch(r"[a-z]{1,3}\d+", token):
+            continue
+        tokens.add(token)
+    return tokens
+
+
+def _archive_texture_family_mismatch_summary(
+    source_path: str,
+    texture_paths: Sequence[str],
+    *,
+    sidecar_paths: Sequence[str] = (),
+) -> str:
+    source_tokens = _archive_reference_family_tokens(source_path)
+    texture_tokens: set[str] = set()
+    for texture_path in texture_paths:
+        texture_tokens.update(_archive_reference_family_tokens(texture_path))
+    if not source_tokens or not texture_tokens or source_tokens & texture_tokens:
+        return ""
+    source_display = ", ".join(sorted(source_tokens)[:4])
+    texture_display = ", ".join(sorted(texture_tokens)[:5])
+    sidecar_display = ", ".join(str(path or "").strip() for path in sidecar_paths[:2] if str(path or "").strip())
+    sidecar_note = f" from {sidecar_display}" if sidecar_display else ""
+    return (
+        "Cross-family material notice: the exact companion sidecar"
+        f"{sidecar_note} points at texture family tokens [{texture_display}], while the selected model path looks like "
+        f"[{source_display}]. This can be legitimate material reuse, but it is not proof of item identity."
+    )
+
+
+def _archive_texture_family_mismatch_reason(source_entry: ArchiveEntry, texture_entry: Optional[ArchiveEntry]) -> str:
+    if not isinstance(texture_entry, ArchiveEntry):
+        return ""
+    notice = _archive_texture_family_mismatch_summary(source_entry.path, (texture_entry.path,))
+    if not notice:
+        return ""
+    return "cross-family texture name; exact sidecar binding may be legitimate material reuse"
+
+
 def _normalize_model_submesh_reference(value: str) -> str:
     raw_text = str(value or "").replace("\\", "/").strip().lower()
     if not raw_text:
@@ -5451,8 +5581,8 @@ def _score_model_related_entry_candidate(source_entry: ArchiveEntry, candidate: 
             extension_priority = 5
         elif candidate_extension in _ARCHIVE_XML_LIKE_EXTENSIONS:
             extension_priority = 4
-    elif source_extension in {".paa", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
-        if candidate_extension in {".hkx", ".paa", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+    elif source_extension in {".paa", ".paa_metabin", ".motionblending", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+        if candidate_extension in {".hkx", ".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
             extension_priority = 6
         elif candidate_extension in _ARCHIVE_XML_LIKE_EXTENSIONS:
             extension_priority = 5
@@ -5509,7 +5639,7 @@ def _score_model_related_entry_candidate(source_entry: ArchiveEntry, candidate: 
             extension_priority = 5
         elif candidate_extension in _ARCHIVE_XML_LIKE_EXTENSIONS:
             extension_priority = 4
-    elif source_extension == ".hkx":
+    elif source_extension in {".hkx", ".hkt"}:
         if candidate_extension in {".pam", ".pamlod", ".pac"}:
             extension_priority = 7
         elif candidate_extension == ".pab":
@@ -5536,6 +5666,7 @@ def _extend_archive_related_target_basenames(
     add_target(f"{stem}.meshinfo")
     add_target(f"{stem}.app_xml")
     add_target(f"{stem}.app.xml")
+    add_target(f"{stem}.prefab")
     add_target(f"{stem}.prefabdata.xml")
     add_target(f"{stem}.prefabdata_xml")
     add_target(f"{stem}.sockets.xml")
@@ -5585,10 +5716,10 @@ def _extend_archive_related_target_basenames(
             add_target(f"{stem}.pami")
             add_target(f"{stem}.meshinfo")
             add_target(f"{stem}.hkx")
-    elif source_extension in {".paa", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
-        for related_extension in (".paa", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage"):
+    elif source_extension in {".paa", ".paa_metabin", ".motionblending", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+        for related_extension in (".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".hkx", ".paseq", ".paschedule", ".paschedulepath", ".pastage"):
             add_target(f"{stem}{related_extension}")
-    elif source_extension == ".hkx":
+    elif source_extension in {".hkx", ".hkt"}:
         add_target(f"{stem}.pam")
         add_target(f"{stem}.pamlod")
         add_target(f"{stem}.pac")
@@ -5778,6 +5909,8 @@ def _relation_group_for_kind(relation_kind: str) -> str:
         return "Mesh / Model"
     if normalized_kind == RelationKind.SKELETON.value:
         return "Skeleton / Rig"
+    if normalized_kind == "physics":
+        return "Physics / Collision"
     if normalized_kind == RelationKind.ANIMATION.value:
         return "Animation / Motion"
     return "Metadata / Other"
@@ -5785,6 +5918,7 @@ def _relation_group_for_kind(relation_kind: str) -> str:
 
 def _relation_kind_for_entry(candidate_entry: Optional[ArchiveEntry], reference_name: str = "") -> str:
     reference_path = str(getattr(candidate_entry, "path", "") or reference_name).replace("\\", "/")
+    reference_path_lower = reference_path.lower()
     reference_basename = PurePosixPath(reference_path).name.lower()
     extension = str(getattr(candidate_entry, "extension", "") or PurePosixPath(reference_path).suffix).strip().lower()
     if extension == ".dds":
@@ -5801,7 +5935,11 @@ def _relation_kind_for_entry(candidate_entry: Optional[ArchiveEntry], reference_
         return RelationKind.MESH.value
     if extension == ".pamlod":
         return RelationKind.LOD.value
-    if extension in {".hkx", ".motionblending", ".papr", ".paa", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+    if extension in {".hkx", ".hkt"}:
+        if any(token in reference_path_lower for token in ("meshphysics", "havokphysics", "ragdoll", "physics")):
+            return "physics"
+        return RelationKind.ANIMATION.value
+    if extension in {".motionblending", ".papr", ".paa", ".paa_metabin", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
         return RelationKind.ANIMATION.value
     return RelationKind.METADATA.value
 
@@ -7002,6 +7140,7 @@ def _ensure_archive_model_texture_preview_path(
     texture_entry: ArchiveEntry,
     *,
     max_dimension: Optional[int] = None,
+    slot_kind: str = "base",
     stop_event: Optional[threading.Event] = None,
 ) -> str:
     resolved_max_dimension = (
@@ -7014,6 +7153,7 @@ def _ensure_archive_model_texture_preview_path(
         _archive_entry_pathc_identity_signature(texture_entry),
         _texconv_identity_signature(resolved_texconv_path),
         resolved_max_dimension,
+        str(slot_kind or "base").strip().lower(),
     )
     with _MODEL_TEXTURE_PREVIEW_PATH_CACHE_LOCK:
         cached_preview_path = _MODEL_TEXTURE_PREVIEW_PATH_CACHE.get(cache_key)
@@ -7041,6 +7181,7 @@ def _ensure_archive_model_texture_preview_path(
         texture_source_path.resolve(),
         dds_info=dds_info,
         max_dimension=resolved_max_dimension,
+        slot_kind=slot_kind,
         stop_event=stop_event,
     )
     preview_path_text = str(preview_path)
@@ -7241,14 +7382,16 @@ def _attach_model_sidecar_texture_preview_paths(
     force_unflipped_preview = str(getattr(source_entry, "extension", "") or "").lower() == ".pac"
     preview_cache: Dict[str, str] = {}
 
-    def _preview_path_for_entry(texture_entry: ArchiveEntry) -> str:
-        cache_key = _normalize_model_texture_reference(texture_entry.path)
+    def _preview_path_for_entry(texture_entry: ArchiveEntry, *, slot_kind: str = "base") -> str:
+        slot_key = str(slot_kind or "base").strip().lower()
+        cache_key = f"{_normalize_model_texture_reference(texture_entry.path)}|{slot_key}"
         preview_path_text = preview_cache.get(cache_key, "")
         if preview_path_text:
             return preview_path_text
         preview_path_text = _ensure_archive_model_texture_preview_path(
             resolved_texconv_path,
             texture_entry,
+            slot_kind=slot_key,
             stop_event=stop_event,
         )
         preview_cache[cache_key] = preview_path_text
@@ -7882,8 +8025,9 @@ def _attach_model_support_texture_preview_paths(
                 return tuple(sidecar_texts_by_basename.get(basename, ()))
         return ()
 
-    def _preview_path_for_entry(texture_entry: ArchiveEntry) -> str:
-        cache_key = _normalize_model_texture_reference(texture_entry.path)
+    def _preview_path_for_entry(texture_entry: ArchiveEntry, *, slot_kind: str = "base") -> str:
+        slot_key = str(slot_kind or "base").strip().lower()
+        cache_key = f"{_normalize_model_texture_reference(texture_entry.path)}|{slot_key}"
         preview_path_text = preview_cache.get(cache_key, "")
         if preview_path_text:
             return preview_path_text
@@ -7891,6 +8035,7 @@ def _attach_model_support_texture_preview_paths(
             resolved_texconv_path,
             texture_entry,
             max_dimension=_MODEL_SUPPORT_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION,
+            slot_kind=slot_key,
             stop_event=stop_event,
         )
         preview_cache[cache_key] = preview_path_text
@@ -7909,7 +8054,7 @@ def _attach_model_support_texture_preview_paths(
         *,
         semantic_hint: str,
     ) -> bool:
-        preview_path_text = _preview_path_for_entry(texture_entry)
+        preview_path_text = _preview_path_for_entry(texture_entry, slot_kind=slot_name)
         semantic_type = ""
         semantic_subtype = ""
         packed_channels: Tuple[str, ...] = ()
@@ -8245,6 +8390,7 @@ def _describe_model_texture_semantic_label(
 
 def _describe_model_related_file_label(entry: ArchiveEntry) -> str:
     extension = str(entry.extension or "").strip().lower()
+    path = str(entry.path or "").replace("\\", "/").lower()
     basename = PurePosixPath(entry.path.replace("\\", "/")).name.lower()
     if extension == ".pam":
         return "Companion PAM"
@@ -8267,11 +8413,19 @@ def _describe_model_related_file_label(entry: ArchiveEntry) -> str:
     if extension == ".xml":
         return "Companion XML"
     if extension == ".hkx":
+        if any(token in path for token in ("meshphysics", "havokphysics", "ragdoll", "physics")):
+            return "Physics HKX"
         return "Companion HKX"
     if extension == ".meshinfo":
         return "Companion MeshInfo"
     if extension == ".paa":
         return "Companion PAA"
+    if extension == ".paa_metabin":
+        return "Animation Metadata"
+    if extension == ".motionblending":
+        return "Motion Blending"
+    if extension in {".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+        return "Animation Metadata"
     if extension in {".pae", ".paem"}:
         return "Companion Effect"
     if extension:
@@ -8325,7 +8479,10 @@ def _texture_reference_relation_metadata(
         )
     normalized_reference = normalize_texture_reference_for_sidecar_lookup(reference_name)
     normalized_resolved = normalize_texture_reference_for_sidecar_lookup(resolved_entry.path)
+    mismatch_reason = _archive_texture_family_mismatch_reason(source_entry, resolved_entry) if semantic_hint else ""
     if normalized_reference and normalized_reference == normalized_resolved:
+        if mismatch_reason:
+            return RelationConfidence.EXACT_PATH.value, f"Exact sidecar path; {mismatch_reason}"
         return RelationConfidence.EXACT_PATH.value, "Exact archive path"
     if (
         normalized_reference
@@ -8335,8 +8492,12 @@ def _texture_reference_relation_metadata(
     ):
         return RelationConfidence.CROSS_PACKAGE.value, "Cross-package texture reference"
     if normalized_reference and normalized_resolved and normalized_reference.lstrip("/") == normalized_resolved.lstrip("/"):
+        if mismatch_reason:
+            return RelationConfidence.PATH_NORMALIZED.value, f"Path-normalized sidecar path; {mismatch_reason}"
         return RelationConfidence.PATH_NORMALIZED.value, "Path-normalized texture reference"
     if semantic_hint:
+        if mismatch_reason:
+            return RelationConfidence.AUTHORITATIVE.value, f"Sidecar texture binding; {mismatch_reason}"
         return RelationConfidence.AUTHORITATIVE.value, "Sidecar texture binding"
     return RelationConfidence.DERIVED_SAME_STEM.value, "Resolved texture family"
 
@@ -9245,6 +9406,16 @@ def _group_animation_field_name(name: str) -> str:
     normalized = str(name or "").strip().lstrip("_").lower()
     if not normalized:
         return "Misc"
+    if any(token in normalized for token in ("skeleton", "bone", "rig")):
+        return "Skeleton"
+    if any(token in normalized for token in ("delaunay", "triangle", "vert", "center")):
+        return "Delaunay"
+    if any(token in normalized for token in ("animationfilename", "animationfile", "animationdata", "animation")):
+        return "Animation Files"
+    if any(token in normalized for token in ("parameter", "dimension", "minmax", "smoothing")):
+        return "Parameters"
+    if any(token in normalized for token in ("phase", "motion", "blend", "speed", "loop", "sync")):
+        return "Motion Space"
     if any(token in normalized for token in ("animation", "clip", "frame", "curve", "track", "event")):
         return "Animation"
     if any(token in normalized for token in ("motion", "blend", "space", "parameter")):
@@ -9258,23 +9429,1417 @@ def _group_animation_field_name(name: str) -> str:
     return "Misc"
 
 
+_PAA_METABIN_TOKEN_HINTS: Dict[str, Tuple[str, str]] = {
+    "nor": ("Motion state", "normal"),
+    "abn": ("Motion state", "abnormal / reaction"),
+    "dam": ("Action", "damage / hit reaction"),
+    "atk": ("Action", "attack"),
+    "skill": ("Action", "skill"),
+    "move": ("Motion", "movement"),
+    "idle": ("Motion", "idle"),
+    "std": ("Pose", "standing"),
+    "sit": ("Pose", "sitting"),
+    "run": ("Motion", "running"),
+    "walk": ("Motion", "walking"),
+    "jump": ("Motion", "jump"),
+    "upper": ("Body region", "upper body"),
+    "lower": ("Body region", "lower body"),
+    "stt": ("Timeline phase", "start"),
+    "ing": ("Timeline phase", "in progress / loop body"),
+    "end": ("Timeline phase", "end"),
+    "loop": ("Timeline phase", "loop"),
+    "f": ("Direction", "forward"),
+    "b": ("Direction", "back"),
+    "l": ("Direction", "left"),
+    "r": ("Direction", "right"),
+    "fd": ("Direction", "forward-down"),
+    "fu": ("Direction", "forward-up"),
+    "cvst": ("Scene use", "conversation / cutscene-style"),
+    "quest": ("Scene use", "quest sequence"),
+    "camera": ("Scene use", "camera animation"),
+}
+
+
+def _paa_metabin_animation_stem(virtual_path: str) -> str:
+    basename = PurePosixPath(str(virtual_path or "").replace("\\", "/")).name
+    lowered = basename.lower()
+    if lowered.endswith(".paa_metabin"):
+        return basename[: -len(".paa_metabin")]
+    return PurePosixPath(basename).stem
+
+
+def _paa_metabin_declared_type_name(data: bytes) -> Tuple[str, int, int]:
+    if len(data) >= 0x18:
+        name_length = struct.unpack_from("<I", data, 0x14)[0]
+        if 0 < name_length <= 128 and 0x18 + name_length <= len(data):
+            raw_name = data[0x18 : 0x18 + name_length]
+            try:
+                type_name = raw_name.decode("ascii", errors="strict").strip("\x00")
+            except UnicodeDecodeError:
+                type_name = ""
+            if type_name and _looks_like_structured_field_name(type_name):
+                return type_name, 0x18, int(name_length)
+    for record in _extract_binary_string_records(data, sample_limit=4096, max_strings=16):
+        if record.text == "AnimationMetaData":
+            return record.text, record.offset, len(record.text)
+    return "", 0, 0
+
+
+def _paa_metabin_filename_hint_rows(virtual_path: str) -> List[Dict[str, str]]:
+    stem = _paa_metabin_animation_stem(virtual_path)
+    tokens = [token for token in re.split(r"[_\-.]+", stem.lower()) if token]
+    rows: List[Dict[str, str]] = []
+    seen: set[Tuple[str, str, str]] = set()
+
+    def add(kind: str, token: str, meaning: str, confidence: str = "filename_token") -> None:
+        key = (kind, token, meaning)
+        if key in seen:
+            return
+        seen.add(key)
+        rows.append(
+            {
+                "kind": kind,
+                "token": token,
+                "meaning": meaning,
+                "confidence": confidence,
+            }
+        )
+
+    if tokens and tokens[0] == "cd":
+        add("Namespace", "cd", "Crimson Desert asset prefix", "filename_convention")
+    if len(tokens) >= 2:
+        add("Asset code", tokens[1], "character/object/sequence code from filename", "filename_token")
+    for token in tokens:
+        hint = _PAA_METABIN_TOKEN_HINTS.get(token)
+        if hint is None:
+            continue
+        add(hint[0], token, hint[1])
+    if stem:
+        add("Animation stem", stem, "same-stem key used to find related animation files", "same_stem_relation_key")
+    return rows
+
+
+def _paa_metabin_header_rows(data: bytes) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    if len(data) >= 4:
+        rows.append(
+            {
+                "offset": 0,
+                "name": "signature_words",
+                "value": f"u16[0]=0x{struct.unpack_from('<H', data, 0)[0]:04X}, u16[1]={struct.unpack_from('<H', data, 2)[0]}",
+                "confidence": "stable_in_corpus",
+            }
+        )
+    if len(data) >= 0x18:
+        rows.append(
+            {
+                "offset": 0x14,
+                "name": "declared_type_name_length",
+                "value": int(struct.unpack_from("<I", data, 0x14)[0]),
+                "confidence": "stable_length_prefixed_string",
+            }
+        )
+    for offset, label in ((0x2C, "descriptor_a"), (0x30, "descriptor_b"), (0x38, "descriptor_c"), (0x44, "descriptor_count")):
+        if len(data) < offset + 4:
+            continue
+        be_value = struct.unpack_from(">I", data, offset)[0]
+        le_value = struct.unpack_from("<I", data, offset)[0]
+        plausible_value = be_value if be_value <= 1_000_000 else le_value
+        rows.append(
+            {
+                "offset": offset,
+                "name": label,
+                "value": plausible_value,
+                "be_u32": be_value,
+                "le_u32": le_value,
+                "confidence": "stable_descriptor_word_observed",
+            }
+        )
+    return rows
+
+
+def _paa_metabin_packed_stream_summary(data: bytes) -> Dict[str, object]:
+    stream_offset = 0x50 if len(data) > 0x50 else len(data)
+    stream = data[stream_offset:]
+    marker_counts = {
+        f"0x{marker:02X}": int(stream.count(marker))
+        for marker in (0x00, 0x01, 0x05, 0x3C, 0x80, 0xFF)
+        if stream.count(marker)
+    }
+    preview_rows: List[Dict[str, object]] = []
+    for offset in range(stream_offset, min(len(data), stream_offset + 96), 8):
+        chunk = data[offset : min(len(data), offset + 8)]
+        if not chunk:
+            continue
+        preview_rows.append(
+            {
+                "offset": offset,
+                "hex": chunk.hex(" ").upper(),
+                "u16_le": [
+                    int.from_bytes(chunk[index : index + 2], "little")
+                    for index in range(0, len(chunk) - 1, 2)
+                ],
+                "u16_be": [
+                    int.from_bytes(chunk[index : index + 2], "big")
+                    for index in range(0, len(chunk) - 1, 2)
+                ],
+                "confidence": "packed_stream_preview",
+            }
+        )
+    return {
+        "stream_offset": stream_offset,
+        "stream_size": len(stream),
+        "marker_counts": marker_counts,
+        "preview_rows": preview_rows,
+        "status": "packed_event_or_timing_stream_observed" if stream else "no_metadata_stream_bytes",
+        "confidence": "stable_header_plus_experimental_payload",
+    }
+
+
+def _paa_metabin_analysis_document(data: bytes, virtual_path: str) -> Dict[str, object]:
+    type_name, type_offset, type_length = _paa_metabin_declared_type_name(data)
+    filename_hints = _paa_metabin_filename_hint_rows(virtual_path)
+    stream_summary = _paa_metabin_packed_stream_summary(data)
+    return {
+        "declared_type": type_name or "unknown",
+        "declared_type_offset": type_offset,
+        "declared_type_length": type_length,
+        "animation_stem": _paa_metabin_animation_stem(virtual_path),
+        "filename_hints": filename_hints,
+        "header_rows": _paa_metabin_header_rows(data),
+        "packed_metadata_stream": stream_summary,
+        "editing_supported": False,
+        "relationship_use": (
+            "Useful for linking animation metadata to same-stem .paa/.motionblending/.hkx style animation assets "
+            "and for exposing filename-derived motion hints. The packed stream is not editable."
+        ),
+    }
+
+
+def _extract_binary_string_records(
+    data: bytes,
+    *,
+    sample_limit: int = 262_144,
+    max_strings: int = 512,
+) -> List[_BinarySidecarStringRecord]:
+    sample = data[:sample_limit]
+    records: List[_BinarySidecarStringRecord] = []
+    seen: set[str] = set()
+    for match in _PRINTABLE_BINARY_STRING_RE.finditer(sample):
+        text = match.group().decode("ascii", errors="ignore").strip()
+        letter_count = sum(1 for char in text if char.isalpha())
+        if len(text) < 4 or text in seen or letter_count == 0:
+            continue
+        allowed_char_count = sum(1 for char in text if char.isalnum() or char in " _./:-[](){}")
+        if allowed_char_count / max(len(text), 1) < 0.85:
+            continue
+        if len(text) < 12 and letter_count < 4:
+            continue
+        if "_" not in text and "/" not in text and "::" not in text and " " not in text and len(text) < 12:
+            continue
+        if len(text) > 240:
+            text = text[:237] + "..."
+        seen.add(text)
+        records.append(_BinarySidecarStringRecord(offset=match.start(), text=text))
+        if len(records) >= max_strings:
+            break
+    return records
+
+
+def _read_binary_sidecar_string_at(data: bytes, offset: int, *, limit: int = 96) -> str:
+    if offset < 0 or offset >= len(data):
+        return ""
+    match = _PRINTABLE_BINARY_STRING_RE.match(data[offset : min(len(data), offset + limit)])
+    if match is None:
+        return ""
+    text = match.group().decode("ascii", errors="ignore").strip()
+    if not text or sum(1 for char in text if char.isalpha()) == 0:
+        return ""
+    if len(text) > 96:
+        text = text[:93] + "..."
+    return text
+
+
+def _binary_sidecar_asset_reference_rows(
+    string_records: Sequence[_BinarySidecarStringRecord],
+    *,
+    max_references: int = 96,
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    seen: set[str] = set()
+    for record in string_records:
+        for match in _STRUCTURED_BINARY_ASSET_TOKEN_RE.finditer(record.text):
+            raw_text = str(match.group(0) or "").strip().strip("\x00").replace("\\", "/")
+            if not _looks_like_structured_asset_reference(raw_text):
+                continue
+            normalized = _normalize_model_texture_reference(raw_text)
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            rows.append(
+                {
+                    "offset": record.offset + match.start(),
+                    "path": raw_text,
+                    "extension": PurePosixPath(raw_text).suffix.lower(),
+                    "confidence": "string_path",
+                }
+            )
+            if len(rows) >= max_references:
+                return rows
+    return rows
+
+
+def _binary_sidecar_header_words(data: bytes, *, max_words: int = 20) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    for offset in range(0, min(len(data) // 4, max_words) * 4, 4):
+        value = struct.unpack_from("<I", data, offset)[0]
+        rows.append(
+            {
+                "offset": offset,
+                "le_u32": value,
+                "le_i32": struct.unpack_from("<i", data, offset)[0],
+                "hex": f"0x{value:08X}",
+            }
+        )
+    return rows
+
+
+def _binary_sidecar_offset_candidates(
+    data: bytes,
+    *,
+    sample_limit: int = 262_144,
+    max_candidates: int = 64,
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    scan_limit = min(len(data), sample_limit)
+    if scan_limit < 8:
+        return rows
+    for owner_offset in range(0, scan_limit - 3, 4):
+        target_offset = struct.unpack_from("<I", data, owner_offset)[0]
+        if target_offset <= 0 or target_offset >= len(data):
+            continue
+        if target_offset % 4 != 0:
+            continue
+        target_string = _read_binary_sidecar_string_at(data, target_offset)
+        confidence = "string_target" if target_string else "aligned_in_file"
+        rows.append(
+            {
+                "owner_offset": owner_offset,
+                "target_offset": target_offset,
+                "patched_slot_value": f"0x{target_offset:08X}",
+                "target_preview": target_string,
+                "confidence": confidence,
+            }
+        )
+        if len(rows) >= max_candidates:
+            break
+    return rows
+
+
+def _binary_sidecar_count_offset_pairs(
+    data: bytes,
+    *,
+    sample_limit: int = 262_144,
+    max_pairs: int = 48,
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    scan_limit = min(len(data), sample_limit)
+    if scan_limit < 12:
+        return rows
+    stride_candidates = (4, 8, 12, 16, 24, 32, 48, 64)
+    for owner_offset in range(0, scan_limit - 7, 4):
+        count = struct.unpack_from("<I", data, owner_offset)[0]
+        target_offset = struct.unpack_from("<I", data, owner_offset + 4)[0]
+        if count <= 0 or count > 1_000_000:
+            continue
+        if target_offset <= 0 or target_offset >= len(data) or target_offset % 4 != 0:
+            continue
+        remaining = len(data) - target_offset
+        possible_strides = [stride for stride in stride_candidates if count * stride <= remaining]
+        if not possible_strides:
+            continue
+        target_string = _read_binary_sidecar_string_at(data, target_offset)
+        confidence = "strong_string_table" if target_string else "candidate_count_offset_pair"
+        rows.append(
+            {
+                "owner_offset": owner_offset,
+                "count": count,
+                "data_offset": target_offset,
+                "possible_element_sizes": possible_strides,
+                "target_preview": target_string,
+                "confidence": confidence,
+            }
+        )
+        if len(rows) >= max_pairs:
+            break
+    return rows
+
+
+def _is_binary_sidecar_plausible_float(value: float) -> bool:
+    if not math.isfinite(value):
+        return False
+    if abs(value) > 1_000_000.0:
+        return False
+    if 0.0 < abs(value) < 1.0e-12:
+        return False
+    return True
+
+
+def _binary_sidecar_float_rows(
+    data: bytes,
+    *,
+    sample_limit: int = 262_144,
+    max_rows: int = 48,
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    scan_limit = min(len(data), sample_limit)
+    if scan_limit < 12:
+        return rows
+    for offset in range(0, scan_limit - 15, 4):
+        values = struct.unpack_from("<4f", data, offset)
+        if not all(_is_binary_sidecar_plausible_float(value) for value in values):
+            continue
+        if all(abs(value) < 1.0e-6 for value in values):
+            continue
+        # Random integer tables can also look like floats. Keep these explicitly
+        # experimental and only sample enough rows to guide format recovery.
+        non_zero_count = sum(1 for value in values if abs(value) >= 1.0e-6)
+        row_kind = "float4_candidate" if non_zero_count >= 4 else "float3_or_padded_float4_candidate"
+        rows.append(
+            {
+                "offset": offset,
+                "type": row_kind,
+                "values": [round(float(value), 7) for value in values],
+                "confidence": "experimental_numeric_scan",
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+_BINARY_SIDECAR_DECL_IDENTIFIER_RE = re.compile(rb"[A-Za-z_][A-Za-z0-9_]{2,127}")
+_BINARY_SIDECAR_PRIMITIVE_TYPES = {
+    "bool",
+    "float",
+    "float2",
+    "float3",
+    "float4",
+    "int",
+    "int16",
+    "int32",
+    "uint16",
+    "uint32",
+}
+_BINARY_SIDECAR_STRING_TYPES = {"staticstringa", "indexedstringa", "normalizedpatha"}
+_BINARY_SIDECAR_KNOWN_TYPE_CODES = {0, 1, 2, 3, 4, 5, 7, 10}
+
+
+def _looks_like_binary_sidecar_declared_type(value: str) -> bool:
+    text = str(value or "").strip()
+    if len(text) < 3 or len(text) > 96:
+        return False
+    if text.startswith("_") or "/" in text or "\\" in text or "." in text or " " in text:
+        return False
+    if not _STRUCTURED_BINARY_IDENTIFIER_RE.fullmatch(text):
+        return False
+    return any(character.isalpha() for character in text)
+
+
+def _binary_sidecar_descriptor_likely_kind(
+    member_name: str,
+    declared_type: str,
+    descriptor_words: Sequence[int],
+) -> Tuple[str, str, str]:
+    normalized_name = str(member_name or "").strip().lstrip("_").lower()
+    normalized_type = str(declared_type or "").strip().lower()
+    type_code = int(descriptor_words[0]) if descriptor_words else -1
+    element_size = int(descriptor_words[1]) if len(descriptor_words) > 1 else 0
+    flags_word = int(descriptor_words[2]) if len(descriptor_words) > 2 else 0
+
+    is_array = (
+        type_code in {3, 10}
+        or bool(flags_word & 0x1000)
+        or normalized_name.endswith(("list", "array"))
+        or any(token in normalized_name for token in ("list", "container", "filenames", "triangles", "phases"))
+    )
+    array_status = "array_or_table" if is_array else "single_value"
+
+    if normalized_type in _BINARY_SIDECAR_STRING_TYPES or "path" in normalized_type:
+        reference_status = "string_reference" if "path" in normalized_type else "string"
+        likely_kind = "string_array" if is_array else "string"
+    elif "reflectobjectptr" in normalized_type or normalized_type.endswith("ptr"):
+        reference_status = "object_reference"
+        likely_kind = "object_reference_array" if is_array else "object_reference"
+    elif "reflectobject" in normalized_type:
+        reference_status = "object_reference"
+        likely_kind = "object_value_or_reference"
+    elif type_code == 2:
+        reference_status = "type_or_enum_reference"
+        likely_kind = "enum_or_flags"
+    elif normalized_type in _BINARY_SIDECAR_PRIMITIVE_TYPES:
+        reference_status = "value"
+        likely_kind = "numeric_array" if is_array else ("bool" if normalized_type == "bool" else "numeric")
+    elif element_size in {1, 2, 4, 8, 12, 16} and type_code == 0:
+        reference_status = "value"
+        likely_kind = "numeric_or_packed_value"
+    else:
+        reference_status = "type_or_class_reference"
+        likely_kind = "array_or_table" if is_array else "typed_value"
+
+    return likely_kind, array_status, reference_status
+
+
+def _binary_sidecar_descriptor_confidence(
+    member_name: str,
+    declared_type: str,
+    descriptor_words: Sequence[int],
+) -> str:
+    type_code = int(descriptor_words[0]) if descriptor_words else -1
+    element_size = int(descriptor_words[1]) if len(descriptor_words) > 1 else -1
+    normalized_type = str(declared_type or "").strip().lower()
+    if not str(member_name or "").startswith("_"):
+        return "low"
+    if type_code in _BINARY_SIDECAR_KNOWN_TYPE_CODES:
+        if normalized_type in _BINARY_SIDECAR_PRIMITIVE_TYPES and element_size in {1, 2, 4, 8, 12, 16}:
+            return "strong_length_prefixed_member_declaration"
+        if normalized_type in _BINARY_SIDECAR_STRING_TYPES or "reflectobject" in normalized_type:
+            return "strong_length_prefixed_member_declaration"
+        if type_code == 2 and _looks_like_binary_sidecar_declared_type(declared_type):
+            return "strong_length_prefixed_member_declaration"
+        return "length_prefixed_member_declaration"
+    return "experimental_unknown_descriptor"
+
+
+def _binary_sidecar_schema_declarations(
+    data: bytes,
+    extension: str,
+    *,
+    sample_limit: int = 262_144,
+    max_rows: int = 512,
+) -> Dict[str, object]:
+    scan_limit = min(len(data), sample_limit)
+    normalized_extension = str(extension or "").strip().lower()
+    field_group_func = _binary_sidecar_group_func_for_extension(normalized_extension)
+    rows: List[Dict[str, object]] = []
+    seen_row_keys: set[Tuple[int, str, str]] = set()
+    class_candidates: List[Dict[str, object]] = []
+    seen_class_names: set[str] = set()
+
+    for match in _BINARY_SIDECAR_DECL_IDENTIFIER_RE.finditer(data[:scan_limit]):
+        name_offset = match.start()
+        name = match.group().decode("ascii", errors="ignore")
+        if name_offset < 4:
+            continue
+        try:
+            name_length = struct.unpack_from("<I", data, name_offset - 4)[0]
+        except struct.error:
+            continue
+        if name_length != len(name):
+            continue
+
+        if (
+            not name.startswith("_")
+            and len(class_candidates) < 24
+            and _looks_like_binary_sidecar_declared_type(name)
+            and name.lower() not in _BINARY_SIDECAR_PRIMITIVE_TYPES
+            and name.lower() not in _BINARY_SIDECAR_STRING_TYPES
+            and name not in seen_class_names
+        ):
+            seen_class_names.add(name)
+            class_candidates.append(
+                {
+                    "offset": name_offset,
+                    "name": name,
+                    "confidence": "length_prefixed_type_or_class_name",
+                }
+            )
+
+        if not name.startswith("_") or not _looks_like_structured_field_name(name):
+            continue
+        type_length_offset = name_offset + len(name)
+        if type_length_offset + 4 > scan_limit:
+            continue
+        try:
+            type_length = struct.unpack_from("<I", data, type_length_offset)[0]
+        except struct.error:
+            continue
+        if type_length < 3 or type_length > 96:
+            continue
+        type_offset = type_length_offset + 4
+        descriptor_offset = type_offset + type_length
+        if descriptor_offset + 8 > scan_limit:
+            continue
+        declared_type_bytes = data[type_offset:descriptor_offset]
+        if not _BINARY_SIDECAR_DECL_IDENTIFIER_RE.fullmatch(declared_type_bytes):
+            continue
+        declared_type = declared_type_bytes.decode("ascii", errors="ignore")
+        if not _looks_like_binary_sidecar_declared_type(declared_type):
+            continue
+        descriptor_bytes = data[descriptor_offset:descriptor_offset + 8]
+        descriptor_words = struct.unpack_from("<4H", descriptor_bytes, 0)
+        if descriptor_words[0] > 64 or descriptor_words[1] > 256:
+            continue
+        row_key = (name_offset, name, declared_type)
+        if row_key in seen_row_keys:
+            continue
+        seen_row_keys.add(row_key)
+        likely_kind, array_status, reference_status = _binary_sidecar_descriptor_likely_kind(
+            name,
+            declared_type,
+            descriptor_words,
+        )
+        rows.append(
+            {
+                "declaration_offset": name_offset - 4,
+                "name_offset": name_offset,
+                "name": name,
+                "declared_type": declared_type,
+                "type_offset": type_offset,
+                "descriptor_offset": descriptor_offset,
+                "descriptor_hex": descriptor_bytes.hex(" ").upper(),
+                "descriptor_words_le_u16": [int(value) for value in descriptor_words],
+                "type_code": int(descriptor_words[0]),
+                "element_size": int(descriptor_words[1]),
+                "descriptor_flags_hex": f"0x{int(descriptor_words[2]):04X}{int(descriptor_words[3]):04X}",
+                "likely_kind": likely_kind,
+                "array_status": array_status,
+                "reference_status": reference_status,
+                "group": field_group_func(name),
+                "confidence": _binary_sidecar_descriptor_confidence(name, declared_type, descriptor_words),
+                "edit_status": "read_only_declaration_only",
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+
+    signature_source = "\n".join(
+        f"{row['name']}:{row['declared_type']}:{row['descriptor_hex']}"
+        for row in rows
+    )
+    layout_signature = hashlib.sha1(signature_source.encode("utf-8")).hexdigest()[:16] if signature_source else ""
+    declaration_end = 0
+    if rows:
+        declaration_end = max(int(row.get("descriptor_offset") or 0) + 8 for row in rows)
+        declaration_end = min(len(data), (declaration_end + 3) & ~3)
+    unusual_rows = [
+        row
+        for row in rows
+        if int(row.get("type_code") or 0) not in _BINARY_SIDECAR_KNOWN_TYPE_CODES
+        or str(row.get("confidence") or "").startswith("experimental")
+    ]
+
+    return {
+        "status": "experimental_read_only_declaration_recovery",
+        "declaration_count": len(rows),
+        "unique_member_count": len({str(row.get("name") or "") for row in rows}),
+        "layout_signature": layout_signature,
+        "root_or_class_candidates": class_candidates,
+        "declaration_region": {
+            "start_offset": int(rows[0]["declaration_offset"]) if rows else 0,
+            "end_offset": declaration_end,
+            "candidate_value_region_start": declaration_end,
+            "confidence": "declaration_end_heuristic" if rows else "no_declarations",
+        },
+        "declared_member_rows": rows,
+        "unknown_descriptor_rows": unusual_rows[:64],
+    }
+
+
+def _build_grouped_schema_declaration_lines(
+    declaration_rows: Sequence[Mapping[str, object]],
+    *,
+    section_order: Sequence[str],
+    per_section_limit: int = 24,
+) -> List[str]:
+    grouped: Dict[str, List[Mapping[str, object]]] = defaultdict(list)
+    for row in declaration_rows:
+        if not isinstance(row, Mapping):
+            continue
+        group = str(row.get("group") or "Misc").strip() or "Misc"
+        grouped[group].append(row)
+
+    lines: List[str] = []
+    ordered_sections = list(section_order) + [
+        section_name
+        for section_name in sorted(grouped, key=str.casefold)
+        if section_name not in section_order
+    ]
+    for section_name in ordered_sections:
+        rows = grouped.get(section_name, [])
+        if not rows:
+            continue
+        lines.extend(["", f"{section_name} declared fields ({len(rows)})"])
+        for row in rows[:per_section_limit]:
+            name = str(row.get("name") or "").strip()
+            declared_type = str(row.get("declared_type") or "").strip()
+            likely_kind = str(row.get("likely_kind") or "field").strip()
+            array_status = str(row.get("array_status") or "").strip()
+            descriptor = str(row.get("descriptor_hex") or "").strip()
+            array_suffix = ", array" if array_status and array_status != "single_value" else ""
+            lines.append(
+                f"  [{likely_kind}{array_suffix}] {name}: {declared_type} "
+                f"@0x{int(row.get('name_offset') or 0):X} desc={descriptor}"
+            )
+        if len(rows) > per_section_limit:
+            lines.append(f"  ... {len(rows) - per_section_limit} more")
+    return lines
+
+
+def _binary_sidecar_container_summary(data: bytes, extension: str) -> Dict[str, object]:
+    head4 = data[:4]
+    magic_ascii = "".join(chr(value) if 32 <= value <= 126 else "." for value in head4)
+    normalized_extension = str(extension or "").strip().lower()
+    container: Dict[str, object] = {
+        "magic_ascii": magic_ascii,
+        "magic_hex": head4.hex(" ").upper(),
+        "recognized_family": "unknown",
+    }
+    if head4 == b"PAR ":
+        container["recognized_family"] = "PAR"
+        container["note"] = "PAR-family binary. Current decode is read-only and schema-recovery oriented."
+    elif head4 == b"PARC":
+        container["recognized_family"] = "PARC"
+        container["note"] = "PARC structured container. Current decode is read-only and schema-recovery oriented."
+    elif normalized_extension == ".meshinfo":
+        container["note"] = "MeshInfo sidecar without a currently proven top-level magic."
+    elif normalized_extension == ".motionblending":
+        container["note"] = "Motion-blending sidecar without a currently proven top-level magic."
+    elif normalized_extension == ".paa_metabin":
+        container["note"] = "PAA animation metadata sidecar. Current decode is read-only and relationship/schema-recovery oriented."
+    return container
+
+
+def _binary_sidecar_kind_label(extension: str) -> str:
+    normalized_extension = str(extension or "").strip().lower()
+    if normalized_extension == ".meshinfo":
+        return "MeshInfo"
+    if normalized_extension == ".motionblending":
+        return "Motion Blending"
+    if normalized_extension == ".paa_metabin":
+        return "PAA Animation Metadata"
+    return normalized_extension.lstrip(".").upper() or "Binary Sidecar"
+
+
+def _build_binary_sidecar_related_references(
+    source_entry: Optional[ArchiveEntry],
+    *,
+    asset_references: Sequence[str],
+    archive_entries_by_normalized_path: Optional[Dict[str, Sequence[ArchiveEntry]]] = None,
+    archive_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]] = None,
+) -> Tuple[ArchiveModelTextureReference, ...]:
+    if source_entry is None:
+        return ()
+    companion_entries = (
+        _find_archive_model_related_entries(source_entry, archive_entries_by_basename)
+        if archive_entries_by_basename is not None
+        else ()
+    )
+    explicit_references = build_archive_related_file_references(
+        source_entry,
+        explicit_reference_names=asset_references,
+        companion_entries=companion_entries,
+        archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+        archive_entries_by_basename=archive_entries_by_basename,
+    )
+    graph_references = build_archive_relationship_references(
+        source_entry,
+        archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+        archive_entries_by_basename=archive_entries_by_basename,
+    )
+    return merge_archive_reference_rows(explicit_references, graph_references)
+
+
+def _binary_sidecar_reference_document_rows(
+    references: Sequence[ArchiveModelTextureReference],
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    for reference in references:
+        rows.append(
+            {
+                "reference_name": reference.reference_name,
+                "semantic_label": reference.semantic_label,
+                "resolution_status": reference.resolution_status,
+                "resolved_archive_path": reference.resolved_archive_path,
+                "resolved_package_label": reference.resolved_package_label,
+                "reference_kind": reference.reference_kind,
+                "relation_group": reference.relation_group,
+                "relation_confidence": reference.relation_confidence,
+                "relation_reason": reference.relation_reason,
+                "usage_count": reference.usage_count,
+            }
+        )
+    return rows
+
+
+def build_binary_sidecar_analysis_document(
+    data: bytes,
+    virtual_path: str,
+    *,
+    extension: str = "",
+    source_entry: Optional[ArchiveEntry] = None,
+    archive_entries_by_normalized_path: Optional[Dict[str, Sequence[ArchiveEntry]]] = None,
+    archive_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]] = None,
+) -> Dict[str, object]:
+    normalized_extension = str(extension or PurePosixPath(str(virtual_path or "")).suffix).strip().lower()
+    animation_metadata = (
+        _paa_metabin_analysis_document(data, virtual_path)
+        if normalized_extension == ".paa_metabin"
+        else {}
+    )
+    string_records = _extract_binary_string_records(data, sample_limit=262_144, max_strings=512)
+    field_records = [
+        record
+        for record in string_records
+        if _looks_like_structured_field_name(record.text)
+    ]
+    asset_reference_rows = _binary_sidecar_asset_reference_rows(string_records, max_references=96)
+    asset_references: List[str] = []
+    seen_references: set[str] = set()
+    for row in asset_reference_rows:
+        path = str(row.get("path") or "").strip()
+        normalized = _normalize_model_texture_reference(path)
+        if not normalized or normalized in seen_references:
+            continue
+        seen_references.add(normalized)
+        asset_references.append(path)
+    for path in _extract_binary_asset_references(data, sample_limit=262_144, max_references=96):
+        normalized = _normalize_model_texture_reference(path)
+        if not normalized or normalized in seen_references:
+            continue
+        seen_references.add(normalized)
+        asset_references.append(path)
+    related_references = _build_binary_sidecar_related_references(
+        source_entry,
+        asset_references=asset_references,
+        archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+        archive_entries_by_basename=archive_entries_by_basename,
+    )
+    offset_candidates = _binary_sidecar_offset_candidates(data)
+    count_offset_pairs = _binary_sidecar_count_offset_pairs(data)
+    float_rows = _binary_sidecar_float_rows(data)
+    schema_declarations = _binary_sidecar_schema_declarations(data, normalized_extension)
+    schema_member_rows = [
+        row
+        for row in schema_declarations.get("declared_member_rows", [])
+        if isinstance(row, Mapping)
+    ]
+    field_group_func = _binary_sidecar_group_func_for_extension(normalized_extension)
+    prefab_evidence_rows = (
+        _prefab_evidence_rows(schema_member_rows, asset_references)
+        if normalized_extension == ".prefab"
+        else []
+    )
+    field_rows = [
+        {
+            "offset": record.offset,
+            "name": record.text,
+            "group": field_group_func(record.text),
+            "confidence": "readable_string_identifier",
+            "status": "experimental_schema_recovery",
+        }
+        for record in field_records[:256]
+    ]
+    editable_candidate_rows: List[Dict[str, object]] = []
+    for row in float_rows[:16]:
+        editable_candidate_rows.append(
+            {
+                "offset": row["offset"],
+                "type": row["type"],
+                "value": row["values"],
+                "edit_status": "disabled_until_schema_is_proven",
+                "confidence": row["confidence"],
+            }
+        )
+
+    return {
+        "document": "Crimson Desert Mod Workbench binary sidecar decode document.",
+        "format_status": "experimental_read_only_schema_recovery",
+        "source": {
+            "path": virtual_path,
+            "extension": normalized_extension,
+            "kind": _binary_sidecar_kind_label(normalized_extension),
+            "size": len(data),
+            "sha1": hashlib.sha1(data).hexdigest(),
+        },
+        "summary": {
+            "readable_strings": len(string_records),
+            "field_like_identifiers": len(field_records),
+            "asset_reference_hints": len(asset_references),
+            "related_files_resolved": sum(1 for reference in related_references if reference.resolved_entry is not None),
+            "related_file_rows": len(related_references),
+            "offset_candidates": len(offset_candidates),
+            "count_offset_pair_candidates": len(count_offset_pairs),
+            "float_vector_candidates": len(float_rows),
+            "schema_declarations": int(schema_declarations.get("declaration_count") or 0),
+            "schema_declared_members": len(schema_member_rows),
+            "schema_layout_signature": str(schema_declarations.get("layout_signature") or ""),
+            "prefab_evidence_rows": len(prefab_evidence_rows),
+            "animation_metadata_stream_bytes": int(
+                ((animation_metadata.get("packed_metadata_stream") or {}).get("stream_size") or 0)
+                if isinstance(animation_metadata.get("packed_metadata_stream"), Mapping)
+                else 0
+            ),
+            "animation_metadata_filename_hints": len(animation_metadata.get("filename_hints") or [])
+            if isinstance(animation_metadata, Mapping)
+            else 0,
+        },
+        "container": _binary_sidecar_container_summary(data, normalized_extension),
+        "header_words_le": _binary_sidecar_header_words(data),
+        "schema_declarations": schema_declarations,
+        "prefab": {
+            "evidence_rows": prefab_evidence_rows,
+            "editing_supported": False,
+            "note": ".prefab files describe scene/resource/component metadata; renderable geometry usually lives in linked .pac/.pam/.pamlod assets.",
+        } if normalized_extension == ".prefab" else {},
+        "animation_metadata": animation_metadata,
+        "strings": {
+            "field_rows": field_rows,
+            "readable_rows": [
+                {
+                    "offset": record.offset,
+                    "text": record.text,
+                    "kind": "field" if _looks_like_structured_field_name(record.text) else "string",
+                }
+                for record in string_records[:256]
+            ],
+        },
+        "references": {
+            "asset_reference_hints": asset_reference_rows,
+            "related_files": _binary_sidecar_reference_document_rows(related_references),
+        },
+        "tables": {
+            "offset_candidates": offset_candidates,
+            "count_offset_pair_candidates": count_offset_pairs,
+            "float_vector_candidates": float_rows,
+        },
+        "editing": {
+            "supported": False,
+            "policy": "read_only_until_schema_and_no_edit_roundtrip_are_proven",
+            "reason": (
+                ".meshinfo, .motionblending, .paa_metabin, and .prefab layout/count semantics are not proven yet. "
+                "The app can export decoded declarations and recovery evidence, but it will not write edited values "
+                "until exact value offsets, fixed-size fields, array counts, offsets, and no-edit binary rebuilds "
+                "are validated."
+            ),
+            "candidate_rows": editable_candidate_rows,
+        },
+        "notes": [
+            "Offsets are byte offsets in the decoded archive payload used by preview/export.",
+            "Schema declarations are length-prefixed member/type rows recovered from the binary; they identify fields but do not prove value write offsets.",
+            "Offset/count/float rows are recovery evidence, not stable schema fields.",
+            "Related files may include same-stem companions and archive relationship graph matches.",
+        ],
+    }
+
+
+def build_binary_sidecar_analysis_json(
+    data: bytes,
+    virtual_path: str,
+    *,
+    extension: str = "",
+    source_entry: Optional[ArchiveEntry] = None,
+    archive_entries_by_normalized_path: Optional[Dict[str, Sequence[ArchiveEntry]]] = None,
+    archive_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]] = None,
+) -> str:
+    document = build_binary_sidecar_analysis_document(
+        data,
+        virtual_path,
+        extension=extension,
+        source_entry=source_entry,
+        archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+        archive_entries_by_basename=archive_entries_by_basename,
+    )
+    return json.dumps(document, indent=2)
+
+
+_BINARY_SIDECAR_CORPUS_EXTENSIONS = (".meshinfo", ".motionblending", ".paa_metabin", ".prefab")
+
+
+def _discover_binary_sidecar_corpus_paths(
+    source_paths: Sequence[Path],
+    *,
+    discovery_limit: Optional[int] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> List[Path]:
+    candidates_by_extension: Dict[str, List[Path]] = defaultdict(list)
+    seen_paths: set[str] = set()
+    max_files = int(discovery_limit) if discovery_limit is not None and int(discovery_limit) > 0 else None
+
+    def add_candidate(path: Path) -> None:
+        extension = path.suffix.lower()
+        if extension not in _BINARY_SIDECAR_CORPUS_EXTENSIONS:
+            return
+        normalized = str(path.expanduser().resolve()).lower()
+        if normalized in seen_paths:
+            return
+        seen_paths.add(normalized)
+        if max_files is None or len(candidates_by_extension[extension]) < max_files:
+            candidates_by_extension[extension].append(path)
+
+    for raw_source in source_paths:
+        raise_if_cancelled(stop_event)
+        source = Path(raw_source).expanduser()
+        if source.is_file():
+            add_candidate(source)
+            continue
+        if not source.is_dir():
+            continue
+        for extension in _BINARY_SIDECAR_CORPUS_EXTENSIONS:
+            for path in source.rglob(f"*{extension}"):
+                raise_if_cancelled(stop_event)
+                if not path.is_file():
+                    continue
+                add_candidate(path)
+
+    for extension in _BINARY_SIDECAR_CORPUS_EXTENSIONS:
+        candidates_by_extension[extension].sort(key=lambda item: str(item).casefold())
+
+    discovered: List[Path] = []
+    discovered_counts: Dict[str, int] = defaultdict(int)
+    if max_files is None:
+        for extension in _BINARY_SIDECAR_CORPUS_EXTENSIONS:
+            discovered.extend(candidates_by_extension.get(extension, ()))
+        return discovered
+
+    while len(discovered) < max_files:
+        added = False
+        for extension in _BINARY_SIDECAR_CORPUS_EXTENSIONS:
+            extension_paths = candidates_by_extension.get(extension, [])
+            index = discovered_counts[extension]
+            if index >= len(extension_paths):
+                continue
+            discovered.append(extension_paths[index])
+            discovered_counts[extension] += 1
+            added = True
+            if len(discovered) >= max_files:
+                break
+        if not added:
+            break
+    return discovered
+
+
+def _binary_sidecar_corpus_path_label(path: Path, source_paths: Sequence[Path]) -> str:
+    for raw_source in source_paths:
+        source = Path(raw_source).expanduser()
+        try:
+            if source.is_dir():
+                return path.relative_to(source).as_posix()
+            if source.is_file() and path.resolve() == source.resolve():
+                return path.name
+        except (OSError, ValueError):
+            continue
+    return str(path)
+
+
+def _select_balanced_binary_sidecar_detail_paths(paths: Sequence[Path], max_files: Optional[int]) -> List[Path]:
+    if max_files is None or max_files <= 0 or len(paths) <= max_files:
+        return list(paths)
+    by_extension: Dict[str, List[Path]] = defaultdict(list)
+    for path in paths:
+        by_extension[path.suffix.lower()].append(path)
+    selected: List[Path] = []
+    selected_counts: Dict[str, int] = defaultdict(int)
+    while len(selected) < max_files:
+        added = False
+        for extension in _BINARY_SIDECAR_CORPUS_EXTENSIONS:
+            extension_paths = by_extension.get(extension, [])
+            index = selected_counts[extension]
+            if index >= len(extension_paths):
+                continue
+            selected.append(extension_paths[index])
+            selected_counts[extension] += 1
+            added = True
+            if len(selected) >= max_files:
+                break
+        if not added:
+            break
+    return selected
+
+
+def _binary_sidecar_descriptor_is_unknown(row: Mapping[str, object]) -> bool:
+    try:
+        type_code = int(row.get("type_code") or 0)
+    except (TypeError, ValueError):
+        return True
+    confidence = str(row.get("confidence") or "")
+    return type_code not in _BINARY_SIDECAR_KNOWN_TYPE_CODES or confidence.startswith("experimental")
+
+
+def _build_binary_sidecar_corpus_extension_report(
+    paths: Sequence[Path],
+    source_paths: Sequence[Path],
+    *,
+    stop_event: Optional[threading.Event] = None,
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    progress_offset: int = 0,
+    progress_total: int = 0,
+) -> Dict[str, object]:
+    layout_counts: Counter[str] = Counter()
+    layout_examples: Dict[str, Dict[str, object]] = {}
+    field_file_counts: Counter[str] = Counter()
+    field_decl_counts: Counter[str] = Counter()
+    field_type_counts: Dict[str, Counter[str]] = defaultdict(Counter)
+    field_descriptor_counts: Dict[Tuple[str, str], Counter[str]] = defaultdict(Counter)
+    field_metadata: Dict[Tuple[str, str], Dict[str, str]] = {}
+    unknown_descriptor_counts: Counter[str] = Counter()
+    unknown_descriptor_examples: Dict[str, Dict[str, object]] = {}
+    value_region_counts: Counter[int] = Counter()
+    value_region_examples: Dict[int, str] = {}
+    numeric_region_counts: Counter[int] = Counter()
+    numeric_region_examples: Dict[int, str] = {}
+    animation_type_counts: Counter[str] = Counter()
+    animation_hint_counts: Counter[str] = Counter()
+    animation_stream_size_counts: Counter[int] = Counter()
+    animation_examples: Dict[str, str] = {}
+    scanned_count = 0
+    failed_rows: List[Dict[str, object]] = []
+
+    total = progress_total or len(paths)
+    for local_index, path in enumerate(paths, start=1):
+        raise_if_cancelled(stop_event)
+        label = _binary_sidecar_corpus_path_label(path, source_paths)
+        if progress_callback is not None:
+            progress_callback(
+                progress_offset + local_index - 1,
+                total,
+                f"Scanning binary sidecar corpus {progress_offset + local_index:,} / {total:,}: {path.name}",
+            )
+        try:
+            data = path.read_bytes()
+            document = build_binary_sidecar_analysis_document(data, label, extension=path.suffix.lower())
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            failed_rows.append({"path": label, "error": str(exc)})
+            continue
+
+        scanned_count += 1
+        animation_metadata = document.get("animation_metadata", {})
+        if isinstance(animation_metadata, Mapping) and animation_metadata:
+            declared_type = str(animation_metadata.get("declared_type") or "").strip()
+            if declared_type:
+                animation_type_counts[declared_type] += 1
+                animation_examples.setdefault(declared_type, label)
+            for hint in animation_metadata.get("filename_hints") or []:
+                if not isinstance(hint, Mapping):
+                    continue
+                hint_key = f"{hint.get('kind') or 'Hint'}: {hint.get('meaning') or hint.get('token') or ''}".strip()
+                if hint_key:
+                    animation_hint_counts[hint_key] += 1
+                    animation_examples.setdefault(hint_key, label)
+            stream = animation_metadata.get("packed_metadata_stream", {})
+            if isinstance(stream, Mapping):
+                stream_size = int(stream.get("stream_size") or 0)
+                if stream_size > 0:
+                    bucket = (stream_size // 256) * 256
+                    animation_stream_size_counts[bucket] += 1
+                    animation_examples.setdefault(f"stream_0x{bucket:08X}", label)
+        schema = document.get("schema_declarations", {})
+        if not isinstance(schema, Mapping):
+            continue
+        rows = [
+            row
+            for row in schema.get("declared_member_rows", [])
+            if isinstance(row, Mapping)
+        ]
+        signature = str(schema.get("layout_signature") or "")
+        if signature:
+            layout_counts[signature] += 1
+            layout_examples.setdefault(
+                signature,
+                {
+                    "signature": signature,
+                    "example_path": label,
+                    "declaration_count": len(rows),
+                    "first_fields": [str(row.get("name") or "") for row in rows[:8]],
+                    "candidate_value_region_start": int(
+                        (schema.get("declaration_region", {}) or {}).get("candidate_value_region_start") or 0
+                    )
+                    if isinstance(schema.get("declaration_region", {}), Mapping)
+                    else 0,
+                },
+            )
+        declaration_region = schema.get("declaration_region", {})
+        if isinstance(declaration_region, Mapping):
+            region_start = int(declaration_region.get("candidate_value_region_start") or 0)
+            if region_start > 0:
+                region_bucket = (region_start // 256) * 256
+                value_region_counts[region_bucket] += 1
+                value_region_examples.setdefault(region_bucket, label)
+
+        seen_names_in_file: set[str] = set()
+        for row in rows:
+            name = str(row.get("name") or "").strip()
+            declared_type = str(row.get("declared_type") or "").strip()
+            descriptor_hex = str(row.get("descriptor_hex") or "").strip()
+            if not name or not declared_type:
+                continue
+            field_decl_counts[name] += 1
+            field_type_counts[name][declared_type] += 1
+            field_descriptor_counts[(name, declared_type)][descriptor_hex] += 1
+            field_metadata.setdefault(
+                (name, declared_type),
+                {
+                    "group": str(row.get("group") or ""),
+                    "likely_kind": str(row.get("likely_kind") or ""),
+                    "array_status": str(row.get("array_status") or ""),
+                    "reference_status": str(row.get("reference_status") or ""),
+                    "confidence": str(row.get("confidence") or ""),
+                },
+            )
+            if name not in seen_names_in_file:
+                seen_names_in_file.add(name)
+                field_file_counts[name] += 1
+            if _binary_sidecar_descriptor_is_unknown(row):
+                unknown_descriptor_counts[descriptor_hex] += 1
+                unknown_descriptor_examples.setdefault(
+                    descriptor_hex,
+                    {
+                        "descriptor_hex": descriptor_hex,
+                        "example_path": label,
+                        "example_field": name,
+                        "declared_type": declared_type,
+                        "type_code": int(row.get("type_code") or 0),
+                    },
+                )
+
+        tables = document.get("tables", {})
+        float_rows = list(tables.get("float_vector_candidates") or []) if isinstance(tables, Mapping) else []
+        for row in float_rows[:8]:
+            if not isinstance(row, Mapping):
+                continue
+            offset = int(row.get("offset") or 0)
+            if offset <= 0:
+                continue
+            offset_bucket = (offset // 256) * 256
+            numeric_region_counts[offset_bucket] += 1
+            numeric_region_examples.setdefault(offset_bucket, label)
+
+    stable_fields: List[Dict[str, object]] = []
+    for name, file_count in field_file_counts.items():
+        type_counts = field_type_counts.get(name, Counter())
+        if not type_counts:
+            continue
+        declared_type, type_count = type_counts.most_common(1)[0]
+        descriptor_counts = field_descriptor_counts.get((name, declared_type), Counter())
+        descriptor_hex, descriptor_count = descriptor_counts.most_common(1)[0] if descriptor_counts else ("", 0)
+        metadata = field_metadata.get((name, declared_type), {})
+        stable_fields.append(
+            {
+                "name": name,
+                "declared_type": declared_type,
+                "files_with_field": int(file_count),
+                "declaration_count": int(field_decl_counts.get(name, 0)),
+                "type_consistency": round(type_count / max(sum(type_counts.values()), 1), 4),
+                "top_descriptor_hex": descriptor_hex,
+                "top_descriptor_count": int(descriptor_count),
+                "descriptor_consistency": round(descriptor_count / max(type_count, 1), 4),
+                "group": metadata.get("group", ""),
+                "likely_kind": metadata.get("likely_kind", ""),
+                "array_status": metadata.get("array_status", ""),
+                "reference_status": metadata.get("reference_status", ""),
+                "confidence": metadata.get("confidence", ""),
+            }
+        )
+    stable_fields.sort(
+        key=lambda row: (
+            -int(row.get("files_with_field") or 0),
+            -float(row.get("type_consistency") or 0.0),
+            str(row.get("name") or "").casefold(),
+        )
+    )
+
+    layout_rows = []
+    for signature, count in layout_counts.most_common(64):
+        row = dict(layout_examples.get(signature, {}))
+        row["file_count"] = int(count)
+        layout_rows.append(row)
+
+    unknown_rows = []
+    for descriptor_hex, count in unknown_descriptor_counts.most_common(64):
+        row = dict(unknown_descriptor_examples.get(descriptor_hex, {"descriptor_hex": descriptor_hex}))
+        row["count"] = int(count)
+        unknown_rows.append(row)
+
+    value_region_rows = [
+        {
+            "region_start_bucket": f"0x{region_start:08X}",
+            "file_count": int(count),
+            "source": "declaration_end_bucket",
+            "example_path": value_region_examples.get(region_start, ""),
+        }
+        for region_start, count in value_region_counts.most_common(32)
+    ]
+    value_region_rows.extend(
+        {
+            "region_start_bucket": f"0x{region_start:08X}",
+            "file_count": int(count),
+            "source": "numeric_candidate_bucket",
+            "example_path": numeric_region_examples.get(region_start, ""),
+        }
+        for region_start, count in numeric_region_counts.most_common(32)
+    )
+    animation_rows = {
+        "declared_types": [
+            {
+                "declared_type": name,
+                "file_count": int(count),
+                "example_path": animation_examples.get(name, ""),
+            }
+            for name, count in animation_type_counts.most_common(16)
+        ],
+        "filename_hints": [
+            {
+                "hint": name,
+                "file_count": int(count),
+                "example_path": animation_examples.get(name, ""),
+            }
+            for name, count in animation_hint_counts.most_common(32)
+        ],
+        "packed_stream_size_buckets": [
+            {
+                "stream_size_bucket": f"0x{bucket:08X}",
+                "file_count": int(count),
+                "example_path": animation_examples.get(f"stream_0x{bucket:08X}", ""),
+            }
+            for bucket, count in animation_stream_size_counts.most_common(32)
+        ],
+    }
+
+    return {
+        "files_scanned": scanned_count,
+        "files_failed": len(failed_rows),
+        "failed_rows": failed_rows[:32],
+        "layout_signatures": layout_rows,
+        "stable_fields": stable_fields[:256],
+        "unknown_descriptor_bytes": unknown_rows,
+        "candidate_value_regions": value_region_rows,
+        "animation_metadata": animation_rows,
+    }
+
+
+def build_binary_sidecar_corpus_report(
+    source_paths: Sequence[Path],
+    *,
+    discovery_limit: Optional[int] = None,
+    detail_scan_limit: Optional[int] = 1000,
+    stop_event: Optional[threading.Event] = None,
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
+) -> Dict[str, object]:
+    normalized_sources = tuple(Path(path).expanduser() for path in source_paths)
+    discovered_paths = _discover_binary_sidecar_corpus_paths(
+        normalized_sources,
+        discovery_limit=discovery_limit,
+        stop_event=stop_event,
+    )
+    max_detail = int(detail_scan_limit) if detail_scan_limit is not None and int(detail_scan_limit) > 0 else None
+    detail_paths = _select_balanced_binary_sidecar_detail_paths(discovered_paths, max_detail)
+    by_extension_paths: Dict[str, List[Path]] = defaultdict(list)
+    for path in detail_paths:
+        by_extension_paths[path.suffix.lower()].append(path)
+
+    if progress_callback is not None:
+        progress_callback(0, max(len(detail_paths), 1), f"Discovered {len(discovered_paths):,} binary sidecar file(s).")
+
+    by_extension: Dict[str, object] = {}
+    progress_offset = 0
+    progress_total = max(len(detail_paths), 1)
+    for extension in _BINARY_SIDECAR_CORPUS_EXTENSIONS:
+        extension_paths = by_extension_paths.get(extension, [])
+        by_extension[extension] = _build_binary_sidecar_corpus_extension_report(
+            extension_paths,
+            normalized_sources,
+            stop_event=stop_event,
+            progress_callback=progress_callback,
+            progress_offset=progress_offset,
+            progress_total=progress_total,
+        )
+        progress_offset += len(extension_paths)
+
+    if progress_callback is not None:
+        progress_callback(progress_total, progress_total, "Binary sidecar corpus report complete.")
+
+    return {
+        "document": "Crimson Desert Mod Workbench binary sidecar corpus report.",
+        "format": "cdmw_binary_sidecar_corpus_v1",
+        "format_status": "experimental_read_only_schema_recovery",
+        "source_paths": [str(path) for path in normalized_sources],
+        "summary": {
+            "files_discovered": len(discovered_paths),
+            "files_scanned": len(detail_paths),
+            "discovery_limit": int(discovery_limit) if discovery_limit is not None and int(discovery_limit) > 0 else None,
+            "detail_scan_limit": int(detail_scan_limit) if detail_scan_limit is not None and int(detail_scan_limit) > 0 else None,
+            "meshinfo_files_scanned": len(by_extension_paths.get(".meshinfo", [])),
+            "motionblending_files_scanned": len(by_extension_paths.get(".motionblending", [])),
+            "paa_metabin_files_scanned": len(by_extension_paths.get(".paa_metabin", [])),
+            "prefab_files_scanned": len(by_extension_paths.get(".prefab", [])),
+        },
+        "by_extension": by_extension,
+        "editing": {
+            "supported": False,
+            "policy": "read_only_until_exact_value_offsets_and_no_edit_rebuilds_are_proven",
+            "reason": "Corpus ranking proves declarations and layout frequency, not safe write offsets.",
+        },
+    }
+
+
+def build_binary_sidecar_corpus_json(
+    source_paths: Sequence[Path],
+    *,
+    discovery_limit: Optional[int] = None,
+    detail_scan_limit: Optional[int] = 1000,
+    stop_event: Optional[threading.Event] = None,
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
+) -> str:
+    return json.dumps(
+        build_binary_sidecar_corpus_report(
+            source_paths,
+            discovery_limit=discovery_limit,
+            detail_scan_limit=detail_scan_limit,
+            stop_event=stop_event,
+            progress_callback=progress_callback,
+        ),
+        indent=2,
+    )
+
+
 def _group_prefab_field_name(name: str) -> str:
     normalized = str(name or "").strip().lstrip("_").lower()
     if not normalized:
         return "Misc"
-    if any(token in normalized for token in ("prefab", "scene", "object", "node", "actor", "entity", "spawn")):
-        return "Scene / Object"
-    if any(token in normalized for token in ("mesh", "model", "lod", "material", "texture", "resource", "asset")):
+    if any(token in normalized for token in ("cloth", "pbd", "shrink", "masterpose", "syncmeshcomponent", "anchormeshnode", "meshnode", "dynamicmotion", "sdf")):
+        return "Mesh / Cloth"
+    if any(token in normalized for token in ("socket", "skeleton", "bone")):
+        return "Skeleton / Sockets"
+    if any(token in normalized for token in ("path", "file", "filename", "mesh", "model", "lod", "material", "texture", "resource", "asset")):
         return "Resources"
+    if any(token in normalized for token in ("component", "childsceneobjects", "masterpose", "customgamedata")):
+        return "Scene / Object"
+    if any(token in normalized for token in ("prefab", "scene", "object", "node", "actor", "entity", "spawn", "enable", "uuid", "uid", "tag", "generateuuid")):
+        return "Scene / Object"
     if any(token in normalized for token in ("position", "rotation", "scale", "transform", "matrix", "bound", "bbox")):
         return "Transform / Bounds"
-    if any(token in normalized for token in ("collision", "physics", "shape", "constraint", "rigid", "mass")):
+    if any(token in normalized for token in ("collision", "physics", "pbd", "shape", "constraint", "rigid", "mass")):
         return "Physics / Collision"
     if any(token in normalized for token in ("script", "event", "trigger", "condition", "gimmick", "logic")):
         return "Logic / Events"
-    if any(token in normalized for token in ("sound", "audio", "effect", "emitter", "particle", "light")):
+    if any(token in normalized for token in ("render", "opacity", "priority", "sound", "audio", "effect", "emitter", "particle", "light")):
         return "Presentation"
     return "Misc"
+
+
+def _binary_sidecar_group_func_for_extension(extension: str) -> Callable[[str], str]:
+    normalized_extension = str(extension or "").strip().lower()
+    if normalized_extension == ".meshinfo":
+        return _group_meshinfo_field_name
+    if normalized_extension == ".prefab":
+        return _group_prefab_field_name
+    if normalized_extension in {".levelinfo", ".palevel", ".roadsector", ".road", ".nav"}:
+        return _group_world_field_name
+    if normalized_extension in {".pabc", ".pabv", ".pabgb", ".pabgh"}:
+        return _group_rig_variant_field_name
+    return _group_animation_field_name
 
 
 def _group_world_field_name(name: str) -> str:
@@ -9457,6 +11022,8 @@ def _describe_generic_related_reference_label(reference_name: str, resolved_entr
         return "Related PAMLOD"
     if extension == ".paa":
         return "Related PAA"
+    if extension == ".paa_metabin":
+        return "Animation Metadata"
     if extension in {".pae", ".paem"}:
         return "Related Effect"
     if extension == ".prefab":
@@ -9570,6 +11137,7 @@ def build_archive_related_file_references(
 def _archive_relationship_edge_group_label(edge: object, resolved_entry: ArchiveEntry) -> str:
     relation_kind = str(getattr(edge, "relation_kind", "") or "").strip().lower()
     resolved_extension = str(resolved_entry.extension or "").lower()
+    resolved_path = str(resolved_entry.path or "").replace("\\", "/").lower()
     resolved_basename = PurePosixPath(resolved_entry.path.replace("\\", "/")).name.lower()
     if relation_kind == "texture" or str(resolved_entry.extension or "").lower() == ".dds":
         return "Textures"
@@ -9579,7 +11147,25 @@ def _archive_relationship_edge_group_label(edge: object, resolved_entry: Archive
         return "Mesh / Model"
     if relation_kind == "skeleton" or str(resolved_entry.extension or "").lower() in {".pab", ".pabc", ".pabv", ".pabgb", ".pabgh"}:
         return "Skeleton / Rig"
-    if relation_kind in {"physics", "animation"} or str(resolved_entry.extension or "").lower() in {".hkx", ".hkt", ".paa", ".pae", ".paem"}:
+    if relation_kind == "physics" or (
+        resolved_extension in {".hkx", ".hkt"}
+        and any(token in resolved_path for token in ("meshphysics", "havokphysics", "ragdoll", "physics"))
+    ):
+        return "Physics / Collision"
+    if relation_kind == "animation" or resolved_extension in {
+        ".hkx",
+        ".hkt",
+        ".paa",
+        ".paa_metabin",
+        ".motionblending",
+        ".papr",
+        ".pae",
+        ".paem",
+        ".paseq",
+        ".paschedule",
+        ".paschedulepath",
+        ".pastage",
+    }:
         return "Animation / Motion"
     return "Metadata / Other"
 
@@ -9611,6 +11197,8 @@ def build_archive_relationship_references(
             ".pamlod_xml",
             ".pami",
             ".prefab",
+            ".hkx",
+            ".hkt",
             ".meshinfo",
             ".levelinfo",
             ".palevel",
@@ -9618,9 +11206,11 @@ def build_archive_relationship_references(
             ".road",
             ".nav",
             ".paa",
+            ".paa_metabin",
             ".pae",
             ".paem",
             ".motionblending",
+            ".pab",
             ".pabc",
             ".pabv",
             ".pabgb",
@@ -9650,32 +11240,97 @@ def build_archive_relationship_references(
     references: List[ArchiveModelTextureReference] = []
     seen: set[Tuple[object, ...]] = set()
     source_identity = _archive_entry_identity_signature(source_entry)
+
+    def add_resolved_reference(
+        resolved_entry: ArchiveEntry,
+        *,
+        reference_name: str = "",
+        semantic_label: str = "",
+        relation_kind: str = "",
+        relation_group: str = "",
+        relation_reason: str = "",
+        relation_confidence: str = "",
+        semantic_hint: str = "",
+    ) -> None:
+        resolved_identity = _archive_entry_identity_signature(resolved_entry)
+        if not resolved_identity or resolved_identity == source_identity or resolved_identity in seen:
+            return
+        seen.add(resolved_identity)
+        references.append(
+            ArchiveModelTextureReference(
+                reference_name=reference_name or PurePosixPath(resolved_entry.path.replace("\\", "/")).name,
+                semantic_label=semantic_label or _describe_model_related_file_label(resolved_entry),
+                resolution_status="resolved",
+                resolved_archive_path=resolved_entry.path,
+                resolved_package_label=resolved_entry.package_label,
+                resolved_entry=resolved_entry,
+                usage_count=1,
+                reference_kind=relation_kind or _relation_kind_for_entry(resolved_entry),
+                relation_group=relation_group or _relation_group_for_kind(relation_kind or _relation_kind_for_entry(resolved_entry)),
+                relation_reason=relation_reason,
+                relation_confidence=relation_confidence or RelationConfidence.DERIVED_SAME_STEM.value,
+                semantic_hint=semantic_hint,
+                sidecar_parameter_name=semantic_hint,
+            )
+        )
+
+    direct_same_stem_extensions = {
+        ".hkx",
+        ".meshinfo",
+        ".prefab",
+        ".paa",
+        ".paa_metabin",
+        ".motionblending",
+        ".pae",
+        ".paem",
+        ".paseq",
+        ".paschedule",
+        ".paschedulepath",
+        ".pastage",
+        ".pab",
+        ".pabc",
+        ".pabv",
+        ".pabgb",
+        ".pabgh",
+        ".levelinfo",
+        ".palevel",
+        ".roadsector",
+        ".road",
+        ".nav",
+    }
+    if archive_entries_by_basename is not None and (
+        extension in ARCHIVE_MODEL_EXTENSIONS or extension in direct_same_stem_extensions
+    ):
+        for related_entry in _find_archive_model_related_entries(source_entry, archive_entries_by_basename):
+            relation_kind, relation_group, relation_confidence, relation_reason = _build_archive_relation_metadata(
+                source_entry,
+                reference_name=related_entry.path,
+                resolved_entry=related_entry,
+            )
+            add_resolved_reference(
+                related_entry,
+                semantic_label=_describe_model_related_file_label(related_entry),
+                relation_kind=relation_kind,
+                relation_group=relation_group,
+                relation_reason=relation_reason,
+                relation_confidence=relation_confidence,
+                semantic_hint="same_stem_companion",
+            )
+
     for edge in tuple(getattr(relationship_plan, "edges", ()) or ()):
         if bool(getattr(edge, "unresolved", False)):
             continue
         resolved_entry = getattr(edge, "related_entry", None)
         if not isinstance(resolved_entry, ArchiveEntry):
             continue
-        resolved_identity = _archive_entry_identity_signature(resolved_entry)
-        if not resolved_identity or resolved_identity == source_identity or resolved_identity in seen:
-            continue
-        seen.add(resolved_identity)
-        references.append(
-            ArchiveModelTextureReference(
-                reference_name=PurePosixPath(resolved_entry.path.replace("\\", "/")).name,
-                semantic_label=_archive_relationship_edge_semantic_label(edge, resolved_entry),
-                resolution_status="resolved",
-                resolved_archive_path=resolved_entry.path,
-                resolved_package_label=resolved_entry.package_label,
-                resolved_entry=resolved_entry,
-                usage_count=1,
-                reference_kind=str(getattr(edge, "relation_kind", "") or _relation_kind_for_entry(resolved_entry)),
-                relation_group=_archive_relationship_edge_group_label(edge, resolved_entry),
-                relation_reason=str(getattr(edge, "reason", "") or "").strip(),
-                relation_confidence=str(getattr(edge, "confidence", "") or RelationConfidence.DERIVED_SAME_STEM.value),
-                semantic_hint=str(getattr(edge, "role", "") or "").strip(),
-                sidecar_parameter_name=str(getattr(edge, "role", "") or "").strip(),
-            )
+        add_resolved_reference(
+            resolved_entry,
+            semantic_label=_archive_relationship_edge_semantic_label(edge, resolved_entry),
+            relation_kind=str(getattr(edge, "relation_kind", "") or _relation_kind_for_entry(resolved_entry)),
+            relation_group=_archive_relationship_edge_group_label(edge, resolved_entry),
+            relation_reason=str(getattr(edge, "reason", "") or "").strip(),
+            relation_confidence=str(getattr(edge, "confidence", "") or RelationConfidence.DERIVED_SAME_STEM.value),
+            semantic_hint=str(getattr(edge, "role", "") or "").strip(),
         )
     return tuple(references)
 
@@ -9956,49 +11611,117 @@ def build_meshinfo_preview(
     strings = extract_binary_strings(data, sample_limit=262_144, max_strings=256)
     field_names = sorted({text for text in strings if _looks_like_structured_field_name(text)}, key=str.casefold)
     asset_references = _extract_binary_asset_references(data, sample_limit=262_144, max_references=64)
-    companion_entries = (
-        _find_archive_model_related_entries(source_entry, archive_entries_by_basename)
-        if source_entry is not None and archive_entries_by_basename is not None
-        else ()
+    related_references = _build_binary_sidecar_related_references(
+        source_entry,
+        asset_references=asset_references,
+        archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+        archive_entries_by_basename=archive_entries_by_basename,
     )
-    related_references = (
-        build_archive_related_file_references(
-            source_entry,
-            explicit_reference_names=asset_references,
-            companion_entries=companion_entries,
-            archive_entries_by_normalized_path=archive_entries_by_normalized_path,
-            archive_entries_by_basename=archive_entries_by_basename,
-        )
-        if source_entry is not None
-        else ()
+    sidecar_document = build_binary_sidecar_analysis_document(
+        data,
+        virtual_path,
+        extension=".meshinfo",
+        source_entry=source_entry,
+        archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+        archive_entries_by_basename=archive_entries_by_basename,
     )
+    summary = sidecar_document.get("summary", {})
+    container = sidecar_document.get("container", {})
+    tables = sidecar_document.get("tables", {})
+    schema_declarations = sidecar_document.get("schema_declarations", {})
+    declared_rows = (
+        list(schema_declarations.get("declared_member_rows") or [])
+        if isinstance(schema_declarations, Mapping)
+        else []
+    )
+    strings_preview = build_binary_strings_preview(data, sample_limit=65_536, max_strings=32)
+    header_preview = format_binary_header_preview(data)
     lines = [f"MeshInfo inspector for {virtual_path}", "", "Summary:"]
+    lines.append(f"- Declared member rows: {len(declared_rows):,}")
     lines.append(f"- Field-like entries: {len(field_names):,}")
+    lines.append(f"- Readable strings: {len(strings):,}")
     lines.append(f"- Related asset hints: {len(asset_references):,}")
-    if companion_entries:
-        lines.append(f"- Same-stem companion files: {len(companion_entries):,}")
+    if related_references:
+        resolved_count = sum(1 for reference in related_references if reference.resolved_entry is not None)
+        lines.append(f"- Resolved related files: {resolved_count:,} / {len(related_references):,}")
+    lines.append(f"- Container family: {container.get('recognized_family') or 'unknown'}")
+    if isinstance(schema_declarations, Mapping) and schema_declarations.get("layout_signature"):
+        lines.append(f"- Declaration layout signature: {schema_declarations.get('layout_signature')}")
+    lines.append(f"- Candidate offsets: {int(summary.get('offset_candidates') or 0):,}")
+    lines.append(f"- Candidate count/offset tables: {int(summary.get('count_offset_pair_candidates') or 0):,}")
+    lines.append(f"- Candidate float/vector rows: {int(summary.get('float_vector_candidates') or 0):,}")
+    lines.append("- Editing: read-only until MeshInfo schema and no-edit rebuilds are proven.")
 
-    lines.extend(
-        _build_grouped_structured_section_lines(
-            field_names,
-            group_func=_group_meshinfo_field_name,
-            section_order=("Physics", "Breakable", "Tree", "Collision", "Sockets", "Bounds", "Data Model", "Misc"),
+    if declared_rows:
+        lines.extend(["", "Declared Fields:"])
+        lines.extend(
+            _build_grouped_schema_declaration_lines(
+                [row for row in declared_rows if isinstance(row, Mapping)],
+                section_order=("Physics", "Collision", "Breakable", "Bounds", "Sockets", "Tree", "Data Model", "Misc"),
+            )
         )
-    )
+    else:
+        lines.extend(
+            _build_grouped_structured_section_lines(
+                field_names,
+                group_func=_group_meshinfo_field_name,
+                section_order=("Physics", "Collision", "Breakable", "Bounds", "Sockets", "Tree", "Data Model", "Misc"),
+            )
+        )
     if asset_references:
         lines.extend(["", "Detected asset references:"])
         lines.extend(f"  - {reference}" for reference in asset_references[:24])
         if len(asset_references) > 24:
             lines.append(f"  ... {len(asset_references) - 24} more")
+    count_offset_pairs = list(tables.get("count_offset_pair_candidates") or []) if isinstance(tables, Mapping) else []
+    if count_offset_pairs:
+        lines.extend(["", "Candidate count/offset tables:"])
+        for row in count_offset_pairs[:8]:
+            if not isinstance(row, Mapping):
+                continue
+            lines.append(
+                "  - "
+                f"offset 0x{int(row.get('owner_offset') or 0):X}: "
+                f"count={int(row.get('count') or 0):,}, data=0x{int(row.get('data_offset') or 0):X}, "
+                f"confidence={row.get('confidence') or 'candidate'}"
+            )
+    offset_candidates = list(tables.get("offset_candidates") or []) if isinstance(tables, Mapping) else []
+    if offset_candidates:
+        lines.extend(["", "Candidate internal offsets:"])
+        for row in offset_candidates[:8]:
+            if not isinstance(row, Mapping):
+                continue
+            preview = str(row.get("target_preview") or "").strip()
+            suffix = f" -> {preview}" if preview else ""
+            lines.append(
+                "  - "
+                f"slot 0x{int(row.get('owner_offset') or 0):X} -> 0x{int(row.get('target_offset') or 0):X}"
+                f" ({row.get('confidence') or 'candidate'}){suffix}"
+            )
+    float_rows = list(tables.get("float_vector_candidates") or []) if isinstance(tables, Mapping) else []
+    if float_rows:
+        lines.extend(["", "Candidate numeric/vector rows:"])
+        for row in float_rows[:8]:
+            if not isinstance(row, Mapping):
+                continue
+            lines.append(
+                "  - "
+                f"0x{int(row.get('offset') or 0):X} {row.get('type') or 'float'} = {row.get('values')}"
+            )
+    if strings_preview:
+        lines.extend(["", strings_preview])
+    lines.extend(["", "Binary header preview:", header_preview])
 
     detail_lines = [
-        f"Detected {len(field_names):,} field-like identifier(s) from the preview sample.",
-        "Fields are deduped, sorted, and grouped heuristically from readable binary strings.",
+        f"Detected {len(declared_rows):,} declared member row(s) and {len(field_names):,} field-like identifier(s) from the preview sample.",
+        "Declared fields come from length-prefixed member/type rows; raw strings remain separate recovery evidence.",
+        "Sidecar JSON export includes string offsets, header words, related files, candidate offsets, count/offset tables, and numeric rows.",
+        "Direct editing is disabled because MeshInfo count/offset semantics are not stable enough for safe writes yet.",
     ]
     if asset_references:
         detail_lines.append(f"Detected {len(asset_references):,} related asset reference(s).")
-    if companion_entries:
-        detail_lines.append(f"Matched {len(companion_entries):,} same-stem companion archive file(s).")
+    if related_references:
+        detail_lines.append(f"Matched {len(related_references):,} related archive file row(s).")
 
     return _StructuredBinaryPreviewBundle(
         preview_text="\n".join(lines),
@@ -10033,22 +11756,42 @@ def build_par_structured_preview(
         if source_entry is not None and archive_entries_by_basename is not None
         else ()
     )
-    related_references = (
-        build_archive_related_file_references(
-            source_entry,
-            explicit_reference_names=asset_references,
-            companion_entries=companion_entries,
-            archive_entries_by_normalized_path=archive_entries_by_normalized_path,
-            archive_entries_by_basename=archive_entries_by_basename,
-        )
-        if source_entry is not None
-        else ()
+    related_references = _build_binary_sidecar_related_references(
+        source_entry,
+        asset_references=asset_references,
+        archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+        archive_entries_by_basename=archive_entries_by_basename,
+    )
+    sidecar_document = build_binary_sidecar_analysis_document(
+        data,
+        virtual_path,
+        extension=extension,
+        source_entry=source_entry,
+        archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+        archive_entries_by_basename=archive_entries_by_basename,
+    )
+    summary = sidecar_document.get("summary", {})
+    container = sidecar_document.get("container", {})
+    tables = sidecar_document.get("tables", {})
+    schema_declarations = sidecar_document.get("schema_declarations", {})
+    declared_rows = (
+        list(schema_declarations.get("declared_member_rows") or [])
+        if isinstance(schema_declarations, Mapping)
+        else []
+    )
+    animation_metadata = (
+        sidecar_document.get("animation_metadata", {})
+        if str(extension or "").strip().lower() == ".paa_metabin"
+        else {}
     )
 
     normalized_extension = str(extension or "").strip().lower()
     if normalized_extension == ".paa":
         title = "PAA animation inspector"
         metadata_label = "Animation"
+    elif normalized_extension == ".paa_metabin":
+        title = "PAA animation metadata inspector"
+        metadata_label = "Animation Metadata"
     elif normalized_extension in {".pae", ".paem"}:
         title = "PAE effect inspector"
         metadata_label = "Effect"
@@ -10060,27 +11803,140 @@ def build_par_structured_preview(
         metadata_label = "Structured Binary"
 
     lines = [f"{title} for {virtual_path}", "", "Summary:"]
+    lines.append(f"- Declared member rows: {len(declared_rows):,}")
     lines.append(f"- Field-like entries: {len(field_names):,}")
     lines.append(f"- Readable strings: {len(strings):,}")
     if markers:
         lines.append(f"- Detected markers: {', '.join(markers)}")
+    if isinstance(animation_metadata, Mapping) and animation_metadata:
+        declared_type = str(animation_metadata.get("declared_type") or "").strip()
+        animation_stem = str(animation_metadata.get("animation_stem") or "").strip()
+        stream = animation_metadata.get("packed_metadata_stream", {})
+        if declared_type:
+            lines.append(f"- Declared metadata type: {declared_type}")
+        if animation_stem:
+            lines.append(f"- Animation stem: {animation_stem}")
+        if isinstance(stream, Mapping):
+            lines.append(f"- Packed metadata stream: {int(stream.get('stream_size') or 0):,} byte(s)")
     if asset_references:
         lines.append(f"- Related asset hints: {len(asset_references):,}")
+    if related_references:
+        resolved_count = sum(1 for reference in related_references if reference.resolved_entry is not None)
+        lines.append(f"- Resolved related files: {resolved_count:,} / {len(related_references):,}")
     if companion_entries:
         lines.append(f"- Same-stem companion files: {len(companion_entries):,}")
+    lines.append(f"- Container family: {container.get('recognized_family') or 'unknown'}")
+    if isinstance(schema_declarations, Mapping) and schema_declarations.get("layout_signature"):
+        lines.append(f"- Declaration layout signature: {schema_declarations.get('layout_signature')}")
+    lines.append(f"- Candidate offsets: {int(summary.get('offset_candidates') or 0):,}")
+    lines.append(f"- Candidate count/offset tables: {int(summary.get('count_offset_pair_candidates') or 0):,}")
+    lines.append(f"- Candidate float/vector rows: {int(summary.get('float_vector_candidates') or 0):,}")
+    if normalized_extension == ".motionblending":
+        lines.append("- Editing: read-only until motion-blending schema and no-edit rebuilds are proven.")
+    elif normalized_extension == ".paa_metabin":
+        lines.append("- Editing: read-only; this metadata sidecar is used for browsing and relationships only.")
 
-    lines.extend(
-        _build_grouped_structured_section_lines(
-            field_names,
-            group_func=_group_animation_field_name,
-            section_order=("Animation", "Motion / Blend", "Emitter / Effect", "Scene / Object", "Resources", "Misc"),
+    if isinstance(animation_metadata, Mapping) and animation_metadata:
+        hint_rows = [
+            row
+            for row in animation_metadata.get("filename_hints") or []
+            if isinstance(row, Mapping)
+        ]
+        if hint_rows:
+            lines.extend(["", "Filename-derived animation hints:"])
+            for row in hint_rows[:18]:
+                lines.append(
+                    "  - "
+                    f"{row.get('kind') or 'Hint'}: {row.get('meaning') or '-'} "
+                    f"(token={row.get('token') or '-'}, confidence={row.get('confidence') or 'filename_token'})"
+                )
+        header_rows = [
+            row
+            for row in animation_metadata.get("header_rows") or []
+            if isinstance(row, Mapping)
+        ]
+        if header_rows:
+            lines.extend(["", "Stable header evidence:"])
+            for row in header_rows[:10]:
+                lines.append(
+                    "  - "
+                    f"0x{int(row.get('offset') or 0):X} {row.get('name') or 'word'} = {row.get('value')}; "
+                    f"confidence={row.get('confidence') or 'observed'}"
+                )
+        stream = animation_metadata.get("packed_metadata_stream", {})
+        if isinstance(stream, Mapping):
+            marker_counts = stream.get("marker_counts") if isinstance(stream.get("marker_counts"), Mapping) else {}
+            if marker_counts:
+                marker_text = ", ".join(f"{key}:{value}" for key, value in list(marker_counts.items())[:8])
+                lines.extend(["", "Packed metadata stream:"])
+                lines.append(
+                    f"  - offset=0x{int(stream.get('stream_offset') or 0):X}, "
+                    f"size={int(stream.get('stream_size') or 0):,}, markers={marker_text}"
+                )
+                lines.append("  - Stream rows are shown as recovery evidence only; their tuple semantics are not proven.")
+            preview_rows = [
+                row
+                for row in stream.get("preview_rows") or []
+                if isinstance(row, Mapping)
+            ]
+            if preview_rows:
+                lines.append("  - First packed bytes:")
+                for row in preview_rows[:6]:
+                    lines.append(f"    0x{int(row.get('offset') or 0):X}: {row.get('hex') or ''}")
+
+    if declared_rows:
+        lines.extend(["", "Declared Fields:"])
+        motion_section_order = (
+            ("Skeleton", "Animation Files", "Motion Space", "Parameters", "Delaunay", "Scene / Object", "Resources", "Misc")
+            if normalized_extension == ".motionblending"
+            else ("Animation Files", "Motion Space", "Parameters", "Emitter / Effect", "Scene / Object", "Resources", "Misc")
         )
-    )
+        lines.extend(
+            _build_grouped_schema_declaration_lines(
+                [row for row in declared_rows if isinstance(row, Mapping)],
+                section_order=motion_section_order,
+            )
+        )
+    else:
+        section_order = (
+            ("Skeleton", "Animation Files", "Motion Space", "Parameters", "Delaunay", "Scene / Object", "Resources", "Misc")
+            if normalized_extension == ".motionblending"
+            else ("Animation Files", "Motion Space", "Parameters", "Emitter / Effect", "Scene / Object", "Resources", "Misc")
+        )
+        lines.extend(
+            _build_grouped_structured_section_lines(
+                field_names,
+                group_func=_group_animation_field_name,
+                section_order=section_order,
+            )
+        )
     if asset_references:
         lines.extend(["", "Detected asset references:"])
         lines.extend(f"  - {reference}" for reference in asset_references[:24])
         if len(asset_references) > 24:
             lines.append(f"  ... {len(asset_references) - 24} more")
+    count_offset_pairs = list(tables.get("count_offset_pair_candidates") or []) if isinstance(tables, Mapping) else []
+    if count_offset_pairs:
+        lines.extend(["", "Candidate count/offset tables:"])
+        for row in count_offset_pairs[:8]:
+            if not isinstance(row, Mapping):
+                continue
+            lines.append(
+                "  - "
+                f"offset 0x{int(row.get('owner_offset') or 0):X}: "
+                f"count={int(row.get('count') or 0):,}, data=0x{int(row.get('data_offset') or 0):X}, "
+                f"confidence={row.get('confidence') or 'candidate'}"
+            )
+    float_rows = list(tables.get("float_vector_candidates") or []) if isinstance(tables, Mapping) else []
+    if float_rows:
+        lines.extend(["", "Candidate numeric/vector rows:"])
+        for row in float_rows[:8]:
+            if not isinstance(row, Mapping):
+                continue
+            lines.append(
+                "  - "
+                f"0x{int(row.get('offset') or 0):X} {row.get('type') or 'float'} = {row.get('values')}"
+            )
     if strings_preview:
         lines.extend(["", strings_preview])
     else:
@@ -10088,20 +11944,30 @@ def build_par_structured_preview(
     lines.extend(["", "Binary header preview:", header_preview])
 
     detail_lines = [
-        f"Detected {len(field_names):,} field-like identifier(s) from the preview sample.",
+        f"Detected {len(declared_rows):,} declared member row(s) and {len(field_names):,} field-like identifier(s) from the preview sample.",
     ]
+    if declared_rows:
+        detail_lines.append("Declared fields come from length-prefixed member/type rows; raw strings remain separate recovery evidence.")
     if markers:
         detail_lines.append(f"Detected structured marker(s): {', '.join(markers)}.")
     if not field_names and not markers and not strings:
         detail_lines.append("No readable strings or structured markers were detected, so the preview falls back to raw header bytes.")
     if asset_references:
         detail_lines.append(f"Detected {len(asset_references):,} related asset reference(s).")
+    if related_references:
+        detail_lines.append(f"Matched {len(related_references):,} related archive file row(s).")
     if normalized_extension == ".paa":
         detail_lines.append("This inspector summarizes animation-side metadata and readable markers. Real animation playback is not implemented yet.")
     elif normalized_extension in {".pae", ".paem"}:
         detail_lines.append("This inspector summarizes effect/emitter-side metadata and readable markers. Real particle or timeline playback is not implemented yet.")
     elif normalized_extension == ".motionblending":
-        detail_lines.append("This inspector summarizes motion/blend references and readable markers. Playback or editing is not implemented yet.")
+        detail_lines.append(
+            "This inspector summarizes motion/blend references, candidate tables, and numeric rows. Playback/editing is still disabled until the schema is stable."
+        )
+    elif normalized_extension == ".paa_metabin":
+        detail_lines.append(
+            "This inspector summarizes AnimationMetaData headers, filename-derived motion hints, same-stem relationships, and packed metadata bytes. Editing is disabled."
+        )
 
     return _StructuredBinaryPreviewBundle(
         preview_text="\n".join(lines),
@@ -10120,8 +11986,18 @@ def _structured_asset_profile(
             "Prefab inspector",
             "Prefab",
             _group_prefab_field_name,
-            ("Scene / Object", "Resources", "Transform / Bounds", "Physics / Collision", "Logic / Events", "Presentation", "Misc"),
-            "Summarizes object composition, resource links, transforms, collision, and event-like markers when readable.",
+            (
+                "Scene / Object",
+                "Resources",
+                "Skeleton / Sockets",
+                "Mesh / Cloth",
+                "Transform / Bounds",
+                "Physics / Collision",
+                "Logic / Events",
+                "Presentation",
+                "Misc",
+            ),
+            "Summarizes object composition, resource links, transforms, collision, and event-like markers when readable. A .prefab is metadata, not the renderable mesh; linked .pac/.pam/.pamlod files usually hold geometry.",
         )
     if normalized_extension in {".levelinfo", ".palevel"}:
         return (
@@ -10156,6 +12032,94 @@ def _structured_asset_profile(
     )
 
 
+def _iteminfo_internal_name_candidates(strings: Sequence[str], *, max_names: int = 48) -> List[str]:
+    candidates: List[str] = []
+    seen: set[str] = set()
+    for raw_text in strings:
+        text = str(raw_text or "").strip()
+        if len(text) < 3 or len(text) > 96:
+            continue
+        if text in seen or text.isdigit():
+            continue
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", text):
+            continue
+        if text.lower() in {"animationmetadata", "sceneobject", "reflectobject", "staticstringa"}:
+            continue
+        seen.add(text)
+        candidates.append(text)
+        if len(candidates) >= max_names:
+            break
+    return candidates
+
+
+def _prefab_capability_lines(
+    declaration_rows: Sequence[Mapping[str, object]],
+    asset_references: Sequence[str],
+) -> List[str]:
+    return [
+        f"- {row['label']}: {row['detail']}"
+        for row in _prefab_evidence_rows(declaration_rows, asset_references)
+    ]
+
+
+def _prefab_evidence_rows(
+    declaration_rows: Sequence[Mapping[str, object]],
+    asset_references: Sequence[str],
+) -> List[Dict[str, str]]:
+    names = {
+        str(row.get("name") or "").strip().lstrip("_").lower()
+        for row in declaration_rows
+        if isinstance(row, Mapping)
+    }
+    declared_types = {
+        str(row.get("declared_type") or "").strip().lower()
+        for row in declaration_rows
+        if isinstance(row, Mapping)
+    }
+    reference_exts = {
+        PurePosixPath(str(reference or "").replace("\\", "/")).suffix.lower()
+        for reference in asset_references
+        if str(reference or "").strip()
+    }
+    rows: List[Dict[str, str]] = []
+
+    def add(label: str, detail: str, confidence: str = "declared_member_evidence") -> None:
+        rows.append({"label": label, "detail": detail, "confidence": confidence})
+
+    if any(value in names for value in ("sceneobjectuid", "sceneobjectuuid", "tag", "isenable", "generateuuid")):
+        add("Scene object identity", "declares enable, tag, uid, or uuid fields that help identify the placed object instance.")
+    if "components" in names or any("component" in value for value in declared_types):
+        add("Scene hierarchy", "declares component and/or child-object containers.")
+    if (
+        "meshcomponent" in declared_types
+        or "resourcereferencepath_staticmesh" in declared_types
+        or any(value in names for value in ("objectfilename", "staticmeshinstancefilename", "path"))
+        or ".pac" in reference_exts
+        or ".pam" in reference_exts
+    ):
+        add("Static mesh/resource component", "can point at renderable .pac/.pam resources, but this prefab is still the metadata wrapper.")
+    if (
+        "skinnedmeshcomponent" in declared_types
+        or "resourcereferencepath_skinnedmesh" in declared_types
+        or "resourcereferencepath_characterskeleton" in declared_types
+        or any(value in names for value in ("skinnedmeshfile", "skinnedmeshfilename", "skeletonfilename", "masterposeskinnedmeshcomponent"))
+    ):
+        add("Skinned mesh component", "declares skinned mesh, skeleton, socket, and model-property style fields.")
+    if any(token in value for value in names | declared_types for token in ("cloth", "pbd", "shrink", "dynamicmotion", "sdf", "anchormeshnode")):
+        add("Cloth/PBD hooks", "declares cloth, PBD, anchor, shrink-mask, or dynamic-motion fields; these are currently browse-only evidence.")
+    if any("socket" in value for value in names | declared_types) or any(reference.endswith(".sockets.xml") for reference in asset_references):
+        add("Socket attachments", "contains socket names or socket descriptor references useful for attaching held/body objects.")
+    if any(token in value for value in names | declared_types for token in ("collision", "physics", "pbd", "shape")):
+        add("Physics/collision hooks", "declares physics or collision-related component fields; editing remains read-only.")
+    if any(token in value for value in names for token in ("render", "opacity", "priority")):
+        add("Render/presentation overrides", "contains opacity or custom render-pass fields.")
+    if ".xml" in reference_exts or ".prefabdata_xml" in reference_exts:
+        add("Descriptor references", "points at XML descriptor data such as sockets or prefab metadata.")
+    if not rows:
+        add("Readable metadata", "no specific component family was proven, but identifiers and references are still shown below.")
+    return rows
+
+
 def build_structured_asset_preview(
     data: bytes,
     virtual_path: str,
@@ -10164,18 +12128,53 @@ def build_structured_asset_preview(
     source_entry: Optional[ArchiveEntry] = None,
     archive_entries_by_normalized_path: Optional[Dict[str, Sequence[ArchiveEntry]]] = None,
     archive_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> _StructuredBinaryPreviewBundle:
+    raise_if_cancelled(stop_event)
     strings = extract_binary_strings(data, sample_limit=262_144, max_strings=256)
+    raise_if_cancelled(stop_event)
     field_names = sorted({text for text in strings if _looks_like_structured_field_name(text)}, key=str.casefold)
     asset_references = _extract_binary_asset_references(data, sample_limit=262_144, max_references=96)
+    raise_if_cancelled(stop_event)
     strings_preview = build_binary_strings_preview(data, sample_limit=65_536, max_strings=32)
     header_preview = format_binary_header_preview(data)
     title, metadata_label, group_func, section_order, inspector_note = _structured_asset_profile(extension)
+    normalized_extension = str(extension or "").strip().lower()
+    normalized_basename = PurePosixPath(str(virtual_path or "").replace("\\", "/")).name.lower()
+    iteminfo_name_candidates: List[str] = []
+    if normalized_extension in {".pabgb", ".pabgh"} and normalized_basename.startswith("iteminfo."):
+        if normalized_extension == ".pabgb":
+            title = "Item info table inspector"
+            metadata_label = "Item Database"
+            inspector_note = (
+                "Summarizes recovered item identifiers from iteminfo.pabgb. The app uses this table with localization, "
+                "icons, and model hashes for Item Finder names and archive relationships."
+            )
+            iteminfo_name_candidates = _iteminfo_internal_name_candidates(strings)
+        else:
+            title = "Item info hash table inspector"
+            metadata_label = "Item Database Index"
+            inspector_note = (
+                "Summarizes the companion iteminfo.pabgh index/hash table. It is useful as relationship evidence, "
+                "but not directly editable or human-readable by itself."
+            )
+    schema_declarations = _binary_sidecar_schema_declarations(data, normalized_extension)
+    declared_rows = (
+        list(schema_declarations.get("declared_member_rows") or [])
+        if isinstance(schema_declarations, Mapping)
+        else []
+    )
+    type_candidates = (
+        list(schema_declarations.get("root_or_class_candidates") or [])
+        if isinstance(schema_declarations, Mapping)
+        else []
+    )
     companion_entries = (
         _find_archive_model_related_entries(source_entry, archive_entries_by_basename)
         if source_entry is not None and archive_entries_by_basename is not None
         else ()
     )
+    raise_if_cancelled(stop_event)
     related_references = (
         build_archive_related_file_references(
             source_entry,
@@ -10197,6 +12196,9 @@ def build_structured_asset_preview(
         else ()
     )
     related_references = merge_archive_reference_rows(related_references, graph_references)
+    if len(related_references) > 240:
+        related_references = tuple(related_references[:240])
+    raise_if_cancelled(stop_event)
 
     extension_counts: Counter[str] = Counter()
     for reference in asset_references:
@@ -10208,6 +12210,11 @@ def build_structured_asset_preview(
     lines.append(f"- Field-like entries: {len(field_names):,}")
     lines.append(f"- Readable strings: {len(strings):,}")
     lines.append(f"- Related asset hints: {len(asset_references):,}")
+    lines.append(f"- Declared member rows: {len(declared_rows):,}")
+    if iteminfo_name_candidates:
+        lines.append(f"- Item identifier candidates: {len(iteminfo_name_candidates):,}")
+    if isinstance(schema_declarations, Mapping) and schema_declarations.get("layout_signature"):
+        lines.append(f"- Declaration layout signature: {schema_declarations.get('layout_signature')}")
     if related_references:
         resolved_count = sum(1 for reference in related_references if reference.resolved_entry is not None)
         lines.append(f"- Resolved referenced files: {resolved_count:,} / {len(related_references):,}")
@@ -10216,15 +12223,44 @@ def build_structured_asset_preview(
         lines.append(f"- Reference types: {top_types}")
     if companion_entries:
         lines.append(f"- Same-stem companion files: {len(companion_entries):,}")
+    if type_candidates:
+        type_names = [
+            str(candidate.get("name") or "").strip()
+            for candidate in type_candidates
+            if isinstance(candidate, Mapping) and str(candidate.get("name") or "").strip()
+        ]
+        if type_names and not iteminfo_name_candidates:
+            lines.append(f"- Type/class candidates: {', '.join(type_names[:12])}" + (" ..." if len(type_names) > 12 else ""))
     lines.append(f"- Inspector note: {inspector_note}")
 
-    lines.extend(
-        _build_grouped_structured_section_lines(
-            field_names,
-            group_func=group_func,
-            section_order=section_order,
+    if normalized_extension == ".prefab":
+        lines.extend(["", "Prefab evidence:"])
+        lines.extend(_prefab_capability_lines(declared_rows, asset_references))
+
+    if iteminfo_name_candidates:
+        lines.extend(["", "Recovered item identifiers:"])
+        for name in iteminfo_name_candidates[:32]:
+            lines.append(f"  - {name}")
+        if len(iteminfo_name_candidates) > 32:
+            lines.append(f"  ... {len(iteminfo_name_candidates) - 32} more")
+
+    if declared_rows:
+        lines.extend(
+            _build_grouped_schema_declaration_lines(
+                [row for row in declared_rows if isinstance(row, Mapping)],
+                section_order=section_order,
+                per_section_limit=18,
+            )
         )
-    )
+
+    if not iteminfo_name_candidates:
+        lines.extend(
+            _build_grouped_structured_section_lines(
+                field_names,
+                group_func=group_func,
+                section_order=section_order,
+            )
+        )
     if asset_references:
         lines.extend(["", "Detected asset references:"])
         lines.extend(f"  - {reference}" for reference in asset_references[:32])
@@ -10240,8 +12276,20 @@ def build_structured_asset_preview(
         inspector_note,
         f"Detected {len(field_names):,} field-like identifier(s) and {len(asset_references):,} asset reference hint(s).",
     ]
+    if declared_rows:
+        detail_lines.append(
+            f"Recovered {len(declared_rows):,} length-prefixed member declaration(s); these identify fields and types but not safe edit offsets."
+        )
     if related_references:
         detail_lines.append("Resolved related archive files are listed below.")
+    if normalized_extension == ".prefab":
+        detail_lines.append(
+            "Prefab preview uses direct readable references, same-stem companions, and bounded binary prefab relationship evidence; it remains read-only."
+        )
+    if iteminfo_name_candidates:
+        detail_lines.append(
+            "Item info preview exposes internal item identifiers as relationship/name evidence. Display names still come from localization tables when available."
+        )
     if not field_names and not asset_references and not strings:
         detail_lines.append("No readable strings or structured markers were detected, so the preview falls back to raw header bytes.")
 
@@ -10304,6 +12352,18 @@ def _humanize_xml_field_name(name: str) -> str:
 def _xml_field_value_hint(name: str, value: str) -> str:
     normalized = str(name or "").strip().lstrip("_").lower()
     normalized_value = str(value or "").strip().lower()
+    if "damping" in normalized:
+        return "physics damping value"
+    if "inertia" in normalized or "mass" in normalized:
+        return "physics mass/inertia value"
+    if "friction" in normalized:
+        return "physics friction value"
+    if "angularlimit" in normalized or "twist" in normalized or "plane" in normalized or "coneangle" in normalized:
+        return "physics angular limit"
+    if "socket" in normalized:
+        return "skeleton/socket binding"
+    if "bodyname" in normalized:
+        return "physics body name"
     if normalized in {"path", "value"} or normalized.endswith("path") or "/" in normalized_value or "\\" in normalized_value:
         return "asset/reference path"
     if "material" in normalized:
@@ -10321,6 +12381,93 @@ def _xml_field_value_hint(name: str, value: str) -> str:
     if "category" in normalized or "type" in normalized:
         return "type/category"
     return _structured_field_type_hint(name)
+
+
+def _summarize_physics_attachment_xml(root: ET.Element, *, max_rows: int = 12) -> List[str]:
+    elements = list(root.iter())
+    if not any(str(element.tag or "").startswith("SkinnedMeshPhysicsAttachment") for element in elements):
+        return []
+    instance_count = sum(1 for element in elements if str(element.tag or "") == "SkinnedMeshPhysicsAttachmentInstanceDesc")
+    body_elements = [
+        element
+        for element in elements
+        if str(element.tag or "") == "SkinnedMeshPhysicsAttachmentBodyCreationDesc"
+    ]
+    constraint_elements = [
+        element
+        for element in elements
+        if str(element.tag or "").startswith("SkinnedMeshPhysicsAttachment")
+        and "ConstraintDesc" in str(element.tag or "")
+    ]
+    shape_counts: Counter[str] = Counter(
+        str(element.tag or "")
+        for element in elements
+        if str(element.tag or "").startswith("SkinnedMeshPhysicsAttachment")
+        and "ShapeDesc" in str(element.tag or "")
+    )
+    lines = [
+        "- Physics attachment descriptor: controls extra socket-bound physics bodies, usually accessories or body-attached props.",
+        f"- Physics attachment instances: {instance_count:,}; bodies: {len(body_elements):,}; constraints: {len(constraint_elements):,}",
+    ]
+    if shape_counts:
+        lines.append("- Attachment collision shapes: " + ", ".join(f"{name}: {count:,}" for name, count in shape_counts.most_common(6)))
+
+    socket_names = sorted(
+        {
+            str(element.attrib.get("_socketName") or "").strip()
+            for element in body_elements
+            if str(element.attrib.get("_socketName") or "").strip()
+        },
+        key=str.casefold,
+    )
+    body_names = sorted(
+        {
+            str(element.attrib.get("_bodyName") or "").strip()
+            for element in body_elements
+            if str(element.attrib.get("_bodyName") or "").strip()
+        },
+        key=str.casefold,
+    )
+    if socket_names:
+        lines.append("- Socket bindings: " + ", ".join(socket_names[:10]) + (f" (+{len(socket_names) - 10} more)" if len(socket_names) > 10 else ""))
+    if body_names:
+        lines.append("- Physics bodies: " + ", ".join(body_names[:10]) + (f" (+{len(body_names) - 10} more)" if len(body_names) > 10 else ""))
+
+    tunables: List[str] = []
+    for element in elements:
+        tag = str(element.tag or "")
+        for key, value in sorted(element.attrib.items(), key=lambda item: item[0].casefold()):
+            normalized = str(key or "").strip().lstrip("_").lower()
+            if normalized not in {
+                "angulardamping",
+                "lineardamping",
+                "inertiafactor",
+                "maxfrictiontorque",
+                "angularlimitmin",
+                "angularlimitmax",
+                "coneangle",
+                "twistmin",
+                "twistmax",
+                "planemin",
+                "planemax",
+                "sphereradius",
+                "cylinderheight",
+                "radius",
+            }:
+                continue
+            label = _humanize_xml_field_name(key)
+            tunables.append(f"  - {tag}.{label}: {value} ({_xml_field_value_hint(key, value)})")
+            if len(tunables) >= max_rows:
+                break
+        if len(tunables) >= max_rows:
+            break
+    if tunables:
+        lines.extend(["", "Physics attachment tunables:"])
+        lines.extend(tunables)
+    lines.append(
+        "Editing note: these XML values are much more explicitly named than HKX fields; damping, inertia, limits, shape size, and friction are reasonable modding targets when this descriptor is selected."
+    )
+    return lines
 
 
 def build_simplified_text_asset_summary(
@@ -10362,6 +12509,10 @@ def build_simplified_text_asset_summary(
             lines.append(f"- Texture parameter kinds: {', '.join(parameter_names[:10])}" + (f" (+{len(parameter_names) - 10} more)" if len(parameter_names) > 10 else ""))
     if asset_references:
         lines.append(f"- Asset/reference paths: {len(asset_references):,}")
+    physics_attachment_lines = _summarize_physics_attachment_xml(root)
+    if physics_attachment_lines:
+        lines.extend(["", "Physics attachment summary:"])
+        lines.extend(physics_attachment_lines)
 
     rows: List[Tuple[str, str, str]] = []
     seen_rows: set[Tuple[str, str]] = set()
@@ -10522,6 +12673,237 @@ def _build_model_preview_summary_text(path: str, model_preview: ModelPreviewData
         f"{model_preview.vertex_count:,} vertices\n"
         f"{model_preview.face_count:,} faces"
     )
+
+
+def _attach_hkx_physics_overlay_to_model_preview(
+    model_preview: Optional[ModelPreviewData],
+    references: Sequence[ArchiveModelTextureReference],
+    *,
+    stop_event: Optional[threading.Event] = None,
+    max_hkx_files: int = 3,
+) -> List[str]:
+    if model_preview is None:
+        return []
+    overlays: List[Optional[HkxPhysicsOverlayData]] = []
+    notes: List[str] = []
+    seen_paths: set[str] = set()
+    descriptor_hints: List[Mapping[str, object]] = []
+    seen_descriptor_paths: set[str] = set()
+    skeleton_bone_positions: Dict[str, Mapping[str, object]] = {}
+    seen_skeleton_paths: set[str] = set()
+
+    def _finite_tuple3(value: object) -> Tuple[float, float, float]:
+        if not isinstance(value, (list, tuple)) or len(value) < 3:
+            return ()
+        try:
+            point = (float(value[0]), float(value[1]), float(value[2]))
+        except (TypeError, ValueError, OverflowError):
+            return ()
+        return point if all(math.isfinite(component) for component in point) else ()
+
+    def _bone_preview_position(bone: object) -> Tuple[Tuple[float, float, float], str]:
+        matrix = tuple(getattr(bone, "bind_matrix", ()) or ())
+        candidates: List[Tuple[float, Tuple[float, float, float], str]] = []
+        if len(matrix) >= 16:
+            for indexes, source in (((12, 13, 14), "bind_matrix_row_translation"), ((3, 7, 11), "bind_matrix_column_translation")):
+                point = _finite_tuple3(tuple(matrix[index] for index in indexes))
+                if point:
+                    magnitude = math.sqrt((point[0] * point[0]) + (point[1] * point[1]) + (point[2] * point[2]))
+                    if magnitude > 1e-6:
+                        candidates.append((magnitude, point, source))
+        if candidates:
+            _magnitude, point, source = max(candidates, key=lambda item: item[0])
+            return point, source
+        point = _finite_tuple3(tuple(getattr(bone, "position", ()) or ()))
+        return (point, "local_position") if point else ((), "")
+
+    def _overlay_match_tokens(path_text: object) -> set[str]:
+        normalized = str(path_text or "").replace("\\", "/").casefold()
+        stop_tokens = {
+            "animation",
+            "archive",
+            "bin",
+            "character",
+            "cloth",
+            "havok",
+            "havokphysics",
+            "hkx",
+            "leveldata",
+            "meshphysics",
+            "model",
+            "object",
+            "pac",
+            "pam",
+            "pamlod",
+            "pc",
+            "physics",
+            "phm",
+            "phw",
+        }
+        return {
+            token
+            for token in re.findall(r"[a-z0-9]+", normalized)
+            if len(token) >= 2 and token not in stop_tokens and token != "cd"
+        }
+
+    def _score_overlay_hkx_reference(reference: ArchiveModelTextureReference, order: int) -> Tuple[int, int, ArchiveModelTextureReference]:
+        resolved_entry = getattr(reference, "resolved_entry", None)
+        candidate_path = str(getattr(resolved_entry, "path", "") or getattr(reference, "resolved_archive_path", "") or "")
+        source_path = str(getattr(model_preview, "path", "") or "")
+        source_path_folded = source_path.replace("\\", "/").casefold()
+        candidate_path_folded = candidate_path.replace("\\", "/").casefold()
+        source_stem = PurePosixPath(source_path_folded).stem
+        candidate_stem = PurePosixPath(candidate_path_folded).stem
+        score = 0
+        if source_stem and candidate_stem and source_stem == candidate_stem:
+            score += 220
+        elif source_stem and source_stem in candidate_path_folded:
+            score += 150
+        elif candidate_stem and candidate_stem in source_path_folded:
+            score += 80
+        shared_tokens = _overlay_match_tokens(source_path_folded) & _overlay_match_tokens(candidate_path_folded)
+        important_tokens = {
+            "shield",
+            "sword",
+            "weapon",
+            "bow",
+            "dagger",
+            "axe",
+            "mace",
+            "staff",
+            "cloak",
+            "cape",
+            "hair",
+            "helmet",
+        }
+        for token in shared_tokens:
+            score += 70 if token in important_tokens else 22
+        return score, order, reference
+
+    for reference in references:
+        resolved_entry = getattr(reference, "resolved_entry", None)
+        if resolved_entry is None or str(getattr(resolved_entry, "extension", "") or "").lower() not in {".xml", ".app_xml", ".pac_xml", ".prefabdata_xml"}:
+            continue
+        normalized_path = str(getattr(resolved_entry, "path", "") or "").replace("\\", "/").strip().lower()
+        if not normalized_path or normalized_path in seen_descriptor_paths:
+            continue
+        if not any(
+            token in normalized_path
+            for token in ("physics", "attachment", "havok", "modelproperty", "material")
+        ):
+            continue
+        seen_descriptor_paths.add(normalized_path)
+        try:
+            descriptor_data, _decompressed, _note = read_archive_entry_data(resolved_entry, stop_event=stop_event)
+            descriptor_text = descriptor_data.decode("utf-8", errors="ignore")
+            descriptor_hint = build_hkx_descriptor_hint_from_xml_text(descriptor_text, resolved_entry.path)
+            if descriptor_hint is not None:
+                descriptor_hints.append(descriptor_hint)
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            notes.append(f"HKX descriptor context skipped for {getattr(resolved_entry, 'path', 'unknown')}: {exc}")
+    for reference in references:
+        resolved_entry = getattr(reference, "resolved_entry", None)
+        if resolved_entry is None or str(getattr(resolved_entry, "extension", "") or "").lower() != ".pab":
+            continue
+        normalized_path = str(getattr(resolved_entry, "path", "") or "").replace("\\", "/").strip().lower()
+        if not normalized_path or normalized_path in seen_skeleton_paths:
+            continue
+        seen_skeleton_paths.add(normalized_path)
+        try:
+            skeleton_data, _decompressed, _note = read_archive_entry_data(resolved_entry, stop_event=stop_event)
+            skeleton = parse_pab(skeleton_data, resolved_entry.path)
+            bones_by_index = {
+                int(getattr(bone, "index", -1)): bone
+                for bone in getattr(skeleton, "bones", []) or []
+                if int(getattr(bone, "index", -1)) >= 0
+            }
+            for bone in getattr(skeleton, "bones", []) or []:
+                bone_name = str(getattr(bone, "name", "") or "").strip()
+                position, position_source = _bone_preview_position(bone)
+                if not bone_name or len(position) < 3:
+                    continue
+                parent_index = int(getattr(bone, "parent_index", -1) or -1)
+                parent_bone = bones_by_index.get(parent_index)
+                skeleton_bone_positions[bone_name] = {
+                    "name": bone_name,
+                    "index": int(getattr(bone, "index", -1) or 0),
+                    "parent_index": parent_index,
+                    "parent_name": str(getattr(parent_bone, "name", "") or "") if parent_bone is not None else "",
+                    "position": position,
+                    "position_source": position_source,
+                    "source_path": resolved_entry.path,
+                }
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            notes.append(f"HKX skeleton context skipped for {getattr(resolved_entry, 'path', 'unknown')}: {exc}")
+    hkx_candidates: List[Tuple[int, int, ArchiveModelTextureReference]] = []
+    for order, reference in enumerate(references):
+        if stop_event is not None and stop_event.is_set():
+            raise RunCancelled("HKX physics overlay preparation cancelled.")
+        resolved_entry = getattr(reference, "resolved_entry", None)
+        if resolved_entry is None or str(getattr(resolved_entry, "extension", "") or "").lower() != ".hkx":
+            continue
+        normalized_path = str(getattr(resolved_entry, "path", "") or "").replace("\\", "/").strip().lower()
+        if not normalized_path or normalized_path in seen_paths:
+            continue
+        hkx_candidates.append(_score_overlay_hkx_reference(reference, order))
+    hkx_candidates.sort(key=lambda item: (item[0], -item[1]), reverse=True)
+    if hkx_candidates:
+        best_score = hkx_candidates[0][0]
+        if best_score >= 50:
+            threshold = max(45, best_score - 45)
+            skipped = [
+                candidate
+                for candidate in hkx_candidates
+                if candidate[0] < threshold
+            ]
+            hkx_candidates = [
+                candidate
+                for candidate in hkx_candidates
+                if candidate[0] >= threshold
+            ]
+            if skipped:
+                notes.append(
+                    "Skipped lower-confidence HKX overlays that looked like broader character/rig context rather than the selected model."
+                )
+    for _score, _order, reference in hkx_candidates:
+        if stop_event is not None and stop_event.is_set():
+            raise RunCancelled("HKX physics overlay preparation cancelled.")
+        resolved_entry = getattr(reference, "resolved_entry", None)
+        if resolved_entry is None:
+            continue
+        normalized_path = str(getattr(resolved_entry, "path", "") or "").replace("\\", "/").strip().lower()
+        if not normalized_path or normalized_path in seen_paths:
+            continue
+        seen_paths.add(normalized_path)
+        try:
+            hkx_data, _decompressed, _note = read_archive_entry_data(resolved_entry, stop_event=stop_event)
+            hkx_document = build_hkx_editable_geometry_document(hkx_data, resolved_entry.path, descriptor_hints)
+            overlay = build_hkx_physics_overlay_from_document(
+                hkx_document,
+                source_path=resolved_entry.path,
+                normalization_center=tuple(getattr(model_preview, "normalization_center", (0.0, 0.0, 0.0)) or (0.0, 0.0, 0.0)),
+                normalization_scale=float(getattr(model_preview, "normalization_scale", 1.0) or 1.0),
+                skeleton_bone_positions=skeleton_bone_positions,
+            )
+            if overlay is not None:
+                overlays.append(overlay)
+                notes.append(f"HKX physics overlay loaded from {resolved_entry.path}: {len(overlay.shapes):,} decoded shape(s).")
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            notes.append(f"HKX physics overlay skipped for {getattr(resolved_entry, 'path', 'unknown')}: {exc}")
+        if len(overlays) >= max_hkx_files:
+            break
+    merged = merge_hkx_physics_overlays(overlays)
+    if merged is not None:
+        model_preview.physics_overlay = merged
+        if len(seen_paths) > len(overlays):
+            notes.append("Only the first compatible HKX physics overlays are drawn to keep preview rendering responsive.")
+    return notes
 
 
 def _retarget_model_preview(model_preview: ModelPreviewData, path: str) -> None:
@@ -11161,7 +13543,7 @@ def build_archive_preview_result(
                 loose_preview_detail_text=loose_preview_detail_text,
             )
 
-        if extension in {".paa", ".pae", ".paem", ".motionblending"}:
+        if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending"}:
             structured_preview = build_par_structured_preview(
                 data,
                 entry.path,
@@ -11206,6 +13588,7 @@ def build_archive_preview_result(
                 source_entry=entry,
                 archive_entries_by_normalized_path=texture_entries_by_normalized_path,
                 archive_entries_by_basename=texture_entries_by_basename,
+                stop_event=stop_event,
             )
             detail_extra = "\n\n".join(
                 part
@@ -11394,6 +13777,13 @@ def build_archive_preview_result(
                 info_extra_parts.append(
                     f"Companion material sidecar data contributed {sidecar_count:,} texture binding(s){sidecar_suffix}."
                 )
+                family_notice = _archive_texture_family_mismatch_summary(
+                    entry.path,
+                    tuple(str(getattr(binding, "texture_path", "") or "") for binding in sidecar_texture_references),
+                    sidecar_paths=sidecar_reference_paths,
+                )
+                if family_notice:
+                    info_extra_parts.append(family_notice)
                 if extension in {".pam", ".pamlod", ".pac"}:
                     info_extra_parts.append(
                         "Companion sidecar data only describes material and texture bindings. Geometry preview still depends on recovering a renderable mesh layout from the selected payload or its mesh companion."
@@ -11707,6 +14097,16 @@ def build_archive_preview_result(
             )
             model_texture_references = merge_archive_reference_rows(model_texture_references, graph_references)
             add_timing("model_texture_references_s", references_started_at)
+            if model_preview is not None and model_texture_references:
+                overlay_started_at = time.perf_counter()
+                overlay_notes = _attach_hkx_physics_overlay_to_model_preview(
+                    model_preview,
+                    model_texture_references,
+                    stop_event=stop_event,
+                )
+                if overlay_notes:
+                    info_extra_parts.extend(overlay_notes)
+                add_timing("hkx_physics_overlay_s", overlay_started_at)
         binary_preview_started_at = time.perf_counter()
         preferred_view, preview_text, info_extra = build_archive_binary_preview_payload(
             entry,

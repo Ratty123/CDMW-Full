@@ -3677,6 +3677,9 @@ def ensure_dds_display_preview_png(
     *,
     dds_info: Optional[DdsInfo] = None,
     max_dimension: int = _COMPARE_DISPLAY_PREVIEW_MAX_DIMENSION,
+    slot_kind: str = "base",
+    srgb: str = "auto",
+    normal_space: str = "auto",
     stop_event: Optional[threading.Event] = None,
 ) -> Path:
     resolved_info: Optional[DdsInfo] = dds_info
@@ -3687,6 +3690,20 @@ def ensure_dds_display_preview_png(
         if dds_info is not None:
             raise
         resolved_info = None
+    try:
+        from cdmw.core.texture_native import ensure_native_dds_preview_png
+
+        native_preview = ensure_native_dds_preview_png(
+            dds_path.resolve(),
+            max_dimension=max_dimension,
+            slot_kind=slot_kind,
+            srgb=srgb,
+            normal_space=normal_space,
+        )
+        if native_preview is not None:
+            return native_preview
+    except Exception:
+        native_preview = None
     if resolved_info is None:
         return ensure_dds_preview_png(texconv_path, dds_path, stop_event=stop_event)
     resize_dims = _preview_resize_dimensions(

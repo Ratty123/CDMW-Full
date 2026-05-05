@@ -15,6 +15,8 @@ def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> Non
     assert german.translate("Exact Item Name") == "Exakter Item-Name"
     assert spanish.translate("Name Match") == "Coincidencia de nombre"
     assert german.translate("Name Match") == "Namensabgleich"
+    assert spanish.translate("Related Name Hint") == "Pista de nombre relacionado"
+    assert german.translate("Related Name Hint") == "Hinweis auf verwandten Namen"
     assert spanish.translate("Window") == "Ventana"
     assert german.translate("Window") == "Fenster"
     assert spanish.translate("Detach Current Tab") == "Separar pestana actual"

@@ -51,6 +51,11 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         dialog_text = " ".join(label.text() for label in dialog.findChildren(QLabel))
         self.assertIn("Advanced diagnostics", dialog_text)
         self.assertIn("no visible effect", dialog_text)
+        self.assertTrue(dialog.show_physics_overlay_checkbox.isChecked())
+        self.assertIn("HKX physics overlay", dialog.show_physics_overlay_checkbox.text())
+        self.assertTrue(dialog.show_physics_simulation_preview_checkbox.isChecked())
+        self.assertIn("HKX physics preview", dialog.show_physics_simulation_preview_checkbox.text())
+        self.assertIn("mesh sway", dialog.show_physics_simulation_preview_checkbox.toolTip())
 
         dialog.close()
         dialog.deleteLater()

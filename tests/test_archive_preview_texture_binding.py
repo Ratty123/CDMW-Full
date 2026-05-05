@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from cdmw.core.archive import (
     _ArchiveModelSidecarTextureBinding,
+    _archive_texture_family_mismatch_summary,
     _attach_model_sidecar_texture_preview_paths,
     _attach_model_texture_preview_paths,
     _attach_model_support_texture_preview_paths,
@@ -40,6 +41,29 @@ def _texture_maps(*paths: str):
 
 
 class ArchivePreviewTextureBindingTests(unittest.TestCase):
+    def test_cross_family_sidecar_texture_notice_is_explicit_but_nonfatal(self) -> None:
+        notice = _archive_texture_family_mismatch_summary(
+            "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0054_16.pac",
+            (
+                "character/texture/cd_m0002_00_wolf_eye_0001.dds",
+                "character/texture/cd_m0002_00_wolf_hair_0001.dds",
+            ),
+            sidecar_paths=("character/modelproperty/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0054_16.pac_xml",),
+        )
+
+        self.assertIn("Cross-family material notice", notice)
+        self.assertIn("wolf", notice)
+        self.assertIn("cloak", notice)
+        self.assertIn("not proof of item identity", notice)
+
+    def test_matching_sidecar_texture_family_has_no_notice(self) -> None:
+        notice = _archive_texture_family_mismatch_summary(
+            "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0054_16.pac",
+            ("character/texture/cd_phm_00_cloak_0054_16_d.dds",),
+        )
+
+        self.assertEqual("", notice)
+
     def test_sidecar_binding_keys_prefer_explicit_part_over_linked_model_path(self) -> None:
         binding = _ArchiveModelSidecarTextureBinding(
             texture_path="character/texture/part_b.dds",

@@ -1,26 +1,53 @@
 .venv/
+.codex/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 __pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
 *.pyd
+.coverage
+htmlcov/
 
 build/
 dist/
 *.spec
+!CrimsonDesertModWorkbench.spec
 
 *.cfg
+*.log
+*.tmp
+*.bak
 archive_cache/
+crash_reports/
 
 .tmp_*/
 tmp_*/
 
 .tools/
 *.zip
-build_importtime.log
-pyinstaller_importtime.log
 _ui_smoke.ini
 archive_scan_cache_probe/
+docs/screenshots/*.png
+*.hkx-corpus.json
+*.hkx-corpus.csv
+*.sidecar-corpus.json
+*.sidecar-corpus.csv
+
+# Local extracted game/corpus payloads should stay outside source control.
+*.pamt
+*.paz
+*.pac
+*.dds
+*.hkx
+*.meshinfo
+*.motionblending
+!tests/fixtures/**
+
+native/**/target/
+native/**/Cargo.lock
 
 .DS_Store
 Thumbs.db

@@ -229,6 +229,16 @@ class ModelPreviewSettingsDialog(QDialog):
         self.disable_lighting_checkbox = QCheckBox("Disable lighting")
         self.disable_depth_test_checkbox = QCheckBox("Disable depth test")
         self.show_texture_debug_strip_checkbox = QCheckBox("Show texture debug strip")
+        self.show_physics_overlay_checkbox = QCheckBox("Show HKX physics overlay")
+        self.show_physics_overlay_checkbox.setToolTip(
+            "Draws decoded HKX collision bodies over the model when a related Crimson Desert HKX file is resolved. "
+            "The preview can also run the local spring simulation for decoded dynamic guides."
+        )
+        self.show_physics_simulation_preview_checkbox = QCheckBox("Animate HKX physics preview")
+        self.show_physics_simulation_preview_checkbox.setToolTip(
+            "Runs the local spring preview for decoded cloth, hair, body-soft, and attachment guides. "
+            "When a matching cloth-like mesh batch is visible, this also enables a preview-only cloak/cloth mesh sway."
+        )
         for checkbox in (
             self.disable_tint_checkbox,
             self.disable_brightness_checkbox,
@@ -241,6 +251,8 @@ class ModelPreviewSettingsDialog(QDialog):
             self.disable_lighting_checkbox,
             self.disable_depth_test_checkbox,
             self.show_texture_debug_strip_checkbox,
+            self.show_physics_overlay_checkbox,
+            self.show_physics_simulation_preview_checkbox,
         ):
             diagnostics_form.addRow("", checkbox)
         self.solo_batch_spin = QSpinBox()
@@ -395,6 +407,8 @@ class ModelPreviewSettingsDialog(QDialog):
             self.disable_lighting_checkbox,
             self.disable_depth_test_checkbox,
             self.show_texture_debug_strip_checkbox,
+            self.show_physics_overlay_checkbox,
+            self.show_physics_simulation_preview_checkbox,
         ):
             checkbox.toggled.connect(self._emit_settings_changed)
         self.solo_batch_spin.valueChanged.connect(self._emit_settings_changed)
@@ -468,6 +482,8 @@ class ModelPreviewSettingsDialog(QDialog):
         current.disable_lighting = self.disable_lighting_checkbox.isChecked()
         current.disable_depth_test = self.disable_depth_test_checkbox.isChecked()
         current.show_texture_debug_strip = self.show_texture_debug_strip_checkbox.isChecked()
+        current.show_physics_overlay = self.show_physics_overlay_checkbox.isChecked()
+        current.show_physics_simulation_preview = self.show_physics_simulation_preview_checkbox.isChecked()
         current.solo_batch_index = self.solo_batch_spin.value()
         current.orbit_sensitivity = self._slider_controls["orbit_sensitivity"].value()
         current.pan_sensitivity = self._slider_controls["pan_sensitivity"].value()
@@ -522,6 +538,8 @@ class ModelPreviewSettingsDialog(QDialog):
             self.disable_lighting_checkbox.setChecked(clamped.disable_lighting)
             self.disable_depth_test_checkbox.setChecked(clamped.disable_depth_test)
             self.show_texture_debug_strip_checkbox.setChecked(clamped.show_texture_debug_strip)
+            self.show_physics_overlay_checkbox.setChecked(clamped.show_physics_overlay)
+            self.show_physics_simulation_preview_checkbox.setChecked(clamped.show_physics_simulation_preview)
             self.solo_batch_spin.setValue(clamped.solo_batch_index)
             self.invert_orbit_x_checkbox.setChecked(clamped.invert_orbit_x)
             self.invert_orbit_y_checkbox.setChecked(clamped.invert_orbit_y)

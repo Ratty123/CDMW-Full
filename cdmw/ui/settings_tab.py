@@ -12,10 +12,13 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -88,41 +91,84 @@ class SettingsTab(QWidget):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(QFrame.NoFrame)
-        root_layout.addWidget(scroll_area)
+        settings_workspace = QWidget()
+        settings_workspace_layout = QHBoxLayout(settings_workspace)
+        settings_workspace_layout.setContentsMargins(0, 0, 0, 0)
+        settings_workspace_layout.setSpacing(0)
+        root_layout.addWidget(settings_workspace, stretch=1)
 
-        content = QWidget()
-        scroll_area.setWidget(content)
+        self.section_nav_list = QListWidget()
+        self.section_nav_list.setObjectName("SettingsSectionNav")
+        self.section_nav_list.setFixedWidth(220)
+        self.section_nav_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.section_nav_list.setAlternatingRowColors(True)
+        self.section_nav_list.setSpacing(2)
+        self.section_nav_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        settings_workspace_layout.addWidget(self.section_nav_list)
 
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(12, 12, 12, 12)
-        content_layout.setSpacing(10)
-        content_layout.setAlignment(Qt.AlignTop)
+        self.section_stack = QStackedWidget()
+        settings_workspace_layout.addWidget(self.section_stack, stretch=1)
+        self._settings_section_layouts: dict[str, QVBoxLayout] = {}
 
-        summary = QLabel(
-            "Persistent global preferences for startup behavior, archive loading, UI layout memory, safety prompts, and 3D preview rendering."
+        def _add_settings_page(key: str, title: str, summary_text: str) -> QVBoxLayout:
+            item = QListWidgetItem(title)
+            item.setData(Qt.UserRole, key)
+            self.section_nav_list.addItem(item)
+
+            scroll_area = QScrollArea()
+            scroll_area.setWidgetResizable(True)
+            scroll_area.setFrameShape(QFrame.NoFrame)
+            content = QWidget()
+            scroll_area.setWidget(content)
+            layout = QVBoxLayout(content)
+            layout.setContentsMargins(14, 12, 14, 12)
+            layout.setSpacing(10)
+            layout.setAlignment(Qt.AlignTop)
+            page_title = QLabel(title)
+            page_title.setObjectName("SectionHeader")
+            page_title.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            layout.addWidget(page_title)
+            summary = QLabel(summary_text)
+            summary.setWordWrap(True)
+            summary.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            summary.setObjectName("HintLabel")
+            layout.addWidget(summary)
+            self.section_stack.addWidget(scroll_area)
+            self._settings_section_layouts[key] = layout
+            return layout
+
+        self.setup_page_layout = _add_settings_page(
+            "setup",
+            "Setup",
+            "Startup and workspace setup controls.",
         )
-        summary.setWordWrap(True)
-        summary.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        summary.setObjectName("HintLabel")
-        content_layout.addWidget(summary)
-
-        columns_widget = QWidget()
-        columns_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-        columns_layout = QHBoxLayout(columns_widget)
-        columns_layout.setContentsMargins(0, 0, 0, 0)
-        columns_layout.setSpacing(12)
-        self.left_column = QVBoxLayout()
-        self.left_column.setContentsMargins(0, 0, 0, 0)
-        self.left_column.setSpacing(10)
-        self.right_column = QVBoxLayout()
-        self.right_column.setContentsMargins(0, 0, 0, 0)
-        self.right_column.setSpacing(10)
-        columns_layout.addLayout(self.left_column, stretch=1)
-        columns_layout.addLayout(self.right_column, stretch=1)
-        content_layout.addWidget(columns_widget)
+        self.paths_page_layout = _add_settings_page(
+            "paths",
+            "Paths",
+            "Workflow, archive, game package, and extraction paths in one place.",
+        )
+        self.archive_performance_page_layout = _add_settings_page(
+            "archive_performance",
+            "Archive Browser Performance",
+            "Archive preview cache, sidecar indexing, and scan responsiveness settings.",
+        )
+        self.appearance_page_layout = _add_settings_page(
+            "appearance",
+            "Appearance",
+            "Theme, language, fonts, preview colors, and 3D graphics defaults.",
+        )
+        self.layout_page_layout = _add_settings_page(
+            "layout",
+            "Layout",
+            "Window and pane layout memory.",
+        )
+        self.safety_page_layout = _add_settings_page(
+            "safety",
+            "Safety",
+            "Confirmation prompts and diagnostic-report behavior.",
+        )
+        self.section_nav_list.currentRowChanged.connect(self.section_stack.setCurrentIndex)
+        self.section_nav_list.setCurrentRow(0)
 
         appearance_group = QGroupBox("Appearance")
         appearance_layout = QFormLayout(appearance_group)
@@ -232,7 +278,7 @@ class SettingsTab(QWidget):
             "Shows timing, cache, and worker diagnostics in the Archive Scan Log. Leave this off for cleaner day-to-day browsing."
         )
         appearance_layout.addRow("", self.verbose_archive_logs_checkbox)
-        self.left_column.addWidget(appearance_group)
+        self.appearance_page_layout.addWidget(appearance_group)
 
         startup_group = QGroupBox("Startup")
         startup_layout = QVBoxLayout(startup_group)
@@ -247,7 +293,7 @@ class SettingsTab(QWidget):
         startup_layout.addWidget(self.auto_load_archive_checkbox)
         startup_layout.addWidget(self.prefer_cache_checkbox)
         startup_layout.addWidget(self.restore_last_tab_checkbox)
-        self.right_column.addWidget(startup_group)
+        self.setup_page_layout.addWidget(startup_group)
 
         archive_performance_group = QGroupBox("Archive Browser Performance")
         archive_performance_layout = QFormLayout(archive_performance_group)
@@ -293,7 +339,7 @@ class SettingsTab(QWidget):
         archive_performance_hint.setWordWrap(True)
         archive_performance_hint.setObjectName("HintLabel")
         archive_performance_layout.addRow("", archive_performance_hint)
-        self.right_column.addWidget(archive_performance_group)
+        self.archive_performance_page_layout.addWidget(archive_performance_group)
 
         layout_group = QGroupBox("Layout")
         layout_layout = QVBoxLayout(layout_group)
@@ -301,7 +347,7 @@ class SettingsTab(QWidget):
         layout_layout.setSpacing(8)
         self.remember_splitters_checkbox = QCheckBox("Remember pane sizes and splitters")
         layout_layout.addWidget(self.remember_splitters_checkbox)
-        self.right_column.addWidget(layout_group)
+        self.layout_page_layout.addWidget(layout_group)
 
         preview_group = QGroupBox("3D Preview / Graphics")
         preview_layout = QFormLayout(preview_group)
@@ -441,7 +487,7 @@ class SettingsTab(QWidget):
         preview_hint.setObjectName("HintLabel")
         preview_layout.addRow("", preview_hint)
         preview_group.hide()
-        self.left_column.addWidget(preview_group)
+        self.appearance_page_layout.addWidget(preview_group)
 
         shading_group = QGroupBox("Advanced Preview Shading")
         shading_layout = QFormLayout(shading_group)
@@ -572,7 +618,7 @@ class SettingsTab(QWidget):
         shading_hint.setObjectName("HintLabel")
         shading_layout.addRow("", shading_hint)
         shading_group.hide()
-        self.left_column.addWidget(shading_group)
+        self.appearance_page_layout.addWidget(shading_group)
 
         safety_group = QGroupBox("Safety")
         safety_layout = QVBoxLayout(safety_group)
@@ -589,7 +635,7 @@ class SettingsTab(QWidget):
         safety_layout.addWidget(self.confirm_workflow_cleanup_checkbox)
         safety_layout.addWidget(self.confirm_archive_cleanup_checkbox)
         safety_layout.addWidget(self.capture_crash_details_checkbox)
-        self.right_column.addWidget(safety_group)
+        self.safety_page_layout.addWidget(safety_group)
 
         notes = QLabel(
             "These preferences are stored in the local config beside the EXE and apply across sessions."
@@ -597,10 +643,9 @@ class SettingsTab(QWidget):
         notes.setWordWrap(True)
         notes.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         notes.setObjectName("HintLabel")
-        self.right_column.addWidget(notes)
-        self.left_column.addStretch(1)
-        self.right_column.addStretch(1)
-        content_layout.addStretch(1)
+        self.safety_page_layout.addWidget(notes)
+        for page_layout in self._settings_section_layouts.values():
+            page_layout.addStretch(1)
 
         self.theme_combo.currentIndexChanged.connect(self._handle_appearance_changed)
         self.language_combo.currentIndexChanged.connect(self._handle_language_changed)
@@ -650,12 +695,20 @@ class SettingsTab(QWidget):
 
     def add_setup_paths_sections(self, setup_section: QWidget, paths_section: QWidget) -> None:
         """Place app setup and path controls at the top of Settings without duplicating state."""
-        self.left_column.insertWidget(0, setup_section)
-        self.right_column.insertWidget(0, paths_section)
+        self.setup_page_layout.insertWidget(2, setup_section)
+        self.paths_page_layout.insertWidget(2, paths_section)
 
     def add_archive_locations_section(self, archive_locations_section: QWidget) -> None:
         """Place archive package/extraction paths with other persistent Settings controls."""
-        self.left_column.insertWidget(1, archive_locations_section)
+        self.paths_page_layout.insertWidget(3, archive_locations_section)
+
+    def show_settings_section(self, key: str) -> None:
+        target = str(key or "").strip()
+        for row in range(self.section_nav_list.count()):
+            item = self.section_nav_list.item(row)
+            if item is not None and str(item.data(Qt.UserRole) or "") == target:
+                self.section_nav_list.setCurrentRow(row)
+                return
 
     def _create_int_spin(self, *, minimum: int, maximum: int, step: int, suffix: str = "") -> QSpinBox:
         spin = QSpinBox()

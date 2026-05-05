@@ -74,9 +74,12 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.archive_preview_title_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)", source)
         self.assertIn("self.archive_texture_refs_group.setMinimumWidth(0)", source)
         self.assertIn("self.archive_preview_content_splitter.setChildrenCollapsible(True)", source)
-        self.assertIn("min_preview_width = 420", source)
-        self.assertIn("right_width = 0", source)
-        self.assertIn("self.archive_preview_content_splitter.setSizes([total, 0])", source)
+        self.assertIn("def _clamp_archive_preview_asset_map_splitter(self, *, prefer_default: bool = False) -> None:", source)
+        self.assertIn("min_preview_width = 640", source)
+        self.assertIn("min_refs_width = 260", source)
+        self.assertIn("max_refs_width = min(760", source)
+        self.assertIn("target_sizes = [total, 0]", source)
+        self.assertIn("self.archive_preview_content_splitter.setSizes(target_sizes)", source)
 
     def test_loose_preview_toggle_is_two_state_action(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -103,6 +106,9 @@ class CrashReportingGuardTests(unittest.TestCase):
     def test_startup_splash_has_abstract_animation(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
         self.assertIn("class StartupSignalMark", source)
+        self.assertIn("_CDMW_GLYPHS", source)
+        self.assertIn("def _draw_cdmw_pixel_build", source)
+        self.assertIn("build_speed = 1.62", source)
         self.assertIn("self._timer = QTimer(self)", source)
         self.assertIn("def paintEvent(self, event) -> None", source)
         self.assertIn("self.signal_mark = StartupSignalMark", source)
@@ -125,6 +131,112 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('"crimson_desert"', source)
         self.assertIn('"label": "Crimson Desert"', source)
         self.assertIn('"accent": "#c56d43"', source)
+
+    def test_main_window_has_about_license_tab(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        menu_order = [
+            'self.profile_menu = menu_bar.addMenu("Profile")',
+            'self.open_settings_action = menu_bar.addAction("Settings")',
+            'self.window_menu = menu_bar.addMenu("Window")',
+            'self.help_menu = menu_bar.addMenu("Help")',
+            'self.open_about_action = menu_bar.addAction("About")',
+        ]
+        menu_positions = [source.index(marker) for marker in menu_order]
+        self.assertEqual(menu_positions, sorted(menu_positions))
+        self.assertIn('self.quick_start_menu_action = self.help_menu.addAction("Quick Start")', source)
+        self.assertIn('self.open_documentation_action = self.help_menu.addAction("Documentation")', source)
+        self.assertIn("self.open_settings_action.triggered.connect(self.show_settings)", source)
+        self.assertIn("def show_settings(self, _checked: bool = False) -> None:", source)
+        self.assertIn("settings_tab_index = self.main_tabs.addTab(self.settings_tab, \"Settings\")", source)
+        self.assertIn("self.main_tabs.setTabVisible(settings_tab_index, False)", source)
+        self.assertIn('self.open_about_action = menu_bar.addAction("About")', source)
+        self.assertIn("def _build_about_page(self) -> QWidget:", source)
+        self.assertIn("def show_about_dialog(self, _checked: bool = False) -> None:", source)
+        self.assertIn("def show_documentation_dialog(self, _checked: bool = False, topic_id: str = \"\") -> None:", source)
+        self.assertNotIn("support_menu_action", source)
+        self.assertNotIn('self.main_tabs.addTab(self.about_tab, "About")', source)
+        self.assertNotIn('about_tabs.addTab(docs_page, "Documentation")', source)
+        self.assertIn('about_tabs.addTab(license_page, "License")', source)
+        self.assertIn("def _read_license_text(self) -> str:", source)
+        self.assertIn('self._read_project_text_file(\n                "LICENSE"', source)
+        self.assertIn("license_edit.setPlainText(self._read_license_text())", source)
+
+    def test_settings_page_uses_left_navigation(self) -> None:
+        settings_source = (ROOT / "cdmw" / "ui" / "settings_tab.py").read_text(encoding="utf-8")
+        main_source = MAIN_WINDOW.read_text(encoding="utf-8")
+
+        self.assertIn("self.section_nav_list = QListWidget()", settings_source)
+        self.assertIn("self.section_stack = QStackedWidget()", settings_source)
+        for title in (
+            '"Setup"',
+            '"Paths"',
+            '"Archive Browser Performance"',
+            '"Appearance"',
+            '"Layout"',
+            '"Safety"',
+        ):
+            self.assertIn(title, settings_source)
+        self.assertIn("self.setup_page_layout = _add_settings_page(", settings_source)
+        self.assertIn("self.paths_page_layout = _add_settings_page(", settings_source)
+        self.assertIn("self.archive_performance_page_layout = _add_settings_page(", settings_source)
+        self.assertIn("self.appearance_page_layout = _add_settings_page(", settings_source)
+        self.assertIn("self.layout_page_layout = _add_settings_page(", settings_source)
+        self.assertIn("self.safety_page_layout = _add_settings_page(", settings_source)
+        self.assertIn("self.setup_page_layout.insertWidget(2, setup_section)", settings_source)
+        self.assertIn("self.paths_page_layout.insertWidget(2, paths_section)", settings_source)
+        self.assertIn("self.paths_page_layout.insertWidget(3, archive_locations_section)", settings_source)
+        self.assertIn("def show_settings_section(self, key: str) -> None:", settings_source)
+        self.assertIn('self.settings_tab.show_settings_section("setup")', main_source)
+        self.assertIn('self.settings_tab.show_settings_section("paths")', main_source)
+
+    def test_archive_browser_has_asset_catalog_scope_dialog(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn('self.archive_asset_catalog_button = QPushButton("Item Finder")', source)
+        self.assertIn('self.archive_clear_asset_scope_button = QPushButton("Clear Scope")', source)
+        self.assertIn("def _show_archive_asset_catalog_dialog(self) -> None:", source)
+        self.assertIn(
+            "def _apply_archive_asset_catalog_scope(self, row: Mapping[str, object], *, include_related: bool = True) -> None:",
+            source,
+        )
+        self.assertIn("def _resolve_archive_asset_catalog_scope_entries(", source)
+        self.assertIn("def _archive_asset_catalog_preview_pixmap(", source)
+        self.assertIn("def _archive_asset_catalog_inventory_icon_pixmap(", source)
+        self.assertIn("category_tree.setHeaderHidden(True)", source)
+        self.assertIn("item_grid.setViewMode(QListView.ViewMode.IconMode)", source)
+        self.assertIn("item_grid.setIconSize(QSize(86, 86))", source)
+        self.assertIn("icon_row_timer.timeout.connect(_load_next_catalog_row_icon)", source)
+        self.assertIn("def _apply_archive_direct_scope(", source)
+        self.assertIn("def _clear_archive_asset_catalog_scope(self) -> None:", source)
+        self.assertIn("linked_tree.setHeaderLabels([\"Linked files\", \"Path\"])", source)
+        self.assertIn('exact_scope_button = QPushButton("Show Exact Links")', source)
+        self.assertIn('scope_button = QPushButton("Show Related Set")', source)
+        self.assertIn("include_related: bool = True", source)
+        self.assertIn("def _archive_asset_catalog_group_choices(self, category: str = \"\") -> Tuple[str, ...]:", source)
+        self.assertIn("no full archive scan", source)
+        self.assertIn("Item Finder scoped Archive Browser to:", source)
+        self.assertIn('self.archive_texture_scope_all_button = QPushButton("Show File Set")', source)
+        self.assertIn("def _scope_all_archive_texture_references(self) -> None:", source)
+        self.assertIn("Referenced file set scoped Archive Browser to:", source)
+
+    def test_archive_extension_filter_is_searchable_for_rare_extensions(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn("self.archive_extension_filter_combo.setEditable(True)", source)
+        self.assertIn("self.archive_extension_filter_combo.setInsertPolicy(QComboBox.NoInsert)", source)
+        self.assertIn("self.archive_extension_filter_combo.setMaxVisibleItems(32)", source)
+        self.assertIn("self.archive_extension_filter_combo.setMinimumWidth(210)", source)
+        self.assertIn('extension_line_edit.setPlaceholderText("Select or type extension")', source)
+        self.assertIn("type a specific extension directly", source)
+        self.assertIn("self.archive_extension_picker_button = QToolButton()", source)
+        self.assertIn("self.archive_extension_picker_button.clicked.connect(self.archive_extension_filter_combo.showPopup)", source)
+        self.assertIn('archive_extension_filter_label = QLabel("Extension")', source)
+        self.assertIn("self.archive_extension_filter_combo.currentTextChanged.connect(self._mark_archive_filters_dirty)", source)
+
+    def test_archive_controls_sidebar_keeps_readable_width(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn("def _archive_controls_sidebar_bounds(self) -> Tuple[int, int, int]:", source)
+        self.assertIn("readable_min = int(round(440 * scale))", source)
+        self.assertIn("archive_controls_min, _archive_controls_pref, archive_controls_max = self._archive_controls_sidebar_bounds()", source)
+        self.assertIn("self.archive_extension_picker_button.setEnabled(not busy)", source)
 
     def test_additional_qa_themes_are_available(self) -> None:
         source = THEMES.read_text(encoding="utf-8")

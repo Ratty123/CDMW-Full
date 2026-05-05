@@ -1,0 +1,16 @@
+[package]
+name = "cd_hkx"
+version = "0.1.0"
+edition = "2021"
+description = "Native Crimson Desert HKX tagfile parser core"
+license = "MIT"
+
+[lib]
+name = "cd_hkx"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cd-hkx"
+path = "src/main.rs"
+
+[dependencies]
