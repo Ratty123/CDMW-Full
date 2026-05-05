@@ -281,8 +281,12 @@ if (Test-Path $vendoredMeshToolsLicensePath) {
 
 $pyInstallerArgs += @(
     "--collect-all", "numpy",
+    "--exclude-module", "numpy.f2py.tests",
+    "--exclude-module", "numpy._pyinstaller.tests",
     "--exclude-module", "PIL.AvifImagePlugin",
-    "--exclude-module", "PIL._avif"
+    "--exclude-module", "PIL._avif",
+    "--exclude-module", "pycparser.lextab",
+    "--exclude-module", "pycparser.yacctab"
 )
 
 $resolvedVgmstreamRuntimeDir = Ensure-VgmstreamRuntime -RuntimeDir $vgmstreamRuntimeDir

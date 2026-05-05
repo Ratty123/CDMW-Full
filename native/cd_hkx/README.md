@@ -53,9 +53,9 @@ The patch command only writes if the record/item/offset is present in the native
 Corpus scan:
 
 ```powershell
-target\release\cd-hkx.exe corpus-json C:\Users\Ratrider\Desktop\CTF\archive_extract 250 > hkx-corpus.json
-target\release\cd-hkx.exe corpus-stats-json C:\Users\Ratrider\Desktop\CTF\archive_extract 1000 > hkx-stats.json
-target\release\cd-hkx.exe verify-noedit C:\Users\Ratrider\Desktop\CTF\archive_extract 250 > hkx-verify.json
+target\release\cd-hkx.exe corpus-json C:\path\to\hkx_corpus 250 > hkx-corpus.json
+target\release\cd-hkx.exe corpus-stats-json C:\path\to\hkx_corpus 1000 > hkx-stats.json
+target\release\cd-hkx.exe verify-noedit C:\path\to\hkx_corpus 250 > hkx-verify.json
 ```
 
 The optional numeric argument limits scanned `.hkx` files. This matters for full extracted trees; one local tree contained more than 57,000 `.hkx` files.

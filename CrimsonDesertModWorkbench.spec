@@ -31,7 +31,13 @@ if vgmstream_dir.exists():
         elif runtime_file.suffix.lower() in {".dll", ".exe"}:
             binaries.append((str(runtime_file), "vgmstream"))
 
-tmp_ret = collect_all("numpy")
+tmp_ret = collect_all(
+    "numpy",
+    filter_submodules=lambda name: not (
+        name.startswith("numpy.f2py.tests")
+        or name.startswith("numpy._pyinstaller.tests")
+    ),
+)
 datas += tmp_ret[0]
 binaries += tmp_ret[1]
 hiddenimports += tmp_ret[2]
@@ -48,7 +54,14 @@ a = Analysis(
     hookspath=[str(hook_path)] if hook_path.exists() else [],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["PIL.AvifImagePlugin", "PIL._avif"],
+    excludes=[
+        "PIL.AvifImagePlugin",
+        "PIL._avif",
+        "numpy.f2py.tests",
+        "numpy._pyinstaller.tests",
+        "pycparser.lextab",
+        "pycparser.yacctab",
+    ],
     noarchive=False,
     optimize=0,
 )
