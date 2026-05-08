@@ -51,6 +51,25 @@ def _decl(name: str, declared_type: str, descriptor: bytes) -> bytes:
     return struct.pack("<I", len(name_bytes)) + name_bytes + struct.pack("<I", len(type_bytes)) + type_bytes + descriptor
 
 
+def _seqmt_sample(columns: int, rows: int, *, flags: int = 0, extra_payload: bytes = b"") -> bytes:
+    frame_count = columns * rows
+    frame_records = bytes(
+        value & 0xFF
+        for index in range(frame_count)
+        for value in (index, 255 - index, (index * 3) & 0xFF, 128 + (index % 64))
+    )
+    return (
+        b"DDS!"
+        + bytes([1])
+        + struct.pack("<H", columns)
+        + struct.pack("<H", rows)
+        + bytes([flags & 0xFF])
+        + struct.pack("<H", frame_count)
+        + frame_records
+        + extra_payload
+    )
+
+
 class ArchiveStructuredAssetPreviewTests(unittest.TestCase):
     def test_meshinfo_preview_and_json_include_sidecar_recovery_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -168,6 +187,41 @@ class ArchiveStructuredAssetPreviewTests(unittest.TestCase):
         self.assertIn("Animation Files declared fields", preview.preview_text)
         self.assertIn("Parameters declared fields", preview.preview_text)
         self.assertIn("Delaunay declared fields", preview.preview_text)
+        self.assertFalse(document["editing"]["supported"])
+
+    def test_paa_preview_recovers_half_float_keyframes_and_stays_read_only(self) -> None:
+        data = bytearray(192)
+        data[0:4] = b"PAR "
+        struct.pack_into("<I", data, 0x10, 0x88)
+        struct.pack_into("<f", data, 0x14, 4.3)
+        row_offset = 0x40
+        for frame in range(1, 9):
+            value = min(0.95, frame * 0.03)
+            w = (max(0.0, 1.0 - value * value)) ** 0.5
+            struct.pack_into("<H4e", data, row_offset + (frame - 1) * 10, frame, value, 0.0, 0.0, w)
+
+        preview = build_par_structured_preview(
+            bytes(data),
+            "object/animation/animation/test_idle_00.paa",
+            extension=".paa",
+        )
+        document = json.loads(
+            build_binary_sidecar_analysis_json(
+                bytes(data),
+                "object/animation/animation/test_idle_00.paa",
+                extension=".paa",
+            )
+        )
+
+        self.assertIn("PAA animation inspector", preview.preview_text)
+        self.assertIn("Candidate animation keyframe tables: 1", preview.preview_text)
+        self.assertIn("u16 frame + 4 half-float values", preview.preview_text)
+        self.assertIn("frame=1", preview.preview_text)
+        self.assertIn("Editing: read-only", preview.preview_text)
+        self.assertEqual(document["source"]["kind"], "PAA Animation Clip")
+        self.assertEqual(document["summary"]["animation_keyframe_table_candidates"], 1)
+        self.assertGreaterEqual(document["summary"]["animation_keyframe_rows"], 8)
+        self.assertTrue(document["animation"]["keyframe_table_candidates"])
         self.assertFalse(document["editing"]["supported"])
 
     def test_paa_metabin_preview_recovers_animation_metadata_and_same_stem_relation(self) -> None:
@@ -381,6 +435,103 @@ class ArchiveStructuredAssetPreviewTests(unittest.TestCase):
             self.assertEqual(rows_by_name["_objectFilename"]["group"], "Resources")
             self.assertEqual(rows_by_name["_socketFileName"]["group"], "Skeleton / Sockets")
 
+    def test_part_prefab_and_model_property_headers_are_readable_relationship_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            model = _entry("character/model/body_a.pac", root)
+            material = _entry("character/modelproperty/body_a.pac_xml", root)
+            pappt = _entry("character/model/body_a.pappt", root)
+            pamhc = _entry("character/model/body_a.pamhc", root)
+            path_index, basename_index = _indexes((model, material, pappt, pamhc))
+
+            pappt_preview = build_structured_asset_preview(
+                b"SceneObject\x00PrefabResource\x00character/model/body_a.pac\x00",
+                pappt.path,
+                extension=".pappt",
+                source_entry=pappt,
+                archive_entries_by_normalized_path=path_index,
+                archive_entries_by_basename=basename_index,
+            )
+            pamhc_preview = build_structured_asset_preview(
+                b"MaterialParameterTexture\x00ModelPropertyHeader\x00character/modelproperty/body_a.pac_xml\x00",
+                pamhc.path,
+                extension=".pamhc",
+                source_entry=pamhc,
+                archive_entries_by_normalized_path=path_index,
+                archive_entries_by_basename=basename_index,
+            )
+
+            self.assertIn("Part prefab table inspector", pappt_preview.preview_text)
+            self.assertIn("linked model files still hold geometry", "\n".join(pappt_preview.detail_lines))
+            self.assertIn(model.path, {reference.resolved_archive_path for reference in pappt_preview.related_references})
+            self.assertIn("Model property header inspector", pamhc_preview.preview_text)
+            self.assertIn("read-only relationship evidence", "\n".join(pamhc_preview.detail_lines))
+            self.assertIn(material.path, {reference.resolved_archive_path for reference in pamhc_preview.related_references})
+
+    def test_seqmt_preview_decodes_dds_sequence_texture_table(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = _entry("object/sequence/test_actor_8x8.seqmt", root)
+            model = _entry("object/model/test_actor_8x8.pac", root)
+            texture = _entry("object/texture/test_actor_8x8.dds", root)
+            path_index, basename_index = _indexes((source, model, texture))
+            data = _seqmt_sample(8, 8, flags=1, extra_payload=struct.pack("<Iff", 5, 0.25, 1.0))
+
+            preview = build_structured_asset_preview(
+                data,
+                source.path,
+                extension=".seqmt",
+                source_entry=source,
+                archive_entries_by_normalized_path=path_index,
+                archive_entries_by_basename=basename_index,
+            )
+            document = json.loads(
+                build_binary_sidecar_analysis_json(
+                    data,
+                    source.path,
+                    extension=".seqmt",
+                    source_entry=source,
+                    archive_entries_by_normalized_path=path_index,
+                    archive_entries_by_basename=basename_index,
+                )
+            )
+            resolved_paths = {reference.resolved_archive_path for reference in preview.related_references}
+
+            self.assertIn("SEQMT sequence texture inspector", preview.preview_text)
+            self.assertIn("SEQMT atlas/frame table:", preview.preview_text)
+            self.assertIn("Atlas grid: 8 x 8", preview.preview_text)
+            self.assertIn("Frame count: 64", preview.preview_text)
+            self.assertIn("Flag/packing byte: 0x01", preview.preview_text)
+            self.assertIn("Extra trailing payload: 12 byte(s)", preview.preview_text)
+            self.assertIn("Filename grid hint: 8 x 8 (matches header)", preview.preview_text)
+            self.assertIn("Frame records (first", preview.preview_text)
+            self.assertIn("DDS! atlas grid", "\n".join(preview.detail_lines))
+            self.assertIn(model.path, resolved_paths)
+            self.assertIn(texture.path, resolved_paths)
+            self.assertEqual(document["source"]["kind"], "SEQMT Sequence Texture Metadata")
+            self.assertTrue(document["seqmt"]["recognized"])
+            self.assertEqual(document["seqmt"]["columns"], 8)
+            self.assertEqual(document["seqmt"]["rows"], 8)
+            self.assertEqual(document["seqmt"]["frame_count"], 64)
+            self.assertEqual(document["seqmt"]["trailing_payload_bytes"], 12)
+            self.assertTrue(document["seqmt"]["filename_grid_hint"]["matches_header"])
+            self.assertFalse(document["editing"]["supported"])
+
+    def test_binary_sidecar_corpus_report_includes_seqmt_layouts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            seqmt = root / "test_actor_4x4.seqmt"
+            seqmt.write_bytes(_seqmt_sample(4, 4))
+
+            report = build_binary_sidecar_corpus_report((root,), discovery_limit=10, detail_scan_limit=10)
+            seqmt_report = report["by_extension"][".seqmt"]
+
+            self.assertEqual(report["summary"]["seqmt_files_scanned"], 1)
+            self.assertEqual(seqmt_report["files_scanned"], 1)
+            self.assertEqual(seqmt_report["seqmt"]["atlas_grids"][0]["grid"], "4x4:16")
+            self.assertEqual(seqmt_report["seqmt"]["payload_statuses"][0]["status"], "complete")
+            self.assertFalse(report["editing"]["supported"])
+
     def test_world_navigation_preview_groups_nav_and_road_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -420,8 +571,11 @@ class ArchiveStructuredAssetPreviewTests(unittest.TestCase):
             root = Path(temp_dir)
             self.assertEqual("metadata", archive_entry_role(_entry("object/test.meshinfo", root)))
             self.assertEqual("metadata", archive_entry_role(_entry("object/test.prefab", root)))
+            self.assertEqual("metadata", archive_entry_role(_entry("object/test.pappt", root)))
+            self.assertEqual("metadata", archive_entry_role(_entry("object/test.pamhc", root)))
             self.assertEqual("metadata", archive_entry_role(_entry("gamedata/binary__/client/bin/iteminfo.pabgb", root)))
             self.assertEqual("animation", archive_entry_role(_entry("actionchart/bin__/animmeta/test.paa_metabin", root)))
+            self.assertEqual("animation", archive_entry_role(_entry("actionchart/bin__/schedule/test.paschedule", root)))
             self.assertEqual("physics", archive_entry_role(_entry("character/bin__/meshphysics/body.hkx", root)))
             self.assertEqual("animation", archive_entry_role(_entry("character/bin__/animation/body.hkx", root)))
 

@@ -89,6 +89,7 @@ from cdmw.ui.widgets import (
     FlatSectionPanel,
     PreviewLabel,
     PreviewScrollArea,
+    build_bounded_splitter_sizes,
     clamp_splitter_sizes,
     build_responsive_splitter_sizes,
     has_persistent_tree_column_widths,
@@ -474,6 +475,11 @@ class ResearchTab(QWidget):
     UNKNOWN_GROUP_BATCH_SIZE = 50
     POPULATION_TIMER_INTERVAL_MS = 1
 
+    def resizeEvent(self, event: object) -> None:
+        super().resizeEvent(event)  # type: ignore[arg-type]
+        if hasattr(self, "_column_autofit_timer"):
+            self._column_autofit_timer.start()
+
     def __init__(
         self,
         *,
@@ -538,8 +544,14 @@ class ResearchTab(QWidget):
         self.archive_picker_folder_entry_indexes: Dict[tuple[str, ...], List[int]] = {}
         self.archive_picker_folder_preview_stats: Dict[tuple[str, ...], tuple[int, int, int]] = {}
         self.archive_picker_items_by_folder_key: Dict[tuple[str, ...], QTreeWidgetItem] = {}
+        self.archive_picker_flat_render_limit = 5000
+        self.archive_picker_flat_rendered_count = 0
         self.archive_picker_refresh_pending = False
         self.defer_archive_picker_refresh = True
+        self._column_autofit_timer = QTimer(self)
+        self._column_autofit_timer.setSingleShot(True)
+        self._column_autofit_timer.setInterval(80)
+        self._column_autofit_timer.timeout.connect(self.auto_fit_columns)
         self.classification_registry_path = texture_classification_registry_path()
         self.pending_classification_review_focus_keys: set[str] = set()
         self._classification_review_focus_uses_full_archive = False
@@ -612,13 +624,15 @@ class ResearchTab(QWidget):
         self.right_panel_stack.addWidget(self.archive_picker_group)
         self.right_panel_stack.addWidget(self.analysis_detail_group)
         self.main_splitter.addWidget(self.right_panel_stack)
-        details_min, _details_pref, details_max = responsive_sidebar_bounds(self, role="wide")
-        self.tab_widget.setMinimumWidth(560)
+        details_min, _details_pref, _details_max = responsive_sidebar_bounds(self, role="wide")
+        self.tab_widget.setMinimumWidth(420)
         self.right_panel_stack.setMinimumWidth(details_min)
-        self.right_panel_stack.setMaximumWidth(details_max)
+        self.right_panel_stack.setMaximumWidth(16777215)
         self.main_splitter.setStretchFactor(0, 1)
-        self.main_splitter.setStretchFactor(1, 0)
-        self.main_splitter.setSizes(build_responsive_splitter_sizes(1800, [68, 32], [560, details_min]))
+        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setSizes(
+            build_bounded_splitter_sizes(1800, [72, 28], [420, details_min], [None, None])
+        )
 
         self.refresh_button.clicked.connect(self.refresh_research)
         self.ui_constraint_refresh_button.clicked.connect(self.refresh_ui_constraints)
@@ -760,18 +774,7 @@ class ResearchTab(QWidget):
             skipped_large_index = True
         elif not reused_browser_index:
             self._rebuild_archive_picker_index()
-        self.archive_picker_tree.blockSignals(True)
-        self.archive_picker_tree.clear()
-        self.archive_picker_items_by_folder_key = {}
-        for _leaf, child_key in self.archive_picker_child_folders.get((), []):
-            self._create_archive_picker_folder_item(self.archive_picker_tree, child_key)
-        for entry_index in self.archive_picker_direct_files.get((), []):
-            self._create_archive_picker_file_item(self.archive_picker_tree, entry_index)
-        self.archive_picker_tree.blockSignals(False)
-        if self.archive_picker_tree.topLevelItemCount() > 0:
-            first = self.archive_picker_tree.topLevelItem(0)
-            if first is not None:
-                self.archive_picker_tree.setCurrentItem(first)
+        self._populate_archive_picker_tree()
         self.archive_picker_status_label.setText(
             f"{len(self.archive_picker_entries):,} archive file(s) available from the current Archive Browser view."
             if self.archive_picker_entries
@@ -781,11 +784,59 @@ class ResearchTab(QWidget):
             self.archive_picker_status_label.setText(
                 f"{len(self.archive_picker_entries):,} archive file(s) available. Path lookups are lazy to keep RAM usage down."
             )
-        if skipped_large_index:
+        if self._archive_picker_view_mode() == "flat" and len(self.archive_picker_entries) > self.archive_picker_flat_render_limit:
+            self.archive_picker_status_label.setText(
+                f"Flat view shows the first {self.archive_picker_flat_render_limit:,} of {len(self.archive_picker_entries):,} visible file(s). Narrow Archive Browser filters for the rest."
+            )
+        elif skipped_large_index:
             self.archive_picker_status_label.setText(
                 "Archive Files is waiting for the Archive Browser tree index. Open or refresh the Archive Browser view, or narrow the current filter."
             )
         self.archive_picker_refresh_pending = False
+
+    def _archive_picker_view_mode(self) -> str:
+        combo = getattr(self, "archive_picker_view_combo", None)
+        if isinstance(combo, QComboBox):
+            value = combo.currentData()
+            if value in {"flat", "folders"}:
+                return str(value)
+        return "flat"
+
+    def _populate_archive_picker_tree(self) -> None:
+        self.archive_picker_tree.blockSignals(True)
+        self.archive_picker_tree.clear()
+        self.archive_picker_items_by_folder_key = {}
+        self.archive_picker_flat_rendered_count = 0
+        if self._archive_picker_view_mode() == "flat":
+            render_count = min(len(self.archive_picker_entries), self.archive_picker_flat_render_limit)
+            for entry_index in range(render_count):
+                self._create_archive_picker_file_item(self.archive_picker_tree, entry_index, show_full_path=True)
+            self.archive_picker_flat_rendered_count = render_count
+            self.archive_picker_tree.setRootIsDecorated(False)
+        else:
+            self.archive_picker_tree.setRootIsDecorated(True)
+            for _leaf, child_key in self.archive_picker_child_folders.get((), []):
+                self._create_archive_picker_folder_item(self.archive_picker_tree, child_key)
+            for entry_index in self.archive_picker_direct_files.get((), []):
+                self._create_archive_picker_file_item(self.archive_picker_tree, entry_index)
+        self.archive_picker_tree.blockSignals(False)
+        if self.archive_picker_tree.topLevelItemCount() > 0:
+            first = self.archive_picker_tree.topLevelItem(0)
+            if first is not None:
+                self.archive_picker_tree.setCurrentItem(first)
+        self._column_autofit_timer.start()
+
+    def _handle_archive_picker_view_changed(self) -> None:
+        self._ensure_archive_picker_ready()
+        self._populate_archive_picker_tree()
+        if self._archive_picker_view_mode() == "flat" and len(self.archive_picker_entries) > self.archive_picker_flat_render_limit:
+            self.archive_picker_status_label.setText(
+                f"Flat view shows the first {self.archive_picker_flat_render_limit:,} of {len(self.archive_picker_entries):,} visible file(s). Narrow Archive Browser filters for the rest."
+            )
+        elif self.archive_picker_entries:
+            self.archive_picker_status_label.setText(
+                f"{len(self.archive_picker_entries):,} archive file(s) available from the current Archive Browser view."
+            )
 
     def mark_archive_picker_dirty(self) -> None:
         self.archive_picker_refresh_pending = True
@@ -838,11 +889,15 @@ class ResearchTab(QWidget):
         self,
         parent: QTreeWidget | QTreeWidgetItem,
         entry_index: int,
+        *,
+        show_full_path: bool = False,
     ) -> Optional[QTreeWidgetItem]:
         if not (0 <= entry_index < len(self.archive_picker_entries)):
             return None
         entry = self.archive_picker_entries[entry_index]
-        item = QTreeWidgetItem([PurePosixPath(entry.path.replace("\\", "/")).name, entry.extension or "file", entry.package_label])
+        normalized_path = entry.path.replace("\\", "/")
+        label = normalized_path if show_full_path else PurePosixPath(normalized_path).name
+        item = QTreeWidgetItem([label, entry.extension or "file", entry.package_label])
         item.setData(0, Qt.UserRole, "file")
         item.setData(0, Qt.UserRole + 1, entry_index)
         item.setToolTip(0, entry.path)
@@ -905,15 +960,20 @@ class ResearchTab(QWidget):
             )
             return False
 
-        folder_parts = tuple(part for part in PurePosixPath(normalized).parts[:-1] if part)
-        container: QTreeWidget | QTreeWidgetItem
-        if folder_parts:
-            folder_item = self._ensure_archive_picker_folder_path(folder_parts)
-            if folder_item is None:
+        container: QTreeWidget | QTreeWidgetItem = self.archive_picker_tree
+        if self._archive_picker_view_mode() == "flat":
+            if entry_index >= self.archive_picker_flat_rendered_count:
+                self.archive_picker_status_label.setText(
+                    f"{normalized} is visible in the current Archive Browser filter, but not in the first {self.archive_picker_flat_rendered_count:,} flat rows. Narrow the filter or switch to Folders."
+                )
                 return False
-            container = folder_item
         else:
-            container = self.archive_picker_tree
+            folder_parts = tuple(part for part in PurePosixPath(normalized).parts[:-1] if part)
+            if folder_parts:
+                folder_item = self._ensure_archive_picker_folder_path(folder_parts)
+                if folder_item is None:
+                    return False
+                container = folder_item
         file_item = self._find_archive_picker_file_item(container, entry_index)
         if file_item is None:
             return False
@@ -1740,10 +1800,18 @@ class ResearchTab(QWidget):
         self.archive_picker_refresh_button = QPushButton("Refresh List")
         self.archive_picker_use_reference_button = QPushButton("Use In References")
         self.archive_picker_use_note_button = QPushButton("Use In Notes")
+        self.archive_picker_view_combo = QComboBox()
+        self.archive_picker_view_combo.addItem("Flat files", "flat")
+        self.archive_picker_view_combo.addItem("Folders", "folders")
+        self.archive_picker_view_combo.setToolTip(
+            "Flat files lists the current Archive Browser results directly. Folders keeps the path tree for broad browsing."
+        )
         actions.addWidget(self.archive_picker_refresh_button)
         actions.addWidget(self.archive_picker_use_reference_button)
         actions.addWidget(self.archive_picker_use_note_button)
         actions.addStretch(1)
+        actions.addWidget(QLabel("View"))
+        actions.addWidget(self.archive_picker_view_combo)
         layout.addLayout(actions)
 
         self.archive_picker_status_label = QLabel("Load or filter archives first to browse related files here.")
@@ -1770,7 +1838,7 @@ class ResearchTab(QWidget):
         self.archive_picker_tree.setRootIsDecorated(True)
         self.archive_picker_tree.setUniformRowHeights(True)
         self.archive_picker_tree.header().setStretchLastSection(False)
-        self.archive_picker_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.archive_picker_tree.header().setSectionResizeMode(0, QHeaderView.Interactive)
         self.archive_picker_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.archive_picker_tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self._make_tree_columns_persistent(self.archive_picker_tree, "archive_picker")
@@ -1847,6 +1915,7 @@ class ResearchTab(QWidget):
         layout.addWidget(self.archive_picker_splitter, stretch=1)
 
         self.archive_picker_refresh_button.clicked.connect(self.refresh_archive_picker)
+        self.archive_picker_view_combo.currentIndexChanged.connect(self._handle_archive_picker_view_changed)
         self.archive_picker_use_reference_button.clicked.connect(self.use_selected_archive_picker_for_reference)
         self.archive_picker_use_note_button.clicked.connect(self.use_selected_archive_picker_for_note)
         self.archive_picker_tree.currentItemChanged.connect(self._handle_archive_picker_current_item_change)
@@ -2095,32 +2164,35 @@ class ResearchTab(QWidget):
         return tab
 
     def apply_responsive_splitter_sizes(self, total_width: Optional[int] = None) -> None:
-        details_min, _details_pref, details_max = responsive_sidebar_bounds(self, role="wide")
+        details_min, _details_pref, _details_max = responsive_sidebar_bounds(self, role="wide")
         if hasattr(self, "right_panel_stack"):
             self.right_panel_stack.setMinimumWidth(details_min)
-            self.right_panel_stack.setMaximumWidth(details_max)
-        total_width = total_width or max(self.width() - 32, sum([560, details_min]))
-        self.main_splitter.setSizes(build_responsive_splitter_sizes(total_width, [68, 32], [560, details_min]))
+            self.right_panel_stack.setMaximumWidth(16777215)
+        total_width = total_width or max(1, self.width() - 32)
+        self.main_splitter.setSizes(
+            build_bounded_splitter_sizes(total_width, [72, 28], [420, details_min], [None, None])
+        )
         if hasattr(self, "groups_splitter"):
             self.groups_splitter.setSizes(
-                build_responsive_splitter_sizes(max(total_width - 80, 880), [44, 56], [520, 360])
+                build_responsive_splitter_sizes(max(1, total_width - 80), [44, 56], [420, 320])
             )
         if hasattr(self, "unknown_splitter"):
             self.unknown_splitter.setSizes(
-                build_responsive_splitter_sizes(max(total_width + 200, 1060), [28, 47, 25], [360, 400, 300])
+                build_responsive_splitter_sizes(max(1, total_width - 80), [28, 47, 25], [300, 360, 260])
             )
         if hasattr(self, "reference_splitter"):
             self.reference_splitter.setSizes(
-                build_responsive_splitter_sizes(max(total_width - 40, 880), [52, 48], [520, 360])
+                build_responsive_splitter_sizes(max(1, total_width - 40), [52, 48], [420, 320])
             )
         if hasattr(self, "analysis_splitter"):
             self.analysis_splitter.setSizes(
-                build_responsive_splitter_sizes(max(total_width + 120, 1000), [32, 32, 36], [320, 320, 360])
+                build_responsive_splitter_sizes(max(1, total_width - 80), [32, 32, 36], [280, 280, 320])
             )
         if hasattr(self, "notes_splitter"):
             self.notes_splitter.setSizes(
-                build_responsive_splitter_sizes(max(total_width - 80, 720), [52, 48], [360, 360])
+                build_responsive_splitter_sizes(max(1, total_width - 80), [52, 48], [320, 320])
             )
+        QTimer.singleShot(0, self.auto_fit_columns)
 
     def _auto_fit_tree_columns(
         self,
@@ -2133,11 +2205,17 @@ class ResearchTab(QWidget):
         header = tree.header()
         if header is None or tree.columnCount() <= 0:
             return
-        if storage_name and self._has_saved_tree_columns(tree, storage_name):
-            return
         viewport_width = max(tree.viewport().width(), tree.width() - 24, 0)
         if viewport_width <= 0:
             return
+        if storage_name and self._has_saved_tree_columns(tree, storage_name):
+            saved_total = sum(
+                header.sectionSize(column)
+                for column in range(tree.columnCount())
+                if not tree.isColumnHidden(column)
+            )
+            if saved_total >= viewport_width - 24:
+                return
         tree.setUpdatesEnabled(False)
         try:
             fixed_width = 0
@@ -2176,42 +2254,42 @@ class ResearchTab(QWidget):
         self.apply_responsive_splitter_sizes()
 
     def set_main_splitter_sizes(self, sizes: Sequence[int], *, total_width: Optional[int] = None) -> None:
-        details_min, _details_pref, details_max = responsive_sidebar_bounds(self, role="wide")
+        details_min, _details_pref, _details_max = responsive_sidebar_bounds(self, role="wide")
         if hasattr(self, "right_panel_stack"):
-            self.right_panel_stack.setMaximumWidth(details_max)
-        available_width = total_width or max(self.width() - 32, sum([560, details_min]))
+            self.right_panel_stack.setMaximumWidth(16777215)
+        available_width = total_width or max(1, self.width() - 32)
         self.main_splitter.setSizes(
-            clamp_splitter_sizes(available_width, sizes, [560, details_min], fallback_weights=[68, 32])
+            build_bounded_splitter_sizes(available_width, sizes, [420, details_min], [None, None])
         )
 
     def set_groups_splitter_sizes(self, sizes: Sequence[int], *, total_width: Optional[int] = None) -> None:
-        available_width = max((total_width or max(self.width() - 32, sum([720, 360]))) - 80, 880)
+        available_width = max(1, (total_width or max(1, self.width() - 32)) - 80)
         self.groups_splitter.setSizes(
-            clamp_splitter_sizes(available_width, sizes, [520, 360], fallback_weights=[44, 56])
+            clamp_splitter_sizes(available_width, sizes, [420, 320], fallback_weights=[44, 56])
         )
 
     def set_unknown_splitter_sizes(self, sizes: Sequence[int], *, total_width: Optional[int] = None) -> None:
-        available_width = max((total_width or max(self.width() - 32, sum([720, 360]))) + 200, 1060)
+        available_width = max(1, (total_width or max(1, self.width() - 32)) - 80)
         self.unknown_splitter.setSizes(
-            clamp_splitter_sizes(available_width, sizes, [360, 400, 300], fallback_weights=[28, 47, 25])
+            clamp_splitter_sizes(available_width, sizes, [300, 360, 260], fallback_weights=[28, 47, 25])
         )
 
     def set_reference_splitter_sizes(self, sizes: Sequence[int], *, total_width: Optional[int] = None) -> None:
-        available_width = max((total_width or max(self.width() - 32, sum([720, 360]))) - 40, 880)
+        available_width = max(1, (total_width or max(1, self.width() - 32)) - 40)
         self.reference_splitter.setSizes(
-            clamp_splitter_sizes(available_width, sizes, [520, 360], fallback_weights=[52, 48])
+            clamp_splitter_sizes(available_width, sizes, [420, 320], fallback_weights=[52, 48])
         )
 
     def set_analysis_splitter_sizes(self, sizes: Sequence[int], *, total_width: Optional[int] = None) -> None:
-        available_width = max((total_width or max(self.width() - 32, sum([720, 360]))) + 120, 1000)
+        available_width = max(1, (total_width or max(1, self.width() - 32)) - 80)
         self.analysis_splitter.setSizes(
-            clamp_splitter_sizes(available_width, sizes, [320, 320, 360], fallback_weights=[32, 32, 36])
+            clamp_splitter_sizes(available_width, sizes, [280, 280, 320], fallback_weights=[32, 32, 36])
         )
 
     def set_notes_splitter_sizes(self, sizes: Sequence[int], *, total_width: Optional[int] = None) -> None:
-        available_width = max((total_width or max(self.width() - 32, sum([720, 360]))) - 80, 720)
+        available_width = max(1, (total_width or max(1, self.width() - 32)) - 80)
         self.notes_splitter.setSizes(
-            clamp_splitter_sizes(available_width, sizes, [360, 360], fallback_weights=[52, 48])
+            clamp_splitter_sizes(available_width, sizes, [320, 320], fallback_weights=[52, 48])
         )
 
     def main_splitter_sizes(self) -> List[int]:

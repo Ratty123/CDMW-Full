@@ -750,6 +750,10 @@ class AssetRelation:
     relation_kind: str = RelationKind.METADATA.value
     confidence: str = RelationConfidence.DERIVED_SAME_STEM.value
     role_label: str = ""
+    status: str = "resolved"
+    source_evidence: str = ""
+    include_policy: str = "manual"
+    warning: str = ""
     reason: str = ""
     source_entry: Optional["ArchiveEntry"] = None
     target_entry: Optional["ArchiveEntry"] = None
@@ -761,12 +765,81 @@ class AssetRelation:
 
 
 @dataclass(slots=True)
+class AssetFamilyMember:
+    group: str = "Other"
+    role: str = ""
+    display_name: str = ""
+    path: str = ""
+    status: str = "Missing"
+    confidence: str = "Hint"
+    source_evidence: str = ""
+    include_policy: str = "manual"
+    reason: str = ""
+    warning: str = ""
+    resolved_entry: Optional["ArchiveEntry"] = None
+
+
+@dataclass(slots=True)
+class AttachmentSocketInfo:
+    name: str = ""
+    parent: str = ""
+    rotation: Tuple[float, ...] = ()
+    translation: Tuple[float, ...] = ()
+    ui_view: str = ""
+    source_path: str = ""
+
+
+@dataclass(slots=True)
+class AttachmentStackEquipInfo:
+    equip_type_name: str = ""
+    socket_names: Tuple[str, ...] = ()
+    origin_bone_name: str = ""
+    axis: str = ""
+    inner_part_names: str = ""
+    push_origin_bone: str = ""
+    source_path: str = ""
+
+
+@dataclass(slots=True)
+class AttachmentSocketDocument:
+    source_path: str = ""
+    sockets: Tuple[AttachmentSocketInfo, ...] = ()
+    stack_equip_infos: Tuple[AttachmentStackEquipInfo, ...] = ()
+
+
+@dataclass(slots=True)
+class AttachmentPlacementEvidence:
+    source_path: str = ""
+    source_kind: str = ""
+    prefab_path: str = ""
+    character_socket_name: str = ""
+    character_socket_parent: str = ""
+    character_socket_translation: Tuple[float, ...] = ()
+    character_socket_rotation: Tuple[float, ...] = ()
+    weapon_socket_name: str = ""
+    weapon_socket_parent: str = ""
+    weapon_socket_translation: Tuple[float, ...] = ()
+    weapon_socket_rotation: Tuple[float, ...] = ()
+    model_path: str = ""
+    socket_file_path: str = ""
+    skeleton_path: str = ""
+    transform_fields: Tuple[str, ...] = ()
+    confidence: str = "No placement chain"
+    evidence: str = "No placement chain"
+    reason: str = ""
+    placement_modes: Tuple[str, ...] = ("Raw Model Origin",)
+
+
+@dataclass(slots=True)
 class AssetFamilyGraph:
     root_path: str = ""
     family_key: str = ""
     members: Tuple[str, ...] = ()
+    member_rows: Tuple[AssetFamilyMember, ...] = ()
     relations: Tuple[AssetRelation, ...] = ()
+    attachment_evidence: Tuple[AttachmentPlacementEvidence, ...] = ()
     grouped_paths: Dict[str, Tuple[str, ...]] = field(default_factory=dict)
+    summary: str = ""
 
 
 @dataclass(slots=True)
@@ -1119,13 +1192,13 @@ MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS: Dict[str, str] = {
     "shader_marker": "Shader Marker",
     "fragcoord_checker": "FragCoord Checker",
     "vertex_color": "Vertex Color",
-    "normal": "Normal",
+    "normal": "Geometry Normal",
     "uv": "UV",
     "cpu_average": "CPU Average Color",
     "base_direct": "Base Texture Raw",
     "base_no_tint": "Base Texture No Tint",
     "base_alpha": "Base Alpha",
-    "normal_raw": "Normal Raw",
+    "normal_raw": "Normal Texture Raw",
     "material_raw": "Material Raw",
     "height_raw": "Height Raw",
     "height_calibrated": "Height Calibrated",

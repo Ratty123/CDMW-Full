@@ -527,6 +527,17 @@ def _density_metrics(density_key: str) -> Dict[str, int]:
     }
 
 
+def _scale_density_metrics(metrics: Dict[str, int], scale: float) -> Dict[str, int]:
+    safe_scale = max(0.72, min(1.15, float(scale or 1.0)))
+    scaled: Dict[str, int] = {}
+    for key, value in metrics.items():
+        minimum = 0 if "pad" in key or "margin" in key else 1
+        if key in {"button_min_h", "progress_min_h", "tab_min_h"}:
+            minimum = 12
+        scaled[key] = max(minimum, int(round(int(value) * safe_scale)))
+    return scaled
+
+
 def build_app_palette(theme_key: str) -> QPalette:
     theme = get_theme(theme_key)
     palette = QPalette()
@@ -556,12 +567,13 @@ def build_app_stylesheet(
     base_font_size: int = DEFAULT_UI_FONT_SIZE,
     data_font_size: int = DEFAULT_UI_DATA_FONT_SIZE,
     density_key: str = DEFAULT_UI_DENSITY,
+    layout_scale: float = 1.0,
 ) -> str:
     theme = get_theme(theme_key)
     base_size = _clamp_font_size(base_font_size, DEFAULT_UI_FONT_SIZE)
     table_size = _clamp_font_size(data_font_size, base_size)
     hint_size = max(9, base_size - 1)
-    metrics = _density_metrics(density_key)
+    metrics = _scale_density_metrics(_density_metrics(density_key), layout_scale)
     role_text = {
         "identity": "#b45309" if theme_key == "crimson_desert" else "#0369a1" if theme_key == "light" else "#7dd3fc",
         "dds": "#c56d43" if theme_key == "crimson_desert" else "#047857" if theme_key == "light" else "#86efac",

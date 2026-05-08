@@ -15,18 +15,28 @@ import struct
 import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Optional
 from urllib.parse import unquote, urlparse
 
 from .logging import get_logger
 from .mesh_importer import import_obj
-from .mesh_parser import ParsedMesh, SubMesh, _compute_smooth_normals
+from .mesh_parser import ParsedMesh, SubMesh, _compute_smooth_normals, parse_mesh
 
 logger = get_logger("core.scene_importer")
 
-SCENE_IMPORT_EXTENSIONS = {".obj", ".dae", ".gltf", ".glb"}
+LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS = {".pac", ".pam", ".pamlod"}
+SCENE_IMPORT_EXTENSIONS = {".obj", ".dae", ".gltf", ".glb"} | LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS
 SCENE_TEXTURE_SOURCE_EXTENSIONS = {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff"}
+SCENE_SIDECAR_SOURCE_EXTENSIONS = {
+    ".xml",
+    ".pami",
+    ".pac_xml",
+    ".pam_xml",
+    ".pamlod_xml",
+    ".app_xml",
+    ".prefabdata_xml",
+}
 _GLTF_COMPONENT_FORMATS = {
     5120: ("b", 1, True),
     5121: ("B", 1, False),
@@ -55,6 +65,7 @@ class SceneImportResult:
     diagnostics: tuple[str, ...] = ()
     discovered_texture_files: tuple[Path, ...] = ()
     extracted_embedded_files: tuple[Path, ...] = ()
+    discovered_supplemental_files: tuple[Path, ...] = ()
 
 
 @dataclass(slots=True)
@@ -90,6 +101,30 @@ def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
         return SceneImportResult(mesh=mesh, discovered_texture_files=discover_scene_texture_files(source_path, mesh))
     if suffix in {".gltf", ".glb"}:
         return import_gltf(source_path)
+    if suffix in LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS:
+        mesh = parse_mesh(source_path.read_bytes(), source_path.as_posix())
+        if not mesh.submeshes or mesh.total_faces <= 0:
+            raise ValueError(f"{source_path.suffix.upper().lstrip('.')} source did not contain recoverable mesh geometry: {source_path}")
+        discovered_files = discover_local_mesh_supplemental_files(source_path, mesh)
+        discovered_textures = tuple(path for path in discovered_files if path.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS)
+        discovered_sidecars = tuple(path for path in discovered_files if path.suffix.lower() in SCENE_SIDECAR_SOURCE_EXTENSIONS)
+        diagnostics = [
+            f"Parsed local {source_path.suffix.upper().lstrip('.')} mesh source for Mesh Replacement.",
+        ]
+        if mesh.has_bones:
+            diagnostics.append(
+                "Source bone weights were detected; Mesh Replacement uses the selected target's donor skeleton/layout."
+            )
+        if discovered_sidecars:
+            diagnostics.append(f"Discovered {len(discovered_sidecars):,} local material sidecar file(s).")
+        if discovered_textures:
+            diagnostics.append(f"Discovered {len(discovered_textures):,} local DDS/texture file(s).")
+        return SceneImportResult(
+            mesh=mesh,
+            diagnostics=tuple(diagnostics),
+            discovered_texture_files=discovered_textures,
+            discovered_supplemental_files=discovered_sidecars,
+        )
     raise ValueError(f"Unsupported mesh import format: {source_path.suffix or source_path.name}")
 
 
@@ -252,15 +287,88 @@ def discover_scene_texture_files(path: str | Path, mesh: Optional[ParsedMesh] = 
             discovered.extend(payload.extracted_embedded_files)
         except Exception as exc:
             logger.warning("Failed to discover glTF texture files for %s: %s", scene_path, exc)
+    elif scene_path.suffix.lower() in LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS:
+        discovered.extend(
+            path
+            for path in discover_local_mesh_supplemental_files(scene_path, mesh)
+            if path.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS
+        )
     material_names = {
         str(submesh.material or submesh.name or "").strip().lower()
         for submesh in (mesh.submeshes if mesh is not None else [])
         if str(submesh.material or submesh.name or "").strip()
     }
-    search_roots = [scene_path.parent, scene_path.parent / "textures", scene_path.parent.parent / "textures"]
+    discovered.extend(_discover_material_named_texture_files(scene_path, material_names))
+    unique: dict[str, Path] = {}
+    for candidate in discovered:
+        if candidate.is_file():
+            unique.setdefault(str(candidate.resolve()).lower(), candidate.resolve())
+    return tuple(unique.values())
+
+
+def discover_local_mesh_supplemental_files(path: str | Path, mesh: Optional[ParsedMesh] = None) -> tuple[Path, ...]:
+    source_path = Path(path).expanduser().resolve()
+    if source_path.suffix.lower() not in LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS:
+        return ()
+    discovered: list[Path] = []
+    sidecars = _discover_local_mesh_sidecars(source_path)
+    discovered.extend(sidecars)
+    for texture_reference in _local_sidecar_texture_references(sidecars):
+        texture_path = _resolve_local_texture_reference(source_path, texture_reference)
+        if texture_path is not None:
+            discovered.append(texture_path)
+    if mesh is not None:
+        material_names = {
+            str(value or "").strip().lower()
+            for submesh in mesh.submeshes
+            for value in (submesh.texture, submesh.material, submesh.name)
+            if str(value or "").strip()
+        }
+        discovered.extend(_discover_material_named_texture_files(source_path, material_names))
+    return tuple(_dedupe_paths(discovered))
+
+
+def _local_package_root(source_path: Path) -> Path:
+    for parent in (source_path.parent, *source_path.parents):
+        if parent.name.lower() == "files":
+            return parent
+    return source_path.parent
+
+
+def _scene_texture_search_roots(scene_path: Path) -> list[Path]:
+    candidates = [
+        scene_path.parent,
+        scene_path.parent / "textures",
+        scene_path.parent / "texture",
+        scene_path.parent.parent / "textures",
+        scene_path.parent.parent / "texture",
+    ]
+    package_root = _local_package_root(scene_path)
+    if package_root != scene_path.parent:
+        candidates.extend([package_root, package_root / "textures", package_root / "texture"])
+    seen: set[str] = set()
+    roots: list[Path] = []
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve()
+        except Exception:
+            continue
+        key = str(resolved).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        roots.append(resolved)
+    return roots
+
+
+def _discover_material_named_texture_files(scene_path: Path, material_names: set[str]) -> list[Path]:
+    names = {name for name in material_names if name}
+    if not names:
+        return []
+    discovered: list[Path] = []
     scanned_files = 0
     search_limited = False
-    for root in search_roots:
+    for root in _scene_texture_search_roots(scene_path):
         if not root.is_dir():
             continue
         for candidate in root.rglob("*"):
@@ -271,7 +379,7 @@ def discover_scene_texture_files(path: str | Path, mesh: Optional[ParsedMesh] = 
             if not candidate.is_file() or candidate.suffix.lower() not in SCENE_TEXTURE_SOURCE_EXTENSIONS:
                 continue
             stem = candidate.stem.lower()
-            if any(stem.startswith(material_name) for material_name in material_names):
+            if any(stem.startswith(material_name) for material_name in names):
                 discovered.append(candidate)
         if search_limited:
             break
@@ -282,11 +390,145 @@ def discover_scene_texture_files(path: str | Path, mesh: Optional[ParsedMesh] = 
             scene_path,
             _SCENE_TEXTURE_DISCOVERY_MAX_FILES,
         )
-    unique: dict[str, Path] = {}
-    for candidate in discovered:
-        if candidate.is_file():
-            unique.setdefault(str(candidate.resolve()).lower(), candidate.resolve())
-    return tuple(unique.values())
+    return discovered
+
+
+def _discover_local_mesh_sidecars(source_path: Path) -> tuple[Path, ...]:
+    suffix = source_path.suffix.lower()
+    direct_candidates = [
+        source_path.with_suffix(f"{suffix}_xml"),
+        source_path.with_name(f"{source_path.name}.xml"),
+        source_path.with_suffix(".xml"),
+    ]
+    if suffix in {".pam", ".pamlod"}:
+        direct_candidates.append(source_path.with_suffix(".pami"))
+
+    discovered: list[Path] = []
+    for candidate in direct_candidates:
+        if candidate.is_file() and candidate.suffix.lower() in SCENE_SIDECAR_SOURCE_EXTENSIONS:
+            discovered.append(candidate)
+
+    stem_key = source_path.stem.lower()
+    try:
+        for candidate in source_path.parent.iterdir():
+            if not candidate.is_file() or candidate.suffix.lower() not in SCENE_SIDECAR_SOURCE_EXTENSIONS:
+                continue
+            candidate_name = candidate.name.lower()
+            candidate_stem = candidate.stem.lower()
+            if candidate_stem.startswith(stem_key) or candidate_name.startswith(f"{stem_key}{suffix}"):
+                discovered.append(candidate)
+    except OSError:
+        pass
+    return tuple(_dedupe_paths(discovered))
+
+
+def _local_sidecar_texture_references(sidecar_paths: Sequence[Path]) -> tuple[str, ...]:
+    try:
+        from cdmw.core.upscale_profiles import parse_texture_sidecar_bindings
+    except Exception:
+        return ()
+
+    references: list[str] = []
+    seen: set[str] = set()
+    for sidecar_path in sidecar_paths:
+        try:
+            sidecar_text = _read_local_sidecar_text(sidecar_path)
+        except Exception:
+            continue
+        try:
+            bindings = parse_texture_sidecar_bindings(sidecar_text, sidecar_path=sidecar_path.name)
+        except Exception:
+            bindings = ()
+        for binding in bindings:
+            texture_path = str(getattr(binding, "texture_path", "") or "").replace("\\", "/").strip()
+            if not texture_path:
+                continue
+            key = texture_path.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            references.append(texture_path)
+    return tuple(references)
+
+
+def _read_local_sidecar_text(path: Path) -> str:
+    data = path.read_bytes()
+    for encoding in ("utf-8-sig", "utf-16", "utf-8", "cp1252"):
+        try:
+            return data.decode(encoding).replace("\ufeff", "")
+        except UnicodeError:
+            continue
+    return data.decode("utf-8", errors="replace").replace("\ufeff", "")
+
+
+def _find_first_local_file_by_basename(root: Path, basename: str) -> Optional[Path]:
+    if not root.is_dir() or not basename:
+        return None
+    scanned_files = 0
+    lowered_basename = basename.lower()
+    try:
+        for candidate in root.rglob("*"):
+            scanned_files += 1
+            if scanned_files > _SCENE_TEXTURE_DISCOVERY_MAX_FILES:
+                break
+            if candidate.is_file() and candidate.name.lower() == lowered_basename:
+                return candidate.resolve()
+    except OSError:
+        return None
+    return None
+
+
+def _resolve_local_texture_reference(source_path: Path, texture_reference: str) -> Optional[Path]:
+    normalized_reference = unquote(str(texture_reference or "").replace("\\", "/")).strip().strip("/")
+    if not normalized_reference:
+        return None
+    reference_suffix = PurePosixPath(normalized_reference).suffix.lower()
+    if reference_suffix not in SCENE_TEXTURE_SOURCE_EXTENSIONS:
+        return None
+
+    direct_candidate = Path(normalized_reference).expanduser()
+    if direct_candidate.is_absolute() and direct_candidate.is_file():
+        return direct_candidate.resolve()
+
+    package_root = _local_package_root(source_path)
+    reference_parts = PurePosixPath(normalized_reference).parts
+    basename = PurePosixPath(normalized_reference).name
+    candidates: list[Path] = []
+    if reference_parts:
+        candidates.append(source_path.parent.joinpath(*reference_parts))
+        candidates.append(package_root.joinpath(*reference_parts))
+        collapsed_parts = tuple(part for part in reference_parts if part.lower() not in {"texture", "textures"})
+        if collapsed_parts and collapsed_parts != reference_parts:
+            candidates.append(package_root.joinpath(*collapsed_parts))
+    if basename:
+        candidates.extend(
+            [
+                source_path.parent / basename,
+                source_path.parent / "texture" / basename,
+                source_path.parent / "textures" / basename,
+            ]
+        )
+        if reference_parts:
+            candidates.append(package_root / reference_parts[0] / basename)
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve()
+        except Exception:
+            continue
+        key = str(resolved).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if resolved.is_file():
+            return resolved
+
+    for root in (source_path.parent, package_root):
+        found = _find_first_local_file_by_basename(root, basename)
+        if found is not None:
+            return found
+    return None
 
 
 def _load_gltf_payload(source_path: Path) -> _GltfPayload:

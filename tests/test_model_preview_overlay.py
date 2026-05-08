@@ -11,6 +11,7 @@ from cdmw.models import (
     MODEL_PREVIEW_ALPHA_HANDLING_MODES,
     MODEL_PREVIEW_DIFFUSE_SWIZZLE_MODES,
     MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES,
+    MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS,
     MODEL_PREVIEW_SAMPLER_PROBE_MODES,
     MODEL_PREVIEW_TEXTURE_PROBE_SOURCES,
     ArchivePerformanceSettings,
@@ -131,6 +132,16 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertEqual(22, _RENDER_DIAGNOSTIC_MODE_CODES["rich_lit"])
         self.assertEqual(23, _RENDER_DIAGNOSTIC_MODE_CODES["height_calibrated"])
         self.assertEqual(24, _RENDER_DIAGNOSTIC_MODE_CODES["relief_control_test"])
+
+    def test_normal_diagnostics_distinguish_geometry_from_texture_maps(self) -> None:
+        self.assertEqual("Geometry Normal", MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS["normal"])
+        self.assertEqual("Normal Texture Raw", MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS["normal_raw"])
+        self.assertEqual(5, _RENDER_DIAGNOSTIC_MODE_CODES["normal"])
+        self.assertEqual(11, _RENDER_DIAGNOSTIC_MODE_CODES["normal_raw"])
+
+        shader_source = Path("cdmw/ui/widgets.py").read_text(encoding="utf-8")
+        self.assertIn("varying vec3 frag_object_normal;", shader_source)
+        self.assertIn("vec3 geometry_normal = safe_normalize(frag_object_normal", shader_source)
 
     def test_derived_relief_texture_generation_is_relief_mode_only(self) -> None:
         self.assertFalse(

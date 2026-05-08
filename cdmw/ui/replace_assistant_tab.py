@@ -95,7 +95,7 @@ from cdmw.ui.widgets import (
     FlatSectionPanel,
     PreviewLabel,
     PreviewScrollArea,
-    clamp_splitter_sizes,
+    build_bounded_splitter_sizes,
     build_responsive_splitter_sizes,
     has_persistent_tree_column_widths,
     make_tree_columns_persistent,
@@ -1288,7 +1288,14 @@ class ReplaceAssistantTab(QWidget):
         self.main_splitter.setStretchFactor(0, 0)
         self.main_splitter.setStretchFactor(1, 1)
         self.main_splitter.setStretchFactor(2, 0)
-        self.main_splitter.setSizes(build_responsive_splitter_sizes(1800, [22, 48, 30], [queue_min, preview_min, settings_min]))
+        self.main_splitter.setSizes(
+            build_bounded_splitter_sizes(
+                1800,
+                [22, 58, 20],
+                [queue_min, preview_min, settings_min],
+                [queue_max, None, settings_max],
+            )
+        )
 
         self.add_files_button.clicked.connect(self.import_files)
         self.add_folder_button.clicked.connect(self.import_folder)
@@ -1362,27 +1369,32 @@ class ReplaceAssistantTab(QWidget):
         QTimer.singleShot(0, self._apply_responsive_splitter_defaults)
 
     def _apply_responsive_splitter_defaults(self) -> None:
-        queue_min, _queue_pref, _queue_max = responsive_sidebar_bounds(self, role="normal")
+        queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
-        settings_min, _settings_pref, _settings_max = responsive_sidebar_bounds(self, role="wide")
-        total_width = max(self.width() - 32, sum([queue_min, preview_min, settings_min]))
+        settings_min, _settings_pref, settings_max = responsive_sidebar_bounds(self, role="wide")
+        total_width = max(1, self.width() - 32)
         self.main_splitter.setSizes(
-            build_responsive_splitter_sizes(total_width, [22, 48, 30], [queue_min, preview_min, settings_min])
+            build_bounded_splitter_sizes(
+                total_width,
+                [22, 58, 20],
+                [queue_min, preview_min, settings_min],
+                [queue_max, None, settings_max],
+            )
         )
 
     def set_splitter_sizes(self, sizes: Sequence[int], *, total_width: Optional[int] = None) -> None:
         if not sizes:
             return
-        queue_min, _queue_pref, _queue_max = responsive_sidebar_bounds(self, role="normal")
+        queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
-        settings_min, _settings_pref, _settings_max = responsive_sidebar_bounds(self, role="wide")
-        available_width = total_width or max(self.width() - 32, sum([queue_min, preview_min, settings_min]))
+        settings_min, _settings_pref, settings_max = responsive_sidebar_bounds(self, role="wide")
+        available_width = total_width or max(1, self.width() - 32)
         self.main_splitter.setSizes(
-            clamp_splitter_sizes(
+            build_bounded_splitter_sizes(
                 available_width,
                 sizes,
                 [queue_min, preview_min, settings_min],
-                fallback_weights=[22, 48, 30],
+                [queue_max, None, settings_max],
             )
         )
 
@@ -1390,12 +1402,17 @@ class ReplaceAssistantTab(QWidget):
         return self.main_splitter.sizes()
 
     def apply_responsive_splitter_sizes(self, total_width: Optional[int] = None) -> None:
-        queue_min, _queue_pref, _queue_max = responsive_sidebar_bounds(self, role="normal")
+        queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
-        settings_min, _settings_pref, _settings_max = responsive_sidebar_bounds(self, role="wide")
-        available_width = total_width or max(self.width() - 32, sum([queue_min, preview_min, settings_min]))
+        settings_min, _settings_pref, settings_max = responsive_sidebar_bounds(self, role="wide")
+        available_width = total_width or max(1, self.width() - 32)
         self.main_splitter.setSizes(
-            build_responsive_splitter_sizes(available_width, [22, 48, 30], [queue_min, preview_min, settings_min])
+            build_bounded_splitter_sizes(
+                available_width,
+                [22, 58, 20],
+                [queue_min, preview_min, settings_min],
+                [queue_max, None, settings_max],
+            )
         )
 
     def auto_fit_columns(self) -> None:

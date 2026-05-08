@@ -214,6 +214,56 @@ class HkxNativeBackendTests(unittest.TestCase):
                 "ptch_payload_match_kind_counts": {"ptch_object_patch_offset": 1},
                 "ptch_remaining_case_priorities": [],
             },
+            "fixup_semantics_v2": {
+                "format": "cd_hkx_fixup_semantics_v2",
+                "status": "ptch_patch_sites_normalized_read_only",
+                "patch_site_count": 1,
+                "resolved_patch_site_count": 1,
+                "unresolved_patch_site_count": 0,
+                "semantic_bucket_counts": {
+                    "object_ref": 1,
+                    "null_ref": 0,
+                    "data_ref": 0,
+                    "string_ref": 0,
+                    "type_class_ref": 0,
+                    "section_local_ref": 0,
+                    "packed_or_varuint": 0,
+                    "unresolved": 0,
+                },
+                "semantic_bucket_taxonomy": [
+                    {
+                        "bucket": "object_ref",
+                        "meaning": "Fixup points to another ITEM/object record.",
+                        "edit_policy": "read_only_reference",
+                    },
+                    {
+                        "bucket": "data_ref",
+                        "meaning": "Fixup likely points to data/array storage.",
+                        "edit_policy": "corpus_proof_required",
+                    },
+                ],
+                "corpus_evidence_counters": {
+                    "patch_site_count": 1,
+                    "resolved_patch_site_count": 1,
+                    "unresolved_patch_site_count": 0,
+                    "data_ref_count": 0,
+                },
+                "patch_sites": [
+                    {
+                        "index": 0,
+                        "section": "PTCH",
+                        "tuple_shape": "1,1,0,2",
+                        "owner_record_index": 0,
+                        "owner_local_offset": 0x28,
+                        "patched_slot_value": 1,
+                        "target_record_index": 1,
+                        "target_status": "object",
+                        "semantic_bucket": "object_ref",
+                        "reference_category": "object_reference",
+                        "confidence": "strong inference",
+                    }
+                ],
+            },
             "native_model_graph": {
                 "format": "cd_hkx_native_model_graph_v1",
                 "status": "native_model_graph_partial",
@@ -234,6 +284,205 @@ class HkxNativeBackendTests(unittest.TestCase):
                 "nodes": [],
                 "edges": [],
                 "owner_arrays": [],
+            },
+            "semantic_model_v1": {
+                "format": "cd_hkx_semantic_model_v1",
+                "status": "read_only_semantic_model_from_native_records",
+                "object_count": 1,
+                "field_count": 1,
+                "raw_fallback_count": 0,
+                "root_record_index": 0,
+                "root_type_name": "hknpPositionConstraintMotor",
+                "source_priority": ["real_hkclass_metadata_v2", "typed_layout_decoder", "raw_preserved_payload"],
+                "field_kind_taxonomy": ["scalar", "vector", "array", "ref", "string", "enum", "struct", "raw_span"],
+                "objects": [
+                    {
+                        "record_index": 0,
+                        "type_name": "hknpPositionConstraintMotor",
+                        "status": "editable",
+                        "class_metadata_source": "typed_layout_decoder",
+                        "semantic_source": "typed_layout_decoder",
+                        "field_count": 1,
+                        "reference_count": 0,
+                        "raw_span_count": 0,
+                        "fields": [
+                            {
+                                "name": "stiffness_or_strength",
+                                "kind": "scalar",
+                                "offset": 0x28,
+                                "offset_hex": "0x28",
+                                "size": 4,
+                                "byte_range_start": 0x68,
+                                "byte_range_end": 0x6C,
+                                "data_type": "f32",
+                                "confidence": "strong inference",
+                                "editable_candidate": True,
+                                "write_gate_status": "candidate_only_until_edit_gate",
+                            }
+                        ],
+                    }
+                ],
+            },
+            "semantic_writer_gate_v1": {
+                "format": "cd_hkx_semantic_writer_gate_v1",
+                "status": "semantic_writer_disabled_until_byte_identity_proof",
+                "enabled": False,
+                "semantic_rebuild_supported": False,
+                "havok_xml_import_unblocked": False,
+                "fixed_size_patch_importable": True,
+                "patchable_slot_count": 1,
+                "writer_modes": [
+                    {
+                        "mode": "raw_preserving_no_edit",
+                        "status": "available",
+                        "enabled": True,
+                        "reason": "lossless byte segment writer",
+                    },
+                    {
+                        "mode": "semantic_no_edit",
+                        "status": "disabled_pending_representative_byte_identity",
+                        "enabled": False,
+                        "reason": "requires representative role coverage",
+                    },
+                ],
+                "required_role_coverage": [
+                    {
+                        "role": role,
+                        "no_edit_status": "required",
+                        "semantic_no_edit_status": "required_not_verified_by_semantic_writer",
+                        "fixed_edit_status": "required",
+                        "byte_identity_status": "required_not_verified_by_semantic_writer",
+                        "sample_required": True,
+                        "fixed_size_edits_allowed": False,
+                    }
+                    for role in ("object", "meshphysics", "character_physics", "ragdoll_body", "mesh_heavy", "animation")
+                ],
+                "representative_role_gates": [
+                    {
+                        "role": role,
+                        "required": True,
+                        "status": "representative_corpus_required",
+                        "no_edit_byte_identity": "not_proven_by_semantic_writer",
+                        "mismatch_offset": None,
+                        "fixed_size_edits_allowed": False,
+                        "unsupported_field_kinds": ["array", "ref", "string"],
+                        "unsupported_ref_kinds": ["data_ref", "string_ref", "type_class_ref"],
+                    }
+                    for role in ("object", "meshphysics", "character_physics", "ragdoll_body", "mesh_heavy", "animation")
+                ],
+                "unsupported_field_kinds": ["array", "ref", "string", "topology"],
+                "unsupported_ref_kinds": ["data_ref", "string_ref", "type_class_ref"],
+                "requirements": ["semantic no-edit byte identity across representative roles"],
+                "blocked_edit_classes": ["array", "ref", "string", "topology"],
+            },
+            "edit_candidate_map_v1": {
+                "format": "cd_hkx_edit_candidate_map_v1",
+                "status": "fixed_size_numeric_candidates_only",
+                "new_editable_fields_enabled": False,
+                "candidate_count": 1,
+                "write_enabled_candidate_count": 1,
+                "candidates": [
+                    {
+                        "class": "hknpPositionConstraintMotor",
+                        "member": "stiffness_or_strength",
+                        "record_index": 0,
+                        "item_index": 0,
+                        "local_offset": 0x28,
+                        "offset_hex": "0x28",
+                        "byte_size": 4,
+                        "supported_write_type": "f32",
+                        "risk_label": "medium",
+                        "confidence": "strong inference",
+                        "import_path": "existing_fixed_size_patch",
+                        "write_enabled": True,
+                    }
+                ],
+            },
+            "hkx_edit_gate_v1": {
+                "format": "cd_hkx_edit_gate_v1",
+                "status": "fixed_size_patch_gate",
+                "read_only": True,
+                "new_editable_fields_enabled": False,
+                "write_enabled_candidate_count": 1,
+                "candidate_only_count": 0,
+                "blocked_policy": "arrays, strings, references, topology, counts, compressed tables, and class metadata remain blocked until semantic rebuild proof",
+                "required_role_coverage": [
+                    {
+                        "role": "object",
+                        "no_edit_status": "required",
+                        "fixed_edit_status": "required",
+                        "status": "representative_corpus_required",
+                    }
+                ],
+                "categories": [
+                    {
+                        "category": "motor_force_response",
+                        "owner_class": "hknpPositionConstraintMotor",
+                        "status": "enabled",
+                        "write_enabled_count": 1,
+                        "candidate_only_count": 0,
+                        "fixed_edit_test_status": "existing_route",
+                        "gate_reason": "existing fixed-size patch route",
+                    }
+                ],
+                "blocked_kinds": ["array", "string", "reference", "topology", "count"],
+            },
+            "class_decoder_evidence_v2": {
+                "format": "cd_hkx_class_decoder_evidence_v2",
+                "status": "class_specific_decode_evidence_available",
+                "class_status_count": 1,
+                "hard_target_count": 0,
+                "observed_hard_target_count": 0,
+                "class_statuses": [
+                    {
+                        "class": "hknpPositionConstraintMotor",
+                        "type_name": "hknpPositionConstraintMotor",
+                        "record_count": 1,
+                        "byte_count": 32,
+                        "decoded_field_count": 2,
+                        "reference_count": 1,
+                        "editable_candidate_count": 1,
+                        "status": "editable",
+                        "friendly_status": "Fixed-size patch slots recovered",
+                    }
+                ],
+            },
+            "decoder_evidence_v2": {
+                "format": "cd_hkx_decoder_evidence_v2",
+                "status": "read_only_native_evidence",
+                "read_only": True,
+                "class_status_count": 1,
+                "priority_class_count": 1,
+                "total_partial_byte_count": 32,
+                "unresolved_or_packed_case_count": 0,
+                "owner_array_count": 0,
+                "reference_semantic_counts": {"object": 2, "null": 1},
+                "link_evidence_counts": {"fixup_backed": 1},
+                "class_statuses": [
+                    {
+                        "type_name": "hknpPositionConstraintMotor",
+                        "record_count": 1,
+                        "byte_count": 32,
+                        "decoded_field_count": 2,
+                        "reference_count": 1,
+                        "editable_field_count": 1,
+                        "status": "editable",
+                        "friendly_status": "Fixed-size patch slots recovered; official hkClass names still partial",
+                        "missing_requirements": ["real hkClass member metadata"],
+                        "link_evidence": ["fixup_backed"],
+                        "corpus_priority_score": 512,
+                        "read_only": True,
+                    }
+                ],
+                "fixup_backed_fields": [
+                    {
+                        "class_name": "hknpPositionConstraintMotor",
+                        "field_name": "motor",
+                        "reference_category": "object_reference",
+                        "count": 1,
+                        "confidence": "strong inference",
+                    }
+                ],
             },
             "physics_tuning_groups": [
                 {
@@ -281,10 +530,48 @@ class HkxNativeBackendTests(unittest.TestCase):
         self.assertEqual("experimental_observation", native_backend["fixup_semantics_status"])
         self.assertEqual({"1,1,0,2": 1}, native_backend["fixup_semantics_ptch_tuple_shape_counts"])
         self.assertEqual("cd_hkx_fixup_semantics_report_v1", native_backend["fixup_semantics_report"]["format"])
+        self.assertEqual("ptch_patch_sites_normalized_read_only", native_backend["fixup_semantics_v2_status"])
+        self.assertEqual(1, native_backend["fixup_semantics_v2_semantic_bucket_counts"]["object_ref"])
+        self.assertIn("data_ref", native_backend["fixup_semantics_v2_semantic_bucket_counts"])
         self.assertEqual("native_model_graph_partial", native_backend["native_model_graph_status"])
         self.assertEqual(2, native_backend["native_model_graph_node_count"])
         self.assertEqual(1, native_backend["native_model_graph_edge_count"])
         self.assertEqual(1, native_backend["native_model_graph_fixup_backed_reference_edge_count"])
+        self.assertEqual("read_only_semantic_model_from_native_records", native_backend["semantic_model_v1_status"])
+        self.assertEqual(1, native_backend["semantic_model_v1_object_count"])
+        self.assertEqual("semantic_writer_disabled_until_byte_identity_proof", native_backend["semantic_writer_gate_v1_status"])
+        self.assertFalse(native_backend["semantic_writer_gate_v1_havok_xml_import_unblocked"])
+        self.assertEqual(6, native_backend["semantic_writer_gate_v1_required_role_count"])
+        self.assertEqual(6, native_backend["semantic_writer_gate_v1_representative_role_gate_count"])
+        self.assertEqual("fixed_size_numeric_candidates_only", native_backend["edit_candidate_map_v1_status"])
+        self.assertEqual(1, native_backend["edit_candidate_map_v1_write_enabled_candidate_count"])
+        self.assertEqual("fixed_size_patch_gate", native_backend["hkx_edit_gate_v1_status"])
+        self.assertEqual(1, native_backend["hkx_edit_gate_v1_write_enabled_candidate_count"])
+        self.assertEqual(0, native_backend["hkx_edit_gate_v1_candidate_only_count"])
+        self.assertEqual("class_specific_decode_evidence_available", native_backend["class_decoder_evidence_v2_status"])
+        self.assertEqual("read_only_native_evidence", native_backend["decoder_evidence_v2_status"])
+        self.assertEqual({"object": 2, "null": 1}, native_backend["decoder_evidence_v2_reference_semantic_counts"])
+        self.assertEqual(1, document["edit_candidate_map_v1"]["write_enabled_candidate_count"])
+        self.assertEqual("cdmw_hkx_edit_gate_v1", document["hkx_edit_gate_v1"]["format"])
+        self.assertEqual("cd_hkx_edit_gate_v1", document["hkx_edit_gate_v1"]["native_format"])
+        self.assertTrue(
+            any(
+                row["category"] == "motor_force_response" and row["status"] == "enabled"
+                for row in document["hkx_edit_gate_v1"]["categories"]
+            )
+        )
+        self.assertFalse(document["semantic_writer_gate_v1"]["havok_xml_import_unblocked"])
+        self.assertEqual("raw_preserving_no_edit", document["semantic_writer_gate_v1"]["writer_modes"][0]["mode"])
+        self.assertEqual(6, len(document["semantic_writer_gate_v1"]["representative_role_gates"]))
+        self.assertEqual(
+            "candidate_only_until_edit_gate",
+            document["semantic_model_v1"]["objects"][0]["fields"][0]["write_gate_status"],
+        )
+        decoder_evidence = document["decoder_evidence_v2"]
+        self.assertEqual("cdmw_hkx_decoder_evidence_v2", decoder_evidence["format"])
+        self.assertEqual("native_rust_cd_hkx", decoder_evidence["source"])
+        self.assertFalse(decoder_evidence["edit_policy"]["new_editable_fields_enabled"])
+        self.assertEqual("fixup_backed", decoder_evidence["class_statuses"][0]["link_evidence"][0])
         self.assertEqual("byte_identical", native_backend["no_edit_binary_writer_status"])
         self.assertTrue(native_backend["no_edit_binary_writer_available"])
         self.assertTrue(native_backend["native_read_model_write_available"])
@@ -331,6 +618,22 @@ class HkxNativeBackendTests(unittest.TestCase):
         self.assertTrue(
             any(target["key"] == "visual_object_value_linking" for target in readiness["gui_readiness"]["targets"])
         )
+
+        with mock.patch("cdmw.core.hkx_native.parse_hkx_summary_with_rust", return_value=native_summary):
+            xml_text = build_hkx_editable_geometry_xml(data, "physics/native.hkx")
+        self.assertIn("<decoderEvidence", xml_text)
+        self.assertIn("<referenceSemantics>", xml_text)
+        self.assertIn("fixupBackedFields", xml_text)
+        self.assertIn("<fixupSemanticsV2", xml_text)
+        self.assertIn("<semanticBucketTaxonomy", xml_text)
+        self.assertIn("<corpusEvidenceCounters", xml_text)
+        self.assertIn("<semanticModelV1", xml_text)
+        self.assertIn("<fieldKindTaxonomy", xml_text)
+        self.assertIn("<semanticWriterGateV1", xml_text)
+        self.assertIn("<writerModes", xml_text)
+        self.assertIn("<representativeRoleGates", xml_text)
+        self.assertIn("<editCandidateMapV1", xml_text)
+        self.assertIn("<classDecoderEvidenceV2", xml_text)
 
     def test_real_hkclass_metadata_overrides_synthetic_types(self) -> None:
         data = (32).to_bytes(4, "big") + b"TAG0" + b"\0" * 24
@@ -407,6 +710,48 @@ class HkxNativeBackendTests(unittest.TestCase):
                     }
                 ],
             },
+            "real_hkclass_metadata_v2": {
+                "format": "cd_hkx_real_hkclass_metadata_v2",
+                "status": "real_metadata_available_read_only",
+                "class_count": 1,
+                "member_count": 1,
+                "enum_count": 0,
+                "synthetic_fallback_required": False,
+                "classes": [
+                    {
+                        "class_name": "hknpFoo",
+                        "name": "hknpFoo",
+                        "record_index": 7,
+                        "base_class": "hkReferencedObject",
+                        "object_size": 64,
+                        "version": 3,
+                        "flags": 4,
+                        "signature": 0xABCDEF01,
+                        "signature_hex": "0xABCDEF01",
+                        "declared_enum_count": 0,
+                        "declared_member_count": 1,
+                        "members_record_index": 8,
+                        "members": [
+                            {
+                                "name": "mass",
+                                "member_type_code": 11,
+                                "member_type_name": "TYPE_REAL",
+                                "subtype_code": 0,
+                                "subtype_name": "TYPE_VOID",
+                                "c_array_size": 0,
+                                "flags": 0x1234,
+                                "flags_hex": "0x1234",
+                                "offset": 0x20,
+                                "offset_hex": "0x20",
+                                "array_status": "not_array",
+                                "reference_status": "not_reference",
+                                "confidence": "strong inference",
+                            }
+                        ],
+                        "confidence": "strong inference",
+                    }
+                ],
+            },
             "warnings": [],
         }
 
@@ -417,6 +762,7 @@ class HkxNativeBackendTests(unittest.TestCase):
         hkclass = next(row for row in document["havok_xml_view"]["hkclasses"] if row["name"] == "hknpFoo")
         self.assertEqual("real_hkClass_records", hkclass["metadata_status"])
         self.assertTrue(hkclass["real_hkclass_metadata_recovered"])
+        self.assertEqual("hkReferencedObject", hkclass["parent"])
         self.assertEqual("0xABCDEF01", hkclass["signature"])
         self.assertEqual(3, hkclass["version"])
         member = hkclass["members"][0]
@@ -437,6 +783,8 @@ class HkxNativeBackendTests(unittest.TestCase):
 
         self.assertIn('member_type_code="11"', xml_text)
         self.assertIn('real_hkclass_metadata_recovered="true"', xml_text)
+        self.assertIn("<realHkclassMetadataV2", xml_text)
+        self.assertIn('havok_member_type_code="11"', xml_text)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,15 @@ class MeshImportUiFlowTests(unittest.TestCase):
             self.assertEqual(availability.default_mode, "static_replacement")
             self.assertIn("static Mesh Replacement", availability.guidance)
 
+    def test_local_archive_mesh_imports_default_to_replacement(self) -> None:
+        for name in ("model.pac", "model.pam", "model.pamlod"):
+            availability = mesh_import_mode_availability(Path(name), has_roundtrip_sidecar=False, static_supported=True)
+
+            self.assertFalse(availability.roundtrip_enabled)
+            self.assertTrue(availability.static_enabled)
+            self.assertEqual(availability.default_mode, "static_replacement")
+            self.assertIn("Local PAC/PAM/PAMLOD", availability.guidance)
+
     def test_obj_with_sidecar_defaults_to_roundtrip(self) -> None:
         availability = mesh_import_mode_availability(Path("model.obj"), has_roundtrip_sidecar=True, static_supported=True)
 

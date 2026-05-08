@@ -1037,12 +1037,14 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         self.assertEqual(rows["Saddler's Note"].group, "Document")
         self.assertEqual(rows["Food Supply Contract - Calphade"].category, "Quest / Document")
         self.assertEqual(rows["Food Supply Contract - Calphade"].group, "Document")
+        self.assertTrue(rows["Food Supply Contract - Calphade"].category_evidence.startswith("Internal ID ->"))
         self.assertEqual(rows["Sighting of Camora"].category, "Quest / Document")
         self.assertEqual(rows["Sighting of Camora"].group, "Clue / Report")
         self.assertEqual(rows["News of White Horn's Defeat"].category, "Quest / Document")
         self.assertEqual(rows["News of White Horn's Defeat"].group, "Clue / Report")
         self.assertEqual(rows["The Claw"].category, "Tool")
         self.assertEqual(rows["The Claw"].group, "Fishing")
+        self.assertTrue(rows["The Claw"].category_evidence.startswith("Internal ID ->"))
         self.assertEqual(rows["Mysterious Elixir"].category, "Consumable")
         self.assertEqual(rows["Mysterious Elixir"].group, "Potion / Medicine")
         self.assertEqual(rows["Recipe Book FishingRod II"].category, "Crafting / Recipe")
@@ -1053,8 +1055,10 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         self.assertEqual(rows["Lost Letter Food Trader 1"].group, "Document")
         self.assertEqual(rows["Uniform Cat Outfit"].category, "Mount / Pet")
         self.assertEqual(rows["Uniform Cat Outfit"].group, "Pet Gear")
+        self.assertTrue(rows["Uniform Cat Outfit"].category_evidence.startswith("Internal ID ->"))
         self.assertEqual(rows["Rescue Puppy Outfit"].category, "Mount / Pet")
         self.assertEqual(rows["Rescue Puppy Outfit"].group, "Pet Gear")
+        self.assertTrue(rows["Rescue Puppy Outfit"].category_evidence.startswith("Internal ID ->"))
 
     def test_item_alias_search_uses_display_token_prefixes(self) -> None:
         filtered = filter_archive_entries(

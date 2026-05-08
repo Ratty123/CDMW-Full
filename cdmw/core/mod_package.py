@@ -866,33 +866,12 @@ def write_mod_package_readme(
         _readme_append_step(lines, 3, "Verify that the replaced assets load correctly in game.")
     lines.append("")
 
-    _readme_add_section(lines, "Notes")
-    _readme_append_wrapped(
-        lines,
-        "Generated automatically by Crimson Desert Mod Workbench.",
-        indent="  - ",
-        subsequent_indent="    ",
-    )
-    if "manifest.json" in metadata_names or not metadata_files:
-        _readme_append_wrapped(
-            lines,
-            "Keep manifest.json with the payload for validation and manager compatibility.",
-            indent="  - ",
-            subsequent_indent="    ",
-        )
     if "dmm" in target_set and normalized_structure == "dmm_texture":
+        _readme_add_section(lines, "Layout")
         _readme_append_wrapped(
             lines,
             "This DMM texture layout intentionally does not use a files/ wrapper.",
-            indent="  - ",
-            subsequent_indent="    ",
         )
-    _readme_append_wrapped(
-        lines,
-        "Keep generated metadata files with the package when sharing or archiving it.",
-        indent="  - ",
-        subsequent_indent="    ",
-    )
 
     readme_path = root / "README.txt"
     readme_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

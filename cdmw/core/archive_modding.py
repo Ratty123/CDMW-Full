@@ -81,6 +81,17 @@ ARCHIVE_MESH_EXTENSIONS = {".pam", ".pamlod", ".pac"}
 ARCHIVE_AUDIO_PATCH_EXTENSIONS = {".wem", ".wav"}
 ARCHIVE_AUDIO_EXPORT_EXTENSIONS = {".wem", ".wav", ".ogg", ".mp3", ".bnk"}
 ARCHIVE_PATCH_BACKUP_ROOT = Path(tempfile.gettempdir()) / APP_NAME / "archive_patch_backups"
+_MESH_IMPORT_ASSET_ROOT_MARKERS = {
+    "animation",
+    "character",
+    "effect",
+    "gamedata",
+    "leveldata",
+    "movie",
+    "object",
+    "sound",
+    "ui",
+}
 MESH_IMPORT_SIDECAR_EXTENSIONS = {
     ".xml",
     ".pami",
@@ -825,6 +836,15 @@ class HkxTagfileSummary:
     native_model_graph: Dict[str, object] = field(default_factory=dict)
     native_hard_internal_evidence: Dict[str, object] = field(default_factory=dict)
     native_real_hkclass_metadata: Dict[str, object] = field(default_factory=dict)
+    native_real_hkclass_metadata_v2: Dict[str, object] = field(default_factory=dict)
+    native_fixup_semantics_v2: Dict[str, object] = field(default_factory=dict)
+    native_semantic_model_v1: Dict[str, object] = field(default_factory=dict)
+    native_semantic_writer_gate_v1: Dict[str, object] = field(default_factory=dict)
+    native_edit_candidate_map_v1: Dict[str, object] = field(default_factory=dict)
+    native_hkx_edit_gate_v1: Dict[str, object] = field(default_factory=dict)
+    native_class_decoder_evidence_v2: Dict[str, object] = field(default_factory=dict)
+    native_decoder_evidence_v2: Dict[str, object] = field(default_factory=dict)
+    native_modding_readiness: Dict[str, object] = field(default_factory=dict)
     native_no_edit_binary_writer: Dict[str, object] = field(default_factory=dict)
     warnings: List[str] = field(default_factory=list)
 
@@ -932,23 +952,130 @@ def _mesh_import_candidate_virtual_paths(source_path: Path) -> Tuple[str, ...]:
             _append(lowered_parts[index + 1 :])
             break
 
-    asset_root_markers = {
-        "animation",
-        "character",
-        "effect",
-        "gamedata",
-        "leveldata",
-        "movie",
-        "object",
-        "sound",
-        "ui",
-    }
     for index, part in enumerate(lowered_parts):
-        if str(part).strip().lower() in asset_root_markers:
+        if str(part).strip().lower() in _MESH_IMPORT_ASSET_ROOT_MARKERS:
             _append(lowered_parts[index:])
             break
 
     _append([source_path.name])
+    return tuple(ordered)
+
+
+def _mesh_import_loose_texture_preferred_paths(source_path: Path) -> Tuple[str, ...]:
+    if source_path.suffix.lower() != ".dds":
+        return ()
+    if not any(str(part).strip().lower() == "files" for part in source_path.expanduser().parts):
+        return ()
+
+    ordered: List[str] = []
+    seen: set[str] = set()
+
+    def _append(value: str) -> None:
+        normalized = _normalize_virtual_path(value)
+        if not normalized or normalized in seen:
+            return
+        seen.add(normalized)
+        ordered.append(value.replace("\\", "/"))
+
+    for candidate in _mesh_import_candidate_virtual_paths(source_path):
+        parts = tuple(part for part in PurePosixPath(candidate.replace("\\", "/")).parts if part)
+        if len(parts) < 2 or parts[0].lower() not in _MESH_IMPORT_ASSET_ROOT_MARKERS:
+            continue
+        basename = parts[-1]
+        if not basename.lower().endswith(".dds"):
+            continue
+        if len(parts) == 2:
+            _append(PurePosixPath(parts[0], "texture", basename).as_posix())
+        elif parts[1].lower() in {"texture", "textures"}:
+            _append(PurePosixPath(parts[0], "texture", basename).as_posix())
+    return tuple(ordered)
+
+
+def _mesh_import_modelproperty_variant(mesh_path: str) -> str:
+    parts = list(PurePosixPath(str(mesh_path or "").replace("\\", "/")).parts)
+    for index, part in enumerate(parts):
+        if part.lower() == "model":
+            parts[index] = "modelproperty"
+            return PurePosixPath(*parts).as_posix()
+    return ""
+
+
+def _mesh_import_target_sidecar_candidates_for_base(
+    mesh_path: str,
+    source_sidecar_path: Path,
+) -> Tuple[str, ...]:
+    mesh_pure = PurePosixPath(str(mesh_path or "").replace("\\", "/").strip())
+    if not mesh_pure.name:
+        return ()
+
+    mesh_extension = mesh_pure.suffix.lower()
+    source_extension = source_sidecar_path.suffix.lower()
+    source_name = source_sidecar_path.name.lower()
+    candidates: List[str] = []
+
+    def _append(candidate: PurePosixPath) -> None:
+        value = candidate.as_posix().strip()
+        if value and value not in candidates:
+            candidates.append(value)
+
+    if source_extension in {".pac_xml", ".pam_xml", ".pamlod_xml", ".app_xml", ".prefabdata_xml"}:
+        _append(mesh_pure.with_suffix(source_extension))
+    elif source_extension == ".pami":
+        _append(mesh_pure.with_suffix(".pami"))
+    elif source_extension == ".xml":
+        if source_name.endswith(".pac.xml") or mesh_extension == ".pac":
+            _append(mesh_pure.with_name(f"{mesh_pure.name}.xml"))
+            _append(mesh_pure.with_suffix(".pac_xml"))
+        elif source_name.endswith(".pam.xml") or mesh_extension == ".pam":
+            _append(mesh_pure.with_name(f"{mesh_pure.name}.xml"))
+            _append(mesh_pure.with_suffix(".pam_xml"))
+        elif source_name.endswith(".pamlod.xml") or mesh_extension == ".pamlod":
+            _append(mesh_pure.with_name(f"{mesh_pure.name}.xml"))
+            _append(mesh_pure.with_suffix(".pamlod_xml"))
+        elif source_name.endswith(".app.xml"):
+            _append(mesh_pure.with_suffix(".app_xml"))
+        elif source_name.endswith(".prefabdata.xml"):
+            _append(mesh_pure.with_suffix(".prefabdata_xml"))
+        else:
+            _append(mesh_pure.with_suffix(".xml"))
+    return tuple(candidates)
+
+
+def _mesh_import_sidecar_preferred_paths(
+    entry: ArchiveEntry,
+    source_sidecar_path: Path,
+    related_entries_by_extension: Mapping[str, Sequence[ArchiveEntry]],
+) -> Tuple[str, ...]:
+    source_extension = source_sidecar_path.suffix.lower()
+    ordered: List[str] = []
+    seen: set[str] = set()
+
+    def _append(value: str) -> None:
+        normalized = _normalize_virtual_path(value)
+        if not normalized or normalized in seen:
+            return
+        seen.add(normalized)
+        ordered.append(str(value).replace("\\", "/"))
+
+    target_names = {
+        PurePosixPath(path).name.lower()
+        for base_path in (entry.path, _mesh_import_modelproperty_variant(entry.path))
+        for path in _mesh_import_target_sidecar_candidates_for_base(base_path, source_sidecar_path)
+        if path
+    }
+    related_by_extension = list(related_entries_by_extension.get(source_extension, ()))
+    for related_entry in related_by_extension:
+        if PurePosixPath(related_entry.path.replace("\\", "/")).name.lower() in target_names:
+            _append(related_entry.path)
+    if len(related_by_extension) == 1:
+        _append(related_by_extension[0].path)
+
+    modelproperty_path = _mesh_import_modelproperty_variant(entry.path)
+    for base_path in (modelproperty_path, entry.path):
+        if not base_path:
+            continue
+        for candidate in _mesh_import_target_sidecar_candidates_for_base(base_path, source_sidecar_path):
+            _append(candidate)
     return tuple(ordered)
 
 
@@ -2522,7 +2649,188 @@ def patch_archive_entries(
 
 
 def _mesh_export_basename(entry: ArchiveEntry) -> str:
-    return Path(entry.path.replace("\\", "/")).with_suffix("").as_posix().replace("/", "_")
+    stem = PurePosixPath(str(entry.path or "").replace("\\", "/")).stem.strip()
+    safe_stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", stem).strip(" ._")
+    return safe_stem or "archive_mesh"
+
+
+_EXPORT_MTL_VISIBLE_TEXTURE_TERMS = (
+    "base",
+    "basecolor",
+    "base_color",
+    "color",
+    "colour",
+    "albedo",
+    "diffuse",
+    "detaildiffuse",
+    "diffusemask",
+)
+_EXPORT_MTL_SUPPORT_TEXTURE_TERMS = (
+    "normal",
+    "height",
+    "disp",
+    "displacement",
+    "material",
+    "rough",
+    "metal",
+    "spec",
+    "masktexture",
+    "_ma",
+    "_mg",
+    "_sp",
+)
+_EXPORT_MTL_SUPPORT_SUFFIXES = (
+    "_n",
+    "_normal",
+    "_ma",
+    "_mg",
+    "_sp",
+    "_h",
+    "_height",
+    "_disp",
+    "_displacement",
+)
+
+
+def _normalize_export_texture_alias(value: str) -> str:
+    text = str(value or "").strip().replace("\\", "/")
+    if not text:
+        return ""
+    if "/" in text:
+        text = PurePosixPath(text).stem
+    return re.sub(r"[^a-z0-9]+", "", text.casefold())
+
+
+def _resolved_export_texture_path(reference: ArchiveModelTextureReference) -> str:
+    for value in (
+        getattr(reference, "resolved_archive_path", ""),
+        getattr(reference, "reference_name", ""),
+    ):
+        normalized = str(value or "").strip().replace("\\", "/")
+        if normalized.lower().endswith(".dds"):
+            return normalized
+    return ""
+
+
+def _export_mtl_visible_texture_priority(reference: ArchiveModelTextureReference) -> int:
+    resolved_path = _resolved_export_texture_path(reference)
+    if not resolved_path:
+        return 0
+    basename_stem = PurePosixPath(resolved_path).stem.casefold()
+    combined = " ".join(
+        str(value or "").strip().casefold()
+        for value in (
+            getattr(reference, "semantic_label", ""),
+            getattr(reference, "semantic_hint", ""),
+            getattr(reference, "sidecar_parameter_name", ""),
+            getattr(reference, "texture_role", ""),
+            getattr(reference, "reference_name", ""),
+            resolved_path,
+        )
+    )
+    has_visible_hint = any(term in combined for term in _EXPORT_MTL_VISIBLE_TEXTURE_TERMS)
+    has_support_hint = any(term in combined for term in _EXPORT_MTL_SUPPORT_TEXTURE_TERMS)
+    has_support_suffix = any(basename_stem.endswith(suffix) for suffix in _EXPORT_MTL_SUPPORT_SUFFIXES)
+    if (has_support_hint or has_support_suffix) and not has_visible_hint:
+        return 0
+
+    priority = 20
+    if "base" in combined or "basecolor" in combined or "albedo" in combined:
+        priority += 50
+    if "diffuse" in combined or "detaildiffuse" in combined:
+        priority += 45
+    if "sidecar" in str(getattr(reference, "relation_reason", "") or "").casefold():
+        priority += 10
+    confidence = str(getattr(reference, "relation_confidence", "") or "").casefold()
+    if confidence in {"authoritative", "exact_path"}:
+        priority += 10
+    if not has_visible_hint and has_support_suffix:
+        return 0
+    return priority
+
+
+def _build_export_mtl_texture_overrides(
+    parsed_mesh: ParsedMesh,
+    texture_references: Sequence[ArchiveModelTextureReference],
+) -> Dict[str, str]:
+    material_by_alias: Dict[str, str] = {}
+    for submesh in parsed_mesh.submeshes:
+        material_name = str(submesh.material or submesh.name or "").strip()
+        if not material_name:
+            continue
+        for alias in (submesh.name, submesh.material, submesh.texture):
+            normalized_alias = _normalize_export_texture_alias(alias)
+            if normalized_alias:
+                material_by_alias.setdefault(normalized_alias, material_name)
+
+    best_by_material: Dict[str, Tuple[int, str]] = {}
+    for reference in texture_references:
+        priority = _export_mtl_visible_texture_priority(reference)
+        if priority <= 0:
+            continue
+        resolved_path = _resolved_export_texture_path(reference)
+        if not resolved_path:
+            continue
+        candidate_aliases = (
+            getattr(reference, "material_name", ""),
+            getattr(reference, "linked_mesh_path", ""),
+            getattr(reference, "part_name", ""),
+            getattr(reference, "reference_name", ""),
+            resolved_path,
+        )
+        matched_material = ""
+        for alias in candidate_aliases:
+            normalized_alias = _normalize_export_texture_alias(str(alias or ""))
+            if normalized_alias in material_by_alias:
+                matched_material = material_by_alias[normalized_alias]
+                break
+        if not matched_material:
+            continue
+        previous = best_by_material.get(matched_material)
+        if previous is None or priority > previous[0]:
+            best_by_material[matched_material] = (priority, resolved_path)
+    return {material: path for material, (_priority, path) in best_by_material.items()}
+
+
+def _export_mtl_local_texture_reference(output_dir: Path, archive_texture_path: str) -> str:
+    normalized = str(archive_texture_path or "").strip().replace("\\", "/")
+    if not normalized:
+        return ""
+    parts = PurePosixPath(normalized).parts
+    copied_candidate = output_dir / "referenced_files"
+    for part in parts:
+        copied_candidate /= part
+    if copied_candidate.is_file():
+        return PurePosixPath("referenced_files").joinpath(*parts).as_posix()
+    return PurePosixPath(normalized).name
+
+
+def _rewrite_export_mtl_map_kd(
+    mtl_path: Path,
+    texture_overrides: Mapping[str, str],
+    output_dir: Path,
+) -> int:
+    if not texture_overrides or not mtl_path.is_file():
+        return 0
+    lines = mtl_path.read_text(encoding="utf-8").splitlines()
+    rewritten: List[str] = []
+    current_material = ""
+    changed = 0
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("newmtl "):
+            current_material = stripped[7:].strip()
+        if current_material in texture_overrides and stripped.startswith("map_Kd "):
+            texture_reference = _export_mtl_local_texture_reference(output_dir, texture_overrides[current_material])
+            if texture_reference:
+                replacement = f"map_Kd {texture_reference}"
+                if line != replacement:
+                    line = replacement
+                    changed += 1
+        rewritten.append(line)
+    if changed:
+        mtl_path.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
+    return changed
 
 
 def _parse_archive_mesh(entry: ArchiveEntry) -> ParsedMesh:
@@ -2757,6 +3065,7 @@ def export_archive_mesh(
                     dict(archive_entries_by_basename) if archive_entries_by_basename is not None else None
                 ),
             )
+            model_texture_references = tuple(getattr(preview_result, "model_texture_references", ()) or ())
             paired_lod_target = ""
             if entry.extension == ".pam" and archive_entries_by_normalized_path is not None:
                 paired_candidates = archive_entries_by_normalized_path.get(
@@ -2770,6 +3079,16 @@ def export_archive_mesh(
                 companion_candidate = manifest_target_path.with_suffix(".mtl")
                 if companion_candidate.is_file():
                     companion_path = str(companion_candidate)
+                    rewritten_mtl_rows = _rewrite_export_mtl_map_kd(
+                        companion_candidate,
+                        _build_export_mtl_texture_overrides(parsed_mesh, model_texture_references),
+                        output_dir,
+                    )
+                    if rewritten_mtl_rows:
+                        _safe_log(
+                            on_log,
+                            f"Updated {rewritten_mtl_rows:,} OBJ material texture binding(s) from resolved archive sidecar evidence.",
+                        )
             selected_companion_files: List[str] = []
             seen_selected_companion_files: set[str] = set()
             sidecar_hashes: Dict[str, str] = {}
@@ -2827,7 +3146,7 @@ def export_archive_mesh(
                     "material_name": reference.material_name,
                     "relation_group": reference.relation_group,
                 }
-                for reference in getattr(preview_result, "model_texture_references", ())
+                for reference in model_texture_references
                 if str(getattr(reference, "relation_group", "") or "").strip() == "Textures"
             ]
             manifest_path = write_roundtrip_manifest(
@@ -2991,6 +3310,15 @@ def _build_selected_sidecar_texture_bindings(
         if normalized_text not in bucket:
             bucket.append(normalized_text)
 
+    def read_sidecar_text(path: Path) -> str:
+        data = path.read_bytes()
+        for encoding in ("utf-8-sig", "utf-16", "utf-8", "cp1252"):
+            try:
+                return data.decode(encoding).replace("\ufeff", "")
+            except UnicodeError:
+                continue
+        return data.decode("utf-8", errors="replace").replace("\ufeff", "")
+
     for supplemental_path in supplemental_files:
         if supplemental_path.suffix.lower() not in MESH_IMPORT_SIDECAR_EXTENSIONS:
             continue
@@ -2998,7 +3326,7 @@ def _build_selected_sidecar_texture_bindings(
         if not resolved_path.is_file():
             continue
         try:
-            text = resolved_path.read_text(encoding="utf-8", errors="replace")
+            text = read_sidecar_text(resolved_path)
         except Exception:
             continue
         parsed_bindings = parse_texture_sidecar_bindings(text, sidecar_path=resolved_path.name)
@@ -3099,10 +3427,11 @@ def _build_mesh_import_supplemental_file_specs(
         preferred_paths: List[str] = []
         if extension == ".dds":
             preferred_paths.extend(reference_candidates_by_basename.get(resolved_source.name.lower(), ()))
+            preferred_paths.extend(_mesh_import_loose_texture_preferred_paths(resolved_source))
         elif extension in MESH_IMPORT_SIDECAR_EXTENSIONS:
-            related_by_extension = related_entries_by_extension.get(extension, [])
-            if len(related_by_extension) == 1:
-                preferred_paths.append(related_by_extension[0].path)
+            preferred_paths.extend(
+                _mesh_import_sidecar_preferred_paths(entry, resolved_source, related_entries_by_extension)
+            )
         target_entry, target_path = _resolve_supplemental_target_entry(
             resolved_source,
             archive_entries_by_normalized_path=archive_entries_by_normalized_path,
@@ -3520,10 +3849,11 @@ def build_mesh_import_preview(
         if isinstance(path, Path) and path.expanduser().resolve().is_file()
     )
     if normalized_import_mode == "static_replacement":
-        auto_scene_texture_files = tuple(
+        auto_scene_supplemental_files = tuple(
             path
             for path in tuple(scene_import_result.discovered_texture_files)
             + tuple(scene_import_result.extracted_embedded_files)
+            + tuple(getattr(scene_import_result, "discovered_supplemental_files", ()) or ())
             + (
                 tuple(discover_scene_texture_files(obj_path, imported_mesh))
                 if obj_path.expanduser().is_file()
@@ -3531,13 +3861,13 @@ def build_mesh_import_preview(
             )
             if path.is_file()
         )
-        if auto_scene_texture_files:
+        if auto_scene_supplemental_files:
             seen_supplemental = {str(path).lower() for path in resolved_supplemental_files}
-            appended = [path for path in auto_scene_texture_files if str(path).lower() not in seen_supplemental]
+            appended = [path for path in auto_scene_supplemental_files if str(path).lower() not in seen_supplemental]
             if appended:
                 resolved_supplemental_files = tuple(resolved_supplemental_files) + tuple(appended)
                 summary_lines.append(
-                    f"Auto-discovered {len(appended):,} texture source file(s) next to the imported scene."
+                    f"Auto-discovered {len(appended):,} supplemental texture/sidecar file(s) next to the imported mesh."
                 )
     if resolved_supplemental_files:
         summary_lines.append(f"Selected supplemental files: {len(resolved_supplemental_files):,}")
@@ -6197,6 +6527,15 @@ def parse_hkx_tagfile_summary(data: bytes) -> HkxTagfileSummary:
     native_model_graph: Dict[str, object] = {}
     native_hard_internal_evidence: Dict[str, object] = {}
     native_real_hkclass_metadata: Dict[str, object] = {}
+    native_real_hkclass_metadata_v2: Dict[str, object] = {}
+    native_fixup_semantics_v2: Dict[str, object] = {}
+    native_semantic_model_v1: Dict[str, object] = {}
+    native_semantic_writer_gate_v1: Dict[str, object] = {}
+    native_edit_candidate_map_v1: Dict[str, object] = {}
+    native_hkx_edit_gate_v1: Dict[str, object] = {}
+    native_class_decoder_evidence_v2: Dict[str, object] = {}
+    native_decoder_evidence_v2: Dict[str, object] = {}
+    native_modding_readiness: Dict[str, object] = {}
     native_no_edit_binary_writer: Dict[str, object] = {}
     if native_parts is not None:
         (
@@ -6214,6 +6553,15 @@ def parse_hkx_tagfile_summary(data: bytes) -> HkxTagfileSummary:
             native_model_graph,
             native_hard_internal_evidence,
             native_real_hkclass_metadata,
+            native_real_hkclass_metadata_v2,
+            native_fixup_semantics_v2,
+            native_semantic_model_v1,
+            native_semantic_writer_gate_v1,
+            native_edit_candidate_map_v1,
+            native_hkx_edit_gate_v1,
+            native_class_decoder_evidence_v2,
+            native_decoder_evidence_v2,
+            native_modding_readiness,
             native_no_edit_binary_writer,
         ) = native_parts
         if not type_names:
@@ -6257,6 +6605,15 @@ def parse_hkx_tagfile_summary(data: bytes) -> HkxTagfileSummary:
         native_model_graph=native_model_graph,
         native_hard_internal_evidence=native_hard_internal_evidence,
         native_real_hkclass_metadata=native_real_hkclass_metadata,
+        native_real_hkclass_metadata_v2=native_real_hkclass_metadata_v2,
+        native_fixup_semantics_v2=native_fixup_semantics_v2,
+        native_semantic_model_v1=native_semantic_model_v1,
+        native_semantic_writer_gate_v1=native_semantic_writer_gate_v1,
+        native_edit_candidate_map_v1=native_edit_candidate_map_v1,
+        native_hkx_edit_gate_v1=native_hkx_edit_gate_v1,
+        native_class_decoder_evidence_v2=native_class_decoder_evidence_v2,
+        native_decoder_evidence_v2=native_decoder_evidence_v2,
+        native_modding_readiness=native_modding_readiness,
         native_no_edit_binary_writer=native_no_edit_binary_writer,
         warnings=warnings,
     )
@@ -6281,6 +6638,15 @@ def _hkx_native_summary_parts(
         List[str],
         List[Dict[str, object]],
         List[Dict[str, object]],
+        Dict[str, object],
+        Dict[str, object],
+        Dict[str, object],
+        Dict[str, object],
+        Dict[str, object],
+        Dict[str, object],
+        Dict[str, object],
+        Dict[str, object],
+        Dict[str, object],
         Dict[str, object],
         Dict[str, object],
         Dict[str, object],
@@ -6376,6 +6742,51 @@ def _hkx_native_summary_parts(
             if isinstance(native.get("real_hkclass_metadata"), Mapping)
             else {}
         )
+        native_real_hkclass_metadata_v2 = (
+            dict(native.get("real_hkclass_metadata_v2") or {})
+            if isinstance(native.get("real_hkclass_metadata_v2"), Mapping)
+            else {}
+        )
+        native_fixup_semantics_v2 = (
+            dict(native.get("fixup_semantics_v2") or {})
+            if isinstance(native.get("fixup_semantics_v2"), Mapping)
+            else {}
+        )
+        native_semantic_model_v1 = (
+            dict(native.get("semantic_model_v1") or {})
+            if isinstance(native.get("semantic_model_v1"), Mapping)
+            else {}
+        )
+        native_semantic_writer_gate_v1 = (
+            dict(native.get("semantic_writer_gate_v1") or {})
+            if isinstance(native.get("semantic_writer_gate_v1"), Mapping)
+            else {}
+        )
+        native_edit_candidate_map_v1 = (
+            dict(native.get("edit_candidate_map_v1") or {})
+            if isinstance(native.get("edit_candidate_map_v1"), Mapping)
+            else {}
+        )
+        native_hkx_edit_gate_v1 = (
+            dict(native.get("hkx_edit_gate_v1") or {})
+            if isinstance(native.get("hkx_edit_gate_v1"), Mapping)
+            else {}
+        )
+        native_class_decoder_evidence_v2 = (
+            dict(native.get("class_decoder_evidence_v2") or {})
+            if isinstance(native.get("class_decoder_evidence_v2"), Mapping)
+            else {}
+        )
+        native_decoder_evidence_v2 = (
+            dict(native.get("decoder_evidence_v2") or {})
+            if isinstance(native.get("decoder_evidence_v2"), Mapping)
+            else {}
+        )
+        native_modding_readiness = (
+            dict(native.get("modding_readiness") or {})
+            if isinstance(native.get("modding_readiness"), Mapping)
+            else {}
+        )
         native_no_edit_binary_writer = (
             dict(native.get("no_edit_binary_writer") or {})
             if isinstance(native.get("no_edit_binary_writer"), Mapping)
@@ -6405,6 +6816,15 @@ def _hkx_native_summary_parts(
         native_model_graph,
         native_hard_internal_evidence,
         native_real_hkclass_metadata,
+        native_real_hkclass_metadata_v2,
+        native_fixup_semantics_v2,
+        native_semantic_model_v1,
+        native_semantic_writer_gate_v1,
+        native_edit_candidate_map_v1,
+        native_hkx_edit_gate_v1,
+        native_class_decoder_evidence_v2,
+        native_decoder_evidence_v2,
+        native_modding_readiness,
         native_no_edit_binary_writer,
     )
 
@@ -8218,7 +8638,10 @@ def _hkx_decode_gap_friendly_label(category: str, status: str) -> str:
     return "Readable, not fully mapped"
 
 
-def _hkx_decode_gap_summary_document(converter_report: Mapping[str, object]) -> Dict[str, object]:
+def _hkx_decode_gap_summary_document(
+    converter_report: Mapping[str, object],
+    decoder_evidence_v2: Optional[Mapping[str, object]] = None,
+) -> Dict[str, object]:
     coverage_rows = converter_report.get("decode_coverage_by_type")
     if not isinstance(coverage_rows, list):
         coverage_rows = []
@@ -8248,6 +8671,26 @@ def _hkx_decode_gap_summary_document(converter_report: Mapping[str, object]) -> 
         if editable_slots > 0 and unresolved_bytes <= 0 and raw_bytes <= 0:
             continue
         category, status_reason, missing_requirements = _hkx_missing_decoder_requirements_for_type(type_name)
+        evidence_row: Optional[Mapping[str, object]] = None
+        evidence_class_rows = (
+            decoder_evidence_v2.get("class_statuses")
+            if isinstance(decoder_evidence_v2, Mapping)
+            else None
+        )
+        if isinstance(evidence_class_rows, list):
+            found_evidence_row = next(
+                (
+                    item
+                    for item in evidence_class_rows
+                    if isinstance(item, Mapping) and str(item.get("type_name") or "") == type_name
+                ),
+                None,
+            )
+            if isinstance(found_evidence_row, Mapping):
+                evidence_row = found_evidence_row
+                evidence_missing = evidence_row.get("missing_requirements")
+                if isinstance(evidence_missing, list) and evidence_missing:
+                    missing_requirements = [str(value) for value in evidence_missing if str(value).strip()]
         unresolved_volume = raw_bytes or unresolved_bytes or max(0, byte_length - typed_bytes)
         if unresolved_volume <= 0 and partial_records > 0:
             unresolved_volume = candidate_bytes or byte_length
@@ -8270,7 +8713,11 @@ def _hkx_decode_gap_summary_document(converter_report: Mapping[str, object]) -> 
                 "reference_candidate_count": int(row.get("reference_candidate_count") or 0),
                 "decode_category": category,
                 "status": gap_status,
-                "friendly_status_label": _hkx_decode_gap_friendly_label(category, gap_status),
+                "friendly_status_label": (
+                    str(evidence_row.get("friendly_status"))
+                    if evidence_row is not None and evidence_row.get("friendly_status")
+                    else _hkx_decode_gap_friendly_label(category, gap_status)
+                ),
                 "what_this_means": status_reason,
                 "what_is_missing": "; ".join(str(value) for value in missing_requirements if str(value).strip()),
                 "missing_requirements": missing_requirements,
@@ -10052,7 +10499,7 @@ def _hkx_havok_class_metadata(
 
 
 def _hkx_real_hkclass_metadata_by_name(summary: HkxTagfileSummary) -> Dict[str, Dict[str, object]]:
-    report = summary.native_real_hkclass_metadata
+    report = summary.native_real_hkclass_metadata_v2 if isinstance(summary.native_real_hkclass_metadata_v2, Mapping) and summary.native_real_hkclass_metadata_v2 else summary.native_real_hkclass_metadata
     if not isinstance(report, Mapping):
         return {}
     classes = report.get("classes")
@@ -10062,7 +10509,7 @@ def _hkx_real_hkclass_metadata_by_name(summary: HkxTagfileSummary) -> Dict[str, 
     for row in classes:
         if not isinstance(row, Mapping):
             continue
-        name = str(row.get("name") or "")
+        name = str(row.get("class_name") or row.get("name") or "")
         if name:
             by_name[name] = dict(row)
     return by_name
@@ -10076,7 +10523,7 @@ def _hkx_real_hkclass_member_rows(real_class: Mapping[str, object]) -> List[Dict
     for member in members:
         if not isinstance(member, Mapping):
             continue
-        member_type = str(member.get("type_name") or "")
+        member_type = str(member.get("type_name") or member.get("member_type_name") or "")
         subtype = str(member.get("subtype_name") or "")
         class_ref = str(member.get("class_ref_name") or "")
         enum_ref = str(member.get("enum_ref_name") or "")
@@ -10096,7 +10543,7 @@ def _hkx_real_hkclass_member_rows(real_class: Mapping[str, object]) -> List[Dict
                 if class_ref
                 else "none",
                 "member_type": member_type,
-                "member_type_code": member.get("type_code"),
+                "member_type_code": member.get("type_code") if member.get("type_code") is not None else member.get("member_type_code"),
                 "subtype": subtype,
                 "subtype_code": member.get("subtype_code"),
                 "class_ref": class_ref,
@@ -10134,7 +10581,7 @@ def _hkx_real_hkclass_metadata_document(real_class: Mapping[str, object], member
     ] if isinstance(real_class.get("unresolved_requirements"), list) else []
     signature_hex = str(real_class.get("signature_hex") or "")
     return {
-        "parent": str(real_class.get("parent_name") or ""),
+        "parent": str(real_class.get("parent_name") or real_class.get("base_class") or ""),
         "object_size": real_class.get("object_size"),
         "version": real_class.get("version"),
         "flags": str(real_class.get("flags") if real_class.get("flags") is not None else "FLAGS_NONE"),
@@ -11847,6 +12294,15 @@ def _hkx_native_backend_document(summary: HkxTagfileSummary) -> Dict[str, object
     native_model_graph = dict(summary.native_model_graph or {})
     hard_internal_evidence = dict(summary.native_hard_internal_evidence or {})
     native_real_hkclass_metadata = dict(summary.native_real_hkclass_metadata or {})
+    native_real_hkclass_metadata_v2 = dict(summary.native_real_hkclass_metadata_v2 or {})
+    native_fixup_semantics_v2 = dict(summary.native_fixup_semantics_v2 or {})
+    native_semantic_model_v1 = dict(summary.native_semantic_model_v1 or {})
+    native_semantic_writer_gate_v1 = dict(summary.native_semantic_writer_gate_v1 or {})
+    native_edit_candidate_map_v1 = dict(summary.native_edit_candidate_map_v1 or {})
+    native_hkx_edit_gate_v1 = dict(summary.native_hkx_edit_gate_v1 or {})
+    native_class_decoder_evidence_v2 = dict(summary.native_class_decoder_evidence_v2 or {})
+    native_decoder_evidence_v2 = dict(summary.native_decoder_evidence_v2 or {})
+    native_modding_readiness = dict(summary.native_modding_readiness or {})
     no_edit_binary_writer = dict(summary.native_no_edit_binary_writer or {})
     decoded_object_count = sum(
         1
@@ -11874,6 +12330,15 @@ def _hkx_native_backend_document(summary: HkxTagfileSummary) -> Dict[str, object
             or native_model_graph
             or hard_internal_evidence
             or native_real_hkclass_metadata
+            or native_real_hkclass_metadata_v2
+            or native_fixup_semantics_v2
+            or native_semantic_model_v1
+            or native_semantic_writer_gate_v1
+            or native_edit_candidate_map_v1
+            or native_hkx_edit_gate_v1
+            or native_class_decoder_evidence_v2
+            or native_decoder_evidence_v2
+            or native_modding_readiness
             or no_edit_binary_writer
         ),
         "backend": "native_rust_cd_hkx",
@@ -11895,6 +12360,13 @@ def _hkx_native_backend_document(summary: HkxTagfileSummary) -> Dict[str, object
         "fixup_semantics_remaining_case_count": len(fixup_semantics_report.get("ptch_remaining_case_priorities") or [])
         if isinstance(fixup_semantics_report.get("ptch_remaining_case_priorities"), list)
         else 0,
+        "fixup_semantics_v2_status": native_fixup_semantics_v2.get("status", ""),
+        "fixup_semantics_v2_patch_site_count": int(native_fixup_semantics_v2.get("patch_site_count") or 0),
+        "fixup_semantics_v2_semantic_bucket_counts": dict(
+            native_fixup_semantics_v2.get("semantic_bucket_counts") or {}
+        )
+        if isinstance(native_fixup_semantics_v2.get("semantic_bucket_counts"), Mapping)
+        else {},
         "native_model_graph_status": native_model_graph.get("status", ""),
         "native_model_graph_node_count": int(native_model_graph.get("node_count") or 0),
         "native_model_graph_edge_count": int(native_model_graph.get("edge_count") or 0),
@@ -11935,6 +12407,61 @@ def _hkx_native_backend_document(summary: HkxTagfileSummary) -> Dict[str, object
         )
         if isinstance(native_real_hkclass_metadata.get("unresolved_requirements"), list)
         else [],
+        "real_hkclass_metadata_v2_status": native_real_hkclass_metadata_v2.get("status", ""),
+        "real_hkclass_metadata_v2_class_count": int(native_real_hkclass_metadata_v2.get("class_count") or 0),
+        "real_hkclass_metadata_v2_member_count": int(native_real_hkclass_metadata_v2.get("member_count") or 0),
+        "real_hkclass_metadata_v2_synthetic_fallback_required": bool(
+            native_real_hkclass_metadata_v2.get("synthetic_fallback_required")
+        ),
+        "semantic_model_v1_status": native_semantic_model_v1.get("status", ""),
+        "semantic_model_v1_object_count": int(native_semantic_model_v1.get("object_count") or 0),
+        "semantic_model_v1_field_count": int(native_semantic_model_v1.get("field_count") or 0),
+        "semantic_model_v1_raw_fallback_count": int(native_semantic_model_v1.get("raw_fallback_count") or 0),
+        "semantic_writer_gate_v1_status": native_semantic_writer_gate_v1.get("status", ""),
+        "semantic_writer_gate_v1_enabled": bool(native_semantic_writer_gate_v1.get("enabled")),
+        "semantic_writer_gate_v1_havok_xml_import_unblocked": bool(
+            native_semantic_writer_gate_v1.get("havok_xml_import_unblocked")
+        ),
+        "semantic_writer_gate_v1_required_role_count": len(
+            native_semantic_writer_gate_v1.get("required_role_coverage") or []
+        )
+        if isinstance(native_semantic_writer_gate_v1.get("required_role_coverage"), list)
+        else 0,
+        "semantic_writer_gate_v1_representative_role_gate_count": len(
+            native_semantic_writer_gate_v1.get("representative_role_gates") or []
+        )
+        if isinstance(native_semantic_writer_gate_v1.get("representative_role_gates"), list)
+        else 0,
+        "edit_candidate_map_v1_status": native_edit_candidate_map_v1.get("status", ""),
+        "edit_candidate_map_v1_candidate_count": int(native_edit_candidate_map_v1.get("candidate_count") or 0),
+        "edit_candidate_map_v1_write_enabled_candidate_count": int(
+            native_edit_candidate_map_v1.get("write_enabled_candidate_count") or 0
+        ),
+        "hkx_edit_gate_v1_status": native_hkx_edit_gate_v1.get("status", ""),
+        "hkx_edit_gate_v1_write_enabled_candidate_count": int(
+            native_hkx_edit_gate_v1.get("write_enabled_candidate_count") or 0
+        ),
+        "hkx_edit_gate_v1_candidate_only_count": int(native_hkx_edit_gate_v1.get("candidate_only_count") or 0),
+        "class_decoder_evidence_v2_status": native_class_decoder_evidence_v2.get("status", ""),
+        "class_decoder_evidence_v2_class_status_count": int(
+            native_class_decoder_evidence_v2.get("class_status_count") or 0
+        ),
+        "decoder_evidence_v2_status": native_decoder_evidence_v2.get("status", ""),
+        "decoder_evidence_v2_class_status_count": int(native_decoder_evidence_v2.get("class_status_count") or 0),
+        "decoder_evidence_v2_priority_class_count": int(native_decoder_evidence_v2.get("priority_class_count") or 0),
+        "decoder_evidence_v2_unresolved_or_packed_case_count": int(
+            native_decoder_evidence_v2.get("unresolved_or_packed_case_count") or 0
+        ),
+        "decoder_evidence_v2_reference_semantic_counts": dict(
+            native_decoder_evidence_v2.get("reference_semantic_counts") or {}
+        )
+        if isinstance(native_decoder_evidence_v2.get("reference_semantic_counts"), Mapping)
+        else {},
+        "decoder_evidence_v2_link_evidence_counts": dict(
+            native_decoder_evidence_v2.get("link_evidence_counts") or {}
+        )
+        if isinstance(native_decoder_evidence_v2.get("link_evidence_counts"), Mapping)
+        else {},
         "no_edit_binary_writer_status": no_edit_binary_writer.get("status", ""),
         "no_edit_binary_writer_available": bool(no_edit_binary_writer.get("available")),
         "native_read_model_write_available": bool(no_edit_binary_writer.get("native_read_model_write_available")),
@@ -11943,16 +12470,372 @@ def _hkx_native_backend_document(summary: HkxTagfileSummary) -> Dict[str, object
         ),
         "no_edit_roundtrip_mode": str(no_edit_binary_writer.get("no_edit_roundtrip_mode") or ""),
         "read_model_write_pipeline": str(no_edit_binary_writer.get("read_model_write_pipeline") or ""),
+        "modding_readiness_status": native_modding_readiness.get("status", ""),
+        "modding_readiness_per_file_label": native_modding_readiness.get("per_file_label", ""),
+        "modding_readiness_fixed_size_patch_importable": bool(
+            native_modding_readiness.get("fixed_size_patch_importable")
+        ),
+        "modding_readiness_havok_xml_importable": bool(native_modding_readiness.get("havok_xml_importable")),
+        "modding_readiness_new_editable_fields_enabled": bool(
+            native_modding_readiness.get("new_editable_fields_enabled")
+        ),
+        "modding_readiness_patchable_slot_count": int(native_modding_readiness.get("patchable_slot_count") or 0),
+        "modding_readiness_decoded_object_count": int(native_modding_readiness.get("decoded_object_count") or 0),
+        "modding_readiness": native_modding_readiness,
         "object_records": object_records[:512],
         "tagfile_reference_fixups": tagfile_reference_fixups,
         "fixup_semantics_report": fixup_semantics_report,
+        "fixup_semantics_v2": native_fixup_semantics_v2,
         "native_model_graph": native_model_graph,
+        "semantic_model_v1": native_semantic_model_v1,
         "hard_internal_evidence": hard_internal_evidence,
         "real_hkclass_metadata": native_real_hkclass_metadata,
+        "real_hkclass_metadata_v2": native_real_hkclass_metadata_v2,
+        "decoder_evidence_v2": native_decoder_evidence_v2,
+        "semantic_writer_gate_v1": native_semantic_writer_gate_v1,
+        "edit_candidate_map_v1": native_edit_candidate_map_v1,
+        "hkx_edit_gate_v1": native_hkx_edit_gate_v1,
+        "class_decoder_evidence_v2": native_class_decoder_evidence_v2,
         "no_edit_binary_writer": no_edit_binary_writer,
         "physics_tuning_groups": physics_tuning_groups[:256],
         "truncated_object_records": max(0, len(object_records) - 512),
         "truncated_physics_tuning_groups": max(0, len(physics_tuning_groups) - 256),
+    }
+
+
+def _hkx_decoder_evidence_v2_document(
+    summary: HkxTagfileSummary,
+    converter_report: Mapping[str, object],
+    native_backend: Mapping[str, object],
+) -> Dict[str, object]:
+    native_evidence = dict(summary.native_decoder_evidence_v2 or {})
+    if native_evidence:
+        class_statuses = [
+            dict(row)
+            for row in native_evidence.get("class_statuses", [])
+            if isinstance(row, Mapping)
+        ]
+        fixup_backed_fields = [
+            dict(row)
+            for row in native_evidence.get("fixup_backed_fields", [])
+            if isinstance(row, Mapping)
+        ]
+        return {
+            "format": "cdmw_hkx_decoder_evidence_v2",
+            "native_format": str(native_evidence.get("format") or ""),
+            "status": str(native_evidence.get("status") or "read_only_native_evidence"),
+            "source": "native_rust_cd_hkx",
+            "imported": False,
+            "read_only": True,
+            "description": (
+                "Normalized read-only HKX decoder evidence. It joins native fixup/PTCH semantics, graph links, "
+                "owner-array context, and per-class decode gaps so the editor can show why something is linked."
+            ),
+            "reference_semantic_counts": dict(native_evidence.get("reference_semantic_counts") or {})
+            if isinstance(native_evidence.get("reference_semantic_counts"), Mapping)
+            else {},
+            "link_evidence_counts": dict(native_evidence.get("link_evidence_counts") or {})
+            if isinstance(native_evidence.get("link_evidence_counts"), Mapping)
+            else {},
+            "class_status_count": int(native_evidence.get("class_status_count") or len(class_statuses)),
+            "priority_class_count": int(native_evidence.get("priority_class_count") or 0),
+            "total_partial_byte_count": int(native_evidence.get("total_partial_byte_count") or 0),
+            "unresolved_or_packed_case_count": int(native_evidence.get("unresolved_or_packed_case_count") or 0),
+            "owner_array_count": int(native_evidence.get("owner_array_count") or native_backend.get("native_model_graph_owner_array_count") or 0),
+            "class_statuses": class_statuses[:256],
+            "truncated_class_status_count": max(0, len(class_statuses) - 256),
+            "fixup_backed_fields": fixup_backed_fields[:256],
+            "truncated_fixup_backed_field_count": max(0, len(fixup_backed_fields) - 256),
+            "edit_policy": {
+                "new_editable_fields_enabled": False,
+                "allowed_edits": "existing fixed-size CDMW patch paths only",
+                "blocked_edits": [
+                    "mesh topology/count edits",
+                    "reference edits",
+                    "string edits",
+                    "array count edits",
+                    "Havok XML import",
+                ],
+            },
+        }
+
+    coverage_rows = converter_report.get("decode_coverage_by_type")
+    class_statuses: List[Dict[str, object]] = []
+    if isinstance(coverage_rows, list):
+        for row in coverage_rows:
+            if not isinstance(row, Mapping):
+                continue
+            type_name = str(row.get("type_name") or "")
+            if not type_name:
+                continue
+            category, _reason, missing = _hkx_missing_decoder_requirements_for_type(type_name)
+            status_counts = row.get("status_counts") if isinstance(row.get("status_counts"), Mapping) else {}
+            status = (
+                "raw_preserved"
+                if int(status_counts.get("raw_preserved") or status_counts.get("raw") or 0)
+                else "partially_decoded"
+                if int(status_counts.get("partially_decoded") or 0)
+                else "decoded"
+            )
+            class_statuses.append(
+                {
+                    "type_name": type_name,
+                    "record_count": int(row.get("record_count") or 0),
+                    "byte_count": int(row.get("byte_length") or 0),
+                    "decoded_field_count": int(row.get("decoded_field_count") or 0),
+                    "reference_count": int(row.get("reference_candidate_count") or 0),
+                    "editable_field_count": int(row.get("editable_slot_count") or 0),
+                    "status": status,
+                    "friendly_status": _hkx_decode_gap_friendly_label(category, status),
+                    "missing_requirements": missing,
+                    "link_evidence": ["raw_observation"],
+                    "corpus_priority_score": int(row.get("byte_length") or 0) + len(missing) * 256,
+                    "read_only": True,
+                }
+            )
+    class_statuses.sort(key=lambda row: (-int(row.get("corpus_priority_score") or 0), str(row.get("type_name") or "")))
+    return {
+        "format": "cdmw_hkx_decoder_evidence_v2",
+        "native_format": "",
+        "status": "python_synthetic_decoder_evidence",
+        "source": "python_converter_report",
+        "imported": False,
+        "read_only": True,
+        "description": "Synthetic read-only decoder evidence built from the Python converter report because native evidence was unavailable.",
+        "reference_semantic_counts": {},
+        "link_evidence_counts": {"raw_observation": len(class_statuses)} if class_statuses else {},
+        "class_status_count": len(class_statuses),
+        "priority_class_count": sum(1 for row in class_statuses if row.get("missing_requirements")),
+        "total_partial_byte_count": sum(int(row.get("byte_count") or 0) for row in class_statuses),
+        "unresolved_or_packed_case_count": 0,
+        "owner_array_count": int(native_backend.get("native_model_graph_owner_array_count") or 0),
+        "class_statuses": class_statuses[:256],
+        "truncated_class_status_count": max(0, len(class_statuses) - 256),
+        "fixup_backed_fields": [],
+        "truncated_fixup_backed_field_count": 0,
+        "edit_policy": {
+            "new_editable_fields_enabled": False,
+            "allowed_edits": "existing fixed-size CDMW patch paths only",
+            "blocked_edits": ["Havok XML import", "reference edits", "array count edits"],
+        },
+    }
+
+
+def _hkx_modding_readiness_document(
+    summary: HkxTagfileSummary,
+    converter_report: Mapping[str, object],
+    native_backend: Mapping[str, object],
+    decoder_evidence_v2: Mapping[str, object],
+    hkclass_metadata_readiness: Mapping[str, object],
+) -> Dict[str, object]:
+    native_readiness = (
+        dict(summary.native_modding_readiness or {})
+        if isinstance(summary.native_modding_readiness, Mapping)
+        else {}
+    )
+    no_edit_writer = (
+        dict(native_backend.get("no_edit_binary_writer") or {})
+        if isinstance(native_backend.get("no_edit_binary_writer"), Mapping)
+        else {}
+    )
+    editable_record_count = int(converter_report.get("editable_record_count") or 0)
+    decoded_object_count = int(native_backend.get("decoded_object_count") or 0)
+    native_patchable_slot_count = int(native_backend.get("modding_readiness_patchable_slot_count") or 0)
+    patchable_slot_count = max(editable_record_count, native_patchable_slot_count)
+    class_status_count = int(decoder_evidence_v2.get("class_status_count") or 0)
+    priority_class_count = int(decoder_evidence_v2.get("priority_class_count") or 0)
+    fixed_size_patch_importable = patchable_slot_count > 0
+    havok_xml_importable = False
+    semantic_rebuild_supported = bool(no_edit_writer.get("semantic_rebuild_supported"))
+    byte_identical_no_edit = bool(no_edit_writer.get("byte_identical_no_edit_rebuild_supported"))
+    labels: List[str] = []
+    native_labels = native_readiness.get("readiness_labels") if isinstance(native_readiness, Mapping) else None
+    if isinstance(native_labels, list):
+        labels.extend(str(label) for label in native_labels if str(label).strip())
+    if fixed_size_patch_importable and "Patchable tuning" not in labels:
+        labels.append("Patchable tuning")
+    if (decoded_object_count > 0 or class_status_count > 0) and "Read-only decoded" not in labels:
+        labels.append("Read-only decoded")
+    if (
+        priority_class_count > 0
+        or not semantic_rebuild_supported
+        or bool(hkclass_metadata_readiness.get("biggest_remaining_gate"))
+    ) and "Needs semantic rebuild" not in labels:
+        labels.append("Needs semantic rebuild")
+    if not labels:
+        labels.append("Unsupported structure")
+    per_file_label = (
+        str(native_readiness.get("per_file_label") or "").strip()
+        if isinstance(native_readiness, Mapping)
+        else ""
+    )
+    if not per_file_label:
+        per_file_label = (
+            "Patchable tuning"
+            if fixed_size_patch_importable
+            else "Read-only decoded"
+            if decoded_object_count > 0 or class_status_count > 0
+            else "Unsupported structure"
+        )
+    status = (
+        str(native_readiness.get("status") or "").strip()
+        if isinstance(native_readiness, Mapping)
+        else ""
+    )
+    if not status:
+        status = (
+            "fixed_size_patchable"
+            if fixed_size_patch_importable
+            else "read_only_decoded"
+            if decoded_object_count > 0 or class_status_count > 0
+            else "unsupported_structure"
+        )
+    gate = (
+        dict(native_readiness.get("semantic_writer_gate") or {})
+        if isinstance(native_readiness.get("semantic_writer_gate"), Mapping)
+        else {}
+    )
+    allowed_edits = gate.get("allowed_edits") if isinstance(gate.get("allowed_edits"), list) else []
+    blocked_edits = gate.get("blocked_edits") if isinstance(gate.get("blocked_edits"), list) else []
+    requirements = gate.get("requirements") if isinstance(gate.get("requirements"), list) else []
+    task_groups = [
+        dict(group)
+        for group in native_readiness.get("task_groups", [])
+        if isinstance(group, Mapping)
+    ] if isinstance(native_readiness.get("task_groups"), list) else []
+    if not task_groups:
+        class_rows = [
+            row for row in decoder_evidence_v2.get("class_statuses", []) if isinstance(row, Mapping)
+        ]
+
+        def _count_class_records(*needles: str) -> int:
+            return sum(
+                int(row.get("record_count") or 0)
+                for row in class_rows
+                if any(needle in str(row.get("type_name") or "") for needle in needles)
+            )
+
+        task_groups = [
+            {
+                "key": "collision_size",
+                "label": "Collision size",
+                "readiness_label": "Read-only decoded",
+                "patchable_slot_count": 0,
+                "context_record_count": _count_class_records("hknpConvexShape", "hknpMeshShape", "hknpCompoundShape"),
+                "risk": "Low when patchable",
+                "import_safe": False,
+                "evidence": ["decoder_evidence"],
+                "description": "Collision shapes and mesh/compound shape context.",
+            },
+            {
+                "key": "body_transform",
+                "label": "Body transform",
+                "readiness_label": "Patchable tuning" if fixed_size_patch_importable else "Read-only decoded",
+                "patchable_slot_count": patchable_slot_count,
+                "context_record_count": _count_class_records("ExtendedBodyCinfo"),
+                "risk": "High",
+                "import_safe": fixed_size_patch_importable,
+                "evidence": ["fixed_size_patch_map", "decoder_evidence"],
+                "description": "Body construction rows, transform-like values, and mass/inertia-like context.",
+            },
+            {
+                "key": "joint_limits_strength",
+                "label": "Joint limits / strength",
+                "readiness_label": "Read-only decoded",
+                "patchable_slot_count": 0,
+                "context_record_count": _count_class_records("Constraint", "Motor"),
+                "risk": "Medium to High",
+                "import_safe": False,
+                "evidence": ["decoder_evidence"],
+                "description": "Constraints and motors. Only explicit fixed-size rows are import-safe.",
+            },
+        ]
+    return {
+        "format": "cdmw_hkx_modding_readiness_v1",
+        "native_format": str(native_readiness.get("format") or ""),
+        "status": status,
+        "source": "native_rust_cd_hkx" if native_readiness else "python_converter_report",
+        "imported": False,
+        "read_only": True,
+        "per_file_label": per_file_label,
+        "readiness_labels": labels,
+        "fixed_size_patch_importable": fixed_size_patch_importable,
+        "havok_xml_importable": havok_xml_importable,
+        "new_editable_fields_enabled": False,
+        "decoded_object_count": decoded_object_count,
+        "patchable_slot_count": patchable_slot_count,
+        "fixup_backed_reference_edge_count": int(native_backend.get("native_model_graph_fixup_backed_reference_edge_count") or 0),
+        "owner_array_count": int(native_backend.get("native_model_graph_owner_array_count") or 0),
+        "unresolved_or_packed_case_count": int(decoder_evidence_v2.get("unresolved_or_packed_case_count") or 0),
+        "modding_path": "CDMW fixed-size patch XML/JSON only",
+        "havok_xml_policy": "read_only_view",
+        "description": (
+            "Per-file HKX modding readiness. This labels what can be patched today and what is only decoded evidence; "
+            "it does not make Havok XML importable."
+        ),
+        "semantic_writer_gate": {
+            "status": str(gate.get("status") or "disabled_pending_semantic_rebuild"),
+            "mode": str(gate.get("mode") or "fixed_size_patch_only"),
+            "enabled": False,
+            "raw_preserving_no_edit_writer_required": True,
+            "semantic_rebuild_supported": semantic_rebuild_supported,
+            "fixed_size_value_edits_allowed": True,
+            "havok_xml_import_unblocked": False,
+            "no_edit_binary_writer_status": str(no_edit_writer.get("status") or "not_started"),
+            "byte_identical_no_edit_rebuild_supported": byte_identical_no_edit,
+            "read_model_write_pipeline": str(no_edit_writer.get("read_model_write_pipeline") or ""),
+            "allowed_edits": [str(edit) for edit in allowed_edits] or ["existing fixed-size CDMW patch rows"],
+            "blocked_edits": [str(edit) for edit in blocked_edits]
+            or [
+                "Havok XML import",
+                "array count edits",
+                "reference edits",
+                "string edits",
+                "mesh topology edits",
+                "semantic object graph rebuild",
+            ],
+            "requirements": [str(requirement) for requirement in requirements]
+            or [
+                "byte-identical no-edit rebuild across representative corpus",
+                "fixup-backed object/data/string/type reference semantics",
+                "owner-array element typing",
+                "root/container/named-variant semantics",
+                "fixed-edit byte identity tests",
+            ],
+        },
+        "external_tool_references": [
+            {
+                "name": "hkxcmd",
+                "use": "XML/KF workflow terminology reference",
+                "limitation": "Targets Skyrim-era Havok 2010.2; not a direct Crimson Desert tagfile rebuild path.",
+                "integration": "optional_reference_only",
+            },
+            {
+                "name": "HKXPack",
+                "use": "TagXML formatting and parity comparison reference",
+                "limitation": "Targets Fallout 4 Havok 2014.1; useful for format ideas, not direct import support.",
+                "integration": "optional_reference_only",
+            },
+            {
+                "name": "HavokLib",
+                "use": "Animation/root/container class metadata reference",
+                "limitation": "No tagfile support and GPL licensing; do not copy code into CDMW.",
+                "integration": "metadata_reference_only",
+            },
+            {
+                "name": "serde-hkx CLI",
+                "use": "Byte-diff, dependency-tree, and debug UX reference",
+                "limitation": "External comparison idea only; CDMW keeps its Crimson Desert decoder native.",
+                "integration": "optional_reference_only",
+            },
+            {
+                "name": "Blender HKX / DSAnimStudio-style UX",
+                "use": "Skeleton and animation browsing workflow reference",
+                "limitation": "UX reference only; physics/tagfile decoder stays CDMW-native.",
+                "integration": "ux_reference_only",
+            },
+        ],
+        "task_groups": task_groups,
     }
 
 
@@ -15768,6 +16651,69 @@ def _hkx_decode_patch_map_original_value(original_bytes: bytes, value_type: str)
     return original_bytes.hex(" ").upper()
 
 
+def _hkx_patch_map_risk_label(confidence: str, category: str, name: str) -> str:
+    confidence_key = str(confidence or "").strip().lower()
+    haystack = f"{category} {name}".casefold()
+    if confidence_key in {"confirmed", "strong inference", "strong_inference"}:
+        if any(token in haystack for token in ("transform", "orientation", "mass", "inertia", "shape_payload")):
+            return "high"
+        return "medium"
+    if confidence_key in {"descriptor_context", "descriptor-context"}:
+        return "medium"
+    return "high"
+
+
+def _hkx_patch_map_structural_kind(value_type: str, category: str, name: str) -> str:
+    haystack = f"{category} {name} {value_type}".casefold()
+    if any(token in haystack for token in ("topology", "primitive_count", "shape_tag", "aabb", "array", "ref", "string", "count")):
+        return "structural_blocked"
+    if "float" in haystack or "f32" in haystack:
+        return "fixed_size_numeric"
+    if "uint" in haystack or "int" in haystack or "byte" in haystack:
+        return "fixed_size_integer"
+    return "fixed_size_value"
+
+
+def _hkx_patch_map_link_evidence(category: str, name: str, confidence: str) -> str:
+    haystack = f"{category} {name}".casefold()
+    if "physics_tuning" in haystack or "motor" in haystack or "constraint" in haystack or "body" in haystack:
+        return "typed_layout"
+    if "collision_shape" in haystack or "shape" in haystack or "radius" in haystack or "capsule" in haystack:
+        return "typed_layout"
+    if str(confidence or "").strip().lower() in {"confirmed", "strong inference", "strong_inference"}:
+        return "inferred"
+    return "context"
+
+
+def _hkx_patch_map_task_key(category: str, name: str, owner_class: str = "", member: str = "", description: str = "") -> str:
+    haystack = f"{category} {name} {owner_class} {member} {description}".casefold()
+    if any(token in haystack for token in ("material", "friction", "restitution", "surface")):
+        return "material_friction"
+    if any(token in haystack for token in ("damping", "motion", "velocity", "sharedmotion")):
+        return "damping_motion"
+    if any(token in haystack for token in ("constraint", "motor", "stiffness", "strength", "force", "torque", "limit", "hinge", "ragdoll")):
+        return "joint_strength"
+    if any(token in haystack for token in ("body", "transform", "orientation", "mass")):
+        return "body_transform"
+    if any(token in haystack for token in ("primitive", "winding", "aabb", "topology")):
+        return "mesh_winding"
+    if any(token in haystack for token in ("collision", "shape", "radius", "capsule", "sphere", "extent", "vertex", "plane")):
+        return "collision_size"
+    return "inspect_only"
+
+
+def _hkx_patch_map_task_label(task_key: object) -> str:
+    return {
+        "collision_size": "Collision Size",
+        "body_transform": "Body Transform",
+        "joint_strength": "Joint Strength",
+        "damping_motion": "Damping / Motion",
+        "material_friction": "Material / Friction",
+        "mesh_winding": "Mesh Winding",
+        "inspect_only": "Inspect Only",
+    }.get(str(task_key or ""), "Inspect Only")
+
+
 def _hkx_add_patch_map_entry(
     entries: List[Dict[str, object]],
     *,
@@ -15790,6 +16736,11 @@ def _hkx_add_patch_map_entry(
     value_constraints: str = "",
     edit_rule: str = "fixed_size_value_only",
     decoded_value: object = None,
+    owner_class: str = "",
+    member: str = "",
+    linked_target: str = "",
+    linked_by: str = "",
+    local_offset: Optional[int] = None,
 ) -> None:
     if not isinstance(record_index, int) or absolute_data_offset is None:
         return
@@ -15799,23 +16750,53 @@ def _hkx_add_patch_map_entry(
         original_bytes = data[absolute_patch_offset:absolute_patch_offset + byte_size]
     if decoded_value is None:
         decoded_value = _hkx_decode_patch_map_original_value(original_bytes, value_type)
+    local_offset_value = relative_offset if local_offset is None else int(local_offset)
+    risk_label = _hkx_patch_map_risk_label(confidence, category, name)
+    structural_kind = _hkx_patch_map_structural_kind(value_type, category, name)
+    link_evidence = linked_by or _hkx_patch_map_link_evidence(category, name, confidence)
+    task_key = _hkx_patch_map_task_key(category, name, owner_class or subject or category, member or name, description)
+    task_label = _hkx_patch_map_task_label(task_key)
     entry: Dict[str, object] = {
         "index": len(entries),
         "path": path,
         "category": category,
+        "category_label": task_label,
+        "task_category": task_key,
+        "task_label": task_label,
+        "owner_class": owner_class or subject or category,
+        "member": member or name,
+        "field": member or name,
         "name": name,
         "subject": subject,
         "record_index": record_index,
+        "local_offset": local_offset_value,
         "relative_offset": relative_offset,
         "hex_relative_offset": f"0x{relative_offset:X}",
+        "absolute_offset": absolute_patch_offset,
+        "absolute_offset_hex": f"0x{absolute_patch_offset:X}",
         "absolute_data_offset": absolute_patch_offset,
         "hex_absolute_data_offset": f"0x{absolute_patch_offset:X}",
         "byte_size": byte_size,
         "value_type": value_type,
+        "write_type": "f32" if value_type == "float32" else value_type,
+        "supported_write_type": "f32" if value_type == "float32" else value_type,
+        "value_kind": "fixed_size_numeric" if "float" in value_type else "fixed_size_value",
+        "structural_kind": structural_kind,
+        "import_safety": "import_safe" if structural_kind != "structural_blocked" else "read_only",
+        "risk_label": risk_label,
+        "risk": risk_label,
         "original_bytes_hex": original_bytes.hex(" ").upper(),
         "decoded_value": decoded_value,
         "edit_rule": edit_rule,
         "confidence": confidence,
+        "evidence": "current CDMW byte patch map",
+        "link_evidence": link_evidence,
+        "linked_by": link_evidence,
+        "linked_target": linked_target or subject,
+        "import_behavior": "CDMW fixed-size patch into original HKX bytes",
+        "gate_status": "enabled" if structural_kind != "structural_blocked" else "blocked",
+        "gate_reason": "exact record offset and value size recovered" if structural_kind != "structural_blocked" else "structural edits require semantic rebuild proof",
+        "fixed_edit_test_status": "existing_route",
         "effect": effect,
         "value_constraints": value_constraints,
         "description": description,
@@ -15875,6 +16856,9 @@ def _hkx_byte_patch_map_document(
                         category="collision_shape",
                         name=field_name,
                         subject=subject,
+                        owner_class=str(shape.get("shape_type") or "collision_shape"),
+                        member=field_name,
+                        linked_target=shape_label,
                         record_index=record_index,
                         absolute_data_offset=absolute,
                         relative_offset=row_index * stride + component_offset,
@@ -15903,6 +16887,9 @@ def _hkx_byte_patch_map_document(
                 category="collision_shape",
                 name=field_name,
                 subject=subject,
+                owner_class=str(shape.get("shape_type") or record_key),
+                member=field_name,
+                linked_target=shape_label,
                 record_index=record_index,
                 absolute_data_offset=absolute,
                 relative_offset=fixed_offset,
@@ -15933,6 +16920,9 @@ def _hkx_byte_patch_map_document(
                             category="collision_shape",
                             name="mass_properties",
                             subject=subject,
+                            owner_class="hknpShapeMassProperties",
+                            member="mass_properties",
+                            linked_target=shape_label,
                             record_index=record_index,
                             absolute_data_offset=absolute,
                             relative_offset=row_index * 16 + component_offsets4[component],
@@ -15963,6 +16953,9 @@ def _hkx_byte_patch_map_document(
                         category="collision_shape",
                         name=str(slot.get("name") or "shape_payload"),
                         subject=subject,
+                        owner_class=str(shape.get("shape_type") or "hknpShape"),
+                        member=str(slot.get("name") or "shape_payload"),
+                        linked_target=shape_label,
                         record_index=record_index,
                         absolute_data_offset=absolute,
                         relative_offset=offset,
@@ -16016,9 +17009,14 @@ def _hkx_byte_patch_map_document(
                         category=str(group.get("category") or "physics_tuning"),
                         name=str(slot.get("name") or ""),
                         subject=str(group.get("label") or group.get("type_name") or ""),
+                        owner_class=str(group.get("type_name") or "physics_tuning"),
+                        member=str(slot.get("name") or ""),
+                        linked_target=str(group.get("label") or group.get("type_name") or ""),
+                        linked_by="typed_layout",
                         record_index=record.index,
                         absolute_data_offset=int(record.absolute_data_offset),
                         relative_offset=item_index * stride + offset,
+                        local_offset=offset,
                         byte_size=4,
                         value_type="float32",
                         item_index=item_index,
@@ -16039,6 +17037,483 @@ def _hkx_byte_patch_map_document(
             "the importer still validates edits against the current HKX record layout before writing."
         ),
         "entries": entries,
+    }
+
+
+def _hkx_edit_gate_v1_document(
+    byte_patch_map: Optional[Mapping[str, object]],
+    edit_candidate_map_v1: object,
+    native_gate: object,
+) -> Dict[str, object]:
+    native_gate_map = dict(native_gate) if isinstance(native_gate, Mapping) else {}
+    entries = (
+        [entry for entry in byte_patch_map.get("entries", []) if isinstance(entry, Mapping)]
+        if isinstance(byte_patch_map, Mapping) and isinstance(byte_patch_map.get("entries"), list)
+        else []
+    )
+    native_candidates = (
+        [candidate for candidate in edit_candidate_map_v1.get("candidates", []) if isinstance(candidate, Mapping)]
+        if isinstance(edit_candidate_map_v1, Mapping) and isinstance(edit_candidate_map_v1.get("candidates"), list)
+        else []
+    )
+    category_rows: Dict[str, Dict[str, object]] = {}
+    task_rows: Dict[str, Dict[str, object]] = {}
+
+    def _row(category: str, owner_class: str = "") -> Dict[str, object]:
+        key = category or "unknown"
+        row = category_rows.get(key)
+        if row is None:
+            row = {
+                "category": key,
+                "owner_class": owner_class,
+                "status": "blocked",
+                "write_enabled_count": 0,
+                "candidate_only_count": 0,
+                "fixed_edit_test_status": "required",
+                "gate_reason": "no approved fixed-size patch target",
+            }
+            category_rows[key] = row
+        if owner_class and not row.get("owner_class"):
+            row["owner_class"] = owner_class
+        return row
+
+    def _task_row(task_key: object) -> Dict[str, object]:
+        key = str(task_key or "inspect_only")
+        row = task_rows.get(key)
+        if row is None:
+            row = {
+                "key": key,
+                "label": _hkx_patch_map_task_label(key),
+                "status": "blocked",
+                "write_enabled_count": 0,
+                "candidate_only_count": 0,
+                "fixed_edit_test_status": "required",
+                "gate_reason": "no approved fixed-size patch target",
+            }
+            task_rows[key] = row
+        return row
+
+    def _task_key_for_source(source: Mapping[str, object]) -> str:
+        explicit = source.get("task_category")
+        if explicit:
+            return str(explicit)
+        return _hkx_patch_map_task_key(
+            str(source.get("category") or ""),
+            str(source.get("name") or source.get("member") or source.get("field") or ""),
+            str(source.get("owner_class") or source.get("class") or ""),
+            str(source.get("member") or source.get("field") or ""),
+            str(source.get("description") or source.get("effect") or ""),
+        )
+
+    def _mark_task(source: Mapping[str, object], *, write_enabled: bool, candidate_only: bool = False, reason: str = "") -> None:
+        task_row = _task_row(_task_key_for_source(source))
+        if write_enabled:
+            task_row["write_enabled_count"] = int(task_row.get("write_enabled_count") or 0) + 1
+            task_row["status"] = "enabled"
+            task_row["fixed_edit_test_status"] = str(source.get("fixed_edit_test_status") or "existing_route")
+            task_row["gate_reason"] = reason or str(source.get("gate_reason") or "existing fixed-size patch route")
+        elif candidate_only:
+            task_row["candidate_only_count"] = int(task_row.get("candidate_only_count") or 0) + 1
+            if task_row.get("status") != "enabled":
+                task_row["status"] = "candidate_only"
+                task_row["fixed_edit_test_status"] = "required"
+                task_row["gate_reason"] = reason or str(source.get("gate_reason") or "decoded candidate lacks fixed-edit proof")
+
+    for entry in entries:
+        category = str(entry.get("category") or "unknown")
+        row = _row(category, str(entry.get("owner_class") or ""))
+        row["write_enabled_count"] = int(row.get("write_enabled_count") or 0) + 1
+        row["status"] = "enabled"
+        row["fixed_edit_test_status"] = str(entry.get("fixed_edit_test_status") or "existing_route")
+        row["gate_reason"] = str(entry.get("gate_reason") or "exact record offset and value size recovered")
+        _mark_task(entry, write_enabled=True, reason=str(row["gate_reason"]))
+
+    for candidate in native_candidates:
+        category = str(candidate.get("category") or candidate.get("class") or "native_candidate")
+        row = _row(category, str(candidate.get("owner_class") or candidate.get("class") or ""))
+        if bool(candidate.get("write_enabled")):
+            row["write_enabled_count"] = int(row.get("write_enabled_count") or 0) + 1
+            row["status"] = "enabled"
+            row["fixed_edit_test_status"] = str(candidate.get("fixed_edit_test_status") or "existing_route")
+            _mark_task(candidate, write_enabled=True, reason=str(candidate.get("gate_reason") or "existing fixed-size patch route"))
+        else:
+            row["candidate_only_count"] = int(row.get("candidate_only_count") or 0) + 1
+            if row.get("status") != "enabled":
+                row["status"] = "candidate_only"
+                row["fixed_edit_test_status"] = "required"
+            _mark_task(candidate, write_enabled=False, candidate_only=True)
+        row["gate_reason"] = str(candidate.get("gate_reason") or row.get("gate_reason") or "")
+
+    native_categories = native_gate_map.get("categories")
+    if isinstance(native_categories, list):
+        for native_row in native_categories:
+            if not isinstance(native_row, Mapping):
+                continue
+            row = _row(str(native_row.get("category") or "unknown"), str(native_row.get("owner_class") or ""))
+            if row.get("status") != "enabled":
+                row["status"] = str(native_row.get("status") or row.get("status") or "blocked")
+            row["candidate_only_count"] = max(
+                int(row.get("candidate_only_count") or 0),
+                int(native_row.get("candidate_only_count") or 0),
+            )
+            row["gate_reason"] = str(native_row.get("gate_reason") or row.get("gate_reason") or "")
+
+    native_task_categories = native_gate_map.get("task_categories")
+    if isinstance(native_task_categories, list):
+        for native_row in native_task_categories:
+            if not isinstance(native_row, Mapping):
+                continue
+            row = _task_row(native_row.get("key"))
+            if row.get("status") != "enabled":
+                row["status"] = str(native_row.get("status") or row.get("status") or "blocked")
+            row["write_enabled_count"] = max(
+                int(row.get("write_enabled_count") or 0),
+                int(native_row.get("write_enabled_count") or 0),
+            )
+            row["candidate_only_count"] = max(
+                int(row.get("candidate_only_count") or 0),
+                int(native_row.get("candidate_only_count") or 0),
+            )
+            row["fixed_edit_test_status"] = str(native_row.get("fixed_edit_test_status") or row.get("fixed_edit_test_status") or "")
+            row["gate_reason"] = str(native_row.get("gate_reason") or row.get("gate_reason") or "")
+
+    structural_row = _row("structural_edits", "*")
+    structural_row.update(
+        {
+            "status": "blocked",
+            "write_enabled_count": 0,
+            "fixed_edit_test_status": "blocked",
+            "gate_reason": "topology/count/reference/string/array edits require semantic rebuild proof",
+        }
+    )
+
+    required_roles = native_gate_map.get("required_role_coverage")
+    if not isinstance(required_roles, list) or not required_roles:
+        required_roles = [
+            {
+                "role": role,
+                "no_edit_status": "required",
+                "fixed_edit_status": "required",
+                "status": "representative_corpus_required",
+            }
+            for role in ("object", "meshphysics", "character_physics", "ragdoll_body", "mesh_heavy", "animation")
+        ]
+    blocked_kinds = native_gate_map.get("blocked_kinds")
+    if not isinstance(blocked_kinds, list):
+        blocked_kinds = ["array", "string", "reference", "topology", "count", "compressed_table", "class_metadata", "shape_primitive_count"]
+    write_enabled_count = sum(int(row.get("write_enabled_count") or 0) for row in category_rows.values())
+    candidate_only_count = sum(int(row.get("candidate_only_count") or 0) for row in category_rows.values())
+    for task_key in ("collision_size", "material_friction", "damping_motion", "joint_strength", "body_transform"):
+        _task_row(task_key)
+    return {
+        "format": "cdmw_hkx_edit_gate_v1",
+        "native_format": str(native_gate_map.get("format") or ""),
+        "status": str(native_gate_map.get("status") or "fixed_size_patch_gate"),
+        "imported": False,
+        "read_only": True,
+        "new_editable_fields_enabled": False,
+        "write_enabled_candidate_count": write_enabled_count,
+        "candidate_only_count": candidate_only_count,
+        "blocked_policy": str(
+            native_gate_map.get("blocked_policy")
+            or "Arrays, strings, references, topology, counts, compressed tables, and class metadata remain blocked until semantic rebuild proof."
+        ),
+        "required_role_coverage": [dict(row) for row in required_roles if isinstance(row, Mapping)],
+        "categories": sorted(category_rows.values(), key=lambda row: (str(row.get("status") or ""), str(row.get("category") or ""))),
+        "task_categories": sorted(
+            task_rows.values(),
+            key=lambda row: (
+                ["collision_size", "material_friction", "damping_motion", "joint_strength", "body_transform", "mesh_winding", "inspect_only"].index(str(row.get("key")))
+                if str(row.get("key")) in {"collision_size", "material_friction", "damping_motion", "joint_strength", "body_transform", "mesh_winding", "inspect_only"}
+                else 99
+            ),
+        ),
+        "blocked_kinds": [str(kind) for kind in blocked_kinds],
+    }
+
+
+_HKX_MODDING_WORKSPACE_TASKS: Tuple[Dict[str, object], ...] = (
+    {
+        "key": "collision_size",
+        "label": "Collision Size",
+        "terms": ("collision", "shape", "radius", "capsule", "sphere", "convex", "box", "extent", "vertex", "plane"),
+    },
+    {
+        "key": "body_transform",
+        "label": "Body Transform",
+        "terms": ("body", "transform", "orientation", "position", "quaternion", "extendedbodycinfo", "mass"),
+    },
+    {
+        "key": "joint_strength",
+        "label": "Joint Strength",
+        "terms": ("constraint", "motor", "stiffness", "strength", "force", "torque", "limit", "hinge", "ragdoll"),
+    },
+    {
+        "key": "damping_motion",
+        "label": "Damping / Motion",
+        "terms": ("damping", "drag", "motion", "velocity", "angular", "linear", "solver", "sharedmotion"),
+    },
+    {
+        "key": "material_friction",
+        "label": "Material / Friction",
+        "terms": ("material", "friction", "restitution", "surface", "filter"),
+    },
+    {
+        "key": "mesh_winding",
+        "label": "Mesh Winding",
+        "terms": ("mesh", "primitive", "winding", "triangle", "quad", "aabb", "tag", "topology", "face", "edge"),
+    },
+    {
+        "key": "inspect_only",
+        "label": "Inspect Only",
+        "terms": (),
+    },
+)
+
+
+def _hkx_workspace_task_key_for_text(*parts: object) -> str:
+    text = " ".join(str(part or "") for part in parts).casefold()
+    for task in _HKX_MODDING_WORKSPACE_TASKS:
+        key = str(task.get("key") or "")
+        if key == "inspect_only":
+            continue
+        terms = task.get("terms")
+        if isinstance(terms, tuple) and any(str(term).casefold() in text for term in terms):
+            return key
+    return "inspect_only"
+
+
+def _hkx_workspace_task_label(key: object) -> str:
+    key_text = str(key or "")
+    for task in _HKX_MODDING_WORKSPACE_TASKS:
+        if task.get("key") == key_text:
+            return str(task.get("label") or key_text)
+    return "Inspect Only"
+
+
+def _hkx_workspace_label_for_safety(value: object, *, write_enabled: bool = False, structural_kind: object = "") -> str:
+    safety = str(value or "").strip().casefold()
+    structural = str(structural_kind or "").strip().casefold()
+    if structural in {"structural_blocked", "topology", "count", "reference", "string", "array"}:
+        return "Structural blocked"
+    if write_enabled or safety in {"import_safe", "import-safe", "enabled"}:
+        return "Import-safe"
+    if safety in {"blocked", "structural_blocked"}:
+        return "Structural blocked"
+    return "Read-only candidate"
+
+
+def _hkx_workspace_label_for_value_kind(value: object) -> str:
+    key = str(value or "").strip().casefold()
+    if "fixed_size_numeric" in key or key in {"float32", "f32"}:
+        return "Fixed numeric"
+    if key in {"structural_blocked", "topology", "count", "reference", "string", "array"}:
+        return "Structural blocked"
+    return "Fixed numeric" if "fixed" in key else "Context only"
+
+
+def _hkx_workspace_label_for_link(value: object) -> str:
+    key = str(value or "").strip().casefold().replace("-", "_")
+    if key in {"fixup_backed", "ptch", "ptch_object", "exact", "exact_link"}:
+        return "Fixup-backed"
+    if key in {"owner_array", "declared_owner_array"}:
+        return "Owner-array"
+    if key in {"inferred", "typed_layout", "fixup_backed_or_inferred"}:
+        return "Inferred"
+    if key in {"spatial_fallback", "nearest"}:
+        return "Spatial fallback only"
+    return "Context only"
+
+
+def _hkx_modding_workspace_document(
+    byte_patch_map: Optional[Mapping[str, object]],
+    edit_candidate_map_v1: object,
+    hkx_edit_gate_v1: Mapping[str, object],
+    modding_readiness: Mapping[str, object],
+) -> Dict[str, object]:
+    patch_entries = (
+        [entry for entry in byte_patch_map.get("entries", []) if isinstance(entry, Mapping)]
+        if isinstance(byte_patch_map, Mapping) and isinstance(byte_patch_map.get("entries"), list)
+        else []
+    )
+    native_candidates = (
+        [candidate for candidate in edit_candidate_map_v1.get("candidates", []) if isinstance(candidate, Mapping)]
+        if isinstance(edit_candidate_map_v1, Mapping) and isinstance(edit_candidate_map_v1.get("candidates"), list)
+        else []
+    )
+    gate_categories = (
+        [row for row in hkx_edit_gate_v1.get("categories", []) if isinstance(row, Mapping)]
+        if isinstance(hkx_edit_gate_v1, Mapping) and isinstance(hkx_edit_gate_v1.get("categories"), list)
+        else []
+    )
+    gate_by_category = {str(row.get("category") or ""): row for row in gate_categories}
+    task_summaries: Dict[str, Dict[str, object]] = {
+        str(task["key"]): {
+            "key": str(task["key"]),
+            "label": str(task["label"]),
+            "patchable_count": 0,
+            "candidate_only_count": 0,
+            "blocked_count": 0,
+        }
+        for task in _HKX_MODDING_WORKSPACE_TASKS
+    }
+    rows: List[Dict[str, object]] = []
+
+    def _offset_text(row: Mapping[str, object]) -> str:
+        for key in ("absolute_offset_hex", "hex_absolute_data_offset", "offset_hex", "hex_relative_offset"):
+            value = str(row.get(key) or "").strip()
+            if value:
+                return value
+        for key in ("absolute_offset", "absolute_data_offset", "record_relative_offset", "relative_offset", "local_offset", "offset"):
+            value = row.get(key)
+            if value is None:
+                continue
+            try:
+                return f"0x{int(value):X}"
+            except (TypeError, ValueError):
+                text = str(value).strip()
+                if text:
+                    return text
+        return ""
+
+    def _row_common(source: Mapping[str, object], *, write_enabled: bool, source_kind: str) -> Dict[str, object]:
+        category = str(source.get("category") or source.get("class") or source.get("owner_class") or "unknown")
+        gate_row = gate_by_category.get(category, {})
+        structural_kind = source.get("structural_kind") or source.get("value_kind") or ""
+        value_kind = source.get("value_kind") or source.get("write_type") or source.get("supported_write_type") or ""
+        linked_by = source.get("linked_by") or source.get("link_evidence") or source.get("evidence") or ""
+        task_key = str(source.get("task_category") or "").strip() or _hkx_workspace_task_key_for_text(
+            category,
+            source.get("owner_class"),
+            source.get("member"),
+            source.get("field"),
+            source.get("name"),
+            source.get("description"),
+            source.get("effect"),
+            source.get("linked_target"),
+        )
+        safety_label = _hkx_workspace_label_for_safety(
+            source.get("import_safety") or source.get("gate_status"),
+            write_enabled=write_enabled,
+            structural_kind=structural_kind,
+        )
+        if str(source.get("gate_status") or "").strip().casefold() == "candidate_only":
+            safety_label = "Read-only candidate"
+        if str(source.get("gate_status") or "").strip().casefold() == "blocked":
+            safety_label = "Structural blocked"
+        summary = task_summaries.setdefault(
+            task_key,
+            {"key": task_key, "label": _hkx_workspace_task_label(task_key), "patchable_count": 0, "candidate_only_count": 0, "blocked_count": 0},
+        )
+        if safety_label == "Import-safe":
+            summary["patchable_count"] = int(summary.get("patchable_count") or 0) + 1
+            sort_group = "patchable"
+            sort_index = 0
+        elif safety_label == "Read-only candidate":
+            summary["candidate_only_count"] = int(summary.get("candidate_only_count") or 0) + 1
+            sort_group = "candidate_only"
+            sort_index = 1
+        else:
+            summary["blocked_count"] = int(summary.get("blocked_count") or 0) + 1
+            sort_group = "blocked"
+            sort_index = 2
+        owner_class = str(source.get("owner_class") or source.get("class") or "")
+        member = str(source.get("member") or source.get("field") or source.get("name") or "")
+        linked_target = str(source.get("linked_target") or source.get("subject") or "")
+        label = str(source.get("path") or "").strip()
+        if not label:
+            label = " ".join(part for part in (owner_class, member) if part).strip() or category
+        meaning = str(source.get("effect") or source.get("description") or source.get("gate_reason") or "")
+        original = source.get("decoded_value")
+        if original is None:
+            original = source.get("original_value")
+        if original is None:
+            original = source.get("value")
+        current = original
+        record = source.get("record_index")
+        if record is None:
+            record = source.get("record")
+        return {
+            "task": task_key,
+            "task_label": _hkx_workspace_task_label(task_key),
+            "sort_group": sort_group,
+            "sort_index": sort_index,
+            "source": source_kind,
+            "category": category,
+            "category_label": str(source.get("category_label") or source.get("task_label") or ""),
+            "label": label,
+            "owner_class": owner_class,
+            "member": member,
+            "meaning": meaning,
+            "import_safety": safety_label,
+            "structural_kind": _hkx_workspace_label_for_value_kind(value_kind or structural_kind),
+            "risk": str(source.get("risk_label") or source.get("risk") or gate_row.get("fixed_edit_test_status") or "unknown"),
+            "evidence": str(source.get("confidence") or source.get("evidence") or gate_row.get("fixed_edit_test_status") or ""),
+            "linked_by": _hkx_workspace_label_for_link(linked_by),
+            "record": "" if record is None else str(record),
+            "item": "" if source.get("item_index") is None else str(source.get("item_index")),
+            "offset": _offset_text(source),
+            "byte_size": "" if source.get("byte_size") is None else str(source.get("byte_size")),
+            "original": "" if original is None else str(original),
+            "current": "" if current is None else str(current),
+            "linked_target": linked_target,
+            "relationship_chain": " -> ".join(
+                part
+                for part in (
+                    f"body/record {record}" if str(category).casefold().find("body") >= 0 and record is not None else "",
+                    linked_target,
+                    owner_class,
+                    member,
+                )
+                if str(part or "").strip()
+            ),
+            "gate_status": str(source.get("gate_status") or gate_row.get("status") or ""),
+            "gate_reason": str(source.get("gate_reason") or gate_row.get("gate_reason") or ""),
+            "write_enabled": bool(write_enabled),
+            "import_behavior": str(source.get("import_behavior") or ""),
+        }
+
+    for entry in patch_entries:
+        rows.append(_row_common(entry, write_enabled=True, source_kind="byte_patch_map"))
+    for candidate in native_candidates:
+        rows.append(_row_common(candidate, write_enabled=bool(candidate.get("write_enabled")), source_kind="edit_candidate_map_v1"))
+
+    rows.sort(key=lambda row: (str(row.get("task") or ""), int(row.get("sort_index") or 0), str(row.get("label") or "")))
+    readiness_label = str(modding_readiness.get("per_file_label") or "")
+    if not readiness_label:
+        if any(row.get("write_enabled") for row in rows):
+            readiness_label = "Patchable tuning"
+        elif rows:
+            readiness_label = "Candidate values found"
+        else:
+            readiness_label = "Read-only decoded"
+    return {
+        "format": "cdmw_hkx_modding_workspace_v1",
+        "read_only": True,
+        "imported": False,
+        "default_view": True,
+        "description": (
+            "Guided, evidence-backed HKX physics tuning workspace. It surfaces task-filtered patchable rows first, "
+            "candidate-only rows second, and leaves unsafe structural edits blocked."
+        ),
+        "readiness_label": readiness_label,
+        "task_filters": [
+            {
+                "key": str(task["key"]),
+                "label": str(task["label"]),
+                "patchable_count": int(task_summaries.get(str(task["key"]), {}).get("patchable_count") or 0),
+                "candidate_only_count": int(task_summaries.get(str(task["key"]), {}).get("candidate_only_count") or 0),
+                "blocked_count": int(task_summaries.get(str(task["key"]), {}).get("blocked_count") or 0),
+            }
+            for task in _HKX_MODDING_WORKSPACE_TASKS
+        ],
+        "row_count": len(rows),
+        "patchable_row_count": sum(1 for row in rows if row.get("import_safety") == "Import-safe"),
+        "candidate_only_row_count": sum(1 for row in rows if row.get("import_safety") == "Read-only candidate"),
+        "blocked_row_count": sum(1 for row in rows if row.get("import_safety") == "Structural blocked"),
+        "rows": rows[:4096],
+        "truncated_row_count": max(0, len(rows) - 4096),
+        "blocked_policy": str(hkx_edit_gate_v1.get("blocked_policy") or ""),
     }
 
 
@@ -16911,6 +18386,10 @@ def _hkx_relationship_link_evidence(reference: Mapping[str, object], relation: s
     confidence = str(reference.get("confidence") or "").casefold()
     if source.startswith(("ptch", "fixup")) or category.startswith(("ptch", "fixup")) or bool(reference.get("fixup_backed")):
         return "fixup_backed"
+    if category == "array_data_reference" or source in {"native_owner_array", "owner_array"}:
+        return "declared_owner_array"
+    if source == "typed_layout":
+        return "typed_layout"
     if confidence == "confirmed" or str(relation or "").casefold() in {"has_editable_value", "writes_byte_offset", "decoded_from"}:
         return "exact"
     if category in {"object_reference", "data_reference", "type_reference", "string_reference"}:
@@ -17065,6 +18544,93 @@ def _hkx_relationship_graph_document(
     reference_edge_count = 0
     record_type_by_index = {record.index: record.type_name for record in summary.item_records}
     fixup_backed_reference_edge_count = 0
+    native_graph = summary.native_model_graph if isinstance(summary.native_model_graph, Mapping) else {}
+    native_edges = native_graph.get("edges") if isinstance(native_graph, Mapping) else None
+    if isinstance(native_edges, list):
+        for native_edge in native_edges[:3000]:
+            if not isinstance(native_edge, Mapping):
+                continue
+            source_id = str(native_edge.get("source") or "")
+            target_id = str(native_edge.get("target") or "")
+            relation = str(native_edge.get("relation") or "native_reference")
+            if not source_id or not target_id:
+                continue
+            resolution_source = str(native_edge.get("resolution_source") or "")
+            reference_category = str(native_edge.get("reference_category") or "")
+            link_evidence = (
+                "fixup_backed"
+                if resolution_source == "ptch"
+                else "declared_owner_array"
+                if reference_category == "array_data_reference"
+                else "typed_layout"
+                if resolution_source == "typed_layout"
+                else "inferred"
+                if resolution_source == "inferred_offset"
+                else "raw_observation"
+            )
+            source_record_index = native_edge.get("source_record_index")
+            target_record_index = native_edge.get("target_record_index")
+            source_type = record_type_by_index.get(source_record_index) if isinstance(source_record_index, int) else ""
+            target_type = record_type_by_index.get(target_record_index) if isinstance(target_record_index, int) else ""
+            owner_local_offset = native_edge.get("owner_local_offset")
+            _hkx_graph_add_edge(
+                edges,
+                edge_ids,
+                source_id,
+                target_id,
+                relation,
+                record_index=source_record_index,
+                target_record_index=target_record_index,
+                owner_field=native_edge.get("owner_field_name"),
+                offset=owner_local_offset,
+                hex_offset=f"0x{owner_local_offset:X}" if isinstance(owner_local_offset, int) else "",
+                reference_category=reference_category,
+                reference_source=resolution_source or "native_model_graph",
+                source_type=source_type,
+                target_type=target_type,
+                confidence=native_edge.get("confidence") or "experimental",
+                description=(
+                    "Native graph edge recovered from PTCH/fixup data."
+                    if link_evidence == "fixup_backed"
+                    else "Native graph edge recovered from owner-array context."
+                    if link_evidence == "declared_owner_array"
+                    else "Native graph edge recovered from decoded object layout."
+                ),
+                link_evidence=link_evidence,
+            )
+            reference_edge_count += 1
+            if link_evidence == "fixup_backed":
+                fixup_backed_reference_edge_count += 1
+    native_owner_arrays = native_graph.get("owner_arrays") if isinstance(native_graph, Mapping) else None
+    if isinstance(native_owner_arrays, list):
+        for owner_array in native_owner_arrays[:1000]:
+            if not isinstance(owner_array, Mapping):
+                continue
+            owner_record_index = owner_array.get("owner_record_index")
+            target_record_index = owner_array.get("target_record_index")
+            if not isinstance(owner_record_index, int) or not isinstance(target_record_index, int):
+                continue
+            field_name = str(owner_array.get("field_name") or "owner_array")
+            _hkx_graph_add_edge(
+                edges,
+                edge_ids,
+                f"record:{owner_record_index}",
+                f"record:{target_record_index}",
+                f"owner_array:{field_name}",
+                record_index=owner_record_index,
+                target_record_index=target_record_index,
+                owner_field=field_name,
+                offset=owner_array.get("owner_local_offset"),
+                reference_category="array_data_reference",
+                reference_source=owner_array.get("resolution_source") or "native_owner_array",
+                array_type=owner_array.get("array_type"),
+                element_type=owner_array.get("element_type"),
+                numelements=owner_array.get("numelements"),
+                confidence=owner_array.get("confidence") or "strong inference",
+                description="Native owner-array mapping recovered from fixup/data pointer context.",
+                link_evidence="declared_owner_array",
+            )
+            reference_edge_count += 1
     for object_info in objects:
         if not isinstance(object_info, Mapping):
             continue
@@ -18000,6 +19566,11 @@ def build_hkx_editable_geometry_document(
         physics_constraint_summary,
     )
     byte_patch_map = _hkx_byte_patch_map_document(data, shapes, physics_tuning, summary.item_records)
+    hkx_edit_gate_v1 = _hkx_edit_gate_v1_document(
+        byte_patch_map,
+        summary.native_edit_candidate_map_v1,
+        summary.native_hkx_edit_gate_v1,
+    )
     converter_objects = _hkx_converter_objects_document(advanced_payloads)
     editor_model = _hkx_editor_model_document(
         shapes,
@@ -18027,7 +19598,9 @@ def build_hkx_editable_geometry_document(
     cdmw_compatibility = _hkx_compatibility_document(summary, converter_report, byte_patch_map, editor_model)
     converter_report["status"] = cdmw_compatibility["status"]
     converter_report["cdmw_hkx_compatibility_status"] = cdmw_compatibility["status"]
-    decode_gap_summary = _hkx_decode_gap_summary_document(converter_report)
+    native_backend = _hkx_native_backend_document(summary)
+    decoder_evidence_v2 = _hkx_decoder_evidence_v2_document(summary, converter_report, native_backend)
+    decode_gap_summary = _hkx_decode_gap_summary_document(converter_report, decoder_evidence_v2)
     tagfile_reference_fixups = _hkx_tagfile_reference_fixups_document(data, summary)
     fixup_semantics_report = _hkx_fixup_semantics_report_document(tagfile_reference_fixups)
     havok_xml_view = _hkx_havok_xml_view_document(
@@ -18040,11 +19613,23 @@ def build_hkx_editable_geometry_document(
         converter_report,
         tagfile_reference_fixups=tagfile_reference_fixups,
     )
-    native_backend = _hkx_native_backend_document(summary)
     hkclass_metadata_readiness = _hkx_hkclass_metadata_readiness_document(
         havok_xml_view,
         native_backend,
         relationship_graph,
+    )
+    modding_readiness = _hkx_modding_readiness_document(
+        summary,
+        converter_report,
+        native_backend,
+        decoder_evidence_v2,
+        hkclass_metadata_readiness,
+    )
+    modding_workspace = _hkx_modding_workspace_document(
+        byte_patch_map,
+        summary.native_edit_candidate_map_v1,
+        hkx_edit_gate_v1,
+        modding_readiness,
     )
     collision_shapes = shapes
     return {
@@ -18065,6 +19650,16 @@ def build_hkx_editable_geometry_document(
         "user_editing_guide": _hkx_user_editing_guide_document(cdmw_compatibility),
         "converter_report": converter_report,
         "decode_gap_summary": decode_gap_summary,
+        "decoder_evidence_v2": decoder_evidence_v2,
+        "real_hkclass_metadata_v2": summary.native_real_hkclass_metadata_v2,
+        "fixup_semantics_v2": summary.native_fixup_semantics_v2,
+        "semantic_model_v1": summary.native_semantic_model_v1,
+        "semantic_writer_gate_v1": summary.native_semantic_writer_gate_v1,
+        "edit_candidate_map_v1": summary.native_edit_candidate_map_v1,
+        "hkx_edit_gate_v1": hkx_edit_gate_v1,
+        "class_decoder_evidence_v2": summary.native_class_decoder_evidence_v2,
+        "hkx_modding_readiness": modding_readiness,
+        "modding_workspace_v1": modding_workspace,
         "tag_sections": _hkx_tag_sections_document(summary),
         "tagfile_reference_fixups": tagfile_reference_fixups,
         "fixup_semantics_report": fixup_semantics_report,
@@ -22181,6 +23776,199 @@ def _hkx_xml_add_hkclass_metadata_readiness(parent: ET.Element, readiness: objec
     return readiness_element
 
 
+def _hkx_xml_add_modding_readiness(parent: ET.Element, readiness: object) -> Optional[ET.Element]:
+    if not isinstance(readiness, Mapping):
+        return None
+    readiness_element = ET.SubElement(
+        parent,
+        "hkxModdingReadiness",
+        {
+            "format": str(readiness.get("format") or ""),
+            "native_format": str(readiness.get("native_format") or ""),
+            "status": str(readiness.get("status") or ""),
+            "source": str(readiness.get("source") or ""),
+            "per_file_label": str(readiness.get("per_file_label") or ""),
+            "fixed_size_patch_importable": _hkx_xml_scalar(readiness.get("fixed_size_patch_importable")),
+            "havok_xml_importable": _hkx_xml_scalar(readiness.get("havok_xml_importable")),
+            "new_editable_fields_enabled": _hkx_xml_scalar(readiness.get("new_editable_fields_enabled")),
+            "decoded_object_count": _hkx_xml_scalar(readiness.get("decoded_object_count")),
+            "patchable_slot_count": _hkx_xml_scalar(readiness.get("patchable_slot_count")),
+            "fixup_backed_reference_edge_count": _hkx_xml_scalar(
+                readiness.get("fixup_backed_reference_edge_count")
+            ),
+            "owner_array_count": _hkx_xml_scalar(readiness.get("owner_array_count")),
+            "unresolved_or_packed_case_count": _hkx_xml_scalar(
+                readiness.get("unresolved_or_packed_case_count")
+            ),
+            "modding_path": str(readiness.get("modding_path") or ""),
+            "havok_xml_policy": str(readiness.get("havok_xml_policy") or ""),
+            "read_only": "true",
+            "imported": "false",
+        },
+    )
+    _hkx_xml_add_text(readiness_element, "description", readiness.get("description", ""))
+    labels = readiness.get("readiness_labels")
+    if isinstance(labels, list):
+        labels_element = ET.SubElement(readiness_element, "readinessLabels")
+        for label in labels:
+            _hkx_xml_add_text(labels_element, "label", label)
+    gate = readiness.get("semantic_writer_gate")
+    if isinstance(gate, Mapping):
+        gate_element = ET.SubElement(
+            readiness_element,
+            "semanticWriterGate",
+            {
+                "status": str(gate.get("status") or ""),
+                "mode": str(gate.get("mode") or ""),
+                "enabled": _hkx_xml_scalar(gate.get("enabled")),
+                "raw_preserving_no_edit_writer_required": _hkx_xml_scalar(
+                    gate.get("raw_preserving_no_edit_writer_required")
+                ),
+                "semantic_rebuild_supported": _hkx_xml_scalar(gate.get("semantic_rebuild_supported")),
+                "fixed_size_value_edits_allowed": _hkx_xml_scalar(gate.get("fixed_size_value_edits_allowed")),
+                "havok_xml_import_unblocked": _hkx_xml_scalar(gate.get("havok_xml_import_unblocked")),
+                "no_edit_binary_writer_status": str(gate.get("no_edit_binary_writer_status") or ""),
+                "byte_identical_no_edit_rebuild_supported": _hkx_xml_scalar(
+                    gate.get("byte_identical_no_edit_rebuild_supported")
+                ),
+                "read_model_write_pipeline": str(gate.get("read_model_write_pipeline") or ""),
+            },
+        )
+        for list_key, tag_name in (
+            ("allowed_edits", "allowedEdits"),
+            ("blocked_edits", "blockedEdits"),
+            ("requirements", "requirements"),
+        ):
+            values = gate.get(list_key)
+            if isinstance(values, list):
+                list_element = ET.SubElement(gate_element, tag_name)
+                child_name = "edit" if tag_name.endswith("Edits") else "requirement"
+                for value in values:
+                    _hkx_xml_add_text(list_element, child_name, value)
+    task_groups = readiness.get("task_groups")
+    if isinstance(task_groups, list):
+        groups_element = ET.SubElement(readiness_element, "taskGroups")
+        for group in task_groups:
+            if not isinstance(group, Mapping):
+                continue
+            group_element = ET.SubElement(
+                groups_element,
+                "group",
+                {
+                    "key": str(group.get("key") or ""),
+                    "label": str(group.get("label") or ""),
+                    "readiness_label": str(group.get("readiness_label") or ""),
+                    "patchable_slot_count": _hkx_xml_scalar(group.get("patchable_slot_count")),
+                    "context_record_count": _hkx_xml_scalar(group.get("context_record_count")),
+                    "risk": str(group.get("risk") or ""),
+                    "import_safe": _hkx_xml_scalar(group.get("import_safe")),
+                },
+            )
+            _hkx_xml_add_text(group_element, "description", group.get("description", ""))
+            evidence = group.get("evidence")
+            if isinstance(evidence, list):
+                evidence_element = ET.SubElement(group_element, "evidence")
+                for item in evidence:
+                    _hkx_xml_add_text(evidence_element, "item", item)
+    external_refs = readiness.get("external_tool_references")
+    if isinstance(external_refs, list):
+        refs_element = ET.SubElement(readiness_element, "externalToolReferences")
+        for tool in external_refs:
+            if not isinstance(tool, Mapping):
+                continue
+            tool_element = ET.SubElement(
+                refs_element,
+                "tool",
+                {
+                    "name": str(tool.get("name") or ""),
+                    "integration": str(tool.get("integration") or ""),
+                },
+            )
+            _hkx_xml_add_text(tool_element, "use", tool.get("use", ""))
+            _hkx_xml_add_text(tool_element, "limitation", tool.get("limitation", ""))
+    return readiness_element
+
+
+def _hkx_xml_add_modding_workspace(parent: ET.Element, workspace: object) -> Optional[ET.Element]:
+    if not isinstance(workspace, Mapping):
+        return None
+    workspace_element = ET.SubElement(
+        parent,
+        "moddingWorkspaceV1",
+        {
+            "format": str(workspace.get("format") or ""),
+            "read_only": "true",
+            "imported": "false",
+            "default_view": _hkx_xml_scalar(workspace.get("default_view")),
+            "readiness_label": str(workspace.get("readiness_label") or ""),
+            "row_count": _hkx_xml_scalar(workspace.get("row_count")),
+            "patchable_row_count": _hkx_xml_scalar(workspace.get("patchable_row_count")),
+            "candidate_only_row_count": _hkx_xml_scalar(workspace.get("candidate_only_row_count")),
+            "blocked_row_count": _hkx_xml_scalar(workspace.get("blocked_row_count")),
+            "truncated_row_count": _hkx_xml_scalar(workspace.get("truncated_row_count")),
+        },
+    )
+    _hkx_xml_add_text(workspace_element, "description", workspace.get("description", ""))
+    _hkx_xml_add_text(workspace_element, "blockedPolicy", workspace.get("blocked_policy", ""))
+    task_filters = workspace.get("task_filters")
+    if isinstance(task_filters, list):
+        tasks_element = ET.SubElement(workspace_element, "taskFilters")
+        for task in task_filters:
+            if not isinstance(task, Mapping):
+                continue
+            ET.SubElement(
+                tasks_element,
+                "task",
+                {
+                    "key": str(task.get("key") or ""),
+                    "label": str(task.get("label") or ""),
+                    "patchable_count": _hkx_xml_scalar(task.get("patchable_count")),
+                    "candidate_only_count": _hkx_xml_scalar(task.get("candidate_only_count")),
+                    "blocked_count": _hkx_xml_scalar(task.get("blocked_count")),
+                },
+            )
+    rows = workspace.get("rows")
+    if isinstance(rows, list):
+        rows_element = ET.SubElement(workspace_element, "rows", {"truncated_after": "4096"})
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            ET.SubElement(
+                rows_element,
+                "row",
+                {
+                    "task": str(row.get("task") or ""),
+                    "task_label": str(row.get("task_label") or ""),
+                    "sort_group": str(row.get("sort_group") or ""),
+                    "source": str(row.get("source") or ""),
+                    "category": str(row.get("category") or ""),
+                    "category_label": str(row.get("category_label") or ""),
+                    "label": str(row.get("label") or ""),
+                    "owner_class": str(row.get("owner_class") or ""),
+                    "member": str(row.get("member") or ""),
+                    "meaning": str(row.get("meaning") or ""),
+                    "import_safety": str(row.get("import_safety") or ""),
+                    "structural_kind": str(row.get("structural_kind") or ""),
+                    "risk": str(row.get("risk") or ""),
+                    "evidence": str(row.get("evidence") or ""),
+                    "linked_by": str(row.get("linked_by") or ""),
+                    "record": str(row.get("record") or ""),
+                    "item": str(row.get("item") or ""),
+                    "offset": str(row.get("offset") or ""),
+                    "byte_size": str(row.get("byte_size") or ""),
+                    "original": str(row.get("original") or ""),
+                    "current": str(row.get("current") or ""),
+                    "linked_target": str(row.get("linked_target") or ""),
+                    "relationship_chain": str(row.get("relationship_chain") or ""),
+                    "gate_status": str(row.get("gate_status") or ""),
+                    "gate_reason": str(row.get("gate_reason") or ""),
+                    "write_enabled": _hkx_xml_scalar(row.get("write_enabled")),
+                    "import_behavior": str(row.get("import_behavior") or ""),
+                },
+            )
+    return workspace_element
+
+
 def _hkx_xml_add_vector(parent: ET.Element, tag: str, values: Sequence[object], labels: Sequence[str], **attrs: object) -> ET.Element:
     element_attrs = {key: _hkx_xml_scalar(value) for key, value in attrs.items() if value is not None}
     for label, value in zip(labels, values):
@@ -22770,6 +24558,9 @@ def build_hkx_editable_geometry_xml(
             for edit in unsupported_edits:
                 _hkx_xml_add_text(unsupported_element, "unsupportedEdit", edit)
 
+    _hkx_xml_add_modding_readiness(root, document.get("hkx_modding_readiness"))
+    _hkx_xml_add_modding_workspace(root, document.get("modding_workspace_v1"))
+
     user_guide = document.get("user_editing_guide")
     if isinstance(user_guide, Mapping):
         guide_element = ET.SubElement(root, "userEditingGuide", {"status": str(user_guide.get("status") or "")})
@@ -23001,6 +24792,612 @@ def build_hkx_editable_geometry_xml(
                     missing_element = ET.SubElement(gap_element, "missingRequirements")
                     for requirement in missing:
                         _hkx_xml_add_text(missing_element, "requirement", requirement)
+
+    decoder_evidence_v2 = document.get("decoder_evidence_v2")
+    if isinstance(decoder_evidence_v2, Mapping):
+        evidence_element = ET.SubElement(
+            root,
+            "decoderEvidence",
+            {
+                "format": str(decoder_evidence_v2.get("format") or ""),
+                "native_format": str(decoder_evidence_v2.get("native_format") or ""),
+                "status": str(decoder_evidence_v2.get("status") or ""),
+                "source": str(decoder_evidence_v2.get("source") or ""),
+                "read_only": "true",
+                "class_status_count": _hkx_xml_scalar(decoder_evidence_v2.get("class_status_count")),
+                "priority_class_count": _hkx_xml_scalar(decoder_evidence_v2.get("priority_class_count")),
+                "total_partial_byte_count": _hkx_xml_scalar(decoder_evidence_v2.get("total_partial_byte_count")),
+                "unresolved_or_packed_case_count": _hkx_xml_scalar(
+                    decoder_evidence_v2.get("unresolved_or_packed_case_count")
+                ),
+                "owner_array_count": _hkx_xml_scalar(decoder_evidence_v2.get("owner_array_count")),
+                "imported": "false",
+            },
+        )
+        _hkx_xml_add_text(evidence_element, "description", decoder_evidence_v2.get("description", ""))
+        semantics = decoder_evidence_v2.get("reference_semantic_counts")
+        if isinstance(semantics, Mapping):
+            semantics_element = ET.SubElement(evidence_element, "referenceSemantics")
+            for semantic, count in sorted(semantics.items()):
+                ET.SubElement(
+                    semantics_element,
+                    "semantic",
+                    {"name": str(semantic), "count": _hkx_xml_scalar(count)},
+                )
+        link_counts = decoder_evidence_v2.get("link_evidence_counts")
+        if isinstance(link_counts, Mapping):
+            link_element = ET.SubElement(evidence_element, "linkEvidence")
+            for evidence_name, count in sorted(link_counts.items()):
+                ET.SubElement(
+                    link_element,
+                    "evidence",
+                    {"name": str(evidence_name), "count": _hkx_xml_scalar(count)},
+                )
+        class_statuses = decoder_evidence_v2.get("class_statuses")
+        if isinstance(class_statuses, list):
+            class_rows_element = ET.SubElement(evidence_element, "classStatuses")
+            for row in class_statuses:
+                if not isinstance(row, Mapping):
+                    continue
+                row_element = ET.SubElement(
+                    class_rows_element,
+                    "class",
+                    {
+                        "type_name": str(row.get("type_name") or ""),
+                        "record_count": _hkx_xml_scalar(row.get("record_count")),
+                        "byte_count": _hkx_xml_scalar(row.get("byte_count")),
+                        "decoded_field_count": _hkx_xml_scalar(row.get("decoded_field_count")),
+                        "reference_count": _hkx_xml_scalar(row.get("reference_count")),
+                        "editable_field_count": _hkx_xml_scalar(row.get("editable_field_count")),
+                        "status": str(row.get("status") or ""),
+                        "friendly_status": str(row.get("friendly_status") or ""),
+                        "corpus_priority_score": _hkx_xml_scalar(row.get("corpus_priority_score")),
+                        "read_only": "true",
+                    },
+                )
+                missing = row.get("missing_requirements")
+                if isinstance(missing, list) and missing:
+                    missing_element = ET.SubElement(row_element, "missingRequirements")
+                    for requirement in missing:
+                        _hkx_xml_add_text(missing_element, "requirement", requirement)
+                link_evidence = row.get("link_evidence")
+                if isinstance(link_evidence, list) and link_evidence:
+                    link_row_element = ET.SubElement(row_element, "linkEvidence")
+                    for evidence_name in link_evidence:
+                        ET.SubElement(link_row_element, "evidence", {"name": str(evidence_name)})
+        fixup_backed_fields = decoder_evidence_v2.get("fixup_backed_fields")
+        if isinstance(fixup_backed_fields, list) and fixup_backed_fields:
+            fields_element = ET.SubElement(evidence_element, "fixupBackedFields")
+            for field in fixup_backed_fields:
+                if not isinstance(field, Mapping):
+                    continue
+                ET.SubElement(
+                    fields_element,
+                    "field",
+                    {
+                        "class_name": str(field.get("class_name") or ""),
+                        "field_name": str(field.get("field_name") or ""),
+                        "reference_category": str(field.get("reference_category") or ""),
+                        "count": _hkx_xml_scalar(field.get("count")),
+                        "confidence": str(field.get("confidence") or ""),
+                    },
+                )
+
+    real_hkclass_metadata_v2 = document.get("real_hkclass_metadata_v2")
+    if isinstance(real_hkclass_metadata_v2, Mapping) and real_hkclass_metadata_v2:
+        metadata_element = ET.SubElement(
+            root,
+            "realHkclassMetadataV2",
+            {
+                "format": str(real_hkclass_metadata_v2.get("format") or ""),
+                "status": str(real_hkclass_metadata_v2.get("status") or ""),
+                "read_only": "true",
+                "class_count": _hkx_xml_scalar(real_hkclass_metadata_v2.get("class_count")),
+                "member_count": _hkx_xml_scalar(real_hkclass_metadata_v2.get("member_count")),
+                "enum_count": _hkx_xml_scalar(real_hkclass_metadata_v2.get("enum_count")),
+                "synthetic_fallback_required": _hkx_xml_scalar(
+                    real_hkclass_metadata_v2.get("synthetic_fallback_required")
+                ),
+            },
+        )
+        classes = real_hkclass_metadata_v2.get("classes")
+        if isinstance(classes, list):
+            classes_element = ET.SubElement(metadata_element, "classes")
+            for class_info in classes[:256]:
+                if not isinstance(class_info, Mapping):
+                    continue
+                class_element = ET.SubElement(
+                    classes_element,
+                    "class",
+                    {
+                        "name": str(class_info.get("class_name") or class_info.get("name") or ""),
+                        "record_index": _hkx_xml_scalar(class_info.get("record_index")),
+                        "base_class": str(class_info.get("base_class") or ""),
+                        "object_size": _hkx_xml_scalar(class_info.get("object_size")),
+                        "version": _hkx_xml_scalar(class_info.get("version")),
+                        "signature_hex": str(class_info.get("signature_hex") or ""),
+                        "metadata_source": str(class_info.get("metadata_source") or ""),
+                        "confidence": str(class_info.get("confidence") or ""),
+                    },
+                )
+                members = class_info.get("members")
+                if isinstance(members, list) and members:
+                    members_element = ET.SubElement(class_element, "members")
+                    for member in members[:256]:
+                        if not isinstance(member, Mapping):
+                            continue
+                        ET.SubElement(
+                            members_element,
+                            "member",
+                            {
+                                "name": str(member.get("name") or member.get("member_name") or ""),
+                                "offset": _hkx_xml_scalar(member.get("offset")),
+                                "offset_hex": str(member.get("offset_hex") or ""),
+                                "havok_member_type_code": _hkx_xml_scalar(
+                                    member.get("havok_member_type_code") or member.get("member_type_code")
+                                ),
+                                "member_type_name": str(member.get("member_type_name") or ""),
+                                "subtype_name": str(member.get("subtype_name") or ""),
+                                "flags_hex": str(member.get("flags_hex") or ""),
+                                "array_status": str(member.get("array_status") or ""),
+                                "reference_status": str(member.get("reference_status") or ""),
+                                "class_ref_name": str(member.get("class_ref_name") or ""),
+                                "enum_ref_name": str(member.get("enum_ref_name") or ""),
+                                "template_ref": str(member.get("template_ref") or ""),
+                                "confidence": str(member.get("confidence") or ""),
+                                "editable": "false",
+                            },
+                        )
+
+    fixup_semantics_v2 = document.get("fixup_semantics_v2")
+    if isinstance(fixup_semantics_v2, Mapping) and fixup_semantics_v2:
+        fixup_v2_element = ET.SubElement(
+            root,
+            "fixupSemanticsV2",
+            {
+                "format": str(fixup_semantics_v2.get("format") or ""),
+                "status": str(fixup_semantics_v2.get("status") or ""),
+                "read_only": "true",
+                "patch_site_count": _hkx_xml_scalar(fixup_semantics_v2.get("patch_site_count")),
+                "resolved_patch_site_count": _hkx_xml_scalar(fixup_semantics_v2.get("resolved_patch_site_count")),
+                "unresolved_patch_site_count": _hkx_xml_scalar(
+                    fixup_semantics_v2.get("unresolved_patch_site_count")
+                ),
+            },
+        )
+        bucket_counts = fixup_semantics_v2.get("semantic_bucket_counts")
+        if isinstance(bucket_counts, Mapping):
+            buckets_element = ET.SubElement(fixup_v2_element, "semanticBuckets")
+            for bucket, count in sorted(bucket_counts.items()):
+                ET.SubElement(
+                    buckets_element,
+                    "bucket",
+                    {"name": str(bucket), "count": _hkx_xml_scalar(count)},
+                )
+        bucket_taxonomy = fixup_semantics_v2.get("semantic_bucket_taxonomy")
+        if isinstance(bucket_taxonomy, list):
+            taxonomy_element = ET.SubElement(fixup_v2_element, "semanticBucketTaxonomy")
+            for row in bucket_taxonomy:
+                if not isinstance(row, Mapping):
+                    continue
+                ET.SubElement(
+                    taxonomy_element,
+                    "bucket",
+                    {
+                        "name": str(row.get("bucket") or ""),
+                        "meaning": str(row.get("meaning") or ""),
+                        "edit_policy": str(row.get("edit_policy") or ""),
+                    },
+                )
+        corpus_counters = fixup_semantics_v2.get("corpus_evidence_counters")
+        if isinstance(corpus_counters, Mapping):
+            counters_element = ET.SubElement(fixup_v2_element, "corpusEvidenceCounters")
+            for key, value in sorted(corpus_counters.items()):
+                ET.SubElement(
+                    counters_element,
+                    "counter",
+                    {"name": str(key), "value": _hkx_xml_scalar(value)},
+                )
+        patch_sites = fixup_semantics_v2.get("patch_sites")
+        if isinstance(patch_sites, list) and patch_sites:
+            patch_sites_element = ET.SubElement(fixup_v2_element, "patchSites", {"truncated_after": "512"})
+            for site in patch_sites[:512]:
+                if not isinstance(site, Mapping):
+                    continue
+                ET.SubElement(
+                    patch_sites_element,
+                    "patchSite",
+                    {
+                        "index": _hkx_xml_scalar(site.get("index")),
+                        "section": str(site.get("section") or ""),
+                        "tuple_shape": str(site.get("tuple_shape") or ""),
+                        "owner_record_index": _hkx_xml_scalar(site.get("owner_record_index")),
+                        "owner_local_offset": _hkx_xml_scalar(site.get("owner_local_offset")),
+                        "patched_slot_value": _hkx_xml_scalar(site.get("patched_slot_value")),
+                        "target_record_index": _hkx_xml_scalar(site.get("target_record_index")),
+                        "target_status": str(site.get("target_status") or ""),
+                        "semantic_bucket": str(site.get("semantic_bucket") or ""),
+                        "reference_category": str(site.get("reference_category") or ""),
+                        "confidence": str(site.get("confidence") or ""),
+                    },
+                )
+
+    semantic_model_v1 = document.get("semantic_model_v1")
+    if isinstance(semantic_model_v1, Mapping) and semantic_model_v1:
+        semantic_element = ET.SubElement(
+            root,
+            "semanticModelV1",
+            {
+                "format": str(semantic_model_v1.get("format") or ""),
+                "status": str(semantic_model_v1.get("status") or ""),
+                "read_only": "true",
+                "object_count": _hkx_xml_scalar(semantic_model_v1.get("object_count")),
+                "field_count": _hkx_xml_scalar(semantic_model_v1.get("field_count")),
+                "raw_fallback_count": _hkx_xml_scalar(semantic_model_v1.get("raw_fallback_count")),
+                "root_record_index": _hkx_xml_scalar(semantic_model_v1.get("root_record_index")),
+                "root_type_name": str(semantic_model_v1.get("root_type_name") or ""),
+            },
+        )
+        objects = semantic_model_v1.get("objects")
+        source_priority = semantic_model_v1.get("source_priority")
+        if isinstance(source_priority, list):
+            priority_element = ET.SubElement(semantic_element, "sourcePriority")
+            for source_name in source_priority:
+                _hkx_xml_add_text(priority_element, "source", source_name)
+        field_kind_taxonomy = semantic_model_v1.get("field_kind_taxonomy")
+        if isinstance(field_kind_taxonomy, list):
+            taxonomy_element = ET.SubElement(semantic_element, "fieldKindTaxonomy")
+            for kind in field_kind_taxonomy:
+                _hkx_xml_add_text(taxonomy_element, "kind", kind)
+        if isinstance(objects, list) and objects:
+            objects_element = ET.SubElement(semantic_element, "objects", {"truncated_after": "256"})
+            for object_info in objects[:256]:
+                if not isinstance(object_info, Mapping):
+                    continue
+                object_element = ET.SubElement(
+                    objects_element,
+                    "object",
+                    {
+                        "record_index": _hkx_xml_scalar(object_info.get("record_index")),
+                        "type_name": str(object_info.get("type_name") or ""),
+                        "status": str(object_info.get("status") or ""),
+                        "class_metadata_source": str(object_info.get("class_metadata_source") or ""),
+                        "semantic_source": str(object_info.get("semantic_source") or object_info.get("class_metadata_source") or ""),
+                        "field_count": _hkx_xml_scalar(object_info.get("field_count")),
+                        "reference_count": _hkx_xml_scalar(object_info.get("reference_count")),
+                        "raw_span_count": _hkx_xml_scalar(object_info.get("raw_span_count")),
+                        "byte_range_start": _hkx_xml_scalar(object_info.get("byte_range_start")),
+                        "byte_range_end": _hkx_xml_scalar(object_info.get("byte_range_end")),
+                    },
+                )
+                fields = object_info.get("fields")
+                if isinstance(fields, list) and fields:
+                    fields_element = ET.SubElement(object_element, "fields", {"truncated_after": "128"})
+                    for field in fields[:128]:
+                        if not isinstance(field, Mapping):
+                            continue
+                        ET.SubElement(
+                            fields_element,
+                            "field",
+                            {
+                                "name": str(field.get("name") or ""),
+                                "kind": str(field.get("kind") or ""),
+                                "offset": _hkx_xml_scalar(field.get("offset")),
+                                "offset_hex": str(field.get("offset_hex") or ""),
+                                "size": _hkx_xml_scalar(field.get("size")),
+                                "byte_range_start": _hkx_xml_scalar(field.get("byte_range_start")),
+                                "byte_range_end": _hkx_xml_scalar(field.get("byte_range_end")),
+                                "data_type": str(field.get("data_type") or ""),
+                                "confidence": str(field.get("confidence") or ""),
+                                "editable_candidate": _hkx_xml_scalar(field.get("editable_candidate")),
+                                "write_enabled": "false",
+                                "write_gate_status": str(field.get("write_gate_status") or ""),
+                            },
+                        )
+
+    semantic_writer_gate_v1 = document.get("semantic_writer_gate_v1")
+    if isinstance(semantic_writer_gate_v1, Mapping) and semantic_writer_gate_v1:
+        gate_element = ET.SubElement(
+            root,
+            "semanticWriterGateV1",
+            {
+                "format": str(semantic_writer_gate_v1.get("format") or ""),
+                "status": str(semantic_writer_gate_v1.get("status") or ""),
+                "enabled": _hkx_xml_scalar(semantic_writer_gate_v1.get("enabled")),
+                "semantic_rebuild_supported": _hkx_xml_scalar(
+                    semantic_writer_gate_v1.get("semantic_rebuild_supported")
+                ),
+                "havok_xml_import_unblocked": _hkx_xml_scalar(
+                    semantic_writer_gate_v1.get("havok_xml_import_unblocked")
+                ),
+                "fixed_size_patch_importable": _hkx_xml_scalar(
+                    semantic_writer_gate_v1.get("fixed_size_patch_importable")
+                ),
+                "patchable_slot_count": _hkx_xml_scalar(semantic_writer_gate_v1.get("patchable_slot_count")),
+            },
+        )
+        writer_modes = semantic_writer_gate_v1.get("writer_modes")
+        if isinstance(writer_modes, list):
+            modes_element = ET.SubElement(gate_element, "writerModes")
+            for mode in writer_modes:
+                if not isinstance(mode, Mapping):
+                    continue
+                ET.SubElement(
+                    modes_element,
+                    "mode",
+                    {
+                        "name": str(mode.get("mode") or ""),
+                        "status": str(mode.get("status") or ""),
+                        "enabled": _hkx_xml_scalar(mode.get("enabled")),
+                        "reason": str(mode.get("reason") or ""),
+                    },
+                )
+        required_roles = semantic_writer_gate_v1.get("required_role_coverage")
+        if isinstance(required_roles, list):
+            roles_element = ET.SubElement(gate_element, "requiredRoleCoverage")
+            for role in required_roles:
+                if not isinstance(role, Mapping):
+                    continue
+                ET.SubElement(
+                    roles_element,
+                    "role",
+                    {
+                        "name": str(role.get("role") or ""),
+                        "no_edit_status": str(role.get("no_edit_status") or ""),
+                        "semantic_no_edit_status": str(role.get("semantic_no_edit_status") or ""),
+                        "fixed_edit_status": str(role.get("fixed_edit_status") or ""),
+                        "byte_identity_status": str(role.get("byte_identity_status") or ""),
+                        "sample_required": _hkx_xml_scalar(role.get("sample_required")),
+                        "fixed_size_edits_allowed": _hkx_xml_scalar(role.get("fixed_size_edits_allowed")),
+                    },
+                )
+        representative_gates = semantic_writer_gate_v1.get("representative_role_gates")
+        if isinstance(representative_gates, list):
+            representative_element = ET.SubElement(gate_element, "representativeRoleGates")
+            for role in representative_gates:
+                if not isinstance(role, Mapping):
+                    continue
+                role_element = ET.SubElement(
+                    representative_element,
+                    "roleGate",
+                    {
+                        "role": str(role.get("role") or ""),
+                        "required": _hkx_xml_scalar(role.get("required")),
+                        "status": str(role.get("status") or ""),
+                        "no_edit_byte_identity": str(role.get("no_edit_byte_identity") or ""),
+                        "mismatch_offset": _hkx_xml_scalar(role.get("mismatch_offset")),
+                        "fixed_size_edits_allowed": _hkx_xml_scalar(role.get("fixed_size_edits_allowed")),
+                    },
+                )
+                unsupported_fields = role.get("unsupported_field_kinds")
+                if isinstance(unsupported_fields, list):
+                    fields_element = ET.SubElement(role_element, "unsupportedFieldKinds")
+                    for kind in unsupported_fields:
+                        _hkx_xml_add_text(fields_element, "kind", kind)
+                unsupported_refs = role.get("unsupported_ref_kinds")
+                if isinstance(unsupported_refs, list):
+                    refs_element = ET.SubElement(role_element, "unsupportedRefKinds")
+                    for kind in unsupported_refs:
+                        _hkx_xml_add_text(refs_element, "kind", kind)
+        unsupported_field_kinds = semantic_writer_gate_v1.get("unsupported_field_kinds")
+        if isinstance(unsupported_field_kinds, list):
+            fields_element = ET.SubElement(gate_element, "unsupportedFieldKinds")
+            for kind in unsupported_field_kinds:
+                _hkx_xml_add_text(fields_element, "kind", kind)
+        unsupported_ref_kinds = semantic_writer_gate_v1.get("unsupported_ref_kinds")
+        if isinstance(unsupported_ref_kinds, list):
+            refs_element = ET.SubElement(gate_element, "unsupportedRefKinds")
+            for kind in unsupported_ref_kinds:
+                _hkx_xml_add_text(refs_element, "kind", kind)
+        requirements = semantic_writer_gate_v1.get("requirements")
+        if isinstance(requirements, list):
+            requirements_element = ET.SubElement(gate_element, "requirements")
+            for requirement in requirements:
+                _hkx_xml_add_text(requirements_element, "requirement", requirement)
+        blocked_classes = semantic_writer_gate_v1.get("blocked_edit_classes")
+        if isinstance(blocked_classes, list):
+            blocked_element = ET.SubElement(gate_element, "blockedEditClasses")
+            for blocked in blocked_classes:
+                _hkx_xml_add_text(blocked_element, "blocked", blocked)
+
+    edit_candidate_map_v1 = document.get("edit_candidate_map_v1")
+    if isinstance(edit_candidate_map_v1, Mapping) and edit_candidate_map_v1:
+        edit_map_element = ET.SubElement(
+            root,
+            "editCandidateMapV1",
+            {
+                "format": str(edit_candidate_map_v1.get("format") or ""),
+                "status": str(edit_candidate_map_v1.get("status") or ""),
+                "new_editable_fields_enabled": _hkx_xml_scalar(
+                    edit_candidate_map_v1.get("new_editable_fields_enabled")
+                ),
+                "candidate_count": _hkx_xml_scalar(edit_candidate_map_v1.get("candidate_count")),
+                "write_enabled_candidate_count": _hkx_xml_scalar(
+                    edit_candidate_map_v1.get("write_enabled_candidate_count")
+                ),
+            },
+        )
+        candidates = edit_candidate_map_v1.get("candidates")
+        task_categories = edit_candidate_map_v1.get("task_categories")
+        if isinstance(task_categories, list):
+            tasks_element = ET.SubElement(edit_map_element, "taskCategories")
+            for row in task_categories:
+                if not isinstance(row, Mapping):
+                    continue
+                ET.SubElement(
+                    tasks_element,
+                    "task",
+                    {
+                        "key": str(row.get("key") or ""),
+                        "label": str(row.get("label") or ""),
+                        "status": str(row.get("status") or ""),
+                        "write_enabled_count": _hkx_xml_scalar(row.get("write_enabled_count")),
+                        "candidate_only_count": _hkx_xml_scalar(row.get("candidate_only_count")),
+                    },
+                )
+        if isinstance(candidates, list) and candidates:
+            candidates_element = ET.SubElement(edit_map_element, "candidates", {"truncated_after": "512"})
+            for candidate in candidates[:512]:
+                if not isinstance(candidate, Mapping):
+                    continue
+                ET.SubElement(
+                    candidates_element,
+                    "candidate",
+                    {
+                        "class": str(candidate.get("class") or ""),
+                        "owner_class": str(candidate.get("owner_class") or candidate.get("class") or ""),
+                        "category": str(candidate.get("category") or ""),
+                        "category_label": str(candidate.get("category_label") or candidate.get("task_label") or ""),
+                        "task_category": str(candidate.get("task_category") or ""),
+                        "task_label": str(candidate.get("task_label") or ""),
+                        "member": str(candidate.get("member") or ""),
+                        "field": str(candidate.get("field") or candidate.get("member") or ""),
+                        "original_value": _hkx_xml_scalar(candidate.get("original_value")),
+                        "record_index": _hkx_xml_scalar(candidate.get("record_index") or candidate.get("record")),
+                        "item_index": _hkx_xml_scalar(candidate.get("item_index")),
+                        "local_offset": _hkx_xml_scalar(candidate.get("local_offset")),
+                        "record_relative_offset": _hkx_xml_scalar(candidate.get("record_relative_offset")),
+                        "offset_hex": str(candidate.get("offset_hex") or ""),
+                        "absolute_offset": _hkx_xml_scalar(candidate.get("absolute_offset")),
+                        "absolute_offset_hex": str(candidate.get("absolute_offset_hex") or ""),
+                        "byte_size": _hkx_xml_scalar(candidate.get("byte_size")),
+                        "supported_write_type": str(candidate.get("supported_write_type") or ""),
+                        "write_type": str(candidate.get("write_type") or candidate.get("supported_write_type") or ""),
+                        "value_kind": str(candidate.get("value_kind") or ""),
+                        "structural_kind": str(candidate.get("structural_kind") or ""),
+                        "import_safety": str(candidate.get("import_safety") or ""),
+                        "risk_label": str(candidate.get("risk_label") or ""),
+                        "risk": str(candidate.get("risk") or candidate.get("risk_label") or ""),
+                        "confidence": str(candidate.get("confidence") or ""),
+                        "link_evidence": str(candidate.get("link_evidence") or ""),
+                        "linked_by": str(candidate.get("linked_by") or ""),
+                        "linked_target": str(candidate.get("linked_target") or ""),
+                        "import_path": str(candidate.get("import_path") or ""),
+                        "import_behavior": str(candidate.get("import_behavior") or ""),
+                        "write_enabled": _hkx_xml_scalar(candidate.get("write_enabled")),
+                        "gate_status": str(candidate.get("gate_status") or ""),
+                        "gate_reason": str(candidate.get("gate_reason") or ""),
+                    },
+                )
+
+    hkx_edit_gate_v1 = document.get("hkx_edit_gate_v1")
+    if isinstance(hkx_edit_gate_v1, Mapping) and hkx_edit_gate_v1:
+        gate_element = ET.SubElement(
+            root,
+            "hkxEditGateV1",
+            {
+                "format": str(hkx_edit_gate_v1.get("format") or ""),
+                "native_format": str(hkx_edit_gate_v1.get("native_format") or ""),
+                "status": str(hkx_edit_gate_v1.get("status") or ""),
+                "read_only": "true",
+                "new_editable_fields_enabled": _hkx_xml_scalar(
+                    hkx_edit_gate_v1.get("new_editable_fields_enabled")
+                ),
+                "write_enabled_candidate_count": _hkx_xml_scalar(
+                    hkx_edit_gate_v1.get("write_enabled_candidate_count")
+                ),
+                "candidate_only_count": _hkx_xml_scalar(hkx_edit_gate_v1.get("candidate_only_count")),
+            },
+        )
+        _hkx_xml_add_text(gate_element, "blockedPolicy", hkx_edit_gate_v1.get("blocked_policy") or "")
+        categories = hkx_edit_gate_v1.get("categories")
+        if isinstance(categories, list):
+            categories_element = ET.SubElement(gate_element, "categories")
+            for row in categories:
+                if not isinstance(row, Mapping):
+                    continue
+                ET.SubElement(
+                    categories_element,
+                    "category",
+                    {
+                        "name": str(row.get("category") or ""),
+                        "category": str(row.get("category") or ""),
+                        "owner_class": str(row.get("owner_class") or ""),
+                        "status": str(row.get("status") or ""),
+                        "write_enabled_count": _hkx_xml_scalar(row.get("write_enabled_count")),
+                        "candidate_only_count": _hkx_xml_scalar(row.get("candidate_only_count")),
+                        "fixed_edit_test_status": str(row.get("fixed_edit_test_status") or ""),
+                        "gate_reason": str(row.get("gate_reason") or ""),
+                    },
+                )
+        task_categories = hkx_edit_gate_v1.get("task_categories")
+        if isinstance(task_categories, list):
+            tasks_element = ET.SubElement(gate_element, "taskCategories")
+            for row in task_categories:
+                if not isinstance(row, Mapping):
+                    continue
+                ET.SubElement(
+                    tasks_element,
+                    "task",
+                    {
+                        "key": str(row.get("key") or ""),
+                        "label": str(row.get("label") or ""),
+                        "status": str(row.get("status") or ""),
+                        "write_enabled_count": _hkx_xml_scalar(row.get("write_enabled_count")),
+                        "candidate_only_count": _hkx_xml_scalar(row.get("candidate_only_count")),
+                        "fixed_edit_test_status": str(row.get("fixed_edit_test_status") or ""),
+                        "gate_reason": str(row.get("gate_reason") or ""),
+                    },
+                )
+        roles = hkx_edit_gate_v1.get("required_role_coverage")
+        if isinstance(roles, list):
+            roles_element = ET.SubElement(gate_element, "requiredRoleCoverage")
+            for row in roles:
+                if not isinstance(row, Mapping):
+                    continue
+                ET.SubElement(
+                    roles_element,
+                    "role",
+                    {
+                        "name": str(row.get("role") or ""),
+                        "status": str(row.get("status") or ""),
+                        "no_edit_status": str(row.get("no_edit_status") or ""),
+                        "fixed_edit_status": str(row.get("fixed_edit_status") or ""),
+                    },
+                )
+        blocked_kinds = hkx_edit_gate_v1.get("blocked_kinds")
+        if isinstance(blocked_kinds, list):
+            blocked_element = ET.SubElement(gate_element, "blockedKinds")
+            for kind in blocked_kinds:
+                _hkx_xml_add_text(blocked_element, "kind", kind)
+
+    class_decoder_evidence_v2 = document.get("class_decoder_evidence_v2")
+    if isinstance(class_decoder_evidence_v2, Mapping) and class_decoder_evidence_v2:
+        class_decoder_element = ET.SubElement(
+            root,
+            "classDecoderEvidenceV2",
+            {
+                "format": str(class_decoder_evidence_v2.get("format") or ""),
+                "status": str(class_decoder_evidence_v2.get("status") or ""),
+                "read_only": "true",
+                "class_status_count": _hkx_xml_scalar(class_decoder_evidence_v2.get("class_status_count")),
+                "hard_target_count": _hkx_xml_scalar(class_decoder_evidence_v2.get("hard_target_count")),
+                "observed_hard_target_count": _hkx_xml_scalar(
+                    class_decoder_evidence_v2.get("observed_hard_target_count")
+                ),
+            },
+        )
+        class_statuses = class_decoder_evidence_v2.get("class_statuses")
+        if isinstance(class_statuses, list):
+            statuses_element = ET.SubElement(class_decoder_element, "classStatuses", {"truncated_after": "256"})
+            for row in class_statuses[:256]:
+                if not isinstance(row, Mapping):
+                    continue
+                ET.SubElement(
+                    statuses_element,
+                    "class",
+                    {
+                        "name": str(row.get("class") or row.get("type_name") or ""),
+                        "record_count": _hkx_xml_scalar(row.get("record_count")),
+                        "byte_count": _hkx_xml_scalar(row.get("byte_count")),
+                        "decoded_field_count": _hkx_xml_scalar(row.get("decoded_field_count")),
+                        "reference_count": _hkx_xml_scalar(row.get("reference_count")),
+                        "editable_candidate_count": _hkx_xml_scalar(row.get("editable_candidate_count")),
+                        "status": str(row.get("status") or ""),
+                        "friendly_status": str(row.get("friendly_status") or ""),
+                        "read_only": "true",
+                    },
+                )
 
     tag_sections = document.get("tag_sections")
     if isinstance(tag_sections, list):
@@ -24472,19 +26869,43 @@ def build_hkx_editable_geometry_xml(
                     "index": _hkx_xml_scalar(entry.get("index")),
                     "path": str(entry.get("path") or ""),
                     "category": str(entry.get("category") or ""),
+                    "category_label": str(entry.get("category_label") or entry.get("task_label") or ""),
+                    "task_category": str(entry.get("task_category") or ""),
+                    "task_label": str(entry.get("task_label") or ""),
+                    "owner_class": str(entry.get("owner_class") or ""),
+                    "member": str(entry.get("member") or entry.get("name") or ""),
+                    "field": str(entry.get("field") or entry.get("member") or entry.get("name") or ""),
                     "name": str(entry.get("name") or ""),
                     "subject": str(entry.get("subject") or ""),
                     "record_index": _hkx_xml_scalar(entry.get("record_index")),
+                    "local_offset": _hkx_xml_scalar(entry.get("local_offset")),
                     "relative_offset": _hkx_xml_scalar(entry.get("relative_offset")),
                     "hex_relative_offset": str(entry.get("hex_relative_offset") or ""),
+                    "absolute_offset": _hkx_xml_scalar(entry.get("absolute_offset")),
+                    "absolute_offset_hex": str(entry.get("absolute_offset_hex") or ""),
                     "absolute_data_offset": _hkx_xml_scalar(entry.get("absolute_data_offset")),
                     "hex_absolute_data_offset": str(entry.get("hex_absolute_data_offset") or ""),
                     "byte_size": _hkx_xml_scalar(entry.get("byte_size")),
                     "value_type": str(entry.get("value_type") or ""),
+                    "write_type": str(entry.get("write_type") or entry.get("supported_write_type") or ""),
+                    "supported_write_type": str(entry.get("supported_write_type") or ""),
+                    "value_kind": str(entry.get("value_kind") or ""),
+                    "structural_kind": str(entry.get("structural_kind") or ""),
+                    "import_safety": str(entry.get("import_safety") or ""),
+                    "risk_label": str(entry.get("risk_label") or ""),
+                    "risk": str(entry.get("risk") or entry.get("risk_label") or ""),
                     "original_bytes_hex": str(entry.get("original_bytes_hex") or ""),
                     "decoded_value": _hkx_xml_scalar(entry.get("decoded_value")),
                     "edit_rule": str(entry.get("edit_rule") or "fixed_size_value_only"),
                     "confidence": str(entry.get("confidence") or "experimental"),
+                    "evidence": str(entry.get("evidence") or ""),
+                    "link_evidence": str(entry.get("link_evidence") or ""),
+                    "linked_by": str(entry.get("linked_by") or ""),
+                    "linked_target": str(entry.get("linked_target") or ""),
+                    "import_behavior": str(entry.get("import_behavior") or ""),
+                    "gate_status": str(entry.get("gate_status") or ""),
+                    "gate_reason": str(entry.get("gate_reason") or ""),
+                    "fixed_edit_test_status": str(entry.get("fixed_edit_test_status") or ""),
                     "effect": str(entry.get("effect") or ""),
                     "value_constraints": str(entry.get("value_constraints") or ""),
                     "description": str(entry.get("description") or ""),
@@ -25289,6 +27710,7 @@ def build_hkx_havok_xml_view_xml(
     havok_xml_view = document.get("havok_xml_view")
     hkpackfile_view = havok_xml_view.get("hkpackfile_view") if isinstance(havok_xml_view, Mapping) else None
     hkobjects = havok_xml_view.get("hkobjects") if isinstance(havok_xml_view, Mapping) else None
+    modding_readiness = document.get("hkx_modding_readiness")
     hkclass_metadata_readiness = document.get("hkclass_metadata_readiness")
     native_model_graph = (
         hkclass_metadata_readiness.get("native_model_graph")
@@ -25320,6 +27742,13 @@ def build_hkx_havok_xml_view_xml(
         if isinstance(hkclass_metadata_readiness, Mapping)
         else None
     )
+    semantic_model_v1 = document.get("semantic_model_v1")
+    semantic_writer_gate_v1 = document.get("semantic_writer_gate_v1")
+    edit_candidate_map_v1 = document.get("edit_candidate_map_v1")
+    hkx_edit_gate_v1 = document.get("hkx_edit_gate_v1")
+    fixup_semantics_v2 = document.get("fixup_semantics_v2")
+    real_hkclass_metadata_v2 = document.get("real_hkclass_metadata_v2")
+    class_decoder_evidence_v2 = document.get("class_decoder_evidence_v2")
     if not isinstance(hkpackfile_view, Mapping) or not isinstance(hkobjects, list):
         raise ValueError("HKX document did not produce a Havok XML parity view.")
 
@@ -25347,6 +27776,35 @@ def build_hkx_havok_xml_view_xml(
             else "false",
             "cdmw_native_model_graph_status": str(native_model_graph.get("status") or "")
             if isinstance(native_model_graph, Mapping)
+            else "",
+            "cdmw_real_hkclass_metadata_v2_status": str(real_hkclass_metadata_v2.get("status") or "")
+            if isinstance(real_hkclass_metadata_v2, Mapping)
+            else "",
+            "cdmw_fixup_semantics_v2_status": str(fixup_semantics_v2.get("status") or "")
+            if isinstance(fixup_semantics_v2, Mapping)
+            else "",
+            "cdmw_semantic_model_v1_status": str(semantic_model_v1.get("status") or "")
+            if isinstance(semantic_model_v1, Mapping)
+            else "",
+            "cdmw_semantic_model_v1_object_count": _hkx_xml_scalar(semantic_model_v1.get("object_count"))
+            if isinstance(semantic_model_v1, Mapping)
+            else "0",
+            "cdmw_semantic_writer_gate_v1_status": str(semantic_writer_gate_v1.get("status") or "")
+            if isinstance(semantic_writer_gate_v1, Mapping)
+            else "",
+            "cdmw_edit_candidate_map_v1_count": _hkx_xml_scalar(edit_candidate_map_v1.get("candidate_count"))
+            if isinstance(edit_candidate_map_v1, Mapping)
+            else "0",
+            "cdmw_hkx_edit_gate_v1_status": str(hkx_edit_gate_v1.get("status") or "")
+            if isinstance(hkx_edit_gate_v1, Mapping)
+            else "",
+            "cdmw_hkx_edit_gate_v1_write_enabled_count": _hkx_xml_scalar(
+                hkx_edit_gate_v1.get("write_enabled_candidate_count")
+            )
+            if isinstance(hkx_edit_gate_v1, Mapping)
+            else "0",
+            "cdmw_class_decoder_evidence_v2_status": str(class_decoder_evidence_v2.get("status") or "")
+            if isinstance(class_decoder_evidence_v2, Mapping)
             else "",
             "cdmw_rust_low_level_parse_status": str(native_model_graph.get("rust_low_level_parse_status") or "")
             if isinstance(native_model_graph, Mapping)
@@ -25377,6 +27835,15 @@ def build_hkx_havok_xml_view_xml(
             "cdmw_gui_readiness_status": str(gui_readiness.get("status") or "")
             if isinstance(gui_readiness, Mapping)
             else "",
+            "cdmw_modding_readiness": str(modding_readiness.get("per_file_label") or "")
+            if isinstance(modding_readiness, Mapping)
+            else "",
+            "cdmw_fixed_size_patch_importable": _hkx_xml_scalar(modding_readiness.get("fixed_size_patch_importable"))
+            if isinstance(modding_readiness, Mapping)
+            else "false",
+            "cdmw_havok_xml_importable": _hkx_xml_scalar(modding_readiness.get("havok_xml_importable"))
+            if isinstance(modding_readiness, Mapping)
+            else "false",
         },
     )
     root.append(

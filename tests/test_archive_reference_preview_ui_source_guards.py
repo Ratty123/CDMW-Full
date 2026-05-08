@@ -38,6 +38,14 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
         self.assertIn("current_entry: ArchiveEntry = entry", source)
         self.assertIn('pending_hkx_editor_entry["entry"] = current_entry', source)
 
+    def test_referenced_preview_can_show_asset_family_graph(self) -> None:
+        source = (REPO_ROOT / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
+
+        self.assertIn("reference_family_graph = result.asset_family_graph", source)
+        self.assertIn("reference_family_graph = build_archive_asset_family_graph(entry, result.model_texture_references)", source)
+        self.assertIn('preview_tabs.addTab(family_tab, "Asset Family")', source)
+        self.assertIn('family_tree.setHeaderLabels(["Role", "File", "Status", "Evidence", "Why"])', source)
+
     def test_archive_summary_highlighter_understands_simplified_previews(self) -> None:
         source = (REPO_ROOT / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
 

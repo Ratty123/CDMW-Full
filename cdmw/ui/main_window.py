@@ -140,6 +140,17 @@ from cdmw.core.mod_package import (
     mod_package_export_options_for_manager,
     mod_package_profile_uses_manager_metadata,
 )
+from cdmw.core.source_mix import (
+    SourceMixCandidate,
+    SourceMixSelection,
+    group_source_mix_candidates_by_family,
+    normalize_source_mix_virtual_path,
+    paired_counterpart_virtual_path,
+    scan_loose_folder_source,
+    scan_mod_archive_source,
+    source_mix_role_for_virtual_path,
+    validate_source_mix_selections,
+)
 from cdmw.core.material_sidecar_editor import (
     MaterialSidecarRelatedFile,
     apply_material_sidecar_edits,
@@ -215,6 +226,11 @@ def mesh_import_mode_availability(
         )
     elif suffix == ".dae":
         guidance = "DAE imports use Mesh Replacement. Round-trip edit remains OBJ-only."
+    elif suffix in {".pac", ".pam", ".pamlod"}:
+        guidance = (
+            "Local PAC/PAM/PAMLOD imports use Mesh Replacement. Geometry is parsed directly, and matching loose sidecars/DDS files are included when discovered."
+        )
+        roundtrip_enabled = False
     elif has_roundtrip_sidecar:
         guidance = "An OBJ round-trip sidecar was found, so Round-trip edit is selected by default."
     else:
@@ -302,6 +318,9 @@ def run_gui() -> int:
     from cdmw.ui.widgets import (
         AboutDialog,
         ArchiveDetailsEditor,
+        available_layout_size_for,
+        available_screen_size_for,
+        available_screen_width_for,
         CodePreviewEditor,
         EmptyStateTreeWidget,
         FlatSectionPanel,
@@ -804,18 +823,59 @@ def run_gui() -> int:
             return value
         return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
-    def apply_app_theme(app: QApplication, settings: QSettings, theme_key: str) -> str:
+    def _responsive_control_scale_for_resolution(screen_width: int, screen_height: int) -> float:
+        if screen_width <= 1366:
+            width_scale = 0.78
+        elif screen_width <= 1600:
+            width_scale = 0.84
+        elif screen_width <= 1920:
+            width_scale = 0.90
+        elif screen_width <= 2560:
+            width_scale = 0.96
+        else:
+            width_scale = 1.0
+        if screen_height <= 768:
+            height_scale = 0.78
+        elif screen_height <= 900:
+            height_scale = 0.84
+        elif screen_height <= 1080:
+            height_scale = 0.90
+        elif screen_height <= 1200:
+            height_scale = 0.94
+        else:
+            height_scale = 1.0
+        return min(width_scale, height_scale)
+
+    def _responsive_control_scale_for_width(screen_width: int) -> float:
+        fallback_height = 1080 if screen_width <= 1920 else 1440
+        return _responsive_control_scale_for_resolution(screen_width, fallback_height)
+
+    def apply_app_theme(
+        app: QApplication,
+        settings: QSettings,
+        theme_key: str,
+        *,
+        screen_width: Optional[int] = None,
+        screen_height: Optional[int] = None,
+    ) -> str:
         resolved_theme = theme_key if theme_key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
         ui_font_family = str(settings.value("appearance/ui_font_family", DEFAULT_UI_FONT_FAMILY) or DEFAULT_UI_FONT_FAMILY)
-        base_font_size = max(
+        configured_base_font_size = max(
             UI_FONT_SIZE_MIN,
             min(UI_FONT_SIZE_MAX, _read_int_setting(settings, "appearance/ui_font_size", DEFAULT_UI_FONT_SIZE)),
         )
-        data_font_size = max(
+        configured_data_font_size = max(
             UI_FONT_SIZE_MIN,
             min(UI_FONT_SIZE_MAX, _read_int_setting(settings, "appearance/data_font_size", DEFAULT_UI_DATA_FONT_SIZE)),
         )
+        fallback_width, fallback_height = available_screen_size_for(None)
+        effective_screen_width = int(screen_width or fallback_width)
+        effective_screen_height = int(screen_height or fallback_height)
+        screen_scale = _responsive_control_scale_for_resolution(effective_screen_width, effective_screen_height)
+        base_font_size = max(UI_FONT_SIZE_MIN, min(UI_FONT_SIZE_MAX, int(round(configured_base_font_size * screen_scale))))
+        data_font_size = max(UI_FONT_SIZE_MIN, min(UI_FONT_SIZE_MAX, int(round(configured_data_font_size * screen_scale))))
         density_key = str(settings.value("appearance/ui_density", DEFAULT_UI_DENSITY) or DEFAULT_UI_DENSITY)
+        effective_density_key = "compact" if screen_scale < 0.94 else density_key
         app_font = QFont(app.font())
         app_font.setFamily(ui_font_family)
         app_font.setPointSize(base_font_size)
@@ -826,7 +886,8 @@ def run_gui() -> int:
                 resolved_theme,
                 base_font_size=base_font_size,
                 data_font_size=data_font_size,
-                density_key=density_key,
+                density_key=effective_density_key,
+                layout_scale=screen_scale,
             )
         )
         return resolved_theme
@@ -2379,6 +2440,30 @@ def run_gui() -> int:
             self.deleteLater()
 
     class MainWindow(QMainWindow):
+        def resizeEvent(self, event: object) -> None:
+            super().resizeEvent(event)  # type: ignore[arg-type]
+            if (
+                hasattr(self, "_responsive_resize_timer")
+                and not self._shutting_down
+                and not getattr(self, "_applying_responsive_layout", False)
+            ):
+                self._responsive_resize_timer.start()
+
+        def changeEvent(self, event: object) -> None:
+            super().changeEvent(event)  # type: ignore[arg-type]
+            try:
+                event_type = event.type()  # type: ignore[attr-defined]
+            except AttributeError:
+                return
+            screen_change_type = getattr(QEvent.Type, "ScreenChangeInternal", None)
+            if (
+                screen_change_type is not None
+                and event_type == screen_change_type
+                and hasattr(self, "_responsive_resize_timer")
+                and not getattr(self, "_applying_responsive_layout", False)
+            ):
+                self._responsive_resize_timer.start()
+
         def __init__(self, startup_splash: Optional[object] = None) -> None:
             super().__init__()
 
@@ -2411,6 +2496,10 @@ def run_gui() -> int:
             self._startup_splash_holds_main_window = False
             self._startup_splash_released = False
             self._startup_splash_release_pending = False
+            self._startup_splash_finish_pending = False
+            self._responsive_screen_signal_connected = False
+            self._current_responsive_control_scale = 0.0
+            self._applying_responsive_layout = False
             self.current_theme_key = str(self.settings.value("appearance/theme", DEFAULT_UI_THEME))
             self.show_quick_start_on_launch = (
                 not self.settings.contains("ui/startup_setup_shown")
@@ -2467,6 +2556,10 @@ def run_gui() -> int:
             self._column_autofit_timer.setSingleShot(True)
             self._column_autofit_timer.setInterval(90)
             self._column_autofit_timer.timeout.connect(self._apply_column_autofit)
+            self._responsive_resize_timer = QTimer(self)
+            self._responsive_resize_timer.setSingleShot(True)
+            self._responsive_resize_timer.setInterval(180)
+            self._responsive_resize_timer.timeout.connect(self._apply_responsive_window_defaults)
             self._chainner_analysis_timer = QTimer(self)
             self._chainner_analysis_timer.setSingleShot(True)
             self._chainner_analysis_timer.setInterval(250)
@@ -2485,6 +2578,8 @@ def run_gui() -> int:
             self.current_archive_model_texture_references: List[ArchiveModelTextureReference] = []
             self.current_archive_used_by_references: List[ArchiveModelTextureReference] = []
             self.current_archive_asset_family_graph: Optional[AssetFamilyGraph] = None
+            self.current_archive_family_member_rows: List[AssetFamilyMember] = []
+            self.archive_asset_family_preferred_width = 420
             self.archive_preview_cache: OrderedDict[str, ArchivePreviewResult] = OrderedDict()
             self.archive_preview_cache_keys: Dict[int, str] = {}
             self.archive_preview_cache_limit = 64
@@ -2513,6 +2608,7 @@ def run_gui() -> int:
             self.archive_filter_apply_pending = False
             self.archive_filter_requested_signature: Tuple[object, ...] = ()
             self.archive_browser_refresh_pending = False
+            self.archive_startup_autoload_defer_preview = False
             self._activate_archive_browser_on_scan_complete = True
             self.archive_tree_child_folders: Dict[Tuple[str, ...], List[Tuple[str, Tuple[str, ...]]]] = {}
             self.archive_tree_direct_files: Dict[Tuple[str, ...], List[int]] = {}
@@ -3965,6 +4061,12 @@ def run_gui() -> int:
             archive_tab_layout.addWidget(self.archive_splitter, stretch=1)
 
             archive_controls_group = FlatSectionPanel("Archive Controls")
+            archive_controls_group.setObjectName("ArchiveControlsPanel")
+            self.archive_controls_group = archive_controls_group
+            archive_controls_font = QFont(archive_controls_group.font())
+            if archive_controls_font.pointSize() > 0:
+                archive_controls_font.setPointSize(max(8, archive_controls_font.pointSize() - 1))
+            archive_controls_group.setFont(archive_controls_font)
             archive_controls_min, _archive_controls_pref, archive_controls_max = self._archive_controls_sidebar_bounds()
             archive_controls_group.setMinimumWidth(archive_controls_min)
             archive_controls_group.setMaximumWidth(archive_controls_max)
@@ -4046,12 +4148,27 @@ def run_gui() -> int:
             self.archive_path_search_button = QPushButton("Search")
             self.archive_path_search_button.setToolTip("Apply the path and extension search filters.")
             self.archive_extension_filter_combo = QComboBox()
+            self.archive_extension_filter_combo.setObjectName("ArchiveExtensionFilter")
             self.archive_extension_filter_combo.setEditable(True)
             self.archive_extension_filter_combo.setInsertPolicy(QComboBox.NoInsert)
+            self.archive_extension_filter_combo.setDuplicatesEnabled(False)
             self.archive_extension_filter_combo.setMaxVisibleItems(32)
             self.archive_extension_filter_combo.setMinimumContentsLength(18)
             self.archive_extension_filter_combo.setMinimumWidth(210)
             self.archive_extension_filter_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            self.archive_extension_filter_combo.setStyleSheet(
+                """
+                QComboBox#ArchiveExtensionFilter::drop-down {
+                    width: 0px;
+                    border: none;
+                }
+                QComboBox#ArchiveExtensionFilter::down-arrow {
+                    image: none;
+                    width: 0px;
+                    height: 0px;
+                }
+                """
+            )
             extension_line_edit = self.archive_extension_filter_combo.lineEdit()
             if extension_line_edit is not None:
                 extension_line_edit.setPlaceholderText("Select or type extension")
@@ -4059,9 +4176,10 @@ def run_gui() -> int:
                 "Filter by extension. Pick one from the loaded archive index or type a specific extension directly."
             )
             self.archive_extension_picker_button = QToolButton()
-            self.archive_extension_picker_button.setText("Pick")
-            self.archive_extension_picker_button.setToolTip("Open the extension list from the current archive index.")
-            self.archive_extension_picker_button.clicked.connect(self.archive_extension_filter_combo.showPopup)
+            self.archive_extension_picker_button.setText("Select")
+            self.archive_extension_picker_button.setMinimumWidth(68)
+            self.archive_extension_picker_button.setToolTip("Open a grouped extension picker from the current archive index.")
+            self.archive_extension_picker_button.clicked.connect(self._open_archive_extension_picker)
             self._rebuild_archive_extension_filter_choices(ARCHIVE_EXTENSION_FILTER)
             archive_scan_actions_row = QHBoxLayout()
             archive_scan_actions_row.setSpacing(8)
@@ -4138,7 +4256,7 @@ def run_gui() -> int:
             self.archive_preview_settings_status_label = QLabel("")
             self.archive_preview_settings_status_label.setObjectName("HintLabel")
             self.archive_preview_settings_status_label.setWordWrap(True)
-            archive_status_group_layout.addWidget(self.archive_preview_settings_status_label)
+            self.archive_preview_settings_status_label.setVisible(False)
 
             archive_log_group = QGroupBox("Archive Scan Log")
             archive_log_group_layout = QVBoxLayout(archive_log_group)
@@ -4379,6 +4497,7 @@ def run_gui() -> int:
             archive_preview_group = FlatSectionPanel("Archive Preview")
             archive_preview_min, _archive_preview_pref, _archive_preview_max = responsive_sidebar_bounds(self, role="wide")
             archive_preview_group.setMinimumWidth(archive_preview_min)
+            self.archive_preview_group = archive_preview_group
             archive_preview_container_layout = archive_preview_group.body_layout
             archive_preview_container_layout.setSpacing(4)
             archive_preview_main_widget = QWidget()
@@ -4451,6 +4570,17 @@ def run_gui() -> int:
             self.archive_model_preview_settings_button.setMinimumHeight(24)
             self.archive_model_preview_settings_button.setMaximumHeight(28)
             self.archive_model_preview_settings_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            self.archive_asset_family_button = QPushButton("Asset Family")
+            self.archive_asset_family_button.setToolTip(
+                "Open the recovered file family for this selection: model, material, textures, HKX, meshinfo, prefab, rig, and animation links."
+            )
+            self.archive_asset_family_button.setMinimumWidth(110)
+            self.archive_asset_family_button.setMaximumWidth(150)
+            self.archive_asset_family_button.setMinimumHeight(24)
+            self.archive_asset_family_button.setMaximumHeight(28)
+            self.archive_asset_family_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            self.archive_asset_family_button.setVisible(False)
+            self.archive_asset_family_button.setEnabled(False)
             self.archive_model_export_obj_button = QPushButton("Export OBJ...")
             self.archive_model_export_obj_button.setToolTip(
                 "Export the selected archive mesh as Wavefront OBJ with MTL and resolved preview textures for Blender."
@@ -4476,6 +4606,11 @@ def run_gui() -> int:
                 "Rebuild the selected archive mesh from OBJ, DAE, glTF, or GLB, then choose whether to patch the game archives or write a mod-ready loose file."
             )
             self.archive_model_import_patch_button.setEnabled(False)
+            self.archive_model_modify_original_button = QPushButton("Modify Original...")
+            self.archive_model_modify_original_button.setToolTip(
+                "Create an editable clone workspace from the selected archive mesh, then import the edited OBJ clone through the safe round-trip mesh path."
+            )
+            self.archive_model_modify_original_button.setEnabled(False)
             self.archive_model_swap_in_game_button = QPushButton("Swap With In-Game Mesh...")
             self.archive_model_swap_in_game_button.setToolTip(
                 "Use another loaded archive mesh as the replacement source, then open Mesh Replacement Alignment for this target."
@@ -4517,17 +4652,17 @@ def run_gui() -> int:
             )
             self.archive_sidecar_export_json_button = QPushButton("Export Sidecar JSON...")
             self.archive_sidecar_export_json_button.setToolTip(
-                "Export an experimental read-only JSON decode document for .meshinfo, .motionblending, .paa_metabin, or .prefab metadata binaries."
+                "Export an experimental read-only JSON decode document for structured metadata, animation, and sequence-texture binaries such as .meshinfo, .motionblending, .paa, .paa_metabin, .prefab, .pappt, .pamhc, or .seqmt."
             )
             self.archive_sidecar_export_json_button.setEnabled(False)
             self.archive_sidecar_inspect_button = QPushButton("Inspect Sidecar...")
             self.archive_sidecar_inspect_button.setToolTip(
-                "Inspect .meshinfo, .motionblending, .paa_metabin, or .prefab structure in-app. Editing stays disabled until the binary schema is proven safe."
+                "Inspect structured metadata/animation binaries in-app. Editing stays disabled until the binary schema is proven safe."
             )
             self.archive_sidecar_inspect_button.setEnabled(False)
             self.archive_sidecar_corpus_button = QPushButton("Scan Sidecar Corpus...")
             self.archive_sidecar_corpus_button.setToolTip(
-                "Scan loose .meshinfo, .motionblending, .paa_metabin, and .prefab files and export a read-only schema/layout ranking report."
+                "Scan loose .meshinfo, .motionblending, .paa_metabin, .prefab, .pappt, .pamhc, and .seqmt files and export a read-only schema/layout ranking report."
             )
             self.archive_material_values_button = QPushButton("Edit Material Values...")
             self.archive_material_values_button.setToolTip(
@@ -4537,6 +4672,10 @@ def run_gui() -> int:
             self.archive_restore_patch_backup_button = QPushButton("Restore Backup...")
             self.archive_restore_patch_backup_button.setToolTip(
                 "Restore a previously created archive patch backup."
+            )
+            self.archive_import_loose_mod_button = QPushButton("Import Loose Mod Folder...")
+            self.archive_import_loose_mod_button.setToolTip(
+                "Load a whole loose mod folder, match files by virtual path, review asset families, and write selected replacements as one loose package."
             )
             self.archive_model_action_menu_groups = []
 
@@ -4597,10 +4736,12 @@ def run_gui() -> int:
             self.archive_tools_menu_button = _make_archive_action_menu_button(
                 "Tools",
                 (
+                    ("Modify Original", self.archive_model_modify_original_button),
                     (None, self.archive_model_swap_in_game_button),
                     ("Inspect Sidecar", self.archive_sidecar_inspect_button),
                     ("Scan Sidecar Corpus", self.archive_sidecar_corpus_button),
                     ("Material Values", self.archive_material_values_button),
+                    ("Import Loose Mod Folder", self.archive_import_loose_mod_button),
                     ("Restore Backup", self.archive_restore_patch_backup_button),
                 ),
             )
@@ -4608,6 +4749,7 @@ def run_gui() -> int:
             archive_preview_title_row.addWidget(self.archive_preview_role_badge)
             archive_preview_title_row.addWidget(self.archive_preview_warning_badge)
             archive_preview_title_row.addWidget(self.archive_preview_loose_toggle_button)
+            archive_preview_title_row.addWidget(self.archive_asset_family_button)
             archive_preview_title_row.addWidget(self.archive_model_preview_settings_button)
 
             archive_preview_toolbar = QWidget()
@@ -4663,6 +4805,7 @@ def run_gui() -> int:
                 self.archive_model_import_preview_button,
                 self.archive_model_import_dds_preview_button,
                 self.archive_model_import_patch_button,
+                self.archive_model_modify_original_button,
                 self.archive_model_swap_in_game_button,
                 self.archive_hkx_export_json_button,
                 self.archive_hkx_import_json_button,
@@ -4676,6 +4819,7 @@ def run_gui() -> int:
                 self.archive_sidecar_corpus_button,
                 self.archive_restore_patch_backup_button,
                 self.archive_material_values_button,
+                self.archive_import_loose_mod_button,
             ):
                 button.setMinimumWidth(0)
                 button.setMinimumHeight(23)
@@ -4714,18 +4858,23 @@ def run_gui() -> int:
             archive_preview_main_layout.addWidget(self.archive_preview_warning_label)
             self.archive_texture_refs_group = QGroupBox("Referenced Files")
             self.archive_texture_refs_group.setVisible(False)
-            self.archive_texture_refs_group.setMinimumWidth(0)
+            self.archive_texture_refs_group.setMinimumWidth(320)
             self.archive_texture_refs_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             archive_texture_refs_layout = QVBoxLayout(self.archive_texture_refs_group)
             archive_texture_refs_layout.setContentsMargins(10, 10, 10, 10)
             archive_texture_refs_layout.setSpacing(8)
+            self.archive_asset_family_summary_label = QLabel("")
+            self.archive_asset_family_summary_label.setObjectName("HintLabel")
+            self.archive_asset_family_summary_label.setWordWrap(True)
+            self.archive_asset_family_summary_label.setVisible(False)
+            archive_texture_refs_layout.addWidget(self.archive_asset_family_summary_label)
             self.archive_asset_map_tabs = QTabWidget()
             self.archive_asset_map_tree = EmptyStateTreeWidget(
-                "No asset map",
-                "Open a preview with recovered relationships to see the selected asset grouped by role.",
+                "No asset family",
+                "Open a model-like preview to see recovered model, material, texture, HKX, meshinfo, prefab, rig, and animation links.",
             )
             self.archive_asset_map_tree.setColumnCount(5)
-            self.archive_asset_map_tree.setHeaderLabels(["Role", "File", "Status", "Confidence", "Why"])
+            self.archive_asset_map_tree.setHeaderLabels(["Role", "File", "Status", "Evidence", "Why"])
             self.archive_asset_map_tree.setRootIsDecorated(True)
             self.archive_asset_map_tree.setAlternatingRowColors(True)
             self.archive_asset_map_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -4759,6 +4908,19 @@ def run_gui() -> int:
             self.archive_asset_used_by_tree.setUniformRowHeights(True)
             self.archive_asset_used_by_tree.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
             self.archive_asset_used_by_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            self.archive_asset_placement_tree = EmptyStateTreeWidget(
+                "No placement chain",
+                "Prefab/socket placement evidence has not been recovered for this file. Context skeleton display is visual only until a socket chain is found.",
+            )
+            self.archive_asset_placement_tree.setColumnCount(4)
+            self.archive_asset_placement_tree.setHeaderLabels(["Mode / Link", "Target", "Evidence", "Why"])
+            self.archive_asset_placement_tree.setRootIsDecorated(True)
+            self.archive_asset_placement_tree.setAlternatingRowColors(True)
+            self.archive_asset_placement_tree.setSelectionMode(QAbstractItemView.SingleSelection)
+            self.archive_asset_placement_tree.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.archive_asset_placement_tree.setUniformRowHeights(True)
+            self.archive_asset_placement_tree.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+            self.archive_asset_placement_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             self.archive_texture_refs_tree = EmptyStateTreeWidget(
                 "No referenced files",
                 "Select a model or material entry to inspect related sidecars, textures, and companion files.",
@@ -4797,19 +4959,21 @@ def run_gui() -> int:
                 self.archive_asset_map_tree,
                 self.archive_asset_uses_tree,
                 self.archive_asset_used_by_tree,
+                self.archive_asset_placement_tree,
             ):
                 tree.setContextMenuPolicy(Qt.CustomContextMenu)
                 header = tree.header()
                 header.setStretchLastSection(False)
                 header.setMinimumSectionSize(56)
-                header.setSectionResizeMode(0, QHeaderView.Interactive)
-                header.setSectionResizeMode(1, QHeaderView.Interactive)
-                header.setSectionResizeMode(2, QHeaderView.Interactive)
-                header.setSectionResizeMode(3, QHeaderView.Interactive)
-                header.setSectionResizeMode(4, QHeaderView.Stretch)
-            self.archive_asset_map_tabs.addTab(self.archive_asset_map_tree, "Asset Map")
+                column_count = max(0, tree.columnCount())
+                for column in range(max(0, column_count - 1)):
+                    header.setSectionResizeMode(column, QHeaderView.Interactive)
+                if column_count:
+                    header.setSectionResizeMode(column_count - 1, QHeaderView.Stretch)
+            self.archive_asset_map_tabs.addTab(self.archive_asset_map_tree, "Asset Family")
             self.archive_asset_map_tabs.addTab(self.archive_asset_uses_tree, "Uses")
             self.archive_asset_map_tabs.addTab(self.archive_asset_used_by_tree, "Used By")
+            self.archive_asset_map_tabs.addTab(self.archive_asset_placement_tree, "Placement")
             self.archive_asset_map_tabs.addTab(self.archive_texture_refs_tree, "Raw Table")
             archive_texture_refs_layout.addWidget(self.archive_asset_map_tabs)
             archive_texture_actions_layout = QVBoxLayout()
@@ -4817,13 +4981,14 @@ def run_gui() -> int:
             archive_texture_actions_grid = QGridLayout()
             archive_texture_actions_grid.setHorizontalSpacing(8)
             archive_texture_actions_grid.setVerticalSpacing(6)
-            self.archive_texture_open_button = QPushButton("Open")
+            self.archive_texture_open_button = QPushButton("Preview")
+            self.archive_texture_open_button.setToolTip("Open the selected family row in a referenced-file preview window.")
             self.archive_texture_edit_hkx_button = QPushButton("Edit HKX...")
             self.archive_texture_scope_selected_button = QPushButton("Show Selected")
-            self.archive_texture_scope_all_button = QPushButton("Show File Set")
+            self.archive_texture_scope_all_button = QPushButton("Show Only This Family")
             self.archive_texture_export_button = QPushButton("Export Selected...")
             self.archive_texture_export_all_button = QPushButton("Export All...")
-            self.archive_texture_export_asset_set_button = QPushButton("Export Asset Set...")
+            self.archive_texture_export_asset_set_button = QPushButton("Export Family...")
             self.archive_texture_smart_actions_button = QPushButton("Smart Actions")
             self.archive_texture_edit_material_button = QPushButton("Edit Material Values...")
             self.archive_texture_open_button.setEnabled(False)
@@ -5133,6 +5298,7 @@ def run_gui() -> int:
                 self._handle_archive_model_preview_reset_overrides
             )
             self.archive_model_preview_settings_button.clicked.connect(self._open_model_preview_settings_dialog)
+            self.archive_asset_family_button.clicked.connect(self._open_archive_asset_family_workspace_dialog)
             self.archive_model_export_obj_button.clicked.connect(self._export_current_archive_model)
             self.archive_model_export_fbx_button.clicked.connect(
                 lambda: self._export_current_archive_mesh("fbx")
@@ -5140,6 +5306,7 @@ def run_gui() -> int:
             self.archive_model_import_preview_button.clicked.connect(self._preview_current_archive_mesh_import)
             self.archive_model_import_dds_preview_button.clicked.connect(self._preview_current_archive_mesh_dds_import)
             self.archive_model_import_patch_button.clicked.connect(self._patch_current_archive_mesh_from_obj)
+            self.archive_model_modify_original_button.clicked.connect(self._modify_current_archive_original_mesh)
             self.archive_model_swap_in_game_button.clicked.connect(self._swap_current_archive_mesh_with_in_game)
             self.archive_hkx_export_json_button.clicked.connect(self._export_current_archive_hkx_json)
             self.archive_hkx_import_json_button.clicked.connect(self._import_current_archive_hkx_json)
@@ -5152,6 +5319,7 @@ def run_gui() -> int:
             self.archive_sidecar_inspect_button.clicked.connect(self._inspect_current_archive_binary_sidecar)
             self.archive_sidecar_corpus_button.clicked.connect(self._export_binary_sidecar_corpus_report)
             self.archive_material_values_button.clicked.connect(self._edit_current_archive_material_sidecar)
+            self.archive_import_loose_mod_button.clicked.connect(self._open_archive_loose_mod_overlay_dialog)
             self.archive_restore_patch_backup_button.clicked.connect(self._restore_archive_patch_backup_from_ui)
             self.archive_texture_refs_tree.itemSelectionChanged.connect(self._update_archive_texture_reference_action_controls)
             self.archive_texture_refs_tree.itemDoubleClicked.connect(
@@ -5176,7 +5344,7 @@ def run_gui() -> int:
             self.archive_texture_open_button.clicked.connect(self._open_selected_archive_texture_reference)
             self.archive_texture_edit_hkx_button.clicked.connect(self._edit_selected_archive_hkx_reference)
             self.archive_texture_scope_selected_button.clicked.connect(self._scope_selected_archive_texture_references)
-            self.archive_texture_scope_all_button.clicked.connect(self._scope_all_archive_texture_references)
+            self.archive_texture_scope_all_button.clicked.connect(lambda _checked=False: self._scope_current_archive_asset_set(include_hints=False))
             self.archive_texture_export_button.clicked.connect(self._export_selected_archive_texture_reference)
             self.archive_texture_export_all_button.clicked.connect(self._export_all_archive_texture_references)
             self.archive_texture_export_asset_set_button.clicked.connect(self._export_current_archive_asset_set)
@@ -5253,10 +5421,12 @@ def run_gui() -> int:
             geometry = self.settings.value("window/geometry")
             if geometry:
                 self.restoreGeometry(geometry)
+            QTimer.singleShot(0, self._connect_responsive_screen_signals)
             QTimer.singleShot(0, self._apply_responsive_window_defaults)
             QTimer.singleShot(140, self._schedule_column_autofit)
-            QTimer.singleShot(120, self._show_first_run_guide_if_needed)
-            QTimer.singleShot(260, self._maybe_autoload_archive_on_startup)
+            if os.environ.get("CDMW_GUI_STARTUP_SMOKE") != "1":
+                QTimer.singleShot(120, self._show_first_run_guide_if_needed)
+                QTimer.singleShot(260, self._maybe_autoload_archive_on_startup)
 
         def _register_detachable_tool(self, key: str, widget: QWidget, title: str) -> None:
             if key in self._tool_widgets_by_key:
@@ -7454,7 +7624,15 @@ def run_gui() -> int:
             app = QApplication.instance()
             if app is None:
                 return
-            self.current_theme_key = apply_app_theme(app, self.settings, resolved_theme_key)
+            screen_width, screen_height = available_layout_size_for(self)
+            self._current_responsive_control_scale = 0.0
+            self.current_theme_key = apply_app_theme(
+                app,
+                self.settings,
+                resolved_theme_key,
+                screen_width=screen_width,
+                screen_height=screen_height,
+            )
             apply_window_data_fonts(self)
             self.log_highlighter.set_theme(self.current_theme_key)
             self.archive_log_highlighter.set_theme(self.current_theme_key)
@@ -7466,6 +7644,7 @@ def run_gui() -> int:
             self.research_tab.set_theme(self.current_theme_key)
             self.texture_editor_tab.sync_ui_font(app.font())
             self.settings_tab.sync_appearance_controls(self.current_theme_key)
+            self._apply_responsive_control_minimums()
             self._schedule_column_autofit()
             self.schedule_settings_save()
 
@@ -7673,14 +7852,146 @@ def run_gui() -> int:
         def _archive_controls_sidebar_bounds(self) -> Tuple[int, int, int]:
             controls_min, controls_pref, controls_max = responsive_sidebar_bounds(self, role="normal")
             scale = controls_min / 320.0 if controls_min > 0 else 1.0
-            readable_min = int(round(440 * scale))
-            readable_pref = int(round(520 * scale))
-            readable_max = int(round(700 * scale))
+            screen_width, _screen_height = available_layout_size_for(self)
+            if screen_width <= 1366:
+                readable_values = (300, 330, 360)
+            elif screen_width <= 1600:
+                readable_values = (320, 360, 400)
+            elif screen_width <= 1920:
+                readable_values = (340, 390, 460)
+            elif screen_width <= 2560:
+                readable_values = (390, 460, 560)
+            else:
+                readable_values = (440, 520, 700)
+            readable_min = int(round(readable_values[0] * scale))
+            readable_pref = int(round(readable_values[1] * scale))
+            readable_max = int(round(readable_values[2] * scale))
             return (
                 max(controls_min, readable_min),
                 max(controls_pref, readable_pref),
                 max(controls_max, readable_max),
             )
+
+        def _apply_responsive_width_policies(self) -> None:
+            screen_width, _screen_height = available_layout_size_for(self)
+            controls_min, _controls_pref, controls_max = self._archive_controls_sidebar_bounds()
+            files_min, _files_pref, _files_max = responsive_sidebar_bounds(self, role="narrow")
+            preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
+            workflow_nav_min, _workflow_nav_pref, workflow_nav_max = responsive_sidebar_bounds(self, role="workflow")
+            workflow_content_min, _workflow_content_pref, _workflow_content_max = responsive_sidebar_bounds(self, role="wide")
+            for widget in (getattr(self, "archive_controls_group", None), getattr(self, "archive_controls_scroll", None)):
+                if widget is not None:
+                    widget.setMinimumWidth(controls_min)
+                    widget.setMaximumWidth(controls_max)
+            if hasattr(self, "archive_files_group"):
+                self.archive_files_group.setMinimumWidth(files_min)
+                self.archive_files_group.setMaximumWidth(16777215)
+            if hasattr(self, "archive_preview_group"):
+                self.archive_preview_group.setMinimumWidth(preview_min)
+                self.archive_preview_group.setMaximumWidth(16777215)
+            if hasattr(self, "archive_texture_refs_group"):
+                if screen_width <= 1366:
+                    refs_min = 240
+                elif screen_width <= 1920:
+                    refs_min = 280
+                else:
+                    refs_min = 320
+                self.archive_texture_refs_group.setMinimumWidth(refs_min)
+                self.archive_asset_family_preferred_width = max(refs_min, min(420, int(screen_width * 0.22)))
+            if hasattr(self, "left_panel"):
+                self.left_panel.setMinimumWidth(workflow_nav_min)
+            if hasattr(self, "left_scroll_area"):
+                self.left_scroll_area.setMinimumWidth(workflow_nav_min)
+                self.left_scroll_area.setMaximumWidth(workflow_nav_max)
+            if hasattr(self, "right_panel"):
+                self.right_panel.setMinimumWidth(workflow_content_min)
+            self._apply_responsive_label_density()
+
+        def _apply_responsive_label_density(self) -> None:
+            layout_width, _layout_height = available_layout_size_for(self)
+            preview_width = int(getattr(getattr(self, "archive_preview_group", None), "width", lambda: 0)() or 0)
+            compact = layout_width <= 1600 or (0 < preview_width <= 620)
+            pairs = (
+                ("archive_model_preview_settings_button", "3D", "3D Settings"),
+                ("archive_asset_family_button", "Asset", "Asset Family"),
+                ("archive_texture_open_button", "Preview", "Preview"),
+                ("archive_texture_edit_hkx_button", "Edit HKX", "Edit HKX..."),
+                ("archive_texture_edit_material_button", "Material", "Edit Material Values..."),
+                ("archive_texture_scope_selected_button", "Show Row", "Show Selected"),
+                ("archive_texture_scope_all_button", "Only Family", "Show Only This Family"),
+                ("archive_texture_export_button", "Export", "Export Selected..."),
+                ("archive_texture_export_asset_set_button", "Export Family", "Export Family..."),
+                ("archive_texture_smart_actions_button", "Actions", "Smart Actions"),
+                ("archive_texture_export_all_button", "Export All", "Export All..."),
+            )
+            for object_name, compact_text, normal_text in pairs:
+                widget = getattr(self, object_name, None)
+                if isinstance(widget, QPushButton):
+                    text = compact_text if compact else normal_text
+                    if widget.text() != text:
+                        widget.setText(text)
+
+        def _apply_responsive_control_minimums(self) -> None:
+            screen_width, screen_height = available_layout_size_for(self)
+            scale = _responsive_control_scale_for_resolution(screen_width, screen_height)
+            control_types = (
+                QPushButton,
+                QToolButton,
+                QComboBox,
+                QLineEdit,
+                QSpinBox,
+                QDoubleSpinBox,
+                QProgressBar,
+            )
+            for widget in self.findChildren(QWidget):
+                if not isinstance(widget, control_types):
+                    continue
+                base_min_width = widget.property("_cdmw_responsive_base_min_width")
+                if base_min_width is None:
+                    base_min_width = int(widget.minimumWidth())
+                    widget.setProperty("_cdmw_responsive_base_min_width", base_min_width)
+                base_min_height = widget.property("_cdmw_responsive_base_min_height")
+                if base_min_height is None:
+                    base_min_height = int(widget.minimumHeight())
+                    widget.setProperty("_cdmw_responsive_base_min_height", base_min_height)
+                base_max_width = widget.property("_cdmw_responsive_base_max_width")
+                if base_max_width is None:
+                    base_max_width = int(widget.maximumWidth())
+                    widget.setProperty("_cdmw_responsive_base_max_width", base_max_width)
+                if int(base_min_width) > 0:
+                    new_min_width = max(0, int(round(int(base_min_width) * scale)))
+                    if widget.minimumWidth() != new_min_width:
+                        widget.setMinimumWidth(new_min_width)
+                if int(base_min_height) > 0:
+                    new_min_height = max(0, int(round(int(base_min_height) * scale)))
+                    if widget.minimumHeight() != new_min_height:
+                        widget.setMinimumHeight(new_min_height)
+                if 0 < int(base_max_width) < 16777215:
+                    new_max_width = max(widget.minimumWidth(), int(round(int(base_max_width) * scale)))
+                    if widget.maximumWidth() != new_max_width:
+                        widget.setMaximumWidth(new_max_width)
+
+        def _apply_responsive_theme_metrics(self) -> None:
+            app = QApplication.instance()
+            if app is None:
+                return
+            screen_width, screen_height = available_layout_size_for(self)
+            screen_scale = _responsive_control_scale_for_resolution(screen_width, screen_height)
+            if abs(screen_scale - float(getattr(self, "_current_responsive_control_scale", 0.0))) < 0.001:
+                return
+            self._current_responsive_control_scale = screen_scale
+            self.current_theme_key = apply_app_theme(
+                app,
+                self.settings,
+                self.current_theme_key,
+                screen_width=screen_width,
+                screen_height=screen_height,
+            )
+            apply_window_data_fonts(self)
+            if hasattr(self, "texture_editor_tab"):
+                self.texture_editor_tab.sync_ui_font(app.font())
+            if hasattr(self, "settings_tab"):
+                self.settings_tab.sync_appearance_controls(self.current_theme_key)
 
         def _normalize_archive_splitter_sizes(self, sizes: Sequence[int], total_width: int) -> List[int]:
             controls_min, _controls_pref, controls_max = self._archive_controls_sidebar_bounds()
@@ -7735,7 +8046,25 @@ def run_gui() -> int:
             sizes[2] += reclaimed_width
             self.archive_splitter.setSizes(sizes)
 
+        def _apply_archive_preview_content_responsive_sizes(self) -> None:
+            if not hasattr(self, "archive_preview_content_splitter"):
+                return
+            total_width = max(1, self.archive_preview_content_splitter.width())
+            if total_width <= 1:
+                total_width = max(1, self.archive_preview_group.width() if hasattr(self, "archive_preview_group") else 1200)
+            screen_width, _screen_height = available_layout_size_for(self)
+            refs_min = self.archive_texture_refs_group.minimumWidth() if hasattr(self, "archive_texture_refs_group") else 280
+            if screen_width <= 1920:
+                weights = [72, 28]
+            elif screen_width <= 2560:
+                weights = [65, 35]
+            else:
+                weights = [60, 40]
+            sizes = build_responsive_splitter_sizes(total_width, weights, [360, refs_min])
+            self.archive_preview_content_splitter.setSizes(sizes)
+
         def _apply_default_splitter_sizes(self, total_width: int) -> None:
+            self._apply_responsive_width_policies()
             workflow_nav_min, _workflow_nav_pref, _workflow_nav_max = responsive_sidebar_bounds(self, role="workflow")
             workflow_content_min, _workflow_content_pref, _workflow_content_max = responsive_sidebar_bounds(self, role="wide")
             self.workflow_splitter.setSizes(
@@ -7770,6 +8099,7 @@ def run_gui() -> int:
             self.replace_assistant_tab.apply_responsive_splitter_sizes(total_width)
             self.research_tab.apply_responsive_splitter_sizes(total_width)
             self.text_search_tab.apply_responsive_splitter_sizes(total_width)
+            self._apply_archive_preview_content_responsive_sizes()
 
         def _apply_saved_splitter_sizes_if_enabled(self, total_width: int) -> None:
             self._apply_default_splitter_sizes(total_width)
@@ -7832,6 +8162,7 @@ def run_gui() -> int:
             research_notes_sizes = self._load_saved_splitter_sizes("ui/research_notes_splitter_sizes")
             if research_notes_sizes:
                 self.research_tab.set_notes_splitter_sizes(research_notes_sizes, total_width=total_width)
+            self._apply_archive_preview_content_responsive_sizes()
 
         def _startup_archive_autoload_expected(self) -> bool:
             if self.show_quick_start_on_launch:
@@ -7848,7 +8179,10 @@ def run_gui() -> int:
             self._startup_splash_holds_main_window = bool(hold_main_window)
             self._startup_splash_released = False
             self._startup_splash_release_pending = False
+            self._startup_splash_finish_pending = False
             self._update_startup_splash("Preparing application...")
+            if hold_main_window:
+                QTimer.singleShot(0, self._show_main_window_behind_startup_splash)
 
         def _update_startup_splash(self, detail: str, current: int = 0, total: int = 0) -> None:
             splash = getattr(self, "_startup_splash_window", None)
@@ -7858,6 +8192,31 @@ def run_gui() -> int:
                 splash.set_detail(detail, current, total)
             except Exception:
                 pass
+
+        def _show_main_window_behind_startup_splash(self) -> None:
+            if getattr(self, "_shutting_down", False):
+                return
+            splash = getattr(self, "_startup_splash_window", None)
+            if not self.isVisible():
+                self.show()
+            if splash is not None:
+                try:
+                    splash.raise_()
+                    splash.activateWindow()
+                    splash.pump_animation_frame()
+                except Exception:
+                    pass
+
+        def _finish_startup_splash_now(self) -> None:
+            splash = getattr(self, "_startup_splash_window", None)
+            self._startup_splash_window = None
+            self._startup_splash_holds_main_window = False
+            self._startup_splash_finish_pending = False
+            if splash is not None:
+                try:
+                    splash.finish()
+                except Exception:
+                    pass
 
         def _release_startup_splash(self) -> None:
             if getattr(self, "_startup_splash_released", False):
@@ -7878,17 +8237,18 @@ def run_gui() -> int:
             self._startup_splash_release_pending = False
             if (
                 getattr(self, "_startup_splash_holds_main_window", False)
-                and not self.isVisible()
                 and not getattr(self, "_shutting_down", False)
             ):
-                self.show()
-            self._startup_splash_window = None
-            self._startup_splash_holds_main_window = False
-            if splash is not None:
-                try:
-                    splash.finish()
-                except Exception:
-                    pass
+                self._show_main_window_behind_startup_splash()
+                if splash is not None and not getattr(self, "_startup_splash_finish_pending", False):
+                    self._startup_splash_finish_pending = True
+                    delay_ms = 0 if os.environ.get("CDMW_GUI_STARTUP_SMOKE") == "1" else 180
+                    if delay_ms <= 0:
+                        self._finish_startup_splash_now()
+                    else:
+                        QTimer.singleShot(delay_ms, self._finish_startup_splash_now)
+                    return
+            self._finish_startup_splash_now()
 
         def _maybe_autoload_archive_on_startup(self) -> None:
             if self.show_quick_start_on_launch:
@@ -7913,6 +8273,7 @@ def run_gui() -> int:
 
             self.append_archive_log("Startup archive auto-load is enabled.")
             self._update_startup_splash("Loading Archive Browser...")
+            self.archive_startup_autoload_defer_preview = True
             self.scan_archives(
                 force_refresh=not self._preference_bool("prefer_archive_cache_on_startup", True),
                 activate_archive_tab=False,
@@ -8009,27 +8370,51 @@ def run_gui() -> int:
             return True
 
         def _apply_responsive_window_defaults(self) -> None:
+            if getattr(self, "_applying_responsive_layout", False):
+                return
             screen = self.screen() or QApplication.primaryScreen()
             if screen is None:
                 return
-            available = screen.availableGeometry()
-            if self.width() > available.width() - 24 or self.height() > available.height() - 24:
-                self.resize(
-                    max(self.minimumWidth(), min(int(available.width() * 0.94), available.width() - 24)),
-                    max(self.minimumHeight(), min(int(available.height() * 0.92), available.height() - 24)),
-                )
-            frame = self.frameGeometry()
-            x = frame.x()
-            y = frame.y()
-            max_x = max(available.left(), available.right() - frame.width() + 1)
-            max_y = max(available.top(), available.bottom() - frame.height() + 1)
-            self.move(
-                min(max(x, available.left()), max_x),
-                min(max(y, available.top()), max_y),
+            self._applying_responsive_layout = True
+            try:
+                self._apply_responsive_theme_metrics()
+                self._apply_responsive_control_minimums()
+                available = screen.availableGeometry()
+                if (
+                    not self.isMaximized()
+                    and not self.isFullScreen()
+                    and (self.width() > available.width() - 24 or self.height() > available.height() - 24)
+                ):
+                    self.resize(
+                        max(self.minimumWidth(), min(int(available.width() * 0.94), available.width() - 24)),
+                        max(self.minimumHeight(), min(int(available.height() * 0.92), available.height() - 24)),
+                    )
+                if not self.isMaximized() and not self.isFullScreen():
+                    frame = self.frameGeometry()
+                    x = frame.x()
+                    y = frame.y()
+                    max_x = max(available.left(), available.right() - frame.width() + 1)
+                    max_y = max(available.top(), available.bottom() - frame.height() + 1)
+                    self.move(
+                        min(max(x, available.left()), max_x),
+                        min(max(y, available.top()), max_y),
+                    )
+                total_width = max(1, self.width() - 64)
+                self._apply_saved_splitter_sizes_if_enabled(total_width)
+                self._schedule_column_autofit()
+            finally:
+                self._applying_responsive_layout = False
+
+        def _connect_responsive_screen_signals(self) -> None:
+            window_handle = self.windowHandle()
+            if window_handle is None or getattr(self, "_responsive_screen_signal_connected", False):
+                return
+            window_handle.screenChanged.connect(
+                lambda _screen: None
+                if getattr(self, "_applying_responsive_layout", False)
+                else self._responsive_resize_timer.start()
             )
-            total_width = max(self.width() - 64, self.minimumWidth())
-            self._apply_saved_splitter_sizes_if_enabled(total_width)
-            self._schedule_column_autofit()
+            self._responsive_screen_signal_connected = True
 
         def _schedule_column_autofit(self) -> None:
             if self._shutting_down:
@@ -8112,6 +8497,188 @@ def run_gui() -> int:
         def _add_combo_choice(self, combo: QComboBox, label: str, value: str) -> None:
             combo.addItem(label, value)
 
+        def _archive_extension_counts(self) -> Counter:
+            entries_by_extension = getattr(self, "archive_entries_by_extension", {})
+            if isinstance(entries_by_extension, dict) and entries_by_extension:
+                return Counter(
+                    {
+                        str(extension): len(items)
+                        for extension, items in entries_by_extension.items()
+                        if extension and isinstance(items, list)
+                    }
+                )
+            entries = getattr(self, "archive_entries", [])
+            return Counter(entry.extension for entry in entries if getattr(entry, "extension", ""))
+
+        @staticmethod
+        def _archive_extension_group_label(extension: str) -> str:
+            ext = str(extension or "").strip().lower()
+            if ext in {".pac", ".pam", ".pamlod", ".meshinfo", ".hkx", ".pab", ".pae", ".pat", ".obj", ".fbx", ".gltf", ".glb"}:
+                return "Model / Mesh / Physics"
+            if ext in {".dds", ".png", ".tga", ".jpg", ".jpeg", ".texture"}:
+                return "Texture / Image"
+            if ext in {
+                ".pac_xml",
+                ".app_xml",
+                ".prefab",
+                ".pappt",
+                ".pamhc",
+                ".prefabdata_xml",
+                ".paa_metabin",
+                ".motionblending",
+                ".seqmt",
+                ".pabgb",
+                ".pabgh",
+                ".pami",
+                ".xml",
+                ".json",
+                ".material",
+                ".levelinfo",
+                ".binarygimmick",
+            }:
+                return "Material / Metadata"
+            if ext in {".wem", ".bnk", ".mp4", ".wav", ".ogg", ".mp3"}:
+                return "Audio / Video"
+            if ext in {".html", ".thtml", ".css", ".txt", ".paloc", ".ui", ".uianiminit"}:
+                return "UI / Text"
+            if ext in {".paseqc", ".paseqcpath", ".pastage", ".palevel", ".paa_metabin", ".paem", ".paa", ".ani", ".pai"}:
+                return "Animation / Scene"
+            return "Other"
+
+        def _open_archive_extension_picker(self) -> None:
+            extension_counts = self._archive_extension_counts()
+            if not extension_counts:
+                extension_counts = Counter({".dds": 0})
+            current_value = normalize_archive_extension_filter(
+                self._combo_value(self.archive_extension_filter_combo) or ARCHIVE_EXTENSION_FILTER
+            )
+
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Select Archive Extension")
+            dialog.resize(560, 660)
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+
+            intro = QLabel("Pick a loaded extension group, or keep typing a rare extension in the search box.")
+            intro.setObjectName("HintLabel")
+            intro.setWordWrap(True)
+            layout.addWidget(intro)
+
+            search_edit = QLineEdit()
+            search_edit.setPlaceholderText("Filter extensions or groups, e.g. hkx, texture, metadata")
+            layout.addWidget(search_edit)
+
+            extension_tree = QTreeWidget()
+            extension_tree.setColumnCount(3)
+            extension_tree.setHeaderLabels(["Extension", "Entries", "Group"])
+            extension_tree.setRootIsDecorated(True)
+            extension_tree.setAlternatingRowColors(True)
+            extension_tree.setUniformRowHeights(True)
+            extension_tree.setSelectionMode(QAbstractItemView.SingleSelection)
+            extension_tree.header().setStretchLastSection(True)
+            extension_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+            extension_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            extension_tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            count_brush = QBrush(QColor("#fbbf24"))
+            group_brush = QBrush(QColor("#93c5fd"))
+            all_count = sum(int(count) for count in extension_counts.values())
+            all_item = QTreeWidgetItem(extension_tree, ["All files", f"{all_count:,}", "All"])
+            all_item.setData(0, Qt.UserRole, "*")
+            all_item.setForeground(1, count_brush)
+
+            grouped: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
+            for extension, count in sorted(extension_counts.items(), key=lambda item: (-item[1], item[0])):
+                grouped[self._archive_extension_group_label(extension)].append((extension, int(count)))
+
+            selected_item: Optional[QTreeWidgetItem] = None
+            if current_value in {"*", "all", ".*"}:
+                selected_item = all_item
+            group_order = (
+                "Model / Mesh / Physics",
+                "Texture / Image",
+                "Material / Metadata",
+                "Animation / Scene",
+                "Audio / Video",
+                "UI / Text",
+                "Other",
+            )
+            for group_name in group_order:
+                values = grouped.get(group_name, [])
+                if not values:
+                    continue
+                group_total = sum(count for _extension, count in values)
+                group_item = QTreeWidgetItem(extension_tree, [group_name, f"{group_total:,}", group_name])
+                group_item.setData(0, Qt.UserRole, "")
+                group_item.setForeground(0, group_brush)
+                group_item.setForeground(1, count_brush)
+                group_item.setExpanded(True)
+                for extension, count in values:
+                    child = QTreeWidgetItem(group_item, [extension, f"{count:,}", group_name])
+                    child.setData(0, Qt.UserRole, extension)
+                    child.setForeground(0, QBrush(self._archive_role_color(group_name)))
+                    child.setForeground(1, count_brush)
+                    if extension == current_value:
+                        selected_item = child
+            if selected_item is not None:
+                extension_tree.setCurrentItem(selected_item)
+                extension_tree.scrollToItem(selected_item)
+            layout.addWidget(extension_tree, stretch=1)
+
+            actions = QHBoxLayout()
+            actions.setSpacing(8)
+            clear_button = QPushButton("All Files")
+            select_button = QPushButton("Select")
+            cancel_button = QPushButton("Cancel")
+            select_button.setDefault(True)
+            actions.addWidget(clear_button)
+            actions.addStretch(1)
+            actions.addWidget(select_button)
+            actions.addWidget(cancel_button)
+            layout.addLayout(actions)
+
+            def _apply_filter(text: str) -> None:
+                needle = text.strip().casefold()
+                for top_index in range(extension_tree.topLevelItemCount()):
+                    top_item = extension_tree.topLevelItem(top_index)
+                    top_match = needle in top_item.text(0).casefold() or needle in top_item.text(2).casefold()
+                    any_child_visible = False
+                    for child_index in range(top_item.childCount()):
+                        child = top_item.child(child_index)
+                        child_match = (
+                            not needle
+                            or top_match
+                            or needle in child.text(0).casefold()
+                            or needle in child.text(2).casefold()
+                        )
+                        child.setHidden(not child_match)
+                        any_child_visible = any_child_visible or child_match
+                    top_item.setHidden(bool(needle) and not top_match and not any_child_visible)
+
+            def _select_value(value: str) -> None:
+                normalized = normalize_archive_extension_filter(value or "*")
+                self._set_combo_by_value(self.archive_extension_filter_combo, normalized)
+                self._mark_archive_filters_dirty()
+                self.schedule_settings_save()
+                dialog.accept()
+
+            def _select_current() -> None:
+                item = extension_tree.currentItem()
+                if item is None:
+                    return
+                value = item.data(0, Qt.UserRole)
+                if not isinstance(value, str) or not value:
+                    item.setExpanded(not item.isExpanded())
+                    return
+                _select_value(value)
+
+            search_edit.textChanged.connect(_apply_filter)
+            clear_button.clicked.connect(lambda _checked=False: _select_value("*"))
+            select_button.clicked.connect(lambda _checked=False: _select_current())
+            cancel_button.clicked.connect(dialog.reject)
+            extension_tree.itemDoubleClicked.connect(lambda _item, _column: _select_current())
+            dialog.exec()
+
         def _rebuild_archive_extension_filter_choices(self, selected_value: Optional[str] = None) -> None:
             selected_raw = (
                 selected_value
@@ -8119,18 +8686,7 @@ def run_gui() -> int:
                 else (self._combo_value(self.archive_extension_filter_combo) or ARCHIVE_EXTENSION_FILTER)
             )
             preferred_value = normalize_archive_extension_filter(selected_raw)
-            entries_by_extension = getattr(self, "archive_entries_by_extension", {})
-            if isinstance(entries_by_extension, dict) and entries_by_extension:
-                extension_counts = {
-                    str(extension): len(items)
-                    for extension, items in entries_by_extension.items()
-                    if extension and isinstance(items, list)
-                }
-            else:
-                entries = getattr(self, "archive_entries", [])
-                extension_counts = Counter(
-                    entry.extension for entry in entries if getattr(entry, "extension", "")
-                )
+            extension_counts = self._archive_extension_counts()
 
             self.archive_extension_filter_combo.blockSignals(True)
             self.archive_extension_filter_combo.clear()
@@ -8969,6 +9525,7 @@ def run_gui() -> int:
                 self._refresh_archive_browser_view()
             else:
                 self.archive_browser_refresh_pending = True
+                self.archive_startup_autoload_defer_preview = False
 
         def _refresh_or_defer_research_archive_picker(self) -> None:
             if self._is_tool_visible_or_current(self.research_tab):
@@ -9242,44 +9799,76 @@ def run_gui() -> int:
             self.texconv_path_edit.setText(self.settings.value("paths/texconv_path", defaults.texconv_path))
             self.archive_package_root_edit.setText(self.settings.value("archive/package_root", defaults.archive_package_root))
             self.archive_extract_root_edit.setText(self.settings.value("archive/extract_root", defaults.archive_extract_root))
-            self.archive_filter_edit.setText(self.settings.value("archive/filter_text", defaults.archive_filter_text))
-            self.archive_exclude_filter_edit.setText(
-                self.settings.value("archive/exclude_filter_text", defaults.archive_exclude_filter_text)
+            restore_archive_filters = self._preference_bool("restore_archive_filters_on_startup", False)
+            archive_filter_text = (
+                self.settings.value("archive/filter_text", defaults.archive_filter_text)
+                if restore_archive_filters
+                else defaults.archive_filter_text
             )
-            self._rebuild_archive_extension_filter_choices(
+            archive_exclude_filter_text = (
+                self.settings.value("archive/exclude_filter_text", defaults.archive_exclude_filter_text)
+                if restore_archive_filters
+                else defaults.archive_exclude_filter_text
+            )
+            archive_extension_filter = (
                 str(self.settings.value("archive/extension_filter", defaults.archive_extension_filter))
+                if restore_archive_filters
+                else "*"
+            )
+            archive_package_filter_text = (
+                self.settings.value("archive/package_filter_text", defaults.archive_package_filter_text)
+                if restore_archive_filters
+                else defaults.archive_package_filter_text
+            )
+            archive_structure_filter = (
+                str(self.settings.value("archive/structure_filter", defaults.archive_structure_filter))
+                if restore_archive_filters
+                else defaults.archive_structure_filter
+            )
+            archive_role_filter = (
+                str(self.settings.value("archive/role_filter", defaults.archive_role_filter))
+                if restore_archive_filters
+                else defaults.archive_role_filter
+            )
+            self.archive_filter_edit.setText(archive_filter_text)
+            self.archive_exclude_filter_edit.setText(archive_exclude_filter_text)
+            self._rebuild_archive_extension_filter_choices(
+                archive_extension_filter
             )
             self._set_combo_by_value(
                 self.archive_extension_filter_combo,
-                str(self.settings.value("archive/extension_filter", defaults.archive_extension_filter)),
+                archive_extension_filter,
             )
-            self.archive_package_filter_edit.setText(
-                self.settings.value("archive/package_filter_text", defaults.archive_package_filter_text)
-            )
-            self.archive_structure_filter_pending_value = str(
-                self.settings.value("archive/structure_filter", defaults.archive_structure_filter)
-            )
+            self.archive_package_filter_edit.setText(archive_package_filter_text)
+            self.archive_structure_filter_pending_value = str(archive_structure_filter)
             self._set_combo_by_value(
                 self.archive_role_filter_combo,
-                str(self.settings.value("archive/role_filter", defaults.archive_role_filter)),
+                archive_role_filter,
             )
-            self.archive_exclude_common_technical_checkbox.setChecked(
-                str(
-                    self.settings.value(
-                        "archive/exclude_common_technical_suffixes",
-                        defaults.archive_exclude_common_technical_suffixes,
-                    )
-                ).lower()
-                in {"1", "true", "yes"}
-            )
-            self.archive_min_size_spin.setValue(
-                int(self.settings.value("archive/min_size_kb", defaults.archive_min_size_kb))
-            )
-            self.archive_previewable_only_checkbox.setChecked(
-                self._read_bool("archive/previewable_only", defaults.archive_previewable_only)
-            )
+            if restore_archive_filters:
+                self.archive_exclude_common_technical_checkbox.setChecked(
+                    str(
+                        self.settings.value(
+                            "archive/exclude_common_technical_suffixes",
+                            defaults.archive_exclude_common_technical_suffixes,
+                        )
+                    ).lower()
+                    in {"1", "true", "yes"}
+                )
+                self.archive_min_size_spin.setValue(
+                    int(self.settings.value("archive/min_size_kb", defaults.archive_min_size_kb))
+                )
+                self.archive_previewable_only_checkbox.setChecked(
+                    self._read_bool("archive/previewable_only", defaults.archive_previewable_only)
+                )
+            else:
+                self.archive_exclude_common_technical_checkbox.setChecked(defaults.archive_exclude_common_technical_suffixes)
+                self.archive_min_size_spin.setValue(int(defaults.archive_min_size_kb))
+                self.archive_previewable_only_checkbox.setChecked(bool(defaults.archive_previewable_only))
             view_mode_value = self.settings.value("archive/browser_view_mode")
-            if view_mode_value is None:
+            if not restore_archive_filters:
+                view_mode_value = ARCHIVE_BROWSER_VIEW_MODE
+            elif view_mode_value is None:
                 view_mode_value = "folders" if self._read_bool("archive/tree_view", True) else "flat"
             self._set_combo_by_value(self.archive_browser_view_mode_combo, str(view_mode_value or "folders"))
             self._model_preview_render_settings = self._read_model_preview_render_settings()
@@ -9556,7 +10145,7 @@ def run_gui() -> int:
                 self.compare_preview_size_combo,
                 str(self.settings.value("ui/compare_preview_size_mode", "fit:1.25")),
             )
-            self.setup_section.set_expanded(self._read_bool("sections/setup_expanded", False))
+            self.setup_section.set_expanded(True)
             self.paths_section.set_expanded(self._read_bool("sections/paths_expanded", False))
             self.archive_locations_section.set_expanded(self._read_bool("sections/archive_locations_expanded", False))
             self.settings_section.set_expanded(self._read_bool("sections/settings_expanded", False))
@@ -10969,11 +11558,15 @@ def run_gui() -> int:
                 "Starting archive refresh." if force_refresh else "Starting archive scan (cache-aware)."
             )
 
+            build_browser_tree_index = bool(
+                self._archive_tree_view_enabled()
+                and (activate_archive_tab or self._is_tool_visible_or_current(self.archive_browser_tab))
+            )
             worker = ArchiveScanWorker(
                 package_root,
                 self.archive_cache_root,
                 force_refresh=force_refresh,
-                build_tree_index=self._archive_tree_view_enabled(),
+                build_tree_index=build_browser_tree_index,
                 filter_text=self.archive_filter_edit.text().strip(),
                 exclude_filter_text=self.archive_exclude_filter_edit.text().strip(),
                 extension_filter=self._combo_value(self.archive_extension_filter_combo),
@@ -12014,7 +12607,14 @@ def run_gui() -> int:
                 self.set_status_message(completion_text)
                 self.append_archive_log(completion_text)
 
-            self._populate_archive_tree(preferred_path, rebuild_index=False, on_complete=finish_filter_render)
+            defer_default_selection = bool(getattr(self, "archive_startup_autoload_defer_preview", False))
+            self.archive_startup_autoload_defer_preview = False
+            self._populate_archive_tree(
+                preferred_path,
+                rebuild_index=False,
+                on_complete=finish_filter_render,
+                defer_default_selection=defer_default_selection,
+            )
 
         def _archive_tree_item_kind(self, item: Optional[QTreeWidgetItem]) -> str:
             if item is None:
@@ -12060,7 +12660,7 @@ def run_gui() -> int:
                 return "Video"
             if ext in {".pac", ".pam", ".pamlod", ".obj", ".fbx", ".dae", ".gltf", ".glb", ".mesh", ".mdl", ".model", ".pat", ".patx"}:
                 return "Mesh"
-            if ext in ARCHIVE_TEXT_EXTENSIONS or ext in {".meshinfo", ".motionblending", ".paa_metabin", ".prefab"}:
+            if ext in ARCHIVE_TEXT_EXTENSIONS or ext in {".meshinfo", ".motionblending", ".paa_metabin", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
                 return "Text/Metadata"
             return "Other"
 
@@ -12084,13 +12684,17 @@ def run_gui() -> int:
                 return "Animation"
             if ext == ".pab":
                 return "Skeleton / Rig"
-            if ext in {".prefab", ".prefabdata_xml", ".prefabdata.xml"}:
+            if ext in {".prefab", ".prefabdata_xml", ".prefabdata.xml", ".pappt"}:
                 return "Prefab"
+            if ext == ".pamhc":
+                return "Model Property Metadata"
+            if ext == ".seqmt":
+                return "Sequence Texture Metadata"
             if ext in ARCHIVE_AUDIO_EXTENSIONS:
                 return "Audio"
             if ext in ARCHIVE_VIDEO_EXTENSIONS:
                 return "Video"
-            if ext in ARCHIVE_TEXT_EXTENSIONS or ext in {".meshinfo", ".motionblending", ".paa_metabin", ".prefab"}:
+            if ext in ARCHIVE_TEXT_EXTENSIONS or ext in {".meshinfo", ".motionblending", ".paa_metabin", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
                 if "/ui" in path or path.startswith("ui/"):
                     return "UI"
                 return "Metadata"
@@ -12135,7 +12739,13 @@ def run_gui() -> int:
                 if isinstance(reference, ArchiveModelTextureReference)
             }
             if "Texture" in reference_roles:
-                parts.append("Textures Linked")
+                has_partial_texture = any(
+                    "partial" in self._archive_texture_reference_status_text(reference).casefold()
+                    for reference in references
+                    if isinstance(reference, ArchiveModelTextureReference)
+                    and self._archive_reference_role_label(reference) == "Texture"
+                )
+                parts.append("Textures Partial" if has_partial_texture else "Textures Linked")
             if "Material" in reference_roles:
                 parts.append("Material Linked")
             if "Physics" in reference_roles or "HKX" in reference_roles:
@@ -12146,7 +12756,7 @@ def run_gui() -> int:
             if exact_name:
                 parts.append("Name Exact")
             elif name_hint:
-                parts.append("Name Hint")
+                parts.append("Name Inferred")
             if entry.extension == ".hkx":
                 parts.append("Editable HKX" if role in {"Physics", "HKX"} else "HKX")
             seen: set[str] = set()
@@ -12156,7 +12766,54 @@ def run_gui() -> int:
                 if part and normalized not in seen:
                     ordered.append(part)
                     seen.add(normalized)
-            return " | ".join(ordered)
+            return self._ui_compact_status_line(ordered)
+
+        @staticmethod
+        def _ui_compact_status_line(parts: Sequence[object]) -> str:
+            seen: set[str] = set()
+            ordered: List[str] = []
+            for raw_part in parts:
+                part = str(raw_part or "").strip()
+                normalized = part.casefold()
+                if part and normalized not in seen:
+                    ordered.append(part)
+                    seen.add(normalized)
+            return "  |  ".join(ordered)
+
+        @staticmethod
+        def _ui_evidence_label(value: object) -> str:
+            key = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+            labels = {
+                "fixup_backed": "Fixup-backed",
+                "ptch": "Fixup-backed",
+                "exact": "Exact",
+                "declared_owner_array": "Owner-array",
+                "owner_array": "Owner-array",
+                "typed_layout": "Typed layout",
+                "inferred": "Inferred",
+                "spatial_fallback": "Spatial fallback",
+                "raw_observation": "Raw context",
+                "descriptor_context": "Context hint",
+                "strong_inference": "Strong inference",
+                "generated_from_current_xml": "Generated",
+                "experimental": "Experimental",
+            }
+            return labels.get(key, str(value or "").replace("_", " ").strip().title() or "Evidence")
+
+        @staticmethod
+        def _ui_risk_color(value: object) -> QColor:
+            key = str(value or "").strip().casefold()
+            if key in {"safe", "low", "patchable", "exact", "sidecar", "selected", "model ok", "resolved"} or "safe" in key:
+                return QColor("#86efac")
+            if key in {"medium", "inferred", "context only", "partial", "same stem", "path hint", "name hint", "prefab"} or "inferred" in key:
+                return QColor("#fde68a")
+            if key in {"high", "experimental", "mostly read-only", "missing", "unresolved"} or "high" in key or "experimental" in key:
+                return QColor("#fca5a5")
+            return QColor("#cbd5e1")
+
+        def _ui_style_status_columns(self, item: QTreeWidgetItem, values_by_column: Mapping[int, object]) -> None:
+            for column, value in values_by_column.items():
+                item.setForeground(int(column), QBrush(self._ui_risk_color(value)))
 
         @staticmethod
         def _archive_role_color(role: str) -> QColor:
@@ -12245,6 +12902,7 @@ def run_gui() -> int:
                 "category",
                 "group",
                 "evidence",
+                "category_evidence",
                 "scope_filter",
             ):
                 value = row.get(key)
@@ -12608,6 +13266,7 @@ def run_gui() -> int:
                         group_item.setText(0, f"{group} ({group_counts.get((category, group), 0):,})")
                         group_item.setData(0, Qt.UserRole, (category, group))
                     category_item.setExpanded(False)
+                category_tree.collapseAll()
                 category_tree.setCurrentItem(all_item)
 
             def _current_browser_filter() -> Tuple[str, str]:
@@ -12638,7 +13297,7 @@ def run_gui() -> int:
                         visible_candidates.append(item)
                     elif not item_rect.isValid() and row_index < 80:
                         visible_candidates.append(item)
-                    if len(visible_candidates) >= 80:
+                    if len(visible_candidates) >= 120:
                         break
                 viewport_center_y = item_grid.viewport().rect().center().y()
                 visible_candidates.sort(
@@ -12696,10 +13355,10 @@ def run_gui() -> int:
                     else:
                         item.setData(Qt.UserRole + 1, "thumb_missing")
                     loaded_count += 1
-                    if loaded_count >= 6:
+                    if loaded_count >= 12:
                         break
                 if icon_row_queue:
-                    icon_row_timer.start(8)
+                    icon_row_timer.start(3)
 
             def _populate_catalog() -> None:
                 icon_row_timer.stop()
@@ -12725,6 +13384,7 @@ def run_gui() -> int:
                     icon_paths = self._archive_asset_catalog_row_values(row, "icon_paths")
                     display_name = str(row.get("display_name", "") or row.get("internal_name", "") or "Unnamed asset")
                     internal_name = str(row.get("internal_name", "") or "")
+                    category_evidence = str(row.get("category_evidence", "") or "").strip()
                     variant_count = int(row.get("variant_count", 1) or 1)
                     linked_count = len(pac_files) + len(icon_paths)
                     item = QListWidgetItem(display_name)
@@ -12737,6 +13397,7 @@ def run_gui() -> int:
                         display_name,
                         f"Internal: {internal_name or '-'}",
                         f"Category: {category} > {group}",
+                        f"Evidence: {category_evidence or 'Name hint'}",
                         f"Direct links: {linked_count:,}",
                         f"Variants grouped: {variant_count:,}",
                     ]
@@ -12758,7 +13419,7 @@ def run_gui() -> int:
                     filter_text = selected_category
                 limit_note = " Refine search to narrow the result." if hidden else ""
                 status_label.setText(
-                    f"{shown:,} shown in {filter_text}. Double-click an item or use Show Files to scope the Archive Browser to direct links and recovered companions.{limit_note}"
+                    f"{shown:,} shown in {filter_text}. Double-click an item, use Show Exact Links, or use Show Related Set to scope the Archive Browser through indexed links.{limit_note}"
                 )
                 if item_grid.count() > 0:
                     item_grid.setCurrentRow(0)
@@ -12816,7 +13477,10 @@ def run_gui() -> int:
                     f"{category} / {group}\n"
                     f"{len(pac_files):,} direct model link(s), {len(icon_paths):,} icon path(s), {variant_count:,} grouped variant(s)."
                 )
+                category_evidence = str(row.get("category_evidence", "") or "").strip()
                 evidence_parts = [str(row.get("evidence", "") or "Recovered item/name evidence.")]
+                if category_evidence:
+                    evidence_parts.append(f"Category evidence: {category_evidence}")
                 if internal_name:
                     evidence_parts.append(f"Internal ID: {internal_name}")
                 if localized_names:
@@ -13706,6 +14370,7 @@ def run_gui() -> int:
             *,
             rebuild_index: bool = True,
             on_complete: Optional[Callable[[], None]] = None,
+            defer_default_selection: bool = False,
         ) -> None:
             self._cancel_archive_tree_clear()
             self._cancel_archive_tree_population()
@@ -13759,11 +14424,13 @@ def run_gui() -> int:
                         self.archive_tree.setUpdatesEnabled(True)
                         self.archive_tree.blockSignals(False)
                         self.archive_tree.setEnabled(True)
-                        defer_default_selection = initial_end_index < total_entries and target_item is None and not preferred_path
+                        chunk_defer_default_selection = bool(defer_default_selection) or (
+                            initial_end_index < total_entries and target_item is None and not preferred_path
+                        )
                         self._finalize_archive_tree_render(
                             preferred_path,
                             target_item=target_item,
-                            defer_default_selection=defer_default_selection,
+                            defer_default_selection=chunk_defer_default_selection,
                         )
                         if initial_end_index >= total_entries:
                             self.archive_tree_population_active = False
@@ -13803,7 +14470,7 @@ def run_gui() -> int:
                 self.archive_tree.setUpdatesEnabled(True)
                 self.archive_tree.blockSignals(False)
                 self.archive_tree.setEnabled(True)
-                self._finalize_archive_tree_render(preferred_path)
+                self._finalize_archive_tree_render(preferred_path, defer_default_selection=defer_default_selection)
                 self._set_archive_warmup_overlay(False)
                 if on_complete is not None:
                     on_complete()
@@ -15577,7 +16244,7 @@ def run_gui() -> int:
             current_entry = self._current_archive_entry()
             if current_entry is None:
                 return None
-            if str(current_entry.extension or "").lower() not in {".meshinfo", ".motionblending", ".paa_metabin", ".prefab"}:
+            if str(current_entry.extension or "").lower() not in {".meshinfo", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
                 return None
             return current_entry
 
@@ -15665,6 +16332,7 @@ def run_gui() -> int:
             self.archive_model_import_preview_button.setEnabled(can_mesh_actions)
             self.archive_model_import_dds_preview_button.setEnabled(can_mesh_actions)
             self.archive_model_import_patch_button.setEnabled(can_mesh_actions)
+            self.archive_model_modify_original_button.setEnabled(can_mesh_actions)
             self.archive_model_swap_in_game_button.setEnabled(can_mesh_actions)
             self.archive_hkx_export_json_button.setEnabled(can_hkx_actions)
             self.archive_hkx_import_json_button.setEnabled(can_hkx_actions)
@@ -15797,9 +16465,11 @@ def run_gui() -> int:
             label = getattr(self, "archive_preview_settings_status_label", None)
             if label is None:
                 return
-            status_text, tooltip = self._model_preview_settings_status()
-            label.setText(status_text)
-            label.setToolTip(tooltip)
+            # The same 3D preview state is already shown in Archive Preview diagnostics.
+            # Keep the legacy label hidden so the Archive Browser status panel stays compact.
+            label.clear()
+            label.setToolTip("")
+            label.setVisible(False)
 
         def _current_archive_performance_settings(self) -> ArchivePerformanceSettings:
             return clamp_archive_performance_settings(self._archive_performance_settings)
@@ -16272,14 +16942,19 @@ def run_gui() -> int:
                 return "Textures"
             if "material" in lowered or "sidecar" in lowered:
                 return "Material"
-            if "physics" in lowered or "hkx" in lowered or "animation" in lowered or "motion" in lowered:
-                return "Physics"
+            extension = str(getattr(entry, "extension", "") or PurePosixPath(str(reference_name or "").replace("\\", "/")).suffix).lower()
+            if extension == ".meshinfo":
+                return "MeshInfo"
+            if "physics" in lowered or "hkx" in lowered:
+                return "Physics / HKX"
             if "skeleton" in lowered or "rig" in lowered or role == "Skeleton / Rig":
                 return "Skeleton / Rig"
+            if "animation" in lowered or "motion" in lowered:
+                return "Animation / Motion"
             if "prefab" in lowered or "metadata" in lowered or role in {"Prefab", "Metadata", "UI"}:
                 return "Prefab / Metadata"
             if role == "Mesh":
-                return "Model / Mesh"
+                return "Selected Model"
             return "Other"
 
         def _archive_reference_role_label(self, reference: ArchiveModelTextureReference) -> str:
@@ -16348,19 +17023,100 @@ def run_gui() -> int:
             normalized_path = normalize_texture_reference_for_sidecar_lookup(entry.path)
             basename = PurePosixPath(normalized_path).name if normalized_path else entry.basename.lower()
             if entry.extension == ".dds" and normalized_path:
-                for candidate in self.archive_sidecar_entries_by_texture_path.get(normalized_path, ()):
+                texture_sidecars: List[ArchiveEntry] = []
+                seen_sidecars: set[Tuple[str, str, int]] = set()
+                texture_stem_candidates: List[str] = []
+                seen_texture_stems: set[str] = set()
+
+                def add_texture_stem_candidate(raw_value: str) -> None:
+                    raw_text = str(raw_value or "").replace("\\", "/").strip().casefold()
+                    if not raw_text:
+                        return
+                    stem = PurePosixPath(raw_text).stem.casefold()
+                    for prefix in ("itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_"):
+                        if stem.startswith(prefix):
+                            stripped = stem[len(prefix):].strip("_")
+                            if stripped and stripped not in seen_texture_stems:
+                                texture_stem_candidates.append(stripped)
+                                seen_texture_stems.add(stripped)
+                    grouped = derive_texture_group_key(raw_text).strip().casefold()
+                    grouped_stem = PurePosixPath(grouped).stem.casefold() if grouped else ""
+                    family_stem = _strip_archive_model_family_variant_suffix(grouped_stem or stem).strip().casefold()
+                    for candidate_stem in (stem, grouped_stem, family_stem):
+                        if candidate_stem and candidate_stem not in seen_texture_stems:
+                            texture_stem_candidates.append(candidate_stem)
+                            seen_texture_stems.add(candidate_stem)
+
+                def add_model_candidates_for_stem(stem: str, *, reason: str, confidence: str) -> None:
+                    for extension in (".pac", ".pam", ".pamlod"):
+                        for candidate in self.archive_entries_by_basename.get(f"{stem}{extension}", ()):
+                            add(
+                                candidate,
+                                reason=reason,
+                                confidence=confidence,
+                                group="Used By / Model",
+                            )
+
+                def add_material_sidecar_candidates_for_stem(stem: str) -> None:
+                    for extension in (".pac_xml", ".pam_xml", ".pamlod_xml", ".pami"):
+                        for candidate in self.archive_entries_by_basename.get(f"{stem}{extension}", ()):
+                            add_texture_sidecar(
+                                candidate,
+                                reason=(
+                                    "Material sidecar shares the selected texture stem; this is an indexed same-stem hint, "
+                                    "not a live archive scan."
+                                ),
+                                confidence=RelationConfidence.DERIVED_SAME_STEM.value,
+                            )
+
+                def add_texture_sidecar(candidate: ArchiveEntry, *, reason: str, confidence: str) -> None:
+                    sidecar_key = (candidate.path.lower(), str(candidate.pamt_path).lower(), int(candidate.offset))
+                    if sidecar_key in seen_sidecars:
+                        return
+                    seen_sidecars.add(sidecar_key)
+                    texture_sidecars.append(candidate)
                     add(
+                        candidate,
+                        reason=reason,
+                        confidence=confidence,
+                        group="Used By / Material",
+                    )
+
+                for candidate in self.archive_sidecar_entries_by_texture_path.get(normalized_path, ()):
+                    add_texture_sidecar(
                         candidate,
                         reason="Material sidecar references this exact texture path.",
                         confidence=RelationConfidence.EXACT_PATH.value,
-                        group="Used By / Material",
                     )
                 for candidate in self.archive_sidecar_entries_by_texture_basename.get(basename, ()):
-                    add(
+                    add_texture_sidecar(
                         candidate,
                         reason="Material sidecar references this texture basename.",
                         confidence=RelationConfidence.PATH_NORMALIZED.value,
-                        group="Used By / Material",
+                    )
+                add_texture_stem_candidate(entry.basename)
+                add_texture_stem_candidate(normalized_path)
+                for texture_stem in texture_stem_candidates:
+                    add_material_sidecar_candidates_for_stem(texture_stem)
+                    add_model_candidates_for_stem(
+                        texture_stem,
+                        reason=(
+                            "Model shares the selected texture stem in the current archive index; "
+                            "shown as a same-stem relationship hint."
+                        ),
+                        confidence=RelationConfidence.DERIVED_SAME_STEM.value,
+                    )
+                for sidecar_entry in texture_sidecars:
+                    stem = PurePosixPath(sidecar_entry.basename).stem.casefold()
+                    if not stem:
+                        continue
+                    add_model_candidates_for_stem(
+                        stem,
+                        reason=(
+                            "Model candidate shares the basename with a material sidecar that references this texture: "
+                            f"{sidecar_entry.basename}."
+                        ),
+                        confidence=RelationConfidence.DERIVED_SAME_STEM.value,
                     )
             if entry.extension == ".hkx":
                 stem = PurePosixPath(entry.basename).stem.casefold()
@@ -16436,20 +17192,193 @@ def run_gui() -> int:
                 item.setToolTip(0, "\n".join(part for part in [path_text, f"Source: {source_name}"] if part))
                 item.setToolTip(4, reason or "Known from current scan/index; no live full-archive scan was run.")
                 self._style_archive_role_columns(item, role, 0, 1)
+                self._ui_style_status_columns(item, {3: confidence_label, 4: reason})
                 group_item.addChild(item)
             for relation_group, group_item in group_items.items():
                 group_item.setText(0, f"{relation_group} ({group_item.childCount()})")
             tree.expandAll()
 
+        def _format_attachment_transform(self, values: Sequence[float]) -> str:
+            if not values:
+                return ""
+            return " ".join(f"{float(value):.4g}" for value in tuple(values)[:4])
+
+        def _populate_archive_attachment_placement_tree(
+            self,
+            asset_family_graph: Optional[AssetFamilyGraph],
+        ) -> None:
+            self.archive_asset_placement_tree.clear()
+            evidence_rows = tuple(getattr(asset_family_graph, "attachment_evidence", ()) or ())
+            if not evidence_rows:
+                return
+            for evidence_index, evidence in enumerate(evidence_rows):
+                if not isinstance(evidence, AttachmentPlacementEvidence):
+                    continue
+                title_parts = [
+                    str(evidence.character_socket_name or "").strip(),
+                    str(evidence.weapon_socket_name or "").strip(),
+                    PurePosixPath(str(evidence.model_path or evidence.prefab_path or evidence.socket_file_path or "").replace("\\", "/")).name,
+                ]
+                title = " -> ".join(part for part in title_parts if part) or f"Attachment chain {evidence_index + 1}"
+                top_item = QTreeWidgetItem([title, "", str(evidence.confidence or "-"), str(evidence.reason or "")])
+                top_item.setFlags(Qt.ItemIsEnabled)
+                top_item.setExpanded(True)
+                self.archive_asset_placement_tree.addTopLevelItem(top_item)
+
+                rows: List[Tuple[str, str, str, str]] = [
+                    (
+                        "Raw Model Origin",
+                        PurePosixPath(str(evidence.model_path or "").replace("\\", "/")).name or "selected model origin",
+                        "Base model",
+                        "Shows the asset at its stored origin without applying character or weapon socket transforms.",
+                    )
+                ]
+                if evidence.character_socket_name:
+                    transform = self._format_attachment_transform(evidence.character_socket_translation)
+                    target = evidence.character_socket_name
+                    if evidence.character_socket_parent:
+                        target = f"{target} on {evidence.character_socket_parent}"
+                    if transform:
+                        target = f"{target} | T {transform}"
+                    rows.append(
+                        (
+                            "Character Socket",
+                            target,
+                            evidence.evidence or "Prefab",
+                            "Character-side attachment target recovered from prefab/socket metadata.",
+                        )
+                    )
+                if evidence.weapon_socket_name:
+                    transform = self._format_attachment_transform(evidence.weapon_socket_translation)
+                    target = evidence.weapon_socket_name
+                    if evidence.weapon_socket_parent:
+                        target = f"{target} on {evidence.weapon_socket_parent}"
+                    if transform:
+                        target = f"{target} | T {transform}"
+                    rows.append(
+                        (
+                            "Weapon Pivot",
+                            target,
+                            "Socket XML" if evidence.weapon_socket_parent else evidence.evidence or "Prefab",
+                            "Weapon-side child/pivot socket used to align the asset to the character socket.",
+                        )
+                    )
+                if evidence.character_socket_name and evidence.weapon_socket_name:
+                    rows.append(
+                        (
+                            "Final Attachment",
+                            f"{evidence.character_socket_name} -> {evidence.weapon_socket_name}",
+                            evidence.confidence or "Prefab",
+                            "Preview target chain. This is read-only evidence; binary placement writes remain gated.",
+                        )
+                    )
+                if evidence.prefab_path:
+                    rows.append(("Prefab", evidence.prefab_path, "Prefab", "Prefab contains the recovered socket placement fields."))
+                if evidence.socket_file_path:
+                    rows.append(("Socket XML", evidence.socket_file_path, "Socket XML", "Socket descriptor contains named socket transforms."))
+                if evidence.transform_fields:
+                    rows.append(
+                        (
+                            "Transform Fields",
+                            ", ".join(evidence.transform_fields),
+                            "Read-only",
+                            "Fields are declared in the prefab. They are not editable until exact offsets and write rules are proven.",
+                        )
+                    )
+                for row in rows:
+                    child = QTreeWidgetItem(list(row))
+                    child.setData(0, Qt.UserRole, evidence)
+                    child.setToolTip(1, row[1])
+                    child.setToolTip(3, row[3])
+                    self._ui_style_status_columns(child, {2: row[2], 3: row[3]})
+                    top_item.addChild(child)
+            self.archive_asset_placement_tree.expandAll()
+
         def _populate_archive_asset_map_tree(
             self,
             source_entry: Optional[ArchiveEntry],
             references: Sequence[ArchiveModelTextureReference],
+            asset_family_graph: Optional[AssetFamilyGraph] = None,
         ) -> None:
             self.archive_asset_map_tree.clear()
+            graph = asset_family_graph
+            if graph is None and isinstance(source_entry, ArchiveEntry):
+                graph = build_archive_asset_family_graph(source_entry, references)
+            member_rows = list(tuple(getattr(graph, "member_rows", ()) or ()))
+            self.current_archive_family_member_rows = member_rows
+
+            summary_text = str(getattr(graph, "summary", "") or "").strip() if graph is not None else ""
+            self.archive_asset_family_summary_label.setText(summary_text)
+            self.archive_asset_family_summary_label.setVisible(bool(summary_text))
+
+            reference_index_by_path: Dict[str, int] = {}
+            for index, reference in enumerate(references):
+                resolved_path = str(getattr(reference, "resolved_archive_path", "") or "").replace("\\", "/").strip().casefold()
+                if resolved_path and resolved_path not in reference_index_by_path:
+                    reference_index_by_path[resolved_path] = index
+
+            if member_rows:
+                group_order = (
+                    "Selected Model",
+                    "Attachment / Placement",
+                    "Material",
+                    "Textures",
+                    "Physics / HKX",
+                    "MeshInfo",
+                    "Prefab / Metadata",
+                    "Skeleton / Rig",
+                    "Animation / Motion",
+                    "Other",
+                )
+                group_items: Dict[str, QTreeWidgetItem] = {}
+                for group_label in group_order:
+                    rows = [row for row in member_rows if row.group == group_label]
+                    if not rows:
+                        continue
+                    group_item = QTreeWidgetItem([group_label, "", "", "", ""])
+                    group_item.setFlags(Qt.ItemIsEnabled)
+                    group_item.setExpanded(True)
+                    self.archive_asset_map_tree.addTopLevelItem(group_item)
+                    group_items[group_label] = group_item
+                    for member_index, member in enumerate(member_rows):
+                        if member.group != group_label:
+                            continue
+                        status_text = str(member.status or "-")
+                        evidence_text = str(member.source_evidence or member.confidence or "-")
+                        reason = str(member.reason or "Recovered family relationship evidence.")
+                        item = QTreeWidgetItem(
+                            [
+                                str(member.role or "Related File"),
+                                str(member.display_name or PurePosixPath(str(member.path or "").replace("\\", "/")).name or "-"),
+                                status_text,
+                                evidence_text,
+                                reason,
+                            ]
+                        )
+                        normalized_path = str(member.path or "").replace("\\", "/").strip().casefold()
+                        reference_index = reference_index_by_path.get(normalized_path)
+                        if reference_index is not None:
+                            item.setData(0, Qt.UserRole, ("uses", reference_index))
+                        else:
+                            item.setData(0, Qt.UserRole, ("family", member_index))
+                        if member.path:
+                            item.setToolTip(1, member.path)
+                        detail_lines = [
+                            reason,
+                            f"Include policy: {member.include_policy}" if member.include_policy else "",
+                            f"Warning: {member.warning}" if member.warning else "",
+                        ]
+                        item.setToolTip(4, "\n".join(line for line in detail_lines if line))
+                        self._style_archive_role_columns(item, str(member.role or group_label), 0, 1)
+                        self._ui_style_status_columns(item, {2: status_text, 3: evidence_text, 4: reason})
+                        group_item.addChild(item)
+                    group_item.setText(0, f"{group_label} ({group_item.childCount()})")
+                self.archive_asset_map_tree.expandAll()
+                return
+
             if isinstance(source_entry, ArchiveEntry):
                 source_role = self._archive_entry_role_label(source_entry)
-                source_group = QTreeWidgetItem(["Selected File", "", "", "", ""])
+                source_group = QTreeWidgetItem(["Selected Model", "", "", "", ""])
                 source_group.setFlags(Qt.ItemIsEnabled)
                 source_group.setExpanded(True)
                 self.archive_asset_map_tree.addTopLevelItem(source_group)
@@ -16458,11 +17387,11 @@ def run_gui() -> int:
                         source_role,
                         source_entry.basename,
                         "Selected",
-                        "Current row",
+                        "Exact",
                         "The file currently selected in Archive Browser.",
                     ]
                 )
-                source_item.setData(0, Qt.UserRole, ("source", -1))
+                source_item.setData(0, Qt.UserRole, ("family", -1))
                 source_item.setToolTip(1, source_entry.path)
                 self._style_archive_role_columns(source_item, source_role, 0, 1)
                 source_group.addChild(source_item)
@@ -16500,6 +17429,7 @@ def run_gui() -> int:
                 item.setToolTip(1, path_text)
                 item.setToolTip(4, reason or "Known from current preview relationship recovery.")
                 self._style_archive_role_columns(item, role, 0, 1)
+                self._ui_style_status_columns(item, {3: confidence_label, 4: reason})
                 group_item.addChild(item)
             for group_label, group_item in group_items.items():
                 group_item.setText(0, f"{group_label} ({group_item.childCount()})")
@@ -16514,7 +17444,14 @@ def run_gui() -> int:
             self.current_archive_asset_family_graph = asset_family_graph
             current_entry = self._current_archive_entry()
             self.current_archive_used_by_references = self._archive_known_used_by_references(current_entry)
-            self._populate_archive_asset_map_tree(current_entry, self.current_archive_model_texture_references)
+            asset_family_graph_for_view = asset_family_graph
+            if isinstance(current_entry, ArchiveEntry) and str(current_entry.extension or "").lower() == ".dds":
+                family_references = list(self.current_archive_model_texture_references)
+                family_references.extend(self.current_archive_used_by_references)
+                asset_family_graph_for_view = build_archive_asset_family_graph(current_entry, tuple(family_references))
+                self.current_archive_asset_family_graph = asset_family_graph_for_view
+            self._populate_archive_asset_map_tree(current_entry, self.current_archive_model_texture_references, asset_family_graph_for_view)
+            self._populate_archive_attachment_placement_tree(asset_family_graph_for_view)
             source_name = current_entry.basename if isinstance(current_entry, ArchiveEntry) else "selected file"
             self._populate_archive_relation_tree(
                 self.archive_asset_uses_tree,
@@ -16530,7 +17467,14 @@ def run_gui() -> int:
             )
             self.archive_texture_refs_tree.clear()
             group_items: Dict[str, QTreeWidgetItem] = {}
-            for index, reference in enumerate(self.current_archive_model_texture_references):
+            raw_table_references = list(self.current_archive_model_texture_references)
+            raw_table_sources: List[Tuple[str, int]] = [
+                ("uses", index) for index in range(len(self.current_archive_model_texture_references))
+            ]
+            if isinstance(current_entry, ArchiveEntry) and str(current_entry.extension or "").lower() == ".dds":
+                raw_table_sources.extend(("used_by", index) for index in range(len(self.current_archive_used_by_references)))
+                raw_table_references.extend(self.current_archive_used_by_references)
+            for index, reference in enumerate(raw_table_references):
                 resolved_archive_path = str(getattr(reference, "resolved_archive_path", "") or "").strip()
                 resolved_package_label = str(getattr(reference, "resolved_package_label", "") or "").strip()
                 reference_name = str(getattr(reference, "reference_name", "") or "").strip()
@@ -16604,20 +17548,501 @@ def run_gui() -> int:
                     item.setToolTip(0, "\n".join(part for part in [item.toolTip(0), "Why: " + " | ".join(reason_parts)] if part))
                 if resolved_archive_path:
                     item.setToolTip(5, resolved_archive_path)
-                item.setData(0, Qt.UserRole, index)
+                item.setData(0, Qt.UserRole, raw_table_sources[index] if index < len(raw_table_sources) else index)
                 group_item.addChild(item)
             for relation_group, group_item in group_items.items():
                 group_item.setText(0, f"{relation_group} ({group_item.childCount()})")
-            has_asset_relationships = bool(self.current_archive_model_texture_references or self.current_archive_used_by_references)
-            self.archive_texture_refs_group.setTitle("Asset Map")
+            has_asset_relationships = bool(
+                self.current_archive_model_texture_references
+                or self.current_archive_used_by_references
+                or self.current_archive_family_member_rows
+            )
+            self.archive_texture_refs_group.setTitle("Asset Family Workspace")
             self.archive_texture_refs_group.setVisible(has_asset_relationships)
+            self.archive_asset_family_button.setVisible(has_asset_relationships)
+            self.archive_asset_family_button.setEnabled(has_asset_relationships)
             if has_asset_relationships:
                 self._clamp_archive_preview_asset_map_splitter(prefer_default=True)
                 self._layout_archive_texture_reference_columns()
                 QTimer.singleShot(0, self._layout_archive_texture_reference_columns)
             else:
-                self.archive_preview_content_splitter.setSizes([1, 0])
+                # Preserve the user's Asset Family splitter width while loading or when a file
+                # has no relationships; hiding the group is enough and avoids progressive shrink.
+                pass
             self._update_archive_texture_reference_action_controls()
+
+        def _archive_has_asset_family_workspace(self) -> bool:
+            return bool(
+                self.current_archive_model_texture_references
+                or self.current_archive_used_by_references
+                or self.current_archive_family_member_rows
+            )
+
+        def _archive_asset_family_graph_for_entry(
+            self,
+            entry: ArchiveEntry,
+        ) -> Tuple[AssetFamilyGraph, Tuple[ArchiveModelTextureReference, ...]]:
+            current_entry = self._current_archive_entry()
+            current_graph = getattr(self, "current_archive_asset_family_graph", None)
+            if (
+                isinstance(current_entry, ArchiveEntry)
+                and self._same_archive_entry(current_entry, entry)
+                and isinstance(current_graph, AssetFamilyGraph)
+            ):
+                return current_graph, tuple(self.current_archive_model_texture_references)
+            references = build_archive_relationship_references(
+                entry,
+                archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
+                archive_entries_by_basename=self.archive_entries_by_basename,
+            )
+            combined_references = list(references)
+            if str(entry.extension or "").lower() == ".dds":
+                combined_references.extend(self._archive_known_used_by_references(entry))
+            return build_archive_asset_family_graph(entry, tuple(combined_references)), tuple(combined_references)
+
+        @staticmethod
+        def _archive_entries_from_asset_family_graph(
+            graph: AssetFamilyGraph,
+            *,
+            include_hints: bool = False,
+        ) -> List[ArchiveEntry]:
+            entries: List[ArchiveEntry] = []
+            seen: set[Tuple[str, str, int]] = set()
+            for member in tuple(getattr(graph, "member_rows", ()) or ()):
+                if not isinstance(member, AssetFamilyMember):
+                    continue
+                status = str(getattr(member, "status", "") or "").strip().casefold()
+                policy = str(getattr(member, "include_policy", "") or "").strip().casefold()
+                entry = getattr(member, "resolved_entry", None)
+                if not isinstance(entry, ArchiveEntry):
+                    continue
+                if status == "missing" or policy == "unresolved":
+                    continue
+                if not include_hints and policy not in {"required", "recommended"}:
+                    continue
+                key = (entry.path.lower(), str(entry.pamt_path).lower(), int(entry.offset))
+                if key in seen:
+                    continue
+                seen.add(key)
+                entries.append(entry)
+            return entries
+
+        def _populate_asset_family_dialog_tree(
+            self,
+            tree: QTreeWidget,
+            graph: AssetFamilyGraph,
+        ) -> None:
+            tree.clear()
+            group_items: Dict[str, QTreeWidgetItem] = {}
+            order = (
+                "Selected Model",
+                "Attachment / Placement",
+                "Material",
+                "Textures",
+                "Physics / HKX",
+                "MeshInfo",
+                "Prefab / Metadata",
+                "Skeleton / Rig",
+                "Animation / Motion",
+                "Other",
+            )
+            rows = tuple(getattr(graph, "member_rows", ()) or ())
+            for group_label in order:
+                group_rows = [row for row in rows if isinstance(row, AssetFamilyMember) and row.group == group_label]
+                if not group_rows:
+                    continue
+                group_item = QTreeWidgetItem([f"{group_label} ({len(group_rows)})", "", "", "", ""])
+                group_item.setFlags(Qt.ItemIsEnabled)
+                group_item.setExpanded(True)
+                tree.addTopLevelItem(group_item)
+                group_items[group_label] = group_item
+                for member in group_rows:
+                    child = QTreeWidgetItem(
+                        [
+                            str(member.role or "Related File"),
+                            str(member.display_name or PurePosixPath(str(member.path or "").replace("\\", "/")).name or "-"),
+                            str(member.status or "-"),
+                            str(member.source_evidence or member.confidence or "-"),
+                            str(member.reason or "Recovered relationship evidence."),
+                        ]
+                    )
+                    child.setData(0, Qt.UserRole, member)
+                    child.setToolTip(1, str(member.path or ""))
+                    child.setToolTip(4, "\n".join(part for part in (str(member.reason or ""), str(member.warning or "")) if part))
+                    self._style_archive_role_columns(child, str(member.role or member.group), 0, 1)
+                    self._ui_style_status_columns(child, {2: member.status, 3: member.source_evidence or member.confidence, 4: member.reason})
+                    group_item.addChild(child)
+            tree.expandAll()
+
+        def _open_archive_asset_family_workspace_dialog(
+            self,
+            entry: Optional[ArchiveEntry] = None,
+        ) -> None:
+            source_entry = entry if isinstance(entry, ArchiveEntry) else self._current_archive_entry()
+            if not isinstance(source_entry, ArchiveEntry):
+                self.set_status_message("Select an archive file first.", error=True)
+                return
+            graph, _references = self._archive_asset_family_graph_for_entry(source_entry)
+            if not tuple(getattr(graph, "member_rows", ()) or ()):
+                self.set_status_message("No asset family evidence is available for this file yet.", error=True)
+                return
+
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"Asset Family Workspace - {source_entry.basename}")
+            dialog.resize(980, 680)
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+            summary = QLabel(str(getattr(graph, "summary", "") or "Recovered asset family relationships."))
+            summary.setObjectName("HintLabel")
+            summary.setWordWrap(True)
+            layout.addWidget(summary)
+            tree = QTreeWidget()
+            tree.setColumnCount(5)
+            tree.setHeaderLabels(["Role", "File", "Status", "Evidence", "Why"])
+            tree.setRootIsDecorated(True)
+            tree.setAlternatingRowColors(True)
+            tree.setUniformRowHeights(True)
+            tree.setSelectionMode(QAbstractItemView.SingleSelection)
+            self._populate_asset_family_dialog_tree(tree, graph)
+            header = tree.header()
+            header.setStretchLastSection(True)
+            header.resizeSection(0, 140)
+            header.resizeSection(1, 240)
+            header.resizeSection(2, 110)
+            header.resizeSection(3, 120)
+            layout.addWidget(tree, stretch=1)
+
+            button_row = QHBoxLayout()
+            button_row.setContentsMargins(0, 0, 0, 0)
+            preview_button = QPushButton("Preview Selected")
+            placement_button = QPushButton("Preview Placement...")
+            scope_button = QPushButton("Show Only This Family")
+            export_button = QPushButton("Export Family...")
+            close_button = QPushButton("Close")
+            button_row.addWidget(preview_button)
+            button_row.addWidget(placement_button)
+            button_row.addWidget(scope_button)
+            button_row.addWidget(export_button)
+            button_row.addStretch(1)
+            button_row.addWidget(close_button)
+            layout.addLayout(button_row)
+
+            def selected_member_entry() -> Optional[ArchiveEntry]:
+                item = tree.currentItem()
+                member = item.data(0, Qt.UserRole) if item is not None else None
+                if isinstance(member, AssetFamilyMember) and isinstance(member.resolved_entry, ArchiveEntry):
+                    return member.resolved_entry
+                return None
+
+            def preview_selected() -> None:
+                selected_entry = selected_member_entry()
+                if not isinstance(selected_entry, ArchiveEntry):
+                    self.set_status_message("Select a resolved family file first.", error=True)
+                    return
+                self._open_archive_reference_preview_entry(selected_entry)
+
+            def scope_family() -> None:
+                entries = self._archive_entries_from_asset_family_graph(graph, include_hints=False)
+                if not entries:
+                    self.set_status_message("No resolved family entries are available to scope.", error=True)
+                    return
+                self._scope_archive_reference_entries(entries, scope_label=f"Asset family for {source_entry.basename}")
+
+            def export_family() -> None:
+                entries = self._archive_entries_from_asset_family_graph(graph, include_hints=False)
+                if not entries:
+                    self.set_status_message("No resolved family entries are available to export.", error=True)
+                    return
+                self._export_archive_reference_entries_to_folder(
+                    entries,
+                    title=f"Export Asset Family - {source_entry.basename}",
+                )
+
+            preview_button.clicked.connect(lambda _checked=False: preview_selected())
+            placement_button.clicked.connect(
+                lambda _checked=False, current_entry=source_entry: self._open_archive_attachment_placement_workspace_dialog(current_entry)
+            )
+            placement_button.setEnabled(bool(tuple(getattr(graph, "attachment_evidence", ()) or ())))
+            scope_button.clicked.connect(lambda _checked=False: scope_family())
+            export_button.clicked.connect(lambda _checked=False: export_family())
+            close_button.clicked.connect(dialog.accept)
+            tree.itemDoubleClicked.connect(lambda _item, _column: preview_selected())
+            dialog.exec()
+
+        def _populate_attachment_placement_dialog_tree(
+            self,
+            tree: QTreeWidget,
+            graph: AssetFamilyGraph,
+        ) -> None:
+            tree.clear()
+            evidence_rows = tuple(getattr(graph, "attachment_evidence", ()) or ())
+            if not evidence_rows:
+                top = QTreeWidgetItem(["No placement chain", "-", "-", "No prefab/socket evidence", "Read-only"])
+                top.setFlags(Qt.ItemIsEnabled)
+                top.setToolTip(
+                    3,
+                    "HKX can show collision/physics context, but in-game placement needs prefab and socket descriptor evidence.",
+                )
+                tree.addTopLevelItem(top)
+                return
+            for evidence_index, evidence in enumerate(evidence_rows):
+                if not isinstance(evidence, AttachmentPlacementEvidence):
+                    continue
+                chain_name = " -> ".join(
+                    part
+                    for part in (
+                        str(evidence.character_socket_name or "").strip(),
+                        str(evidence.weapon_socket_name or "").strip(),
+                        PurePosixPath(str(evidence.model_path or "").replace("\\", "/")).name,
+                    )
+                    if part
+                ) or f"Attachment chain {evidence_index + 1}"
+                top = QTreeWidgetItem(
+                    [
+                        chain_name,
+                        str(evidence.model_path or "-"),
+                        self._format_attachment_transform(evidence.character_socket_translation),
+                        str(evidence.confidence or "Path hint"),
+                        "Read-only placement evidence",
+                    ]
+                )
+                top.setFlags(Qt.ItemIsEnabled)
+                top.setExpanded(True)
+                tree.addTopLevelItem(top)
+                rows = [
+                    ("Target asset", str(evidence.model_path or "-"), "", str(evidence.evidence or "-"), "Visible model path recovered from prefab or family evidence."),
+                    ("Prefab", str(evidence.prefab_path or "-"), "", "Prefab", "Prefab fields drive attachment names and file references when present."),
+                    (
+                        "Character socket",
+                        str(evidence.character_socket_name or "-"),
+                        self._format_attachment_transform(evidence.character_socket_translation),
+                        "Socket XML" if evidence.character_socket_parent else str(evidence.evidence or "Prefab"),
+                        f"Parent bone: {evidence.character_socket_parent}" if evidence.character_socket_parent else "Character-side socket name.",
+                    ),
+                    (
+                        "Weapon pivot",
+                        str(evidence.weapon_socket_name or "-"),
+                        self._format_attachment_transform(evidence.weapon_socket_translation),
+                        "Socket XML" if evidence.weapon_socket_parent else str(evidence.evidence or "Prefab"),
+                        f"Parent bone: {evidence.weapon_socket_parent}" if evidence.weapon_socket_parent else "Weapon-side child/pivot socket name.",
+                    ),
+                    ("Socket XML", str(evidence.socket_file_path or "-"), "", "Socket XML", "Socket descriptor path recovered from prefab or same-family evidence."),
+                    ("Skeleton", str(evidence.skeleton_path or "-"), "", "Skeleton", "Skeleton path used for context when recovered."),
+                    (
+                        "Transform fields",
+                        ", ".join(tuple(evidence.transform_fields or ())) or "-",
+                        "",
+                        "Prefab fields",
+                        "Declared placement fields are displayed only; binary prefab edits remain blocked.",
+                    ),
+                ]
+                for row in rows:
+                    item = QTreeWidgetItem(list(row))
+                    item.setData(0, Qt.UserRole, evidence)
+                    item.setToolTip(1, row[1])
+                    item.setToolTip(4, row[4])
+                    self._ui_style_status_columns(item, {3: row[3], 4: row[4]})
+                    top.addChild(item)
+            tree.expandAll()
+
+        def _open_archive_attachment_placement_workspace_dialog(
+            self,
+            entry: Optional[ArchiveEntry] = None,
+        ) -> None:
+            source_entry = entry if isinstance(entry, ArchiveEntry) else self._current_archive_entry()
+            if not isinstance(source_entry, ArchiveEntry):
+                self.set_status_message("Select a model, prefab, HKX, or socket XML file first.", error=True)
+                return
+            graph, _references = self._archive_asset_family_graph_for_entry(source_entry)
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"Weapon / Attachment Placement - {source_entry.basename}")
+            dialog.resize(1080, 720)
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+            intro = QLabel(
+                "Placement is prefab/socket driven. HKX rows are physics context only. "
+                "This workspace previews recovered attachment chains and keeps binary prefab/PAA/HKX writes disabled."
+            )
+            intro.setObjectName("HintLabel")
+            intro.setWordWrap(True)
+            layout.addWidget(intro)
+            top_row = QHBoxLayout()
+            mode_combo = QComboBox()
+            for mode in (
+                "Raw Model Origin",
+                "Character Socket",
+                "Weapon Pivot",
+                "Final Attachment",
+                "Compare Original vs Donor",
+            ):
+                mode_combo.addItem(mode)
+            confidence = QLabel("Confidence: " + (str(getattr(graph, "summary", "") or "No placement chain") or "No placement chain"))
+            confidence.setObjectName("HintLabel")
+            confidence.setWordWrap(True)
+            top_row.addWidget(QLabel("Preview mode"))
+            top_row.addWidget(mode_combo, 0)
+            top_row.addWidget(confidence, 1)
+            layout.addLayout(top_row)
+            tree = QTreeWidget()
+            tree.setColumnCount(5)
+            tree.setHeaderLabels(["Chain / Field", "Socket / File", "Transform", "Evidence", "Status"])
+            tree.setRootIsDecorated(True)
+            tree.setAlternatingRowColors(True)
+            tree.setUniformRowHeights(True)
+            tree.setSelectionMode(QAbstractItemView.SingleSelection)
+            self._populate_attachment_placement_dialog_tree(tree, graph)
+            header = tree.header()
+            header.setStretchLastSection(True)
+            header.resizeSection(0, 180)
+            header.resizeSection(1, 360)
+            header.resizeSection(2, 150)
+            header.resizeSection(3, 160)
+            layout.addWidget(tree, 1)
+            button_row = QHBoxLayout()
+            copy_button = QPushButton("Copy Placement From Another Asset...")
+            family_button = QPushButton("Open Asset Family...")
+            close_button = QPushButton("Close")
+            button_row.addWidget(copy_button)
+            button_row.addWidget(family_button)
+            button_row.addStretch(1)
+            button_row.addWidget(close_button)
+            layout.addLayout(button_row)
+
+            def _copy_from_donor() -> None:
+                donor_entries = [
+                    candidate
+                    for candidate in tuple(getattr(self, "archive_entries", ()) or ())
+                    if isinstance(candidate, ArchiveEntry)
+                    and candidate.extension in {
+                        ".pac",
+                        ".pam",
+                        ".pamlod",
+                        ".prefab",
+                        ".hkx",
+                        ".hkt",
+                        ".xml",
+                    }
+                    and not self._same_archive_entry(candidate, source_entry)
+                ]
+                donor = self._choose_archive_mesh_source_dialog(
+                    dialog,
+                    title="Copy Placement From Another Asset",
+                    entries=donor_entries,
+                    prompt="Search donor asset, prefab, HKX, or socket XML",
+                )
+                if isinstance(donor, ArchiveEntry):
+                    self._open_archive_attachment_placement_diff_dialog(source_entry, donor)
+
+            copy_button.clicked.connect(lambda _checked=False: _copy_from_donor())
+            family_button.clicked.connect(lambda _checked=False, current_entry=source_entry: self._open_archive_asset_family_workspace_dialog(current_entry))
+            close_button.clicked.connect(dialog.accept)
+            dialog.exec()
+
+        def _open_archive_attachment_placement_diff_dialog(
+            self,
+            target_entry: ArchiveEntry,
+            donor_entry: ArchiveEntry,
+        ) -> None:
+            target_graph, _target_refs = self._archive_asset_family_graph_for_entry(target_entry)
+            donor_graph, _donor_refs = self._archive_asset_family_graph_for_entry(donor_entry)
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Copy Placement From Another Asset")
+            dialog.resize(980, 620)
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+            intro = QLabel(
+                "Read-only donor placement comparison. This does not write prefab, socket, PAA, or HKX bytes. "
+                "Use it to see which file family would be involved before any future safe XML/package redirect."
+            )
+            intro.setObjectName("HintLabel")
+            intro.setWordWrap(True)
+            layout.addWidget(intro)
+            tree = QTreeWidget()
+            tree.setColumnCount(5)
+            tree.setHeaderLabels(["Side", "Chain / Role", "File / Socket", "Evidence", "Status"])
+            tree.setRootIsDecorated(True)
+            tree.setAlternatingRowColors(True)
+            tree.setUniformRowHeights(True)
+            layout.addWidget(tree, 1)
+
+            def add_graph(side: str, graph: AssetFamilyGraph) -> None:
+                side_item = QTreeWidgetItem([side, "", "", "", ""])
+                side_item.setFlags(Qt.ItemIsEnabled)
+                side_item.setExpanded(True)
+                tree.addTopLevelItem(side_item)
+                for evidence in tuple(getattr(graph, "attachment_evidence", ()) or ()):
+                    if not isinstance(evidence, AttachmentPlacementEvidence):
+                        continue
+                    chain = f"{evidence.character_socket_name or '-'} -> {evidence.weapon_socket_name or '-'}"
+                    side_item.addChild(
+                        QTreeWidgetItem(
+                            [
+                                side,
+                                "Placement chain",
+                                chain,
+                                str(evidence.confidence or "-"),
+                                "Preview only",
+                            ]
+                        )
+                    )
+                for member in tuple(getattr(graph, "member_rows", ()) or ()):
+                    if not isinstance(member, AssetFamilyMember):
+                        continue
+                    if member.group not in {"Selected Model", "Attachment / Placement", "Prefab / Metadata", "Physics / HKX", "Animation / Motion"}:
+                        continue
+                    side_item.addChild(
+                        QTreeWidgetItem(
+                            [
+                                side,
+                                str(member.group or member.role or "-"),
+                                str(member.path or member.display_name or "-"),
+                                str(member.source_evidence or member.confidence or "-"),
+                                str(member.status or "-"),
+                            ]
+                        )
+                    )
+                if side_item.childCount() <= 0:
+                    side_item.addChild(QTreeWidgetItem([side, "No placement chain", "-", "No prefab/socket evidence", "Read-only"]))
+
+            add_graph(f"Target: {target_entry.basename}", target_graph)
+            add_graph(f"Donor: {donor_entry.basename}", donor_graph)
+            tree.expandAll()
+            footer = QLabel(
+                "Future write phases can enable safe socket XML edits or package-level redirects only after exact field mapping and preview gates pass."
+            )
+            footer.setObjectName("HintLabel")
+            footer.setWordWrap(True)
+            layout.addWidget(footer)
+            close_button = QPushButton("Close")
+            close_row = QHBoxLayout()
+            close_row.addStretch(1)
+            close_row.addWidget(close_button)
+            layout.addLayout(close_row)
+            close_button.clicked.connect(dialog.accept)
+            dialog.exec()
+
+        def _scope_archive_asset_family_for_entry(self, entry: ArchiveEntry, *, include_hints: bool = False) -> None:
+            graph, _references = self._archive_asset_family_graph_for_entry(entry)
+            entries = self._archive_entries_from_asset_family_graph(graph, include_hints=include_hints)
+            if not entries:
+                self.set_status_message("No resolved family entries are available to scope.", error=True)
+                return
+            suffix = " + hints" if include_hints else ""
+            self._scope_archive_reference_entries(entries, scope_label=f"Asset family for {entry.basename}{suffix}")
+
+        def _export_archive_asset_family_for_entry(self, entry: ArchiveEntry, *, include_hints: bool = False) -> None:
+            graph, _references = self._archive_asset_family_graph_for_entry(entry)
+            entries = self._archive_entries_from_asset_family_graph(graph, include_hints=include_hints)
+            if not entries:
+                self.set_status_message("No resolved family entries are available to export.", error=True)
+                return
+            self._export_archive_reference_entries_to_folder(
+                entries,
+                title=f"Export Asset Family - {entry.basename}",
+            )
 
         def _layout_archive_texture_reference_columns(self, *_args) -> None:
             if not hasattr(self, "archive_texture_refs_tree"):
@@ -16652,21 +18077,32 @@ def run_gui() -> int:
                 getattr(self, "archive_asset_map_tree", None),
                 getattr(self, "archive_asset_uses_tree", None),
                 getattr(self, "archive_asset_used_by_tree", None),
+                getattr(self, "archive_asset_placement_tree", None),
             ):
                 if relation_tree is None:
                     continue
                 relation_width = max(280, relation_tree.viewport().width())
-                relation_tree.setColumnWidth(0, 118)
-                relation_tree.setColumnWidth(1, 180)
-                relation_tree.setColumnWidth(2, 104)
-                relation_tree.setColumnWidth(3, 116)
-                relation_tree.setColumnWidth(4, max(180, relation_width - 530))
+                if relation_tree.columnCount() >= 5:
+                    relation_tree.setColumnWidth(0, 118)
+                    relation_tree.setColumnWidth(1, 180)
+                    relation_tree.setColumnWidth(2, 104)
+                    relation_tree.setColumnWidth(3, 116)
+                    relation_tree.setColumnWidth(4, max(180, relation_width - 530))
+                else:
+                    relation_tree.setColumnWidth(0, 140)
+                    relation_tree.setColumnWidth(1, 220)
+                    relation_tree.setColumnWidth(2, 118)
+                    relation_tree.setColumnWidth(3, max(180, relation_width - 478))
 
         def _clamp_archive_preview_asset_map_splitter(self, *, prefer_default: bool = False) -> None:
             if (
                 not hasattr(self, "archive_texture_refs_group")
                 or not self.archive_texture_refs_group.isVisible()
-                or not (self.current_archive_model_texture_references or self.current_archive_used_by_references)
+                or not (
+                    self.current_archive_model_texture_references
+                    or self.current_archive_used_by_references
+                    or self.current_archive_family_member_rows
+                )
             ):
                 return
             if getattr(self, "_archive_preview_splitter_clamping", False):
@@ -16675,13 +18111,15 @@ def run_gui() -> int:
             splitter_width = max(1, self.archive_preview_content_splitter.width())
             size_total = sum(sizes) if sizes else 0
             total = splitter_width if splitter_width > 16 else max(1, size_total)
-            min_preview_width = 640
-            min_refs_width = 260
-            max_refs_width = min(760, max(min_refs_width, int(total * 0.46)))
+            min_preview_width = 560
+            min_refs_width = 300
+            max_refs_width = min(680, max(min_refs_width, int(total * 0.44)))
             max_refs_width = min(max_refs_width, max(0, total - min_preview_width))
             if total < min_preview_width + min_refs_width or max_refs_width < min_refs_width:
+                self.archive_texture_refs_group.setMinimumWidth(0)
                 target_sizes = [total, 0]
             else:
+                self.archive_texture_refs_group.setMinimumWidth(min_refs_width)
                 current_refs_width = sizes[1] if len(sizes) >= 2 else 0
                 current_preview_width = sizes[0] if len(sizes) >= 2 else 0
                 needs_default = (
@@ -16694,8 +18132,9 @@ def run_gui() -> int:
                         or abs(size_total - total) > 80
                     )
                 )
-                if needs_default or current_refs_width <= 0:
-                    desired_refs_width = min(520, max(min_refs_width, int(total * 0.36)))
+                if prefer_default or needs_default or current_refs_width <= 0:
+                    preferred_refs_width = int(getattr(self, "archive_asset_family_preferred_width", 420) or 420)
+                    desired_refs_width = min(520, max(min_refs_width, preferred_refs_width, int(total * 0.36)))
                 else:
                     desired_refs_width = current_refs_width
                 refs_width = max(min_refs_width, min(desired_refs_width, max_refs_width))
@@ -16710,6 +18149,16 @@ def run_gui() -> int:
                 self._archive_preview_splitter_clamping = False
 
         def _handle_archive_preview_content_splitter_moved(self, *_args) -> None:
+            sizes = self.archive_preview_content_splitter.sizes()
+            if (
+                not getattr(self, "_archive_preview_splitter_clamping", False)
+                and
+                len(sizes) >= 2
+                and sizes[1] > 0
+                and hasattr(self, "archive_texture_refs_group")
+                and self.archive_texture_refs_group.isVisible()
+            ):
+                self.archive_asset_family_preferred_width = sizes[1]
             self._clamp_archive_preview_asset_map_splitter(prefer_default=False)
             self._layout_archive_texture_reference_columns()
 
@@ -16746,6 +18195,38 @@ def run_gui() -> int:
                     return self.current_archive_model_texture_references[index]
                 if source == "used_by" and 0 <= index < len(self.current_archive_used_by_references):
                     return self.current_archive_used_by_references[index]
+                if source == "family":
+                    current_entry = self._current_archive_entry()
+                    if index == -1 and isinstance(current_entry, ArchiveEntry):
+                        return ArchiveModelTextureReference(
+                            reference_name=current_entry.basename,
+                            semantic_label=self._archive_entry_role_label(current_entry),
+                            resolution_status="resolved",
+                            resolved_archive_path=current_entry.path,
+                            resolved_package_label=current_entry.package_label,
+                            resolved_entry=current_entry,
+                            reference_kind="source",
+                            relation_group="Selected Model",
+                            relation_reason="The file currently selected in Archive Browser.",
+                            relation_confidence=RelationConfidence.AUTHORITATIVE.value,
+                        )
+                    if 0 <= index < len(self.current_archive_family_member_rows):
+                        member = self.current_archive_family_member_rows[index]
+                        resolved_entry = getattr(member, "resolved_entry", None)
+                        if not isinstance(resolved_entry, ArchiveEntry):
+                            return None
+                        return ArchiveModelTextureReference(
+                            reference_name=member.display_name or resolved_entry.basename,
+                            semantic_label=member.role,
+                            resolution_status="resolved" if str(member.status or "").casefold() in {"model ok", "selected", "resolved", "partial", "context"} else "missing",
+                            resolved_archive_path=member.path or resolved_entry.path,
+                            resolved_package_label=resolved_entry.package_label,
+                            resolved_entry=resolved_entry,
+                            reference_kind=member.role,
+                            relation_group=member.group,
+                            relation_reason=member.reason,
+                            relation_confidence=member.confidence,
+                        )
                 return None
             try:
                 index = int(raw_index)
@@ -16783,6 +18264,10 @@ def run_gui() -> int:
                 seen_keys.add(key)
                 if source == "used_by" and 0 <= index < len(self.current_archive_used_by_references):
                     selected_references.append(self.current_archive_used_by_references[index])
+                elif source == "family":
+                    reference = self._archive_reference_from_item(item)
+                    if reference is not None:
+                        selected_references.append(reference)
                 elif 0 <= index < len(self.current_archive_model_texture_references):
                     selected_references.append(self.current_archive_model_texture_references[index])
             return selected_references
@@ -16869,7 +18354,7 @@ def run_gui() -> int:
                 log_text=f"Single-file scoped Archive Browser to: {current_entry.path} (no full archive scan).",
             )
 
-        def _current_archive_asset_set_entries(self, *, include_used_by: bool = False) -> List[ArchiveEntry]:
+        def _current_archive_asset_set_entries(self, *, include_used_by: bool = False, include_hints: bool = False) -> List[ArchiveEntry]:
             entries: List[ArchiveEntry] = []
             seen: set[Tuple[str, str, int]] = set()
 
@@ -16882,49 +18367,76 @@ def run_gui() -> int:
                 seen.add(key)
                 entries.append(entry)
 
-            add(self._current_archive_entry())
-            for entry in self._resolved_archive_reference_entries(self.current_archive_model_texture_references):
-                add(entry)
+            family_rows = list(self.current_archive_family_member_rows)
+            if family_rows:
+                for member in family_rows:
+                    policy = str(getattr(member, "include_policy", "") or "").strip().casefold()
+                    status = str(getattr(member, "status", "") or "").strip().casefold()
+                    if status == "missing" or policy == "unresolved":
+                        continue
+                    if include_hints or policy in {"required", "recommended"}:
+                        add(getattr(member, "resolved_entry", None))
+            else:
+                add(self._current_archive_entry())
+                for entry in self._resolved_archive_reference_entries(self.current_archive_model_texture_references):
+                    add(entry)
             if include_used_by:
                 for entry in self._resolved_archive_reference_entries(self.current_archive_used_by_references):
                     add(entry)
             return entries
 
-        def _scope_current_archive_asset_set(self, *, include_used_by: bool = False) -> None:
-            entries = self._current_archive_asset_set_entries(include_used_by=include_used_by)
+        def _scope_current_archive_asset_set(self, *, include_used_by: bool = False, include_hints: bool = False) -> None:
+            entries = self._current_archive_asset_set_entries(include_used_by=include_used_by, include_hints=include_hints)
             if not entries:
                 self.set_status_message("No resolved asset-set files are available to show.", error=True)
                 return
             current_entry = self._current_archive_entry()
             source_label = current_entry.basename if isinstance(current_entry, ArchiveEntry) else "current asset"
-            suffix = " plus used-by candidates" if include_used_by else ""
-            self._scope_archive_reference_entries(entries, scope_label=f"Asset set for {source_label}{suffix}")
+            suffix_parts = []
+            if include_hints:
+                suffix_parts.append("hints")
+            if include_used_by:
+                suffix_parts.append("used-by candidates")
+            suffix = f" plus {', '.join(suffix_parts)}" if suffix_parts else ""
+            self._scope_archive_reference_entries(entries, scope_label=f"Asset family for {source_label}{suffix}")
 
         def _prompt_archive_asset_set_export_entries(self) -> Optional[List[ArchiveEntry]]:
             current_entry = self._current_archive_entry()
-            default_entries = self._current_archive_asset_set_entries(include_used_by=False)
+            default_entries = self._current_archive_asset_set_entries(include_used_by=False, include_hints=False)
             used_by_entries = self._resolved_archive_reference_entries(self.current_archive_used_by_references)
             if not default_entries:
                 self.set_status_message("No resolved asset-set files are available to export.", error=True)
                 return None
-            if not used_by_entries:
+            hint_entries = self._current_archive_asset_set_entries(include_used_by=False, include_hints=True)
+            hint_only_count = max(0, len(hint_entries) - len(default_entries))
+            if not used_by_entries and hint_only_count <= 0:
                 return default_entries
 
             dialog = QDialog(self)
-            dialog.setWindowTitle("Export Asset Set")
+            dialog.setWindowTitle("Export Asset Family")
             dialog.setModal(True)
             layout = QVBoxLayout(dialog)
             layout.setContentsMargins(12, 12, 12, 12)
             layout.setSpacing(8)
             source_label = current_entry.basename if isinstance(current_entry, ArchiveEntry) else "selected asset"
             intro = QLabel(
-                f"Export {source_label} with {len(default_entries):,} resolved companion file(s)."
+                f"Export {source_label} with {len(default_entries):,} resolved family file(s)."
             )
             intro.setWordWrap(True)
             layout.addWidget(intro)
+            include_hints_checkbox = QCheckBox(
+                f"Include {hint_only_count:,} weak hint candidate(s)"
+            )
+            include_hints_checkbox.setEnabled(hint_only_count > 0)
+            include_hints_checkbox.setToolTip(
+                "Hint candidates are resolved files found through same-stem/name evidence. "
+                "They are useful for context, but are not treated as required by default."
+            )
+            layout.addWidget(include_hints_checkbox)
             include_used_by_checkbox = QCheckBox(
                 f"Include {len(used_by_entries):,} indexed Used By candidate(s)"
             )
+            include_used_by_checkbox.setEnabled(bool(used_by_entries))
             include_used_by_checkbox.setToolTip(
                 "Used By candidates are known from current indexes and cached relationship evidence. "
                 "They are useful for context, but are not required by the selected file in every case."
@@ -16943,7 +18455,8 @@ def run_gui() -> int:
             if dialog.exec() != QDialog.Accepted:
                 return None
             return self._current_archive_asset_set_entries(
-                include_used_by=include_used_by_checkbox.isChecked()
+                include_used_by=include_used_by_checkbox.isChecked(),
+                include_hints=include_hints_checkbox.isChecked(),
             )
 
         def _export_current_archive_asset_set(self) -> None:
@@ -16954,7 +18467,7 @@ def run_gui() -> int:
             source_label = current_entry.basename if isinstance(current_entry, ArchiveEntry) else "current asset"
             self._export_archive_reference_entries_to_folder(
                 entries,
-                title=f"Export Asset Set - {source_label}",
+                title=f"Export Asset Family - {source_label}",
             )
 
         def _scope_current_archive_used_by_entries(self) -> None:
@@ -16995,6 +18508,8 @@ def run_gui() -> int:
             if role == "Mesh":
                 export_mesh_action = menu.addAction("Export Mesh...")
                 export_mesh_action.triggered.connect(lambda _checked=False: self._export_current_archive_model())
+                modify_original_action = menu.addAction("Modify Original...")
+                modify_original_action.triggered.connect(lambda _checked=False, entry=current_entry: self._start_archive_modify_original_workspace(entry))
                 import_mesh_preview_action = menu.addAction("Import Mesh Preview...")
                 import_mesh_preview_action.triggered.connect(lambda _checked=False: self._preview_current_archive_mesh_import())
                 show_hkx_action = menu.addAction("Show Related HKX/Physics")
@@ -17039,15 +18554,25 @@ def run_gui() -> int:
 
             if not menu.isEmpty():
                 menu.addSeparator()
-            show_asset_set_action = menu.addAction("Show Asset Set")
+            show_asset_set_action = menu.addAction("Show Only This Family")
             show_asset_set_action.triggered.connect(lambda _checked=False: self._scope_current_archive_asset_set(include_used_by=False))
+            if any(str(getattr(row, "include_policy", "") or "").casefold() == "manual" for row in self.current_archive_family_member_rows):
+                show_asset_set_hints_action = menu.addAction("Show Family + Hints")
+                show_asset_set_hints_action.triggered.connect(
+                    lambda _checked=False: self._scope_current_archive_asset_set(include_hints=True)
+                )
             if self.current_archive_used_by_references:
                 show_asset_set_used_by_action = menu.addAction("Show Asset Set + Used By")
                 show_asset_set_used_by_action.triggered.connect(
                     lambda _checked=False: self._scope_current_archive_asset_set(include_used_by=True)
                 )
-            export_asset_set_action = menu.addAction("Export Asset Set...")
+            export_asset_set_action = menu.addAction("Export Family...")
             export_asset_set_action.triggered.connect(lambda _checked=False: self._export_current_archive_asset_set())
+            if current_entry.extension not in ARCHIVE_MESH_EXTENSIONS:
+                source_mix_action = menu.addAction("Build Loose Package From Sources...")
+                source_mix_action.triggered.connect(
+                    lambda _checked=False, entry=current_entry: self._open_archive_source_mix_package_dialog(entry)
+                )
             self.archive_texture_smart_actions_button.setMenu(menu)
             menu.exec(self.archive_texture_smart_actions_button.mapToGlobal(self.archive_texture_smart_actions_button.rect().bottomLeft()))
 
@@ -18379,7 +19904,7 @@ def run_gui() -> int:
                 resolved_entry = getattr(reference, "resolved_entry", None)
                 extension = str(getattr(resolved_entry, "extension", "") or "").strip().lower()
                 reference_kind = str(getattr(reference, "reference_kind", "") or "").strip().lower()
-                if relation_group == "textures" or reference_kind == "texture" or extension == ".dds":
+                if relation_group == "textures" or reference_kind == "texture" or extension in {".dds", ".seqmt"}:
                     return "Texture"
                 if relation_group == "material sidecars" or extension in {".xml", ".pami", ".pac_xml", ".pam_xml", ".pamlod_xml"}:
                     return "Material Sidecar"
@@ -18618,6 +20143,53 @@ def run_gui() -> int:
             details_tab_layout.addWidget(details_edit)
 
             preview_tabs.addTab(preview_tab, "Preview")
+            reference_family_graph = result.asset_family_graph
+            if reference_family_graph is None and result.model_texture_references:
+                reference_family_graph = build_archive_asset_family_graph(entry, result.model_texture_references)
+            if reference_family_graph is not None and tuple(getattr(reference_family_graph, "member_rows", ()) or ()):
+                family_tab = QWidget()
+                family_layout = QVBoxLayout(family_tab)
+                family_layout.setContentsMargins(0, 0, 0, 0)
+                family_layout.setSpacing(6)
+                family_summary = QLabel(str(getattr(reference_family_graph, "summary", "") or "Recovered asset family relationships."))
+                family_summary.setObjectName("HintLabel")
+                family_summary.setWordWrap(True)
+                family_layout.addWidget(family_summary)
+                family_tree = QTreeWidget()
+                family_tree.setColumnCount(5)
+                family_tree.setHeaderLabels(["Role", "File", "Status", "Evidence", "Why"])
+                family_tree.setRootIsDecorated(True)
+                family_tree.setAlternatingRowColors(True)
+                family_tree.setUniformRowHeights(True)
+                family_tree.setSelectionMode(QAbstractItemView.SingleSelection)
+                family_groups: Dict[str, QTreeWidgetItem] = {}
+                for member in tuple(getattr(reference_family_graph, "member_rows", ()) or ()):
+                    group_item = family_groups.get(member.group)
+                    if group_item is None:
+                        group_item = QTreeWidgetItem([member.group, "", "", "", ""])
+                        group_item.setFlags(Qt.ItemIsEnabled)
+                        group_item.setExpanded(True)
+                        family_tree.addTopLevelItem(group_item)
+                        family_groups[member.group] = group_item
+                    child = QTreeWidgetItem(
+                        [
+                            str(member.role or "Related File"),
+                            str(member.display_name or PurePosixPath(str(member.path or "").replace("\\", "/")).name or "-"),
+                            str(member.status or "-"),
+                            str(member.source_evidence or member.confidence or "-"),
+                            str(member.reason or "Recovered relationship evidence."),
+                        ]
+                    )
+                    child.setToolTip(1, str(member.path or ""))
+                    child.setToolTip(4, str(member.warning or member.reason or ""))
+                    self._style_archive_role_columns(child, str(member.role or member.group), 0, 1)
+                    self._ui_style_status_columns(child, {2: member.status, 3: member.source_evidence or member.confidence, 4: member.reason})
+                    group_item.addChild(child)
+                for group_item in family_groups.values():
+                    group_item.setText(0, f"{group_item.text(0)} ({group_item.childCount()})")
+                family_tree.expandAll()
+                family_layout.addWidget(family_tree, stretch=1)
+                preview_tabs.addTab(family_tab, "Asset Family")
             preview_tabs.addTab(details_tab, "Details")
             layout.addWidget(preview_tabs, stretch=1)
 
@@ -18719,7 +20291,7 @@ def run_gui() -> int:
         def _update_archive_texture_reference_action_controls(self) -> None:
             selected_references = self._selected_archive_texture_references()
             selected_entries = self._resolved_archive_reference_entries(selected_references)
-            all_entries = self._resolved_archive_reference_entries(self.current_archive_model_texture_references)
+            all_entries = self._current_archive_asset_set_entries(include_hints=False)
             single_selected_entry = selected_entries[0] if len(selected_entries) == 1 else None
             controls_enabled = self.worker_thread is None
             can_open = controls_enabled and isinstance(single_selected_entry, ArchiveEntry)
@@ -18741,6 +20313,9 @@ def run_gui() -> int:
             self.archive_texture_smart_actions_button.setEnabled(
                 controls_enabled and isinstance(self._current_archive_entry(), ArchiveEntry)
             )
+            has_family = self._archive_has_asset_family_workspace()
+            self.archive_asset_family_button.setVisible(has_family)
+            self.archive_asset_family_button.setEnabled(controls_enabled and has_family)
             self.archive_texture_edit_material_button.setEnabled(
                 controls_enabled
                 and
@@ -18787,12 +20362,15 @@ def run_gui() -> int:
                 scope_selected_action.triggered.connect(lambda _checked=False: self._scope_selected_archive_texture_references())
                 export_action = menu.addAction("Export Selected...")
                 export_action.triggered.connect(lambda _checked=False: self._export_selected_archive_texture_reference())
-            all_entries = self._resolved_archive_reference_entries(self.current_archive_model_texture_references)
+            all_entries = self._current_archive_asset_set_entries(include_hints=False)
             if all_entries:
                 if not menu.isEmpty():
                     menu.addSeparator()
-                scope_all_action = menu.addAction("Show File Set In Browser")
-                scope_all_action.triggered.connect(lambda _checked=False: self._scope_all_archive_texture_references())
+                scope_all_action = menu.addAction("Show Only This Family")
+                scope_all_action.triggered.connect(lambda _checked=False: self._scope_current_archive_asset_set(include_hints=False))
+                if any(str(getattr(row, "include_policy", "") or "").casefold() == "manual" for row in self.current_archive_family_member_rows):
+                    scope_hints_action = menu.addAction("Show Family + Hints")
+                    scope_hints_action.triggered.connect(lambda _checked=False: self._scope_current_archive_asset_set(include_hints=True))
                 export_all_action = menu.addAction("Export All References...")
                 export_all_action.triggered.connect(lambda _checked=False: self._export_all_archive_texture_references())
             if not menu.isEmpty():
@@ -18808,6 +20386,15 @@ def run_gui() -> int:
             semantic_sidecar_texts = tuple(
                 str(text or "") for text in getattr(reference, "sidecar_texts", ()) if str(text or "").strip()
             ) if reference is not None else ()
+            self._open_archive_reference_preview_entry(resolved_entry, semantic_sidecar_texts=semantic_sidecar_texts)
+
+        def _open_archive_reference_preview_entry(
+            self,
+            entry: ArchiveEntry,
+            *,
+            semantic_sidecar_texts: Sequence[str] = (),
+        ) -> None:
+            resolved_entry = entry
 
             def _task(log: Callable[[str], None]) -> ArchivePreviewResult:
                 log(f"Preparing referenced-file preview for {resolved_entry.path}...")
@@ -20359,18 +21946,932 @@ def run_gui() -> int:
                 return
             self._start_archive_in_game_mesh_swap(pending_target, entry)
 
+        def _source_mix_target_entries_by_virtual_path(
+            self,
+            entries: Sequence[ArchiveEntry],
+        ) -> Dict[str, ArchiveEntry]:
+            targets: Dict[str, ArchiveEntry] = {}
+            for target_entry in entries:
+                if not isinstance(target_entry, ArchiveEntry):
+                    continue
+                normalized = normalize_source_mix_virtual_path(target_entry.path)
+                if normalized and normalized not in targets:
+                    targets[normalized] = target_entry
+            return targets
+
+        def _source_mix_counterpart_entry(self, entry: ArchiveEntry) -> Optional[ArchiveEntry]:
+            counterpart = paired_counterpart_virtual_path(entry.path)
+            if not counterpart:
+                return None
+            for candidate in tuple(self.archive_entries_by_normalized_path.get(counterpart, ()) or ()):
+                if isinstance(candidate, ArchiveEntry):
+                    return candidate
+            raw_counterpart_path = PurePosixPath(entry.path.replace("\\", "/")).with_suffix(PurePosixPath(counterpart).suffix).as_posix()
+            for candidate in tuple(self.archive_entries_by_normalized_path.get(raw_counterpart_path.lower(), ()) or ()):
+                if isinstance(candidate, ArchiveEntry):
+                    return candidate
+            for candidate in tuple(getattr(self, "archive_entries", ()) or ()):
+                if isinstance(candidate, ArchiveEntry) and normalize_source_mix_virtual_path(candidate.path) == counterpart:
+                    return candidate
+            return None
+
+        def _source_mix_default_target_entries(self, entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
+            targets: List[ArchiveEntry] = [entry]
+            counterpart_entry = self._source_mix_counterpart_entry(entry)
+            if counterpart_entry is not None and not self._same_archive_entry(counterpart_entry, entry):
+                targets.append(counterpart_entry)
+            return tuple(targets)
+
+        def _choose_archive_mesh_source_dialog(
+            self,
+            parent: QWidget,
+            *,
+            title: str,
+            entries: Sequence[ArchiveEntry] = (),
+            candidates: Sequence[SourceMixCandidate] = (),
+            prompt: str = "Search archive source",
+        ) -> Optional[object]:
+            rows: List[Dict[str, object]] = []
+            for entry in entries:
+                if not isinstance(entry, ArchiveEntry):
+                    continue
+                rows.append(
+                    {
+                        "name": entry.basename,
+                        "path": entry.path.replace("\\", "/"),
+                        "package": entry.package_label,
+                        "role": self._archive_entry_role_label(entry),
+                        "size": int(entry.orig_size or entry.comp_size or 0),
+                        "value": entry,
+                    }
+                )
+            for candidate in candidates:
+                if not isinstance(candidate, SourceMixCandidate):
+                    continue
+                rows.append(
+                    {
+                        "name": PurePosixPath(candidate.display_path.replace("\\", "/")).name,
+                        "path": candidate.display_path.replace("\\", "/"),
+                        "package": candidate.layer.label,
+                        "role": candidate.role or source_mix_role_for_virtual_path(candidate.display_path),
+                        "size": int(candidate.size or 0),
+                        "value": candidate,
+                    }
+                )
+            if not rows:
+                return None
+
+            dialog = QDialog(parent)
+            dialog.setWindowTitle(title)
+            dialog.resize(920, 620)
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+            search_edit = QLineEdit()
+            search_edit.setPlaceholderText(prompt)
+            layout.addWidget(search_edit)
+            tree = QTreeWidget()
+            tree.setColumnCount(5)
+            tree.setHeaderLabels(["Name", "Role", "Path", "Package / Source", "Size"])
+            tree.setRootIsDecorated(False)
+            tree.setAlternatingRowColors(True)
+            tree.setUniformRowHeights(True)
+            tree.setSelectionMode(QAbstractItemView.SingleSelection)
+            tree.header().setStretchLastSection(False)
+            tree.header().resizeSection(0, 220)
+            tree.header().resizeSection(1, 130)
+            tree.header().resizeSection(2, 360)
+            tree.header().resizeSection(3, 150)
+            tree.header().resizeSection(4, 90)
+            layout.addWidget(tree, 1)
+            status = QLabel("Type to filter the indexed source list. This does not rescan the archive.")
+            status.setObjectName("HintLabel")
+            status.setWordWrap(True)
+            layout.addWidget(status)
+            result: Dict[str, object] = {}
+            refresh_timer = QTimer(dialog)
+            refresh_timer.setSingleShot(True)
+            refresh_timer.setInterval(120)
+
+            def _matches(row: Mapping[str, object], terms: Sequence[str]) -> bool:
+                if not terms:
+                    return True
+                haystack = " ".join(str(row.get(key, "") or "") for key in ("name", "role", "path", "package")).casefold()
+                return all(term in haystack for term in terms)
+
+            def _populate_source_picker() -> None:
+                terms = [part.casefold() for part in search_edit.text().strip().split() if part.strip()]
+                tree.clear()
+                shown = 0
+                total_matches = 0
+                for row in rows:
+                    if not _matches(row, terms):
+                        continue
+                    total_matches += 1
+                    if shown >= 1500:
+                        continue
+                    item = QTreeWidgetItem(
+                        [
+                            str(row.get("name", "") or "-"),
+                            str(row.get("role", "") or "-"),
+                            str(row.get("path", "") or "-"),
+                            str(row.get("package", "") or "-"),
+                            f"{int(row.get('size', 0) or 0):,}",
+                        ]
+                    )
+                    item.setData(0, Qt.UserRole, row.get("value"))
+                    item.setToolTip(2, str(row.get("path", "") or ""))
+                    tree.addTopLevelItem(item)
+                    shown += 1
+                status.setText(
+                    f"{shown:,} shown / {total_matches:,} matched from {len(rows):,} indexed source row(s). "
+                    "Search by basename, role, path, or package."
+                )
+                if tree.topLevelItemCount() > 0:
+                    tree.setCurrentItem(tree.topLevelItem(0))
+
+            def _accept_current() -> None:
+                item = tree.currentItem()
+                if item is None:
+                    return
+                value = item.data(0, Qt.UserRole)
+                if value is None:
+                    return
+                result["value"] = value
+                dialog.accept()
+
+            search_edit.textChanged.connect(lambda _text: refresh_timer.start())
+            refresh_timer.timeout.connect(_populate_source_picker)
+            tree.itemDoubleClicked.connect(lambda _item, _column: _accept_current())
+            button_row = QHBoxLayout()
+            button_row.addStretch(1)
+            cancel_button = QPushButton("Cancel")
+            select_button = QPushButton("Select")
+            button_row.addWidget(cancel_button)
+            button_row.addWidget(select_button)
+            layout.addLayout(button_row)
+            cancel_button.clicked.connect(dialog.reject)
+            select_button.clicked.connect(_accept_current)
+            _populate_source_picker()
+            if dialog.exec() == QDialog.Accepted:
+                return result.get("value")
+            return None
+
+        def _open_archive_source_mix_package_dialog(self, entry: ArchiveEntry) -> None:
+            target_entries = self._source_mix_default_target_entries(entry)
+            if not target_entries:
+                self.set_status_message("No archive target files are available for source mixing.", error=True)
+                return
+            target_entries_by_virtual_path = self._source_mix_target_entries_by_virtual_path(target_entries)
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Build Loose Package From Sources")
+            dialog.setModal(True)
+            dialog.resize(980, 520)
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+            intro = QLabel(
+                "Add a loose mod folder or .pamt/.paz source, then choose replacement payloads by virtual path. "
+                "No binary merge is performed; selected source bytes replace the matching archive target in a loose package."
+            )
+            intro.setObjectName("HintLabel")
+            intro.setWordWrap(True)
+            layout.addWidget(intro)
+
+            source_button_row = QHBoxLayout()
+            add_loose_button = QPushButton("Add Loose Mod Folder")
+            add_mod_archive_button = QPushButton("Add .pamt/.paz Mod")
+            source_button_row.addWidget(add_loose_button)
+            source_button_row.addWidget(add_mod_archive_button)
+            source_button_row.addStretch(1)
+            layout.addLayout(source_button_row)
+
+            target_tree = QTreeWidget()
+            target_tree.setColumnCount(5)
+            target_tree.setHeaderLabels(["Target virtual path", "Current size", "Replacement source", "Package", "Status"])
+            target_tree.setRootIsDecorated(False)
+            target_tree.setAlternatingRowColors(True)
+            target_tree.setSelectionMode(QAbstractItemView.SingleSelection)
+            target_tree.header().setStretchLastSection(True)
+            target_tree.header().resizeSection(0, 360)
+            target_tree.header().resizeSection(1, 96)
+            target_tree.header().resizeSection(2, 300)
+            target_tree.header().resizeSection(3, 120)
+            layout.addWidget(target_tree, 1)
+
+            status_label = QLabel("No replacement sources added.")
+            status_label.setObjectName("HintLabel")
+            status_label.setWordWrap(True)
+            layout.addWidget(status_label)
+            row_state_by_path: Dict[str, Dict[str, object]] = {}
+
+            def _candidate_label(candidate: SourceMixCandidate) -> str:
+                return f"{candidate.layer.label}: {candidate.display_path} ({candidate.size:,} bytes)"
+
+            def _refresh_source_mix_status() -> None:
+                replacement_count = 0
+                candidate_count = 0
+                for state in row_state_by_path.values():
+                    combo = state.get("combo")
+                    if isinstance(combo, QComboBox):
+                        candidate_count += max(0, combo.count() - 1)
+                        if combo.currentIndex() > 0:
+                            replacement_count += 1
+                target_count = len(row_state_by_path)
+                status_label.setText(
+                    f"{candidate_count:,} replacement candidate(s) loaded for {target_count:,} target file(s); "
+                    f"{replacement_count:,} replacement(s) selected."
+                )
+
+            def _add_candidate_to_row(candidate: SourceMixCandidate) -> None:
+                normalized = candidate.normalized_virtual_path
+                state = row_state_by_path.get(normalized)
+                if not state:
+                    return
+                combo = state.get("combo")
+                item = state.get("item")
+                if not isinstance(combo, QComboBox) or not isinstance(item, QTreeWidgetItem):
+                    return
+                existing_keys = state.setdefault("candidate_keys", set())
+                candidate_key = (
+                    candidate.layer.source_id,
+                    candidate.display_path.lower(),
+                    str(candidate.source_path or ""),
+                    str(getattr(candidate.source_archive_entry, "pamt_path", "") or ""),
+                    int(getattr(candidate.source_archive_entry, "offset", -1) if candidate.source_archive_entry is not None else -1),
+                )
+                if candidate_key in existing_keys:
+                    return
+                existing_keys.add(candidate_key)
+                combo.addItem(_candidate_label(candidate), candidate)
+                item.setText(4, f"{combo.count() - 1:,} candidate(s)")
+                item.setForeground(4, QBrush(QColor("#86efac")))
+                _refresh_source_mix_status()
+
+            def _add_candidates(candidates: Sequence[SourceMixCandidate]) -> None:
+                matched = 0
+                for candidate in candidates:
+                    if candidate.normalized_virtual_path in row_state_by_path:
+                        _add_candidate_to_row(candidate)
+                        matched += 1
+                _refresh_source_mix_status()
+                if matched <= 0:
+                    QMessageBox.information(
+                        dialog,
+                        "No Matching Sources",
+                        "The selected source did not contain payloads matching the target virtual path(s).",
+                    )
+
+            for target_entry in target_entries:
+                normalized = normalize_source_mix_virtual_path(target_entry.path)
+                if not normalized:
+                    continue
+                item = QTreeWidgetItem(
+                    [
+                        target_entry.path.replace("\\", "/"),
+                        f"{int(target_entry.orig_size or target_entry.comp_size or 0):,}",
+                        "",
+                        target_entry.package_label,
+                        "Keep original",
+                    ]
+                )
+                item.setData(0, Qt.UserRole, normalized)
+                combo = QComboBox()
+                combo.addItem("Keep original", None)
+                combo.currentIndexChanged.connect(_refresh_source_mix_status)
+                target_tree.addTopLevelItem(item)
+                target_tree.setItemWidget(item, 2, combo)
+                row_state_by_path[normalized] = {
+                    "entry": target_entry,
+                    "item": item,
+                    "combo": combo,
+                    "candidate_keys": set(),
+                }
+
+            def _add_loose_source() -> None:
+                selected_dir = QFileDialog.getExistingDirectory(
+                    dialog,
+                    "Add Loose Mod Folder",
+                    str(self._suggest_workspace_base_dir()),
+                )
+                if not selected_dir:
+                    return
+                try:
+                    candidates = scan_loose_folder_source(
+                        Path(selected_dir),
+                        target_entries_by_virtual_path=target_entries_by_virtual_path,
+                    )
+                except Exception as exc:
+                    QMessageBox.warning(dialog, "Add Loose Mod Folder", str(exc))
+                    return
+                _add_candidates(candidates)
+
+            def _add_mod_archive_source() -> None:
+                selected_path, _selected_filter = QFileDialog.getOpenFileName(
+                    dialog,
+                    "Add .pamt/.paz Mod",
+                    str(self._suggest_workspace_base_dir()),
+                    "Archive Mod Sources (*.pamt *.paz);;All Files (*.*)",
+                )
+                if not selected_path:
+                    return
+                try:
+                    candidates = scan_mod_archive_source(
+                        Path(selected_path),
+                        target_entries_by_virtual_path=target_entries_by_virtual_path,
+                    )
+                except Exception as exc:
+                    QMessageBox.warning(dialog, "Add .pamt/.paz Mod", str(exc))
+                    return
+                _add_candidates(candidates)
+
+            add_loose_button.clicked.connect(_add_loose_source)
+            add_mod_archive_button.clicked.connect(_add_mod_archive_source)
+
+            button_row = QHBoxLayout()
+            button_row.addStretch(1)
+            cancel_button = QPushButton("Cancel")
+            write_button = QPushButton("Write Loose Package")
+            write_button.setDefault(True)
+            button_row.addWidget(cancel_button)
+            button_row.addWidget(write_button)
+            layout.addLayout(button_row)
+            cancel_button.clicked.connect(dialog.reject)
+
+            def _selected_source_mix_selections() -> List[SourceMixSelection]:
+                selections: List[SourceMixSelection] = []
+                for normalized, state in row_state_by_path.items():
+                    combo = state.get("combo")
+                    entry_obj = state.get("entry")
+                    if not isinstance(combo, QComboBox) or not isinstance(entry_obj, ArchiveEntry):
+                        continue
+                    candidate = combo.currentData()
+                    if isinstance(candidate, SourceMixCandidate):
+                        selections.append(SourceMixSelection(entry_obj.path, candidate, "replace"))
+                    else:
+                        selections.append(SourceMixSelection(entry_obj.path, None, "keep_target"))
+                return selections
+
+            def _accept_source_mix() -> None:
+                selections = [selection for selection in _selected_source_mix_selections() if selection.strategy == "replace"]
+                if not selections:
+                    QMessageBox.information(dialog, "Build Loose Package From Sources", "Choose at least one replacement source first.")
+                    return
+                validation = validate_source_mix_selections(selections)
+                if not validation.ok:
+                    QMessageBox.warning(
+                        dialog,
+                        "Source Mix Validation",
+                        "\n".join(validation.blocking_errors[:12]),
+                    )
+                    return
+                dialog.accept()
+                export_target = self._collect_archive_mod_ready_export_target(
+                    browse_title="Select Mod-Ready Loose Export Root",
+                    prompt_for_metadata=True,
+                    dialog_title="Write Source Mix Loose Package",
+                    allow_dmm_texture_structure=False,
+                )
+                if export_target is None:
+                    return
+                parent_root, package_info, create_no_encrypt, _include_related_files, export_options = export_target
+
+                def _commit_task(log: Callable[[str], None]) -> object:
+                    requests: List[ArchivePatchRequest] = []
+                    for selection in selections:
+                        candidate = selection.chosen_candidate
+                        if not isinstance(candidate, SourceMixCandidate) or not isinstance(candidate.target_archive_entry, ArchiveEntry):
+                            continue
+                        log(f"Reading source payload for {candidate.display_path} from {candidate.layer.label}...")
+                        requests.append(
+                            ArchivePatchRequest(
+                                entry=candidate.target_archive_entry,
+                                payload_data=candidate.read_payload(),
+                            )
+                        )
+                    if not requests:
+                        raise ValueError("No valid replacement payloads were selected.")
+                    log(f"Writing {len(requests):,} source-mix payload(s) into a mod-ready loose package...")
+                    return export_archive_payloads_to_mod_ready_loose(
+                        requests,
+                        parent_root=parent_root,
+                        package_info=package_info,
+                        export_options=export_options,
+                        create_no_encrypt_file=create_no_encrypt,
+                        on_log=log,
+                    )
+
+                def _handle_complete(result: object) -> None:
+                    if not isinstance(result, ArchiveLooseExportResult):
+                        self.set_status_message("Source mix loose export finished with an unexpected result payload.", error=True)
+                        return
+                    QMessageBox.information(
+                        self,
+                        "Source Mix Loose Export Complete",
+                        f"Wrote source-mix payload(s) into:\n{result.package_root}",
+                    )
+                    self.set_status_message(f"Wrote source-mix loose package: {result.package_root}")
+
+                self._run_utility_task_when_idle(
+                    status_message=f"Writing source-mix loose package for {entry.basename}...",
+                    task=_commit_task,
+                    on_complete=_handle_complete,
+                    show_archive_progress=True,
+                )
+
+            write_button.clicked.connect(_accept_source_mix)
+            _refresh_source_mix_status()
+            dialog.exec()
+
+        def _open_archive_loose_mod_overlay_dialog(self) -> None:
+            selected_dir = QFileDialog.getExistingDirectory(
+                self,
+                "Import Loose Mod Folder",
+                str(self._suggest_workspace_base_dir()),
+            )
+            if not selected_dir:
+                return
+            target_entries_by_virtual_path = self._source_mix_target_entries_by_virtual_path(
+                tuple(getattr(self, "archive_entries", ()) or ())
+            )
+            try:
+                candidates = scan_loose_folder_source(
+                    Path(selected_dir),
+                    target_entries_by_virtual_path=target_entries_by_virtual_path,
+                )
+            except Exception as exc:
+                QMessageBox.warning(self, "Import Loose Mod Folder", str(exc))
+                return
+            if not candidates:
+                QMessageBox.information(self, "Import Loose Mod Folder", "No payload files were found in the selected folder.")
+                return
+
+            exact_candidates = [candidate for candidate in candidates if isinstance(candidate.target_archive_entry, ArchiveEntry)]
+            extras = [candidate for candidate in candidates if not isinstance(candidate.target_archive_entry, ArchiveEntry)]
+            conflicts = [candidate for candidate in candidates if candidate.conflict_status == "conflict"]
+            family_groups = group_source_mix_candidates_by_family(candidates)
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Loose Mod Overlay Review")
+            dialog.resize(1180, 760)
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+            summary = QLabel(
+                f"{len(candidates):,} source file(s) scanned from {Path(selected_dir).name}. "
+                f"{len(exact_candidates):,} exact archive match(es), {len(family_groups):,} asset family group(s), "
+                f"{len(extras):,} extra file(s), {len(conflicts):,} conflict row(s). "
+                "Exact matches default to Replace. Extras are skipped unless a later workflow explicitly includes them."
+            )
+            summary.setObjectName("HintLabel")
+            summary.setWordWrap(True)
+            layout.addWidget(summary)
+            tabs = QTabWidget()
+            layout.addWidget(tabs, 1)
+            all_tree = QTreeWidget()
+            family_tree = QTreeWidget()
+            conflict_tree = QTreeWidget()
+            extras_tree = QTreeWidget()
+            for tree in (all_tree, family_tree, conflict_tree, extras_tree):
+                tree.setColumnCount(7)
+                tree.setHeaderLabels(["Use", "Virtual Path", "Role", "Target", "Source", "Size", "Status"])
+                tree.setRootIsDecorated(tree is family_tree)
+                tree.setAlternatingRowColors(True)
+                tree.setUniformRowHeights(True)
+                tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
+                tree.header().setStretchLastSection(True)
+                tree.header().resizeSection(0, 64)
+                tree.header().resizeSection(1, 360)
+                tree.header().resizeSection(2, 140)
+                tree.header().resizeSection(3, 150)
+                tree.header().resizeSection(4, 220)
+                tree.header().resizeSection(5, 90)
+            tabs.addTab(all_tree, "All Matches")
+            tabs.addTab(family_tree, "Asset Families")
+            tabs.addTab(conflict_tree, "Conflicts")
+            tabs.addTab(extras_tree, "Extras")
+
+            candidate_item_by_key: Dict[Tuple[str, str, int, str], List[QTreeWidgetItem]] = {}
+
+            def _candidate_key(candidate: SourceMixCandidate) -> Tuple[str, str, int, str]:
+                return (
+                    candidate.normalized_virtual_path,
+                    str(candidate.source_path or ""),
+                    int(candidate.size or 0),
+                    candidate.layer.source_id,
+                )
+
+            def _candidate_status(candidate: SourceMixCandidate) -> str:
+                parts = [
+                    str(candidate.match_status or "extra"),
+                    str(candidate.conflict_status or "none"),
+                    str(candidate.default_action or "skip"),
+                ]
+                return " | ".join(part for part in parts if part)
+
+            def _make_candidate_item(candidate: SourceMixCandidate) -> QTreeWidgetItem:
+                target_entry = candidate.target_archive_entry
+                target_text = target_entry.package_label if isinstance(target_entry, ArchiveEntry) else "-"
+                item = QTreeWidgetItem(
+                    [
+                        "Replace" if candidate.default_action == "replace" else "Skip",
+                        candidate.display_path,
+                        candidate.role or source_mix_role_for_virtual_path(candidate.display_path),
+                        target_text,
+                        candidate.layer.label,
+                        f"{int(candidate.size or 0):,}",
+                        _candidate_status(candidate),
+                    ]
+                )
+                item.setData(0, Qt.UserRole, candidate)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(0, Qt.Checked if candidate.default_action == "replace" else Qt.Unchecked)
+                item.setToolTip(1, candidate.display_path)
+                item.setToolTip(6, candidate.confidence or "Source-mix evidence.")
+                if candidate.default_action == "resolve":
+                    item.setForeground(6, QBrush(QColor("#fbbf24")))
+                elif candidate.default_action == "replace":
+                    item.setForeground(0, QBrush(QColor("#86efac")))
+                elif not isinstance(candidate.target_archive_entry, ArchiveEntry):
+                    item.setForeground(0, QBrush(QColor("#9ca3af")))
+                candidate_item_by_key.setdefault(_candidate_key(candidate), []).append(item)
+                return item
+
+            for candidate in candidates:
+                all_tree.addTopLevelItem(_make_candidate_item(candidate))
+            for family_id, family_candidates in sorted(family_groups.items(), key=lambda item: item[0]):
+                exact_count = sum(1 for candidate in family_candidates if isinstance(candidate.target_archive_entry, ArchiveEntry))
+                family_item = QTreeWidgetItem(
+                    [
+                        "",
+                        family_id,
+                        "Asset Family",
+                        f"{exact_count:,} exact",
+                        "",
+                        f"{len(family_candidates):,}",
+                        "family group",
+                    ]
+                )
+                family_item.setData(0, Qt.UserRole, ("family", family_id))
+                family_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                family_item.setExpanded(False)
+                family_tree.addTopLevelItem(family_item)
+                for candidate in sorted(family_candidates, key=lambda row: (row.role, row.display_path)):
+                    family_item.addChild(_make_candidate_item(candidate))
+            for candidate in conflicts:
+                conflict_tree.addTopLevelItem(_make_candidate_item(candidate))
+            for candidate in extras:
+                extras_tree.addTopLevelItem(_make_candidate_item(candidate))
+
+            status_label = QLabel("Selected exact replacements are written byte-for-byte into a mod-ready loose package.")
+            status_label.setObjectName("HintLabel")
+            status_label.setWordWrap(True)
+            layout.addWidget(status_label)
+
+            def _all_candidate_items() -> List[QTreeWidgetItem]:
+                items: List[QTreeWidgetItem] = []
+                for tree in (all_tree, family_tree, conflict_tree, extras_tree):
+                    stack = [tree.topLevelItem(index) for index in range(tree.topLevelItemCount())]
+                    while stack:
+                        item = stack.pop(0)
+                        if item is None:
+                            continue
+                        if isinstance(item.data(0, Qt.UserRole), SourceMixCandidate):
+                            items.append(item)
+                        stack[0:0] = [item.child(index) for index in range(item.childCount())]
+                return items
+
+            def _set_candidate_checked(candidate: SourceMixCandidate, checked: bool) -> None:
+                for item in candidate_item_by_key.get(_candidate_key(candidate), ()):
+                    item.setCheckState(0, Qt.Checked if checked else Qt.Unchecked)
+                    item.setText(0, "Replace" if checked else "Skip")
+
+            def _select_candidates(predicate: Callable[[SourceMixCandidate], bool], checked: bool = True) -> None:
+                for candidate in candidates:
+                    if predicate(candidate):
+                        _set_candidate_checked(candidate, checked)
+                _refresh_overlay_status()
+
+            def _checked_exact_candidates() -> List[SourceMixCandidate]:
+                selected: List[SourceMixCandidate] = []
+                seen: set[Tuple[str, str, int, str]] = set()
+                for item in _all_candidate_items():
+                    candidate = item.data(0, Qt.UserRole)
+                    if not isinstance(candidate, SourceMixCandidate):
+                        continue
+                    key = _candidate_key(candidate)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    if item.checkState(0) == Qt.Checked and isinstance(candidate.target_archive_entry, ArchiveEntry):
+                        selected.append(candidate)
+                return selected
+
+            def _refresh_overlay_status() -> None:
+                selected = _checked_exact_candidates()
+                status_label.setText(
+                    f"{len(selected):,} exact replacement row(s) selected. "
+                    f"{len(extras):,} extra source file(s) remain skipped by default; {len(conflicts):,} conflict row(s) require review."
+                )
+
+            overlay_sync_state = {"active": False}
+
+            def _overlay_item_changed(item: QTreeWidgetItem, column: int) -> None:
+                if column != 0 or overlay_sync_state["active"]:
+                    _refresh_overlay_status()
+                    return
+                candidate = item.data(0, Qt.UserRole)
+                if isinstance(candidate, SourceMixCandidate):
+                    overlay_sync_state["active"] = True
+                    try:
+                        _set_candidate_checked(candidate, item.checkState(0) == Qt.Checked)
+                    finally:
+                        overlay_sync_state["active"] = False
+                _refresh_overlay_status()
+
+            for tree in (all_tree, family_tree, conflict_tree, extras_tree):
+                tree.itemChanged.connect(_overlay_item_changed)
+
+            button_row = QHBoxLayout()
+            select_family_button = QPushButton("Select Exact Family")
+            select_all_families_button = QPushButton("Select All Families")
+            select_all_exact_button = QPushButton("Select All Exact Matches")
+            clear_button = QPushButton("Clear")
+            use_mesh_source_button = QPushButton("Use as Mesh Replacement Source")
+            write_button = QPushButton("Write Loose Package")
+            close_button = QPushButton("Close")
+            button_row.addWidget(select_family_button)
+            button_row.addWidget(select_all_families_button)
+            button_row.addWidget(select_all_exact_button)
+            button_row.addWidget(clear_button)
+            button_row.addWidget(use_mesh_source_button)
+            button_row.addStretch(1)
+            button_row.addWidget(write_button)
+            button_row.addWidget(close_button)
+            layout.addLayout(button_row)
+
+            def _selected_family_id() -> str:
+                item = family_tree.currentItem()
+                while item is not None:
+                    data = item.data(0, Qt.UserRole)
+                    if isinstance(data, tuple) and len(data) == 2 and data[0] == "family":
+                        return str(data[1] or "")
+                    item = item.parent()
+                return ""
+
+            def _select_exact_family() -> None:
+                family_id = _selected_family_id()
+                if not family_id:
+                    self.set_status_message("Select a family row first.", error=True)
+                    return
+                _select_candidates(
+                    lambda candidate: candidate.family_id == family_id and isinstance(candidate.target_archive_entry, ArchiveEntry),
+                    True,
+                )
+
+            select_family_button.clicked.connect(lambda _checked=False: _select_exact_family())
+            select_all_families_button.clicked.connect(
+                lambda _checked=False: _select_candidates(lambda candidate: isinstance(candidate.target_archive_entry, ArchiveEntry), True)
+            )
+            select_all_exact_button.clicked.connect(
+                lambda _checked=False: _select_candidates(lambda candidate: isinstance(candidate.target_archive_entry, ArchiveEntry), True)
+            )
+            clear_button.clicked.connect(lambda _checked=False: _select_candidates(lambda _candidate: True, False))
+            close_button.clicked.connect(dialog.reject)
+
+            def _current_overlay_candidate() -> Optional[SourceMixCandidate]:
+                current_tree = tabs.currentWidget()
+                if not isinstance(current_tree, QTreeWidget):
+                    return None
+                item = current_tree.currentItem()
+                while item is not None:
+                    candidate = item.data(0, Qt.UserRole)
+                    if isinstance(candidate, SourceMixCandidate):
+                        return candidate
+                    item = item.parent()
+                return None
+
+            def _use_current_candidate_as_mesh_source() -> None:
+                candidate = _current_overlay_candidate()
+                if not isinstance(candidate, SourceMixCandidate):
+                    self.set_status_message("Select a loose model candidate first.", error=True)
+                    return
+                if candidate.extension not in ARCHIVE_MESH_EXTENSIONS or not isinstance(candidate.source_path, Path):
+                    self.set_status_message("Only loose .pac/.pam/.pamlod rows can be used as Mesh Replacement sources.", error=True)
+                    return
+                target_entry = candidate.target_archive_entry
+                if not isinstance(target_entry, ArchiveEntry):
+                    self.set_status_message("This source row has no exact archive target to replace.", error=True)
+                    return
+                try:
+                    scene_result = import_scene_mesh_with_report(candidate.source_path)
+                except Exception as exc:
+                    QMessageBox.warning(dialog, "Use as Mesh Replacement Source", str(exc))
+                    return
+                supplemental_paths = (
+                    tuple(scene_result.discovered_texture_files)
+                    + tuple(scene_result.extracted_embedded_files)
+                    + tuple(getattr(scene_result, "discovered_supplemental_files", ()) or ())
+                )
+                dialog.accept()
+                QTimer.singleShot(
+                    0,
+                    lambda target=target_entry, source_path=candidate.source_path, result=scene_result, supplementals=supplemental_paths: self._start_archive_mesh_patch(
+                        target,
+                        preset_setup=MeshImportSetupSelection(
+                            scene_path=source_path,
+                            import_mode="static_replacement",
+                            supplemental_files=tuple(supplementals),
+                            scene_import_result=result,
+                            source_label=f"Loose family source: {source_path}",
+                            placement_review_title="Loose Family Mesh Source Placement",
+                            placement_context_note=(
+                                "This source came from a loose mod family overlay. Review geometry, textures, and placement before export."
+                            ),
+                        ),
+                    ),
+                )
+
+            use_mesh_source_button.clicked.connect(lambda _checked=False: _use_current_candidate_as_mesh_source())
+
+            def _write_overlay_package() -> None:
+                selected = _checked_exact_candidates()
+                if not selected:
+                    QMessageBox.information(dialog, "Loose Mod Overlay Review", "Select at least one exact archive match first.")
+                    return
+                selections = [
+                    SourceMixSelection(candidate.display_path, candidate, "replace")
+                    for candidate in selected
+                ]
+                validation = validate_source_mix_selections(selections)
+                if not validation.ok:
+                    QMessageBox.warning(dialog, "Loose Mod Overlay Validation", "\n".join(validation.blocking_errors[:12]))
+                    return
+                dialog.accept()
+                export_target = self._collect_archive_mod_ready_export_target(
+                    browse_title="Select Mod-Ready Loose Export Root",
+                    prompt_for_metadata=True,
+                    dialog_title="Write Loose Mod Overlay Package",
+                    allow_dmm_texture_structure=False,
+                )
+                if export_target is None:
+                    return
+                parent_root, package_info, create_no_encrypt, _include_related_files, export_options = export_target
+
+                def _commit_task(log: Callable[[str], None]) -> object:
+                    requests: List[ArchivePatchRequest] = []
+                    for candidate in selected:
+                        if not isinstance(candidate.target_archive_entry, ArchiveEntry):
+                            continue
+                        log(f"Reading {candidate.display_path} from {candidate.layer.label}...")
+                        requests.append(
+                            ArchivePatchRequest(
+                                entry=candidate.target_archive_entry,
+                                payload_data=candidate.read_payload(),
+                            )
+                        )
+                    if not requests:
+                        raise ValueError("No exact archive replacement payloads were selected.")
+                    log(
+                        f"Writing {len(requests):,} exact overlay replacement(s). "
+                        f"Skipped extras: {len(extras):,}; conflict rows in source folder: {len(conflicts):,}."
+                    )
+                    return export_archive_payloads_to_mod_ready_loose(
+                        requests,
+                        parent_root=parent_root,
+                        package_info=package_info,
+                        export_options=export_options,
+                        create_no_encrypt_file=create_no_encrypt,
+                        on_log=log,
+                    )
+
+                def _handle_complete(result: object) -> None:
+                    if not isinstance(result, ArchiveLooseExportResult):
+                        self.set_status_message("Loose mod overlay export finished with an unexpected result payload.", error=True)
+                        return
+                    QMessageBox.information(
+                        self,
+                        "Loose Mod Overlay Export Complete",
+                        f"Wrote selected overlay payload(s) into:\n{result.package_root}",
+                    )
+                    self.set_status_message(f"Wrote loose mod overlay package: {result.package_root}")
+
+                self._run_utility_task_when_idle(
+                    status_message=f"Writing loose mod overlay package from {Path(selected_dir).name}...",
+                    task=_commit_task,
+                    on_complete=_handle_complete,
+                    show_archive_progress=True,
+                )
+
+            write_button.clicked.connect(lambda _checked=False: _write_overlay_package())
+            _refresh_overlay_status()
+            dialog.exec()
+
         def _show_archive_tree_context_menu(self, position) -> None:
+            item = self.archive_tree.itemAt(position)
+            if item is None:
+                return
+            kind = self._archive_tree_item_kind(item)
+            value = self._archive_tree_item_value(item)
+            if kind != "file" or not isinstance(value, int):
+                return
+            if not item.isSelected():
+                self.archive_tree.clearSelection()
+                item.setSelected(True)
+            self.archive_tree.setCurrentItem(item)
             entry = self._archive_entry_at_tree_position(position)
             if entry is None:
                 return
 
             menu = QMenu(self)
+            preview_action = menu.addAction("Preview")
+            preview_action.triggered.connect(lambda _checked=False, current_entry=entry: self._render_archive_preview(current_entry))
+            preview_window_action = menu.addAction("Open Preview Window...")
+            preview_window_action.triggered.connect(
+                lambda _checked=False, current_entry=entry: self._open_archive_reference_preview_entry(current_entry)
+            )
+            export_file_action = menu.addAction("Export File...")
+            export_file_action.triggered.connect(
+                lambda _checked=False, current_entry=entry: self._export_archive_reference_entry(current_entry, title="Export Archive File")
+            )
+            extract_file_action = menu.addAction("Extract File...")
+            extract_file_action.triggered.connect(
+                lambda _checked=False, current_entry=entry: self._run_archive_extract(
+                    [current_entry],
+                    allow_original_dds_root=True,
+                    description=f"Extracting {current_entry.basename}...",
+                )
+            )
+            scope_file_action = menu.addAction("Show Only This File")
+            scope_file_action.triggered.connect(lambda _checked=False: self._scope_current_archive_entry_only())
+            import_loose_mod_action = menu.addAction("Import Loose Mod Folder...")
+            import_loose_mod_action.triggered.connect(lambda _checked=False: self._open_archive_loose_mod_overlay_dialog())
+
+            family_extensions = {
+                ".pac",
+                ".pam",
+                ".pamlod",
+                ".pac_xml",
+                ".pam_xml",
+                ".pamlod_xml",
+                ".pami",
+                ".app_xml",
+                ".prefabdata_xml",
+                ".prefab",
+                ".hkx",
+                ".hkt",
+                ".meshinfo",
+                ".paa",
+                ".paa_metabin",
+                ".pae",
+                ".paem",
+                ".motionblending",
+                ".seqmt",
+                ".pab",
+                ".pabc",
+                ".pabv",
+                ".pabgb",
+                ".pabgh",
+            }
+            if entry.extension in family_extensions or is_material_sidecar_entry(entry):
+                menu.addSeparator()
+                family_action = menu.addAction("Asset Family Workspace...")
+                family_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._open_archive_asset_family_workspace_dialog(current_entry)
+                )
+                placement_action = menu.addAction("Open Placement Workspace...")
+                placement_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._open_archive_attachment_placement_workspace_dialog(current_entry)
+                )
+                scope_family_action = menu.addAction("Show Only This Family")
+                scope_family_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._scope_archive_asset_family_for_entry(current_entry, include_hints=False)
+                )
+                export_family_action = menu.addAction("Export Family...")
+                export_family_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._export_archive_asset_family_for_entry(current_entry, include_hints=False)
+                )
+                source_mix_action = menu.addAction("Build Loose Package From Sources...")
+                source_mix_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._open_archive_source_mix_package_dialog(current_entry)
+                )
+            elif entry.extension not in ARCHIVE_MESH_EXTENSIONS:
+                menu.addSeparator()
+                source_mix_action = menu.addAction("Build Loose Package From Sources...")
+                source_mix_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._open_archive_source_mix_package_dialog(current_entry)
+                )
+
             if entry.extension in ARCHIVE_MESH_EXTENSIONS:
+                menu.addSeparator()
                 export_obj_action = menu.addAction("Export OBJ...")
                 export_obj_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "obj"))
                 export_fbx_action = menu.addAction("Export FBX...")
                 export_fbx_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "fbx"))
                 menu.addSeparator()
+                modify_original_action = menu.addAction("Modify Original...")
+                modify_original_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._start_archive_modify_original_workspace(current_entry)
+                )
                 import_preview_action = menu.addAction("Import Mesh Preview...")
                 import_preview_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._start_archive_mesh_import_preview(current_entry)
@@ -20391,9 +22892,47 @@ def run_gui() -> int:
                     lambda _checked=False, current_entry=entry: self._handle_archive_in_game_mesh_swap_entry(current_entry)
                 )
 
+            if entry.extension == ".dds":
+                menu.addSeparator()
+                texture_editor_action = menu.addAction("Open In Texture Editor...")
+                texture_editor_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._open_archive_entry_in_texture_editor(current_entry)
+                )
+                workflow_action = menu.addAction("DDS To Workflow...")
+                workflow_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._run_archive_extract(
+                        [current_entry],
+                        set_original_dds_root=True,
+                        allow_original_dds_root=True,
+                        description=f"Extracting {current_entry.basename} to workflow...",
+                    )
+                )
+
+            if entry.extension in {".hkx", ".hkt"}:
+                menu.addSeparator()
+                edit_hkx_action = menu.addAction("Edit HKX...")
+                edit_hkx_action.triggered.connect(lambda _checked=False, current_entry=entry: self._edit_archive_hkx_entry(current_entry))
+                export_hkx_json_action = menu.addAction("Export HKX JSON...")
+                export_hkx_json_action.triggered.connect(lambda _checked=False: self._export_current_archive_hkx_json())
+                export_hkx_xml_action = menu.addAction("Export HKX XML...")
+                export_hkx_xml_action.triggered.connect(lambda _checked=False: self._export_current_archive_hkx_xml())
+                export_havok_view_action = menu.addAction("Export Havok XML View...")
+                export_havok_view_action.triggered.connect(lambda _checked=False: self._export_current_archive_hkx_havok_xml_view())
+
+            if entry.extension in {".meshinfo", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
+                menu.addSeparator()
+                inspect_sidecar_action = menu.addAction("Inspect Structured Data...")
+                inspect_sidecar_action.triggered.connect(lambda _checked=False: self._inspect_current_archive_binary_sidecar())
+                export_sidecar_json_action = menu.addAction("Export Decode JSON...")
+                export_sidecar_json_action.triggered.connect(lambda _checked=False: self._export_current_archive_binary_sidecar_json())
+
+            if is_material_sidecar_entry(entry):
+                menu.addSeparator()
+                edit_material_action = menu.addAction("Edit Material Values...")
+                edit_material_action.triggered.connect(lambda _checked=False: self._edit_current_archive_material_sidecar())
+
             if entry.extension in ARCHIVE_AUDIO_EXPORT_EXTENSIONS or entry.extension in ARCHIVE_AUDIO_PATCH_EXTENSIONS:
-                if not menu.isEmpty():
-                    menu.addSeparator()
+                menu.addSeparator()
                 export_audio_action = menu.addAction("Export WAV...")
                 export_audio_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._start_archive_audio_export(current_entry)
@@ -20404,8 +22943,6 @@ def run_gui() -> int:
                         lambda _checked=False, current_entry=entry: self._start_archive_audio_patch(current_entry)
                     )
 
-            if menu.isEmpty():
-                return
             menu.exec(self.archive_tree.viewport().mapToGlobal(position))
 
         def _apply_archive_patch_result(self, patch_result: ArchivePatchResult) -> None:
@@ -20700,10 +23237,11 @@ def run_gui() -> int:
         @staticmethod
         def _archive_mesh_import_file_filter() -> str:
             return (
-                "Mesh Files (*.obj *.dae *.gltf *.glb);;"
+                "Mesh Files (*.obj *.dae *.gltf *.glb *.pac *.pam *.pamlod);;"
                 "Wavefront OBJ (*.obj);;"
                 "Collada DAE (*.dae);;"
-                "glTF / GLB (*.gltf *.glb)"
+                "glTF / GLB (*.gltf *.glb);;"
+                "Local Game Mesh (*.pac *.pam *.pamlod)"
             )
 
         @staticmethod
@@ -20719,6 +23257,21 @@ def run_gui() -> int:
                 return False
             payload_format = str(payload.get("format", "") or "").strip()
             return not payload_format or payload_format in {"obj_meta_v1", "mesh_roundtrip_manifest_v2"}
+
+        @staticmethod
+        def _obj_roundtrip_source_matches_entry(scene_path: Path, entry: ArchiveEntry) -> bool:
+            candidate = Path(f"{scene_path}.meta.json")
+            if not candidate.is_file():
+                return False
+            try:
+                payload = json.loads(candidate.read_text(encoding="utf-8"))
+            except Exception:
+                return False
+            if not isinstance(payload, dict):
+                return False
+            source_path = str(payload.get("source_path", "") or "").replace("\\", "/").strip().strip("/")
+            entry_path = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().strip("/")
+            return bool(source_path and entry_path and source_path.lower() == entry_path.lower())
 
         def _prompt_archive_mesh_import_setup(
             self,
@@ -20943,15 +23496,22 @@ def run_gui() -> int:
                 static_supported=bool(profile is None or profile.export_supported),
             )
             if force_static_replacement:
+                force_label = "Auto clone source" if suffix == ".obj" else "Archive source"
                 availability = MeshImportModeAvailability(
                     roundtrip_enabled=False,
                     static_enabled=availability.static_enabled,
                     default_mode="static_replacement" if availability.static_enabled else "",
                     guidance=(
-                        "In-game archive mesh sources use Mesh Replacement mode. "
-                        "The selected archive mesh is parsed directly and mapped onto this target."
+                        "Modify Original clone sources use Mesh Replacement mode so Geometry can resize original parts."
+                        if suffix == ".obj"
+                        else (
+                            "In-game archive mesh sources use Mesh Replacement mode. "
+                            "The selected archive mesh is parsed directly and mapped onto this target."
+                        )
                     ),
                 )
+            else:
+                force_label = ""
             if not availability.roundtrip_enabled:
                 roundtrip_radio.setEnabled(False)
                 roundtrip_radio.setToolTip("Round-trip edit is OBJ-only and requires a local OBJ source.")
@@ -20962,7 +23522,7 @@ def run_gui() -> int:
             mode_status_row.setSpacing(6)
             mode_status_row.addWidget(
                 _chip(
-                    "Archive source" if force_static_replacement else "Local source",
+                    force_label if force_static_replacement else "Local source",
                     "format" if force_static_replacement else "info",
                 )
             )
@@ -21115,7 +23675,11 @@ def run_gui() -> int:
                 item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
                 supplemental_list.addItem(item)
 
-            auto_paths = tuple(scene_import_result.discovered_texture_files) + tuple(scene_import_result.extracted_embedded_files)
+            auto_paths = (
+                tuple(scene_import_result.discovered_texture_files)
+                + tuple(scene_import_result.extracted_embedded_files)
+                + tuple(getattr(scene_import_result, "discovered_supplemental_files", ()) or ())
+            )
             for auto_path in auto_paths:
                 _add_supplemental_path(auto_path, checked=True)
 
@@ -21305,6 +23869,318 @@ def run_gui() -> int:
                 )
 
             _launch_export()
+
+        def _prompt_archive_modify_original_workspace_options(
+            self,
+            entry: ArchiveEntry,
+        ) -> Optional[Tuple[Path, bool, bool]]:
+            default_parent = Path(self._suggest_workspace_base_dir()).expanduser() / "modify_original"
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Modify Original")
+            dialog.setModal(True)
+            dialog.resize(760, 300)
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(10)
+
+            intro = QLabel(
+                "Create an editable clone workspace from the selected archive mesh. "
+                "The game archive is not changed here; edits are written later through the existing round-trip mesh import path."
+            )
+            intro.setWordWrap(True)
+            intro.setObjectName("HintLabel")
+            layout.addWidget(intro)
+
+            source_label = QLabel(f"Source: {entry.path}")
+            source_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            source_label.setWordWrap(True)
+            layout.addWidget(source_label)
+
+            form = QGridLayout()
+            form.setHorizontalSpacing(8)
+            form.setVerticalSpacing(8)
+            parent_edit = QLineEdit(str(default_parent))
+            browse_button = QPushButton("Browse...")
+            form.addWidget(QLabel("Workspace parent"), 0, 0)
+            form.addWidget(parent_edit, 0, 1)
+            form.addWidget(browse_button, 0, 2)
+            layout.addLayout(form)
+
+            include_family_checkbox = QCheckBox("Copy resolved asset-family files for texture/material context")
+            include_family_checkbox.setChecked(True)
+            include_family_checkbox.setToolTip(
+                "Copies exact/recommended resolved family files into referenced_files/. "
+                "Weak hint rows are not copied by default."
+            )
+            open_after_checkbox = QCheckBox("Open workspace when finished")
+            open_after_checkbox.setChecked(True)
+            layout.addWidget(include_family_checkbox)
+            layout.addWidget(open_after_checkbox)
+
+            notes = QLabel(
+                "Use the exported OBJ as the editable replica. You can scale or move existing parts in an external mesh editor, "
+                "or edit copied DDS/material sidecar files, then use Import Edited Clone to build a loose mod package."
+            )
+            notes.setObjectName("HintLabel")
+            notes.setWordWrap(True)
+            layout.addWidget(notes)
+
+            button_row = QHBoxLayout()
+            button_row.addStretch(1)
+            cancel_button = QPushButton("Cancel")
+            create_button = QPushButton("Create Workspace")
+            create_button.setDefault(True)
+            button_row.addWidget(cancel_button)
+            button_row.addWidget(create_button)
+            layout.addLayout(button_row)
+
+            def browse_parent() -> None:
+                selected = QFileDialog.getExistingDirectory(
+                    dialog,
+                    "Select Modify Original Workspace Parent",
+                    parent_edit.text().strip() or str(default_parent),
+                )
+                if selected:
+                    parent_edit.setText(selected)
+
+            browse_button.clicked.connect(browse_parent)
+            cancel_button.clicked.connect(dialog.reject)
+            create_button.clicked.connect(dialog.accept)
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            parent_root = Path(parent_edit.text().strip() or str(default_parent)).expanduser()
+            return parent_root, include_family_checkbox.isChecked(), open_after_checkbox.isChecked()
+
+        @staticmethod
+        def _archive_modify_original_workspace_name(entry: ArchiveEntry) -> str:
+            source_key = PurePosixPath(entry.path.replace("\\", "/")).with_suffix("").as_posix().replace("/", "_")
+            safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", source_key).strip("._")
+            return safe_name or re.sub(r"[^A-Za-z0-9_.-]+", "_", entry.basename).strip("._") or "archive_mesh"
+
+        @staticmethod
+        def _modify_original_workspace_supplemental_files(workspace_dir: Path) -> Tuple[Path, ...]:
+            referenced_root = workspace_dir / "referenced_files"
+            if not referenced_root.is_dir():
+                return ()
+            supported_suffixes = {
+                ".dds",
+                ".xml",
+                ".pami",
+                ".pac_xml",
+                ".pam_xml",
+                ".pamlod_xml",
+                ".app_xml",
+                ".prefabdata_xml",
+            }
+            return tuple(
+                sorted(
+                    (
+                        path
+                        for path in referenced_root.rglob("*")
+                        if path.is_file() and path.suffix.lower() in supported_suffixes
+                    ),
+                    key=lambda path: path.as_posix().lower(),
+                )
+            )
+
+        def _start_archive_modify_original_workspace(self, entry: ArchiveEntry) -> None:
+            if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
+                self.set_status_message("Select a supported archive mesh first.", error=True)
+                return
+            parent_root = Path(self._suggest_workspace_base_dir()).expanduser() / "modify_original_auto"
+            include_family = True
+            workspace_name = self._archive_modify_original_workspace_name(entry)
+            workspace_dir = find_available_output_path(parent_root / workspace_name)
+            related_entries: Tuple[ArchiveEntry, ...] = ()
+            if include_family:
+                try:
+                    graph, _references = self._archive_asset_family_graph_for_entry(entry)
+                    related_entries = tuple(
+                        related_entry
+                        for related_entry in self._archive_entries_from_asset_family_graph(graph, include_hints=False)
+                        if not self._same_archive_entry(related_entry, entry)
+                    )
+                except Exception:
+                    related_entries = ()
+
+            def _task(log: Callable[[str], None]) -> dict[str, object]:
+                workspace_dir.parent.mkdir(parents=True, exist_ok=True)
+                log(f"Creating Modify Original workspace: {workspace_dir}")
+                result = export_archive_mesh(
+                    entry,
+                    workspace_dir,
+                    "obj",
+                    archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
+                    archive_entries_by_basename=self.archive_entries_by_basename,
+                    related_entries=related_entries,
+                    allow_missing_skeleton=True,
+                    on_log=log,
+                )
+                obj_paths = [path for path in result.output_paths if path.suffix.lower() == ".obj"]
+                if not obj_paths:
+                    raise ValueError("OBJ export did not produce an editable clone file.")
+                obj_path = obj_paths[0]
+                supplemental_files = self._modify_original_workspace_supplemental_files(workspace_dir)
+                readme_path = workspace_dir / "MODIFY_ORIGINAL_README.txt"
+                manifest_path = workspace_dir / "modify_original_workspace.json"
+                readme_path.write_text(
+                    "\n".join(
+                        [
+                            "Crimson Desert Mod Workbench - Modify Original Workspace",
+                            "",
+                            f"Source archive mesh: {entry.path}",
+                            f"Editable OBJ clone: {obj_path.name}",
+                            "",
+                            "What this workspace is for:",
+                            "- The app opens this OBJ clone in Mesh Replacement Setup automatically.",
+                            "- Use Geometry in the alignment window to resize, move, or reshape existing mesh parts.",
+                            "- Keep topology, material names, and draw-part structure stable for the safest import.",
+                            "- Edit copied DDS/material sidecar files under referenced_files/ when you want texture/material context changes.",
+                            "",
+                            "What this workspace does not do:",
+                            "- It does not patch game archives directly.",
+                            "- It does not make arbitrary topology, skeleton, or animation edits safe.",
+                            "- It does not bypass the existing loose-mod export and validation path.",
+                            "",
+                            "Back in the app, use Mesh Replacement Setup and Geometry to review the clone and write a mod-ready loose package.",
+                        ]
+                    ),
+                    encoding="utf-8",
+                )
+                manifest_path.write_text(
+                    json.dumps(
+                        {
+                            "format": "cdmw_modify_original_workspace_v1",
+                            "source_archive_path": entry.path,
+                            "source_package": entry.package_label,
+                            "workspace_dir": str(workspace_dir),
+                            "editable_obj": str(obj_path),
+                            "related_file_count": len(related_entries),
+                            "supplemental_file_count": len(supplemental_files),
+                            "exported_files": [str(path) for path in result.output_paths],
+                            "policy": "safe_clone_workspace_imports_through_mesh_replacement_geometry_path",
+                        },
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
+                return {
+                    "workspace_dir": workspace_dir,
+                    "obj_path": obj_path,
+                    "readme_path": readme_path,
+                    "manifest_path": manifest_path,
+                    "output_paths": tuple(result.output_paths),
+                    "summary_lines": tuple(result.summary_lines),
+                    "related_count": len(related_entries),
+                    "supplemental_files": supplemental_files,
+                }
+
+            def _handle_complete(result: object) -> None:
+                if not isinstance(result, dict):
+                    self.set_status_message("Modify Original workspace finished with an unexpected result payload.", error=True)
+                    return
+                workspace = result.get("workspace_dir")
+                obj_path = result.get("obj_path")
+                if not isinstance(workspace, Path) or not isinstance(obj_path, Path):
+                    self.set_status_message("Modify Original workspace did not return an editable OBJ clone.", error=True)
+                    return
+                self.set_status_message(f"Modify Original clone ready: {obj_path.name}. Opening Mesh Replacement setup...")
+                QTimer.singleShot(
+                    0,
+                    lambda current_entry=entry, payload=result: self._open_modify_original_mesh_setup(
+                        current_entry,
+                        payload,
+                    ),
+                )
+
+            self._run_utility_task(
+                status_message=f"Creating Modify Original workspace for {entry.basename}...",
+                task=_task,
+                on_complete=_handle_complete,
+                show_archive_progress=True,
+            )
+
+        def _open_modify_original_mesh_setup(
+            self,
+            entry: ArchiveEntry,
+            result: Mapping[str, object],
+        ) -> None:
+            obj_path = result.get("obj_path")
+            if not isinstance(obj_path, Path) or not obj_path.is_file():
+                self.set_status_message("Modify Original clone is missing; cannot open Mesh Replacement setup.", error=True)
+                return
+            supplemental_files = tuple(
+                path for path in result.get("supplemental_files", ()) if isinstance(path, Path)
+            )
+            setup = self._prompt_archive_mesh_import_setup(
+                entry,
+                obj_path,
+                title="Modify Original Mesh Setup",
+                source_label=f"Modify Original clone: {obj_path}",
+                force_static_replacement=True,
+                placement_review_title="Modify Original Geometry",
+                placement_context_note=(
+                    "This is an automatic clone of the selected archive mesh. "
+                    "Mesh Replacement is preselected so the Geometry tab can resize or move existing parts."
+                ),
+            )
+            if setup is None:
+                return
+            setup.supplemental_files = supplemental_files
+            setup.source_label = setup.source_label or f"Modify Original clone: {obj_path}"
+            self._start_archive_mesh_patch(entry, preset_setup=setup)
+
+        def _show_modify_original_workspace_ready_dialog(
+            self,
+            entry: ArchiveEntry,
+            result: Mapping[str, object],
+        ) -> None:
+            workspace = result.get("workspace_dir")
+            obj_path = result.get("obj_path")
+            if not isinstance(workspace, Path) or not isinstance(obj_path, Path):
+                return
+            supplemental_files = tuple(
+                path for path in result.get("supplemental_files", ()) if isinstance(path, Path)
+            )
+            output_paths = tuple(path for path in result.get("output_paths", ()) if isinstance(path, Path))
+            dialog = QMessageBox(self)
+            dialog.setIcon(QMessageBox.Information)
+            dialog.setWindowTitle("Modify Original Workspace Ready")
+            dialog.setText("Editable clone workspace created.")
+            dialog.setInformativeText(
+                f"OBJ clone:\n{obj_path}\n\n"
+                f"Workspace:\n{workspace}\n\n"
+                "Edit the OBJ or copied texture/material files, then import the edited clone to build a loose mod package."
+            )
+            detail_lines = [
+                *(str(line) for line in result.get("summary_lines", ()) if str(line).strip()),
+                "",
+                f"Copied related file(s): {int(result.get('related_count') or 0):,}",
+                f"Import supplemental file(s) detected: {len(supplemental_files):,}",
+                "",
+                "Exported files:",
+                *(str(path) for path in output_paths[:40]),
+            ]
+            if len(output_paths) > 40:
+                detail_lines.append(f"... {len(output_paths) - 40:,} more file(s)")
+            dialog.setDetailedText("\n".join(detail_lines))
+            import_button = dialog.addButton("Import Edited Clone...", QMessageBox.AcceptRole)
+            open_button = dialog.addButton("Open Workspace", QMessageBox.ActionRole)
+            dialog.addButton(QMessageBox.Close)
+            dialog.setDefaultButton(import_button)
+            dialog.exec()
+            clicked = dialog.clickedButton()
+            if clicked is open_button:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(workspace.resolve())))
+                return
+            if clicked is import_button:
+                QTimer.singleShot(
+                    0,
+                    lambda current_entry=entry, payload=result: self._open_modify_original_mesh_setup(
+                        current_entry,
+                        payload,
+                    ),
+                )
 
         def _prompt_archive_mesh_import_mode(self, entry: Optional[ArchiveEntry] = None) -> Optional[str]:
             dialog = QMessageBox(self)
@@ -21677,6 +24553,12 @@ def run_gui() -> int:
             source_texture_evidence: Sequence[Mapping[str, object]] = (),
             extra_supplemental_specs: Sequence[MeshImportSupplementalFileSpec] = (),
         ) -> Optional[StaticMeshReplacementOptions]:
+            modify_original_clone_mode = (
+                obj_path.suffix.lower() == ".obj"
+                and self._has_valid_obj_roundtrip_sidecar(obj_path)
+                and self._obj_roundtrip_source_matches_entry(obj_path, entry)
+            )
+            original_texture_preview_state = {"enabled": bool(modify_original_clone_mode)}
             startup_progress = QProgressDialog("Preparing Mesh Replacement Alignment...", "", 0, 0, self)
             startup_progress.setWindowTitle("Preparing Alignment")
             startup_progress.setCancelButton(None)
@@ -21920,6 +24802,27 @@ def run_gui() -> int:
             replacement_only_preview.set_high_quality_textures(True)
             replacement_only_preview.set_alignment_guides_visible(True)
             replacement_only_preview.set_alignment_editing_enabled(True)
+            alignment_preview_view_sync = {"active": False}
+
+            def _sync_alignment_preview_view_state(source_widget: ModelPreviewWidget, *target_widgets: ModelPreviewWidget) -> None:
+                if alignment_preview_view_sync["active"]:
+                    return
+                if str(preview_mode_combo.currentData() or "side_by_side") != "side_by_side":
+                    return
+                state = source_widget.view_state_snapshot()
+                alignment_preview_view_sync["active"] = True
+                try:
+                    for target_widget in target_widgets:
+                        target_widget.restore_view_state(state)
+                finally:
+                    alignment_preview_view_sync["active"] = False
+
+            original_dialog_preview.view_state_changed.connect(
+                lambda *_args: _sync_alignment_preview_view_state(original_dialog_preview, static_dialog_preview)
+            )
+            static_dialog_preview.view_state_changed.connect(
+                lambda *_args: _sync_alignment_preview_view_state(static_dialog_preview, original_dialog_preview)
+            )
 
             def _current_alignment_preview_render_settings() -> ModelPreviewRenderSettings:
                 settings = clamp_model_preview_render_settings(preview_render_settings)
@@ -22112,6 +25015,201 @@ def run_gui() -> int:
             intro.setTextFormat(Qt.RichText)
             intro.setObjectName("HintLabel")
             setup_layout.addWidget(intro)
+            source_mix_tray = QGroupBox("Source Mixing")
+            source_mix_layout = QVBoxLayout(source_mix_tray)
+            source_mix_layout.setContentsMargins(8, 6, 8, 6)
+            source_mix_layout.setSpacing(5)
+            source_mix_hint = QLabel(
+                "Add source layers without leaving Mesh Replacement. Archive and .pamt/.paz mesh sources reopen this target through the existing in-game swap path; loose folders can be added in setup as supplemental textures/sidecars."
+            )
+            source_mix_hint.setObjectName("HintLabel")
+            source_mix_hint.setWordWrap(True)
+            source_mix_layout.addWidget(source_mix_hint)
+            source_mix_button_row = QHBoxLayout()
+            add_archive_source_button = QPushButton("Add Archive Source")
+            add_loose_source_button = QPushButton("Add Loose Mod Folder")
+            add_mod_archive_source_button = QPushButton("Add .pamt/.paz Mod")
+            add_archive_source_button.setToolTip("Choose another loaded archive mesh as the source and reopen this target through the existing in-game swap flow.")
+            add_loose_source_button.setToolTip("Choose a loose mod folder. Local DDS/material sidecars are still added from Mesh Replacement Setup before this alignment review.")
+            add_mod_archive_source_button.setToolTip("Choose a .pamt/.paz mod archive and use one of its mesh entries as the replacement source through the existing swap flow.")
+            for source_button in (add_archive_source_button, add_loose_source_button, add_mod_archive_source_button):
+                source_button.setMinimumWidth(0)
+                source_mix_button_row.addWidget(source_button)
+            source_mix_button_row.addStretch(1)
+            source_mix_layout.addLayout(source_mix_button_row)
+            source_mix_status_label = QLabel("Current source: " + (str(obj_path) if obj_path else "replacement source"))
+            source_mix_status_label.setObjectName("HintLabel")
+            source_mix_status_label.setWordWrap(True)
+            source_mix_layout.addWidget(source_mix_status_label)
+            modify_original_parity_label = QLabel(
+                "Geometry same | Materials same | Render settings same | Camera synced"
+                if modify_original_clone_mode
+                else "Roundtrip import diagnostic mode can show OBJ/material differences separately."
+            )
+            modify_original_parity_label.setObjectName("HintLabel")
+            modify_original_parity_label.setWordWrap(True)
+            modify_original_parity_label.setToolTip(
+                "Modify Original starts as a no-op clone. Selection highlight preserves texture bindings and uses overlay color only."
+            )
+            source_mix_layout.addWidget(modify_original_parity_label)
+            setup_layout.addWidget(source_mix_tray)
+
+            def _choose_loaded_archive_mesh_source_for_alignment() -> None:
+                mesh_entries = [
+                    candidate
+                    for candidate in tuple(getattr(self, "archive_entries", ()) or ())
+                    if isinstance(candidate, ArchiveEntry)
+                    and candidate.extension in ARCHIVE_MESH_EXTENSIONS
+                    and not self._same_archive_entry(candidate, entry)
+                ]
+                if not mesh_entries:
+                    QMessageBox.information(dialog, "Add Archive Source", "No other loaded archive mesh sources are available.")
+                    return
+                selected_source = self._choose_archive_mesh_source_dialog(
+                    dialog,
+                    title="Add Archive Source",
+                    entries=mesh_entries,
+                    prompt="Search archive source by name, path, package, or role",
+                )
+                if not isinstance(selected_source, ArchiveEntry):
+                    return
+                source_mix_status_label.setText(f"Reopening with archive source: {selected_source.path}")
+                dialog.reject()
+                QTimer.singleShot(
+                    0,
+                    lambda target_entry=entry, selected_source=selected_source: self._start_archive_in_game_mesh_swap(
+                        target_entry,
+                        selected_source,
+                    ),
+                )
+
+            def _add_loose_source_folder_for_alignment() -> None:
+                selected_dir = QFileDialog.getExistingDirectory(
+                    dialog,
+                    "Add Loose Mod Folder",
+                    str(self._suggest_workspace_base_dir()),
+                )
+                if not selected_dir:
+                    return
+                try:
+                    candidates = scan_loose_folder_source(Path(selected_dir))
+                except Exception as exc:
+                    QMessageBox.warning(dialog, "Add Loose Mod Folder", str(exc))
+                    return
+                mesh_candidates = [
+                    candidate
+                    for candidate in candidates
+                    if candidate.extension in ARCHIVE_MESH_EXTENSIONS
+                    and isinstance(candidate.source_path, Path)
+                    and candidate.source_path.is_file()
+                ]
+                mesh_count = sum(1 for candidate in candidates if candidate.extension in ARCHIVE_MESH_EXTENSIONS)
+                supplemental_count = sum(
+                    1
+                    for candidate in candidates
+                    if candidate.extension in set(SCENE_TEXTURE_SOURCE_EXTENSIONS)
+                    or candidate.extension in {".xml", ".pami", ".pac_xml", ".pam_xml", ".pamlod_xml", ".app_xml", ".prefabdata_xml"}
+                )
+                source_mix_status_label.setText(
+                    f"Loose source scanned: {Path(selected_dir).name} | {mesh_count:,} mesh candidate(s), {supplemental_count:,} texture/sidecar candidate(s)."
+                )
+                if mesh_candidates:
+                    selected_candidate = self._choose_archive_mesh_source_dialog(
+                        dialog,
+                        title="Use Loose Mesh Source",
+                        candidates=mesh_candidates,
+                        prompt="Search loose mesh source by name, path, or role",
+                    )
+                    if isinstance(selected_candidate, SourceMixCandidate):
+                        source_candidate = selected_candidate
+                        source_path = source_candidate.source_path
+                        if isinstance(source_path, Path):
+                            try:
+                                source_scene_result = import_scene_mesh_with_report(source_path)
+                            except Exception as exc:
+                                QMessageBox.warning(dialog, "Use Loose Mesh Source", str(exc))
+                                return
+                            supplemental_paths = (
+                                tuple(source_scene_result.discovered_texture_files)
+                                + tuple(source_scene_result.extracted_embedded_files)
+                                + tuple(getattr(source_scene_result, "discovered_supplemental_files", ()) or ())
+                            )
+                            source_mix_status_label.setText(f"Reopening with loose mesh source: {source_path}")
+                            dialog.reject()
+                            QTimer.singleShot(
+                                0,
+                                lambda target_entry=entry, selected_source=source_path, scene_result=source_scene_result, source_supplementals=supplemental_paths: self._start_archive_mesh_patch(
+                                    target_entry,
+                                    preset_setup=MeshImportSetupSelection(
+                                        scene_path=selected_source,
+                                        import_mode="static_replacement",
+                                        supplemental_files=tuple(source_supplementals),
+                                        scene_import_result=scene_result,
+                                        source_label=f"Loose mod source: {selected_source}",
+                                        placement_review_title="Loose Mesh Source Placement",
+                                        placement_context_note=(
+                                            "This source came from a loose mod folder. Review offset, rotation, scale, "
+                                            "part mapping, and texture sidecar output before export."
+                                        ),
+                                    ),
+                                ),
+                            )
+                            return
+                QMessageBox.information(
+                    dialog,
+                    "Loose Source Added",
+                    (
+                        f"Scanned {selected_dir}\n\n"
+                        f"Mesh candidates: {mesh_count:,}\n"
+                        f"Texture/sidecar candidates: {supplemental_count:,}\n\n"
+                        "For this v1 alignment window, local texture/sidecar files are added from Mesh Replacement Setup before placement review. "
+                        "Use Add Archive Source or Add .pamt/.paz Mod here when you want to switch the geometry source."
+                    ),
+                )
+
+            def _choose_mod_archive_mesh_source_for_alignment() -> None:
+                selected_path, _selected_filter = QFileDialog.getOpenFileName(
+                    dialog,
+                    "Add .pamt/.paz Mod",
+                    str(self._suggest_workspace_base_dir()),
+                    "Archive Mod Sources (*.pamt *.paz);;All Files (*.*)",
+                )
+                if not selected_path:
+                    return
+                try:
+                    candidates = scan_mod_archive_source(Path(selected_path))
+                except Exception as exc:
+                    QMessageBox.warning(dialog, "Add .pamt/.paz Mod", str(exc))
+                    return
+                mesh_candidates = [candidate for candidate in candidates if candidate.extension in ARCHIVE_MESH_EXTENSIONS and isinstance(candidate.source_archive_entry, ArchiveEntry)]
+                if not mesh_candidates:
+                    QMessageBox.information(dialog, "Add .pamt/.paz Mod", "The selected mod archive did not contain mesh entries.")
+                    return
+                selected_candidate = self._choose_archive_mesh_source_dialog(
+                    dialog,
+                    title="Use Mod Archive Mesh Source",
+                    candidates=mesh_candidates,
+                    prompt="Search mod archive mesh source by name, path, or role",
+                )
+                if not isinstance(selected_candidate, SourceMixCandidate):
+                    return
+                source_candidate = selected_candidate
+                source_entry = source_candidate.source_archive_entry
+                if not isinstance(source_entry, ArchiveEntry):
+                    return
+                source_mix_status_label.setText(f"Reopening with mod archive source: {source_entry.path}")
+                dialog.reject()
+                QTimer.singleShot(
+                    0,
+                    lambda target_entry=entry, selected_source=source_entry: self._start_archive_in_game_mesh_swap(
+                        target_entry,
+                        selected_source,
+                    ),
+                )
+
+            add_archive_source_button.clicked.connect(_choose_loaded_archive_mesh_source_for_alignment)
+            add_loose_source_button.clicked.connect(_add_loose_source_folder_for_alignment)
+            add_mod_archive_source_button.clicked.connect(_choose_mod_archive_mesh_source_for_alignment)
             if placement_context_note.strip():
                 placement_note = QLabel(
                     "<div style='font-size:12px; line-height:1.22; padding:5px 7px; border-left:3px solid #f59e0b; background:#2a2112;'>"
@@ -22229,10 +25327,12 @@ def run_gui() -> int:
             highlighted_source_indices: set[int] = set()
             highlighted_original_indices: set[int] = set()
             selected_source_highlight_indices: set[int] = set()
+            selected_target_source_highlight_indices: set[int] = set()
             hovered_source_highlight_indices: set[int] = set()
             source_tree_hover_direct_indices: set[int] = set()
             direct_source_preview_index_map: Dict[int, int] = {}
             selected_original_highlight_indices: set[int] = set()
+            selected_target_original_highlight_indices: set[int] = set()
             hovered_original_highlight_indices: set[int] = set()
             hover_filters: List[QObject] = []
             texture_preview_cache: Dict[tuple[str, int, int], str] = {}
@@ -22245,6 +25345,8 @@ def run_gui() -> int:
             static_replacement_vertex_limit = 65_535
 
             def _alignment_preview_source_face_limit() -> int:
+                if modify_original_clone_mode:
+                    return 0
                 mesh = replacement_mesh_for_mapping or replacement_mesh_base_for_mapping
                 if mesh is None:
                     return 0
@@ -22441,9 +25543,11 @@ def run_gui() -> int:
             def _sync_highlight_sets() -> None:
                 highlighted_source_indices.clear()
                 highlighted_source_indices.update(selected_source_highlight_indices)
+                highlighted_source_indices.update(selected_target_source_highlight_indices)
                 highlighted_source_indices.update(hovered_source_highlight_indices)
                 highlighted_original_indices.clear()
                 highlighted_original_indices.update(selected_original_highlight_indices)
+                highlighted_original_indices.update(selected_target_original_highlight_indices)
                 highlighted_original_indices.update(hovered_original_highlight_indices)
 
             def _set_preview_mode() -> None:
@@ -22684,7 +25788,11 @@ def run_gui() -> int:
                 for _target_index, edit in mapping_edits:
                     edit.setToolTip(source_help_text)
                 filter_refresh = texture_filter_refresh.get("func")
-                if filter_refresh is not None:
+                if (
+                    filter_refresh is not None
+                    and texture_filter_selected_checkbox is not None
+                    and texture_filter_selected_checkbox.isChecked()
+                ):
                     filter_refresh()
                 try:
                     _refresh_source_material_plan()
@@ -22784,6 +25892,26 @@ def run_gui() -> int:
                 static_dialog_preview.set_high_quality_textures(True)
                 _alignment_startup_step("Suggesting draw-section routing...")
                 suggested_mappings = suggest_static_submesh_mappings(original_mesh_for_mapping, replacement_mesh_for_mapping)
+                if modify_original_clone_mode:
+                    original_count = len(getattr(original_mesh_for_mapping, "submeshes", ()) or ())
+                    replacement_count = len(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ())
+                    if original_count and original_count == replacement_count:
+                        suggested_mappings = [
+                            StaticSubmeshMapping(
+                                target_submesh_index=index,
+                                target_submesh_name=(
+                                    getattr(original_mesh_for_mapping.submeshes[index], "material", "")
+                                    or getattr(original_mesh_for_mapping.submeshes[index], "name", "")
+                                    or f"target {index}"
+                                ),
+                                source_submesh_indices=[index],
+                                target_material_slot_index=index,
+                                merge_sources=False,
+                                confidence_score=1.0,
+                                confidence_label="exact-original-clone",
+                            )
+                            for index in range(original_count)
+                        ]
 
                 mapping_group = QGroupBox()
                 mapping_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -22812,6 +25940,28 @@ def run_gui() -> int:
                     stretch_columns=(2, 4, 6),
                     persist_key="source_parts",
                 )
+                source_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
+
+                def _source_index_from_tree_item(item: Optional[QTreeWidgetItem]) -> int:
+                    if item is None:
+                        return -1
+                    raw_indices = item.data(0, Qt.UserRole)
+                    try:
+                        return int(raw_indices[0] if isinstance(raw_indices, (tuple, list)) and raw_indices else raw_indices)
+                    except (TypeError, ValueError):
+                        return -1
+
+                def _selected_source_indices_from_tree() -> List[int]:
+                    indices: List[int] = []
+                    for item in source_tree.selectedItems():
+                        source_index = _source_index_from_tree_item(item)
+                        if source_index >= 0 and source_index not in indices:
+                            indices.append(source_index)
+                    if not indices:
+                        source_index = int(selected_source_part.get("index", -1))
+                        if source_index >= 0:
+                            indices.append(source_index)
+                    return indices
 
                 def _add_source_tree_item(source_index: int, source: object) -> None:
                     if _is_marker_source(source):
@@ -22869,7 +26019,6 @@ def run_gui() -> int:
                         for mesh_index, mesh in enumerate(getattr(preview_model, "meshes", ()) or ()):
                             if mesh_index in highlighted_original_indices:
                                 mesh.preview_color = (1.0, 0.72, 0.22)
-                                _clear_preview_mesh_textures(mesh)
                             else:
                                 mesh.preview_color = (0.30, 0.42, 0.54)
                     view_state = original_dialog_preview.view_state_snapshot()
@@ -23386,8 +26535,13 @@ def run_gui() -> int:
                 def _clear_target_selection() -> None:
                     _clear_tree_current_item(mapping_tree)
                     selected_target_slot["index"] = -1
+                    selected_target_source_highlight_indices.clear()
+                    selected_target_original_highlight_indices.clear()
+                    _sync_highlight_sets()
+                    _refresh_original_reference_preview()
                     _load_selected_part_controls()
                     _update_mapping_status()
+                    _queue_static_preview_refresh()
 
                 def _clear_all_part_selections() -> None:
                     _clear_original_selection()
@@ -23402,16 +26556,31 @@ def run_gui() -> int:
                 clear_replacement_selection_button.clicked.connect(_clear_replacement_selection)
                 clear_all_selection_button.clicked.connect(_clear_all_part_selections)
 
-                part_inspector = QGroupBox("Selected Replacement Source")
+                part_inspector = QGroupBox("Selected Part")
                 part_layout = QGridLayout(part_inspector)
                 part_layout.setContentsMargins(8, 6, 8, 6)
                 part_layout.setHorizontalSpacing(6)
                 part_layout.setVerticalSpacing(3)
+                part_workflow_hint = QLabel(
+                    "Select one or more parts. Use Uniform Scale for equal resizing, or Axis Scale for X/Y/Z-only changes."
+                )
+                part_workflow_hint.setObjectName("HintLabel")
+                part_workflow_hint.setWordWrap(True)
+                part_source_combo = QComboBox()
+                part_source_combo.addItem("Select part", -1)
+                if replacement_mesh_for_mapping is not None:
+                    for source_index, source in enumerate(replacement_mesh_for_mapping.submeshes):
+                        if _is_marker_source(source):
+                            continue
+                        part_source_combo.addItem(f"{source_index}: {_source_display_name(source_index)}", source_index)
+                part_source_combo.setMinimumContentsLength(16)
+                part_source_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+                part_source_combo.setToolTip("Choose the imported/original-clone part to inspect, remove, resize, or route.")
                 part_name_label = QLabel("Select a replacement source part.")
                 part_name_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
                 part_target_label = QLabel("-")
                 part_target_label.setObjectName("HintLabel")
-                part_enabled_checkbox = QCheckBox("Enabled")
+                part_enabled_checkbox = QCheckBox("Include in output")
                 part_enabled_checkbox.setChecked(True)
                 part_role_combo = QComboBox()
                 for role_label, role_value in source_role_choices:
@@ -23425,12 +26594,19 @@ def run_gui() -> int:
                 part_target_combo.setToolTip("Choose the original draw/material target that this selected source should feed.")
                 part_replace_target_button = QPushButton("Replace Target")
                 part_add_target_button = QPushButton("Add To Target")
-                part_remove_target_button = QPushButton("Remove")
+                part_remove_target_button = QPushButton("Unmap From Target")
                 part_replace_target_button.setToolTip("Set the chosen target's replacement parts to only this selected source.")
                 part_add_target_button.setToolTip("Add this selected source to the chosen target without removing any existing source indexes.")
                 part_remove_target_button.setToolTip("Remove this selected source from the chosen target's replacement parts.")
                 part_layout.addWidget(part_name_label, 0, 0, 1, 4)
                 part_layout.addWidget(part_target_label, 1, 0, 1, 4)
+                part_layout.addWidget(part_workflow_hint, 2, 0, 1, 4)
+                part_source_row = QHBoxLayout()
+                part_source_row.setContentsMargins(0, 0, 0, 0)
+                part_source_row.setSpacing(6)
+                part_source_row.addWidget(QLabel("Part"))
+                part_source_row.addWidget(part_source_combo, 1)
+                part_layout.addLayout(part_source_row, 3, 0, 1, 4)
                 part_top_row = QHBoxLayout()
                 part_top_row.setContentsMargins(0, 0, 0, 0)
                 part_top_row.setSpacing(6)
@@ -23439,14 +26615,14 @@ def run_gui() -> int:
                 part_top_row.addWidget(part_role_combo, 1)
                 part_top_row.addWidget(QLabel("Map to"))
                 part_top_row.addWidget(part_target_combo, 1)
-                part_layout.addLayout(part_top_row, 2, 0, 1, 4)
+                part_layout.addLayout(part_top_row, 4, 0, 1, 4)
                 part_map_button_row = QHBoxLayout()
                 part_map_button_row.setContentsMargins(0, 0, 0, 0)
                 part_map_button_row.setSpacing(4)
                 part_map_button_row.addWidget(part_replace_target_button)
                 part_map_button_row.addWidget(part_add_target_button)
                 part_map_button_row.addWidget(part_remove_target_button)
-                part_layout.addLayout(part_map_button_row, 3, 0, 1, 4)
+                part_layout.addLayout(part_map_button_row, 5, 0, 1, 4)
 
                 def _part_spin(value: float, minimum: float, maximum: float, decimals: int, step: float, suffix: str = "") -> QDoubleSpinBox:
                     spin = QDoubleSpinBox()
@@ -23480,31 +26656,58 @@ def run_gui() -> int:
                     part_scale_z_spin,
                     part_uniform_spin,
                 )
+                for axis_label, spin in (
+                    ("X", part_offset_x_spin),
+                    ("Y", part_offset_y_spin),
+                    ("Z", part_offset_z_spin),
+                    ("X", part_rotate_x_spin),
+                    ("Y", part_rotate_y_spin),
+                    ("Z", part_rotate_z_spin),
+                    ("X", part_scale_x_spin),
+                    ("Y", part_scale_y_spin),
+                    ("Z", part_scale_z_spin),
+                ):
+                    spin.setPrefix(f"{axis_label} ")
+                part_uniform_spin.setPrefix("All ")
+                for spin in (part_offset_x_spin, part_offset_y_spin, part_offset_z_spin):
+                    spin.setToolTip("Move selected part(s) on this local axis.")
+                for spin in (part_rotate_x_spin, part_rotate_y_spin, part_rotate_z_spin):
+                    spin.setToolTip("Rotate selected part(s) around this axis in degrees.")
+                for spin in (part_scale_x_spin, part_scale_y_spin, part_scale_z_spin):
+                    spin.setToolTip("Non-uniform axis scale. 1.0 leaves this axis unchanged.")
+                part_uniform_spin.setToolTip("Uniform scale. Multiplies all axes equally; 1.0 leaves size unchanged.")
                 for part_spin in part_controls:
                     part_spin.setMinimumWidth(0)
                     part_spin.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-                part_layout.addWidget(QLabel("Translate"), 4, 0)
-                part_layout.addWidget(part_offset_x_spin, 4, 1)
-                part_layout.addWidget(part_offset_y_spin, 4, 2)
-                part_layout.addWidget(part_offset_z_spin, 4, 3)
-                part_layout.addWidget(QLabel("Rotate"), 5, 0)
-                part_layout.addWidget(part_rotate_x_spin, 5, 1)
-                part_layout.addWidget(part_rotate_y_spin, 5, 2)
-                part_layout.addWidget(part_rotate_z_spin, 5, 3)
-                part_layout.addWidget(QLabel("Scale"), 6, 0)
-                part_layout.addWidget(part_scale_x_spin, 6, 1)
-                part_layout.addWidget(part_scale_y_spin, 6, 2)
-                part_layout.addWidget(part_scale_z_spin, 6, 3)
-                part_layout.addWidget(QLabel("Uniform"), 7, 0)
-                part_layout.addWidget(part_uniform_spin, 7, 1)
+                part_layout.addWidget(QLabel("Translate"), 6, 0)
+                part_layout.addWidget(part_offset_x_spin, 6, 1)
+                part_layout.addWidget(part_offset_y_spin, 6, 2)
+                part_layout.addWidget(part_offset_z_spin, 6, 3)
+                part_layout.addWidget(QLabel("Rotate"), 7, 0)
+                part_layout.addWidget(part_rotate_x_spin, 7, 1)
+                part_layout.addWidget(part_rotate_y_spin, 7, 2)
+                part_layout.addWidget(part_rotate_z_spin, 7, 3)
+                axis_scale_label = QLabel("Axis Scale")
+                axis_scale_label.setToolTip("Non-uniform scale: change X, Y, and Z independently.")
+                part_layout.addWidget(axis_scale_label, 8, 0)
+                part_layout.addWidget(part_scale_x_spin, 8, 1)
+                part_layout.addWidget(part_scale_y_spin, 8, 2)
+                part_layout.addWidget(part_scale_z_spin, 8, 3)
+                uniform_scale_label = QLabel("Uniform Scale")
+                uniform_scale_label.setToolTip("Equal scale applied to all axes.")
+                part_layout.addWidget(uniform_scale_label, 9, 0)
+                part_layout.addWidget(part_uniform_spin, 9, 1)
                 reset_part_button = QPushButton("Reset Part")
+                remove_part_button = QPushButton("Remove Part")
                 fit_part_button = QPushButton("Fit Size")
+                remove_part_button.setToolTip("Disable this replacement part for output. The source file is not deleted.")
                 fit_part_button.setToolTip("Match selected part size to the selected target slot. Use Translate for exact placement.")
                 part_button_row = QHBoxLayout()
+                part_button_row.addWidget(remove_part_button)
                 part_button_row.addWidget(reset_part_button)
                 part_button_row.addWidget(fit_part_button)
                 part_button_row.addStretch(1)
-                part_layout.addLayout(part_button_row, 8, 0, 1, 4)
+                part_layout.addLayout(part_button_row, 10, 0, 1, 4)
                 part_inspector_loading = {"active": False}
 
                 def _load_selected_part_controls() -> None:
@@ -23513,17 +26716,27 @@ def run_gui() -> int:
                     try:
                         for spin in part_controls:
                             spin.setEnabled(source_index >= 0)
+                        part_source_combo.setEnabled(
+                            replacement_mesh_for_mapping is not None
+                            and bool(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ())
+                        )
                         part_enabled_checkbox.setEnabled(source_index >= 0)
                         part_role_combo.setEnabled(source_index >= 0)
                         part_target_combo.setEnabled(source_index >= 0)
                         part_replace_target_button.setEnabled(source_index >= 0 and part_target_combo.currentData() not in (None, -1))
                         part_add_target_button.setEnabled(source_index >= 0 and part_target_combo.currentData() not in (None, -1))
                         part_remove_target_button.setEnabled(source_index >= 0 and part_target_combo.currentData() not in (None, -1))
+                        remove_part_button.setEnabled(source_index >= 0)
                         reset_part_button.setEnabled(source_index >= 0)
                         fit_part_button.setEnabled(source_index >= 0 and _selected_target_index() >= 0)
+                        selected_source_indices = _selected_source_indices_from_tree()
+                        multi_selected_count = len(selected_source_indices)
                         if source_index < 0 or replacement_mesh_for_mapping is None or source_index >= len(replacement_mesh_for_mapping.submeshes):
                             part_name_label.setText("Select a replacement source part.")
                             part_target_label.setText("-")
+                            part_source_combo.blockSignals(True)
+                            part_source_combo.setCurrentIndex(0)
+                            part_source_combo.blockSignals(False)
                             part_enabled_checkbox.setChecked(True)
                             part_role_combo.blockSignals(True)
                             part_role_combo.setCurrentIndex(0)
@@ -23550,9 +26763,21 @@ def run_gui() -> int:
                         source = replacement_mesh_for_mapping.submeshes[source_index]
                         label = getattr(source, "material", "") or getattr(source, "name", "") or f"source {source_index}"
                         adjustment = source_part_adjustments.get(source_index, StaticSourcePartAdjustment(source_index))
-                        part_name_label.setText(f"{source_index}: {label}")
+                        if multi_selected_count > 1:
+                            part_name_label.setText(f"{multi_selected_count:,} parts selected; primary {source_index}: {label}")
+                        else:
+                            part_name_label.setText(f"{source_index}: {label}")
                         target_summary = _source_target_summary(source_index)
-                        part_target_label.setText(f"Mapped target(s): {target_summary or 'none yet'}")
+                        if multi_selected_count > 1:
+                            part_target_label.setText(
+                                f"Transforms and Include apply to all selected parts. Primary mapped target(s): {target_summary or 'none yet'}"
+                            )
+                        else:
+                            part_target_label.setText(f"Mapped target(s): {target_summary or 'none yet'}")
+                        part_source_combo.blockSignals(True)
+                        part_source_combo_index = part_source_combo.findData(source_index)
+                        part_source_combo.setCurrentIndex(max(0, part_source_combo_index))
+                        part_source_combo.blockSignals(False)
                         part_enabled_checkbox.blockSignals(True)
                         part_enabled_checkbox.setChecked(bool(adjustment.enabled))
                         part_enabled_checkbox.blockSignals(False)
@@ -23579,6 +26804,7 @@ def run_gui() -> int:
                         part_replace_target_button.setEnabled(has_target_choice)
                         part_add_target_button.setEnabled(has_target_choice)
                         part_remove_target_button.setEnabled(has_target_choice)
+                        remove_part_button.setEnabled(True)
                         values = (
                             float(adjustment.offset_xyz[0]),
                             float(adjustment.offset_xyz[1]),
@@ -23598,37 +26824,67 @@ def run_gui() -> int:
                     finally:
                         part_inspector_loading["active"] = False
 
+                def _selected_part_source_changed(_index: int = -1) -> None:
+                    if part_inspector_loading["active"]:
+                        return
+                    try:
+                        source_index = int(part_source_combo.currentData())
+                    except (TypeError, ValueError):
+                        source_index = -1
+                    source_item = source_items_by_index.get(source_index)
+                    if source_item is not None:
+                        source_tree.clearSelection()
+                        source_item.setSelected(True)
+                        source_tree.setCurrentItem(source_item)
+                        return
+                    selected_source_part["index"] = -1
+                    selected_source_highlight_indices.clear()
+                    source_tree_hover_direct_indices.clear()
+                    _sync_highlight_sets()
+                    _load_selected_part_controls()
+                    _update_mapping_status()
+                    _queue_static_preview_refresh()
+
                 def _update_selected_part_adjustment() -> None:
                     if part_inspector_loading["active"]:
                         return
                     source_index = int(selected_source_part.get("index", -1))
                     if source_index < 0:
                         return
-                    adjustment = _ensure_source_part_adjustment(source_index)
-                    adjustment.enabled = bool(part_enabled_checkbox.isChecked())
-                    adjustment.offset_xyz = (
+                    target_indices = _selected_source_indices_from_tree()
+                    if source_index not in target_indices:
+                        target_indices.insert(0, source_index)
+                    offset_xyz = (
                         float(part_offset_x_spin.value()),
                         float(part_offset_y_spin.value()),
                         float(part_offset_z_spin.value()),
                     )
-                    adjustment.rotate_xyz_degrees = (
+                    rotate_xyz_degrees = (
                         float(part_rotate_x_spin.value()),
                         float(part_rotate_y_spin.value()),
                         float(part_rotate_z_spin.value()),
                     )
-                    adjustment.scale_xyz = (
+                    scale_xyz = (
                         float(part_scale_x_spin.value()),
                         float(part_scale_y_spin.value()),
                         float(part_scale_z_spin.value()),
                     )
-                    adjustment.uniform_scale = float(part_uniform_spin.value())
-                    source_item = source_items_by_index.get(source_index)
-                    if source_item is not None:
-                        checkbox = source_tree.itemWidget(source_item, 0)
-                        if isinstance(checkbox, QCheckBox):
-                            checkbox.blockSignals(True)
-                            checkbox.setChecked(bool(adjustment.enabled))
-                            checkbox.blockSignals(False)
+                    uniform_scale = float(part_uniform_spin.value())
+                    enabled = bool(part_enabled_checkbox.isChecked())
+                    for target_source_index in target_indices:
+                        adjustment = _ensure_source_part_adjustment(target_source_index)
+                        adjustment.enabled = enabled
+                        adjustment.offset_xyz = offset_xyz
+                        adjustment.rotate_xyz_degrees = rotate_xyz_degrees
+                        adjustment.scale_xyz = scale_xyz
+                        adjustment.uniform_scale = uniform_scale
+                        source_item = source_items_by_index.get(target_source_index)
+                        if source_item is not None:
+                            checkbox = source_tree.itemWidget(source_item, 0)
+                            if isinstance(checkbox, QCheckBox):
+                                checkbox.blockSignals(True)
+                                checkbox.setChecked(enabled)
+                                checkbox.blockSignals(False)
                     _refresh_source_assignment_columns()
                     _queue_static_preview_rebuild()
 
@@ -23698,15 +26954,42 @@ def run_gui() -> int:
                     source_index = int(selected_source_part.get("index", -1))
                     if source_index < 0:
                         return
-                    source_part_adjustments.pop(source_index, None)
-                    source_item = source_items_by_index.get(source_index)
-                    if source_item is not None:
-                        checkbox = source_tree.itemWidget(source_item, 0)
-                        if isinstance(checkbox, QCheckBox):
-                            checkbox.blockSignals(True)
-                            checkbox.setChecked(True)
-                            checkbox.blockSignals(False)
+                    target_indices = _selected_source_indices_from_tree()
+                    if source_index not in target_indices:
+                        target_indices.insert(0, source_index)
+                    for target_source_index in target_indices:
+                        source_part_adjustments.pop(target_source_index, None)
+                        source_item = source_items_by_index.get(target_source_index)
+                        if source_item is not None:
+                            checkbox = source_tree.itemWidget(source_item, 0)
+                            if isinstance(checkbox, QCheckBox):
+                                checkbox.blockSignals(True)
+                                checkbox.setChecked(True)
+                                checkbox.blockSignals(False)
                     _load_selected_part_controls()
+                    _refresh_source_assignment_columns()
+                    _queue_static_preview_rebuild()
+
+                def _remove_selected_part_from_output() -> None:
+                    source_index = int(selected_source_part.get("index", -1))
+                    if source_index < 0:
+                        return
+                    target_indices = _selected_source_indices_from_tree()
+                    if source_index not in target_indices:
+                        target_indices.insert(0, source_index)
+                    for target_source_index in target_indices:
+                        adjustment = _ensure_source_part_adjustment(target_source_index)
+                        adjustment.enabled = False
+                        source_item = source_items_by_index.get(target_source_index)
+                        if source_item is not None:
+                            checkbox = source_tree.itemWidget(source_item, 0)
+                            if isinstance(checkbox, QCheckBox):
+                                checkbox.blockSignals(True)
+                                checkbox.setChecked(False)
+                                checkbox.blockSignals(False)
+                    part_enabled_checkbox.blockSignals(True)
+                    part_enabled_checkbox.setChecked(False)
+                    part_enabled_checkbox.blockSignals(False)
                     _refresh_source_assignment_columns()
                     _queue_static_preview_rebuild()
 
@@ -23747,31 +27030,44 @@ def run_gui() -> int:
 
                 for part_spin in part_controls:
                     part_spin.valueChanged.connect(_update_selected_part_adjustment)
+                part_source_combo.currentIndexChanged.connect(_selected_part_source_changed)
                 part_enabled_checkbox.toggled.connect(_update_selected_part_adjustment)
                 part_role_combo.currentIndexChanged.connect(_set_selected_source_role)
                 part_target_combo.currentIndexChanged.connect(_select_part_target_row)
                 part_replace_target_button.clicked.connect(lambda _checked=False: _map_selected_part_to_combo_target(replace=True))
                 part_add_target_button.clicked.connect(lambda _checked=False: _map_selected_part_to_combo_target(replace=False))
                 part_remove_target_button.clicked.connect(_remove_selected_part_from_combo_target)
+                remove_part_button.clicked.connect(_remove_selected_part_from_output)
                 reset_part_button.clicked.connect(_reset_selected_part)
                 fit_part_button.clicked.connect(_fit_selected_part_size)
 
-                def _source_selection_changed(current: Optional[QTreeWidgetItem], _previous: Optional[QTreeWidgetItem]) -> None:
-                    raw_indices = current.data(0, Qt.UserRole) if current is not None else ()
-                    try:
-                        selected_source_part["index"] = int(raw_indices[0] if isinstance(raw_indices, (tuple, list)) and raw_indices else raw_indices)
-                    except (TypeError, ValueError):
-                        selected_source_part["index"] = -1
+                def _refresh_source_tree_selection_state() -> None:
+                    current = source_tree.currentItem()
+                    current_index = _source_index_from_tree_item(current)
+                    if current_index < 0:
+                        selected_items = source_tree.selectedItems()
+                        current_index = _source_index_from_tree_item(selected_items[0]) if selected_items else -1
+                    selected_source_part["index"] = current_index
                     selected_source_highlight_indices.clear()
-                    if selected_source_part["index"] >= 0:
-                        selected_source_highlight_indices.add(int(selected_source_part["index"]))
+                    for selected_source_index in _selected_source_indices_from_tree():
+                        if selected_source_index >= 0:
+                            selected_source_highlight_indices.add(int(selected_source_index))
+                    if current_index >= 0:
+                        selected_source_highlight_indices.add(current_index)
                     _sync_highlight_sets()
                     _load_selected_part_controls()
                     _update_mapping_status()
                     filter_refresh = texture_filter_refresh.get("func")
-                    if filter_refresh is not None:
+                    if (
+                        filter_refresh is not None
+                        and texture_filter_selected_checkbox is not None
+                        and texture_filter_selected_checkbox.isChecked()
+                    ):
                         filter_refresh()
                     _queue_static_preview_refresh()
+
+                def _source_selection_changed(_current: Optional[QTreeWidgetItem], _previous: Optional[QTreeWidgetItem]) -> None:
+                    _refresh_source_tree_selection_state()
 
                 def _original_selection_changed(current: Optional[QTreeWidgetItem], _previous: Optional[QTreeWidgetItem]) -> None:
                     raw_indices = current.data(0, Qt.UserRole) if current is not None else ()
@@ -23791,16 +27087,30 @@ def run_gui() -> int:
                         selected_target_slot["index"] = int(current.data(0, Qt.UserRole + 1)) if current is not None else -1
                     except (TypeError, ValueError):
                         selected_target_slot["index"] = -1
+                    selected_target_original_highlight_indices.clear()
+                    selected_target_source_highlight_indices.clear()
+                    target_index = int(selected_target_slot.get("index", -1))
+                    if target_index >= 0:
+                        selected_target_original_highlight_indices.add(target_index)
+                        edit = mapping_edits_by_target.get(target_index)
+                        if edit is not None:
+                            for source_index in _parse_mapping_edit(edit):
+                                if source_index >= 0:
+                                    selected_target_source_highlight_indices.add(source_index)
+                    _sync_highlight_sets()
+                    _refresh_original_reference_preview()
                     _load_selected_part_controls()
                     _update_mapping_status()
+                    _queue_static_preview_refresh()
 
                 source_tree.currentItemChanged.connect(_source_selection_changed)
+                source_tree.itemSelectionChanged.connect(_refresh_source_tree_selection_state)
                 original_tree.currentItemChanged.connect(_original_selection_changed)
                 mapping_tree.currentItemChanged.connect(_target_selection_changed)
                 _refresh_source_assignment_columns()
                 _load_selected_part_controls()
                 _update_mapping_status()
-                mapping_layout.addWidget(part_inspector)
+                parts_layout.addWidget(part_inspector, 0)
 
                 geometry_overview_group = QGroupBox("Replacement Geometry")
                 geometry_overview_layout = QVBoxLayout(geometry_overview_group)
@@ -24466,6 +27776,107 @@ def run_gui() -> int:
                         )
                     return sorted(index for index in target_indices if 0 <= index < len(meshes))
 
+                original_preview_texture_attrs = (
+                    "material_name",
+                    "texture_name",
+                    "preview_color",
+                    "preview_texture_path",
+                    "preview_texture_image",
+                    "preview_normal_texture_path",
+                    "preview_normal_texture_image",
+                    "preview_normal_texture_name",
+                    "preview_normal_texture_strength",
+                    "preview_material_texture_path",
+                    "preview_material_texture_image",
+                    "preview_material_texture_name",
+                    "preview_material_texture_type",
+                    "preview_material_texture_subtype",
+                    "preview_material_texture_packed_channels",
+                    "preview_height_texture_path",
+                    "preview_height_texture_image",
+                    "preview_height_texture_name",
+                    "preview_base_texture_default_path",
+                    "preview_base_texture_default_name",
+                    "preview_normal_texture_default_path",
+                    "preview_normal_texture_default_name",
+                    "preview_normal_texture_default_strength",
+                    "preview_material_texture_default_path",
+                    "preview_material_texture_default_name",
+                    "preview_material_texture_default_type",
+                    "preview_material_texture_default_subtype",
+                    "preview_material_texture_default_packed_channels",
+                    "preview_height_texture_default_path",
+                    "preview_height_texture_default_name",
+                    "preview_texture_flip_vertical",
+                    "preview_base_texture_source",
+                    "preview_base_texture_quality",
+                    "preview_sidecar_material_primitive",
+                    "preview_sidecar_shader_family",
+                    "preview_texture_brightness",
+                    "preview_texture_tint",
+                    "preview_texture_uv_scale",
+                    "preview_texture_approximation_note",
+                    "preview_debug_flip_base_v",
+                    "preview_debug_disable_support_maps",
+                )
+
+                def _copy_original_preview_material(dst_mesh: object, src_mesh: object) -> None:
+                    for attr in original_preview_texture_attrs:
+                        if hasattr(dst_mesh, attr) and hasattr(src_mesh, attr):
+                            setattr(dst_mesh, attr, getattr(src_mesh, attr))
+
+                def _apply_original_material_preview(
+                    preview_model: object,
+                    *,
+                    mapped_preview: bool,
+                    current_mappings: Sequence[StaticSubmeshMapping],
+                ) -> None:
+                    if not bool(original_texture_preview_state.get("enabled")) or original_reference_preview_model is None:
+                        return
+                    original_meshes = list(getattr(original_reference_preview_model, "meshes", ()) or ())
+                    preview_meshes = list(getattr(preview_model, "meshes", ()) or ())
+                    if not original_meshes or not preview_meshes:
+                        return
+                    copied: set[int] = set()
+                    if modify_original_clone_mode and mapped_preview:
+                        for mapping in current_mappings:
+                            target_index = int(getattr(mapping, "target_submesh_index", -1))
+                            if 0 <= target_index < len(original_meshes) and target_index < len(preview_meshes):
+                                _copy_original_preview_material(preview_meshes[target_index], original_meshes[target_index])
+                                copied.add(target_index)
+                        if len(preview_meshes) == len(original_meshes):
+                            for mesh_index, src_mesh in enumerate(original_meshes):
+                                if mesh_index in copied:
+                                    continue
+                                _copy_original_preview_material(preview_meshes[mesh_index], src_mesh)
+                                copied.add(mesh_index)
+                        if copied:
+                            return
+                    if not mapped_preview and direct_source_preview_index_map:
+                        for source_index, preview_index in direct_source_preview_index_map.items():
+                            if 0 <= int(source_index) < len(original_meshes) and 0 <= int(preview_index) < len(preview_meshes):
+                                _copy_original_preview_material(preview_meshes[int(preview_index)], original_meshes[int(source_index)])
+                                copied.add(int(preview_index))
+                    else:
+                        for mapping in current_mappings:
+                            target_index = int(getattr(mapping, "target_submesh_index", -1))
+                            if target_index < 0 or target_index >= len(original_meshes):
+                                continue
+                            target_mesh_indices = _preview_target_mesh_indices(
+                                preview_model,
+                                mapping.target_submesh_name,
+                                mapping.source_submesh_indices,
+                                mapped_preview=mapped_preview,
+                                current_mappings=current_mappings,
+                            )
+                            for mesh_index in target_mesh_indices:
+                                if 0 <= int(mesh_index) < len(preview_meshes):
+                                    _copy_original_preview_material(preview_meshes[int(mesh_index)], original_meshes[target_index])
+                                    copied.add(int(mesh_index))
+                    if not copied and len(preview_meshes) == len(original_meshes):
+                        for mesh_index, src_mesh in enumerate(original_meshes):
+                            _copy_original_preview_material(preview_meshes[mesh_index], src_mesh)
+
                 def _refresh_static_dialog_preview() -> None:
                     nonlocal texture_override_preview_specs
                     if replacement_preview_model is None:
@@ -24551,6 +27962,11 @@ def run_gui() -> int:
                     else:
                         source_model = replacement_preview_model
                     preview_model = _clone_preview_model(source_model)
+                    _apply_original_material_preview(
+                        preview_model,
+                        mapped_preview=mapped_preview,
+                        current_mappings=current_mappings,
+                    )
                     if highlighted_source_indices:
                         highlighted_target_indices: set[int] = set()
                         if mapped_preview:
@@ -24567,7 +27983,6 @@ def run_gui() -> int:
                         for mesh_index, mesh in enumerate(getattr(preview_model, "meshes", ()) or ()):
                             if mesh_index in highlighted_target_indices:
                                 mesh.preview_color = (1.0, 0.78, 0.22)
-                                _clear_preview_mesh_textures(mesh)
                             else:
                                 mesh.preview_color = (0.18, 0.22, 0.26)
                     def _source_preview_path(source_path_text: str) -> str:
@@ -24652,7 +28067,10 @@ def run_gui() -> int:
                                 mesh.preview_material_texture_subtype = semantic_subtype
                                 mesh.preview_material_texture_packed_channels = tuple(packed_channels)
 
-                    if texture_sets and not use_direct_source_preview:
+                    use_original_material_preview = bool(
+                        modify_original_clone_mode and original_texture_preview_state.get("enabled")
+                    )
+                    if texture_sets and not use_direct_source_preview and not use_original_material_preview:
                         for mapping in current_mappings:
                             texture_set = _texture_set_for_mapping(mapping)
                             if texture_set is None:
@@ -24764,13 +28182,12 @@ def run_gui() -> int:
                         original_overlay_model = _tint_preview_model(
                             original_reference_preview_model,
                             (0.30, 0.42, 0.54),
-                            clear_textures=True,
+                            clear_textures=False,
                         )
                         if highlighted_original_indices:
                             for mesh_index, mesh in enumerate(getattr(original_overlay_model, "meshes", ()) or ()):
                                 if mesh_index in highlighted_original_indices:
                                     mesh.preview_color = (1.0, 0.72, 0.22)
-                                    _clear_preview_mesh_textures(mesh)
                         overlay_model = _combine_preview_models(
                             original_overlay_model,
                             preview_model,
@@ -24994,6 +28411,33 @@ def run_gui() -> int:
                     return messages
 
                 sidecar_bindings_for_advanced = tuple(sidecar_bindings or ())
+                original_texture_preview_group = QGroupBox("Original Texture Preview")
+                original_texture_preview_layout = QVBoxLayout(original_texture_preview_group)
+                original_texture_preview_layout.setContentsMargins(8, 6, 8, 6)
+                original_texture_preview_layout.setSpacing(5)
+                original_texture_preview_checkbox = QCheckBox("Preview with original DDS/materials")
+                original_texture_preview_checkbox.setChecked(bool(original_texture_preview_state.get("enabled")))
+                original_texture_preview_checkbox.setEnabled(bool(modify_original_clone_mode))
+                original_texture_preview_checkbox.setToolTip(
+                    "For Modify Original clones, reuse the selected archive model's resolved texture bindings in the live replacement preview."
+                )
+                original_texture_preview_layout.addWidget(original_texture_preview_checkbox)
+                original_texture_preview_note = QLabel(
+                    "Preview-only: original game DDS files are reused for display and are not copied into the loose mod unless you add replacement textures."
+                    if modify_original_clone_mode
+                    else "Available when the imported OBJ is an exact Modify Original clone of the selected archive model."
+                )
+                original_texture_preview_note.setObjectName("HintLabel")
+                original_texture_preview_note.setWordWrap(True)
+                original_texture_preview_layout.addWidget(original_texture_preview_note)
+                textures_layout.addWidget(original_texture_preview_group, 0)
+
+                def _set_original_texture_preview_enabled(checked: bool) -> None:
+                    original_texture_preview_state["enabled"] = bool(checked and modify_original_clone_mode)
+                    _queue_texture_preview_refresh()
+
+                original_texture_preview_checkbox.toggled.connect(_set_original_texture_preview_enabled)
+
                 material_plan_group = QGroupBox("Replacement Texture Plan")
                 material_plan_layout = QVBoxLayout(material_plan_group)
                 material_plan_layout.setAlignment(Qt.AlignTop)
@@ -25259,7 +28703,7 @@ def run_gui() -> int:
                     texture_layout.addLayout(texture_action_row)
 
                     texture_filter_selected_checkbox = QCheckBox("Show only active mapped parts")
-                    texture_filter_selected_checkbox.setChecked(True)
+                    texture_filter_selected_checkbox.setChecked(False)
                     texture_filter_selected_checkbox.setToolTip("When a replacement source is selected, show only targets fed by that source.")
                     texture_show_advanced_checkbox = QCheckBox("Show ambiguous/advanced slots")
                     texture_show_advanced_checkbox.setToolTip("Show shared layers, blend/detail masks, shader-only rows, and low-confidence suggestions.")
@@ -26961,6 +30405,10 @@ def run_gui() -> int:
             alignment_mode_combo.currentIndexChanged.connect(_queue_static_preview_rebuild)
             scale_to_length_checkbox.toggled.connect(_queue_static_preview_rebuild)
             flip_direction_checkbox.toggled.connect(_queue_static_preview_rebuild)
+            if modify_original_clone_mode:
+                alignment_mode_combo.setCurrentIndex(max(0, alignment_mode_combo.findData("manual")))
+                scale_to_length_checkbox.setChecked(False)
+                flip_direction_checkbox.setChecked(False)
 
             def _apply_orientation_preset(index: int) -> None:
                 preset = orientation_preset_combo.itemData(index)
@@ -26996,8 +30444,12 @@ def run_gui() -> int:
                 _queue_static_preview_rebuild()
 
             def _reset_placement_values() -> None:
-                alignment_mode_combo.setCurrentIndex(max(0, alignment_mode_combo.findData("auto_fit_original")))
-                scale_to_length_checkbox.setChecked(True)
+                if modify_original_clone_mode:
+                    alignment_mode_combo.setCurrentIndex(max(0, alignment_mode_combo.findData("manual")))
+                    scale_to_length_checkbox.setChecked(False)
+                else:
+                    alignment_mode_combo.setCurrentIndex(max(0, alignment_mode_combo.findData("auto_fit_original")))
+                    scale_to_length_checkbox.setChecked(True)
                 orientation_preset_combo.setCurrentIndex(0)
                 flip_direction_checkbox.setChecked(False)
                 _reset_location_values()
@@ -27298,7 +30750,7 @@ def run_gui() -> int:
                     replacement_only_preview.restore_view_state(replacement_only_view_state)
                     if original_reference_preview_model is not None:
                         overlay_model = _combine_preview_models(
-                            _tint_preview_model(original_reference_preview_model, (0.30, 0.42, 0.54), clear_textures=True),
+                            _tint_preview_model(original_reference_preview_model, (0.30, 0.42, 0.54), clear_textures=False),
                             final_model_for_display,
                         )
                         if overlay_model is not None:
@@ -27389,7 +30841,7 @@ def run_gui() -> int:
                 return
             scene_path_obj = setup.scene_path
             import_mode = setup.import_mode
-            if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb"}:
+            if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}:
                 self.append_archive_log(f"{scene_path_obj.suffix.upper().lstrip('.')} imports use Mesh Replacement mode.")
             static_replacement_options: Optional[StaticMeshReplacementOptions] = None
             supplemental_files = setup.supplemental_files
@@ -27533,7 +30985,7 @@ def run_gui() -> int:
                 setup = preset_setup
             scene_path_obj = setup.scene_path
             import_mode = setup.import_mode
-            if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb"}:
+            if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}:
                 self.append_archive_log(f"{scene_path_obj.suffix.upper().lstrip('.')} imports use Mesh Replacement mode.")
             static_replacement_options: Optional[StaticMeshReplacementOptions] = None
 
@@ -27983,6 +31435,13 @@ def run_gui() -> int:
                 return
             self._start_archive_mesh_export(current_entry, export_format)
 
+        def _modify_current_archive_original_mesh(self) -> None:
+            current_entry = self._current_archive_mesh_entry()
+            if current_entry is None:
+                self.set_status_message("Select a supported archive mesh to modify.", error=True)
+                return
+            self._start_archive_modify_original_workspace(current_entry)
+
         def _default_archive_hkx_json_path(self, entry: ArchiveEntry) -> Path:
             default_dir = self.settings_file_path.parent / "hkx_geometry_json"
             stem = Path(PurePosixPath(entry.path.replace("\\", "/")).name).stem or "archive_hkx"
@@ -28027,7 +31486,7 @@ def run_gui() -> int:
             if len(source_paths) == 1:
                 source = source_paths[0]
                 source_name = source.name or "sidecar_corpus"
-                if source.is_file() and source.suffix.lower() in {".meshinfo", ".motionblending", ".paa_metabin", ".prefab"}:
+                if source.is_file() and source.suffix.lower() in {".meshinfo", ".motionblending", ".paa_metabin", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
                     source_name = source.stem or source_name
             else:
                 source_name = f"selected_{len(source_paths)}_sidecar_files"
@@ -28055,7 +31514,7 @@ def run_gui() -> int:
         def _export_current_archive_binary_sidecar_json(self) -> None:
             entry = self._current_archive_binary_sidecar_entry()
             if entry is None:
-                self.set_status_message("Select a .meshinfo, .motionblending, .paa_metabin, or .prefab archive entry to export a sidecar decode JSON.", error=True)
+                self.set_status_message("Select a structured metadata/animation archive entry to export a sidecar decode JSON.", error=True)
                 return
             selected, _selected_filter = QFileDialog.getSaveFileName(
                 self,
@@ -28160,7 +31619,7 @@ def run_gui() -> int:
         def _inspect_current_archive_binary_sidecar(self) -> None:
             entry = self._current_archive_binary_sidecar_entry()
             if entry is None:
-                self.set_status_message("Select a .meshinfo, .motionblending, .paa_metabin, or .prefab archive entry to inspect.", error=True)
+                self.set_status_message("Select a structured metadata/animation archive entry to inspect.", error=True)
                 return
 
             def _task(log: Callable[[str], None]) -> str:
@@ -28426,7 +31885,7 @@ def run_gui() -> int:
             source_mode, source_ok = QInputDialog.getItem(
                 self,
                 "Sidecar Corpus Source",
-                "Scan a folder recursively, or scan specific .meshinfo/.motionblending/.paa_metabin/.prefab files?",
+                "Scan a folder recursively, or scan specific .meshinfo/.motionblending/.paa_metabin/.prefab/.pappt/.pamhc/.seqmt files?",
                 ("Folder", "Files"),
                 0,
                 False,
@@ -28439,7 +31898,7 @@ def run_gui() -> int:
                     self,
                     "Select Sidecar Corpus Files",
                     str(self._suggest_workspace_base_dir()),
-                    "Binary Sidecars (*.meshinfo *.motionblending *.paa_metabin *.prefab);;All Files (*)",
+                    "Binary Sidecars (*.meshinfo *.motionblending *.paa_metabin *.prefab *.pappt *.pamhc *.seqmt);;All Files (*)",
                 )
                 source_paths = tuple(Path(path) for path in selected_files if str(path).strip())
             else:
@@ -28455,7 +31914,7 @@ def run_gui() -> int:
                 self,
                 "Sidecar Corpus Scan Limit",
                 (
-                    "Maximum .meshinfo/.motionblending/.paa_metabin/.prefab files to discover and scan in detail.\n"
+                    "Maximum .meshinfo/.motionblending/.paa_metabin/.prefab/.pappt/.pamhc/.seqmt files to discover and scan in detail.\n"
                     "Use 1,000 for a quick report, or 0 for no limit."
                 ),
                 1000,
@@ -28525,7 +31984,8 @@ def run_gui() -> int:
                     f"{summary.get('meshinfo_files_scanned') or 0:,} .meshinfo, "
                     f"{summary.get('motionblending_files_scanned') or 0:,} .motionblending, "
                     f"{summary.get('paa_metabin_files_scanned') or 0:,} .paa_metabin, "
-                    f"{summary.get('prefab_files_scanned') or 0:,} .prefab."
+                    f"{summary.get('prefab_files_scanned') or 0:,} .prefab, "
+                    f"{summary.get('seqmt_files_scanned') or 0:,} .seqmt."
                     if summary
                     else ""
                 )
@@ -28947,6 +32407,11 @@ def run_gui() -> int:
             section_nav_list.setMinimumHeight(230)
             section_nav_list.setToolTip("Switch between HKX views without opening the compact drop-down selector.")
             browser_layout.addWidget(section_nav_list)
+            section_advanced_views_toggle = QCheckBox("Show advanced views")
+            section_advanced_views_toggle.setToolTip(
+                "Show lower-level object layout, context, catalog, and byte-map views. The main workflow views remain visible by default."
+            )
+            browser_layout.addWidget(section_advanced_views_toggle)
             browser_advanced_toggle = QCheckBox("Show decoded row browser")
             browser_advanced_toggle.setToolTip(
                 "Advanced fallback: browse every decoded HKX row, object, and relationship edge. Most users should start with the focused views above."
@@ -28966,7 +32431,7 @@ def run_gui() -> int:
             browser_follow_selection_checkbox.setChecked(True)
             browser_follow_selection_checkbox.setToolTip("Automatically open the linked view when a navigator row maps to an editor row.")
             browser_follow_preview_checkbox = QCheckBox("Follow 3D")
-            browser_follow_preview_checkbox.setChecked(True)
+            browser_follow_preview_checkbox.setChecked(False)
             browser_follow_preview_checkbox.setToolTip(
                 "Automatically highlight a recovered 3D physics target only when a matching preview is already loaded. "
                 "It does not open the embedded 3D Preview pane by itself."
@@ -29052,7 +32517,7 @@ def run_gui() -> int:
                 "Switch between linked HKX views. Counts in parentheses show decoded rows and visible rows where available."
             )
             section_combo.setVisible(False)
-            section_current_label = QLabel("Overview")
+            section_current_label = QLabel("Modding Workspace")
             section_current_label.setStyleSheet("font-weight: 600;")
             section_current_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
             preview_toggle_button = QPushButton("Show 3D")
@@ -29071,7 +32536,7 @@ def run_gui() -> int:
             section_row.setColumnStretch(1, 1)
             right_layout.addLayout(section_row)
             hkx_editor_legend = QLabel(
-                "Color key: blue patchable, grey context, green confirmed, yellow inferred, red experimental."
+                "Blue values are patchable. Grey/context and yellow/red rows are evidence only."
             )
             hkx_editor_legend.setObjectName("HintLabel")
             hkx_editor_legend.setWordWrap(True)
@@ -29084,7 +32549,7 @@ def run_gui() -> int:
             right_layout.addWidget(tab_widget, stretch=1)
             comparison_text = QPlainTextEdit()
             comparison_text.setReadOnly(True)
-            comparison_text.setMaximumHeight(96)
+            comparison_text.setMaximumHeight(64)
             comparison_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
             comparison_text.setPlaceholderText("Select a value, relationship, or decoded row to see original/current value, confidence, risk, byte offset, and editing guidance.")
             right_layout.addWidget(comparison_text)
@@ -29100,7 +32565,91 @@ def run_gui() -> int:
             workflow_guide_label.setWordWrap(True)
             workflow_guide_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
             workflow_guide_label.setMaximumHeight(36)
-            overview_layout.addWidget(workflow_guide_label)
+            modding_readiness_label = QLabel("")
+            modding_readiness_label.setObjectName("HintLabel")
+            modding_readiness_label.setWordWrap(True)
+            modding_readiness_label.setMaximumHeight(44)
+            modding_readiness_label.setToolTip(
+                "Per-file HKX modding readiness. Patchable means fixed-size CDMW patch rows only; Havok XML remains read-only."
+            )
+            overview_layout.addWidget(modding_readiness_label)
+            modding_workspace_status_label = QLabel("HKX Edit Readiness")
+            modding_workspace_status_label.setObjectName("HintLabel")
+            modding_workspace_status_label.setWordWrap(True)
+            modding_workspace_status_label.setMaximumHeight(42)
+            overview_layout.addWidget(modding_workspace_status_label)
+            overview_workspace_tabs = QTabWidget()
+            overview_workspace_tabs.setDocumentMode(True)
+            overview_layout.addWidget(overview_workspace_tabs, stretch=1)
+            workspace_values_page = QWidget()
+            workspace_values_layout = QVBoxLayout(workspace_values_page)
+            workspace_values_layout.setContentsMargins(0, 0, 0, 0)
+            workspace_values_layout.setSpacing(6)
+            workspace_toolbar = QGridLayout()
+            workspace_toolbar.setContentsMargins(0, 0, 0, 0)
+            workspace_toolbar.setHorizontalSpacing(8)
+            workspace_toolbar.setVerticalSpacing(4)
+            workspace_task_label = QLabel("Task")
+            workspace_task_label.setObjectName("HintLabel")
+            workspace_task_combo = QComboBox()
+            workspace_task_combo.setToolTip("Filter the HKX Modding Workspace to a practical physics tuning task.")
+            workspace_task_combo.addItem("Collision Size", "collision_size")
+            workspace_task_combo.addItem("Body Transform", "body_transform")
+            workspace_task_combo.addItem("Joint Strength", "joint_strength")
+            workspace_task_combo.addItem("Damping / Motion", "damping_motion")
+            workspace_task_combo.addItem("Material / Friction", "material_friction")
+            workspace_task_combo.addItem("Mesh Winding", "mesh_winding")
+            workspace_task_combo.addItem("Inspect Only", "inspect_only")
+            workspace_filter_edit = QLineEdit()
+            workspace_filter_edit.setPlaceholderText("Filter workspace rows")
+            workflow_summary_toggle = QCheckBox("Readable areas")
+            workflow_summary_toggle.setToolTip("Show the readable-area summary and helper actions. Hidden by default so the value list has more room.")
+            workflow_summary_toggle.setVisible(False)
+            workspace_toolbar.addWidget(workspace_task_label, 0, 0)
+            workspace_toolbar.addWidget(workspace_task_combo, 0, 1)
+            workspace_toolbar.addWidget(workspace_filter_edit, 0, 2)
+            workspace_toolbar.setColumnStretch(2, 1)
+            workspace_values_layout.addLayout(workspace_toolbar)
+            modding_workspace_tree = QTreeWidget()
+            modding_workspace_tree.setColumnCount(10)
+            modding_workspace_tree.setHeaderLabels(
+                (
+                    "Meaning",
+                    "Import safety",
+                    "Risk",
+                    "Evidence",
+                    "Linked by",
+                    "Record",
+                    "Offset",
+                    "Original",
+                    "Current",
+                    "Details",
+                )
+            )
+            modding_workspace_tree.setAlternatingRowColors(True)
+            modding_workspace_tree.setUniformRowHeights(True)
+            modding_workspace_tree.setRootIsDecorated(True)
+            modding_workspace_tree.setSortingEnabled(True)
+            modding_workspace_tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            modding_workspace_tree.setToolTip(
+                "Patchable rows are shown first, read-only candidate rows second, and structural blocked rows are evidence only. Fixed numeric values are the only import-safe write class here."
+            )
+            modding_workspace_tree.setMinimumHeight(260)
+            workspace_values_layout.addWidget(modding_workspace_tree, stretch=1)
+            modding_workspace_detail_text = QPlainTextEdit()
+            modding_workspace_detail_text.setReadOnly(True)
+            modding_workspace_detail_text.setMaximumHeight(68)
+            modding_workspace_detail_text.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            modding_workspace_detail_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+            modding_workspace_detail_text.setPlaceholderText(
+                "Select a workspace row to see Meaning, Import safety, Risk, Evidence, Linked by, Record, Offset, Original, and Current value."
+            )
+            workspace_values_layout.addWidget(modding_workspace_detail_text)
+            overview_workspace_tabs.addTab(workspace_values_page, "Values")
+            workflow_summary_page = QWidget()
+            workflow_summary_layout = QVBoxLayout(workflow_summary_page)
+            workflow_summary_layout.setContentsMargins(0, 0, 0, 0)
+            workflow_summary_layout.setSpacing(6)
             workflow_guide_tree = QTreeWidget()
             workflow_guide_tree.setColumnCount(6)
             workflow_guide_tree.setHeaderLabels(("Area", "Useful Values", "Safe", "Context", "Risk", "Meaning"))
@@ -29108,46 +32657,53 @@ def run_gui() -> int:
             workflow_guide_tree.setUniformRowHeights(True)
             workflow_guide_tree.setRootIsDecorated(False)
             workflow_guide_tree.setSortingEnabled(False)
-            workflow_guide_tree.setMaximumHeight(176)
-            workflow_guide_tree.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            workflow_guide_tree.setMinimumHeight(220)
+            workflow_guide_tree.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             workflow_guide_tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-            overview_layout.addWidget(workflow_guide_tree)
+            workflow_summary_layout.addWidget(workflow_guide_label)
+            workflow_summary_layout.addWidget(workflow_guide_tree, stretch=1)
             workflow_detail_text = QPlainTextEdit()
             workflow_detail_text.setReadOnly(True)
-            workflow_detail_text.setMaximumHeight(82)
+            workflow_detail_text.setMaximumHeight(64)
             workflow_detail_text.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             workflow_detail_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
             workflow_detail_text.setPlaceholderText(
                 "Select an area above to see what is import-safe, what is context only, and what remains inferred."
             )
-            overview_layout.addWidget(workflow_detail_text)
+            workflow_summary_layout.addWidget(workflow_detail_text)
             workflow_guide_button_row = QHBoxLayout()
             workflow_show_values_button = QPushButton("Filter Values")
             workflow_show_values_button.setToolTip("Filter the owning editor to rows related to the selected area.")
             workflow_show_connected_button = QPushButton("Show Relationships")
             workflow_show_connected_button.setToolTip("Open Connected Physics with the selected area as a context filter.")
             workflow_show_safe_catalog_button = QPushButton("Safe Rows Only")
-            workflow_show_safe_catalog_button.setToolTip("Open the Editable Catalog filtered to import-safe patch targets related to the selected area.")
-            workflow_show_guide_button = QPushButton("Technical Report")
+            workflow_show_safe_catalog_button.setToolTip("Open the Patchable Catalog filtered to import-safe patch targets related to the selected area.")
+            workflow_show_guide_button = QPushButton("Technical Details")
             workflow_show_guide_button.setToolTip("Show the detailed decoder report for this HKX.")
             workflow_guide_button_row.addWidget(workflow_show_values_button)
             workflow_guide_button_row.addWidget(workflow_show_connected_button)
             workflow_guide_button_row.addWidget(workflow_show_safe_catalog_button)
             workflow_guide_button_row.addWidget(workflow_show_guide_button)
             workflow_guide_button_row.addStretch(1)
-            overview_layout.addLayout(workflow_guide_button_row)
-            overview_report_toggle = QCheckBox("Show technical report")
+            workflow_summary_layout.addLayout(workflow_guide_button_row)
+            overview_workspace_tabs.addTab(workflow_summary_page, "Readable Areas")
+            overview_report_page = QWidget()
+            overview_report_layout = QVBoxLayout(overview_report_page)
+            overview_report_layout.setContentsMargins(0, 0, 0, 0)
+            overview_report_layout.setSpacing(6)
+            overview_report_toggle = QCheckBox("Show technical details")
             overview_report_toggle.setToolTip("Show detailed converter status, decode gaps, fixup proof, and corpus/readiness notes.")
-            overview_layout.addWidget(overview_report_toggle)
+            overview_report_toggle.setVisible(False)
             overview_text = QPlainTextEdit()
             overview_text.setReadOnly(True)
             overview_text.setFont(QFont("Consolas", 9))
-            overview_text.setVisible(False)
-            overview_layout.addWidget(overview_text, stretch=1)
+            overview_report_layout.addWidget(overview_text, stretch=1)
+            overview_workspace_tabs.addTab(overview_report_page, "Technical Details")
             overview_filler = QWidget()
             overview_filler.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            overview_filler.setVisible(False)
             overview_layout.addWidget(overview_filler, stretch=1)
-            tab_widget.addTab(overview_page, "Overview")
+            tab_widget.addTab(overview_page, "Modding Workspace")
 
             tuning_page = QWidget()
             tuning_layout = QVBoxLayout(tuning_page)
@@ -29192,7 +32748,7 @@ def run_gui() -> int:
             tuning_layout.addWidget(tuning_guidance_text)
             refresh_structured_button = QPushButton("Refresh Structured View From XML")
             tuning_layout.addWidget(refresh_structured_button)
-            tab_widget.addTab(tuning_page, "Structured Editor")
+            tab_widget.addTab(tuning_page, "Patchable Values")
 
             collision_page = QWidget()
             collision_layout = QVBoxLayout(collision_page)
@@ -29227,9 +32783,9 @@ def run_gui() -> int:
             collision_tree.setSortingEnabled(True)
             collision_tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
             collision_layout.addWidget(collision_tree, stretch=1)
-            refresh_collision_button = QPushButton("Refresh Collision Editor From XML")
+            refresh_collision_button = QPushButton("Refresh Collision Shapes From XML")
             collision_layout.addWidget(refresh_collision_button)
-            tab_widget.addTab(collision_page, "Collision Editor")
+            tab_widget.addTab(collision_page, "Collision Shapes")
 
             object_layout_page = QWidget()
             object_layout_layout = QVBoxLayout(object_layout_page)
@@ -29301,7 +32857,7 @@ def run_gui() -> int:
             constraint_summary_layout.setContentsMargins(0, 0, 0, 0)
             constraint_summary_layout.setSpacing(6)
             constraint_summary_hint = QLabel(
-                "Read-only constraint and motor summary. These rows help identify likely stiffness, damping, force, friction, and angular-limit controls; edit linked values in Structured Editor."
+                "Read-only constraint and motor summary. These rows help identify likely stiffness, damping, force, friction, and angular-limit controls; edit linked values in Patchable Values."
             )
             constraint_summary_hint.setWordWrap(True)
             constraint_summary_layout.addWidget(constraint_summary_hint)
@@ -29313,7 +32869,7 @@ def run_gui() -> int:
             constraint_summary_tree.setRootIsDecorated(True)
             constraint_summary_tree.setSortingEnabled(True)
             constraint_summary_layout.addWidget(constraint_summary_tree, stretch=1)
-            focus_constraint_tuning_button = QPushButton("Show Selected in Structured Editor")
+            focus_constraint_tuning_button = QPushButton("Show in Patchable Values")
             refresh_constraint_summary_button = QPushButton("Refresh Constraint Summary From XML")
             constraint_button_row = QHBoxLayout()
             constraint_button_row.addWidget(focus_constraint_tuning_button)
@@ -29353,13 +32909,13 @@ def run_gui() -> int:
             editable_catalog_tree.setSortingEnabled(True)
             editable_catalog_layout.addWidget(editable_catalog_tree, stretch=1)
             focus_catalog_button = QPushButton("Show Selected Editor")
-            refresh_catalog_button = QPushButton("Refresh Editable Catalog From XML")
+            refresh_catalog_button = QPushButton("Refresh Patchable Catalog From XML")
             catalog_button_row = QHBoxLayout()
             catalog_button_row.addWidget(focus_catalog_button)
             catalog_button_row.addWidget(refresh_catalog_button)
             catalog_button_row.addStretch(1)
             editable_catalog_layout.addLayout(catalog_button_row)
-            tab_widget.addTab(editable_catalog_page, "Editable Catalog")
+            tab_widget.addTab(editable_catalog_page, "Patchable Catalog")
 
             byte_map_page = QWidget()
             byte_map_layout = QVBoxLayout(byte_map_page)
@@ -29457,6 +33013,32 @@ def run_gui() -> int:
             connected_layout.addWidget(connected_detail_text)
             tab_widget.addTab(connected_page, "Connected Physics")
 
+            decoder_page = QWidget()
+            decoder_layout = QVBoxLayout(decoder_page)
+            decoder_layout.setContentsMargins(0, 0, 0, 0)
+            decoder_layout.setSpacing(6)
+            decoder_status_label = QLabel("")
+            decoder_status_label.setWordWrap(True)
+            decoder_layout.addWidget(decoder_status_label)
+            decoder_tree = QTreeWidget()
+            decoder_tree.setColumnCount(6)
+            decoder_tree.setHeaderLabels(("Class / Evidence", "Status", "Fields", "Refs", "Bytes", "Missing / Source"))
+            decoder_tree.setAlternatingRowColors(True)
+            decoder_tree.setUniformRowHeights(True)
+            decoder_tree.setRootIsDecorated(True)
+            decoder_tree.setSortingEnabled(True)
+            decoder_tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            decoder_layout.addWidget(decoder_tree, stretch=1)
+            decoder_detail_text = QPlainTextEdit()
+            decoder_detail_text.setReadOnly(True)
+            decoder_detail_text.setMaximumHeight(118)
+            decoder_detail_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+            decoder_detail_text.setPlaceholderText(
+                "Select a decoder evidence row to see normalized fixup/link evidence and what semantics are still missing."
+            )
+            decoder_layout.addWidget(decoder_detail_text)
+            tab_widget.addTab(decoder_page, "Decoder Evidence")
+
             hkx_preview_panel = QWidget()
             hkx_preview_panel.setMinimumWidth(420)
             hkx_preview_layout = QVBoxLayout(hkx_preview_panel)
@@ -29482,10 +33064,11 @@ def run_gui() -> int:
             hkx_preview_load_model_button.setToolTip(
                 "Choose and build a related .pac, .pam, or .pamlod preview inside this HKX editor."
             )
-            hkx_preview_skeleton_checkbox = QCheckBox("Context skeleton")
+            hkx_preview_skeleton_checkbox = QCheckBox("Show skeleton context")
             hkx_preview_skeleton_checkbox.setChecked(False)
+            hkx_preview_skeleton_checkbox.setEnabled(False)
             hkx_preview_skeleton_checkbox.setToolTip(
-                "Show context skeleton bones. Hidden by default because shields, weapons, cloaks, and attachments can resolve a full character rig that is not directly editable shield/weapon physics."
+                "Show or hide recovered skeleton bones. This is visual context only; weapon placement needs prefab/socket evidence."
             )
             hkx_preview_status_label = QLabel("")
             hkx_preview_status_label.setWordWrap(True)
@@ -29555,11 +33138,23 @@ def run_gui() -> int:
             editor_row.addWidget(editor, stretch=1)
             xml_layout.addLayout(editor_row, stretch=1)
             tab_widget.addTab(xml_page, "XML / Raw")
+            PRIMARY_HKX_SECTION_TITLES = {
+                "Modding Workspace",
+                "Patchable Values",
+                "Connected Physics",
+                "Collision Shapes",
+                "Decoder Evidence",
+                "XML / Raw",
+            }
             for section_index in range(tab_widget.count()):
                 section_title = tab_widget.tabText(section_index)
                 section_combo.addItem(section_title, section_index)
                 nav_item = QListWidgetItem(section_title)
                 nav_item.setData(Qt.ItemDataRole.UserRole, section_index)
+                nav_item.setData(
+                    Qt.ItemDataRole.UserRole + 1,
+                    section_title.split("(", 1)[0].strip() in PRIMARY_HKX_SECTION_TITLES,
+                )
                 section_nav_list.addItem(nav_item)
 
             syncing_tree = {"active": False}
@@ -29573,7 +33168,7 @@ def run_gui() -> int:
             DIRTY_KEY_ROLE = Qt.UserRole + 12
             BROWSER_DATA_ROLE = Qt.UserRole + 13
             SECTION_SUMMARIES = {
-                0: "Readable areas and optional technical report.",
+                0: "Guided task filters for patchable and candidate HKX physics values.",
                 1: "Patchable tuning values and descriptor context.",
                 2: "Collision shapes and fixed-size shape fields.",
                 3: "Decoded records, refs, and preserved raw ranges.",
@@ -29583,67 +33178,68 @@ def run_gui() -> int:
                 7: "Import-safe fields routed to editors.",
                 8: "Exact fixed-size byte patch targets.",
                 9: "Relationship map for bodies, shapes, constraints, and values.",
-                10: "Full CDMW XML and raw fallback.",
+                10: "Native read-only decoder evidence, fixups, owner arrays, and missing semantics.",
+                11: "Full CDMW XML and raw fallback.",
             }
             WORKFLOW_GUIDES: Tuple[Dict[str, object], ...] = (
                 {
                     "key": "collision_size",
-                    "goal": "Collision size",
+                    "area": "Collision Size",
                     "likely_edits": "radius, capsule endpoints, shape extents",
                     "terms": ("radius", "capsule", "sphere", "convex", "collision", "shape", "extent"),
                     "filter": "radius capsule sphere collision shape",
                     "connected_filter": "capsule radius shape collision",
                     "section": "Collision Editor",
                     "risk": "Low",
-                    "meaning": "Changes the physical volume that can collide. Start with tiny radius/endpoint edits.",
+                    "meaning": "Changes the physical volume that can collide. Radius/endpoint edits are fixed-size when marked patchable.",
                 },
                 {
                     "key": "joint_strength",
-                    "goal": "Joint stiffness/strength",
+                    "area": "Joint Strength",
                     "likely_edits": "constraint strength, motor force, angular limits",
                     "terms": ("constraint", "motor", "stiffness", "strength", "force", "torque", "angular", "limit", "tau"),
                     "filter": "constraint motor stiffness strength force torque angular limit",
                     "connected_filter": "constraint motor stiffness force torque angular limit strength",
                     "section": "Structured Editor",
                     "risk": "Medium",
-                    "meaning": "Changes how strongly a joint resists motion. Useful for ragdoll, cloth-like, or attachment behavior.",
+                    "meaning": "Changes how strongly a joint resists motion when the linked rows are patchable.",
                 },
                 {
                     "key": "damping_motion",
-                    "goal": "Damping / motion",
+                    "area": "Damping / Motion",
                     "likely_edits": "damping, drag, motion properties",
                     "terms": ("damping", "drag", "motion", "velocity", "angular", "linear", "solver"),
                     "filter": "damping drag motion velocity angular linear solver",
                     "connected_filter": "damping motion motor body angular linear",
                     "section": "Structured Editor",
                     "risk": "Medium",
-                    "meaning": "Changes how quickly motion slows down. Good when physics feels too loose or too stiff.",
+                    "meaning": "Changes how quickly motion slows down when damping or motion rows are recovered.",
                 },
                 {
                     "key": "body_transform",
-                    "goal": "Body transform/orientation",
+                    "area": "Body Transform",
                     "likely_edits": "body transform/orientation rows",
                     "terms": ("body_transform", "orientation", "transform", "position", "quaternion", "body"),
                     "filter": "body_transform orientation transform position quaternion",
                     "connected_filter": "body shape material socket",
                     "section": "Structured Editor",
                     "risk": "High",
-                    "meaning": "Moves or rotates an inferred body frame. This is powerful but easy to break; make very small changes.",
+                    "meaning": "Moves or rotates an inferred body frame when exact fixed-size transform rows are patchable.",
                 },
                 {
                     "key": "body_part_context",
-                    "goal": "Hair/body/cloak labels",
-                    "likely_edits": "body names, sockets, materials, labels",
-                    "terms": ("hair", "cloth", "cloak", "cape", "skirt", "breast", "bust", "butt", "hip", "pelvis", "thigh", "belly", "socket", "material"),
-                    "filter": "hair cloth cloak cape skirt breast bust butt hip pelvis thigh belly socket material",
-                    "connected_filter": "hair cloth cloak cape skirt breast bust butt hip pelvis thigh belly socket material",
+                    "area": "Material / Friction",
+                    "likely_edits": "material, friction, restitution, filter-like scalars",
+                    "terms": ("material", "friction", "restitution", "surface", "filter", "hair", "cloth", "cloak", "cape", "skirt", "socket"),
+                    "filter": "material friction restitution surface filter hair cloth cloak cape skirt socket",
+                    "connected_filter": "material friction restitution surface filter hair cloth cloak cape skirt socket",
                     "section": "Connected Physics",
                     "risk": "Context only",
-                    "meaning": "Uses recovered strings and descriptor context to name what a value may belong to. Not every HKX has labels.",
+                    "meaning": "Material and friction-like rows are useful context until exact fixed-size patch gates approve them.",
                 },
                 {
                     "key": "ragdoll_inspection",
-                    "goal": "Ragdoll body links",
+                    "area": "Ragdoll body links",
                     "likely_edits": "body -> shape -> constraint -> value",
                     "terms": ("ragdoll", "body", "shape", "constraint", "motor", "socket", "material"),
                     "filter": "ragdoll body shape constraint motor socket material",
@@ -29654,7 +33250,7 @@ def run_gui() -> int:
                 },
                 {
                     "key": "mesh_topology",
-                    "goal": "Mesh/shape internals",
+                    "area": "Mesh Winding",
                     "likely_edits": "vertices, planes, hull faces, primitive tuples",
                     "terms": ("mesh", "primitive", "vertex", "vertices", "plane", "hull", "face", "edge", "topology", "aabb"),
                     "filter": "mesh primitive vertex vertices plane hull face edge topology aabb",
@@ -29689,6 +33285,23 @@ def run_gui() -> int:
                     if refresh and not bool(hkx_link_preview_state.get("loaded")):
                         _refresh_hkx_link_preview_model()
 
+            def _refresh_section_nav_visibility() -> None:
+                show_advanced = section_advanced_views_toggle.isChecked()
+                for row in range(section_nav_list.count()):
+                    item = section_nav_list.item(row)
+                    if item is None:
+                        continue
+                    is_primary = bool(item.data(Qt.ItemDataRole.UserRole + 1))
+                    item.setHidden(not show_advanced and not is_primary)
+
+            def _ensure_section_nav_visible(index: int) -> None:
+                item = section_nav_list.item(index) if 0 <= index < section_nav_list.count() else None
+                if item is not None and item.isHidden():
+                    section_advanced_views_toggle.blockSignals(True)
+                    section_advanced_views_toggle.setChecked(True)
+                    section_advanced_views_toggle.blockSignals(False)
+                    _refresh_section_nav_visibility()
+
             def _set_hkx_editor_section_title(index: int, title: str) -> None:
                 tab_widget.setTabText(index, title)
                 if 0 <= index < section_combo.count():
@@ -29707,6 +33320,7 @@ def run_gui() -> int:
                     section_combo.blockSignals(True)
                     section_combo.setCurrentIndex(index)
                     section_combo.blockSignals(False)
+                _ensure_section_nav_visible(index)
                 if section_nav_list.currentRow() != index:
                     section_nav_list.blockSignals(True)
                     section_nav_list.setCurrentRow(index)
@@ -29719,6 +33333,7 @@ def run_gui() -> int:
                     section_combo.blockSignals(True)
                     section_combo.setCurrentIndex(index)
                     section_combo.blockSignals(False)
+                _ensure_section_nav_visible(index)
                 if 0 <= index < section_nav_list.count() and section_nav_list.currentRow() != index:
                     section_nav_list.blockSignals(True)
                     section_nav_list.setCurrentRow(index)
@@ -30416,16 +34031,23 @@ def run_gui() -> int:
 
             def _hkx_preview_context_skeleton_note(bone_count: int) -> str:
                 if bone_count <= 0:
-                    return ""
+                    return " No skeleton context recovered."
                 if hkx_preview_skeleton_checkbox.isChecked():
                     return (
                         f" {bone_count:,} context skeleton bone(s) shown. "
-                        "This can be a full character rig for shields/weapons and is not direct editable physics."
+                        "This can be a full character rig for shields/weapons; socket placement requires prefab/socket evidence."
                     )
-                return f" {bone_count:,} context skeleton bone(s) hidden."
+                return f" {bone_count:,} context skeleton bone(s) hidden; HKX overlay remains physics/shape context only."
 
             def _set_hkx_preview_loaded_status(preview_model: object, *, source_path: object = "") -> None:
                 mesh_count, shape_count, constraint_count, bone_count = _hkx_preview_counts(preview_model)
+                hkx_preview_skeleton_checkbox.blockSignals(True)
+                try:
+                    if bone_count <= 0:
+                        hkx_preview_skeleton_checkbox.setChecked(False)
+                    hkx_preview_skeleton_checkbox.setEnabled(bone_count > 0)
+                finally:
+                    hkx_preview_skeleton_checkbox.blockSignals(False)
                 source_name = PurePosixPath(str(source_path or "")).name
                 prefix = f"Loaded {source_name}" if source_name else "Embedded current 3D preview"
                 bone_note = _hkx_preview_context_skeleton_note(bone_count)
@@ -30447,6 +34069,10 @@ def run_gui() -> int:
                     _set_hkx_preview_loaded_status(
                         preview_model,
                         source_path=hkx_link_preview_state.get("source_path") or "",
+                    )
+                else:
+                    hkx_preview_status_label.setText(
+                        "No skeleton context recovered. Load a related model first; this toggle only shows bones, not weapon placement."
                     )
                 _apply_hkx_browser_filter()
 
@@ -31104,13 +34730,238 @@ def run_gui() -> int:
                         context_rows += 1
                 return safe_rows, max(catalog_rows, safe_rows), max(0, context_rows - safe_rows)
 
+            def _workspace_task_label_for_key(key: str) -> str:
+                labels = {
+                    "collision_size": "Collision Size",
+                    "body_transform": "Body Transform",
+                    "joint_strength": "Joint Strength",
+                    "damping_motion": "Damping / Motion",
+                    "material_friction": "Material / Friction",
+                    "mesh_winding": "Mesh Winding",
+                    "inspect_only": "Inspect Only",
+                }
+                return labels.get(str(key or ""), "Inspect Only")
+
+            def _workspace_group_for_row(row_element: ET.Element) -> str:
+                safety = str(row_element.get("import_safety") or "").strip()
+                if safety == "Import-safe":
+                    return "Patchable rows"
+                if safety == "Read-only candidate":
+                    return "Read-only candidates"
+                return "Structural blocked / context only"
+
+            def _workspace_group_sort_key(group_label: str) -> int:
+                if group_label == "Patchable rows":
+                    return 0
+                if group_label == "Read-only candidates":
+                    return 1
+                return 2
+
+            def _style_modding_workspace_item(item: QTreeWidgetItem) -> None:
+                safety = str(item.text(1) or "")
+                risk = str(item.text(2) or "").casefold()
+                linked_by = str(item.text(4) or "")
+                if safety == "Import-safe":
+                    item.setForeground(1, QBrush(QColor("#9fd0ff")))
+                    item.setForeground(0, QBrush(QColor("#dbeafe")))
+                elif safety == "Read-only candidate":
+                    item.setForeground(1, QBrush(QColor("#fde68a")))
+                    item.setForeground(0, QBrush(QColor("#e5e7eb")))
+                elif safety == "Structural blocked":
+                    item.setForeground(1, QBrush(QColor("#fca5a5")))
+                    item.setForeground(0, QBrush(QColor("#cbd5e1")))
+                if "low" in risk or "existing" in risk:
+                    item.setForeground(2, QBrush(QColor("#86efac")))
+                elif "medium" in risk or "required" in risk:
+                    item.setForeground(2, QBrush(QColor("#fde68a")))
+                elif risk:
+                    item.setForeground(2, QBrush(QColor("#fca5a5")))
+                if linked_by in {"Fixup-backed", "Owner-array"}:
+                    item.setForeground(4, QBrush(QColor("#67e8f9")))
+                elif linked_by == "Inferred":
+                    item.setForeground(4, QBrush(QColor("#fde68a")))
+                elif linked_by:
+                    item.setForeground(4, QBrush(QColor("#cbd5e1")))
+
+            def _populate_modding_workspace(root: ET.Element) -> None:
+                modding_workspace_tree.clear()
+                selected_key = str(workspace_task_combo.currentData() or "collision_size")
+                text_filter = str(workspace_filter_edit.text() or "").strip().casefold()
+                workspace = root.find("./moddingWorkspaceV1")
+                readiness = root.find("./hkxModdingReadiness")
+                if workspace is None:
+                    modding_workspace_status_label.setText(
+                        "HKX Edit Readiness: no workspace evidence found. Use Decoder Evidence or XML / Raw for the current file."
+                    )
+                    return
+                task_counts: Dict[str, Tuple[int, int, int]] = {}
+                for task in workspace.findall("./taskFilters/task"):
+                    key = str(task.get("key") or "")
+                    try:
+                        patchable = int(task.get("patchable_count") or "0")
+                    except ValueError:
+                        patchable = 0
+                    try:
+                        candidate = int(task.get("candidate_only_count") or "0")
+                    except ValueError:
+                        candidate = 0
+                    try:
+                        blocked = int(task.get("blocked_count") or "0")
+                    except ValueError:
+                        blocked = 0
+                    task_counts[key] = (patchable, candidate, blocked)
+                workspace_task_combo.blockSignals(True)
+                for index in range(workspace_task_combo.count()):
+                    key = str(workspace_task_combo.itemData(index) or "")
+                    label = _workspace_task_label_for_key(key)
+                    patchable, candidate, blocked = task_counts.get(key, (0, 0, 0))
+                    suffix = f" ({patchable} / {candidate}+{blocked})" if patchable or candidate or blocked else ""
+                    workspace_task_combo.setItemText(index, label + suffix)
+                workspace_task_combo.blockSignals(False)
+                rows = list(workspace.findall("./rows/row"))
+                groups: Dict[str, QTreeWidgetItem] = {}
+                shown = 0
+                for row_element in rows:
+                    row_task = str(row_element.get("task") or "")
+                    if selected_key != "inspect_only" and row_task != selected_key:
+                        continue
+                    row_text = " ".join(str(value or "") for value in row_element.attrib.values()).casefold()
+                    if text_filter and text_filter not in row_text:
+                        continue
+                    group_label = _workspace_group_for_row(row_element)
+                    group = groups.get(group_label)
+                    if group is None:
+                        group = QTreeWidgetItem((group_label, "", "", "", "", "", "", "", "", ""))
+                        group.setData(0, BROWSER_DATA_ROLE, {"kind": "modding_workspace_group", "label": group_label})
+                        group.setFirstColumnSpanned(True)
+                        group.setToolTip(
+                            0,
+                            "Import-safe rows can be edited through existing fixed-size CDMW patch paths. Candidate and structural rows are browsing evidence only.",
+                        )
+                        groups[group_label] = group
+                        modding_workspace_tree.addTopLevelItem(group)
+                    details = " | ".join(
+                        part
+                        for part in (
+                            row_element.get("label"),
+                            row_element.get("owner_class"),
+                            row_element.get("member"),
+                            row_element.get("relationship_chain"),
+                            row_element.get("gate_reason"),
+                        )
+                        if str(part or "").strip()
+                    )
+                    item = QTreeWidgetItem(
+                        (
+                            str(row_element.get("meaning") or row_element.get("label") or ""),
+                            str(row_element.get("import_safety") or ""),
+                            str(row_element.get("risk") or ""),
+                            str(row_element.get("evidence") or row_element.get("structural_kind") or ""),
+                            str(row_element.get("linked_by") or ""),
+                            str(row_element.get("record") or ""),
+                            str(row_element.get("offset") or ""),
+                            _format_hkx_display_value(str(row_element.get("original") or "")),
+                            _format_hkx_display_value(str(row_element.get("current") or "")),
+                            details,
+                        )
+                    )
+                    item.setData(0, BROWSER_DATA_ROLE, {"kind": "modding_workspace_row", **dict(row_element.attrib)})
+                    item.setToolTip(0, str(row_element.get("gate_reason") or row_element.get("import_behavior") or ""))
+                    group.addChild(item)
+                    _style_modding_workspace_item(item)
+                    shown += 1
+                for group_label, group in sorted(groups.items(), key=lambda pair: _workspace_group_sort_key(pair[0])):
+                    group.setText(0, f"{group_label} ({group.childCount():,})")
+                    group.setExpanded(True)
+                _style_hkx_tree_values(
+                    modding_workspace_tree,
+                    value_columns=(7, 8),
+                    offset_columns=(6,),
+                    confidence_column=3,
+                    guidance_columns=(1, 2, 3, 4, 9),
+                    patchable_value_column=8,
+                )
+                for column in range(modding_workspace_tree.columnCount()):
+                    modding_workspace_tree.resizeColumnToContents(column)
+                readiness_label = workspace.get("readiness_label") or (
+                    readiness.get("per_file_label") if readiness is not None else "HKX readiness"
+                )
+                modding_workspace_status_label.setText(
+                    "HKX Edit Readiness: "
+                    f"{readiness_label or 'unknown'} | "
+                    f"{workspace_task_combo.currentText()} | "
+                    f"{shown:,}/{workspace.get('row_count') or '0'} rows"
+                )
+                _set_hkx_editor_section_title(0, f"Modding Workspace ({shown:,})" if shown else "Modding Workspace")
+                if modding_workspace_tree.currentItem() is None and modding_workspace_tree.topLevelItemCount() > 0:
+                    first_group = modding_workspace_tree.topLevelItem(0)
+                    if first_group is not None and first_group.childCount() > 0:
+                        modding_workspace_tree.setCurrentItem(first_group.child(0))
+
+            def _update_modding_workspace_detail(item: Optional[QTreeWidgetItem]) -> None:
+                if item is None:
+                    modding_workspace_detail_text.clear()
+                    return
+                data = item.data(0, BROWSER_DATA_ROLE)
+                if not isinstance(data, Mapping) or data.get("kind") != "modding_workspace_row":
+                    modding_workspace_detail_text.clear()
+                    return
+                lines = [
+                    str(data.get("label") or data.get("meaning") or "HKX value"),
+                    f"Task: {data.get('task_label') or data.get('category_label') or data.get('task') or 'Inspect Only'}",
+                    f"Meaning: {data.get('meaning') or 'Decoded HKX value or candidate.'}",
+                    f"Import safety: {data.get('import_safety') or 'unknown'} | {data.get('structural_kind') or ''}",
+                    f"Risk: {data.get('risk') or 'unknown'}",
+                    f"Evidence: {data.get('evidence') or 'unknown'}",
+                    f"Linked by: {data.get('linked_by') or 'Context only'}",
+                    f"Record: {data.get('record') or '-'} | Item: {data.get('item') or '-'} | Offset: {data.get('offset') or '-'} | Size: {data.get('byte_size') or '-'}",
+                    f"Original: {data.get('original') or '-'}",
+                    f"Current: {data.get('current') or '-'}",
+                ]
+                chain = str(data.get("relationship_chain") or "").strip()
+                if chain:
+                    lines.append(f"Relationship chain: {chain}")
+                gate_reason = str(data.get("gate_reason") or "").strip()
+                if gate_reason:
+                    lines.append(f"Gate: {gate_reason}")
+                if str(data.get("import_safety") or "") != "Import-safe":
+                    lines.append("This row is not editable unless a fixed-size patch gate approves it.")
+                modding_workspace_detail_text.setPlainText("\n".join(lines))
+
+            def _show_selected_workspace_row_values() -> None:
+                item = modding_workspace_tree.currentItem()
+                data = item.data(0, BROWSER_DATA_ROLE) if item is not None else None
+                if not isinstance(data, Mapping) or data.get("kind") != "modding_workspace_row":
+                    return
+                label = str(data.get("label") or "")
+                owner_class = str(data.get("owner_class") or "")
+                member = str(data.get("member") or "")
+                record = str(data.get("record") or "")
+                filter_text = " ".join(part for part in (record, member, label) if part).strip()
+                if "shape" in " ".join((label, owner_class, member)).casefold() or label.startswith("shapes["):
+                    collision_filter_edit.setText(filter_text)
+                    _populate_collision_tree()
+                    _set_hkx_editor_section(2)
+                else:
+                    tuning_editable_only_checkbox.setChecked(str(data.get("import_safety") or "") == "Import-safe")
+                    tuning_filter_edit.setText(filter_text)
+                    _populate_tuning_tree()
+                    _set_hkx_editor_section(1)
+
+            def _refresh_modding_workspace_from_editor() -> None:
+                root = _load_xml_root_from_editor()
+                if root is not None:
+                    _populate_modding_workspace(root)
+
             def _workflow_detail_lines(data: Mapping[str, object]) -> List[str]:
                 safe_rows = int(data.get("safe_rows") or 0)
                 context_rows = int(data.get("context_rows") or 0)
                 catalog_rows = int(data.get("catalog_rows") or 0)
                 risk = str(data.get("computed_risk") or data.get("risk") or "Context only")
+                area = str(data.get("area") or data.get("goal") or "Selected area")
                 lines = [
-                    f"{data.get('goal') or 'Selected area'}: {data.get('meaning') or 'No plain-language summary is available yet.'}",
+                    area,
+                    f"Meaning: {data.get('meaning') or 'No plain-language summary is available yet.'}",
                     f"Useful values: {data.get('likely_edits') or 'unknown'}",
                     f"Recovered: {safe_rows:,} safe/importable, {context_rows:,} context, {catalog_rows:,} catalog match(es). Risk: {risk}.",
                 ]
@@ -31155,7 +35006,7 @@ def run_gui() -> int:
                     context_text = f"{context_rows:,} context"
                     item = QTreeWidgetItem(
                         (
-                            str(workflow.get("goal") or ""),
+                            str(workflow.get("area") or workflow.get("goal") or ""),
                             str(workflow.get("likely_edits") or ""),
                             found_text,
                             context_text,
@@ -31223,7 +35074,7 @@ def run_gui() -> int:
                     _populate_editable_catalog_tree()
                     _set_hkx_editor_section(7)
                 section_summary_label.setText(
-                    f"Filtered area: {data.get('goal') or 'selected area'}; showing rows matching {filter_text or 'the selected area'}."
+                    f"Filtered area: {data.get('area') or data.get('goal') or 'selected area'}; showing rows matching {filter_text or 'the selected area'}."
                 )
 
             def _show_selected_workflow_connections() -> None:
@@ -31246,7 +35097,7 @@ def run_gui() -> int:
                 _apply_connected_physics_filter()
                 _set_hkx_editor_section(9)
                 section_summary_label.setText(
-                    f"Filtered area: {data.get('goal') or 'selected area'}; Connected Physics is filtered to related rows."
+                    f"Filtered area: {data.get('area') or data.get('goal') or 'selected area'}; Connected Physics is filtered to related rows."
                 )
 
             def _show_selected_workflow_safe_catalog() -> None:
@@ -31259,16 +35110,18 @@ def run_gui() -> int:
                 _populate_editable_catalog_tree()
                 _set_hkx_editor_section(7)
                 section_summary_label.setText(
-                    f"Filtered area: {data.get('goal') or 'selected area'}; Editable Catalog is filtered to import-safe candidates."
+                    f"Filtered area: {data.get('area') or data.get('goal') or 'selected area'}; Patchable Catalog is filtered to import-safe candidates."
                 )
 
             def _show_workflow_overview_text() -> None:
                 _set_hkx_editor_section(0)
+                overview_workspace_tabs.setCurrentWidget(overview_report_page)
                 overview_report_toggle.setChecked(True)
                 overview_text.setFocus()
 
             def _populate_overview(root: ET.Element) -> None:
                 _populate_workflow_guide(root)
+                _populate_modding_workspace(root)
                 report = root.find("converterReport")
                 decode_gap_summary = root.find("decodeGapSummary")
                 compatibility = root.find("cdmwHkxCompatibility")
@@ -31285,6 +35138,7 @@ def run_gui() -> int:
                 byte_patch_map = root.find("./bytePatchMap")
                 parity_report = root.find("./hkxXmlParityReport")
                 hkclass_readiness = root.find("./hkclassMetadataReadiness")
+                modding_readiness = root.find("./hkxModdingReadiness")
                 tagfile_fixups = root.find("./tagfileReferenceFixups")
                 fixup_semantics = root.find("./fixupSemanticsReport")
                 lines = [f"Crimson Desert HKX converter overview for {entry.path}", ""]
@@ -31294,6 +35148,58 @@ def run_gui() -> int:
                         return int(str(value or "0"), 0)
                     except ValueError:
                         return 0
+
+                if modding_readiness is not None:
+                    label = modding_readiness.get("per_file_label") or "HKX readiness"
+                    labels = [
+                        str(element.text or "").strip()
+                        for element in modding_readiness.findall("./readinessLabels/label")
+                        if str(element.text or "").strip()
+                    ]
+                    patchable_count = modding_readiness.get("patchable_slot_count") or "0"
+                    decoded_count = modding_readiness.get("decoded_object_count") or "0"
+                    fixup_count = modding_readiness.get("fixup_backed_reference_edge_count") or "0"
+                    import_path = modding_readiness.get("modding_path") or "CDMW fixed-size patch XML/JSON only"
+                    havok_policy = modding_readiness.get("havok_xml_policy") or "read_only_view"
+                    label_text = (
+                        f"{label}"
+                        f" | patchable {patchable_count}"
+                        f" | decoded {decoded_count}"
+                        f" | refs {fixup_count}"
+                        " | CDMW fixed-size patches only"
+                    )
+                    modding_readiness_label.setText(label_text)
+                    modding_readiness_label.setToolTip(
+                        f"{', '.join(labels) if labels else modding_readiness.get('status') or 'readiness unknown'}\n"
+                        f"Import path: {import_path}\nHavok XML: {havok_policy}"
+                    )
+                    gate = modding_readiness.find("./semanticWriterGate")
+                    lines.append("Modding readiness:")
+                    lines.append(f"  - label: {label}")
+                    if labels:
+                        lines.append("  - evidence labels: " + ", ".join(labels))
+                    lines.append(f"  - patchable slots: {patchable_count}")
+                    lines.append(f"  - decoded objects: {decoded_count}")
+                    lines.append(f"  - Havok XML importable: {modding_readiness.get('havok_xml_importable') or 'false'}")
+                    if gate is not None:
+                        lines.append(
+                            "  - semantic writer gate: "
+                            f"{gate.get('status') or 'unknown'}, "
+                            f"mode={gate.get('mode') or 'unknown'}, "
+                            f"no-edit={gate.get('no_edit_binary_writer_status') or 'not_started'}"
+                        )
+                    external_refs = [
+                        tool.get("name") or ""
+                        for tool in modding_readiness.findall("./externalToolReferences/tool")
+                        if tool.get("name")
+                    ]
+                    if external_refs:
+                        lines.append("  - external references: " + ", ".join(external_refs[:6]))
+                    lines.append("")
+                else:
+                    modding_readiness_label.setText(
+                        "HKX readiness: fixed-size CDMW patch rows only; Havok-style XML is read-only."
+                    )
 
                 if report is not None:
                     lines.extend(
@@ -32164,7 +36070,7 @@ def run_gui() -> int:
                 label = status_label or browser_status_label
                 if not data or not _has_preview_link_hint(data):
                     if not quiet:
-                        label.setText("No 3D link recovered for this HKX row. Use Connected Physics or Decode Gaps for non-visual context.")
+                        label.setText("No exact visual link: this HKX row has no recovered 3D target. Use Connected Physics or Decoder Evidence for non-visual context.")
                     return False
                 label_hint = str(data.get("label") or data.get("subject") or "").strip()
                 source_hint = str(data.get("source_path") or entry.path or "").strip()
@@ -32179,9 +36085,9 @@ def run_gui() -> int:
                         record_note = " This row is an internal HKX ITEM record; no visible shape/constraint link has been recovered for it yet."
                     if not quiet:
                         label.setText(
-                            "No 3D link recovered for this row."
+                            "No exact visual link for this row."
                             + record_note
-                            + " Use Connected Physics or Name/Label Evidence to inspect nearby body/material/string context."
+                            + " Use Connected Physics or Context Hints to inspect nearby body/material/string context."
                         )
                     return False
                 if switch_to_embedded_preview:
@@ -32367,6 +36273,8 @@ def run_gui() -> int:
                     item.setForeground(5, QBrush(QColor("#fde68a")))
                 elif risk_bucket == "experimental":
                     item.setForeground(5, QBrush(QColor("#fca5a5")))
+                item.setToolTip(2, f"Linked by: {self._ui_evidence_label(row_data.get('link_evidence') or item.text(2))}")
+                self._ui_style_status_columns(item, {4: item.text(4), 5: risk_bucket})
                 parent.addChild(item)
 
             def _connected_value_text(value: str, original_value: str) -> str:
@@ -32404,6 +36312,18 @@ def run_gui() -> int:
                 if not matches:
                     return []
                 patchable_count = sum(1 for data in matches if str(data.get("importable") or "").strip().lower() == "true")
+                exact_patchable_count = sum(
+                    1
+                    for data in matches
+                    if str(data.get("importable") or "").strip().lower() == "true"
+                    and str(data.get("link_evidence") or data.get("reference_source") or "").strip().casefold()
+                    in {"fixup_backed", "ptch", "exact", "owner_array", "declared_owner_array"}
+                )
+                read_only_context_count = sum(
+                    1
+                    for data in matches
+                    if str(data.get("importable") or "").strip().lower() != "true"
+                )
                 preview_count = sum(1 for data in matches if str(data.get("viewer_selection_id") or "").strip())
                 editor_tabs = sorted(
                     {
@@ -32413,10 +36333,25 @@ def run_gui() -> int:
                     }
                 )
                 lines = [
-                    f"Selection links: {patchable_count:,} patchable value(s), {len(matches):,} related row(s), {preview_count:,} preview-linked row(s)."
+                    f"Exact linked patchable values: {exact_patchable_count:,}.",
+                    f"Linked read-only context: {read_only_context_count:,}.",
+                    f"Nearby candidates: {max(0, len(matches) - exact_patchable_count - read_only_context_count):,}.",
+                    f"Selection links: {patchable_count:,} patchable value(s), {len(matches):,} related row(s), {preview_count:,} preview-linked row(s).",
                 ]
                 if editor_tabs:
                     lines.append(f"Linked views: {', '.join(editor_tabs[:4])}.")
+                chain_bits = []
+                for chain_key, fallback_key in (
+                    ("body", "body_name"),
+                    ("shape", "shape_index"),
+                    ("material", "physics_material_name"),
+                    ("constraint/motor", "constraint_tag"),
+                ):
+                    value = next((str(data.get(fallback_key) or "").strip() for data in matches if str(data.get(fallback_key) or "").strip()), "")
+                    if value:
+                        chain_bits.append(f"{chain_key} {value}")
+                if chain_bits:
+                    lines.append("Relationship chain: " + " -> ".join(chain_bits) + " -> patchable values.")
                 if labels:
                     sample = ", ".join(labels[:7])
                     if len(labels) > 7:
@@ -32524,6 +36459,351 @@ def run_gui() -> int:
                 _update_connected_detail_text(item)
                 return True
 
+            def _update_decoder_evidence_detail(item: Optional[QTreeWidgetItem]) -> None:
+                if item is None:
+                    decoder_detail_text.clear()
+                    return
+                data = item.data(0, BROWSER_DATA_ROLE)
+                data_map = data if isinstance(data, Mapping) else {}
+                lines = [
+                    item.text(0),
+                    f"Status: {item.text(1) or data_map.get('status') or 'context'}",
+                ]
+                for label, key in (
+                    ("Decoded fields", "decoded_field_count"),
+                    ("References", "reference_count"),
+                    ("Bytes", "byte_count"),
+                    ("Evidence", "link_evidence"),
+                    ("Source", "source"),
+                    ("Confidence", "confidence"),
+                ):
+                    value = data_map.get(key)
+                    if isinstance(value, list):
+                        value = ", ".join(str(entry) for entry in value)
+                    if value not in (None, "", []):
+                        lines.append(f"{label}: {value}")
+                missing = data_map.get("missing_requirements")
+                if isinstance(missing, list) and missing:
+                    lines.append("")
+                    lines.append("Missing semantics:")
+                    lines.extend(f"- {value}" for value in missing if str(value).strip())
+                elif item.text(5):
+                    lines.append(f"Missing/source: {item.text(5)}")
+                decoder_detail_text.setPlainText("\n".join(lines))
+
+            def _populate_decoder_evidence_tree() -> None:
+                root = _load_xml_root_from_editor()
+                if root is None:
+                    return
+                decoder_tree.clear()
+                evidence = root.find("./decoderEvidence")
+                fixup_v2 = root.find("./fixupSemanticsV2")
+                semantic_model = root.find("./semanticModelV1")
+                semantic_gate = root.find("./semanticWriterGateV1")
+                edit_map = root.find("./editCandidateMapV1")
+                class_decoder_v2 = root.find("./classDecoderEvidenceV2")
+                real_metadata_v2 = root.find("./realHkclassMetadataV2")
+                if (
+                    evidence is None
+                    and fixup_v2 is None
+                    and semantic_model is None
+                    and semantic_gate is None
+                    and edit_map is None
+                    and class_decoder_v2 is None
+                    and real_metadata_v2 is None
+                ):
+                    decoder_tree.addTopLevelItem(QTreeWidgetItem(("No decoder evidence exported.", "", "", "", "", "")))
+                    decoder_status_label.setText("No normalized decoder evidence is present in this HKX export.")
+                    _set_hkx_editor_section_title(10, "Decoder Evidence")
+                    return
+                status = (evidence.get("status") if evidence is not None else None) or "native evidence"
+                source = (evidence.get("source") if evidence is not None else None) or "native_rust_cd_hkx"
+                class_count = (
+                    (class_decoder_v2.get("class_status_count") if class_decoder_v2 is not None else None)
+                    or (evidence.get("class_status_count") if evidence is not None else None)
+                    or "0"
+                )
+                priority_count = (evidence.get("priority_class_count") if evidence is not None else None) or "0"
+                unresolved_count = (evidence.get("unresolved_or_packed_case_count") if evidence is not None else None) or "0"
+                semantic_objects = (semantic_model.get("object_count") if semantic_model is not None else None) or "0"
+                edit_candidates = (edit_map.get("candidate_count") if edit_map is not None else None) or "0"
+                decoder_status_label.setText(
+                    f"{class_count} class evidence row(s), {priority_count} priority row(s), "
+                    f"{unresolved_count} unresolved/packed fixup case(s), {semantic_objects} semantic object(s), "
+                    f"{edit_candidates} fixed-size edit candidate(s). Source: {source}."
+                )
+
+                refs_group = QTreeWidgetItem(("Reference Semantics", status, "", "", "", "object/null/data/string/type/packed buckets"))
+                refs_group.setData(0, BROWSER_DATA_ROLE, {"kind": "decoder_group", "source": source})
+                decoder_tree.addTopLevelItem(refs_group)
+                for semantic in (evidence.findall("./referenceSemantics/semantic") if evidence is not None else []):
+                    data = {
+                        "kind": "decoder_reference_semantic",
+                        "status": semantic.get("name") or "",
+                        "source": "decoderEvidence/referenceSemantics",
+                    }
+                    child = QTreeWidgetItem((semantic.get("name") or "", "semantic", "", "", semantic.get("count") or "", data["source"]))
+                    child.setText(0, self._ui_evidence_label(semantic.get("name") or "semantic"))
+                    child.setData(0, BROWSER_DATA_ROLE, data)
+                    refs_group.addChild(child)
+
+                links_group = QTreeWidgetItem(("Link Evidence", status, "", "", "", "fixup-backed, owner-array, typed, inferred, raw"))
+                links_group.setData(0, BROWSER_DATA_ROLE, {"kind": "decoder_group", "source": source})
+                decoder_tree.addTopLevelItem(links_group)
+                for link in (evidence.findall("./linkEvidence/evidence") if evidence is not None else []):
+                    data = {
+                        "kind": "decoder_link_evidence",
+                        "status": link.get("name") or "",
+                        "source": "decoderEvidence/linkEvidence",
+                    }
+                    child = QTreeWidgetItem((link.get("name") or "", "evidence", "", "", link.get("count") or "", data["source"]))
+                    child.setText(0, self._ui_evidence_label(link.get("name") or "evidence"))
+                    child.setData(0, BROWSER_DATA_ROLE, data)
+                    links_group.addChild(child)
+
+                classes_group = QTreeWidgetItem(("Class Decode Status", status, "", "", "", "read-only class gaps ranked by native evidence"))
+                classes_group.setData(0, BROWSER_DATA_ROLE, {"kind": "decoder_group", "source": source})
+                decoder_tree.addTopLevelItem(classes_group)
+                class_rows = 0
+                primary_class_elements = (
+                    class_decoder_v2.findall("./classStatuses/class")
+                    if class_decoder_v2 is not None and class_decoder_v2.findall("./classStatuses/class")
+                    else evidence.findall("./classStatuses/class")
+                    if evidence is not None
+                    else []
+                )
+                for class_element in primary_class_elements:
+                    missing = [
+                        requirement.text or ""
+                        for requirement in class_element.findall("./missingRequirements/requirement")
+                        if (requirement.text or "").strip()
+                    ]
+                    link_evidence = [
+                        row.get("name") or ""
+                        for row in class_element.findall("./linkEvidence/evidence")
+                        if (row.get("name") or "").strip()
+                    ]
+                    data = dict(class_element.attrib)
+                    data["kind"] = "decoder_class_status"
+                    data["missing_requirements"] = missing
+                    data["link_evidence"] = link_evidence
+                    missing_text = "; ".join(missing[:3])
+                    if len(missing) > 3:
+                        missing_text += f"; +{len(missing) - 3} more"
+                    row_item = QTreeWidgetItem(
+                        (
+                            class_element.get("type_name") or class_element.get("name") or "",
+                            class_element.get("friendly_status") or class_element.get("status") or "",
+                            class_element.get("decoded_field_count") or "",
+                            class_element.get("reference_count") or "",
+                            class_element.get("byte_count") or "",
+                            missing_text,
+                        )
+                    )
+                    row_item.setData(0, BROWSER_DATA_ROLE, data)
+                    status_text = (class_element.get("status") or "").casefold()
+                    if "raw" in status_text:
+                        row_item.setForeground(1, QBrush(QColor("#fca5a5")))
+                    elif "partial" in status_text:
+                        row_item.setForeground(1, QBrush(QColor("#fde68a")))
+                    else:
+                        row_item.setForeground(1, QBrush(QColor("#86efac")))
+                    if link_evidence:
+                        row_item.setToolTip(0, f"Link evidence: {', '.join(self._ui_evidence_label(value) for value in link_evidence)}")
+                    classes_group.addChild(row_item)
+                    class_rows += 1
+
+                fixup_group = QTreeWidgetItem(("Fixup-backed Fields", status, "", "", "", "fields linked by native PTCH/fixup evidence"))
+                fixup_group.setData(0, BROWSER_DATA_ROLE, {"kind": "decoder_group", "source": source})
+                decoder_tree.addTopLevelItem(fixup_group)
+                for field in (evidence.findall("./fixupBackedFields/field") if evidence is not None else []):
+                    data = dict(field.attrib)
+                    data["kind"] = "decoder_fixup_field"
+                    data["source"] = "decoderEvidence/fixupBackedFields"
+                    child = QTreeWidgetItem(
+                        (
+                            field.get("class_name") or "",
+                            field.get("field_name") or "",
+                            "",
+                            field.get("reference_category") or "",
+                            field.get("count") or "",
+                            field.get("confidence") or "",
+                        )
+                    )
+                    child.setData(0, BROWSER_DATA_ROLE, data)
+                    fixup_group.addChild(child)
+
+                if fixup_v2 is not None:
+                    semantics_v2_group = QTreeWidgetItem(
+                        (
+                            "Fixup / PTCH Semantics V2",
+                            fixup_v2.get("status") or "",
+                            "",
+                            "",
+                            fixup_v2.get("patch_site_count") or "",
+                            "object/null/data/string/type/packed patch-site buckets",
+                        )
+                    )
+                    semantics_v2_group.setData(0, BROWSER_DATA_ROLE, {"kind": "decoder_group", "source": "fixupSemanticsV2"})
+                    decoder_tree.addTopLevelItem(semantics_v2_group)
+                    for bucket in fixup_v2.findall("./semanticBuckets/bucket"):
+                        data = dict(bucket.attrib)
+                        data["kind"] = "decoder_fixup_v2_bucket"
+                        data["source"] = "fixupSemanticsV2/semanticBuckets"
+                        child = QTreeWidgetItem((bucket.get("name") or "", "semantic bucket", "", "", bucket.get("count") or "", data["source"]))
+                        child.setText(0, self._ui_evidence_label(bucket.get("name") or "semantic"))
+                        child.setData(0, BROWSER_DATA_ROLE, data)
+                        semantics_v2_group.addChild(child)
+                    for site in fixup_v2.findall("./patchSites/patchSite")[:256]:
+                        data = dict(site.attrib)
+                        data["kind"] = "decoder_fixup_v2_patch_site"
+                        data["source"] = "fixupSemanticsV2/patchSites"
+                        child = QTreeWidgetItem(
+                            (
+                                f"patch site {site.get('index') or ''}",
+                                site.get("semantic_bucket") or site.get("target_status") or "",
+                                site.get("owner_local_offset") or "",
+                                site.get("target_record_index") or "",
+                                site.get("patched_slot_value") or "",
+                                f"{site.get('section') or ''} {site.get('tuple_shape') or ''}".strip(),
+                            )
+                        )
+                        child.setData(0, BROWSER_DATA_ROLE, data)
+                        semantics_v2_group.addChild(child)
+                    semantics_v2_group.setExpanded(semantics_v2_group.childCount() <= 80)
+
+                if semantic_model is not None:
+                    semantic_model_group = QTreeWidgetItem(
+                        (
+                            "Semantic Model V1",
+                            semantic_model.get("status") or "",
+                            semantic_model.get("field_count") or "",
+                            "",
+                            semantic_model.get("object_count") or "",
+                            "read-only object graph; write path remains gated",
+                        )
+                    )
+                    semantic_model_group.setData(0, BROWSER_DATA_ROLE, {"kind": "decoder_group", "source": "semanticModelV1"})
+                    decoder_tree.addTopLevelItem(semantic_model_group)
+                    for object_element in semantic_model.findall("./objects/object")[:256]:
+                        data = dict(object_element.attrib)
+                        data["kind"] = "decoder_semantic_object"
+                        data["source"] = "semanticModelV1/objects"
+                        child = QTreeWidgetItem(
+                            (
+                                object_element.get("type_name") or f"record {object_element.get('record_index') or ''}",
+                                object_element.get("class_metadata_source") or object_element.get("status") or "",
+                                object_element.get("field_count") or "",
+                                object_element.get("reference_count") or "",
+                                object_element.get("record_index") or "",
+                                object_element.get("status") or "",
+                            )
+                        )
+                        child.setData(0, BROWSER_DATA_ROLE, data)
+                        semantic_model_group.addChild(child)
+                    semantic_model_group.setExpanded(False)
+
+                if edit_map is not None:
+                    edit_map_group = QTreeWidgetItem(
+                        (
+                            "Native Edit Candidate Map",
+                            edit_map.get("status") or "",
+                            "",
+                            "",
+                            edit_map.get("candidate_count") or "",
+                            "only write-enabled rows are routed through CDMW fixed-size patches",
+                        )
+                    )
+                    edit_map_group.setData(0, BROWSER_DATA_ROLE, {"kind": "decoder_group", "source": "editCandidateMapV1"})
+                    decoder_tree.addTopLevelItem(edit_map_group)
+                    for candidate in edit_map.findall("./candidates/candidate")[:256]:
+                        data = dict(candidate.attrib)
+                        data["kind"] = "decoder_edit_candidate"
+                        data["source"] = "editCandidateMapV1/candidates"
+                        child = QTreeWidgetItem(
+                            (
+                                f"{candidate.get('class') or ''}.{candidate.get('member') or ''}".strip("."),
+                                "write-enabled" if candidate.get("write_enabled") == "true" else "candidate only",
+                                candidate.get("byte_size") or "",
+                                candidate.get("record_index") or "",
+                                candidate.get("local_offset") or candidate.get("offset_hex") or "",
+                                f"{candidate.get('supported_write_type') or ''} | {candidate.get('risk_label') or ''}".strip(" |"),
+                            )
+                        )
+                        child.setData(0, BROWSER_DATA_ROLE, data)
+                        if candidate.get("write_enabled") == "true":
+                            child.setForeground(1, QBrush(QColor("#86efac")))
+                        else:
+                            child.setForeground(1, QBrush(QColor("#9aa7b4")))
+                        edit_map_group.addChild(child)
+                    edit_map_group.setExpanded(edit_map_group.childCount() <= 80)
+
+                if semantic_gate is not None:
+                    gate_group = QTreeWidgetItem(
+                        (
+                            "Semantic Writer Gate",
+                            semantic_gate.get("status") or "",
+                            "",
+                            "",
+                            semantic_gate.get("patchable_slot_count") or "",
+                            "Havok XML import and semantic rebuild remain blocked until byte-identity coverage passes",
+                        )
+                    )
+                    gate_group.setData(0, BROWSER_DATA_ROLE, {"kind": "decoder_group", "source": "semanticWriterGateV1"})
+                    decoder_tree.addTopLevelItem(gate_group)
+                    for blocked in semantic_gate.findall("./blockedEditClasses/blocked"):
+                        data = {"kind": "decoder_blocked_edit", "source": "semanticWriterGateV1/blockedEditClasses", "status": "blocked"}
+                        child = QTreeWidgetItem((blocked.text or "", "blocked", "", "", "", "semantic writer gate"))
+                        child.setData(0, BROWSER_DATA_ROLE, data)
+                        child.setForeground(1, QBrush(QColor("#fca5a5")))
+                        gate_group.addChild(child)
+                    gate_group.setExpanded(False)
+
+                if real_metadata_v2 is not None:
+                    metadata_group = QTreeWidgetItem(
+                        (
+                            "Real hkClass Metadata V2",
+                            real_metadata_v2.get("status") or "",
+                            real_metadata_v2.get("member_count") or "",
+                            "",
+                            real_metadata_v2.get("class_count") or "",
+                            "real metadata preferred; synthetic __types__ remains fallback",
+                        )
+                    )
+                    metadata_group.setData(0, BROWSER_DATA_ROLE, {"kind": "decoder_group", "source": "realHkclassMetadataV2"})
+                    decoder_tree.addTopLevelItem(metadata_group)
+                    for class_element in real_metadata_v2.findall("./classes/class")[:256]:
+                        data = dict(class_element.attrib)
+                        data["kind"] = "decoder_real_hkclass"
+                        data["source"] = "realHkclassMetadataV2/classes"
+                        child = QTreeWidgetItem(
+                            (
+                                class_element.get("name") or "",
+                                class_element.get("metadata_source") or class_element.get("confidence") or "",
+                                "",
+                                "",
+                                class_element.get("object_size") or "",
+                                class_element.get("base_class") or class_element.get("signature_hex") or "",
+                            )
+                        )
+                        child.setData(0, BROWSER_DATA_ROLE, data)
+                        metadata_group.addChild(child)
+                    metadata_group.setExpanded(False)
+
+                refs_group.setExpanded(True)
+                links_group.setExpanded(True)
+                classes_group.setExpanded(class_rows <= 80)
+                fixup_group.setExpanded(fixup_group.childCount() <= 80)
+                _style_hkx_tree_values(
+                    decoder_tree,
+                    value_columns=(2, 3, 4),
+                    confidence_column=5,
+                    guidance_columns=(0, 5),
+                )
+                for column in range(decoder_tree.columnCount()):
+                    decoder_tree.resizeColumnToContents(column)
+                _set_hkx_editor_section_title(10, f"Decoder Evidence ({class_rows})" if class_rows else "Decoder Evidence")
+
             def _populate_connected_physics_tree() -> None:
                 root = _load_xml_root_from_editor()
                 if root is None:
@@ -32531,9 +36811,12 @@ def run_gui() -> int:
                 connected_tree.clear()
                 nodes_by_id = _connected_node_lookup(root)
                 total_rows = 0
-                exact_link_group = QTreeWidgetItem(("Exact Links", "", "", "", "", "", "", "Fixup-backed or direct editor links: patch targets, decoded owners, and exact preview targets."))
-                exact_link_group.setData(0, BROWSER_DATA_ROLE, {"kind": "connected_group", "label": "Exact Links"})
+                exact_link_group = QTreeWidgetItem(("Fixup-backed / Exact Links", "", "", "", "", "", "", "PTCH/fixup-backed references or direct editor links: patch targets, decoded owners, and exact preview targets."))
+                exact_link_group.setData(0, BROWSER_DATA_ROLE, {"kind": "connected_group", "label": "Fixup-backed / Exact Links"})
                 connected_tree.addTopLevelItem(exact_link_group)
+                owner_array_group = QTreeWidgetItem(("Owner-array Links", "", "", "", "", "", "", "Native owner-array context such as system bodies, materials, constraints, skeleton arrays, and shape storage."))
+                owner_array_group.setData(0, BROWSER_DATA_ROLE, {"kind": "connected_group", "label": "Owner-array Links"})
+                connected_tree.addTopLevelItem(owner_array_group)
                 likely_link_group = QTreeWidgetItem(("Likely Links", "", "", "", "", "", "", "Inferred body/shape/constraint relationships. Useful context, but not proven ownership."))
                 likely_link_group.setData(0, BROWSER_DATA_ROLE, {"kind": "connected_group", "label": "Likely Links"})
                 connected_tree.addTopLevelItem(likely_link_group)
@@ -32541,6 +36824,7 @@ def run_gui() -> int:
                 raw_evidence_group.setData(0, BROWSER_DATA_ROLE, {"kind": "connected_group", "label": "Raw Decoder Evidence"})
                 connected_tree.addTopLevelItem(raw_evidence_group)
                 exact_rows = 0
+                owner_array_rows = 0
                 likely_rows = 0
                 raw_evidence_rows = 0
                 for edge in root.findall("./relationshipGraph/edges/edge")[:1600]:
@@ -32600,6 +36884,7 @@ def run_gui() -> int:
                         "editor_tab": editor_tab,
                         "importable": importable_value,
                         "link_evidence": link_evidence,
+                        "display_evidence": self._ui_evidence_label(link_evidence),
                         "effect": edge.get("effect") or target_node.get("effect") or source_node.get("effect") or "",
                         "edit_risk": edge.get("edit_risk") or target_node.get("edit_risk") or source_node.get("edit_risk") or "",
                         "explanation": edge.get("description") or "Recovered relationship edge from the HKX relationship graph.",
@@ -32622,7 +36907,10 @@ def run_gui() -> int:
                         if value not in (None, ""):
                             data[extra_key] = value
                     is_patchable = str(importable_value).strip().lower() == "true" or relation in {"has_editable_value", "writes_byte_offset"}
-                    if link_evidence in {"exact", "fixup_backed"} or is_patchable:
+                    if link_evidence == "declared_owner_array":
+                        relationship_parent = owner_array_group
+                        owner_array_rows += 1
+                    elif link_evidence in {"exact", "fixup_backed", "typed_layout"} or is_patchable:
                         relationship_parent = exact_link_group
                         exact_rows += 1
                     elif link_evidence == "inferred" and relation not in {"contains", "indexes"}:
@@ -32636,7 +36924,7 @@ def run_gui() -> int:
                         (
                             data["label"],
                             data["connected_label"],
-                            f"{relation} ({link_evidence})",
+                            f"{relation} ({data['display_evidence']})",
                             _value_with_dirty_preview(data, data["value"]),
                             confidence,
                             _connected_risk_bucket(data, str(confidence), ""),
@@ -32652,6 +36940,7 @@ def run_gui() -> int:
                     )
                     total_rows += 1
                 exact_link_group.setExpanded(True)
+                owner_array_group.setExpanded(owner_array_rows <= 120)
                 likely_link_group.setExpanded(likely_rows <= 80)
                 raw_evidence_group.setExpanded(False)
 
@@ -32989,7 +37278,7 @@ def run_gui() -> int:
                                 "editor_tab": "Structured Editor",
                                 "importable": "true",
                                 "field": slot.get("name") or "",
-                                "explanation": slot.get("description") or "Fixed-offset tuning slot; edit from Structured Editor.",
+                                "explanation": slot.get("description") or "Fixed-offset tuning slot; edit from Patchable Values.",
                             }
                             _connected_add_row(
                                 constraint_group,
@@ -33207,7 +37496,7 @@ def run_gui() -> int:
                     if not group_elements:
                         placeholder = QTreeWidgetItem(("No decoded physics tuning values found.", "", "", "", "", "", ""))
                         tuning_tree.addTopLevelItem(placeholder)
-                        _set_hkx_editor_section_title(1, "Structured Editor")
+                        _set_hkx_editor_section_title(1, "Patchable Values")
                         tuning_status_label.setText("No physics tuning rows were decoded for this HKX.")
                         return
                     patchable_count = 0
@@ -33333,8 +37622,8 @@ def run_gui() -> int:
                                 + (slot_element.get("edit_risk") or "experimental")
                                 + "\nValue constraints: "
                                 + (slot_element.get("value_constraints") or "finite float; fixed offset")
-                                + "\nSuggested edit step: "
-                                + (slot_element.get("suggested_edit_step") or "small changes first")
+                                + "\nEdit note: "
+                                + (slot_element.get("suggested_edit_step") or "Fixed-size value; avoid count, topology, reference, and string changes.")
                             )
                             slot_item.setFlags(slot_item.flags() | Qt.ItemFlag.ItemIsEditable)
                             slot_item.setForeground(5, QBrush(QColor("#9fd0ff")))
@@ -33356,7 +37645,7 @@ def run_gui() -> int:
                         f"{patchable_count:,} patchable value(s)"
                         + (f"; {reference_count:,} read-only descriptor hint(s)" if not patchable_only else "; reference hints hidden")
                     )
-                    _set_hkx_editor_section_title(1, f"Structured Editor ({len(group_elements)} / {patchable_count})")
+                    _set_hkx_editor_section_title(1, f"Patchable Values ({len(group_elements)} / {patchable_count})")
                     _apply_tuning_filter()
                     first_visible = _first_visible_tuning_item()
                     if first_visible is not None:
@@ -33391,7 +37680,10 @@ def run_gui() -> int:
                     if_decreased = str(guidance.get("if_decreased") or "Effect of decreasing this value is not recovered yet.")
                     safe_hint = str(guidance.get("safe_edit_hint") or "Change one value at a time and test in game.")
                     value_constraints = str(guidance.get("value_constraints") or "finite float; fixed offset; same payload length")
-                    suggested_edit_step = str(guidance.get("suggested_edit_step") or "small changes first")
+                    edit_note = str(
+                        guidance.get("suggested_edit_step")
+                        or "Fixed-size value; avoid count, topology, reference, and string changes."
+                    )
                     lines.extend(
                         [
                             f"Plain-language effect: {effect}",
@@ -33399,7 +37691,7 @@ def run_gui() -> int:
                             f"If decreased: {if_decreased}",
                             f"Safe edit hint: {safe_hint}",
                             f"Value constraints: {value_constraints}",
-                            f"Suggested edit step: {suggested_edit_step}",
+                            f"Edit note: {edit_note}",
                         ]
                     )
                 else:
@@ -34039,7 +38331,7 @@ def run_gui() -> int:
                                     f"{slot_element.get('name') or ''} {slot_element.get('hex_offset') or ''}".strip(),
                                     slot_element.get("value") or "",
                                     slot_element.get("confidence") or "experimental",
-                                    slot_element.get("description") or "Fixed-offset tuning slot; edit from Structured Editor.",
+                                    slot_element.get("description") or "Fixed-offset tuning slot; edit from Patchable Values.",
                                 )
                             )
                             slot_item.setData(
@@ -34053,7 +38345,7 @@ def run_gui() -> int:
                                     "hex_offset": slot_element.get("hex_offset") or "",
                                 },
                             )
-                            slot_item.setToolTip(4, "Double-click or use Show Selected in Structured Editor to edit the linked patchable value.")
+                            slot_item.setToolTip(4, "Double-click or use Show in Patchable Values to edit the linked patchable value.")
                             constraint_item.addChild(slot_item)
                             row_count += 1
                     constraint_item.setExpanded(True)
@@ -34103,7 +38395,7 @@ def run_gui() -> int:
                 if not field_elements:
                     placeholder = QTreeWidgetItem(("No import-safe editable catalog was exported.", "", "", "", "", "", "", "", "", "", "", "", ""))
                     editable_catalog_tree.addTopLevelItem(placeholder)
-                    _set_hkx_editor_section_title(7, "Editable Catalog")
+                    _set_hkx_editor_section_title(7, "Patchable Catalog")
                     return
                 grouped: Dict[str, QTreeWidgetItem] = {}
                 row_count = 0
@@ -34164,7 +38456,7 @@ def run_gui() -> int:
                 for column in range(editable_catalog_tree.columnCount()):
                     editable_catalog_tree.resizeColumnToContents(column)
                 editable_catalog_tree.setSortingEnabled(True)
-                _set_hkx_editor_section_title(7, f"Editable Catalog ({len(grouped)} / {row_count})")
+                _set_hkx_editor_section_title(7, f"Patchable Catalog ({len(grouped)} / {row_count})")
                 total_count = len(field_elements)
                 if total_count > row_count:
                     editable_catalog_status_label.setText(
@@ -34208,11 +38500,11 @@ def run_gui() -> int:
             def _focus_selected_catalog_field() -> None:
                 item = editable_catalog_tree.currentItem()
                 if item is None:
-                    QMessageBox.information(dialog, "Editable Catalog", "Select an editable catalog field first.")
+                    QMessageBox.information(dialog, "Patchable Catalog", "Select a patchable catalog field first.")
                     return
                 field_data = item.data(6, Qt.ItemDataRole.UserRole)
                 if not isinstance(field_data, dict):
-                    QMessageBox.information(dialog, "Editable Catalog", "Select a field row, not a category row.")
+                    QMessageBox.information(dialog, "Patchable Catalog", "Select a field row, not a category row.")
                     return
                 editor_tab = str(field_data.get("editor_tab") or "")
                 record_index = str(field_data.get("record_index") or "").strip()
@@ -34229,7 +38521,7 @@ def run_gui() -> int:
                     _populate_collision_tree()
                     _set_hkx_editor_section(2)
                     return
-                QMessageBox.information(dialog, "Editable Catalog", f"No GUI jump is available for {editor_tab or 'this row'} yet.")
+                QMessageBox.information(dialog, "Patchable Catalog", f"No GUI jump is available for {editor_tab or 'this row'} yet.")
 
             def _focus_catalog_field_from_cell(item: QTreeWidgetItem, _column: int) -> None:
                 editable_catalog_tree.setCurrentItem(item)
@@ -34470,7 +38762,7 @@ def run_gui() -> int:
                     if not shape_elements:
                         placeholder = QTreeWidgetItem(("No decoded collision shapes found.", "", "", "", "", "", ""))
                         collision_tree.addTopLevelItem(placeholder)
-                        _set_hkx_editor_section_title(2, "Collision Editor")
+                        _set_hkx_editor_section_title(2, "Collision Shapes")
                         collision_status_label.setText("No decoded collision shapes found.")
                         return
                     editable_row_count = 0
@@ -34896,7 +39188,7 @@ def run_gui() -> int:
                     suffix = f"{len(shape_elements)} / {editable_row_count}+{read_only_row_count}"
                     if truncated:
                         suffix += " truncated"
-                    _set_hkx_editor_section_title(2, f"Collision Editor ({suffix})")
+                    _set_hkx_editor_section_title(2, f"Collision Shapes ({suffix})")
                     collision_status_label.setText(
                         f"{editable_row_count:,} editable and {read_only_row_count:,} read-only collision row(s) "
                         f"across {len(shape_elements):,} shape(s)."
@@ -35021,6 +39313,7 @@ def run_gui() -> int:
                     _populate_editable_catalog_tree()
                     _populate_byte_map_tree()
                     _populate_connected_physics_tree()
+                    _populate_decoder_evidence_tree()
                     _update_line_numbers()
                     _update_cursor_status()
                     _refresh_dirty_status()
@@ -35134,6 +39427,7 @@ def run_gui() -> int:
                 _populate_editable_catalog_tree()
                 _populate_byte_map_tree()
                 _populate_connected_physics_tree()
+                _populate_decoder_evidence_tree()
                 _update_line_numbers()
                 _update_cursor_status()
                 _refresh_dirty_status()
@@ -35200,6 +39494,7 @@ def run_gui() -> int:
                 _populate_editable_catalog_tree()
                 _populate_byte_map_tree()
                 _populate_connected_physics_tree()
+                _populate_decoder_evidence_tree()
                 _update_line_numbers()
                 _update_cursor_status()
                 _refresh_dirty_status()
@@ -35229,7 +39524,7 @@ def run_gui() -> int:
                     if value_constraints:
                         prompt_lines.append(f"Value constraints: {value_constraints}")
                     if suggested_edit_step:
-                        prompt_lines.append(f"Suggested edit step: {suggested_edit_step}")
+                        prompt_lines.append(f"Edit note: {suggested_edit_step}")
                 try:
                     current_value = float(str(current_text).strip())
                 except ValueError:
@@ -35383,9 +39678,20 @@ def run_gui() -> int:
                 editor.setLineWrapMode(mode)
                 _update_line_numbers()
 
+            def _set_workflow_summary_visible(visible: bool) -> None:
+                if visible:
+                    overview_workspace_tabs.setCurrentWidget(workflow_summary_page)
+
             def _set_overview_report_visible(visible: bool) -> None:
-                overview_text.setVisible(bool(visible))
-                overview_filler.setVisible(not bool(visible))
+                if visible:
+                    overview_workspace_tabs.setCurrentWidget(overview_report_page)
+                overview_filler.setVisible(False)
+
+            def _set_browser_advanced_visible(visible: bool) -> None:
+                browser_advanced_panel.setVisible(bool(visible))
+                section_nav_list.setVisible(not bool(visible))
+                browser_summary_label.setVisible(not bool(visible))
+                section_advanced_views_toggle.setVisible(not bool(visible))
 
             editor.textChanged.connect(_update_line_numbers)
             editor.cursorPositionChanged.connect(_update_cursor_status)
@@ -35393,12 +39699,22 @@ def run_gui() -> int:
             find_button.clicked.connect(_find_next)
             search_edit.returnPressed.connect(_find_next)
             wrap_checkbox.toggled.connect(_toggle_wrap)
+            workflow_summary_toggle.toggled.connect(_set_workflow_summary_visible)
             overview_report_toggle.toggled.connect(_set_overview_report_visible)
             section_combo.currentIndexChanged.connect(_set_hkx_editor_section)
             section_nav_list.currentRowChanged.connect(_set_hkx_editor_section)
             tab_widget.currentChanged.connect(_sync_hkx_editor_section_selector)
-            browser_advanced_toggle.toggled.connect(browser_advanced_panel.setVisible)
+            section_advanced_views_toggle.toggled.connect(_refresh_section_nav_visibility)
+            browser_advanced_toggle.toggled.connect(_set_browser_advanced_visible)
             refresh_structured_button.clicked.connect(_populate_tuning_tree)
+            workspace_task_combo.currentIndexChanged.connect(lambda _index: _refresh_modding_workspace_from_editor())
+            workspace_filter_edit.textChanged.connect(lambda _text: _refresh_modding_workspace_from_editor())
+            modding_workspace_tree.currentItemChanged.connect(
+                lambda current, _previous: _update_modding_workspace_detail(current)
+            )
+            modding_workspace_tree.itemDoubleClicked.connect(
+                lambda item, _column: (modding_workspace_tree.setCurrentItem(item), _show_selected_workspace_row_values())
+            )
             edit_tuning_value_button.clicked.connect(_edit_selected_tuning_value)
             tuning_editable_only_checkbox.toggled.connect(_populate_tuning_tree)
             tuning_filter_edit.textChanged.connect(_apply_tuning_filter)
@@ -35496,6 +39812,7 @@ def run_gui() -> int:
                     _update_connected_detail_text(current),
                 )
             )
+            decoder_tree.currentItemChanged.connect(lambda current, _previous: _update_decoder_evidence_detail(current))
             _update_line_numbers()
             _update_cursor_status()
             initial_root = _load_xml_root_from_editor()
@@ -35511,10 +39828,12 @@ def run_gui() -> int:
             _populate_editable_catalog_tree()
             _populate_byte_map_tree()
             _populate_connected_physics_tree()
+            _populate_decoder_evidence_tree()
             hkx_preview_status_label.setText(
                 "Embedded 3D Preview is hidden. Click Show 3D, then Load Model to choose a related .pac/.pam/.pamlod from the scanned archive."
             )
             _sync_hkx_edited_overlay_targets(initial_root)
+            _refresh_section_nav_visibility()
             _set_hkx_editor_section(0)
             _sync_browser_action_buttons()
 
@@ -35524,12 +39843,15 @@ def run_gui() -> int:
             export_button = QPushButton("Export XML...")
             reset_selected_button = QPushButton("Reset Selected Value")
             reset_all_button = QPushButton("Reset All Changes")
+            mod_preview_button = QPushButton("Preview HKX Mod...")
+            mod_preview_button.setToolTip("Show the fixed-size HKX value edits that would be written before creating a loose mod package.")
             write_button = QPushButton("Write Loose Mod...")
             close_button = QPushButton("Close")
             button_row.addWidget(export_button)
             button_row.addWidget(reset_selected_button)
             button_row.addWidget(reset_all_button)
             button_row.addStretch(1)
+            button_row.addWidget(mod_preview_button)
             button_row.addWidget(write_button)
             button_row.addWidget(close_button)
             layout.addLayout(button_row)
@@ -35569,6 +39891,7 @@ def run_gui() -> int:
                 _populate_editable_catalog_tree()
                 _populate_byte_map_tree()
                 _populate_connected_physics_tree()
+                _populate_decoder_evidence_tree()
                 _update_line_numbers()
                 _update_cursor_status()
                 _refresh_dirty_status()
@@ -35591,7 +39914,7 @@ def run_gui() -> int:
                         if isinstance(key, tuple) and original not in (None, ""):
                             item.setText(4, str(original))
                             return
-                QMessageBox.information(dialog, "Reset HKX Value", "Select a patchable value in Structured Editor or Collision Editor first.")
+                QMessageBox.information(dialog, "Reset HKX Value", "Select a patchable value in Patchable Values or Collision Shapes first.")
 
             def _reset_all_changes() -> None:
                 if not dirty_values_by_key:
@@ -35611,27 +39934,225 @@ def run_gui() -> int:
                 editor.blockSignals(False)
                 _refresh_hkx_editor_views()
 
+            def _byte_patch_entry_for_dirty_key(root: ET.Element, prefix: str, key: tuple) -> Optional[ET.Element]:
+                if prefix == "tuning" and len(key) == 3:
+                    record_index, item_index, local_offset = (str(key[0]), str(key[1]), str(key[2]))
+                    for entry_element in root.findall("./bytePatchMap/entries/entry"):
+                        if (
+                            str(entry_element.get("record_index") or "") == record_index
+                            and str(entry_element.get("item_index") or "") == item_index
+                            and str(entry_element.get("local_offset") or entry_element.get("relative_offset") or "") == local_offset
+                            and str(entry_element.get("import_safety") or "import_safe") == "import_safe"
+                        ):
+                            return entry_element
+                    return None
+                if prefix != "collision" or not key:
+                    return None
+                kind = str(key[0])
+                path = ""
+                shape_index = str(key[1]) if len(key) > 1 else ""
+                if kind in {"sphere_radius", "capsule_radius"} and len(key) >= 3:
+                    path = f"shapes[{shape_index}].{kind}"
+                elif kind == "shape_vector" and len(key) == 6:
+                    _kind, shape_index, vector_field, _element_name, row_index, component = key
+                    path = f"shapes[{shape_index}].{vector_field}[{row_index}].{component}"
+                elif kind == "mass_properties" and len(key) == 4:
+                    _kind, shape_index, row_index, component = key
+                    path = f"shapes[{shape_index}].mass_properties.float_rows[{row_index}].{component}"
+                elif kind == "shape_payload" and len(key) == 4:
+                    _kind, shape_index, offset, _component = key
+                    for entry_element in root.findall("./bytePatchMap/entries/entry"):
+                        if (
+                            str(entry_element.get("path") or "").startswith(f"shapes[{shape_index}].shape_payload.")
+                            and str(entry_element.get("local_offset") or entry_element.get("relative_offset") or "") == str(offset)
+                            and str(entry_element.get("import_safety") or "import_safe") == "import_safe"
+                        ):
+                            return entry_element
+                    return None
+                if not path:
+                    return None
+                for entry_element in root.findall("./bytePatchMap/entries/entry"):
+                    if (
+                        str(entry_element.get("path") or "") == path
+                        and str(entry_element.get("import_safety") or "import_safe") == "import_safe"
+                    ):
+                        return entry_element
+                return None
+
+            def _hkx_mod_package_change_rows() -> Tuple[List[Dict[str, str]], List[str]]:
+                root = _load_xml_root_from_editor()
+                if root is None:
+                    return [], ["Current HKX XML could not be parsed."]
+                rows: List[Dict[str, str]] = []
+                blocked: List[str] = []
+                for dirty_key, dirty_values in dirty_values_by_key.items():
+                    prefix = str(dirty_key[0]) if isinstance(dirty_key, tuple) and dirty_key else ""
+                    key = tuple(dirty_key[1]) if isinstance(dirty_key, tuple) and len(dirty_key) > 1 and isinstance(dirty_key[1], tuple) else ()
+                    label, original_value, current_value = dirty_values
+                    entry_element = _byte_patch_entry_for_dirty_key(root, prefix, key)
+                    if entry_element is None:
+                        blocked.append(f"{label}: no approved byte patch map entry")
+                        continue
+                    gate_status = str(entry_element.get("gate_status") or "enabled")
+                    import_safety = str(entry_element.get("import_safety") or "import_safe")
+                    structural_kind = str(entry_element.get("structural_kind") or "")
+                    if gate_status not in {"enabled", ""} or import_safety != "import_safe" or structural_kind == "structural_blocked":
+                        blocked.append(
+                            f"{label}: {import_safety or 'unknown safety'}, gate={gate_status or 'unknown'}, kind={structural_kind or 'unknown'}"
+                        )
+                        continue
+                    rows.append(
+                        {
+                            "label": str(label),
+                            "task": str(entry_element.get("task_label") or entry_element.get("category_label") or entry_element.get("task_category") or ""),
+                            "category": str(entry_element.get("category") or ""),
+                            "owner_class": str(entry_element.get("owner_class") or entry_element.get("subject") or ""),
+                            "member": str(entry_element.get("member") or entry_element.get("field") or entry_element.get("name") or ""),
+                            "record": str(entry_element.get("record_index") or ""),
+                            "item": str(entry_element.get("item_index") or "-"),
+                            "offset": str(
+                                entry_element.get("absolute_offset_hex")
+                                or entry_element.get("hex_absolute_data_offset")
+                                or entry_element.get("absolute_data_offset")
+                                or ""
+                            ),
+                            "local_offset": str(entry_element.get("hex_relative_offset") or entry_element.get("relative_offset") or ""),
+                            "byte_size": str(entry_element.get("byte_size") or ""),
+                            "original": str(original_value),
+                            "current": str(current_value),
+                            "risk": str(entry_element.get("risk_label") or entry_element.get("risk") or ""),
+                            "evidence": str(
+                                entry_element.get("linked_by")
+                                or entry_element.get("link_evidence")
+                                or entry_element.get("evidence")
+                                or ""
+                            ),
+                            "path": str(entry_element.get("path") or ""),
+                            "import_behavior": str(entry_element.get("import_behavior") or "CDMW fixed-size patch into original HKX bytes"),
+                        }
+                    )
+                return rows, blocked
+
+            def _hkx_mod_package_preview_text() -> str:
+                root = _load_xml_root_from_editor()
+                readiness = root.find("./hkxModdingReadiness") if root is not None else None
+                byte_patch_map = root.find("./bytePatchMap") if root is not None else None
+                hkx_edit_gate = root.find("./hkxEditGateV1") if root is not None else None
+                change_rows, blocked_rows = _hkx_mod_package_change_rows()
+                lines = [
+                    f"Target HKX: {entry.path}",
+                    "",
+                ]
+                if readiness is not None:
+                    labels = [
+                        str(element.text or "").strip()
+                        for element in readiness.findall("./readinessLabels/label")
+                        if str(element.text or "").strip()
+                    ]
+                    lines.append(f"Readiness: {readiness.get('per_file_label') or readiness.get('status') or 'unknown'}")
+                    if labels:
+                        lines.append("Evidence: " + ", ".join(labels))
+                    lines.append(f"Import path: {readiness.get('modding_path') or 'CDMW fixed-size patch XML/JSON only'}")
+                    lines.append(f"Havok XML importable: {readiness.get('havok_xml_importable') or 'false'}")
+                    gate = readiness.find("./semanticWriterGate")
+                    if gate is not None:
+                        lines.append(f"Semantic writer: {gate.get('status') or 'disabled'} ({gate.get('mode') or 'fixed_size_patch_only'})")
+                    lines.append("")
+                if hkx_edit_gate is not None:
+                    lines.append(
+                        "Edit gate: "
+                        f"{hkx_edit_gate.get('status') or 'unknown'} | "
+                        f"enabled={hkx_edit_gate.get('write_enabled_candidate_count') or '0'} | "
+                        f"candidate-only={hkx_edit_gate.get('candidate_only_count') or '0'}"
+                    )
+                    lines.append("")
+                if change_rows:
+                    lines.append(f"Pending import-safe fixed-size value edits: {len(change_rows):,}")
+                    for row in change_rows[:64]:
+                        lines.append(
+                            "- "
+                            f"{row['label']} | task={row['task'] or row['category'] or 'unknown'} | "
+                            f"class={row['owner_class'] or 'unknown'} | member={row['member'] or 'unknown'} | "
+                            f"record={row['record']} item={row['item']} | "
+                            f"offset={row['offset']} local={row['local_offset']} size={row['byte_size']} | "
+                            f"{row['original']} -> {row['current']} | risk={row['risk'] or 'unknown'} | evidence={row['evidence'] or 'unknown'}"
+                        )
+                    if len(change_rows) > 64:
+                        lines.append(f"- ... {len(change_rows) - 64:,} more")
+                else:
+                    lines.append("Pending fixed-size value edits: 0")
+                    lines.append("No loose HKX patch will be written unless a patchable value changes.")
+                if blocked_rows:
+                    lines.append("")
+                    lines.append(f"Blocked edited rows: {len(blocked_rows):,}")
+                    for row in blocked_rows[:32]:
+                        lines.append(f"- {row}")
+                    if len(blocked_rows) > 32:
+                        lines.append(f"- ... {len(blocked_rows) - 32:,} more")
+                if byte_patch_map is not None:
+                    lines.append("")
+                    lines.append(
+                        "Patch map: "
+                        f"{byte_patch_map.get('entry_count') or '0'} fixed-size target(s), "
+                        f"status={byte_patch_map.get('status') or 'unknown'}"
+                    )
+                lines.extend(
+                    [
+                        "",
+                        "Blocked by policy: Havok XML import, array count edits, reference edits, string edits, and topology edits.",
+                        "Game archives are not modified; successful writes produce a loose mod package.",
+                    ]
+                )
+                return "\n".join(lines)
+
+            def _show_hkx_mod_package_preview() -> None:
+                preview_dialog = QDialog(dialog)
+                preview_dialog.setWindowTitle("HKX Mod Package Preview")
+                preview_dialog.resize(980, 620)
+                preview_layout = QVBoxLayout(preview_dialog)
+                preview_text = QPlainTextEdit()
+                preview_text.setReadOnly(True)
+                preview_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+                preview_text.setFont(QFont("Consolas", 9))
+                preview_text.setPlainText(_hkx_mod_package_preview_text())
+                preview_layout.addWidget(preview_text)
+                close_preview_button = QPushButton("Close")
+                close_preview_button.clicked.connect(preview_dialog.accept)
+                preview_button_row = QHBoxLayout()
+                preview_button_row.addStretch(1)
+                preview_button_row.addWidget(close_preview_button)
+                preview_layout.addLayout(preview_button_row)
+                preview_dialog.exec()
+
             def _write_loose_mod() -> None:
                 edited_text = editor.toPlainText()
                 if not edited_text.strip():
                     QMessageBox.warning(dialog, "Write HKX Loose Mod", "The HKX XML editor is empty.")
                     return
                 if dirty_values_by_key:
-                    preview_lines = [
-                        f"{len(dirty_values_by_key):,} HKX value edit(s) will be written as a loose mod.",
-                        "",
-                    ]
-                    for label, original_value, current_value in list(dirty_values_by_key.values())[:12]:
-                        preview_lines.append(f"- {label}: {original_value} -> {current_value}")
-                    if len(dirty_values_by_key) > 12:
-                        preview_lines.append(f"- ... {len(dirty_values_by_key) - 12:,} more")
-                    preview_lines.extend(
-                        [
-                            "",
-                            "Game archives will not be modified. Unsupported structural changes are still rejected during import.",
-                        ]
-                    )
-                    answer = QMessageBox.question(dialog, "Write HKX Loose Mod", "\n".join(preview_lines))
+                    change_rows, blocked_rows = _hkx_mod_package_change_rows()
+                    if blocked_rows:
+                        QMessageBox.warning(
+                            dialog,
+                            "Write HKX Loose Mod",
+                            (
+                                "One or more edited rows are not backed by the current import-safe byte patch map.\n\n"
+                                + "\n".join(f"- {row}" for row in blocked_rows[:16])
+                                + ("\n- ..." if len(blocked_rows) > 16 else "")
+                            ),
+                        )
+                        return
+                    if not change_rows:
+                        QMessageBox.information(
+                            dialog,
+                            "Write HKX Loose Mod",
+                            "No approved fixed-size HKX byte changes are pending.",
+                        )
+                        return
+                    preview_lines = _hkx_mod_package_preview_text().splitlines()
+                    preview_lines.append("")
+                    preview_lines.append("Game archives will not be modified. Continue writing the loose mod package?")
+                    answer = QMessageBox.question(dialog, "Write HKX Loose Mod", "\n".join(preview_lines[:80]))
                     if answer != QMessageBox.StandardButton.Yes:
                         return
                 dialog.accept()
@@ -35646,6 +40167,7 @@ def run_gui() -> int:
             export_button.clicked.connect(_export_editor_xml)
             reset_selected_button.clicked.connect(_reset_selected_value)
             reset_all_button.clicked.connect(_reset_all_changes)
+            mod_preview_button.clicked.connect(_show_hkx_mod_package_preview)
             write_button.clicked.connect(_write_loose_mod)
             close_button.clicked.connect(dialog.reject)
             dialog.exec()
@@ -37810,6 +42332,7 @@ def run_gui() -> int:
         hold_for_archive_autoload = window._startup_archive_autoload_expected()
         if hold_for_archive_autoload:
             startup_splash.set_detail("Loading Archive Browser...")
+            QTimer.singleShot(6500, window._release_startup_splash)
             _write_heartbeat("archive_autoload")
         else:
             window._release_startup_splash()

@@ -2803,6 +2803,15 @@ def _build_pac_in_place(
         _patch_pac_descriptor_bounds(result, orig_sm.source_descriptor_offset, bmin, extent)
 
         new_uvs = new_sm.uvs if len(new_sm.uvs) == len(new_sm.vertices) else []
+        new_normals = (
+            new_sm.normals
+            if len(new_sm.normals) == len(new_sm.vertices)
+            else _compute_smooth_normals(new_sm.vertices, new_sm.faces)
+        )
+        clean_shading_records = bool(
+            getattr(new_sm, "clean_donor_shading_records", False)
+            or getattr(working_mesh, "clean_donor_shading_records", False)
+        )
 
         for vi, rec_off in enumerate(orig_sm.source_vertex_offsets):
             if rec_off < 0 or rec_off + orig_sm.source_vertex_stride > len(result):
@@ -2811,6 +2820,11 @@ def _build_pac_in_place(
                 )
 
             rec = bytearray(result[rec_off:rec_off + orig_sm.source_vertex_stride])
+            if clean_shading_records:
+                if len(rec) >= 8:
+                    struct.pack_into("<H", rec, 6, 0)
+                if len(rec) >= 28:
+                    rec[20:28] = b"\x00" * 8
             vx, vy, vz = new_sm.vertices[vi]
             struct.pack_into(
                 "<HHH",
@@ -2828,6 +2842,18 @@ def _build_pac_in_place(
                 except (OverflowError, ValueError):
                     struct.pack_into("<e", rec, 8, 0.0)
                     struct.pack_into("<e", rec, 10, 0.0)
+
+            if len(rec) >= 20:
+                existing_normal = struct.unpack_from("<I", rec, 16)[0]
+                struct.pack_into(
+                    "<I",
+                    rec,
+                    16,
+                    _pack_pac_normal(
+                        new_normals[vi],
+                        0 if clean_shading_records else existing_normal,
+                    ),
+                )
 
             payload = bytes(rec)
             prev = vertex_updates.get(rec_off)
@@ -2919,6 +2945,10 @@ def _build_pac_full_rebuild(
             else _compute_smooth_normals(new_sm.vertices, new_sm.faces)
         )
         new_uvs = new_sm.uvs if len(new_sm.uvs) == len(new_sm.vertices) else []
+        clean_shading_records = bool(
+            getattr(new_sm, "clean_donor_shading_records", False)
+            or getattr(working_mesh, "clean_donor_shading_records", False)
+        )
         bmin, bmax = _compute_bbox(new_sm.vertices)
         extent = tuple(bmax[i] - bmin[i] for i in range(3))
         stored_lod_count = max(1, min(n_lods, orig_sm.source_lod_count or desc.stored_lod_count or n_lods))
@@ -2945,6 +2975,7 @@ def _build_pac_full_rebuild(
             "bbox_min": bmin,
             "bbox_extent": extent,
             "stored_lod_count": stored_lod_count,
+            "clean_shading_records": clean_shading_records,
         })
 
     lod_payloads: dict[int, bytes] = {}
@@ -2965,9 +2996,15 @@ def _build_pac_full_rebuild(
             new_uvs = prepared["uvs"]
             bbox_min = prepared["bbox_min"]
             bbox_extent = prepared["bbox_extent"]
+            clean_shading_records = prepared["clean_shading_records"]
 
             for vi, vertex in enumerate(sm.vertices):
                 donor_rec = bytearray(donor_records[donor_indices[vi]])
+                if clean_shading_records:
+                    if len(donor_rec) >= 8:
+                        struct.pack_into("<H", donor_rec, 6, 0)
+                    if len(donor_rec) >= 28:
+                        donor_rec[20:28] = b"\x00" * 8
                 struct.pack_into(
                     "<HHH",
                     donor_rec,
@@ -2992,7 +3029,10 @@ def _build_pac_full_rebuild(
                         "<I",
                         donor_rec,
                         16,
-                        _pack_pac_normal(normals[vi], existing_normal),
+                        _pack_pac_normal(
+                            normals[vi],
+                            0 if clean_shading_records else existing_normal,
+                        ),
                     )
 
                 verts_buf.extend(donor_rec)

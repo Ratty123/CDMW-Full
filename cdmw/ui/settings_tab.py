@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -99,10 +99,10 @@ class SettingsTab(QWidget):
 
         self.section_nav_list = QListWidget()
         self.section_nav_list.setObjectName("SettingsSectionNav")
-        self.section_nav_list.setFixedWidth(220)
+        self.section_nav_list.setFixedWidth(270)
         self.section_nav_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.section_nav_list.setAlternatingRowColors(True)
-        self.section_nav_list.setSpacing(2)
+        self.section_nav_list.setAlternatingRowColors(False)
+        self.section_nav_list.setSpacing(4)
         self.section_nav_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
         settings_workspace_layout.addWidget(self.section_nav_list)
 
@@ -113,6 +113,7 @@ class SettingsTab(QWidget):
         def _add_settings_page(key: str, title: str, summary_text: str) -> QVBoxLayout:
             item = QListWidgetItem(title)
             item.setData(Qt.UserRole, key)
+            item.setSizeHint(QSize(0, 40))
             self.section_nav_list.addItem(item)
 
             scroll_area = QScrollArea()
@@ -140,7 +141,12 @@ class SettingsTab(QWidget):
         self.setup_page_layout = _add_settings_page(
             "setup",
             "Setup",
-            "Startup and workspace setup controls.",
+            "Workspace setup controls.",
+        )
+        self.startup_page_layout = _add_settings_page(
+            "startup",
+            "Startup",
+            "Launch behavior and startup restore preferences.",
         )
         self.paths_page_layout = _add_settings_page(
             "paths",
@@ -293,7 +299,19 @@ class SettingsTab(QWidget):
         startup_layout.addWidget(self.auto_load_archive_checkbox)
         startup_layout.addWidget(self.prefer_cache_checkbox)
         startup_layout.addWidget(self.restore_last_tab_checkbox)
-        self.setup_page_layout.addWidget(startup_group)
+        self.restore_archive_filters_checkbox = QCheckBox("Restore Archive Browser filters on startup")
+        self.restore_archive_filters_checkbox.setToolTip(
+            "When enabled, saved Archive Browser search, extension, role, folder, package, and size filters are restored "
+            "when the app opens. Disable this to start with All files and avoid re-applying a saved search during startup."
+        )
+        startup_layout.addWidget(self.restore_archive_filters_checkbox)
+        startup_hint = QLabel(
+            "Disabling filter restore keeps startup lighter. You can still search or apply filters manually after the archive is loaded."
+        )
+        startup_hint.setWordWrap(True)
+        startup_hint.setObjectName("HintLabel")
+        startup_layout.addWidget(startup_hint)
+        self.startup_page_layout.addWidget(startup_group)
 
         archive_performance_group = QGroupBox("Archive Browser Performance")
         archive_performance_layout = QFormLayout(archive_performance_group)
@@ -665,6 +683,7 @@ class SettingsTab(QWidget):
             self.auto_load_archive_checkbox,
             self.prefer_cache_checkbox,
             self.restore_last_tab_checkbox,
+            self.restore_archive_filters_checkbox,
             self.remember_splitters_checkbox,
             self.confirm_workflow_cleanup_checkbox,
             self.confirm_archive_cleanup_checkbox,
@@ -691,10 +710,59 @@ class SettingsTab(QWidget):
 
         self._load_settings(theme_key)
         self.sync_archive_performance_controls()
+        self._apply_section_nav_style()
         self._settings_ready = True
+
+    def _apply_section_nav_style(self) -> None:
+        theme = UI_THEME_SCHEMES.get(self.current_theme_key(), UI_THEME_SCHEMES[DEFAULT_UI_THEME])
+        nav_font_size = max(14, min(18, self.current_ui_font_size() + 1))
+        self.section_nav_list.setStyleSheet(
+            f"""
+            QListWidget#SettingsSectionNav {{
+                background: {theme["field"]};
+                border: 1px solid {theme["border_strong"]};
+                border-radius: 8px;
+                padding: 8px;
+                outline: 0;
+                font-size: {nav_font_size}px;
+            }}
+            QListWidget#SettingsSectionNav::item {{
+                background: transparent;
+                color: {theme["text"]};
+                border: 1px solid transparent;
+                border-radius: 6px;
+                margin: 2px 0px;
+                padding: 9px 12px;
+            }}
+            QListWidget#SettingsSectionNav::item:hover {{
+                background: {theme["button_hover"]};
+                border-color: {theme["button_border"]};
+                color: {theme["text_strong"]};
+            }}
+            QListWidget#SettingsSectionNav::item:selected {{
+                background: {theme["accent_soft"]};
+                border: 1px solid {theme["accent"]};
+                color: {theme["text_strong"]};
+                font-weight: 600;
+            }}
+            QListWidget#SettingsSectionNav::item:selected:!active {{
+                background: {theme["accent_soft"]};
+                color: {theme["text_strong"]};
+            }}
+            """
+        )
+        for row in range(self.section_nav_list.count()):
+            item = self.section_nav_list.item(row)
+            if item is not None:
+                item.setSizeHint(QSize(0, max(40, nav_font_size + 24)))
 
     def add_setup_paths_sections(self, setup_section: QWidget, paths_section: QWidget) -> None:
         """Place app setup and path controls at the top of Settings without duplicating state."""
+        if hasattr(setup_section, "set_expanded"):
+            setup_section.set_expanded(True)
+        toggle_button = getattr(setup_section, "toggle_button", None)
+        if toggle_button is not None:
+            toggle_button.setVisible(False)
         self.setup_page_layout.insertWidget(2, setup_section)
         self.paths_page_layout.insertWidget(2, paths_section)
 
@@ -846,6 +914,9 @@ class SettingsTab(QWidget):
         self.restore_last_tab_checkbox.setChecked(
             self._read_bool("preferences/restore_last_active_tab", True)
         )
+        self.restore_archive_filters_checkbox.setChecked(
+            self._read_bool("preferences/restore_archive_filters_on_startup", False)
+        )
         self.remember_splitters_checkbox.setChecked(
             self._read_bool("preferences/remember_splitter_sizes", True)
         )
@@ -887,6 +958,10 @@ class SettingsTab(QWidget):
         self.settings.setValue(
             "preferences/restore_last_active_tab",
             self.restore_last_tab_checkbox.isChecked(),
+        )
+        self.settings.setValue(
+            "preferences/restore_archive_filters_on_startup",
+            self.restore_archive_filters_checkbox.isChecked(),
         )
         self.settings.setValue(
             "preferences/remember_splitter_sizes",
@@ -997,6 +1072,7 @@ class SettingsTab(QWidget):
         if not self._settings_ready:
             return
         self._save_settings()
+        self._apply_section_nav_style()
         self.theme_changed.emit(self.current_theme_key())
 
     def _handle_model_preview_changed(self, *_args) -> None:
@@ -1190,6 +1266,7 @@ class SettingsTab(QWidget):
         self.preview_color_scheme_combo.blockSignals(True)
         self.preview_color_scheme_combo.setCurrentIndex(max(0, preview_scheme_index))
         self.preview_color_scheme_combo.blockSignals(False)
+        self._apply_section_nav_style()
 
     def set_language_selection(self, language_code: str) -> None:
         code = str(language_code or "en").strip() or "en"

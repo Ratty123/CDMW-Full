@@ -358,6 +358,32 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertIn("original_bytes_hex", byte_patch_entry)
         self.assertIn("decoded_value", byte_patch_entry)
         self.assertEqual("fixed_size_value_only", byte_patch_entry["edit_rule"])
+        self.assertEqual("import_safe", byte_patch_entry["import_safety"])
+        self.assertIn(byte_patch_entry["structural_kind"], {"fixed_size_numeric", "fixed_size_value"})
+        self.assertEqual("enabled", byte_patch_entry["gate_status"])
+        self.assertIn("absolute_offset", byte_patch_entry)
+        self.assertIn("linked_by", byte_patch_entry)
+        edit_gate = document["hkx_edit_gate_v1"]
+        self.assertEqual("cdmw_hkx_edit_gate_v1", edit_gate["format"])
+        self.assertEqual("fixed_size_patch_gate", edit_gate["status"])
+        self.assertGreater(edit_gate["write_enabled_candidate_count"], 0)
+        self.assertTrue(
+            any(
+                row["key"] == "collision_size"
+                and row["status"] == "enabled"
+                and row["write_enabled_count"] > 0
+                for row in edit_gate["task_categories"]
+            )
+        )
+        self.assertTrue(
+            any(
+                row["category"] == "collision_shape"
+                and row["status"] == "enabled"
+                and row["write_enabled_count"] > 0
+                for row in edit_gate["categories"]
+            )
+        )
+        self.assertTrue(any(kind == "topology" for kind in edit_gate["blocked_kinds"]))
 
         edited_document = copy.deepcopy(document)
         edited_document["shapes"][0]["vertices"][0] = [-2.0, 0.5, -2.5]
@@ -518,6 +544,57 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertGreater(parity_report["array_params_with_numelements"], 0)
         self.assertTrue(any(row["class"] == "hknpConvexShape" for row in parity_report["class_parity"]))
 
+        modding_readiness = document["hkx_modding_readiness"]
+        self.assertEqual("cdmw_hkx_modding_readiness_v1", modding_readiness["format"])
+        self.assertIn(
+            modding_readiness["per_file_label"],
+            {"Patchable tuning", "Read-only decoded", "Needs semantic rebuild", "Unsupported structure"},
+        )
+        self.assertFalse(modding_readiness["havok_xml_importable"])
+        self.assertFalse(modding_readiness["new_editable_fields_enabled"])
+        self.assertEqual("CDMW fixed-size patch XML/JSON only", modding_readiness["modding_path"])
+        self.assertIn("semantic_writer_gate", modding_readiness)
+        self.assertFalse(modding_readiness["semantic_writer_gate"]["enabled"])
+        self.assertEqual("fixed_size_patch_only", modding_readiness["semantic_writer_gate"]["mode"])
+        self.assertIn("Havok XML import", modding_readiness["semantic_writer_gate"]["blocked_edits"])
+        self.assertTrue(
+            any(tool["name"] == "hkxcmd" for tool in modding_readiness["external_tool_references"])
+        )
+        self.assertTrue(
+            any(group["key"] == "collision_size" for group in modding_readiness["task_groups"])
+        )
+        modding_workspace = document["modding_workspace_v1"]
+        self.assertEqual("cdmw_hkx_modding_workspace_v1", modding_workspace["format"])
+        self.assertTrue(modding_workspace["default_view"])
+        self.assertIn(
+            modding_workspace["readiness_label"],
+            {"Patchable tuning", "Read-only decoded", "Candidate values found", "Needs semantic rebuild", "Unsupported structure"},
+        )
+        self.assertTrue(
+            any(task["label"] == "Collision Size" for task in modding_workspace["task_filters"])
+        )
+        self.assertTrue(
+            any(task["label"] == "Body Transform" for task in modding_workspace["task_filters"])
+        )
+        self.assertTrue(
+            any(task["label"] == "Joint Strength" for task in modding_workspace["task_filters"])
+        )
+        self.assertTrue(
+            any(row["import_safety"] in {"Import-safe", "Read-only candidate", "Structural blocked"} for row in modding_workspace["rows"])
+        )
+        self.assertTrue(
+            any(row.get("task_category") == "collision_size" for row in document["byte_patch_map"]["entries"])
+        )
+        self.assertTrue(
+            any(row["structural_kind"] == "Fixed numeric" for row in modding_workspace["rows"])
+        )
+        self.assertTrue(
+            all(
+                key in modding_workspace["rows"][0]
+                for key in ("meaning", "import_safety", "risk", "evidence", "linked_by", "record", "offset", "original", "current")
+            )
+        )
+
         readiness = document["hkclass_metadata_readiness"]
         self.assertEqual("cdmw_hkx_hkclass_metadata_readiness_v1", readiness["format"])
         self.assertEqual("synthetic_recovered_hkClass", readiness["__types_section_status"])
@@ -591,6 +668,19 @@ class HkxPreviewTests(unittest.TestCase):
             )
         )
         self.assertIsNotNone(xml_root.find("./hkxXmlParityReport/classParity/class[@name='hknpConvexShape']"))
+        modding_xml = xml_root.find("./hkxModdingReadiness")
+        self.assertIsNotNone(modding_xml)
+        assert modding_xml is not None
+        self.assertEqual(modding_xml.get("havok_xml_importable"), "false")
+        self.assertIsNotNone(
+            modding_xml.find("./semanticWriterGate[@mode='fixed_size_patch_only']")
+        )
+        self.assertIsNotNone(
+            modding_xml.find("./taskGroups/group[@key='collision_size']")
+        )
+        self.assertIsNotNone(
+            modding_xml.find("./externalToolReferences/tool[@name='hkxcmd']")
+        )
         self.assertIsNotNone(
             xml_root.find(
                 "./havokXmlView/hkpackfileView/hkpackfile/hksection/hkobject[@class='hknpConvexShape']"
@@ -648,6 +738,7 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertEqual("partial_synthetic_recovery", standalone_root.get("cdmw_class_internals_status"))
         self.assertEqual("open_hard_decoder_targets", standalone_root.get("cdmw_hard_decoder_targets_status"))
         self.assertEqual("partial_user_friendly_modding", standalone_root.get("cdmw_gui_readiness_status"))
+        self.assertEqual("false", standalone_root.get("cdmw_havok_xml_importable"))
         self.assertEqual("true", standalone_root.get("cdmw_python_builds_richer_graph_export"))
         self.assertIsNotNone(
             standalone_root.find("./hksection/hkobject[@class='hkFloat3']/hkparam[@name='values']/row[@index='0']")
@@ -1326,6 +1417,25 @@ class HkxPreviewTests(unittest.TestCase):
         assert xml_patch_slot is not None
         self.assertEqual("0x28", xml_patch_slot.get("hex_relative_offset"))
         self.assertEqual("float32", xml_patch_slot.get("value_type"))
+        self.assertEqual("hknpPositionConstraintMotor", xml_patch_slot.get("owner_class"))
+        self.assertEqual("stiffness_or_strength", xml_patch_slot.get("member"))
+        self.assertEqual("40", xml_patch_slot.get("local_offset"))
+        self.assertTrue(xml_patch_slot.get("absolute_offset"))
+        self.assertEqual("import_safe", xml_patch_slot.get("import_safety"))
+        self.assertEqual("fixed_size_numeric", xml_patch_slot.get("value_kind"))
+        self.assertEqual("fixed_size_numeric", xml_patch_slot.get("structural_kind"))
+        self.assertEqual("enabled", xml_patch_slot.get("gate_status"))
+        self.assertEqual("typed_layout", xml_patch_slot.get("linked_by"))
+        self.assertEqual("joint_strength", xml_patch_slot.get("task_category"))
+        self.assertEqual("Joint Strength", xml_patch_slot.get("task_label"))
+        xml_edit_gate = root.find("./hkxEditGateV1")
+        self.assertIsNotNone(xml_edit_gate)
+        assert xml_edit_gate is not None
+        self.assertEqual("cdmw_hkx_edit_gate_v1", xml_edit_gate.get("format"))
+        self.assertEqual("fixed_size_patch_gate", xml_edit_gate.get("status"))
+        self.assertIsNotNone(xml_edit_gate.find("./categories/category[@category='motor_force_response']"))
+        self.assertIsNotNone(xml_edit_gate.find("./taskCategories/task[@key='joint_strength'][@status='enabled']"))
+        self.assertIsNotNone(xml_edit_gate.find("./blockedKinds/kind[.='topology']"))
         xml_slot.set("value", "0.7")
         xml_result = apply_hkx_editable_geometry_xml(data, ET.tostring(root, encoding="unicode"))
         xml_reparsed = build_hkx_editable_geometry_document(xml_result.data, "physics/motor.hkx")
@@ -2703,6 +2813,17 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertEqual("fixed_size_value_only", vertex_patch_entry.get("edit_rule"))
         self.assertTrue(vertex_patch_entry.get("original_bytes_hex"))
         self.assertEqual("false", root.find("./bytePatchMap").get("imported"))
+        workspace = root.find("./moddingWorkspaceV1")
+        self.assertIsNotNone(workspace)
+        assert workspace is not None
+        self.assertEqual("cdmw_hkx_modding_workspace_v1", workspace.get("format"))
+        self.assertIsNotNone(workspace.find("./taskFilters/task[@label='Collision Size']"))
+        self.assertIsNotNone(workspace.find("./taskFilters/task[@label='Body Transform']"))
+        workspace_row = workspace.find("./rows/row")
+        self.assertIsNotNone(workspace_row)
+        assert workspace_row is not None
+        self.assertIn(workspace_row.get("import_safety"), {"Import-safe", "Read-only candidate", "Structural blocked"})
+        self.assertTrue(workspace_row.get("linked_by"))
         first_vertex = root.find("./shapes/shape/vertices/v")
         self.assertIsNotNone(first_vertex)
         assert first_vertex is not None
@@ -3354,7 +3475,7 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertEqual("has_decode_gaps", gap_summary["status"])
         gaps_by_type = {gap["type_name"]: gap for gap in gap_summary["gaps"]}
         self.assertIn("hknpTriangleShape", gaps_by_type)
-        self.assertIn("shape internals", gaps_by_type["hknpTriangleShape"]["friendly_status_label"])
+        self.assertIn("triangle material/shape-tag semantics", gaps_by_type["hknpTriangleShape"]["friendly_status_label"])
         self.assertEqual("read_only", gaps_by_type["hknpTriangleShape"]["safe_edit_policy"])
         target_coverage = {
             row["type_name"]: row
@@ -3366,7 +3487,7 @@ class HkxPreviewTests(unittest.TestCase):
         xml_gap = xml_root.find("./decodeGapSummary/gaps/gap[@type_name='hknpTriangleShape']")
         self.assertIsNotNone(xml_gap)
         assert xml_gap is not None
-        self.assertIn("shape internals", xml_gap.get("friendly_status_label") or "")
+        self.assertIn("triangle material/shape-tag semantics", xml_gap.get("friendly_status_label") or "")
         self.assertIsNotNone(xml_gap.find("./missingRequirements/requirement"))
 
     def test_hkx_converter_decodes_root_scene_reference_payloads_read_only(self) -> None:

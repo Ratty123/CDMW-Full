@@ -435,6 +435,94 @@ pub struct RealHkClassMetadataReport {
     pub classes: Vec<RealHkClassMetadata>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecoderEvidenceClassStatus {
+    pub type_name: String,
+    pub record_count: usize,
+    pub byte_count: usize,
+    pub decoded_field_count: usize,
+    pub reference_count: usize,
+    pub editable_field_count: usize,
+    pub status: String,
+    pub friendly_status: String,
+    pub missing_requirements: Vec<String>,
+    pub link_evidence: Vec<String>,
+    pub corpus_priority_score: usize,
+    pub read_only: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecoderEvidenceFixupBackedField {
+    pub class_name: String,
+    pub field_name: String,
+    pub reference_category: String,
+    pub count: usize,
+    pub confidence: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecoderEvidenceV2 {
+    pub format: String,
+    pub status: String,
+    pub imported: bool,
+    pub read_only: bool,
+    pub class_status_count: usize,
+    pub priority_class_count: usize,
+    pub total_partial_byte_count: usize,
+    pub unresolved_or_packed_case_count: usize,
+    pub owner_array_count: usize,
+    pub reference_semantic_counts: BTreeMap<String, usize>,
+    pub link_evidence_counts: BTreeMap<String, usize>,
+    pub class_statuses: Vec<DecoderEvidenceClassStatus>,
+    pub fixup_backed_fields: Vec<DecoderEvidenceFixupBackedField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HkxModdingTaskGroup {
+    pub key: String,
+    pub label: String,
+    pub readiness_label: String,
+    pub patchable_slot_count: usize,
+    pub context_record_count: usize,
+    pub evidence: Vec<String>,
+    pub risk: String,
+    pub import_safe: bool,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HkxSemanticWriterGate {
+    pub status: String,
+    pub mode: String,
+    pub enabled: bool,
+    pub raw_preserving_no_edit_writer_required: bool,
+    pub semantic_rebuild_supported: bool,
+    pub fixed_size_value_edits_allowed: bool,
+    pub allowed_edits: Vec<String>,
+    pub blocked_edits: Vec<String>,
+    pub requirements: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HkxModdingReadiness {
+    pub format: String,
+    pub status: String,
+    pub imported: bool,
+    pub read_only: bool,
+    pub per_file_label: String,
+    pub readiness_labels: Vec<String>,
+    pub fixed_size_patch_importable: bool,
+    pub havok_xml_importable: bool,
+    pub new_editable_fields_enabled: bool,
+    pub decoded_object_count: usize,
+    pub patchable_slot_count: usize,
+    pub fixup_backed_reference_edge_count: usize,
+    pub owner_array_count: usize,
+    pub unresolved_or_packed_case_count: usize,
+    pub semantic_writer_gate: HkxSemanticWriterGate,
+    pub task_groups: Vec<HkxModdingTaskGroup>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct HkxSummary {
     pub declared_size: Option<u32>,
@@ -453,6 +541,8 @@ pub struct HkxSummary {
     pub native_model_graph: NativeModelGraph,
     pub hard_internal_evidence: HardInternalEvidenceReport,
     pub real_hkclass_metadata: RealHkClassMetadataReport,
+    pub decoder_evidence_v2: DecoderEvidenceV2,
+    pub modding_readiness: HkxModdingReadiness,
     pub physics_tuning_groups: Vec<PhysicsTuningGroup>,
     pub warnings: Vec<String>,
 }
@@ -2753,6 +2843,28 @@ fn decode_layout_fields(payload: &[u8], record: &ItemRecord) -> Vec<LayoutField>
             if base >= payload.len() {
                 break;
             }
+            for offset in (0..material_stride.min(64).saturating_sub(3)).step_by(4) {
+                let absolute_offset = base + offset;
+                if absolute_offset + 4 > payload.len() {
+                    continue;
+                }
+                let Some(value) = le_f32(&payload[absolute_offset..absolute_offset + 4]) else {
+                    continue;
+                };
+                if !value.is_finite() || value.abs() < 1e-8 || value.abs() > 1_000_000.0 {
+                    continue;
+                }
+                fields.push(layout_field(
+                    &format!("{}[{item_index}]", fixed_float_slot_name(type_name, offset)),
+                    absolute_offset,
+                    4,
+                    "float32",
+                    Some(LayoutValue::F32(value)),
+                    &fixed_float_slot_description(type_name, offset),
+                    fixed_float_slot_confidence(type_name, offset),
+                    true,
+                ));
+            }
             let words = (0..material_stride.min(48) / 4)
                 .map(|word_index| {
                     le_u32(&payload[base + word_index * 4..base + word_index * 4 + 4]).unwrap_or(0)
@@ -3961,6 +4073,19 @@ fn fixed_float_slot_name(type_name: &str, offset: usize) -> String {
             0x48 => "solver_or_damping_b".to_string(),
             _ => format!("motion_float_0x{offset:X}"),
         },
+        "hknpMaterial" => match offset {
+            0x00 => "material_friction_or_filter_a".to_string(),
+            0x04 => "material_friction_or_restitution".to_string(),
+            0x08 => "material_restitution_or_surface_response".to_string(),
+            0x0C => "material_filter_or_flags".to_string(),
+            0x10 => "material_user_data_or_property_a".to_string(),
+            0x14 => "material_user_data_or_property_b".to_string(),
+            0x18 => "material_surface_response_a".to_string(),
+            0x1C => "material_surface_response_b".to_string(),
+            0x20 => "material_surface_response_c".to_string(),
+            0x30 => "material_property_scalar".to_string(),
+            _ => format!("material_float_0x{offset:X}"),
+        },
         "hknpPhysicsSystemData::ExtendedBodyCinfo" => {
             if (0x30..=0x4C).contains(&offset) {
                 return vector_component_slot_name("body_transform_or_orientation", 0x30, offset);
@@ -4014,6 +4139,15 @@ fn fixed_float_slot_description(type_name: &str, offset: usize) -> String {
             "Likely shared motion damping, solver, gravity, or velocity threshold value."
                 .to_string()
         }
+        "hknpMaterial" => match offset {
+            0x00 | 0x04 | 0x08 | 0x18 | 0x1C | 0x20 => {
+                "Likely material friction, restitution, or surface response scalar. Read-only until fixed-edit proof confirms the exact member role.".to_string()
+            }
+            0x0C | 0x10 | 0x14 | 0x30 => {
+                "Likely material filter, flag, or property scalar. Read-only until member semantics are confirmed.".to_string()
+            }
+            _ => "Unverified hknpMaterial scalar slot.".to_string(),
+        },
         "hknpPhysicsSystemData::ExtendedBodyCinfo" => {
             if (0x30..=0x4C).contains(&offset) {
                 let components = ["x", "y", "z", "w"];
@@ -4067,6 +4201,10 @@ fn fixed_float_slot_description(type_name: &str, offset: usize) -> String {
 fn fixed_float_slot_confidence(type_name: &str, offset: usize) -> &'static str {
     if type_name == "hknpPositionConstraintMotor" && matches!(offset, 0x20 | 0x24) {
         "strong inference"
+    } else if type_name == "hknpMaterial"
+        && matches!(offset, 0x00 | 0x04 | 0x08 | 0x18 | 0x1C | 0x20)
+    {
+        "experimental"
     } else {
         "experimental"
     }
@@ -4872,6 +5010,673 @@ fn build_hard_internal_evidence(objects: &[ObjectRecord]) -> HardInternalEvidenc
     }
 }
 
+fn decoder_reference_semantic_from_parts(
+    reference_category: &str,
+    match_kind: &str,
+    target_status: &str,
+) -> &'static str {
+    let category = reference_category.to_ascii_lowercase();
+    let kind = match_kind.to_ascii_lowercase();
+    let status = target_status.to_ascii_lowercase();
+    if kind.contains("varuint")
+        || kind.contains("packed")
+        || category.contains("varuint")
+        || category.contains("packed")
+    {
+        return "packed_or_varuint";
+    }
+    if status == "null" || kind == "null" || category == "null_reference" {
+        return "null";
+    }
+    if status == "object" || category == "object_reference" {
+        return "object";
+    }
+    if category == "array_data_reference"
+        || category == "data_reference"
+        || category == "data_reference_candidate"
+    {
+        return "data_candidate";
+    }
+    if category == "string_reference" {
+        return "string_candidate";
+    }
+    if category == "type_reference" || category == "type_class_reference" {
+        return "type_class";
+    }
+    if status == "unresolved"
+        || category == "unresolved_fixup_word"
+        || category == "unresolved"
+        || kind == "unresolved_word"
+    {
+        return "unresolved";
+    }
+    "unresolved"
+}
+
+fn decoder_link_evidence_for_edge(edge: &NativeGraphEdge) -> &'static str {
+    if edge.resolution_source == "ptch" {
+        return "fixup_backed";
+    }
+    if edge.reference_category == "array_data_reference" {
+        return "declared_owner_array";
+    }
+    if edge.resolution_source == "typed_layout" {
+        return "typed_layout";
+    }
+    if edge.resolution_source == "inferred_offset" {
+        return "inferred";
+    }
+    "raw_observation"
+}
+
+fn decoder_missing_requirements_for_type(type_name: &str, status: &str) -> Vec<String> {
+    if type_name.starts_with("hkArray") {
+        return vec![
+            "owner-field array mapping".to_string(),
+            "element template/class metadata".to_string(),
+            "fixup-backed data pointer semantics".to_string(),
+            "rebuild-safe count/capacity rules".to_string(),
+        ];
+    }
+    if type_name.starts_with("hkRefPtr") || type_name.starts_with("hkRelPtr") {
+        return vec![
+            "PTCH/fixup-backed target classification".to_string(),
+            "null/data/string/type reference distinction".to_string(),
+            "target class member metadata".to_string(),
+        ];
+    }
+    let hard_keys = hard_internal_target_keys_for_type(type_name);
+    let mut requirements = Vec::<String>::new();
+    for key in hard_keys {
+        for blocker in hard_internal_target_blockers(key) {
+            push_unique_limited(&mut requirements, &blocker, 12);
+        }
+    }
+    if requirements.is_empty() && type_name.starts_with("hknp") {
+        requirements.push("real hkClass member metadata".to_string());
+        requirements.push("member flags/offsets/defaults".to_string());
+        requirements.push("owner/reference semantics".to_string());
+    }
+    if requirements.is_empty() && (type_name.starts_with("hk") || type_name.starts_with("hka")) {
+        requirements.push("real hkClass member metadata".to_string());
+        requirements.push("template/owner array context".to_string());
+    }
+    if requirements.is_empty() && (status == "raw_preserved" || status == "raw") {
+        requirements.push("typed payload decoder".to_string());
+    }
+    requirements
+}
+
+fn decoder_friendly_status_for_type(type_name: &str, status: &str) -> String {
+    match type_name {
+        "hknpMeshShape" | "hknpMeshShape::GeometrySection" => {
+            "Readable, missing AABB/tree and primitive ownership semantics".to_string()
+        }
+        "hknpMeshShape::GeometrySection::Primitive" => {
+            "Readable, missing primitive bit layout semantics".to_string()
+        }
+        "hknpMeshShape::ShapeTagTableEntry" => {
+            "Readable, missing shape tag range semantics".to_string()
+        }
+        "hknpTriangleShape" => {
+            "Readable, missing triangle material/shape-tag semantics".to_string()
+        }
+        "hknpCompoundShape" | "hknpShapeInstance" => {
+            "Readable, missing compound child transform ownership".to_string()
+        }
+        "hknpMaterial" | "hknpShapeProperties::Entry" => {
+            "Readable, missing material/property table semantics".to_string()
+        }
+        "hknpShapeMassProperties" | "hkCompressedMassProperties" | "hkPackedVector3" => {
+            "Readable, missing compressed mass rules".to_string()
+        }
+        "hkSkeleton"
+        | "hkBone"
+        | "hkQsTransform"
+        | "hkaSkeletonMapper"
+        | "hkaSkeletonMapperData::SimpleMapping"
+        | "hkaAnimationContainer" => {
+            "Readable, missing skeleton/animation owner semantics".to_string()
+        }
+        _ if type_name.starts_with("hkArray") => {
+            "Readable, missing owner array element type".to_string()
+        }
+        _ if type_name.starts_with("hkRefPtr") || type_name.starts_with("hkRelPtr") => {
+            "Readable, missing reference target semantics".to_string()
+        }
+        _ if status == "raw_preserved" || status == "raw" => {
+            "Raw preserved, decoder needed".to_string()
+        }
+        _ if status == "editable" => {
+            "Fixed-size patch slots recovered; official hkClass names still partial".to_string()
+        }
+        _ => "Readable, not fully mapped".to_string(),
+    }
+}
+
+fn build_decoder_evidence_v2(
+    objects: &[ObjectRecord],
+    fixups: &TagfileFixupSummary,
+    fixup_semantics: &FixupSemanticsReport,
+    graph: &NativeModelGraph,
+) -> DecoderEvidenceV2 {
+    let mut reference_semantic_counts = BTreeMap::<String, usize>::new();
+    let mut detailed_reference_observations = 0usize;
+    for section in &fixups.sections {
+        for word in &section.words {
+            if word.reference_category.is_empty() {
+                continue;
+            }
+            detailed_reference_observations += 1;
+            increment_count(
+                &mut reference_semantic_counts,
+                decoder_reference_semantic_from_parts(
+                    &word.reference_category,
+                    &word.match_kind,
+                    "",
+                ),
+            );
+        }
+        for table in &section.ptch_tables {
+            for site in &table.patch_sites {
+                detailed_reference_observations += 1;
+                increment_count(
+                    &mut reference_semantic_counts,
+                    decoder_reference_semantic_from_parts(
+                        &site.reference_category,
+                        "",
+                        &site.target_status,
+                    ),
+                );
+            }
+        }
+    }
+    if detailed_reference_observations == 0 {
+        for (category, count) in &fixups.reference_category_counts {
+            increment_count_by(
+                &mut reference_semantic_counts,
+                decoder_reference_semantic_from_parts(category, "", ""),
+                *count,
+            );
+        }
+    }
+    for case in &fixup_semantics.ptch_remaining_case_priorities {
+        if case.case_name.contains("varuint") || case.case_name.contains("packed") {
+            increment_count_by(
+                &mut reference_semantic_counts,
+                "packed_or_varuint",
+                case.count,
+            );
+        } else if case.case_name.contains("unresolved") {
+            increment_count_by(&mut reference_semantic_counts, "unresolved", case.count);
+        }
+    }
+
+    let mut link_evidence_counts = BTreeMap::<String, usize>::new();
+    let mut class_link_evidence = BTreeMap::<String, Vec<String>>::new();
+    let mut record_type = BTreeMap::<usize, String>::new();
+    for object in objects {
+        record_type.insert(object.record_index, object.type_name.clone());
+    }
+    let mut fixup_field_counts = BTreeMap::<(String, String, String), (usize, String)>::new();
+    for edge in &graph.edges {
+        let evidence = decoder_link_evidence_for_edge(edge);
+        increment_count(&mut link_evidence_counts, evidence);
+        for record_index in [edge.source_record_index, edge.target_record_index]
+            .iter()
+            .flatten()
+        {
+            if let Some(type_name) = record_type.get(record_index) {
+                class_link_evidence.entry(type_name.clone()).or_default();
+                let values = class_link_evidence.get_mut(type_name).unwrap();
+                push_unique_limited(values, evidence, 8);
+            }
+        }
+        if edge.resolution_source == "ptch" {
+            if let Some(source_record_index) = edge.source_record_index {
+                if let Some(class_name) = record_type.get(&source_record_index) {
+                    let field_name = edge
+                        .owner_field_name
+                        .clone()
+                        .unwrap_or_else(|| edge.relation.clone());
+                    let key = (
+                        class_name.clone(),
+                        field_name,
+                        edge.reference_category.clone(),
+                    );
+                    let entry = fixup_field_counts
+                        .entry(key)
+                        .or_insert_with(|| (0, edge.confidence.clone()));
+                    entry.0 += 1;
+                    if entry.1 == "experimental" && edge.confidence != "experimental" {
+                        entry.1 = edge.confidence.clone();
+                    }
+                }
+            }
+        }
+    }
+    if !graph.owner_arrays.is_empty() {
+        increment_count_by(
+            &mut link_evidence_counts,
+            "declared_owner_array",
+            graph.owner_arrays.len(),
+        );
+        for array in &graph.owner_arrays {
+            let values = class_link_evidence
+                .entry(array.owner_type_name.clone())
+                .or_default();
+            push_unique_limited(values, "declared_owner_array", 8);
+        }
+    }
+
+    let mut class_rows = BTreeMap::<String, DecoderEvidenceClassStatus>::new();
+    for object in objects {
+        let row = class_rows
+            .entry(object.type_name.clone())
+            .or_insert_with(|| DecoderEvidenceClassStatus {
+                type_name: object.type_name.clone(),
+                record_count: 0,
+                byte_count: 0,
+                decoded_field_count: 0,
+                reference_count: 0,
+                editable_field_count: 0,
+                status: object.status.clone(),
+                friendly_status: String::new(),
+                missing_requirements: Vec::new(),
+                link_evidence: Vec::new(),
+                corpus_priority_score: 0,
+                read_only: true,
+            });
+        row.record_count += 1;
+        row.byte_count += object.byte_length;
+        row.decoded_field_count += object
+            .fields
+            .iter()
+            .filter(|field| field.confidence != "raw")
+            .count();
+        row.editable_field_count += object.fields.iter().filter(|field| field.editable).count();
+        row.reference_count += object.references.len();
+        if row.status != "raw_preserved" && object.status == "raw_preserved" {
+            row.status = object.status.clone();
+        } else if row.status == "editable" && object.status != "editable" {
+            row.status = object.status.clone();
+        }
+    }
+    let mut class_statuses = class_rows.into_values().collect::<Vec<_>>();
+    let mut total_partial_byte_count = 0usize;
+    for row in &mut class_statuses {
+        row.missing_requirements =
+            decoder_missing_requirements_for_type(&row.type_name, &row.status);
+        row.friendly_status = decoder_friendly_status_for_type(&row.type_name, &row.status);
+        row.link_evidence = class_link_evidence
+            .remove(&row.type_name)
+            .unwrap_or_default();
+        let partial_weight = if matches!(
+            row.status.as_str(),
+            "partially_decoded" | "raw_preserved" | "raw"
+        ) {
+            row.byte_count
+        } else {
+            row.byte_count / 4
+        };
+        total_partial_byte_count += partial_weight;
+        row.corpus_priority_score = partial_weight
+            + row.reference_count.saturating_mul(64)
+            + row.missing_requirements.len().saturating_mul(256)
+            + row.record_count.saturating_mul(128);
+    }
+    class_statuses.sort_by(|left, right| {
+        right
+            .corpus_priority_score
+            .cmp(&left.corpus_priority_score)
+            .then_with(|| left.type_name.cmp(&right.type_name))
+    });
+
+    let mut fixup_backed_fields = fixup_field_counts
+        .into_iter()
+        .map(
+            |((class_name, field_name, reference_category), (count, confidence))| {
+                DecoderEvidenceFixupBackedField {
+                    class_name,
+                    field_name,
+                    reference_category,
+                    count,
+                    confidence,
+                }
+            },
+        )
+        .collect::<Vec<_>>();
+    fixup_backed_fields.sort_by(|left, right| {
+        right
+            .count
+            .cmp(&left.count)
+            .then_with(|| left.class_name.cmp(&right.class_name))
+            .then_with(|| left.field_name.cmp(&right.field_name))
+    });
+
+    let unresolved_or_packed_case_count = reference_semantic_counts
+        .get("unresolved")
+        .copied()
+        .unwrap_or(0)
+        + reference_semantic_counts
+            .get("packed_or_varuint")
+            .copied()
+            .unwrap_or(0);
+    let priority_class_count = class_statuses
+        .iter()
+        .filter(|row| !row.missing_requirements.is_empty())
+        .count();
+    DecoderEvidenceV2 {
+        format: "cd_hkx_decoder_evidence_v2".to_string(),
+        status: if objects.is_empty() {
+            "no_object_records".to_string()
+        } else {
+            "read_only_native_evidence".to_string()
+        },
+        imported: false,
+        read_only: true,
+        class_status_count: class_statuses.len(),
+        priority_class_count,
+        total_partial_byte_count,
+        unresolved_or_packed_case_count,
+        owner_array_count: graph.owner_array_count,
+        reference_semantic_counts,
+        link_evidence_counts,
+        class_statuses,
+        fixup_backed_fields,
+    }
+}
+
+fn object_type_contains(objects: &[ObjectRecord], needles: &[&str]) -> usize {
+    objects
+        .iter()
+        .filter(|object| {
+            needles
+                .iter()
+                .any(|needle| object.type_name.contains(needle))
+        })
+        .count()
+}
+
+fn editable_field_count_for_types(objects: &[ObjectRecord], needles: &[&str]) -> usize {
+    objects
+        .iter()
+        .filter(|object| {
+            needles
+                .iter()
+                .any(|needle| object.type_name.contains(needle))
+        })
+        .map(|object| object.fields.iter().filter(|field| field.editable).count())
+        .sum()
+}
+
+fn tuning_slot_count_for_categories(groups: &[PhysicsTuningGroup], categories: &[&str]) -> usize {
+    groups
+        .iter()
+        .filter(|group| {
+            categories
+                .iter()
+                .any(|category| group.category == *category)
+        })
+        .map(|group| group.slots.len())
+        .sum()
+}
+
+fn tuning_group_count_for_categories(groups: &[PhysicsTuningGroup], categories: &[&str]) -> usize {
+    groups
+        .iter()
+        .filter(|group| {
+            categories
+                .iter()
+                .any(|category| group.category == *category)
+        })
+        .count()
+}
+
+fn modding_task_group(
+    key: &str,
+    label: &str,
+    patchable_slot_count: usize,
+    context_record_count: usize,
+    evidence: Vec<String>,
+    risk: &str,
+    description: &str,
+) -> HkxModdingTaskGroup {
+    let readiness_label = if patchable_slot_count > 0 {
+        "Patchable tuning"
+    } else if context_record_count > 0 {
+        "Read-only decoded"
+    } else {
+        "No recovered rows"
+    };
+    HkxModdingTaskGroup {
+        key: key.to_string(),
+        label: label.to_string(),
+        readiness_label: readiness_label.to_string(),
+        patchable_slot_count,
+        context_record_count,
+        evidence,
+        risk: risk.to_string(),
+        import_safe: patchable_slot_count > 0,
+        description: description.to_string(),
+    }
+}
+
+fn build_hkx_modding_readiness(
+    objects: &[ObjectRecord],
+    graph: &NativeModelGraph,
+    hard_internal_evidence: &HardInternalEvidenceReport,
+    real_hkclass_metadata: &RealHkClassMetadataReport,
+    decoder_evidence: &DecoderEvidenceV2,
+    physics_tuning_groups: &[PhysicsTuningGroup],
+) -> HkxModdingReadiness {
+    let decoded_object_count = objects
+        .iter()
+        .filter(|object| object.status != "raw_preserved" && object.status != "raw")
+        .count();
+    let native_editable_field_count: usize = objects
+        .iter()
+        .map(|object| object.fields.iter().filter(|field| field.editable).count())
+        .sum();
+    let tuning_slot_count: usize = physics_tuning_groups
+        .iter()
+        .map(|group| group.slots.len())
+        .sum();
+    let patchable_slot_count = native_editable_field_count + tuning_slot_count;
+
+    let mut readiness_labels = Vec::<String>::new();
+    if patchable_slot_count > 0 {
+        readiness_labels.push("Patchable tuning".to_string());
+    }
+    if decoded_object_count > 0 || !decoder_evidence.class_statuses.is_empty() {
+        readiness_labels.push("Read-only decoded".to_string());
+    }
+    if decoder_evidence.priority_class_count > 0
+        || hard_internal_evidence.unresolved_target_count > 0
+        || !real_hkclass_metadata.unresolved_requirements.is_empty()
+        || graph.edge_count > graph.fixup_backed_reference_edge_count
+    {
+        readiness_labels.push("Needs semantic rebuild".to_string());
+    }
+    if objects.is_empty() && physics_tuning_groups.is_empty() {
+        readiness_labels.push("Unsupported structure".to_string());
+    }
+    if readiness_labels.is_empty() {
+        readiness_labels.push("Read-only decoded".to_string());
+    }
+
+    let per_file_label = if patchable_slot_count > 0 {
+        "Patchable tuning"
+    } else if decoded_object_count > 0 {
+        "Read-only decoded"
+    } else if objects.is_empty() {
+        "Unsupported structure"
+    } else {
+        "Needs semantic rebuild"
+    }
+    .to_string();
+    let status = if patchable_slot_count > 0 {
+        "fixed_size_patchable"
+    } else if decoded_object_count > 0 {
+        "read_only_decoded"
+    } else {
+        "unsupported_structure"
+    };
+
+    let task_groups = vec![
+        modding_task_group(
+            "collision_size",
+            "Collision size",
+            editable_field_count_for_types(
+                objects,
+                &[
+                    "hknpConvexShape",
+                    "hknpBoxShape",
+                    "hknpSphereShape",
+                    "hknpCapsuleShape",
+                    "hknpTriangleShape",
+                ],
+            ),
+            object_type_contains(
+                objects,
+                &[
+                    "hknpConvexShape",
+                    "hknpBoxShape",
+                    "hknpSphereShape",
+                    "hknpCapsuleShape",
+                    "hknpTriangleShape",
+                    "hknpMeshShape",
+                    "hknpCompoundShape",
+                    "hknpShapeInstance",
+                ],
+            ),
+            vec!["typed_layout".to_string(), "raw_observation".to_string()],
+            "Low when patchable",
+            "Collision shape radius, extents, endpoints, and decoded geometry context.",
+        ),
+        modding_task_group(
+            "body_transform",
+            "Body transform",
+            tuning_slot_count_for_categories(physics_tuning_groups, &["body_transform_mass"])
+                + editable_field_count_for_types(objects, &["ExtendedBodyCinfo"]),
+            tuning_group_count_for_categories(physics_tuning_groups, &["body_transform_mass"])
+                + object_type_contains(objects, &["ExtendedBodyCinfo"]),
+            vec!["typed_layout".to_string(), "native_tuning_slots".to_string()],
+            "High",
+            "Body frames, transform-like rows, mass/inertia-like rows, and solver body setup.",
+        ),
+        modding_task_group(
+            "damping_motion",
+            "Damping / motion",
+            tuning_slot_count_for_categories(physics_tuning_groups, &["motion_damping_solver"]),
+            tuning_group_count_for_categories(physics_tuning_groups, &["motion_damping_solver"])
+                + object_type_contains(objects, &["hknpSharedMotionProperties"]),
+            vec!["native_tuning_slots".to_string(), "typed_layout".to_string()],
+            "Medium",
+            "Shared motion-property rows that can affect damping, response, and motion thresholds.",
+        ),
+        modding_task_group(
+            "joint_limits_strength",
+            "Joint limits / strength",
+            tuning_slot_count_for_categories(
+                physics_tuning_groups,
+                &["joint_limits_strength", "motor_force_response"],
+            ),
+            tuning_group_count_for_categories(
+                physics_tuning_groups,
+                &["joint_limits_strength", "motor_force_response"],
+            ) + object_type_contains(
+                objects,
+                &[
+                    "hknpConstraint",
+                    "hknpRagdollConstraintData",
+                    "hknpLimitedHingeConstraintData",
+                    "hknpPositionConstraintMotor",
+                ],
+            ),
+            vec![
+                "native_tuning_slots".to_string(),
+                "fixup_backed".to_string(),
+                "owner_array".to_string(),
+            ],
+            "Medium to High",
+            "Constraint frames, limits, motor force/response rows, strength, and damping-like values.",
+        ),
+        modding_task_group(
+            "materials",
+            "Materials",
+            editable_field_count_for_types(objects, &["hknpMaterial", "hknpShapeProperties::Entry"]),
+            object_type_contains(
+                objects,
+                &["hknpMaterial", "hknpShapeProperties::Entry", "hkFreeListArrayElement"],
+            ),
+            vec!["typed_layout".to_string(), "declared_owner_array".to_string()],
+            "Context only",
+            "Physics material and shape-property tables. Currently useful for browsing/linking, not broad editing.",
+        ),
+        modding_task_group(
+            "skeleton_animation",
+            "Skeleton / animation",
+            editable_field_count_for_types(objects, &["hkSkeleton", "hkaAnimationContainer"]),
+            object_type_contains(
+                objects,
+                &[
+                    "hkSkeleton",
+                    "hkBone",
+                    "hkQsTransform",
+                    "hkaAnimationContainer",
+                    "hkaSkeletonMapper",
+                ],
+            ),
+            vec!["typed_layout".to_string(), "raw_observation".to_string()],
+            "Read-only",
+            "Skeleton bones, transforms, animation containers, and mapper rows for browsing and relationship evidence.",
+        ),
+    ];
+
+    HkxModdingReadiness {
+        format: "cd_hkx_modding_readiness_v1".to_string(),
+        status: status.to_string(),
+        imported: false,
+        read_only: true,
+        per_file_label,
+        readiness_labels,
+        fixed_size_patch_importable: patchable_slot_count > 0,
+        havok_xml_importable: false,
+        new_editable_fields_enabled: false,
+        decoded_object_count,
+        patchable_slot_count,
+        fixup_backed_reference_edge_count: graph.fixup_backed_reference_edge_count,
+        owner_array_count: graph.owner_array_count,
+        unresolved_or_packed_case_count: decoder_evidence.unresolved_or_packed_case_count,
+        semantic_writer_gate: HkxSemanticWriterGate {
+            status: "disabled_pending_semantic_rebuild".to_string(),
+            mode: "fixed_size_patch_only".to_string(),
+            enabled: false,
+            raw_preserving_no_edit_writer_required: true,
+            semantic_rebuild_supported: false,
+            fixed_size_value_edits_allowed: true,
+            allowed_edits: vec!["existing fixed-size CDMW patch rows".to_string()],
+            blocked_edits: vec![
+                "Havok XML import".to_string(),
+                "array count edits".to_string(),
+                "reference edits".to_string(),
+                "string edits".to_string(),
+                "mesh topology edits".to_string(),
+                "semantic object graph rebuild".to_string(),
+            ],
+            requirements: vec![
+                "byte-identical no-edit rebuild across representative corpus".to_string(),
+                "fixup-backed object/data/string/type reference semantics".to_string(),
+                "owner-array element typing".to_string(),
+                "root/container/named-variant semantics".to_string(),
+                "fixed-edit byte identity tests".to_string(),
+            ],
+        },
+        task_groups,
+    }
+}
+
 fn resolve_record_ref_value(raw: u64, records: &[ItemRecord]) -> Option<usize> {
     if raw == 0 {
         return None;
@@ -5378,7 +6183,21 @@ pub fn parse_summary(data: &[u8]) -> HkxSummary {
     );
     let hard_internal_evidence = build_hard_internal_evidence(&object_records);
     let real_hkclass_metadata = decode_real_hkclass_metadata(data, &item_records);
+    let decoder_evidence_v2 = build_decoder_evidence_v2(
+        &object_records,
+        &tagfile_reference_fixups,
+        &fixup_semantics_report,
+        &native_model_graph,
+    );
     let physics_tuning_groups = parse_physics_tuning_groups(data, &tag_items, &item_records);
+    let modding_readiness = build_hkx_modding_readiness(
+        &object_records,
+        &native_model_graph,
+        &hard_internal_evidence,
+        &real_hkclass_metadata,
+        &decoder_evidence_v2,
+        &physics_tuning_groups,
+    );
     HkxSummary {
         declared_size,
         size_matches: declared_size
@@ -5398,6 +6217,8 @@ pub fn parse_summary(data: &[u8]) -> HkxSummary {
         native_model_graph,
         hard_internal_evidence,
         real_hkclass_metadata,
+        decoder_evidence_v2,
+        modding_readiness,
         physics_tuning_groups,
         warnings,
     }
@@ -6180,6 +7001,1429 @@ fn push_real_hkclass_metadata_json(out: &mut String, report: &RealHkClassMetadat
     out.push_str("]}");
 }
 
+fn hkclass_member_array_status(member: &RealHkClassMemberMetadata) -> &'static str {
+    if member.type_name.contains("Array")
+        || member
+            .template_ref
+            .as_deref()
+            .unwrap_or("")
+            .contains("Array")
+    {
+        "array"
+    } else if member.c_array_size > 0 {
+        "fixed_c_array"
+    } else {
+        "not_array"
+    }
+}
+
+fn hkclass_member_reference_status(member: &RealHkClassMemberMetadata) -> &'static str {
+    if member.class_ref_record_index.is_some()
+        || member.class_ref_name.is_some()
+        || member.type_name.contains("Ref")
+        || member.type_name.contains("Pointer")
+        || member.template_ref.as_deref().unwrap_or("").contains("Ref")
+    {
+        "reference"
+    } else {
+        "not_reference"
+    }
+}
+
+fn push_real_hkclass_metadata_v2_json(out: &mut String, report: &RealHkClassMetadataReport) {
+    let status = if report.class_count > 0 {
+        "real_metadata_available_read_only"
+    } else {
+        "real_metadata_not_recovered"
+    };
+    let _ = write!(
+        out,
+        "{{\"format\":\"cd_hkx_real_hkclass_metadata_v2\",\"status\":\"{}\",\"source_format\":\"{}\",\"imported\":{},\"read_only\":true,\"class_count\":{},\"member_count\":{},\"enum_count\":{},\"synthetic_fallback_required\":{}",
+        status,
+        json_escape(&report.format),
+        json_bool(report.imported),
+        report.class_count,
+        report.member_count,
+        report.enum_count,
+        json_bool(report.class_count == 0)
+    );
+    out.push_str(",\"recovered_requirements\":");
+    out.push('{');
+    for (index, (key, value)) in report.recovered_requirements.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        let _ = write!(out, "\"{}\":{}", json_escape(key), json_bool(*value));
+    }
+    out.push_str("},\"unresolved_requirements\":");
+    push_json_string_array(out, &report.unresolved_requirements);
+    out.push_str(",\"classes\":[");
+    for (class_index, class_info) in report.classes.iter().enumerate() {
+        if class_index > 0 {
+            out.push(',');
+        }
+        let metadata_source =
+            if class_info.members.is_empty() && class_info.declared_member_count > 0 {
+                "real_class_header_members_unresolved"
+            } else {
+                "real_hkclass_metadata"
+            };
+        let template_parameter_count = class_info
+            .members
+            .iter()
+            .filter(|member| member.template_ref.is_some())
+            .count();
+        let _ = write!(
+            out,
+            "{{\"class_name\":\"{}\",\"name\":\"{}\",\"record_index\":{},\"parent_record_index\":{},\"parent_name\":{},\"base_class\":{},\"object_size\":{},\"version\":{},\"flags\":{},\"flags_hex\":{},\"signature\":{},\"signature_hex\":{},\"defaults_record_index\":{},\"attributes_record_index\":{},\"declared_enum_count\":{},\"declared_member_count\":{},\"member_count\":{},\"enum_count\":{},\"template_parameter_count\":{},\"metadata_source\":\"{}\",\"confidence\":\"{}\"",
+            json_escape(&class_info.name),
+            json_escape(&class_info.name),
+            class_info.record_index,
+            json_optional_usize(class_info.parent_record_index),
+            json_optional_string(class_info.parent_name.as_deref()),
+            json_optional_string(class_info.parent_name.as_deref()),
+            json_optional_u32(class_info.object_size),
+            json_optional_u32(class_info.version),
+            json_optional_u32(class_info.flags),
+            class_info
+                .flags
+                .map(|value| format!("\"0x{value:X}\""))
+                .unwrap_or_else(|| "null".to_string()),
+            json_optional_u32(class_info.signature),
+            class_info
+                .signature
+                .map(|value| format!("\"0x{value:08X}\""))
+                .unwrap_or_else(|| "null".to_string()),
+            json_optional_usize(class_info.defaults_record_index),
+            json_optional_usize(class_info.attributes_record_index),
+            class_info.declared_enum_count,
+            class_info.declared_member_count,
+            class_info.members.len(),
+            class_info.enums.len(),
+            template_parameter_count,
+            metadata_source,
+            json_escape(&class_info.confidence)
+        );
+        out.push_str(",\"unresolved_requirements\":");
+        push_json_string_array(out, &class_info.unresolved_requirements);
+        out.push_str(",\"members\":[");
+        for (member_index, member) in class_info.members.iter().enumerate() {
+            if member_index > 0 {
+                out.push(',');
+            }
+            let _ = write!(
+                out,
+                "{{\"name\":\"{}\",\"member_name\":\"{}\",\"record_index\":{},\"item_index\":{},\"offset\":{},\"offset_hex\":\"0x{:X}\",\"byte_size\":{},\"havok_member_type_code\":{},\"member_type_code\":{},\"member_type_name\":\"{}\",\"subtype_code\":{},\"subtype_name\":\"{}\",\"subtype_template_target\":{},\"flags\":{},\"flags_hex\":\"0x{:X}\",\"c_array_size\":{},\"array_status\":\"{}\",\"reference_status\":\"{}\",\"class_ref_record_index\":{},\"class_ref_name\":{},\"enum_ref_record_index\":{},\"enum_ref_name\":{},\"attributes_ref_record_index\":{},\"template_ref\":{},\"confidence\":\"{}\",\"editable\":false,\"edit_policy\":\"read_only_metadata\"}}",
+                json_escape(&member.name),
+                json_escape(&member.name),
+                member.record_index,
+                member.item_index,
+                member.offset,
+                member.offset,
+                member.c_array_size,
+                member.type_code,
+                member.type_code,
+                json_escape(&member.type_name),
+                member.subtype_code,
+                json_escape(&member.subtype_name),
+                json_optional_string(member.template_ref.as_deref()),
+                member.flags,
+                member.flags,
+                member.c_array_size,
+                hkclass_member_array_status(member),
+                hkclass_member_reference_status(member),
+                json_optional_usize(member.class_ref_record_index),
+                json_optional_string(member.class_ref_name.as_deref()),
+                json_optional_usize(member.enum_ref_record_index),
+                json_optional_string(member.enum_ref_name.as_deref()),
+                json_optional_usize(member.attributes_ref_record_index),
+                json_optional_string(member.template_ref.as_deref()),
+                json_escape(&member.confidence)
+            );
+        }
+        out.push_str("],\"enums\":[");
+        for (enum_index, enum_info) in class_info.enums.iter().enumerate() {
+            if enum_index > 0 {
+                out.push(',');
+            }
+            let _ = write!(
+                out,
+                "{{\"name\":\"{}\",\"record_index\":{},\"item_count\":{},\"items_record_index\":{},\"flags\":{},\"flags_hex\":{},\"confidence\":\"{}\"}}",
+                json_escape(&enum_info.name),
+                enum_info.record_index,
+                enum_info.item_count,
+                json_optional_usize(enum_info.items_record_index),
+                json_optional_u32(enum_info.flags),
+                enum_info
+                    .flags
+                    .map(|value| format!("\"0x{value:X}\""))
+                    .unwrap_or_else(|| "null".to_string()),
+                json_escape(&enum_info.confidence)
+            );
+        }
+        out.push_str("]}");
+    }
+    out.push_str("],\"fallback_policy\":{\"synthetic_types_label\":\"recovered/synthetic\",\"havok_xml_importable\":false}}");
+}
+
+fn normalize_fixup_semantic_bucket(
+    reference_category: &str,
+    target_status: &str,
+    match_kind: &str,
+) -> &'static str {
+    let category = reference_category.to_ascii_lowercase();
+    let status = target_status.to_ascii_lowercase();
+    let kind = match_kind.to_ascii_lowercase();
+    if status.contains("null") || category.contains("null") {
+        return "null_ref";
+    }
+    if category.contains("string") || kind.contains("string") {
+        return "string_ref";
+    }
+    if category.contains("type")
+        || category.contains("class")
+        || kind.contains("type")
+        || kind.contains("class")
+    {
+        return "type_class_ref";
+    }
+    if category.contains("section") || kind.contains("section") {
+        return "section_local_ref";
+    }
+    if category.contains("data") || kind.contains("data") {
+        return "data_ref";
+    }
+    if category.contains("packed")
+        || category.contains("varuint")
+        || kind.contains("packed")
+        || kind.contains("varuint")
+    {
+        return "packed_or_varuint";
+    }
+    if status.contains("resolved") || category.contains("object") || kind.contains("object") {
+        return "object_ref";
+    }
+    "unresolved"
+}
+
+fn push_fixup_semantics_v2_json(
+    out: &mut String,
+    fixups: &TagfileFixupSummary,
+    report: &FixupSemanticsReport,
+) {
+    let mut bucket_counts: BTreeMap<String, usize> = BTreeMap::new();
+    let mut tuple_shape_counts: BTreeMap<String, usize> = BTreeMap::new();
+    let mut patch_site_total = 0usize;
+    let mut patch_site_resolved = 0usize;
+    let mut patch_site_unresolved = 0usize;
+    for section in &fixups.sections {
+        for table in &section.ptch_tables {
+            let tuple_shape = format!(
+                "{},{},{},{}",
+                table.header[0], table.header[1], table.header[2], table.header[3]
+            );
+            *tuple_shape_counts.entry(tuple_shape).or_insert(0) += table.patch_sites.len();
+            for site in &table.patch_sites {
+                patch_site_total += 1;
+                if site.target_record_index.is_some() || site.target_status == "null" {
+                    patch_site_resolved += 1;
+                } else {
+                    patch_site_unresolved += 1;
+                }
+                let bucket = normalize_fixup_semantic_bucket(
+                    &site.reference_category,
+                    &site.target_status,
+                    "",
+                );
+                *bucket_counts.entry(bucket.to_string()).or_insert(0) += 1;
+            }
+        }
+        for word in &section.resolved_references {
+            let bucket = normalize_fixup_semantic_bucket(
+                &word.reference_category,
+                if word.target_record_index.is_some() {
+                    "resolved"
+                } else {
+                    "unresolved"
+                },
+                &word.match_kind,
+            );
+            *bucket_counts.entry(bucket.to_string()).or_insert(0) += 1;
+        }
+    }
+    for bucket in [
+        "object_ref",
+        "null_ref",
+        "data_ref",
+        "string_ref",
+        "type_class_ref",
+        "section_local_ref",
+        "packed_or_varuint",
+        "unresolved",
+    ] {
+        bucket_counts.entry(bucket.to_string()).or_insert(0);
+    }
+    let status = if patch_site_total > 0 {
+        "ptch_patch_sites_normalized_read_only"
+    } else if !report.ptch_reference_category_counts.is_empty() {
+        "fixup_observations_normalized_read_only"
+    } else {
+        "no_fixup_semantics_recovered"
+    };
+    let _ = write!(
+        out,
+        "{{\"format\":\"cd_hkx_fixup_semantics_v2\",\"status\":\"{}\",\"source_format\":\"{}\",\"imported\":{},\"read_only\":true,\"patch_site_count\":{},\"resolved_patch_site_count\":{},\"unresolved_patch_site_count\":{}",
+        status,
+        json_escape(&report.format),
+        json_bool(report.imported),
+        patch_site_total,
+        patch_site_resolved,
+        patch_site_unresolved
+    );
+    out.push_str(",\"semantic_bucket_taxonomy\":[");
+    for (index, (bucket, meaning, edit_policy)) in [
+        (
+            "object_ref",
+            "Fixup points to another ITEM/object record.",
+            "read_only_reference; edit blocked until semantic writer proof",
+        ),
+        (
+            "null_ref",
+            "Fixup represents a null reference slot.",
+            "read_only_reference; null ref edits blocked",
+        ),
+        (
+            "data_ref",
+            "Fixup likely points to data/array storage rather than an object.",
+            "corpus_proof_required",
+        ),
+        (
+            "string_ref",
+            "Fixup likely points to string storage/table data.",
+            "corpus_proof_required",
+        ),
+        (
+            "type_class_ref",
+            "Fixup likely points to class/type metadata.",
+            "corpus_proof_required",
+        ),
+        (
+            "section_local_ref",
+            "Fixup appears to use section-local indexing/addressing.",
+            "corpus_proof_required",
+        ),
+        (
+            "packed_or_varuint",
+            "Fixup appears to use packed or variable-width index encoding.",
+            "corpus_proof_required",
+        ),
+        (
+            "unresolved",
+            "Fixup could not be assigned a target or semantic bucket.",
+            "decoder_work_required",
+        ),
+    ]
+    .iter()
+    .enumerate()
+    {
+        if index > 0 {
+            out.push(',');
+        }
+        let _ = write!(
+            out,
+            "{{\"bucket\":\"{}\",\"meaning\":\"{}\",\"edit_policy\":\"{}\"}}",
+            bucket,
+            json_escape(meaning),
+            edit_policy
+        );
+    }
+    out.push(']');
+    out.push_str(",\"semantic_bucket_counts\":");
+    push_json_count_map(out, &bucket_counts);
+    out.push_str(",\"tuple_shape_counts\":");
+    push_json_count_map(out, &tuple_shape_counts);
+    out.push_str(",\"source_tuple_shape_counts\":");
+    push_json_count_map(out, &report.ptch_tuple_shape_counts);
+    out.push_str(",\"source_payload_match_kind_counts\":");
+    push_json_count_map(out, &report.ptch_payload_match_kind_counts);
+    out.push_str(",\"source_reference_category_counts\":");
+    push_json_count_map(out, &report.ptch_reference_category_counts);
+    out.push_str(",\"patch_sites\":[");
+    let mut emitted = 0usize;
+    for section in &fixups.sections {
+        for table in &section.ptch_tables {
+            let tuple_shape = format!(
+                "{},{},{},{}",
+                table.header[0], table.header[1], table.header[2], table.header[3]
+            );
+            for site in &table.patch_sites {
+                if emitted > 0 {
+                    out.push(',');
+                }
+                emitted += 1;
+                let bucket = normalize_fixup_semantic_bucket(
+                    &site.reference_category,
+                    &site.target_status,
+                    "",
+                );
+                let _ = write!(
+                    out,
+                    "{{\"index\":{},\"section\":\"{}\",\"ptch_section_offset\":{},\"ptch_section_hex_offset\":\"0x{:X}\",\"tuple_shape\":\"{}\",\"owner_record_index\":{},\"owner_type_index\":{},\"owner_type_name\":{},\"owner_local_offset\":{},\"patched_slot_value\":{},\"patch_value\":{},\"target_record_index\":{},\"target_type_index\":{},\"target_type_name\":{},\"target_status\":\"{}\",\"semantic_bucket\":\"{}\",\"reference_category\":\"{}\",\"confidence\":\"{}\"}}",
+                    site.index,
+                    json_escape(&section.name),
+                    table.offset,
+                    table.offset,
+                    tuple_shape,
+                    json_optional_usize(site.owner_record_index),
+                    json_optional_u32(site.owner_type_index),
+                    json_optional_string(site.owner_type_name.as_deref()),
+                    json_optional_usize(site.owner_local_offset),
+                    site.patch_value
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "null".to_string()),
+                    site.patch_value
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "null".to_string()),
+                    json_optional_usize(site.target_record_index),
+                    json_optional_u32(site.target_type_index),
+                    json_optional_string(site.target_type_name.as_deref()),
+                    json_escape(&site.target_status),
+                    bucket,
+                    json_escape(&site.reference_category),
+                    json_escape(&site.confidence)
+                );
+            }
+        }
+    }
+    out.push_str("],\"remaining_cases\":[");
+    for (index, case_row) in report.ptch_remaining_case_priorities.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        let bucket = normalize_fixup_semantic_bucket("", "unresolved", &case_row.case_name);
+        let _ = write!(
+            out,
+            "{{\"priority_rank\":{},\"case\":\"{}\",\"semantic_bucket\":\"{}\",\"count\":{},\"description\":\"{}\"}}",
+            case_row.priority_rank,
+            json_escape(&case_row.case_name),
+            bucket,
+            case_row.count,
+            json_escape(&case_row.description)
+        );
+    }
+    out.push_str("],\"corpus_evidence_counters\":{");
+    let mut emitted_counter = 0usize;
+    for (name, value) in [
+        ("patch_site_count", patch_site_total),
+        ("resolved_patch_site_count", patch_site_resolved),
+        ("unresolved_patch_site_count", patch_site_unresolved),
+        (
+            "unusual_tuple_shape_count",
+            tuple_shape_counts
+                .iter()
+                .filter(|(shape, _)| shape.as_str() != "1,1,0,2")
+                .count(),
+        ),
+        (
+            "remaining_case_count",
+            report.ptch_remaining_case_priorities.len(),
+        ),
+        (
+            "data_ref_count",
+            *bucket_counts.get("data_ref").unwrap_or(&0usize),
+        ),
+        (
+            "string_ref_count",
+            *bucket_counts.get("string_ref").unwrap_or(&0usize),
+        ),
+        (
+            "type_class_ref_count",
+            *bucket_counts.get("type_class_ref").unwrap_or(&0usize),
+        ),
+        (
+            "section_local_ref_count",
+            *bucket_counts.get("section_local_ref").unwrap_or(&0usize),
+        ),
+        (
+            "packed_or_varuint_count",
+            *bucket_counts.get("packed_or_varuint").unwrap_or(&0usize),
+        ),
+    ] {
+        if emitted_counter > 0 {
+            out.push(',');
+        }
+        emitted_counter += 1;
+        let _ = write!(out, "\"{}\":{}", name, value);
+    }
+    out.push_str("},\"corpus_proof_targets\":[\"data_ref\",\"string_ref\",\"type_class_ref\",\"section_local_ref\",\"packed_or_varuint\",\"unresolved\"]}");
+}
+
+fn semantic_field_kind(field: &LayoutField) -> &'static str {
+    let name = field.name.to_ascii_lowercase();
+    let data_type = field.data_type.to_ascii_lowercase();
+    if name.contains("string") || data_type.contains("string") {
+        "string"
+    } else if name.contains("ref") || data_type.contains("ref") {
+        "ref"
+    } else if name.contains("array")
+        || data_type.contains("array")
+        || field.description.contains("row")
+    {
+        "array"
+    } else if data_type.contains("float3")
+        || data_type.contains("float4")
+        || data_type.contains("vector")
+    {
+        "vector"
+    } else if data_type.contains("enum") {
+        "enum"
+    } else if data_type.contains("struct") {
+        "struct"
+    } else if data_type.contains("raw") || field.value.is_none() {
+        "raw_span"
+    } else {
+        "scalar"
+    }
+}
+
+fn push_semantic_model_v1_json(
+    out: &mut String,
+    objects: &[ObjectRecord],
+    graph: &NativeModelGraph,
+    metadata: &RealHkClassMetadataReport,
+) {
+    let mut real_class_names = BTreeMap::new();
+    for class_info in &metadata.classes {
+        real_class_names.insert(class_info.name.clone(), true);
+    }
+    let field_count: usize = objects.iter().map(|object| object.fields.len()).sum();
+    let raw_fallback_count = objects
+        .iter()
+        .filter(|object| object.fields.is_empty() || object.status == "raw_preserved")
+        .count();
+    let status = if objects.is_empty() {
+        "no_semantic_objects_recovered"
+    } else {
+        "read_only_semantic_model_from_native_records"
+    };
+    let _ = write!(
+        out,
+        "{{\"format\":\"cd_hkx_semantic_model_v1\",\"status\":\"{}\",\"imported\":false,\"read_only\":true,\"object_count\":{},\"field_count\":{},\"raw_fallback_count\":{},\"graph_order_count\":{},\"root_record_index\":{},\"root_type_name\":{}",
+        status,
+        objects.len(),
+        field_count,
+        raw_fallback_count,
+        graph.graph_order.len(),
+        json_optional_usize(graph.root.record_index),
+        json_optional_string(graph.root.type_name.as_deref())
+    );
+    out.push_str(",\"source_priority\":[\"real_hkclass_metadata_v2\",\"typed_layout_decoder\",\"raw_preserved_payload\"]");
+    out.push_str(",\"field_kind_taxonomy\":[\"scalar\",\"vector\",\"array\",\"ref\",\"string\",\"enum\",\"struct\",\"raw_span\"]");
+    out.push_str(",\"graph_order\":[");
+    for (index, record_index) in graph.graph_order.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        let _ = write!(out, "{record_index}");
+    }
+    out.push_str("],\"objects\":[");
+    for (object_index, object) in objects.iter().take(512).enumerate() {
+        if object_index > 0 {
+            out.push(',');
+        }
+        let class_metadata_source = if real_class_names.contains_key(&object.type_name) {
+            "real_hkclass_metadata_v2"
+        } else if !object.fields.is_empty() {
+            "typed_layout_decoder"
+        } else {
+            "raw_preserved_payload"
+        };
+        let raw_span_count = object
+            .fields
+            .iter()
+            .filter(|field| semantic_field_kind(field) == "raw_span")
+            .count();
+        let byte_range_end = object
+            .absolute_data_offset
+            .map(|offset| offset.saturating_add(object.byte_length));
+        let _ = write!(
+            out,
+            "{{\"record_index\":{},\"type_index\":{},\"type_name\":\"{}\",\"count\":{},\"data_offset\":{},\"absolute_data_offset\":{},\"byte_length\":{},\"byte_range_start\":{},\"byte_range_end\":{},\"status\":\"{}\",\"class_metadata_source\":\"{}\",\"semantic_source\":\"{}\",\"field_count\":{},\"reference_count\":{},\"raw_span_count\":{}",
+            object.record_index,
+            object.type_index,
+            json_escape(&object.type_name),
+            object.count,
+            object.data_offset,
+            json_optional_usize(object.absolute_data_offset),
+            object.byte_length,
+            json_optional_usize(object.absolute_data_offset),
+            json_optional_usize(byte_range_end),
+            json_escape(&object.status),
+            class_metadata_source,
+            class_metadata_source,
+            object.fields.len(),
+            object.references.len(),
+            raw_span_count
+        );
+        out.push_str(",\"fields\":[");
+        for (field_index, field) in object.fields.iter().enumerate() {
+            if field_index > 0 {
+                out.push(',');
+            }
+            let _ = write!(
+                out,
+                "{{\"name\":\"{}\",\"kind\":\"{}\",\"offset\":{},\"offset_hex\":\"0x{:X}\",\"size\":{},\"byte_range_start\":{},\"byte_range_end\":{},\"data_type\":\"{}\",\"value\":{},\"confidence\":\"{}\",\"editable_candidate\":{},\"write_enabled\":false,\"write_gate_status\":\"{}\",\"description\":\"{}\"}}",
+                json_escape(&field.name),
+                semantic_field_kind(field),
+                field.offset,
+                field.offset,
+                field.size,
+                json_optional_usize(object.absolute_data_offset.map(|base| base + field.offset)),
+                json_optional_usize(
+                    object
+                        .absolute_data_offset
+                        .map(|base| base + field.offset + field.size)
+                ),
+                json_escape(&field.data_type),
+                json_layout_value(&field.value),
+                json_escape(&field.confidence),
+                json_bool(field.editable),
+                if field.editable {
+                    "candidate_only_until_edit_gate"
+                } else {
+                    "read_only"
+                },
+                json_escape(&field.description)
+            );
+        }
+        out.push_str("],\"refs\":[");
+        let mut emitted_ref = 0usize;
+        for edge in graph
+            .edges
+            .iter()
+            .filter(|edge| edge.source_record_index == Some(object.record_index))
+        {
+            if emitted_ref > 0 {
+                out.push(',');
+            }
+            emitted_ref += 1;
+            let _ = write!(
+                out,
+                "{{\"target_record_index\":{},\"owner_field_name\":{},\"owner_local_offset\":{},\"reference_category\":\"{}\",\"resolution_source\":\"{}\",\"confidence\":\"{}\"}}",
+                json_optional_usize(edge.target_record_index),
+                json_optional_string(edge.owner_field_name.as_deref()),
+                json_optional_usize(edge.owner_local_offset),
+                json_escape(&edge.reference_category),
+                json_escape(&edge.resolution_source),
+                json_escape(&edge.confidence)
+            );
+        }
+        out.push_str("]}");
+    }
+    let _ = write!(
+        out,
+        "],\"truncated_object_count\":{},\"edit_policy\":{{\"havok_xml_importable\":false,\"semantic_writer_required\":true,\"blocked_field_kinds\":[\"array\",\"ref\",\"string\",\"topology\",\"class_metadata\"]}}}}",
+        objects.len().saturating_sub(512)
+    );
+}
+
+fn representative_hkx_roles() -> [&'static str; 6] {
+    [
+        "object",
+        "meshphysics",
+        "character_physics",
+        "ragdoll_body",
+        "mesh_heavy",
+        "animation",
+    ]
+}
+
+fn push_semantic_writer_gate_v1_json(out: &mut String, readiness: &HkxModdingReadiness) {
+    let gate = &readiness.semantic_writer_gate;
+    let _ = write!(
+        out,
+        "{{\"format\":\"cd_hkx_semantic_writer_gate_v1\",\"status\":\"semantic_writer_disabled_until_byte_identity_proof\",\"source_status\":\"{}\",\"enabled\":false,\"semantic_rebuild_supported\":false,\"havok_xml_import_unblocked\":false,\"raw_preserving_no_edit_writer_available\":true,\"fixed_size_patch_importable\":{},\"patchable_slot_count\":{},\"mismatch_offset\":null,\"unsupported_field_kinds\":[\"array\",\"ref\",\"string\",\"topology\",\"count\",\"compressed_table\",\"class_metadata\"],\"unsupported_ref_kinds\":[\"data_ref\",\"string_ref\",\"type_class_ref\",\"section_local_ref\",\"packed_or_varuint\",\"unresolved\"]",
+        json_escape(&gate.status),
+        json_bool(readiness.fixed_size_patch_importable),
+        readiness.patchable_slot_count
+    );
+    out.push_str(",\"writer_modes\":[");
+    for (index, (mode, status, enabled, reason)) in [
+        (
+            "raw_preserving_no_edit",
+            "available",
+            true,
+            "lossless byte segment writer; not semantic Havok XML import",
+        ),
+        (
+            "semantic_no_edit",
+            "disabled_pending_representative_byte_identity",
+            false,
+            "requires semantic model write to match bytes for all representative roles",
+        ),
+        (
+            "semantic_fixed_edit",
+            "disabled_pending_fixed_edit_tests",
+            false,
+            "requires no-edit identity plus per-field fixed-edit proof",
+        ),
+        (
+            "havok_xml_import",
+            "blocked",
+            false,
+            "blocked until semantic writer gates pass",
+        ),
+    ]
+    .iter()
+    .enumerate()
+    {
+        if index > 0 {
+            out.push(',');
+        }
+        let _ = write!(
+            out,
+            "{{\"mode\":\"{}\",\"status\":\"{}\",\"enabled\":{},\"reason\":\"{}\"}}",
+            mode,
+            status,
+            json_bool(*enabled),
+            json_escape(reason)
+        );
+    }
+    out.push(']');
+    out.push_str(",\"required_role_coverage\":[");
+    for (index, role) in representative_hkx_roles().iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        let _ = write!(
+            out,
+            "{{\"role\":\"{}\",\"no_edit_status\":\"required\",\"semantic_no_edit_status\":\"required_not_verified_by_semantic_writer\",\"fixed_edit_status\":\"required\",\"byte_identity_status\":\"required_not_verified_by_semantic_writer\",\"sample_required\":true,\"fixed_size_edits_allowed\":false,\"havok_xml_import_unblocked\":false}}",
+            role
+        );
+    }
+    out.push_str("],\"representative_role_gates\":[");
+    for (index, role) in representative_hkx_roles().iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        let _ = write!(
+            out,
+            "{{\"role\":\"{}\",\"required\":true,\"no_edit_byte_identity\":\"not_proven_by_semantic_writer\",\"mismatch_offset\":null,\"unsupported_field_kinds\":[\"array\",\"ref\",\"string\",\"topology\",\"count\",\"compressed_table\",\"class_metadata\"],\"unsupported_ref_kinds\":[\"data_ref\",\"string_ref\",\"type_class_ref\",\"section_local_ref\",\"packed_or_varuint\",\"unresolved\"],\"fixed_size_edits_allowed\":false,\"status\":\"representative_corpus_required\"}}",
+            role
+        );
+    }
+    out.push_str("],\"blocked_edit_classes\":");
+    push_json_string_array(out, &gate.blocked_edits);
+    out.push_str(",\"requirements\":");
+    push_json_string_array(out, &gate.requirements);
+    out.push('}');
+}
+
+fn write_type_for_slot_name(name: &str) -> &'static str {
+    let lower = name.to_ascii_lowercase();
+    if lower.contains("x") || lower.contains("y") || lower.contains("z") || lower.contains("w") {
+        "f32_component"
+    } else {
+        "f32"
+    }
+}
+
+fn edit_candidate_structural_kind(
+    class_name: &str,
+    member_name: &str,
+    category: &str,
+) -> &'static str {
+    let haystack = format!(
+        "{} {} {}",
+        class_name.to_ascii_lowercase(),
+        member_name.to_ascii_lowercase(),
+        category.to_ascii_lowercase()
+    );
+    if haystack.contains("primitive")
+        || haystack.contains("topology")
+        || haystack.contains("face")
+        || haystack.contains("edge")
+        || haystack.contains("count")
+        || haystack.contains("array")
+        || haystack.contains("ref")
+        || haystack.contains("string")
+    {
+        "structural_blocked"
+    } else if haystack.contains("radius")
+        || haystack.contains("endpoint")
+        || haystack.contains("transform")
+        || haystack.contains("orientation")
+        || haystack.contains("mass")
+        || haystack.contains("friction")
+        || haystack.contains("damping")
+        || haystack.contains("motor")
+        || haystack.contains("constraint")
+        || haystack.contains("material")
+    {
+        "fixed_size_numeric"
+    } else {
+        "fixed_size_numeric_candidate"
+    }
+}
+
+fn edit_candidate_task_key(class_name: &str, member_name: &str, category: &str) -> &'static str {
+    let haystack = format!(
+        "{} {} {}",
+        class_name.to_ascii_lowercase(),
+        member_name.to_ascii_lowercase(),
+        category.to_ascii_lowercase()
+    );
+    if haystack.contains("material")
+        || haystack.contains("friction")
+        || haystack.contains("restitution")
+        || haystack.contains("surface")
+    {
+        "material_friction"
+    } else if haystack.contains("damping")
+        || haystack.contains("motion")
+        || haystack.contains("velocity")
+        || haystack.contains("sharedmotion")
+    {
+        "damping_motion"
+    } else if haystack.contains("constraint")
+        || haystack.contains("motor")
+        || haystack.contains("stiffness")
+        || haystack.contains("strength")
+        || haystack.contains("force")
+        || haystack.contains("torque")
+        || haystack.contains("limit")
+        || haystack.contains("hinge")
+        || haystack.contains("ragdoll")
+    {
+        "joint_strength"
+    } else if haystack.contains("body")
+        || haystack.contains("transform")
+        || haystack.contains("orientation")
+        || haystack.contains("mass")
+    {
+        "body_transform"
+    } else if haystack.contains("primitive")
+        || haystack.contains("winding")
+        || haystack.contains("aabb")
+        || haystack.contains("topology")
+    {
+        "mesh_winding"
+    } else if haystack.contains("shape")
+        || haystack.contains("collision")
+        || haystack.contains("radius")
+        || haystack.contains("capsule")
+        || haystack.contains("sphere")
+        || haystack.contains("extent")
+    {
+        "collision_size"
+    } else {
+        "inspect_only"
+    }
+}
+
+fn edit_candidate_task_label(task_key: &str) -> &'static str {
+    match task_key {
+        "collision_size" => "Collision Size",
+        "body_transform" => "Body Transform",
+        "joint_strength" => "Joint Strength",
+        "damping_motion" => "Damping / Motion",
+        "material_friction" => "Material / Friction",
+        "mesh_winding" => "Mesh Winding",
+        _ => "Inspect Only",
+    }
+}
+
+fn edit_candidate_category_key(class_name: &str, member_name: &str, category: &str) -> String {
+    if !category.is_empty() {
+        return category.to_string();
+    }
+    match edit_candidate_task_key(class_name, member_name, category) {
+        "collision_size" => "collision_size",
+        "body_transform" => "body_transform_mass",
+        "joint_strength" => "joint_limits_strength",
+        "damping_motion" => "motion_damping_solver",
+        "material_friction" => "material_surface_response",
+        "mesh_winding" => "mesh_winding",
+        _ => "native_scalar_candidate",
+    }
+    .to_string()
+}
+
+fn edit_candidate_linked_by(class_name: &str, category: &str, write_enabled: bool) -> &'static str {
+    let haystack = format!(
+        "{} {}",
+        class_name.to_ascii_lowercase(),
+        category.to_ascii_lowercase()
+    );
+    if write_enabled {
+        "existing_patch_map"
+    } else if haystack.contains("array") {
+        "owner_array"
+    } else if haystack.contains("ref") {
+        "fixup_backed_or_inferred"
+    } else {
+        "typed_layout"
+    }
+}
+
+fn push_edit_candidate_map_v1_json(
+    out: &mut String,
+    physics_tuning_groups: &[PhysicsTuningGroup],
+    objects: &[ObjectRecord],
+) {
+    let tuning_candidate_count: usize = physics_tuning_groups
+        .iter()
+        .map(|group| group.slots.len())
+        .sum();
+    let layout_candidate_count: usize = objects
+        .iter()
+        .map(|object| object.fields.iter().filter(|field| field.editable).count())
+        .sum();
+    let candidate_count = tuning_candidate_count + layout_candidate_count;
+    let mut task_categories: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+    for group in physics_tuning_groups {
+        let task_key = edit_candidate_task_key(&group.type_name, "", &group.category);
+        let entry = task_categories
+            .entry(task_key.to_string())
+            .or_insert((0, 0));
+        entry.0 += group.slots.len();
+    }
+    for object in objects {
+        for field in object.fields.iter().filter(|field| field.editable) {
+            let category = edit_candidate_category_key(&object.type_name, &field.name, "");
+            let task_key = edit_candidate_task_key(&object.type_name, &field.name, &category);
+            let entry = task_categories
+                .entry(task_key.to_string())
+                .or_insert((0, 0));
+            entry.1 += 1;
+        }
+    }
+    let _ = write!(
+        out,
+        "{{\"format\":\"cd_hkx_edit_candidate_map_v1\",\"status\":\"fixed_size_numeric_candidates_only\",\"imported\":false,\"read_only\":false,\"new_editable_fields_enabled\":false,\"existing_patchable_slots_exposed\":{},\"candidate_count\":{},\"write_enabled_candidate_count\":{}",
+        json_bool(tuning_candidate_count > 0),
+        candidate_count,
+        tuning_candidate_count
+    );
+    out.push_str(",\"blocked_kinds\":[\"arrays\",\"references\",\"strings\",\"topology\",\"counts\",\"compressed_tables\",\"class_metadata\"],\"task_categories\":[");
+    for (index, task_key) in [
+        "collision_size",
+        "material_friction",
+        "damping_motion",
+        "joint_strength",
+        "body_transform",
+    ]
+    .iter()
+    .enumerate()
+    {
+        if index > 0 {
+            out.push(',');
+        }
+        let (enabled_count, candidate_count) =
+            task_categories.get(*task_key).copied().unwrap_or((0, 0));
+        let status = if enabled_count > 0 {
+            "enabled"
+        } else if candidate_count > 0 {
+            "candidate_only"
+        } else {
+            "blocked"
+        };
+        let _ = write!(
+            out,
+            "{{\"key\":\"{}\",\"label\":\"{}\",\"status\":\"{}\",\"write_enabled_count\":{},\"candidate_only_count\":{}}}",
+            task_key,
+            edit_candidate_task_label(task_key),
+            status,
+            enabled_count,
+            candidate_count
+        );
+    }
+    out.push_str("],\"candidates\":[");
+    let mut emitted = 0usize;
+    for group in physics_tuning_groups {
+        let object = objects
+            .iter()
+            .find(|object| object.record_index == group.record_index);
+        let record_absolute_offset = object.and_then(|object| object.absolute_data_offset);
+        for slot in &group.slots {
+            if emitted > 0 {
+                out.push(',');
+            }
+            emitted += 1;
+            let risk_label =
+                if slot.confidence == "confirmed" || slot.confidence == "strong inference" {
+                    "medium"
+                } else {
+                    "high"
+                };
+            let record_relative_offset = slot.item_index * group.stride + slot.offset;
+            let absolute_offset = record_absolute_offset.map(|base| base + record_relative_offset);
+            let structural_kind =
+                edit_candidate_structural_kind(&group.type_name, &slot.name, &group.category);
+            let linked_by = edit_candidate_linked_by(&group.type_name, &group.category, true);
+            let task_key = edit_candidate_task_key(&group.type_name, &slot.name, &group.category);
+            let task_label = edit_candidate_task_label(task_key);
+            let _ = write!(
+                out,
+                "{{\"class\":\"{}\",\"owner_class\":\"{}\",\"category\":\"{}\",\"category_label\":\"{}\",\"task_category\":\"{}\",\"task_label\":\"{}\",\"member\":\"{}\",\"field\":\"{}\",\"name\":\"{}\",\"record\":{},\"record_index\":{},\"item_index\":{},\"local_offset\":{},\"record_relative_offset\":{},\"offset\":{},\"offset_hex\":\"0x{:X}\",\"absolute_offset\":{},\"absolute_offset_hex\":\"{}\",\"byte_size\":4,\"original_value\":{},\"supported_write_type\":\"{}\",\"write_type\":\"{}\",\"value_kind\":\"fixed_size_numeric\",\"structural_kind\":\"{}\",\"import_safety\":\"import_safe\",\"risk_label\":\"{}\",\"risk\":\"{}\",\"confidence\":\"{}\",\"evidence\":\"native physics tuning fixed-size float scan; exact record/item/local offset recovered\",\"link_evidence\":\"{}\",\"linked_by\":\"{}\",\"linked_target\":\"{}\",\"import_path\":\"existing_fixed_size_patch\",\"import_behavior\":\"CDMW fixed-size float patch into original HKX bytes\",\"write_enabled\":true,\"gate_status\":\"enabled\",\"gate_reason\":\"covered by existing fixed-size CDMW patch route\",\"edit_rule\":\"{}\"}}",
+                json_escape(&group.type_name),
+                json_escape(&group.type_name),
+                json_escape(&group.category),
+                json_escape(task_label),
+                json_escape(task_key),
+                json_escape(task_label),
+                json_escape(&slot.name),
+                json_escape(&slot.name),
+                json_escape(&slot.name),
+                group.record_index,
+                group.record_index,
+                slot.item_index,
+                slot.offset,
+                record_relative_offset,
+                slot.offset,
+                slot.offset,
+                json_optional_usize(absolute_offset),
+                absolute_offset
+                    .map(|offset| format!("0x{:X}", offset))
+                    .unwrap_or_default(),
+                if slot.value.is_finite() { slot.value.to_string() } else { "null".to_string() },
+                write_type_for_slot_name(&slot.name),
+                write_type_for_slot_name(&slot.name),
+                structural_kind,
+                risk_label,
+                risk_label,
+                json_escape(&slot.confidence),
+                linked_by,
+                linked_by,
+                json_escape(&group.label),
+                json_escape(&group.edit_rule)
+            );
+        }
+    }
+    for object in objects {
+        for field in object.fields.iter().filter(|field| field.editable) {
+            if emitted > 0 {
+                out.push(',');
+            }
+            emitted += 1;
+            let absolute_offset = object.absolute_data_offset.map(|base| base + field.offset);
+            let structural_kind =
+                edit_candidate_structural_kind(&object.type_name, &field.name, "");
+            let linked_by = edit_candidate_linked_by(&object.type_name, "", false);
+            let category = edit_candidate_category_key(&object.type_name, &field.name, "");
+            let task_key = edit_candidate_task_key(&object.type_name, &field.name, &category);
+            let task_label = edit_candidate_task_label(task_key);
+            let write_type = if field.data_type.contains("float") {
+                "f32"
+            } else {
+                "fixed_size_numeric"
+            };
+            let _ = write!(
+                out,
+                "{{\"class\":\"{}\",\"owner_class\":\"{}\",\"category\":\"{}\",\"category_label\":\"{}\",\"task_category\":\"{}\",\"task_label\":\"{}\",\"member\":\"{}\",\"field\":\"{}\",\"name\":\"{}\",\"record\":{},\"record_index\":{},\"item_index\":null,\"local_offset\":{},\"record_relative_offset\":{},\"offset\":{},\"offset_hex\":\"0x{:X}\",\"absolute_offset\":{},\"absolute_offset_hex\":\"{}\",\"byte_size\":{},\"original_value\":{},\"supported_write_type\":\"{}\",\"write_type\":\"{}\",\"value_kind\":\"fixed_size_numeric_candidate\",\"structural_kind\":\"{}\",\"import_safety\":\"read_only\",\"risk_label\":\"high\",\"risk\":\"high\",\"confidence\":\"{}\",\"evidence\":\"typed layout editable flag; exact byte span observed, but write route requires fixed-edit proof\",\"link_evidence\":\"{}\",\"linked_by\":\"{}\",\"linked_target\":\"record/{}\",\"import_path\":\"blocked_until_fixed_edit_test\",\"import_behavior\":\"read-only until fixed-edit tests prove byte patch safety\",\"write_enabled\":false,\"gate_status\":\"candidate_only\",\"gate_reason\":\"decoded fixed-size field candidate lacks approved import route\",\"edit_rule\":\"candidate_only\"}}",
+                json_escape(&object.type_name),
+                json_escape(&object.type_name),
+                json_escape(&category),
+                json_escape(task_label),
+                json_escape(task_key),
+                json_escape(task_label),
+                json_escape(&field.name),
+                json_escape(&field.name),
+                json_escape(&field.name),
+                object.record_index,
+                object.record_index,
+                field.offset,
+                field.offset,
+                field.offset,
+                field.offset,
+                json_optional_usize(absolute_offset),
+                absolute_offset
+                    .map(|offset| format!("0x{:X}", offset))
+                    .unwrap_or_default(),
+                field.size,
+                json_layout_value(&field.value),
+                write_type,
+                write_type,
+                structural_kind,
+                json_escape(&field.confidence),
+                linked_by,
+                linked_by,
+                object.record_index
+            );
+        }
+    }
+    out.push_str("]}");
+}
+
+fn push_hkx_edit_gate_v1_json(
+    out: &mut String,
+    physics_tuning_groups: &[PhysicsTuningGroup],
+    objects: &[ObjectRecord],
+) {
+    let write_enabled_count: usize = physics_tuning_groups
+        .iter()
+        .map(|group| group.slots.len())
+        .sum();
+    let candidate_only_count: usize = objects
+        .iter()
+        .map(|object| object.fields.iter().filter(|field| field.editable).count())
+        .sum();
+    let _ = write!(
+        out,
+        "{{\"format\":\"cd_hkx_edit_gate_v1\",\"status\":\"fixed_size_patch_gate\",\"read_only\":true,\"new_editable_fields_enabled\":false,\"write_enabled_candidate_count\":{},\"candidate_only_count\":{},\"blocked_policy\":\"arrays, strings, references, topology, counts, compressed tables, and class metadata remain blocked until semantic rebuild proof\"",
+        write_enabled_count,
+        candidate_only_count
+    );
+    out.push_str(",\"required_role_coverage\":[");
+    for (index, role) in [
+        "object",
+        "meshphysics",
+        "character_physics",
+        "ragdoll_body",
+        "mesh_heavy",
+        "animation",
+    ]
+    .iter()
+    .enumerate()
+    {
+        if index > 0 {
+            out.push(',');
+        }
+        let _ = write!(
+            out,
+            "{{\"role\":\"{}\",\"no_edit_status\":\"required\",\"fixed_edit_status\":\"required\",\"status\":\"representative_corpus_required\"}}",
+            role
+        );
+    }
+    out.push_str("],\"categories\":[");
+    let mut emitted = 0usize;
+    let mut categories: BTreeMap<String, (usize, usize, String)> = BTreeMap::new();
+    let mut task_categories: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+    for group in physics_tuning_groups {
+        let entry = categories
+            .entry(group.category.clone())
+            .or_insert_with(|| (0, 0, group.type_name.clone()));
+        entry.0 += group.slots.len();
+        let task_key = edit_candidate_task_key(&group.type_name, "", &group.category);
+        let task_entry = task_categories
+            .entry(task_key.to_string())
+            .or_insert((0, 0));
+        task_entry.0 += group.slots.len();
+    }
+    for object in objects {
+        for field in object.fields.iter().filter(|field| field.editable) {
+            let category = edit_candidate_category_key(&object.type_name, &field.name, "");
+            let entry = categories
+                .entry(category.clone())
+                .or_insert_with(|| (0, 0, object.type_name.clone()));
+            entry.1 += 1;
+            let task_key = edit_candidate_task_key(&object.type_name, &field.name, &category);
+            let task_entry = task_categories
+                .entry(task_key.to_string())
+                .or_insert((0, 0));
+            task_entry.1 += 1;
+        }
+    }
+    for (category, (enabled_count, candidate_count, owner_class)) in categories {
+        if emitted > 0 {
+            out.push(',');
+        }
+        emitted += 1;
+        let status = if enabled_count > 0 {
+            "enabled"
+        } else if candidate_count > 0 {
+            "candidate_only"
+        } else {
+            "blocked"
+        };
+        let reason = if enabled_count > 0 {
+            "existing fixed-size patch route"
+        } else if candidate_count > 0 {
+            "decoded candidate lacks fixed-edit corpus proof"
+        } else {
+            "no approved fixed-size patch target"
+        };
+        let _ = write!(
+            out,
+            "{{\"category\":\"{}\",\"owner_class\":\"{}\",\"status\":\"{}\",\"write_enabled_count\":{},\"candidate_only_count\":{},\"fixed_edit_test_status\":\"{}\",\"gate_reason\":\"{}\"}}",
+            json_escape(&category),
+            json_escape(&owner_class),
+            status,
+            enabled_count,
+            candidate_count,
+            if enabled_count > 0 { "existing_route" } else { "required" },
+            reason
+        );
+    }
+    if emitted > 0 {
+        out.push(',');
+    }
+    out.push_str("{\"category\":\"structural_edits\",\"owner_class\":\"*\",\"status\":\"blocked\",\"write_enabled_count\":0,\"candidate_only_count\":0,\"fixed_edit_test_status\":\"blocked\",\"gate_reason\":\"topology/count/reference/string/array edits require semantic rebuild proof\"}");
+    out.push_str("],\"task_categories\":[");
+    for (index, task_key) in [
+        "collision_size",
+        "material_friction",
+        "damping_motion",
+        "joint_strength",
+        "body_transform",
+    ]
+    .iter()
+    .enumerate()
+    {
+        if index > 0 {
+            out.push(',');
+        }
+        let (enabled_count, candidate_count) =
+            task_categories.get(*task_key).copied().unwrap_or((0, 0));
+        let status = if enabled_count > 0 {
+            "enabled"
+        } else if candidate_count > 0 {
+            "candidate_only"
+        } else {
+            "blocked"
+        };
+        let reason = if enabled_count > 0 {
+            "existing fixed-size patch route"
+        } else if candidate_count > 0 {
+            "decoded candidate lacks fixed-edit corpus proof"
+        } else {
+            "no approved fixed-size patch target"
+        };
+        let _ = write!(
+            out,
+            "{{\"key\":\"{}\",\"label\":\"{}\",\"status\":\"{}\",\"write_enabled_count\":{},\"candidate_only_count\":{},\"fixed_edit_test_status\":\"{}\",\"gate_reason\":\"{}\"}}",
+            task_key,
+            edit_candidate_task_label(task_key),
+            status,
+            enabled_count,
+            candidate_count,
+            if enabled_count > 0 { "existing_route" } else { "required" },
+            reason
+        );
+    }
+    out.push_str("],\"blocked_kinds\":[\"array\",\"string\",\"reference\",\"topology\",\"count\",\"compressed_table\",\"class_metadata\",\"shape_primitive_count\"]}");
+}
+
+fn push_class_decoder_evidence_v2_json(
+    out: &mut String,
+    decoder: &DecoderEvidenceV2,
+    hard: &HardInternalEvidenceReport,
+) {
+    let mut hard_by_type: BTreeMap<String, Vec<&HardInternalEvidenceTarget>> = BTreeMap::new();
+    for target in &hard.targets {
+        for type_name in &target.observed_types {
+            hard_by_type
+                .entry(type_name.clone())
+                .or_default()
+                .push(target);
+        }
+    }
+    let status = if decoder.class_status_count > 0 {
+        "class_specific_decode_evidence_available"
+    } else {
+        "class_specific_decode_evidence_not_recovered"
+    };
+    let _ = write!(
+        out,
+        "{{\"format\":\"cd_hkx_class_decoder_evidence_v2\",\"status\":\"{}\",\"source_format\":\"{}\",\"imported\":{},\"read_only\":true,\"class_status_count\":{},\"hard_target_count\":{},\"observed_hard_target_count\":{}",
+        status,
+        json_escape(&decoder.format),
+        json_bool(decoder.imported),
+        decoder.class_status_count,
+        hard.target_count,
+        hard.observed_target_count
+    );
+    out.push_str(",\"class_statuses\":[");
+    for (index, row) in decoder.class_statuses.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        let hard_targets = hard_by_type.get(&row.type_name);
+        let _ = write!(
+            out,
+            "{{\"class\":\"{}\",\"type_name\":\"{}\",\"record_count\":{},\"byte_count\":{},\"decoded_field_count\":{},\"reference_count\":{},\"editable_candidate_count\":{},\"status\":\"{}\",\"friendly_status\":\"{}\",\"read_only\":{},\"corpus_priority_score\":{}",
+            json_escape(&row.type_name),
+            json_escape(&row.type_name),
+            row.record_count,
+            row.byte_count,
+            row.decoded_field_count,
+            row.reference_count,
+            row.editable_field_count,
+            json_escape(&row.status),
+            json_escape(&row.friendly_status),
+            json_bool(row.read_only),
+            row.corpus_priority_score
+        );
+        out.push_str(",\"missing_requirements\":");
+        push_json_string_array(out, &row.missing_requirements);
+        out.push_str(",\"link_evidence\":");
+        push_json_string_array(out, &row.link_evidence);
+        out.push_str(",\"hard_internal_targets\":[");
+        if let Some(targets) = hard_targets {
+            for (target_index, target) in targets.iter().enumerate() {
+                if target_index > 0 {
+                    out.push(',');
+                }
+                let _ = write!(
+                    out,
+                    "{{\"key\":\"{}\",\"label\":\"{}\",\"status\":\"{}\",\"proof_status\":\"{}\",\"resolved\":{},\"confidence\":\"{}\"}}",
+                    json_escape(&target.key),
+                    json_escape(&target.label),
+                    json_escape(&target.status),
+                    json_escape(&target.proof_status),
+                    json_bool(target.resolved),
+                    json_escape(&target.confidence)
+                );
+            }
+        }
+        out.push_str("]}");
+    }
+    out.push_str("],\"missing_semantics_policy\":\"read-only until class layout, refs, arrays, and writer gate are proven\"}");
+}
+
+fn push_decoder_evidence_v2_json(out: &mut String, report: &DecoderEvidenceV2) {
+    let _ = write!(
+        out,
+        "{{\"format\":\"{}\",\"status\":\"{}\",\"imported\":{},\"read_only\":{},\"class_status_count\":{},\"priority_class_count\":{},\"total_partial_byte_count\":{},\"unresolved_or_packed_case_count\":{},\"owner_array_count\":{}",
+        json_escape(&report.format),
+        json_escape(&report.status),
+        json_bool(report.imported),
+        json_bool(report.read_only),
+        report.class_status_count,
+        report.priority_class_count,
+        report.total_partial_byte_count,
+        report.unresolved_or_packed_case_count,
+        report.owner_array_count
+    );
+    out.push_str(",\"reference_semantic_counts\":");
+    push_json_count_map(out, &report.reference_semantic_counts);
+    out.push_str(",\"link_evidence_counts\":");
+    push_json_count_map(out, &report.link_evidence_counts);
+    out.push_str(",\"class_statuses\":[");
+    for (index, row) in report.class_statuses.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        let _ = write!(
+            out,
+            "{{\"type_name\":\"{}\",\"record_count\":{},\"byte_count\":{},\"decoded_field_count\":{},\"reference_count\":{},\"editable_field_count\":{},\"status\":\"{}\",\"friendly_status\":\"{}\",\"corpus_priority_score\":{},\"read_only\":{}",
+            json_escape(&row.type_name),
+            row.record_count,
+            row.byte_count,
+            row.decoded_field_count,
+            row.reference_count,
+            row.editable_field_count,
+            json_escape(&row.status),
+            json_escape(&row.friendly_status),
+            row.corpus_priority_score,
+            json_bool(row.read_only)
+        );
+        out.push_str(",\"missing_requirements\":[");
+        for (requirement_index, requirement) in row.missing_requirements.iter().enumerate() {
+            if requirement_index > 0 {
+                out.push(',');
+            }
+            let _ = write!(out, "\"{}\"", json_escape(requirement));
+        }
+        out.push_str("],\"link_evidence\":[");
+        for (evidence_index, evidence) in row.link_evidence.iter().enumerate() {
+            if evidence_index > 0 {
+                out.push(',');
+            }
+            let _ = write!(out, "\"{}\"", json_escape(evidence));
+        }
+        out.push_str("]}");
+    }
+    out.push_str("],\"fixup_backed_fields\":[");
+    for (index, field) in report.fixup_backed_fields.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        let _ = write!(
+            out,
+            "{{\"class_name\":\"{}\",\"field_name\":\"{}\",\"reference_category\":\"{}\",\"count\":{},\"confidence\":\"{}\"}}",
+            json_escape(&field.class_name),
+            json_escape(&field.field_name),
+            json_escape(&field.reference_category),
+            field.count,
+            json_escape(&field.confidence)
+        );
+    }
+    out.push_str("]}");
+}
+
+fn push_json_string_array(out: &mut String, values: &[String]) {
+    out.push('[');
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        let _ = write!(out, "\"{}\"", json_escape(value));
+    }
+    out.push(']');
+}
+
+fn push_hkx_modding_readiness_json(out: &mut String, report: &HkxModdingReadiness) {
+    let _ = write!(
+        out,
+        "{{\"format\":\"{}\",\"status\":\"{}\",\"imported\":{},\"read_only\":{},\"per_file_label\":\"{}\",\"fixed_size_patch_importable\":{},\"havok_xml_importable\":{},\"new_editable_fields_enabled\":{},\"decoded_object_count\":{},\"patchable_slot_count\":{},\"fixup_backed_reference_edge_count\":{},\"owner_array_count\":{},\"unresolved_or_packed_case_count\":{}",
+        json_escape(&report.format),
+        json_escape(&report.status),
+        json_bool(report.imported),
+        json_bool(report.read_only),
+        json_escape(&report.per_file_label),
+        json_bool(report.fixed_size_patch_importable),
+        json_bool(report.havok_xml_importable),
+        json_bool(report.new_editable_fields_enabled),
+        report.decoded_object_count,
+        report.patchable_slot_count,
+        report.fixup_backed_reference_edge_count,
+        report.owner_array_count,
+        report.unresolved_or_packed_case_count
+    );
+    out.push_str(",\"readiness_labels\":");
+    push_json_string_array(out, &report.readiness_labels);
+    out.push_str(",\"semantic_writer_gate\":");
+    let gate = &report.semantic_writer_gate;
+    let _ = write!(
+        out,
+        "{{\"status\":\"{}\",\"mode\":\"{}\",\"enabled\":{},\"raw_preserving_no_edit_writer_required\":{},\"semantic_rebuild_supported\":{},\"fixed_size_value_edits_allowed\":{}",
+        json_escape(&gate.status),
+        json_escape(&gate.mode),
+        json_bool(gate.enabled),
+        json_bool(gate.raw_preserving_no_edit_writer_required),
+        json_bool(gate.semantic_rebuild_supported),
+        json_bool(gate.fixed_size_value_edits_allowed)
+    );
+    out.push_str(",\"allowed_edits\":");
+    push_json_string_array(out, &gate.allowed_edits);
+    out.push_str(",\"blocked_edits\":");
+    push_json_string_array(out, &gate.blocked_edits);
+    out.push_str(",\"requirements\":");
+    push_json_string_array(out, &gate.requirements);
+    out.push_str("},\"task_groups\":[");
+    for (index, group) in report.task_groups.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        let _ = write!(
+            out,
+            "{{\"key\":\"{}\",\"label\":\"{}\",\"readiness_label\":\"{}\",\"patchable_slot_count\":{},\"context_record_count\":{},\"risk\":\"{}\",\"import_safe\":{},\"description\":\"{}\",\"evidence\":",
+            json_escape(&group.key),
+            json_escape(&group.label),
+            json_escape(&group.readiness_label),
+            group.patchable_slot_count,
+            group.context_record_count,
+            json_escape(&group.risk),
+            json_bool(group.import_safe),
+            json_escape(&group.description)
+        );
+        push_json_string_array(out, &group.evidence);
+        out.push('}');
+    }
+    out.push_str("]}");
+}
+
 pub fn summary_to_json(summary: &HkxSummary) -> String {
     let mut out = String::new();
     out.push('{');
@@ -6409,6 +8653,45 @@ pub fn summary_to_json(summary: &HkxSummary) -> String {
     push_hard_internal_evidence_json(&mut out, &summary.hard_internal_evidence);
     out.push_str(",\"real_hkclass_metadata\":");
     push_real_hkclass_metadata_json(&mut out, &summary.real_hkclass_metadata);
+    out.push_str(",\"real_hkclass_metadata_v2\":");
+    push_real_hkclass_metadata_v2_json(&mut out, &summary.real_hkclass_metadata);
+    out.push_str(",\"fixup_semantics_v2\":");
+    push_fixup_semantics_v2_json(
+        &mut out,
+        &summary.tagfile_reference_fixups,
+        &summary.fixup_semantics_report,
+    );
+    out.push_str(",\"semantic_model_v1\":");
+    push_semantic_model_v1_json(
+        &mut out,
+        &summary.object_records,
+        &summary.native_model_graph,
+        &summary.real_hkclass_metadata,
+    );
+    out.push_str(",\"decoder_evidence_v2\":");
+    push_decoder_evidence_v2_json(&mut out, &summary.decoder_evidence_v2);
+    out.push_str(",\"modding_readiness\":");
+    push_hkx_modding_readiness_json(&mut out, &summary.modding_readiness);
+    out.push_str(",\"semantic_writer_gate_v1\":");
+    push_semantic_writer_gate_v1_json(&mut out, &summary.modding_readiness);
+    out.push_str(",\"edit_candidate_map_v1\":");
+    push_edit_candidate_map_v1_json(
+        &mut out,
+        &summary.physics_tuning_groups,
+        &summary.object_records,
+    );
+    out.push_str(",\"hkx_edit_gate_v1\":");
+    push_hkx_edit_gate_v1_json(
+        &mut out,
+        &summary.physics_tuning_groups,
+        &summary.object_records,
+    );
+    out.push_str(",\"class_decoder_evidence_v2\":");
+    push_class_decoder_evidence_v2_json(
+        &mut out,
+        &summary.decoder_evidence_v2,
+        &summary.hard_internal_evidence,
+    );
     out.push_str(",\"physics_tuning_groups\":[");
     for (group_index, group) in summary.physics_tuning_groups.iter().enumerate() {
         if group_index > 0 {
@@ -7209,6 +9492,21 @@ mod tests {
         assert_eq!(summary.object_records[1].byte_length, 32);
         assert!(summary_to_json(&summary).contains("\"item_records\""));
         assert!(summary_to_json(&summary).contains("\"object_records\""));
+        assert!(summary_to_json(&summary).contains("\"semantic_model_v1\""));
+        assert!(summary_to_json(&summary).contains("\"semantic_writer_gate_v1\""));
+        assert!(summary_to_json(&summary).contains("\"class_decoder_evidence_v2\""));
+        assert_eq!(
+            summary.modding_readiness.format,
+            "cd_hkx_modding_readiness_v1"
+        );
+        assert!(!summary.modding_readiness.havok_xml_importable);
+        assert!(
+            !summary
+                .modding_readiness
+                .semantic_writer_gate
+                .semantic_rebuild_supported
+        );
+        assert!(summary_to_json(&summary).contains("\"modding_readiness\""));
     }
 
     #[test]
@@ -7456,6 +9754,17 @@ mod tests {
 
         let json = summary_to_json(&summary);
         assert!(json.contains("\"fixup_semantics_report\""));
+        assert!(json.contains("\"fixup_semantics_v2\""));
+        assert!(json.contains("\"semantic_bucket\":\"object_ref\""));
+        assert!(json.contains("\"semantic_bucket_counts\""));
+        assert!(json.contains("\"semantic_bucket_taxonomy\""));
+        assert!(json.contains("\"data_ref\""));
+        assert!(json.contains("\"string_ref\""));
+        assert!(json.contains("\"type_class_ref\""));
+        assert!(json.contains("\"section_local_ref\""));
+        assert!(json.contains("\"packed_or_varuint\""));
+        assert!(json.contains("\"corpus_evidence_counters\""));
+        assert!(json.contains("\"patch_site_count\":1"));
         assert!(json.contains("\"cd_hkx_fixup_semantics_report_v1\""));
         assert!(json.contains("\"ptch_object_patch_offset\""));
         assert!(json.contains("\"ptch_tables\""));
@@ -7463,6 +9772,115 @@ mod tests {
         assert!(json.contains("\"owner_record_index\":1"));
         assert!(json.contains("\"native_model_graph\""));
         assert!(json.contains("\"resolution_source\":\"ptch\""));
+        assert!(json.contains("\"decoder_evidence_v2\""));
+        assert!(json.contains("\"fixup_backed\""));
+        assert!(json.contains("\"object\""));
+        assert!(json.contains("\"semantic_model_v1\""));
+        assert!(json.contains("\"source_priority\""));
+        assert!(json.contains("\"field_kind_taxonomy\""));
+        assert!(json.contains("\"semantic_writer_gate_v1\""));
+        assert!(json.contains("\"writer_modes\""));
+        assert!(json.contains("\"representative_role_gates\""));
+        assert!(json.contains("\"semantic_no_edit_status\""));
+    }
+
+    #[test]
+    fn normalizes_decoder_evidence_v2_reference_and_link_semantics() {
+        assert_eq!(
+            decoder_reference_semantic_from_parts("object_reference", "data_offset", ""),
+            "object"
+        );
+        assert_eq!(
+            decoder_reference_semantic_from_parts("null_reference", "null", "null"),
+            "null"
+        );
+        assert_eq!(
+            decoder_reference_semantic_from_parts("array_data_reference", "data_offset", ""),
+            "data_candidate"
+        );
+        assert_eq!(
+            decoder_reference_semantic_from_parts("string_reference", "string_table_index", ""),
+            "string_candidate"
+        );
+        assert_eq!(
+            decoder_reference_semantic_from_parts("type_class_reference", "string_table_index", ""),
+            "type_class"
+        );
+        assert_eq!(
+            decoder_reference_semantic_from_parts("unresolved_fixup_word", "packed_varuint", ""),
+            "packed_or_varuint"
+        );
+
+        let data = nested_indx_ptch_hkx();
+        let summary = parse_summary(&data);
+        let evidence = &summary.decoder_evidence_v2;
+        assert_eq!(evidence.format, "cd_hkx_decoder_evidence_v2");
+        assert_eq!(evidence.status, "read_only_native_evidence");
+        assert!(evidence.read_only);
+        assert!(
+            evidence
+                .reference_semantic_counts
+                .get("object")
+                .copied()
+                .unwrap_or(0)
+                >= 1
+        );
+        assert!(
+            evidence
+                .link_evidence_counts
+                .get("fixup_backed")
+                .copied()
+                .unwrap_or(0)
+                >= 1
+        );
+        assert!(evidence.fixup_backed_fields.iter().any(|field| {
+            field.class_name == "hkRefPtr"
+                && field.field_name == "ptr"
+                && field.reference_category == "object_reference"
+        }));
+        assert!(evidence
+            .class_statuses
+            .iter()
+            .any(|row| row.type_name == "hkRefPtr"
+                && row
+                    .link_evidence
+                    .iter()
+                    .any(|value| value == "fixup_backed")));
+    }
+
+    #[test]
+    fn decoder_evidence_v2_reports_owner_arrays_and_class_gaps() {
+        let data = root_container_hkx();
+        let summary = parse_summary(&data);
+        let evidence = &summary.decoder_evidence_v2;
+        assert!(evidence.owner_array_count >= 1);
+        assert!(
+            evidence
+                .link_evidence_counts
+                .get("declared_owner_array")
+                .copied()
+                .unwrap_or(0)
+                >= 1
+        );
+        assert!(evidence.class_statuses.iter().any(|row| {
+            row.type_name == "hkRootLevelContainer"
+                && row
+                    .link_evidence
+                    .iter()
+                    .any(|value| value == "declared_owner_array")
+        }));
+
+        let mesh_data = compound_blocker_hkx();
+        let mesh_summary = parse_summary(&mesh_data);
+        let mesh_evidence = &mesh_summary.decoder_evidence_v2;
+        assert!(mesh_evidence.class_statuses.iter().any(|row| {
+            row.type_name == "hknpCompoundShape"
+                && row.friendly_status.contains("compound child transform")
+                && row.read_only
+        }));
+        let json = summary_to_json(&mesh_summary);
+        assert!(json.contains("\"friendly_status\""));
+        assert!(json.contains("compound child transform"));
     }
 
     #[test]
@@ -7492,6 +9910,9 @@ mod tests {
             .any(|field| field.name == "stiffness_or_strength[0]" && field.editable));
         let json = summary_to_json(&summary);
         assert!(json.contains("\"physics_tuning_groups\""));
+        assert!(json.contains("\"edit_candidate_map_v1\""));
+        assert!(json.contains("\"write_enabled\":true"));
+        assert!(json.contains("\"new_editable_fields_enabled\":false"));
         assert!(json.contains("\"motor_force_response\""));
         assert!(json.contains("\"stiffness_or_strength\""));
     }
@@ -7638,6 +10059,7 @@ mod tests {
             ("hkInt16", "int16_values"),
             ("hkSkeleton", "bones_reference_or_count_pair"),
             ("hknpMaterial", "material[0]"),
+            ("hknpMaterial", "material_surface_response_a[0]"),
         ] {
             let object = summary
                 .object_records
@@ -7812,6 +10234,10 @@ mod tests {
 
         let json = summary_to_json(&summary);
         assert!(json.contains("\"real_hkclass_metadata\""));
+        assert!(json.contains("\"real_hkclass_metadata_v2\""));
+        assert!(json.contains("\"havok_member_type_code\":11"));
+        assert!(json.contains("\"reference_status\":\"reference\""));
+        assert!(json.contains("\"synthetic_fallback_required\":false"));
         assert!(json.contains("\"type_code\":11"));
         assert!(json.contains("\"flags_hex\":\"0x1234\""));
         assert!(json.contains("\"signature_hex\":\"0xABCDEF01\""));

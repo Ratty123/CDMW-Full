@@ -13,10 +13,12 @@ from cdmw.core.archive_relationships import (
 from cdmw.core.archive import (
     build_archive_entry_basename_index,
     build_archive_entry_path_index,
+    build_archive_asset_family_graph,
     build_archive_preview_result,
     build_archive_relationship_references,
+    parse_socket_bone_data_xml,
 )
-from cdmw.models import ArchiveEntry
+from cdmw.models import ArchiveEntry, ArchiveModelTextureReference
 
 
 class ArchiveRelationshipTests(unittest.TestCase):
@@ -148,6 +150,8 @@ class ArchiveRelationshipTests(unittest.TestCase):
                 ("character/model/body_a.pac", b"PAR "),
                 ("character/model/body_a.meshinfo", b"MeshInfo\x00"),
                 ("character/model/body_a.prefab", b"SceneObject\x00character/model/body_a.pac\x00"),
+                ("character/model/body_a.pappt", b"SceneObject\x00character/model/body_a.pac\x00"),
+                ("character/model/body_a.pamhc", b"MaterialParameterTexture\x00character/modelproperty/body_a.pac_xml\x00"),
                 ("character/bin__/meshphysics/body_a.hkx", b"HKX"),
                 ("character/animation/body_a.motionblending", b"MotionBlend\x00"),
                 ("character/animation/body_a.paa_metabin", b"AnimationMetaData\x00"),
@@ -163,9 +167,184 @@ class ArchiveRelationshipTests(unittest.TestCase):
 
         self.assertIn("character/model/body_a.meshinfo", by_path)
         self.assertIn("character/model/body_a.prefab", by_path)
+        self.assertIn("character/model/body_a.pappt", by_path)
+        self.assertIn("character/model/body_a.pamhc", by_path)
         self.assertIn("character/bin__/meshphysics/body_a.hkx", by_path)
         self.assertEqual(by_path["character/bin__/meshphysics/body_a.hkx"].relation_group, "Physics / Collision")
         self.assertEqual(by_path["character/bin__/meshphysics/body_a.hkx"].reference_kind, "physics")
+
+    def test_asset_family_graph_groups_model_companions_with_evidence_and_summary(self):
+        entries = self._entries(
+            (
+                ("character/model/body_a.pac", b"PAR "),
+                ("character/modelproperty/body_a.pac_xml", '<ResourceReferencePath_ITexture value="character/texture/body_a.dds"/>'),
+                ("character/texture/body_a.dds", b"DDS "),
+                ("character/model/body_a.meshinfo", b"MeshInfo\x00"),
+                ("character/model/body_a.prefab", b"SceneObject\x00character/model/body_a.pac\x00"),
+                ("character/model/body_a.pappt", b"SceneObject\x00character/model/body_a.pac\x00"),
+                ("character/model/body_a.pamhc", b"MaterialParameterTexture\x00character/modelproperty/body_a.pac_xml\x00"),
+                ("character/bin__/meshphysics/body_a.hkx", b"HKX"),
+                ("character/model/body_a.pab", b"PAB"),
+                ("character/animation/body_a.motionblending", b"MotionBlend\x00"),
+            )
+        )
+        result = build_archive_preview_result(
+            None,
+            entries[0],
+            texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
+            texture_entries_by_basename=build_archive_entry_basename_index(entries),
+        )
+        graph = result.asset_family_graph or build_archive_asset_family_graph(entries[0], result.model_texture_references)
+        rows_by_group = {}
+        for row in graph.member_rows:
+            rows_by_group.setdefault(row.group, []).append(row)
+
+        self.assertIn("Selected Model", rows_by_group)
+        self.assertIn("Material", rows_by_group)
+        self.assertIn("Textures", rows_by_group)
+        self.assertIn("Physics / HKX", rows_by_group)
+        self.assertIn("MeshInfo", rows_by_group)
+        self.assertIn("Prefab / Metadata", rows_by_group)
+        self.assertIn("Animation / Motion", rows_by_group)
+        self.assertTrue(any(row.display_name == "body_a.pappt" for row in rows_by_group["Prefab / Metadata"]))
+        self.assertTrue(any(row.display_name == "body_a.pamhc" for row in rows_by_group["Material"]))
+        self.assertTrue(any(row.source_evidence in {"Sidecar", "Exact"} for row in rows_by_group["Material"]))
+        self.assertTrue(any(row.source_evidence in {"Exact", "Path hint", "Sidecar"} for row in rows_by_group["Textures"]))
+        self.assertTrue(any(row.include_policy == "manual" for row in rows_by_group["Physics / HKX"]))
+        self.assertIn("Model OK", graph.summary)
+        self.assertIn("texture", graph.summary)
+
+    def test_asset_family_graph_does_not_label_partial_dds_storage_as_partial_relationship(self):
+        entries = self._entries(
+            (
+                ("character/model/body_a.pac", b"PAR "),
+                ("character/texture/body_a.dds", b"DDS "),
+            )
+        )
+        entries[1].flags = 1
+        reference = ArchiveModelTextureReference(
+            reference_name="character/texture/body_a.dds",
+            resolved_archive_path="character/texture/body_a.dds",
+            resolved_entry=entries[1],
+            resolution_status="resolved",
+            relation_confidence="exact_path",
+            relation_group="Textures",
+            relation_reason="Exact archive path.",
+        )
+
+        graph = build_archive_asset_family_graph(entries[0], (reference,))
+        texture_rows = [row for row in graph.member_rows if row.group == "Textures"]
+
+        self.assertEqual(1, len(texture_rows))
+        self.assertEqual("Resolved", texture_rows[0].status)
+        self.assertEqual("Exact", texture_rows[0].source_evidence)
+        self.assertIn("Partial DDS storage", texture_rows[0].warning)
+
+    def test_socket_xml_parser_recovers_socket_transforms_and_stack_groups(self):
+        document = parse_socket_bone_data_xml(
+            """
+            <SocketBoneData>
+              <SocketList>
+                <Socket Name="Pelvis_L_Socket" Parent="Bip01 Pelvis"
+                  Rotation="0 0 0 1" Translation="1.0 2.5 -3.0" UIView="Pelvis L" />
+                <Socket Name="Pelvis_L_ChildSocket" Parent="B_Weapon_0001"
+                  Rotation="0.1 0.2 0.3 0.4" Translation="4 5 6" />
+              </SocketList>
+              <StackEquipInfoList>
+                <StackEquipInfo EquipTypeName="Pelvis_L" OriginBoneName="Bip01 Pelvis" Axis="Y">
+                  <Socket Name="Pelvis_L_Socket" />
+                </StackEquipInfo>
+              </StackEquipInfoList>
+            </SocketBoneData>
+            """,
+            "character/phm_01.pab.sockets.xml",
+        )
+
+        self.assertEqual(2, len(document.sockets))
+        self.assertEqual("Pelvis_L_Socket", document.sockets[0].name)
+        self.assertEqual("Bip01 Pelvis", document.sockets[0].parent)
+        self.assertEqual((1.0, 2.5, -3.0), document.sockets[0].translation)
+        self.assertEqual(1, len(document.stack_equip_infos))
+        self.assertEqual("Pelvis_L", document.stack_equip_infos[0].equip_type_name)
+        self.assertEqual(("Pelvis_L_Socket",), document.stack_equip_infos[0].socket_names)
+
+    def test_asset_family_graph_adds_read_only_attachment_placement_evidence(self):
+        prefab_payload = (
+            b"_attachedSocketName\x00_pivotSocketName\x00_applyPosition\x00_applyRotation\x00_applyScale\x00"
+            b"_worldTransform\x00_tiledTransform\x00_socketFileName\x00_skeletonFileName\x00_skinnedMeshFileName\x00"
+            b"Pelvis_L_Socket\x00Pelvis_L_ChildSocket\x00CD_MainWeapon_Sword_R\x00"
+            b"character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0053.pac\x00"
+            b"character/descriptors/socketbonedata/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001_r.sockets.xml\x00"
+            b"character/phm_01.pab\x00"
+        )
+        socket_xml = """
+            <SocketBoneData>
+              <SocketList>
+                <Socket Name="Pelvis_L_Socket" Parent="Bip01 Pelvis"
+                  Rotation="0 0 0 1" Translation="1 2 3" />
+                <Socket Name="Pelvis_L_ChildSocket" Parent="B_Weapon_0001"
+                  Rotation="0 0 0 1" Translation="4 5 6" />
+              </SocketList>
+            </SocketBoneData>
+        """
+        entries = self._entries(
+            (
+                ("character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac", b"PAR "),
+                ("character/prefab/cd_phm_02_sword_0015.prefab", prefab_payload),
+                (
+                    "character/descriptors/socketbonedata/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001_r.sockets.xml",
+                    socket_xml,
+                ),
+                ("character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0053.pac", b"PAR "),
+                ("character/phm_01.pab", b"PAB"),
+            )
+        )
+        references = (
+            ArchiveModelTextureReference(
+                reference_name=entries[1].path,
+                resolved_archive_path=entries[1].path,
+                resolved_entry=entries[1],
+                resolution_status="resolved",
+                relation_confidence="exact_path",
+                relation_group="Prefab / Metadata",
+                reference_kind="prefab",
+            ),
+            ArchiveModelTextureReference(
+                reference_name=entries[2].path,
+                resolved_archive_path=entries[2].path,
+                resolved_entry=entries[2],
+                resolution_status="resolved",
+                relation_confidence="exact_path",
+                relation_group="Prefab / Metadata",
+                reference_kind="prefab_socket_descriptor",
+            ),
+        )
+
+        graph = build_archive_asset_family_graph(entries[0], references)
+        evidence = graph.attachment_evidence[0]
+        placement_rows = [row for row in graph.member_rows if row.group == "Attachment / Placement"]
+
+        self.assertEqual("Pelvis_L_Socket", evidence.character_socket_name)
+        self.assertEqual("Bip01 Pelvis", evidence.character_socket_parent)
+        self.assertEqual("Pelvis_L_ChildSocket", evidence.weapon_socket_name)
+        self.assertEqual("B_Weapon_0001", evidence.weapon_socket_parent)
+        self.assertIn("Final Attachment", evidence.placement_modes)
+        self.assertTrue(placement_rows)
+        self.assertEqual("manual", placement_rows[0].include_policy)
+        self.assertIn("placement", graph.summary)
+
+    def test_asset_family_graph_marks_missing_model_companions_without_fake_entries(self):
+        entries = self._entries((("character/model/body_a.pac", b"PAR "),))
+
+        graph = build_archive_asset_family_graph(entries[0], ())
+        missing_groups = {row.group for row in graph.member_rows if row.status == "Missing"}
+
+        self.assertIn("Material", missing_groups)
+        self.assertIn("MeshInfo", missing_groups)
+        self.assertIn("Physics / HKX", missing_groups)
+        self.assertIn("Prefab / Metadata", missing_groups)
+        self.assertIn("meshinfo missing", graph.summary)
+        self.assertTrue(all(row.resolved_entry is None for row in graph.member_rows if row.status == "Missing"))
 
     def test_binary_prefab_graph_resolves_model_socket_physics_and_textures(self):
         entries = self._entries(

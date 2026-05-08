@@ -9,6 +9,7 @@ from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.scene_importer import (
     SCENE_IMPORT_EXTENSIONS,
     discover_scene_texture_files,
+    discover_local_mesh_supplemental_files,
     import_scene_mesh,
     import_scene_mesh_with_report,
 )
@@ -194,6 +195,40 @@ class GltfSceneImporterTests(unittest.TestCase):
 
             self.assertEqual(len(mappings), 1)
             self.assertEqual(mappings[0].source_submesh_indices, [0])
+
+    def test_local_archive_mesh_package_discovers_sidecar_and_collapsed_texture_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "ModName" / "files" / "character"
+            root.mkdir(parents=True)
+            mesh_path = root / "cd_test_helmet.pac"
+            mesh_path.write_bytes(b"not parsed in this discovery test")
+            sidecar_path = root / "cd_test_helmet.pac_xml"
+            texture_path = root / "iron_red_base.dds"
+            material_path = root / "cd_test_helmet_mat.dds"
+            sidecar_path.write_text(
+                '<SkinnedMeshMaterialWrapper _subMeshName="helmet">'
+                '<MaterialParameterTexture _name="_baseColorTexture">'
+                '<ResourceReferencePath_ITexture _path="character/texture/iron_red_base.dds"/>'
+                "</MaterialParameterTexture>"
+                "</SkinnedMeshMaterialWrapper>",
+                encoding="utf-16",
+            )
+            texture_path.write_bytes(b"DDS ")
+            material_path.write_bytes(b"DDS ")
+            mesh = ParsedMesh(
+                path=str(mesh_path),
+                format="pac",
+                submeshes=[SubMesh(name="helmet", material="cd_test_helmet", texture="cd_test_helmet")],
+                total_vertices=0,
+                total_faces=0,
+            )
+
+            discovered = discover_local_mesh_supplemental_files(mesh_path, mesh)
+
+            self.assertIn(".pac", SCENE_IMPORT_EXTENSIONS)
+            self.assertIn(sidecar_path.resolve(), discovered)
+            self.assertIn(texture_path.resolve(), discovered)
+            self.assertIn(material_path.resolve(), discovered)
 
 
 if __name__ == "__main__":

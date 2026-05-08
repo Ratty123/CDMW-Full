@@ -200,6 +200,11 @@ class TextSearchTab(QWidget):
     AUTO_PREVIEW_RESULT_LIMIT = 4000
     RESULT_POPULATION_BATCH_SIZE = 300
 
+    def resizeEvent(self, event: object) -> None:
+        super().resizeEvent(event)  # type: ignore[arg-type]
+        if hasattr(self, "_column_autofit_timer"):
+            self._column_autofit_timer.start()
+
     def __init__(
         self,
         *,
@@ -248,6 +253,10 @@ class TextSearchTab(QWidget):
         self._results_population_timer.setSingleShot(True)
         self._results_population_timer.setInterval(0)
         self._results_population_timer.timeout.connect(self._flush_result_population_batch)
+        self._column_autofit_timer = QTimer(self)
+        self._column_autofit_timer.setSingleShot(True)
+        self._column_autofit_timer.setInterval(80)
+        self._column_autofit_timer.timeout.connect(self.auto_fit_columns)
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(10, 10, 10, 10)
@@ -473,6 +482,7 @@ class TextSearchTab(QWidget):
         self.main_splitter.setSizes(
             build_responsive_splitter_sizes(1670, [24, 24, 52], [controls_min, results_min, preview_min])
         )
+        self._column_autofit_timer.start()
 
         self.log_highlighter = LogHighlighter(self.log_view.document(), theme_key)
         log_font = QFont("Consolas")
@@ -555,16 +565,24 @@ class TextSearchTab(QWidget):
         self.main_splitter.setSizes(
             build_responsive_splitter_sizes(available_width, [24, 24, 52], [controls_min, results_min, preview_min])
         )
+        self._column_autofit_timer.start()
 
     def auto_fit_columns(self) -> None:
         header = self.results_tree.header()
         if header is None or self.results_tree.columnCount() <= 0:
             return
-        if has_persistent_tree_column_widths(self.settings, "text_search/results", self.results_tree.columnCount(), minimum_width=56):
-            return
+        header.setStretchLastSection(False)
         viewport_width = max(self.results_tree.viewport().width(), self.results_tree.width() - 24, 0)
         if viewport_width <= 0:
             return
+        if has_persistent_tree_column_widths(self.settings, "text_search/results", self.results_tree.columnCount(), minimum_width=56):
+            saved_total = sum(
+                header.sectionSize(column)
+                for column in range(self.results_tree.columnCount())
+                if not self.results_tree.isColumnHidden(column)
+            )
+            if saved_total >= viewport_width - 24:
+                return
         minimums = {
             0: 220,
             1: 74,
@@ -649,6 +667,7 @@ class TextSearchTab(QWidget):
         self.results_tree.addTopLevelItem(item)
         self.results_tree.blockSignals(False)
         self.results_tree.setCurrentItem(item)
+        self._column_autofit_timer.start()
 
         file_name = PurePosixPath(result.relative_path).name or result.relative_path
         self.results_summary_label.setText("Opened 1 archive text file from Research for focused review.")
@@ -1004,6 +1023,7 @@ class TextSearchTab(QWidget):
         self.search_progress_bar.setFormat("Ready")
         self._clear_pending_result_population()
         self.results_stack.setCurrentWidget(self.results_tree if self.search_results else self.results_empty_state)
+        self._column_autofit_timer.start()
 
     def _flush_result_population_batch(self) -> None:
         if not self._pending_result_indexes:
@@ -1016,6 +1036,7 @@ class TextSearchTab(QWidget):
         self.results_tree.addTopLevelItems(batch)
         self.results_tree.setUpdatesEnabled(True)
         self.results_stack.setCurrentWidget(self.results_tree)
+        self._column_autofit_timer.start()
         populated = self._pending_result_total - len(self._pending_result_indexes)
         self.search_progress_label.setText(f"Populating results... {populated} / {self._pending_result_total}")
         self.search_progress_bar.setRange(0, max(1, self._pending_result_total))

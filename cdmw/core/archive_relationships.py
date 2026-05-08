@@ -31,7 +31,7 @@ SWAP_SCOPE_BODY_ONLY = "body_only"
 SWAP_SCOPE_BODY_HEAD = "body_head"
 SWAP_SCOPE_FULL_APPEARANCE_REDIRECT = "full_appearance_redirect"
 
-_XML_DESCRIPTOR_EXTENSIONS = {".xml", ".app_xml", ".prefabdata_xml", ".paccd", ".pac_xml", ".pami"}
+_XML_DESCRIPTOR_EXTENSIONS = {".xml", ".app_xml", ".prefabdata_xml", ".paccd", ".pac_xml", ".pami", ".pappt", ".pamhc", ".seqmt"}
 _MATERIAL_SIDECAR_EXTENSIONS = {".pac_xml", ".pam_xml", ".pamlod_xml", ".pami", ".xml"}
 _SKELETON_EXTENSIONS = {".pab", ".pabc", ".pabv", ".pabgb", ".pabgh", ".papr"}
 _PHYSICS_EXTENSIONS = {".hkx", ".hkt"}
@@ -47,6 +47,7 @@ _ANIMATION_EXTENSIONS = {
     ".paschedule",
     ".paschedulepath",
     ".pastage",
+    ".seqmt",
 }
 _UNRESOLVED_DESCRIPTOR_SUFFIXES = (".pabc", ".pabv", ".papr", ".hkt")
 _PATH_INDEX_CACHE: Dict[Tuple[int, int, str, str], Dict[str, List[ArchiveEntry]]] = {}
@@ -240,6 +241,9 @@ def _candidate_basenames_for_xml_reference(raw_value: str, attr_name: str) -> Tu
                 f"{basename}.pac",
                 f"{basename}.pac_xml",
                 f"{basename}.pami",
+                f"{basename}.pappt",
+                f"{basename}.pamhc",
+                f"{basename}.seqmt",
             )
         )
     elif attr == "customizationfile":
@@ -249,11 +253,11 @@ def _candidate_basenames_for_xml_reference(raw_value: str, attr_name: str) -> Tu
         candidates.append(f"{basename}.xml")
     elif attr == "filename":
         if not suffix:
-            candidates.extend((f"{basename}.xml", f"{basename}.pab", f"{basename}.pabc", f"{basename}.pabv", f"{basename}.papr", f"{basename}.hkx", f"{basename}.hkt"))
+            candidates.extend((f"{basename}.xml", f"{basename}.pab", f"{basename}.pabc", f"{basename}.pabv", f"{basename}.papr", f"{basename}.hkx", f"{basename}.hkt", f"{basename}.pappt", f"{basename}.pamhc", f"{basename}.seqmt"))
         if suffix == ".prefabdata":
             candidates.append(f"{stem}.prefabdata_xml")
     elif not suffix:
-        candidates.extend((f"{basename}.xml", f"{basename}.prefabdata_xml", f"{basename}.pab", f"{basename}.hkx", f"{basename}.hkt"))
+        candidates.extend((f"{basename}.xml", f"{basename}.prefabdata_xml", f"{basename}.pab", f"{basename}.hkx", f"{basename}.hkt", f"{basename}.pappt", f"{basename}.pamhc", f"{basename}.seqmt"))
     return tuple(dict.fromkeys(candidate for candidate in candidates if candidate))
 
 
@@ -279,6 +283,8 @@ def _relation_kind_for_entry(entry: ArchiveEntry) -> str:
     if extension == ".prefabdata_xml":
         return "prefab_data"
     if extension == ".prefab":
+        return "prefab"
+    if extension == ".pappt":
         return "prefab"
     if extension in ARCHIVE_MESH_EXTENSIONS:
         return "model"
@@ -604,7 +610,7 @@ def _prefab_role_for_reference(raw_reference: str, entry: Optional[ArchiveEntry]
         if any(name in declared_names for name in ("skinnedmeshfile", "skinnedmeshfilename", "skeletonfilename")):
             return "prefab_skinned_model_resource"
         return "prefab_model_resource"
-    if extension in _MATERIAL_SIDECAR_EXTENSIONS or "modelproperty" in reference_path:
+    if extension in _MATERIAL_SIDECAR_EXTENSIONS or extension == ".pamhc" or "modelproperty" in reference_path:
         return "prefab_material_context"
     if extension == ".dds":
         return "prefab_texture_hint"

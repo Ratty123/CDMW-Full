@@ -11,6 +11,8 @@ from cdmw.core.archive_modding import (
     ArchivePatchRequest,
     MeshImportPreviewResult,
     MeshImportSupplementalFileSpec,
+    _build_mesh_import_supplemental_file_specs,
+    _build_selected_sidecar_texture_bindings,
     export_archive_mesh_payloads_to_mod_ready_loose,
 )
 from cdmw.core.mod_package import ModPackageExportOptions
@@ -69,6 +71,93 @@ def _fake_dds_bytes(width: int, height: int, *, mips: int = 1, fourcc: bytes = b
 
 
 class StaticTextureReplacementTests(unittest.TestCase):
+    def test_loose_package_dds_without_sidecar_reference_targets_texture_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_dir = root / "IronMod" / "files" / "character"
+            source_dir.mkdir(parents=True)
+            source_dds = source_dir / "cd_test_helmet_o.dds"
+            source_dds.write_bytes(_fake_dds_bytes(64, 64))
+            entry = _entry("character/cd_test_helmet.pac", root)
+
+            specs = _build_mesh_import_supplemental_file_specs(
+                entry,
+                [source_dds],
+                (),
+                archive_entries_by_normalized_path={},
+                archive_entries_by_basename={},
+            )
+
+            self.assertEqual(len(specs), 1)
+            self.assertEqual(specs[0].kind, "texture")
+            self.assertEqual(specs[0].target_path, "character/texture/cd_test_helmet_o.dds")
+
+    def test_local_source_pac_xml_prefers_selected_target_sidecar_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_dir = root / "IronMod" / "files" / "character"
+            source_dir.mkdir(parents=True)
+            source_sidecar = source_dir / "source_helmet.pac_xml"
+            source_sidecar.write_text("<Root />", encoding="utf-8")
+            entry = _entry("character/model/1_pc/1_phm/armor/13_hel/target_helmet.pac", root)
+
+            specs = _build_mesh_import_supplemental_file_specs(
+                entry,
+                [source_sidecar],
+                (),
+                archive_entries_by_normalized_path={},
+                archive_entries_by_basename={},
+            )
+
+            self.assertEqual(len(specs), 1)
+            self.assertEqual(specs[0].kind, "sidecar")
+            self.assertEqual(
+                specs[0].target_path,
+                "character/modelproperty/1_pc/1_phm/armor/13_hel/target_helmet.pac_xml",
+            )
+
+    def test_local_source_pac_xml_prefers_existing_archive_sidecar_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_sidecar = root / "source_helmet.pac_xml"
+            source_sidecar.write_text("<Root />", encoding="utf-8")
+            entry = _entry("character/model/armor/target_helmet.pac", root)
+            sidecar_entry = _entry("character/modelproperty/armor/target_helmet.pac_xml", root)
+            archive_entries_by_normalized_path = {sidecar_entry.path.lower(): (sidecar_entry,)}
+            archive_entries_by_basename = {sidecar_entry.basename.lower(): (sidecar_entry,)}
+
+            specs = _build_mesh_import_supplemental_file_specs(
+                entry,
+                [source_sidecar],
+                (),
+                archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+                archive_entries_by_basename=archive_entries_by_basename,
+            )
+
+            self.assertEqual(len(specs), 1)
+            self.assertEqual(specs[0].target_entry, sidecar_entry)
+            self.assertEqual(specs[0].target_path, sidecar_entry.path)
+
+    def test_selected_pac_xml_sidecar_bindings_accept_utf16_text(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            sidecar_path = root / "cd_test_helmet.pac_xml"
+            sidecar_path.write_text(
+                '<SkinnedMeshMaterialWrapper _subMeshName="helmet">'
+                '<MaterialParameterTexture _name="_baseColorTexture">'
+                '<ResourceReferencePath_ITexture _path="character/texture/iron_red_base.dds"/>'
+                "</MaterialParameterTexture>"
+                "</SkinnedMeshMaterialWrapper>",
+                encoding="utf-16",
+            )
+
+            bindings, sidecars, texts_by_path, texts_by_name = _build_selected_sidecar_texture_bindings([sidecar_path])
+
+            self.assertEqual(len(bindings), 1)
+            self.assertEqual(sidecars, ("cd_test_helmet.pac_xml",))
+            self.assertIn("character/texture/iron_red_base.dds", texts_by_path)
+            self.assertIn("iron_red_base.dds", texts_by_name)
+
     def test_png_to_dds_defaults_to_source_dimensions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

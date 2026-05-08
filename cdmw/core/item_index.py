@@ -37,6 +37,7 @@ class ArchiveAssetCatalogEntry:
     display_name: str
     category: str
     group: str = ""
+    category_evidence: str = ""
     pac_files: tuple[str, ...] = ()
     model_stems: tuple[str, ...] = ()
     icon_paths: tuple[str, ...] = ()
@@ -52,6 +53,7 @@ class ArchiveAssetCatalogEntry:
             "display_name": self.display_name,
             "category": self.category,
             "group": self.group,
+            "category_evidence": self.category_evidence,
             "pac_files": list(self.pac_files),
             "model_stems": list(self.model_stems),
             "icon_paths": list(self.icon_paths),
@@ -852,6 +854,52 @@ def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> T
     return "Item", "Unclassified"
 
 
+def _archive_asset_catalog_category_evidence(
+    item: ArchiveItemRecord,
+    category: str,
+    group: str,
+    *,
+    generated_display_name: bool = False,
+) -> str:
+    relation_text = " ".join(
+        token.lower()
+        for token in (
+            " ".join(item.pac_files),
+            " ".join(item.model_stems),
+            " ".join(item.icon_paths),
+        )
+        if token
+    )
+    category_text = f"{category} {group}".strip()
+    category_terms = tuple(
+        term
+        for term in re.split(r"[^a-z0-9]+", f"{category} {group}".lower())
+        if len(term) >= 3
+    )
+    strong_terms = list(category_terms)
+    if group == "Pet Gear":
+        strong_terms.extend(("petarmor", "catarmor", "dogarmor", "petgear", "companionpet", "puppy"))
+    elif group == "Fishing":
+        strong_terms.extend(("itemcatch_fishingrod", "fishingrod", "fishing rod"))
+    elif category == "Quest / Document":
+        strong_terms.extend(("letter", "note", "contract", "sighting", "news", "report", "blueprint", "noticepaper", "lostletter"))
+    elif group == "Recipe Book":
+        strong_terms.extend(("recipe", "craftingrecipe", "recipe book"))
+    internal_text = str(item.internal_name or "").lower()
+    if internal_text and _catalog_text_matches_any(internal_text, strong_terms):
+        return f"Internal ID -> {category_text}"
+    if relation_text and _catalog_text_matches_any(relation_text, strong_terms):
+        return f"Icon/model hint -> {category_text}"
+    if item.display_name or item.localized_names:
+        if generated_display_name:
+            return f"Name hint -> {category_text}"
+        return f"Name hint -> {category_text}"
+    if item.model_stems or item.icon_paths or item.pac_files:
+        if relation_text:
+            return f"Icon/model hint -> {category_text}"
+    return f"Name hint -> {category_text}"
+
+
 def _catalog_scope_filter_for_item(item: ArchiveItemRecord) -> str:
     patterns: List[str] = []
     seen: set[str] = set()
@@ -920,6 +968,7 @@ def _merge_catalog_entry(existing: ArchiveAssetCatalogEntry, item: ArchiveItemRe
         display_name=display_name or existing.internal_name,
         category=existing.category,
         group=existing.group,
+        category_evidence=existing.category_evidence,
         pac_files=pac_files,
         model_stems=model_stems,
         icon_paths=icon_paths,
@@ -940,6 +989,12 @@ def _build_archive_asset_catalog_entries(items: Sequence[ArchiveItemRecord]) -> 
         group_key = f"{identity_basis}|{scope_basis or internal_base}"
         category, catalog_group = _classify_archive_asset_catalog_category_group(item)
         generated_display_name = not bool(display_base or item.display_name)
+        category_evidence = _archive_asset_catalog_category_evidence(
+            item,
+            category,
+            catalog_group,
+            generated_display_name=generated_display_name,
+        )
         evidence_parts = []
         if item.prefab_hashes:
             evidence_parts.append("iteminfo prefab hash")
@@ -957,6 +1012,7 @@ def _build_archive_asset_catalog_entries(items: Sequence[ArchiveItemRecord]) -> 
             display_name=display_base or item.display_name or _friendly_internal_item_name(item.internal_name),
             category=category,
             group=catalog_group,
+            category_evidence=category_evidence,
             pac_files=tuple(item.pac_files),
             model_stems=tuple(item.model_stems),
             icon_paths=tuple(item.icon_paths),

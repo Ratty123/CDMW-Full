@@ -9,6 +9,9 @@ APP = ROOT / "cdmw_app.py"
 MAIN_WINDOW = ROOT / "cdmw" / "ui" / "main_window.py"
 ARCHIVE = ROOT / "cdmw" / "core" / "archive.py"
 THEMES = ROOT / "cdmw" / "ui" / "themes.py"
+WIDGETS = ROOT / "cdmw" / "ui" / "widgets.py"
+RESEARCH_TAB = ROOT / "cdmw" / "ui" / "research_tab.py"
+TEXT_SEARCH_TAB = ROOT / "cdmw" / "ui" / "text_search_tab.py"
 
 
 class CrashReportingGuardTests(unittest.TestCase):
@@ -72,12 +75,12 @@ class CrashReportingGuardTests(unittest.TestCase):
         source = MAIN_WINDOW.read_text(encoding="utf-8")
         self.assertIn("archive_preview_main_widget.setMinimumWidth(0)", source)
         self.assertIn("self.archive_preview_title_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)", source)
-        self.assertIn("self.archive_texture_refs_group.setMinimumWidth(0)", source)
+        self.assertIn("self.archive_texture_refs_group.setMinimumWidth(320)", source)
         self.assertIn("self.archive_preview_content_splitter.setChildrenCollapsible(True)", source)
         self.assertIn("def _clamp_archive_preview_asset_map_splitter(self, *, prefer_default: bool = False) -> None:", source)
-        self.assertIn("min_preview_width = 640", source)
-        self.assertIn("min_refs_width = 260", source)
-        self.assertIn("max_refs_width = min(760", source)
+        self.assertIn("min_preview_width = 560", source)
+        self.assertIn("min_refs_width = 300", source)
+        self.assertIn("max_refs_width = min(680", source)
         self.assertIn("target_sizes = [total, 0]", source)
         self.assertIn("self.archive_preview_content_splitter.setSizes(target_sizes)", source)
 
@@ -116,6 +119,10 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("remaining_minimum_visible_ms", source)
         self.assertIn("self._minimum_visible_seconds = 3.0", source)
         self.assertIn("QTimer.singleShot(remaining_ms, self._release_startup_splash)", source)
+        self.assertIn("def _show_main_window_behind_startup_splash(self) -> None:", source)
+        self.assertIn("QTimer.singleShot(0, self._show_main_window_behind_startup_splash)", source)
+        self.assertIn("def _finish_startup_splash_now(self) -> None:", source)
+        self.assertIn("QTimer.singleShot(delay_ms, self._finish_startup_splash_now)", source)
         self.assertIn("def pump_animation_frame", source)
         self.assertIn("MainWindow(startup_splash=startup_splash)", source)
         self.assertIn('pump_startup_splash("Preparing archive browser...")', source)
@@ -166,9 +173,16 @@ class CrashReportingGuardTests(unittest.TestCase):
         main_source = MAIN_WINDOW.read_text(encoding="utf-8")
 
         self.assertIn("self.section_nav_list = QListWidget()", settings_source)
+        self.assertIn('self.section_nav_list.setObjectName("SettingsSectionNav")', settings_source)
+        self.assertIn("self.section_nav_list.setFixedWidth(270)", settings_source)
+        self.assertIn("item.setSizeHint(QSize(0, 40))", settings_source)
+        self.assertIn("def _apply_section_nav_style(self) -> None:", settings_source)
+        self.assertIn("QListWidget#SettingsSectionNav::item:hover", settings_source)
+        self.assertIn("QListWidget#SettingsSectionNav::item:selected", settings_source)
         self.assertIn("self.section_stack = QStackedWidget()", settings_source)
         for title in (
             '"Setup"',
+            '"Startup"',
             '"Paths"',
             '"Archive Browser Performance"',
             '"Appearance"',
@@ -177,14 +191,23 @@ class CrashReportingGuardTests(unittest.TestCase):
         ):
             self.assertIn(title, settings_source)
         self.assertIn("self.setup_page_layout = _add_settings_page(", settings_source)
+        self.assertIn("self.startup_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.paths_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.archive_performance_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.appearance_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.layout_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.safety_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.setup_page_layout.insertWidget(2, setup_section)", settings_source)
+        self.assertIn("toggle_button.setVisible(False)", settings_source)
+        self.assertIn("self.setup_section.set_expanded(True)", main_source)
         self.assertIn("self.paths_page_layout.insertWidget(2, paths_section)", settings_source)
         self.assertIn("self.paths_page_layout.insertWidget(3, archive_locations_section)", settings_source)
+        self.assertIn("self.restore_archive_filters_checkbox = QCheckBox(\"Restore Archive Browser filters on startup\")", settings_source)
+        self.assertIn("\"preferences/restore_archive_filters_on_startup\"", settings_source)
+        self.assertIn("restore_archive_filters = self._preference_bool(\"restore_archive_filters_on_startup\", False)", main_source)
+        self.assertIn("QTimer.singleShot(6500, window._release_startup_splash)", main_source)
+        self.assertIn("self.archive_startup_autoload_defer_preview = True", main_source)
+        self.assertIn("defer_default_selection=defer_default_selection", main_source)
         self.assertIn("def show_settings_section(self, key: str) -> None:", settings_source)
         self.assertIn('self.settings_tab.show_settings_section("setup")', main_source)
         self.assertIn('self.settings_tab.show_settings_section("paths")', main_source)
@@ -214,29 +237,115 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def _archive_asset_catalog_group_choices(self, category: str = \"\") -> Tuple[str, ...]:", source)
         self.assertIn("no full archive scan", source)
         self.assertIn("Item Finder scoped Archive Browser to:", source)
-        self.assertIn('self.archive_texture_scope_all_button = QPushButton("Show File Set")', source)
+        self.assertIn('self.archive_texture_scope_all_button = QPushButton("Show Only This Family")', source)
         self.assertIn("def _scope_all_archive_texture_references(self) -> None:", source)
         self.assertIn("Referenced file set scoped Archive Browser to:", source)
 
     def test_archive_extension_filter_is_searchable_for_rare_extensions(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
         self.assertIn("self.archive_extension_filter_combo.setEditable(True)", source)
+        self.assertIn('self.archive_extension_filter_combo.setObjectName("ArchiveExtensionFilter")', source)
         self.assertIn("self.archive_extension_filter_combo.setInsertPolicy(QComboBox.NoInsert)", source)
+        self.assertIn("self.archive_extension_filter_combo.setDuplicatesEnabled(False)", source)
         self.assertIn("self.archive_extension_filter_combo.setMaxVisibleItems(32)", source)
         self.assertIn("self.archive_extension_filter_combo.setMinimumWidth(210)", source)
+        self.assertIn("QComboBox#ArchiveExtensionFilter::drop-down", source)
         self.assertIn('extension_line_edit.setPlaceholderText("Select or type extension")', source)
         self.assertIn("type a specific extension directly", source)
         self.assertIn("self.archive_extension_picker_button = QToolButton()", source)
-        self.assertIn("self.archive_extension_picker_button.clicked.connect(self.archive_extension_filter_combo.showPopup)", source)
+        self.assertIn('self.archive_extension_picker_button.setText("Select")', source)
+        self.assertIn("self.archive_extension_picker_button.clicked.connect(self._open_archive_extension_picker)", source)
+        self.assertIn("def _open_archive_extension_picker(self) -> None:", source)
+        self.assertIn("def _archive_extension_group_label(extension: str) -> str:", source)
+        self.assertIn('extension_tree.setHeaderLabels(["Extension", "Entries", "Group"])', source)
+        self.assertIn('group_order = (', source)
+        self.assertIn('child.setForeground(1, count_brush)', source)
         self.assertIn('archive_extension_filter_label = QLabel("Extension")', source)
         self.assertIn("self.archive_extension_filter_combo.currentTextChanged.connect(self._mark_archive_filters_dirty)", source)
+        texture_group_start = source.index('if ext in {".dds"')
+        texture_group = source[texture_group_start : source.index('return "Texture / Image"', texture_group_start)]
+        self.assertNotIn('".paa"', texture_group)
+        animation_group_start = source.index('if ext in {".paseqc"')
+        animation_group = source[animation_group_start : source.index('return "Animation / Scene"', animation_group_start)]
+        self.assertIn('".paa"', animation_group)
 
     def test_archive_controls_sidebar_keeps_readable_width(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
         self.assertIn("def _archive_controls_sidebar_bounds(self) -> Tuple[int, int, int]:", source)
-        self.assertIn("readable_min = int(round(440 * scale))", source)
+        self.assertIn("screen_width, _screen_height = available_layout_size_for(self)", source)
+        self.assertIn("elif screen_width <= 1920:", source)
+        self.assertIn("readable_values = (340, 390, 460)", source)
+        self.assertIn('archive_controls_group.setObjectName("ArchiveControlsPanel")', source)
+        self.assertIn("archive_controls_font.setPointSize(max(8, archive_controls_font.pointSize() - 1))", source)
         self.assertIn("archive_controls_min, _archive_controls_pref, archive_controls_max = self._archive_controls_sidebar_bounds()", source)
         self.assertIn("self.archive_extension_picker_button.setEnabled(not busy)", source)
+
+    def test_archive_browser_rebalances_for_compact_screens(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        research_source = RESEARCH_TAB.read_text(encoding="utf-8")
+        text_search_source = TEXT_SEARCH_TAB.read_text(encoding="utf-8")
+        widgets_source = WIDGETS.read_text(encoding="utf-8")
+        self.assertIn("def available_screen_size_for(widget: Optional[QWidget] = None) -> Tuple[int, int]:", widgets_source)
+        self.assertIn("def available_layout_size_for(widget: Optional[QWidget] = None) -> Tuple[int, int]:", widgets_source)
+        self.assertIn("def available_screen_width_for(widget: Optional[QWidget] = None) -> int:", widgets_source)
+        self.assertIn("def responsive_screen_compact_scale(widget: Optional[QWidget] = None) -> float:", widgets_source)
+        self.assertIn("width, height = available_layout_size_for(widget)", widgets_source)
+        self.assertIn("elif height <= 1080:", widgets_source)
+        self.assertIn("elif height <= 1200:", widgets_source)
+        self.assertIn("scale = ui_scale_for(widget) * responsive_screen_compact_scale(widget)", widgets_source)
+        self.assertIn("def build_bounded_splitter_sizes(", widgets_source)
+        self.assertIn("def _apply_responsive_width_policies(self) -> None:", source)
+        self.assertIn("self.archive_files_group.setMaximumWidth(16777215)", source)
+        self.assertNotIn("normalized[1] > _files_max", source)
+        self.assertIn("def _apply_archive_preview_content_responsive_sizes(self) -> None:", source)
+        self.assertIn("not self.isMaximized()", source)
+        self.assertIn('window_handle.screenChanged.connect(', source)
+        self.assertIn('getattr(self, "_applying_responsive_layout", False)', source)
+        self.assertIn("def resizeEvent(self, event: object) -> None:", source)
+        self.assertIn("self.right_panel_stack.setMaximumWidth(16777215)", research_source)
+        self.assertIn("build_bounded_splitter_sizes(total_width, [72, 28], [420, details_min], [None, None])", research_source)
+        self.assertIn("QTimer.singleShot(0, self.auto_fit_columns)", research_source)
+        self.assertIn("saved_total = sum(", research_source)
+        self.assertIn("def resizeEvent(self, event: object) -> None:", research_source)
+        self.assertIn("def resizeEvent(self, event: object) -> None:", text_search_source)
+        self.assertIn('has_persistent_tree_column_widths(self.settings, "text_search/results"', text_search_source)
+        self.assertIn("if saved_total >= viewport_width - 24:", text_search_source)
+
+    def test_research_archive_files_supports_flat_and_folder_views(self) -> None:
+        source = RESEARCH_TAB.read_text(encoding="utf-8")
+        self.assertIn("self.archive_picker_view_combo = QComboBox()", source)
+        self.assertIn('self.archive_picker_view_combo.addItem("Flat files", "flat")', source)
+        self.assertIn('self.archive_picker_view_combo.addItem("Folders", "folders")', source)
+        self.assertIn("self.archive_picker_view_combo.currentIndexChanged.connect(self._handle_archive_picker_view_changed)", source)
+        self.assertIn("def _populate_archive_picker_tree(self) -> None:", source)
+        self.assertIn("show_full_path=True", source)
+        self.assertIn("self.archive_picker_flat_render_limit = 5000", source)
+
+    def test_compact_screens_scale_controls_not_only_splitters(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        theme_source = THEMES.read_text(encoding="utf-8")
+        self.assertIn("def _responsive_control_scale_for_resolution(screen_width: int, screen_height: int) -> float:", source)
+        self.assertIn("def _responsive_control_scale_for_width(screen_width: int) -> float:", source)
+        self.assertIn("elif screen_height <= 1080:", source)
+        self.assertIn("return min(width_scale, height_scale)", source)
+        self.assertIn("screen_width, screen_height = available_layout_size_for(self)", source)
+        self.assertIn("screen_height=screen_height", source)
+        self.assertIn("base_font_size = max(UI_FONT_SIZE_MIN", source)
+        self.assertIn("effective_density_key = \"compact\" if screen_scale < 0.94 else density_key", source)
+        self.assertIn("layout_scale=screen_scale", source)
+        self.assertIn("def _apply_responsive_control_minimums(self) -> None:", source)
+        self.assertIn('widget.setProperty("_cdmw_responsive_base_min_width", base_min_width)', source)
+        self.assertIn("new_min_width = max(0, int(round(int(base_min_width) * scale)))", source)
+        self.assertIn("widget.setMinimumWidth(new_min_width)", source)
+        self.assertIn("def _scale_density_metrics(metrics: Dict[str, int], scale: float) -> Dict[str, int]:", theme_source)
+        self.assertIn("metrics = _scale_density_metrics(_density_metrics(density_key), layout_scale)", theme_source)
+
+    def test_archive_status_panel_does_not_duplicate_preview_settings_line(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn("self.archive_preview_settings_status_label.setVisible(False)", source)
+        self.assertIn("# The same 3D preview state is already shown in Archive Preview diagnostics.", source)
+        self.assertIn("label.clear()", source)
+        self.assertNotIn("archive_status_group_layout.addWidget(self.archive_preview_settings_status_label)", source)
 
     def test_additional_qa_themes_are_available(self) -> None:
         source = THEMES.read_text(encoding="utf-8")

@@ -10,7 +10,7 @@ import re
 import time
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, QSettings, QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, QSettings, QSize, Qt, QTimer, QUrl, Signal, QSignalBlocker
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -679,6 +679,54 @@ def build_responsive_splitter_sizes(
     return _rebalance_splitter_sizes(sizes, safe_minimums, target_total, safe_weights)
 
 
+def build_bounded_splitter_sizes(
+    total_span: int,
+    weights: Sequence[int],
+    minimums: Sequence[int],
+    maximums: Sequence[Optional[int]],
+) -> List[int]:
+    count = min(len(weights), len(minimums), len(maximums))
+    if count <= 0:
+        return []
+    safe_weights = [max(1, int(weights[index])) for index in range(count)]
+    safe_minimums = [max(1, int(minimums[index])) for index in range(count)]
+    safe_maximums: List[Optional[int]] = []
+    for index in range(count):
+        maximum = maximums[index]
+        if maximum is None or int(maximum) <= 0:
+            safe_maximums.append(None)
+        else:
+            safe_maximums.append(max(safe_minimums[index], int(maximum)))
+    target_total = max(int(total_span), 1)
+    sizes = build_responsive_splitter_sizes(target_total, safe_weights, safe_minimums)
+    for _pass in range(count + 1):
+        overflow = 0
+        growable: List[int] = []
+        for index, maximum in enumerate(safe_maximums):
+            if maximum is not None and sizes[index] > maximum:
+                overflow += sizes[index] - maximum
+                sizes[index] = maximum
+            elif maximum is None or sizes[index] < maximum:
+                growable.append(index)
+        if overflow <= 0 or not growable:
+            break
+        remaining = overflow
+        weight_total = max(sum(safe_weights[index] for index in growable), 1)
+        for index in growable:
+            maximum = safe_maximums[index]
+            capacity = remaining if maximum is None else maximum - sizes[index]
+            if capacity <= 0:
+                continue
+            addition = min(capacity, max(1, int(round((overflow * safe_weights[index]) / weight_total))))
+            sizes[index] += addition
+            remaining -= addition
+            if remaining <= 0:
+                break
+        if remaining <= 0:
+            break
+    return sizes
+
+
 def clamp_splitter_sizes(
     total_span: int,
     sizes: Sequence[int],
@@ -742,12 +790,73 @@ def ui_scale_for(widget: Optional[QWidget] = None) -> float:
     return max(0.85, min(1.7, float(metrics) / 11.0))
 
 
+def available_screen_size_for(widget: Optional[QWidget] = None) -> Tuple[int, int]:
+    screen = None
+    if widget is not None:
+        try:
+            screen = widget.screen()
+        except RuntimeError:
+            screen = None
+    app = QApplication.instance()
+    if screen is None and app is not None:
+        screen = app.primaryScreen()
+    if screen is None:
+        return (1920, 1080)
+    geometry = screen.availableGeometry()
+    return (max(1, int(geometry.width())), max(1, int(geometry.height())))
+
+
+def available_layout_size_for(widget: Optional[QWidget] = None) -> Tuple[int, int]:
+    screen_width, screen_height = available_screen_size_for(widget)
+    if widget is None:
+        return (screen_width, screen_height)
+    try:
+        window = widget.window()
+    except RuntimeError:
+        window = None
+    if window is not None and window.isVisible():
+        width = int(window.width())
+        height = int(window.height())
+        if width > 0 and height > 0:
+            return (max(1, min(screen_width, width)), max(1, min(screen_height, height)))
+    return (screen_width, screen_height)
+
+
+def available_screen_width_for(widget: Optional[QWidget] = None) -> int:
+    return available_screen_size_for(widget)[0]
+
+
+def responsive_screen_compact_scale(widget: Optional[QWidget] = None) -> float:
+    width, height = available_layout_size_for(widget)
+    if width <= 1366:
+        width_scale = 0.68
+    elif width <= 1600:
+        width_scale = 0.74
+    elif width <= 1920:
+        width_scale = 0.80
+    elif width <= 2560:
+        width_scale = 0.92
+    else:
+        width_scale = 1.0
+    if height <= 768:
+        height_scale = 0.68
+    elif height <= 900:
+        height_scale = 0.76
+    elif height <= 1080:
+        height_scale = 0.82
+    elif height <= 1200:
+        height_scale = 0.90
+    else:
+        height_scale = 1.0
+    return min(width_scale, height_scale)
+
+
 def scaled_px(value: int, widget: Optional[QWidget] = None) -> int:
     return max(1, int(round(float(value) * ui_scale_for(widget))))
 
 
 def responsive_sidebar_bounds(widget: Optional[QWidget] = None, *, role: str = "normal") -> Tuple[int, int, int]:
-    scale = ui_scale_for(widget)
+    scale = ui_scale_for(widget) * responsive_screen_compact_scale(widget)
     if role == "wide":
         values = (380, 500, 680)
     elif role == "workflow":
@@ -3637,6 +3746,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             uniform vec2 cloth_preview_y_bounds;
             uniform vec3 cloth_preview_offset;
             varying vec3 frag_position;
+            varying vec3 frag_object_normal;
             varying vec3 frag_normal;
             varying vec3 frag_smooth_normal;
             varying vec3 frag_color;
@@ -3671,6 +3781,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                     preview_position += (sway + spring_offset) * cloth_preview_strength * free_weight;
                 }
                 frag_position = (model_matrix * vec4(preview_position, 1.0)).xyz;
+                frag_object_normal = safe_normalize(normal, vec3(0.0, 0.0, 1.0));
                 frag_normal = safe_normalize((model_matrix * vec4(normal, 0.0)).xyz, vec3(0.0, 0.0, 1.0));
                 frag_smooth_normal = safe_normalize((model_matrix * vec4(smooth_normal, 0.0)).xyz, frag_normal);
                 frag_tangent = safe_normalize((model_matrix * vec4(tangent, 0.0)).xyz, vec3(1.0, 0.0, 0.0));
@@ -3687,6 +3798,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             """
             #version 120
             varying vec3 frag_position;
+            varying vec3 frag_object_normal;
             varying vec3 frag_normal;
             varying vec3 frag_smooth_normal;
             varying vec3 frag_color;
@@ -3964,7 +4076,8 @@ class ModelPreviewWidget(QOpenGLWidget):
                 }
                 vec3 surface_normal = safe_normalize(frag_normal, vec3(0.0, 0.0, 1.0));
                 if (render_diagnostic_mode == 5) {
-                    gl_FragColor = vec4(clamp((surface_normal * 0.5) + vec3(0.5), 0.0, 1.0), 1.0);
+                    vec3 geometry_normal = safe_normalize(frag_object_normal, vec3(0.0, 0.0, 1.0));
+                    gl_FragColor = vec4(clamp((geometry_normal * 0.5) + vec3(0.5), 0.0, 1.0), 1.0);
                     return;
                 }
                 vec3 preview_tangent = safe_normalize(frag_tangent, vec3(1.0, 0.0, 0.0));
@@ -8674,6 +8787,39 @@ class CodePreviewEditor(QPlainTextEdit):
         self.update_line_number_area_width(0)
         self.set_theme(theme_key)
 
+    def setPlainText(self, text: str) -> None:  # type: ignore[override]
+        self._replace_plain_text_safely(str(text or ""))
+
+    def _replace_plain_text_safely(self, text: str) -> None:
+        highlighter = getattr(self, "syntax_highlighter", None)
+        document = self.document()
+        previous_updates_enabled = self.updatesEnabled()
+        self._match_selections = []
+        self._search_query = ""
+        self._search_matches = []
+        self._current_search_index = -1
+        self.setUpdatesEnabled(False)
+        widget_blocker = QSignalBlocker(self)
+        document_blocker = QSignalBlocker(document)
+        detached_highlighter = False
+        try:
+            if highlighter is not None and hasattr(highlighter, "setDocument"):
+                highlighter.setDocument(None)
+                detached_highlighter = True
+            super().setPlainText(text)
+        finally:
+            if detached_highlighter:
+                highlighter.setDocument(document)
+                if hasattr(highlighter, "rehighlight"):
+                    highlighter.rehighlight()
+            del document_blocker
+            del widget_blocker
+            self.setUpdatesEnabled(previous_updates_enabled)
+            self.update_line_number_area_width(0)
+            self.viewport().update()
+            self.line_number_area.update()
+            self._apply_combined_selections()
+
     def line_number_area_width(self) -> int:
         digits = max(2, len(str(max(1, self.blockCount()))))
         return 12 + self.fontMetrics().horizontalAdvance("9") * digits
@@ -9095,7 +9241,7 @@ class LogHighlighter(QSyntaxHighlighter):
 
 class ArchiveDetailsHighlighter(QSyntaxHighlighter):
     _section_re = re.compile(
-        r"^(Entry Metadata|Import Summary|Preview / Texture Notes|Preview Diagnostics|Render Sampling Diagnostics|Readable Strings|Binary Header Preview|Simplified values for .+|HKX tagfile preview for .+|What this appears to contain:|Recognized fields:|Format summary:|Tag item map:|Detected classes/types:|Prefab evidence|Declared Fields|Schema Declarations)\s*$"
+        r"^(Entry Metadata|Import Summary|Preview / Texture Notes|Preview Diagnostics|Render Sampling Diagnostics|Readable Strings|Binary Header Preview|Simplified values for .+|HKX tagfile preview for .+|What this appears to contain:|Recognized fields:|Format summary:|Tag item map:|Detected classes/types:|Decoder Evidence|Reference Semantics|Class Decode Status|Fixup-backed Fields|Asset Map|Uses|Used By|Prefab evidence|Declared Fields|Schema Declarations)\s*$"
     )
     _label_re = re.compile(r"^\s*(?:[-*]\s*)?([A-Za-z][A-Za-z0-9 /()_-]+:)")
     _warning_re = re.compile(r"\b(warning|failed|missing|truncated|unsupported|fallback|skipped|unavailable|error)\b", re.IGNORECASE)
@@ -9212,6 +9358,9 @@ class ArchiveDetailsEditor(CodePreviewEditor):
         color_scheme: str = "theme",
     ):
         super().__init__(theme_key=theme_key, parent=parent, highlight_style=highlight_style, color_scheme=color_scheme)
+        previous_highlighter = getattr(self, "syntax_highlighter", None)
+        if previous_highlighter is not None and hasattr(previous_highlighter, "setDocument"):
+            previous_highlighter.setDocument(None)
         self.syntax_highlighter = ArchiveDetailsHighlighter(
             self.document(),
             theme_key,
