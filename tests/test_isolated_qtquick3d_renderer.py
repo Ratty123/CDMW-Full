@@ -90,11 +90,16 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             normal = temp_path / "normal.png"
             specular = temp_path / "material_sp.png"
             packed = temp_path / "material_ma.png"
+            detail = temp_path / "material_mg.png"
             height = temp_path / "height_disp.png"
             base_dds = temp_path / "base.dds"
-            for path in (base, normal, specular, packed, height):
+            specular_dds = temp_path / "material_sp.dds"
+            packed_dds = temp_path / "material_ma.dds"
+            detail_dds = temp_path / "material_mg.dds"
+            for path in (base, normal, specular, packed, detail, height):
                 path.write_bytes(path.name.encode("ascii"))
-            base_dds.write_bytes(_minimal_bc_dds(b"DXT1"))
+            for path in (base_dds, specular_dds, packed_dds, detail_dds):
+                path.write_bytes(_minimal_bc_dds(b"DXT1"))
             blob = b"".join(
                 (
                     _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
@@ -118,6 +123,7 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                             PreviewMaterialTextureInput(
                                 slot_kind="material",
                                 texture_name="blade_sp",
+                                source_dds_path=str(specular_dds),
                                 preview_texture_path=str(specular),
                                 semantic_subtype="specular",
                                 shader_family="SkinnedMeshStandard_Ver2",
@@ -137,8 +143,17 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                             PreviewMaterialTextureInput(
                                 slot_kind="material",
                                 texture_name="blade_ma",
+                                source_dds_path=str(packed_dds),
                                 preview_texture_path=str(packed),
                                 semantic_subtype="material_mask",
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_detailMaskTexture",
+                                texture_name="blade_mg",
+                                source_dds_path=str(detail_dds),
+                                preview_texture_path=str(detail),
+                                semantic_subtype="detail_mask",
                             ),
                         ),
                         has_texture_coordinates=True,
@@ -162,6 +177,7 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertTrue((package_dir / textures["base"]).is_file())
             self.assertTrue(dds_textures["base"]["direct_upload_candidate"])
             self.assertEqual("bc1", dds_textures["base"]["compressed_family"])
+            self.assertEqual(3, len(dds_textures["material_inputs"]))
             self.assertTrue((package_dir / textures["normal"]).is_file())
             self.assertTrue((package_dir / textures["height"]).is_file())
             self.assertTrue((package_dir / textures["specular"]).is_file())
@@ -297,6 +313,10 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("texture_cache_hits", source)
         self.assertIn("best_material_dds_for_role", source)
         self.assertIn("material_hints", source)
+        self.assertIn("detail_tex", source)
+        self.assertIn("begin_mouse_drag", source)
+        self.assertIn("kZoomSteps", source)
+        self.assertIn("WM_MOUSEWHEEL", source)
         self.assertIn("png_fallbacks", source)
         self.assertIn("material_combiner_outputs", source)
         self.assertIn("Texture2D roughness_tex", source)
@@ -332,6 +352,8 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("archive_isolated_renderer_button", source)
         self.assertIn("archive_d3d11_preview_host", source)
         self.assertIn("low_res_base", source)
+        self.assertIn("NativeD3D11PreviewHostFrame", source)
+        self.assertIn("_WM_SET_ZOOM", source)
         self.assertIn("find_native_d3d11_host", source)
         self.assertIn("--preview-package", source)
         self.assertIn("--status-file", source)

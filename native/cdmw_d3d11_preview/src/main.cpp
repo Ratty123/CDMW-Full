@@ -1,6 +1,7 @@
 #include <DirectXMath.h>
 #include <DirectXTex.h>
 #include <Windows.h>
+#include <windowsx.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <dxgi.h>
@@ -26,6 +27,14 @@ using Microsoft::WRL::ComPtr;
 namespace fs = std::filesystem;
 
 static constexpr UINT kVertexStrideBytes = 23u * 4u;
+static constexpr float kDefaultYawDegrees = -35.0f;
+static constexpr float kDefaultPitchDegrees = 20.0f;
+static constexpr float kFitDistance = 3.25f;
+static constexpr float kVerticalFovDegrees = 45.0f;
+static constexpr float kZoomSteps[] = {0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f, 12.0f, 16.0f};
+static constexpr UINT kCdmwSetZoomMessage = WM_APP + 0x431u;
+static constexpr UINT kCdmwSetFitMessage = WM_APP + 0x432u;
+static constexpr UINT kCdmwResetViewMessage = WM_APP + 0x433u;
 
 struct Args {
     std::wstring backend = L"d3d11";
@@ -46,6 +55,7 @@ struct SlotCounts {
     int roughness = 0;
     int metalness = 0;
     int specular = 0;
+    int detail = 0;
 };
 
 struct PreviewBatch {
@@ -61,6 +71,7 @@ struct PreviewBatch {
     std::wstring roughness_dds;
     std::wstring metalness_dds;
     std::wstring specular_dds;
+    std::wstring detail_dds;
     std::wstring height_dds;
     std::wstring base_png;
     std::wstring normal_png;
@@ -83,6 +94,7 @@ struct PreviewBatch {
     ComPtr<ID3D11ShaderResourceView> roughness_srv;
     ComPtr<ID3D11ShaderResourceView> metalness_srv;
     ComPtr<ID3D11ShaderResourceView> specular_srv;
+    ComPtr<ID3D11ShaderResourceView> detail_srv;
     ComPtr<ID3D11ShaderResourceView> height_srv;
 };
 
@@ -94,6 +106,7 @@ struct ConstantBuffer {
     DirectX::XMFLOAT4 flags2;
     DirectX::XMFLOAT4 material_params;
     DirectX::XMFLOAT4 material_hints;
+    DirectX::XMFLOAT4 flags3;
 };
 
 struct RendererStats {
@@ -121,6 +134,15 @@ struct TextureLoadInfo {
     std::string format_name;
     size_t width = 0;
     size_t height = 0;
+};
+
+struct ViewSettings {
+    float orbit_sensitivity = 0.22f;
+    float pan_sensitivity = 0.60f;
+    bool invert_orbit_x = false;
+    bool invert_orbit_y = false;
+    bool invert_pan_x = false;
+    bool invert_pan_y = false;
 };
 
 static std::string wide_to_utf8(const std::wstring& text) {
@@ -377,7 +399,27 @@ static int material_dds_candidate_score(const std::string& object, const std::st
     std::string semantic_type = lower_copy(json_string_field(object, "semantic_type"));
     std::string semantic_subtype = lower_copy(json_string_field(object, "semantic_subtype"));
     std::string descriptor = lower_copy(source_path + " " + slot + " " + parameter + " " + semantic_type + " " + semantic_subtype);
+    int dimension_bonus = 0;
+    int largest_dimension = std::max(json_int_field(object, "width", 0), json_int_field(object, "height", 0));
+    if (largest_dimension >= 2048) dimension_bonus = 18;
+    else if (largest_dimension >= 1024) dimension_bonus = 14;
+    else if (largest_dimension >= 512) dimension_bonus = 8;
 
+    if (role == "base") {
+        int score = -1000;
+        if (contains_text(descriptor, "normal") || looks_like_path_suffix(source_path, "_n")) score -= 240;
+        if (contains_text(descriptor, "height") || contains_text(descriptor, "displacement") || looks_like_path_suffix(source_path, "_disp")) score -= 240;
+        if (contains_text(descriptor, "opacity") || contains_text(descriptor, "alpha")) score -= 220;
+        if (looks_like_path_suffix(source_path, "_ma") || looks_like_path_suffix(source_path, "_mg") || looks_like_path_suffix(source_path, "_sp")) score -= 220;
+        if (looks_like_path_suffix(source_path, "_o")) score = std::max(score, 118);
+        if (contains_text(parameter, "basecolor") || contains_text(parameter, "diffuse") || contains_text(parameter, "albedo")) score = std::max(score, 108);
+        if (contains_text(parameter, "overlaycolor") || contains_text(parameter, "colorlayer")) score = std::max(score, 92);
+        if (semantic_type == "base" || semantic_type == "albedo" || semantic_type == "diffuse" || semantic_subtype == "base_color") score = std::max(score, 104);
+        if (slot == "base") score = std::max(score, 96);
+        if (contains_text(descriptor, "texturelayer") && score < 80) score = std::max(score, 70);
+        if (score > -1000) score += dimension_bonus;
+        return score;
+    }
     if (role == "specular") {
         int score = -1000;
         if (looks_like_path_suffix(source_path, "_sp")) score = std::max(score, 110);
@@ -419,6 +461,16 @@ static int material_dds_candidate_score(const std::string& object, const std::st
         if (contains_text(descriptor, "opacity") || contains_text(descriptor, "normal") || contains_text(descriptor, "height")) score -= 200;
         return score;
     }
+    if (role == "detail") {
+        int score = -1000;
+        if (looks_like_path_suffix(source_path, "_mg")) score = std::max(score, 108);
+        if (contains_text(parameter, "detailmask")) score = std::max(score, 104);
+        if (contains_text(parameter, "colorblendingmask")) score = std::max(score, 96);
+        if (semantic_subtype == "detail_mask" || semantic_type == "detail_mask") score = std::max(score, 96);
+        if (contains_text(descriptor, "opacity") || contains_text(descriptor, "normal") || contains_text(descriptor, "height")) score -= 200;
+        if (score > -1000) score += dimension_bonus / 2;
+        return score;
+    }
     return -1000;
 }
 
@@ -435,7 +487,10 @@ static std::wstring best_material_dds_for_role(const std::string& object, const 
             }
         }
     }
-    if (best_score < 40 || best_path.empty()) return L"";
+    int minimum_score = 40;
+    if (role == "base") minimum_score = 58;
+    else if (role == "detail") minimum_score = 32;
+    if (best_score < minimum_score || best_path.empty()) return L"";
     return utf8_to_wide(best_path);
 }
 
@@ -448,6 +503,7 @@ static void increment_slot(SlotCounts& counts, const std::string& slot) {
     else if (slot == "roughness") ++counts.roughness;
     else if (slot == "metalness") ++counts.metalness;
     else if (slot == "specular") ++counts.specular;
+    else if (slot == "detail") ++counts.detail;
 }
 
 static std::string slot_counts_json(const SlotCounts& counts) {
@@ -461,6 +517,7 @@ static std::string slot_counts_json(const SlotCounts& counts) {
         << ",\"roughness\":" << counts.roughness
         << ",\"metalness\":" << counts.metalness
         << ",\"specular\":" << counts.specular
+        << ",\"detail\":" << counts.detail
         << "}";
     return out.str();
 }
@@ -526,6 +583,8 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         parse_base_color(object, batch.base_color);
         batch.vertex_file = absolute_from_manifest_path(package_dir, json_string_field(object, "vertex_file"));
         batch.base_dds = dds_slot_source(object, "base");
+        std::wstring rich_base_dds = best_material_dds_for_role(object, "base");
+        if (!rich_base_dds.empty()) batch.base_dds = rich_base_dds;
         batch.normal_dds = dds_slot_source(object, "normal");
         batch.material_dds = dds_slot_source(object, "material");
         if (batch.material_dds.empty()) batch.material_dds = best_material_dds_for_role(object, "material");
@@ -533,6 +592,7 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.roughness_dds = best_material_dds_for_role(object, "roughness");
         batch.metalness_dds = best_material_dds_for_role(object, "metalness");
         batch.specular_dds = best_material_dds_for_role(object, "specular");
+        batch.detail_dds = best_material_dds_for_role(object, "detail");
         batch.height_dds = dds_slot_source(object, "height");
         batch.base_png = texture_slot_relative(package_dir, object, "base");
         batch.normal_png = texture_slot_relative(package_dir, object, "normal");
@@ -554,6 +614,7 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         if (!batch.roughness_dds.empty()) increment_slot(stats.dds_candidates, "roughness");
         if (!batch.metalness_dds.empty()) increment_slot(stats.dds_candidates, "metalness");
         if (!batch.specular_dds.empty()) increment_slot(stats.dds_candidates, "specular");
+        if (!batch.detail_dds.empty()) increment_slot(stats.dds_candidates, "detail");
         if (!batch.height_dds.empty()) increment_slot(stats.dds_candidates, "height");
         if (json_bool_field(object, "material_combiner_active", false)) {
             ++stats.material_combiner_active_batches;
@@ -571,6 +632,17 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
     stats.batch_count = static_cast<int>(batches.size());
     stats.vertex_count = json_int_field(manifest, "vertex_count", 0);
     return batches;
+}
+
+static ViewSettings parse_view_settings(const std::string& manifest) {
+    ViewSettings settings;
+    settings.orbit_sensitivity = std::clamp(json_float_field(manifest, "orbit_sensitivity", settings.orbit_sensitivity), 0.001f, 8.0f);
+    settings.pan_sensitivity = std::clamp(json_float_field(manifest, "pan_sensitivity", settings.pan_sensitivity), 0.001f, 8.0f);
+    settings.invert_orbit_x = json_bool_field(manifest, "invert_orbit_x", settings.invert_orbit_x);
+    settings.invert_orbit_y = json_bool_field(manifest, "invert_orbit_y", settings.invert_orbit_y);
+    settings.invert_pan_x = json_bool_field(manifest, "invert_pan_x", settings.invert_pan_x);
+    settings.invert_pan_y = json_bool_field(manifest, "invert_pan_y", settings.invert_pan_y);
+    return settings;
 }
 
 static DirectX::XMFLOAT4 parse_hex_color(const std::string& hex, DirectX::XMFLOAT4 fallback) {
@@ -645,6 +717,7 @@ cbuffer Constants : register(b0) {
     float4 flags2;
     float4 material_params;
     float4 material_hints;
+    float4 flags3;
 };
 Texture2D base_tex : register(t0);
 Texture2D normal_tex : register(t1);
@@ -654,6 +727,7 @@ Texture2D roughness_tex : register(t4);
 Texture2D metalness_tex : register(t5);
 Texture2D specular_tex : register(t6);
 Texture2D height_tex : register(t7);
+Texture2D detail_tex : register(t8);
 SamplerState preview_sampler : register(s0);
 struct VSIn {
     float3 position : POSITION;
@@ -749,6 +823,14 @@ float4 ps_main(VSOut input) : SV_TARGET {
             roughness = min(roughness, lerp(0.72, 0.24, spec_value));
         }
     }
+    if (flags3.x > 0.5) {
+        float3 detail_sample = detail_tex.Sample(preview_sampler, uv).rgb;
+        float detail_value = max(detail_sample.r, max(detail_sample.g, detail_sample.b));
+        roughness = saturate(lerp(roughness, roughness * (0.86 + detail_value * 0.30), 0.36));
+        if (flags2.w < 0.5) {
+            specular = saturate(max(specular, detail_value * 0.16));
+        }
+    }
     float height_value = 0.5;
     if (flags.w > 0.5) {
         height_value = height_tex.Sample(preview_sampler, uv).r;
@@ -784,8 +866,8 @@ float4 ps_main(VSOut input) : SV_TARGET {
 
 class Renderer {
 public:
-    Renderer(HWND hwnd, const Args& args, std::vector<PreviewBatch> batches, RendererStats& stats)
-        : hwnd_(hwnd), args_(args), batches_(std::move(batches)), stats_(stats) {}
+    Renderer(HWND hwnd, const Args& args, std::vector<PreviewBatch> batches, RendererStats& stats, ViewSettings view_settings)
+        : hwnd_(hwnd), args_(args), batches_(std::move(batches)), stats_(stats), view_settings_(view_settings) {}
 
     bool initialize() {
         RECT rect{};
@@ -825,6 +907,53 @@ public:
         return create_render_targets() && create_pipeline() && upload_batches();
     }
 
+    bool handle_window_message(UINT msg, WPARAM wparam, LPARAM lparam, LRESULT& result) {
+        switch (msg) {
+        case kCdmwSetZoomMessage:
+            set_zoom_factor(static_cast<float>(wparam) / 1000.0f);
+            result = 0;
+            return true;
+        case kCdmwSetFitMessage:
+            set_fit_to_view(wparam != 0);
+            result = 0;
+            return true;
+        case kCdmwResetViewMessage:
+            reset_view();
+            result = 0;
+            return true;
+        case WM_LBUTTONDBLCLK:
+            reset_view();
+            result = 0;
+            return true;
+        case WM_LBUTTONDOWN:
+        case WM_MBUTTONDOWN:
+        case WM_RBUTTONDOWN:
+            begin_mouse_drag(msg, wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+            result = 0;
+            return true;
+        case WM_MOUSEMOVE:
+            update_mouse_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+            result = 0;
+            return drag_mode_ != 0;
+        case WM_LBUTTONUP:
+        case WM_MBUTTONUP:
+        case WM_RBUTTONUP:
+            end_mouse_drag(msg);
+            result = 0;
+            return true;
+        case WM_CAPTURECHANGED:
+            drag_mode_ = 0;
+            drag_button_ = 0;
+            return false;
+        case WM_MOUSEWHEEL:
+            apply_wheel_delta(GET_WHEEL_DELTA_WPARAM(wparam));
+            result = 0;
+            return true;
+        default:
+            return false;
+        }
+    }
+
     void render() {
         if (!context_ || !swap_chain_) return;
         resize_if_needed();
@@ -850,14 +979,17 @@ public:
         context_->RSSetState(rasterizer_.Get());
         context_->OMSetDepthStencilState(depth_state_.Get(), 0);
 
-        DirectX::XMMATRIX world = DirectX::XMMatrixScaling(0.88f, 0.88f, 0.88f)
-            * DirectX::XMMatrixRotationRollPitchYaw(0.20f, -0.55f, 0.0f);
+        DirectX::XMMATRIX world = DirectX::XMMatrixRotationRollPitchYaw(
+                DirectX::XMConvertToRadians(pitch_),
+                DirectX::XMConvertToRadians(yaw_),
+                0.0f)
+            * DirectX::XMMatrixTranslation(pan_x_, pan_y_, pan_z_);
         DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(
-            DirectX::XMVectorSet(0.0f, 0.08f, -3.35f, 1.0f),
+            DirectX::XMVectorSet(0.0f, 0.0f, -distance_, 1.0f),
             DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
             DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
         DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(
-            DirectX::XMConvertToRadians(45.0f),
+            DirectX::XMConvertToRadians(kVerticalFovDegrees),
             static_cast<float>(width_) / std::max(1.0f, static_cast<float>(height_)),
             0.05f,
             100.0f);
@@ -892,10 +1024,15 @@ public:
                 batch.metalness_hint,
                 batch.specular_hint,
                 batch.height_scale_hint);
+            constants.flags3 = DirectX::XMFLOAT4(
+                batch.detail_srv ? 1.0f : 0.0f,
+                0.0f,
+                0.0f,
+                0.0f);
             context_->UpdateSubresource(constants_.Get(), 0, nullptr, &constants, 0, 0);
             context_->VSSetConstantBuffers(0, 1, constants_.GetAddressOf());
             context_->PSSetConstantBuffers(0, 1, constants_.GetAddressOf());
-            ID3D11ShaderResourceView* srvs[8] = {
+            ID3D11ShaderResourceView* srvs[9] = {
                 batch.base_srv.Get(),
                 batch.normal_srv.Get(),
                 batch.material_srv.Get(),
@@ -904,11 +1041,12 @@ public:
                 batch.metalness_srv.Get(),
                 batch.specular_srv.Get(),
                 batch.height_srv.Get(),
+                batch.detail_srv.Get(),
             };
-            context_->PSSetShaderResources(0, 8, srvs);
+            context_->PSSetShaderResources(0, 9, srvs);
             context_->Draw(static_cast<UINT>(batch.vertex_count), 0);
-            ID3D11ShaderResourceView* clear_srvs[8] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-            context_->PSSetShaderResources(0, 8, clear_srvs);
+            ID3D11ShaderResourceView* clear_srvs[9] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+            context_->PSSetShaderResources(0, 9, clear_srvs);
         }
         swap_chain_->Present(1, 0);
         if (!first_frame_reported_) {
@@ -920,6 +1058,105 @@ public:
     }
 
 private:
+    static float current_display_scale(float distance) {
+        return std::max(0.1f, kFitDistance / std::max(distance, 0.01f));
+    }
+
+    float world_units_per_pixel() const {
+        float viewport_height = std::max(1.0f, static_cast<float>(height_));
+        float visible_height = 2.0f * std::max(distance_, 0.1f) * std::tan(DirectX::XMConvertToRadians(kVerticalFovDegrees) * 0.5f);
+        return visible_height / viewport_height;
+    }
+
+    void reset_view() {
+        yaw_ = kDefaultYawDegrees;
+        pitch_ = kDefaultPitchDegrees;
+        fit_to_view_ = true;
+        zoom_factor_ = 1.0f;
+        distance_ = kFitDistance;
+        pan_x_ = 0.0f;
+        pan_y_ = 0.0f;
+        pan_z_ = 0.0f;
+        drag_mode_ = 0;
+        drag_button_ = 0;
+        if (GetCapture() == hwnd_) ReleaseCapture();
+    }
+
+    void set_zoom_factor(float zoom_factor) {
+        zoom_factor_ = std::clamp(zoom_factor, 0.1f, 16.0f);
+        fit_to_view_ = false;
+        distance_ = kFitDistance / zoom_factor_;
+    }
+
+    void set_fit_to_view(bool fit_to_view) {
+        fit_to_view_ = fit_to_view;
+        distance_ = fit_to_view_ ? kFitDistance : kFitDistance / std::max(zoom_factor_, 0.1f);
+    }
+
+    void begin_mouse_drag(UINT msg, WPARAM wparam, int x, int y) {
+        bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+        bool pan_requested = msg == WM_MBUTTONDOWN || msg == WM_RBUTTONDOWN || (msg == WM_LBUTTONDOWN && shift_down);
+        drag_mode_ = pan_requested ? 2 : (msg == WM_LBUTTONDOWN ? 1 : 0);
+        drag_button_ = msg;
+        last_mouse_x_ = x;
+        last_mouse_y_ = y;
+        if (drag_mode_ != 0) SetCapture(hwnd_);
+    }
+
+    void update_mouse_drag(int x, int y) {
+        if (drag_mode_ == 0) return;
+        int delta_x = x - last_mouse_x_;
+        int delta_y = y - last_mouse_y_;
+        last_mouse_x_ = x;
+        last_mouse_y_ = y;
+        if (delta_x == 0 && delta_y == 0) return;
+        if (drag_mode_ == 1) {
+            float orbit_sign_x = view_settings_.invert_orbit_x ? -1.0f : 1.0f;
+            float orbit_sign_y = view_settings_.invert_orbit_y ? -1.0f : 1.0f;
+            yaw_ += static_cast<float>(delta_x) * view_settings_.orbit_sensitivity * orbit_sign_x;
+            pitch_ = std::clamp(
+                pitch_ + static_cast<float>(delta_y) * view_settings_.orbit_sensitivity * orbit_sign_y,
+                -89.0f,
+                89.0f);
+        } else if (drag_mode_ == 2) {
+            float units_per_pixel = world_units_per_pixel();
+            float horizontal_sign = view_settings_.invert_pan_x ? -1.0f : 1.0f;
+            float vertical_sign = view_settings_.invert_pan_y ? 1.0f : -1.0f;
+            pan_x_ += static_cast<float>(delta_x) * units_per_pixel * view_settings_.pan_sensitivity * horizontal_sign;
+            pan_y_ += static_cast<float>(delta_y) * units_per_pixel * view_settings_.pan_sensitivity * vertical_sign;
+        }
+    }
+
+    void end_mouse_drag(UINT msg) {
+        bool release = false;
+        if (drag_button_ == WM_LBUTTONDOWN && msg == WM_LBUTTONUP) release = true;
+        if (drag_button_ == WM_MBUTTONDOWN && msg == WM_MBUTTONUP) release = true;
+        if (drag_button_ == WM_RBUTTONDOWN && msg == WM_RBUTTONUP) release = true;
+        if (!release) return;
+        drag_mode_ = 0;
+        drag_button_ = 0;
+        if (GetCapture() == hwnd_) ReleaseCapture();
+    }
+
+    void apply_wheel_delta(int wheel_delta) {
+        if (wheel_delta == 0) return;
+        int step = wheel_delta > 0 ? 1 : -1;
+        float current_zoom = fit_to_view_ ? current_display_scale(distance_) : zoom_factor_;
+        size_t closest = 0;
+        float best_distance = std::abs(kZoomSteps[0] - current_zoom);
+        for (size_t index = 1; index < ARRAYSIZE(kZoomSteps); ++index) {
+            float candidate = std::abs(kZoomSteps[index] - current_zoom);
+            if (candidate < best_distance) {
+                best_distance = candidate;
+                closest = index;
+            }
+        }
+        int next_index = std::clamp(static_cast<int>(closest) + step, 0, static_cast<int>(ARRAYSIZE(kZoomSteps)) - 1);
+        fit_to_view_ = false;
+        zoom_factor_ = kZoomSteps[next_index];
+        distance_ = kFitDistance / zoom_factor_;
+    }
+
     bool create_render_targets() {
         ComPtr<ID3D11Texture2D> back_buffer;
         HRESULT hr = swap_chain_->GetBuffer(0, IID_PPV_ARGS(back_buffer.GetAddressOf()));
@@ -1052,6 +1289,7 @@ private:
             load_batch_texture(batch.roughness_dds, batch.roughness_png, batch.roughness_srv, "roughness");
             load_batch_texture(batch.metalness_dds, batch.metalness_png, batch.metalness_srv, "metalness");
             load_batch_texture(batch.specular_dds, batch.specular_png, batch.specular_srv, "specular");
+            load_batch_texture(batch.detail_dds, L"", batch.detail_srv, "detail");
             load_batch_texture(batch.height_dds, batch.height_png, batch.height_srv, "height");
         }
         stats_.texture_ms = std::chrono::duration<double, std::milli>(
@@ -1139,8 +1377,21 @@ private:
     Args args_;
     std::vector<PreviewBatch> batches_;
     RendererStats& stats_;
+    ViewSettings view_settings_;
     LONG width_ = 1;
     LONG height_ = 1;
+    float yaw_ = kDefaultYawDegrees;
+    float pitch_ = kDefaultPitchDegrees;
+    bool fit_to_view_ = true;
+    float zoom_factor_ = 1.0f;
+    float distance_ = kFitDistance;
+    float pan_x_ = 0.0f;
+    float pan_y_ = 0.0f;
+    float pan_z_ = 0.0f;
+    int drag_mode_ = 0;
+    UINT drag_button_ = 0;
+    int last_mouse_x_ = 0;
+    int last_mouse_y_ = 0;
     bool first_frame_started_ = false;
     bool first_frame_reported_ = false;
     std::chrono::steady_clock::time_point first_frame_timer_{};
@@ -1163,6 +1414,13 @@ private:
 };
 
 static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+    Renderer* renderer = reinterpret_cast<Renderer*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    if (renderer) {
+        LRESULT handled_result = 0;
+        if (renderer->handle_window_message(msg, wparam, lparam, handled_result)) {
+            return handled_result;
+        }
+    }
     if (msg == WM_DESTROY) {
         PostQuitMessage(0);
         return 0;
@@ -1180,6 +1438,7 @@ static int run_host(const Args& args) {
     std::string manifest = read_text(args.preview_package / L"manifest.json");
     RendererStats stats;
     std::vector<PreviewBatch> batches = parse_manifest_batches(args.preview_package, manifest, stats);
+    ViewSettings view_settings = parse_view_settings(manifest);
     stats.manifest_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 
     WNDCLASSW wc{};
@@ -1187,6 +1446,7 @@ static int run_host(const Args& args) {
     wc.hInstance = GetModuleHandleW(nullptr);
     wc.lpszClassName = L"CDMWNativeD3D11PreviewWindow";
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.style = CS_DBLCLKS;
     RegisterClassW(&wc);
 
     HWND parent_hwnd = reinterpret_cast<HWND>(args.parent_hwnd);
@@ -1226,8 +1486,10 @@ static int run_host(const Args& args) {
     }
 
     write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
-    Renderer renderer(hwnd, args, std::move(batches), stats);
+    Renderer renderer(hwnd, args, std::move(batches), stats, view_settings);
+    SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&renderer));
     if (!renderer.initialize()) {
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
         write_status(args.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"native D3D11 renderer initialization failed\"}");
         return 4;
     }
@@ -1263,6 +1525,7 @@ static int run_host(const Args& args) {
             renderer.render();
         }
     }
+    SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
     write_status(args.status_file, "{\"event\":\"closed\",\"backend\":\"D3D11\"}");
     return 0;
 }

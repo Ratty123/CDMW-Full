@@ -497,6 +497,61 @@ def run_gui() -> int:
         print("PySide6 is required to run the GUI. Install it with: pip install PySide6", file=sys.stderr)
         return 1
 
+    class NativeD3D11PreviewHostFrame(QFrame):
+        _WM_SET_ZOOM = 0x8000 + 0x431
+        _WM_SET_FIT = 0x8000 + 0x432
+        _WM_RESET_VIEW = 0x8000 + 0x433
+        _HOST_CLASS = "CDMWNativeD3D11PreviewWindow"
+
+        def __init__(self, parent: Optional[QWidget] = None) -> None:
+            super().__init__(parent)
+            self._zoom_factor = 1.0
+            self._fit_to_view = True
+
+        def _host_hwnd(self) -> int:
+            try:
+                parent_hwnd = int(self.winId())
+            except Exception:
+                return 0
+            if parent_hwnd <= 0 or platform.system().lower() != "windows":
+                return 0
+            try:
+                user32 = ctypes.windll.user32
+                user32.FindWindowExW.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_wchar_p]
+                user32.FindWindowExW.restype = ctypes.c_void_p
+                return int(user32.FindWindowExW(ctypes.c_void_p(parent_hwnd), None, self._HOST_CLASS, None) or 0)
+            except Exception:
+                return 0
+
+        def _send_host_message(self, message: int, wparam: int = 0, lparam: int = 0) -> None:
+            hwnd = self._host_hwnd()
+            if hwnd <= 0:
+                return
+            try:
+                user32 = ctypes.windll.user32
+                user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+                user32.SendMessageW.restype = ctypes.c_ssize_t
+                user32.SendMessageW(ctypes.c_void_p(hwnd), int(message), int(wparam), int(lparam))
+            except Exception:
+                return
+
+        def set_zoom_factor(self, zoom_factor: float) -> None:
+            self._zoom_factor = min(max(float(zoom_factor), 0.1), 16.0)
+            if not self._fit_to_view:
+                self._send_host_message(self._WM_SET_ZOOM, int(round(self._zoom_factor * 1000.0)))
+
+        def set_fit_to_view(self, fit_to_view: bool) -> None:
+            self._fit_to_view = bool(fit_to_view)
+            self._send_host_message(self._WM_SET_FIT, 1 if self._fit_to_view else 0)
+
+        def current_display_scale(self) -> float:
+            return 1.0 if self._fit_to_view else self._zoom_factor
+
+        def reset_view(self) -> None:
+            self._fit_to_view = True
+            self._zoom_factor = 1.0
+            self._send_host_message(self._WM_RESET_VIEW)
+
     from cdmw.ui.themes import UI_THEME_SCHEMES, build_app_palette, build_app_stylesheet, get_theme
     from cdmw.ui.widgets import (
         AboutDialog,
@@ -5751,7 +5806,7 @@ def run_gui() -> int:
             )
             self.archive_model_preview.view_state_changed.connect(self._handle_archive_model_view_state_changed)
             self.archive_model_preview.debug_details_changed.connect(self._refresh_archive_preview_details_text)
-            self.archive_d3d11_preview_host = QFrame()
+            self.archive_d3d11_preview_host = NativeD3D11PreviewHostFrame()
             self.archive_d3d11_preview_host.setObjectName("NativeD3D11PreviewHost")
             self.archive_d3d11_preview_host.setAttribute(Qt.WA_NativeWindow, True)
             self.archive_d3d11_preview_host.setMinimumHeight(260)
@@ -57600,6 +57655,8 @@ def run_gui() -> int:
             current_widget = self.archive_preview_stack.currentWidget()
             if current_widget is self.archive_preview_scroll:
                 return self.archive_preview_label
+            if current_widget is self.archive_d3d11_preview_host:
+                return self.archive_d3d11_preview_host
             active_model_preview = self._active_archive_model_preview_widget()
             if active_model_preview is not None:
                 return active_model_preview
