@@ -78,6 +78,29 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         dialog.close()
         dialog.deleteLater()
 
+    def test_d3d11_backend_hides_legacy_only_diagnostics(self) -> None:
+        _app()
+        dialog = ModelPreviewSettingsDialog(
+            settings=ModelPreviewRenderSettings(render_diagnostic_mode="lit"),
+            archive_renderer_backend="d3d11_native",
+        )
+
+        self.assertEqual("d3d11_native", dialog.current_archive_renderer_backend())
+        self.assertTrue(dialog.render_diagnostic_mode_combo.isHidden())
+        self.assertTrue(dialog.disable_depth_test_checkbox.isHidden())
+        self.assertFalse(dialog.d3d11_hint_label.isHidden())
+
+        legacy_index = dialog.archive_renderer_backend_combo.findData("legacy_opengl")
+        self.assertGreaterEqual(legacy_index, 0)
+        dialog.archive_renderer_backend_combo.setCurrentIndex(legacy_index)
+
+        self.assertEqual("legacy_opengl", dialog.current_archive_renderer_backend())
+        self.assertFalse(dialog.render_diagnostic_mode_combo.isHidden())
+        self.assertFalse(dialog.disable_depth_test_checkbox.isHidden())
+
+        dialog.close()
+        dialog.deleteLater()
+
 
 if __name__ == "__main__":
     unittest.main()

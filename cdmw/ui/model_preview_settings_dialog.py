@@ -116,13 +116,18 @@ class _PreviewSliderControl(QWidget):
 class ModelPreviewSettingsDialog(QDialog):
     settings_changed = Signal(object)
     archive_performance_changed = Signal(object)
+    archive_renderer_backend_changed = Signal(str)
     clear_preview_cache_requested = Signal()
+
+    ARCHIVE_RENDERER_D3D11 = "d3d11_native"
+    ARCHIVE_RENDERER_LEGACY_OPENGL = "legacy_opengl"
 
     def __init__(
         self,
         *,
         settings: Optional[ModelPreviewRenderSettings] = None,
         archive_performance_settings: Optional[ArchivePerformanceSettings] = None,
+        archive_renderer_backend: str = ARCHIVE_RENDERER_LEGACY_OPENGL,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -132,6 +137,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self._applying_settings = False
         self._base_settings = clamp_model_preview_render_settings(settings)
         self._archive_performance_settings = clamp_archive_performance_settings(archive_performance_settings)
+        self._archive_renderer_backend = self._normalize_archive_renderer_backend(archive_renderer_backend)
         self._slider_controls: Dict[str, _PreviewSliderControl] = {}
 
         root_layout = QVBoxLayout(self)
@@ -158,6 +164,7 @@ class ModelPreviewSettingsDialog(QDialog):
         controls_tab, controls_layout = self._create_scroll_tab()
         diagnostics_tab, diagnostics_layout = self._create_scroll_tab()
         performance_tab, performance_layout = self._create_scroll_tab()
+        self._diagnostics_tab = diagnostics_tab
 
         self.tabs.addTab(general_tab, "General")
         self.tabs.addTab(diagnostics_tab, "Render Diagnostics")
@@ -168,6 +175,12 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.setContentsMargins(0, 0, 0, 0)
         general_form.setHorizontalSpacing(12)
         general_form.setVerticalSpacing(10)
+        self.archive_renderer_backend_combo = QComboBox()
+        self.archive_renderer_backend_combo.addItem("Native D3D11 (Default)", self.ARCHIVE_RENDERER_D3D11)
+        self.archive_renderer_backend_combo.addItem("Legacy OpenGL", self.ARCHIVE_RENDERER_LEGACY_OPENGL)
+        self.archive_renderer_backend_combo.setToolTip(
+            "Native D3D11 is the default Archive Browser preview path. Legacy OpenGL keeps the older in-process renderer and its diagnostic-only controls."
+        )
         self.use_textures_checkbox = QCheckBox("Use textures when available")
         self.high_quality_checkbox = QCheckBox("Use support-map preview shading")
         self.visible_texture_mode_combo = QComboBox()
@@ -182,6 +195,7 @@ class ModelPreviewSettingsDialog(QDialog):
                 MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS.get(mode, mode),
                 mode,
             )
+        general_form.addRow("Renderer backend", self.archive_renderer_backend_combo)
         general_form.addRow("", self.use_textures_checkbox)
         general_form.addRow("", self.high_quality_checkbox)
         general_form.addRow("Visible texture mode", self.visible_texture_mode_combo)
@@ -193,6 +207,12 @@ class ModelPreviewSettingsDialog(QDialog):
         general_hint.setObjectName("HintLabel")
         general_hint.setWordWrap(True)
         general_layout.addWidget(general_hint)
+        self.d3d11_hint_label = QLabel(
+            "Native D3D11 supports texture on/off, support-map shading on/off, visible layer selection, camera controls, zoom, fit, and native DDS diagnostics. Legacy-only probe modes, Flip V overrides, HKX overlays, alpha modes, and shader debug strips are hidden while D3D11 is selected."
+        )
+        self.d3d11_hint_label.setObjectName("HintLabel")
+        self.d3d11_hint_label.setWordWrap(True)
+        general_layout.addWidget(self.d3d11_hint_label)
         general_layout.addStretch(1)
 
         diagnostics_form = QFormLayout()
@@ -386,6 +406,7 @@ class ModelPreviewSettingsDialog(QDialog):
             self.invert_pan_y_checkbox,
         ):
             checkbox.toggled.connect(self._emit_settings_changed)
+        self.archive_renderer_backend_combo.currentIndexChanged.connect(self._handle_archive_renderer_backend_changed)
         self.visible_texture_mode_combo.currentIndexChanged.connect(self._emit_settings_changed)
         self.render_diagnostic_mode_combo.currentIndexChanged.connect(self._handle_render_diagnostic_mode_changed)
         for combo in (
@@ -426,6 +447,7 @@ class ModelPreviewSettingsDialog(QDialog):
 
         self.set_settings(self._base_settings)
         self.set_archive_performance_settings(self._archive_performance_settings)
+        self.set_archive_renderer_backend(self._archive_renderer_backend)
 
     def _create_scroll_tab(self) -> tuple[QWidget, QVBoxLayout]:
         scroll_area = QScrollArea()
@@ -458,6 +480,77 @@ class ModelPreviewSettingsDialog(QDialog):
         )
         self._slider_controls[key] = control
         layout.addRow(label, control)
+
+    @classmethod
+    def _normalize_archive_renderer_backend(cls, backend: object) -> str:
+        key = str(backend or "").strip().lower()
+        if key in {"d3d11", "direct3d11", "native_d3d11", cls.ARCHIVE_RENDERER_D3D11}:
+            return cls.ARCHIVE_RENDERER_D3D11
+        if key in {"legacy", "opengl", cls.ARCHIVE_RENDERER_LEGACY_OPENGL}:
+            return cls.ARCHIVE_RENDERER_LEGACY_OPENGL
+        return cls.ARCHIVE_RENDERER_D3D11
+
+    def current_archive_renderer_backend(self) -> str:
+        return self._normalize_archive_renderer_backend(self.archive_renderer_backend_combo.currentData())
+
+    def set_archive_renderer_backend(self, backend: object) -> None:
+        normalized = self._normalize_archive_renderer_backend(backend)
+        self._archive_renderer_backend = normalized
+        self._applying_settings = True
+        try:
+            index = self.archive_renderer_backend_combo.findData(normalized)
+            self.archive_renderer_backend_combo.setCurrentIndex(max(0, index))
+        finally:
+            self._applying_settings = False
+        self._sync_renderer_specific_controls()
+
+    def _set_form_field_visible(self, widget: QWidget, visible: bool) -> None:
+        widget.setVisible(visible)
+        parent = widget.parentWidget()
+        while parent is not None:
+            layout = parent.layout()
+            if isinstance(layout, QFormLayout):
+                label = layout.labelForField(widget)
+                if label is not None:
+                    label.setVisible(visible)
+                return
+            parent = parent.parentWidget()
+
+    def _sync_renderer_specific_controls(self) -> None:
+        d3d11 = self.current_archive_renderer_backend() == self.ARCHIVE_RENDERER_D3D11
+        legacy = not d3d11
+        diagnostics_index = self.tabs.indexOf(self._diagnostics_tab)
+        if diagnostics_index >= 0:
+            self.tabs.setTabVisible(diagnostics_index, legacy)
+        self._set_form_field_visible(self.render_diagnostic_mode_combo, legacy)
+        for widget in (
+            self.alpha_handling_combo,
+            self.texture_probe_source_combo,
+            self.sampler_probe_combo,
+            self.diffuse_swizzle_combo,
+            self.disable_tint_checkbox,
+            self.disable_brightness_checkbox,
+            self.disable_uv_scale_checkbox,
+            self.force_nearest_no_mipmaps_checkbox,
+            self.disable_normal_map_checkbox,
+            self.disable_material_map_checkbox,
+            self.disable_height_map_checkbox,
+            self.disable_all_support_maps_checkbox,
+            self.disable_lighting_checkbox,
+            self.disable_depth_test_checkbox,
+            self.show_texture_debug_strip_checkbox,
+            self.show_physics_overlay_checkbox,
+            self.show_physics_simulation_preview_checkbox,
+            self.solo_batch_spin,
+        ):
+            widget.setVisible(legacy)
+        self.d3d11_hint_label.setVisible(d3d11)
+        self.high_quality_checkbox.setToolTip(
+            "D3D11 packages normal/material/height DDS support maps only when this is enabled."
+            if d3d11
+            else "Legacy OpenGL samples resolved normal, material, and height maps for approximate support-map shading."
+        )
+        self._sync_probe_controls_enabled()
 
     def current_settings(self) -> ModelPreviewRenderSettings:
         current = clamp_model_preview_render_settings(self._base_settings)
@@ -549,6 +642,7 @@ class ModelPreviewSettingsDialog(QDialog):
                 control.set_value(float(getattr(clamped, key)))
         finally:
             self._applying_settings = False
+        self._sync_renderer_specific_controls()
         self._sync_probe_controls_enabled()
 
     def set_archive_performance_settings(self, settings: Optional[ArchivePerformanceSettings]) -> None:
@@ -576,6 +670,13 @@ class ModelPreviewSettingsDialog(QDialog):
             return
         self._sync_probe_controls_enabled()
         self.settings_changed.emit(self.current_settings())
+
+    def _handle_archive_renderer_backend_changed(self, *_args) -> None:
+        self._archive_renderer_backend = self.current_archive_renderer_backend()
+        self._sync_renderer_specific_controls()
+        if self._applying_settings:
+            return
+        self.archive_renderer_backend_changed.emit(self._archive_renderer_backend)
 
     def _handle_render_diagnostic_mode_changed(self, *_args) -> None:
         self._sync_probe_controls_enabled()

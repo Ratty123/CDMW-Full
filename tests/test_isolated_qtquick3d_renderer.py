@@ -7,6 +7,7 @@ import unittest
 
 from cdmw.models import (
     ModelPreviewData,
+    ModelPreviewRenderSettings,
     PreparedModelPreviewBatch,
     PreparedModelPreviewData,
     PreviewMaterialParameterInput,
@@ -255,6 +256,66 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertIn("specular PNG fallback skipped", notes)
             self.assertIn("legacy PBR PNG split skipped", notes)
 
+    def test_d3d11_manifest_honors_support_map_and_camera_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "base.png"
+            normal_dds = temp_path / "normal_n.dds"
+            material_dds = temp_path / "material_ma.dds"
+            height_dds = temp_path / "height_disp.dds"
+            base.write_bytes(b"base")
+            for path in (normal_dds, material_dds, height_dds):
+                path.write_bytes(_minimal_bc_dds(b"DXT1"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="armor.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="armor",
+                        texture_name="armor_base",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_normal_texture_dds_path=str(normal_dds),
+                        preview_material_texture_dds_path=str(material_dds),
+                        preview_height_texture_dds_path=str(height_dds),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+            settings = ModelPreviewRenderSettings(
+                disable_normal_map=True,
+                disable_height_map=True,
+                orbit_sensitivity=0.33,
+                pan_sensitivity=1.25,
+                invert_orbit_x=True,
+                invert_pan_y=True,
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                ModelPreviewData(path="armor.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                render_settings=settings,
+                prefer_direct_dds=True,
+            )
+            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            dds_textures = manifest["batches"][0]["dds_textures"]
+
+            self.assertNotIn("normal", dds_textures)
+            self.assertIn("material", dds_textures)
+            self.assertNotIn("height", dds_textures)
+            self.assertAlmostEqual(0.33, manifest["orbit_sensitivity"])
+            self.assertAlmostEqual(1.25, manifest["pan_sensitivity"])
+            self.assertTrue(manifest["invert_orbit_x"])
+            self.assertTrue(manifest["invert_pan_y"])
+
     def test_prefer_direct_dds_keeps_png_fallback_when_dds_is_not_uploadable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -478,11 +539,14 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("compressed_family", source)
         self.assertIn("normal_green_inverted", source)
 
-    def test_archive_button_is_separate_from_embedded_renderer_combo(self) -> None:
+    def test_native_d3d11_is_archive_renderer_backend_and_qtquick_is_not_used(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
 
         self.assertIn("archive_isolated_renderer_button", source)
         self.assertIn("archive_d3d11_preview_host", source)
+        self.assertIn("ARCHIVE_MODEL_RENDERER_D3D11", source)
+        self.assertIn("ARCHIVE_MODEL_RENDERER_DEFAULT = ARCHIVE_MODEL_RENDERER_D3D11", source)
+        self.assertIn("normalize_archive_model_renderer_backend", source)
         self.assertIn("low_res_base", source)
         self.assertIn("NativeD3D11PreviewHostFrame", source)
         self.assertIn("_WM_SET_ZOOM", source)
@@ -494,7 +558,7 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("enable_material_combiner=False", source)
         self.assertIn("prefer_direct_dds=True", source)
         self.assertIn('"preview/archive_renderer_backend"', source)
-        self.assertNotIn("ARCHIVE_MODEL_RENDERER_D3D11", source)
+        self.assertNotIn("archive_model_preview_renderer_combo", source)
         self.assertNotIn('"--isolated-renderer-host"', source)
 
     def test_archive_launcher_is_one_shot_and_status_file_based(self) -> None:

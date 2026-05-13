@@ -511,6 +511,84 @@ def _dds_textures_for_batch(
     return output
 
 
+def _filter_dds_textures_for_preview_settings(
+    dds_textures: Mapping[str, object],
+    batch: PreparedModelPreviewBatch,
+    *,
+    render_settings: ModelPreviewRenderSettings,
+    use_textures: bool,
+    high_quality_textures: bool,
+) -> Dict[str, object]:
+    if not use_textures or not bool(getattr(batch, "has_texture_coordinates", False)):
+        return {}
+    support_enabled = bool(
+        high_quality_textures
+        and not bool(getattr(batch, "preview_debug_disable_support_maps", False))
+        and not bool(getattr(render_settings, "disable_all_support_maps", False))
+    )
+    output: Dict[str, object] = {}
+    base_entry = dds_textures.get("base")
+    if isinstance(base_entry, Mapping):
+        output["base"] = dict(base_entry)
+    if support_enabled:
+        for slot_name, disabled_attr in (
+            ("normal", "disable_normal_map"),
+            ("material", "disable_material_map"),
+            ("height", "disable_height_map"),
+        ):
+            if bool(getattr(render_settings, disabled_attr, False)):
+                continue
+            entry = dds_textures.get(slot_name)
+            if isinstance(entry, Mapping):
+                output[slot_name] = dict(entry)
+
+    def input_role(entry: Mapping[str, object]) -> str:
+        descriptor = " ".join(
+            str(entry.get(field, "") or "")
+            for field in ("slot", "parameter_name", "semantic_type", "semantic_subtype", "source_path")
+        ).lower()
+        technical = _technical_texture_kind(descriptor)
+        if (
+            "base" in descriptor
+            or "albedo" in descriptor
+            or "diffuse" in descriptor
+            or "color" in descriptor
+        ) and technical not in {"normal", "height", "packed_material", "detail_mask", "opacity", "specular"}:
+            return "base"
+        if technical == "normal" or "normal" in descriptor:
+            return "normal"
+        if technical == "height" or "displacement" in descriptor:
+            return "height"
+        if technical in {"packed_material", "detail_mask", "specular", "roughness", "metalness"}:
+            return "material"
+        if any(token in descriptor for token in ("roughness", "metallic", "metalness", "occlusion", "materialmask")):
+            return "material"
+        if "opacity" in descriptor or "alpha" in descriptor:
+            return "opacity"
+        return "material"
+
+    input_entries = dds_textures.get("material_inputs")
+    if isinstance(input_entries, Sequence) and not isinstance(input_entries, (str, bytes, bytearray)):
+        filtered_inputs: list[Dict[str, object]] = []
+        for raw_entry in input_entries:
+            if not isinstance(raw_entry, Mapping):
+                continue
+            role = input_role(raw_entry)
+            if role == "base":
+                filtered_inputs.append(dict(raw_entry))
+            elif not support_enabled:
+                continue
+            elif role == "normal" and not bool(getattr(render_settings, "disable_normal_map", False)):
+                filtered_inputs.append(dict(raw_entry))
+            elif role == "height" and not bool(getattr(render_settings, "disable_height_map", False)):
+                filtered_inputs.append(dict(raw_entry))
+            elif role == "material" and not bool(getattr(render_settings, "disable_material_map", False)):
+                filtered_inputs.append(dict(raw_entry))
+        if filtered_inputs:
+            output["material_inputs"] = filtered_inputs
+    return output
+
+
 def _texture_sources_for_batch(
     batch: PreparedModelPreviewBatch,
     *,
@@ -947,7 +1025,13 @@ def write_isolated_qtquick3d_preview_package(
         geometry_path = geometry_dir / f"batch_{batch_index:03d}.bin"
         geometry_path.write_bytes(usable_blob)
         tangents_usable = _tangents_usable(usable_blob, vertex_count)
-        dds_textures = _dds_textures_for_batch(batch, inspect_cache=dds_inspect_cache)
+        dds_textures = _filter_dds_textures_for_preview_settings(
+            _dds_textures_for_batch(batch, inspect_cache=dds_inspect_cache),
+            batch,
+            render_settings=settings,
+            use_textures=bool(use_textures),
+            high_quality_textures=bool(high_quality_textures),
+        )
         textures, notes, combiner_metadata = _texture_sources_for_batch(
             batch,
             package_dir=package_dir,
@@ -1021,6 +1105,12 @@ def write_isolated_qtquick3d_preview_package(
         "normalization_center": list(getattr(prepared_preview, "normalization_center", (0.0, 0.0, 0.0)) or (0.0, 0.0, 0.0)),
         "normalization_scale": _safe_float(getattr(prepared_preview, "normalization_scale", 1.0), 1.0),
         "render_settings": _render_settings_to_dict(settings),
+        "orbit_sensitivity": _safe_float(getattr(settings, "orbit_sensitivity", 0.22), 0.22),
+        "pan_sensitivity": _safe_float(getattr(settings, "pan_sensitivity", 0.60), 0.60),
+        "invert_orbit_x": bool(getattr(settings, "invert_orbit_x", False)),
+        "invert_orbit_y": bool(getattr(settings, "invert_orbit_y", False)),
+        "invert_pan_x": bool(getattr(settings, "invert_pan_x", False)),
+        "invert_pan_y": bool(getattr(settings, "invert_pan_y", False)),
         "use_textures": bool(use_textures),
         "high_quality_textures": bool(high_quality_textures),
         "batches": batches,

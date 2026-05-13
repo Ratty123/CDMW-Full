@@ -605,7 +605,21 @@ def run_gui() -> int:
         TextureEditorTab = None  # type: ignore[assignment]
         TEXTURE_EDITOR_IMPORT_ERROR = exc
 
+    ARCHIVE_MODEL_RENDERER_D3D11 = "d3d11_native"
     ARCHIVE_MODEL_RENDERER_LEGACY_OPENGL = "legacy_opengl"
+    ARCHIVE_MODEL_RENDERER_DEFAULT = ARCHIVE_MODEL_RENDERER_D3D11
+    ARCHIVE_MODEL_RENDERER_BACKENDS = {
+        ARCHIVE_MODEL_RENDERER_D3D11,
+        ARCHIVE_MODEL_RENDERER_LEGACY_OPENGL,
+    }
+
+    def normalize_archive_model_renderer_backend(value: object) -> str:
+        key = str(value or "").strip().lower()
+        if key in {"d3d11", "direct3d11", "native_d3d11", ARCHIVE_MODEL_RENDERER_D3D11}:
+            return ARCHIVE_MODEL_RENDERER_D3D11
+        if key in {"legacy", "opengl", ARCHIVE_MODEL_RENDERER_LEGACY_OPENGL}:
+            return ARCHIVE_MODEL_RENDERER_LEGACY_OPENGL
+        return ARCHIVE_MODEL_RENDERER_DEFAULT
 
     def resolve_settings_file_path() -> Path:
         if getattr(sys, "frozen", False):
@@ -3210,6 +3224,7 @@ def run_gui() -> int:
             self._current_responsive_control_scale = 0.0
             self._applying_responsive_layout = False
             self.current_theme_key = str(self.settings.value("appearance/theme", DEFAULT_UI_THEME))
+            self.archive_model_renderer_backend = ARCHIVE_MODEL_RENDERER_DEFAULT
             self.show_quick_start_on_launch = (
                 not self.settings.contains("ui/startup_setup_shown")
                 or not str(self.settings.value("archive/package_root", "") or "").strip()
@@ -5339,12 +5354,12 @@ def run_gui() -> int:
                 "Toggle only the 3D preview background between the themed dark background and a light background."
             )
             self.archive_model_preview_darkmode_button.setText("Dark")
-            self.archive_isolated_renderer_button = QPushButton("D3D11 Preview")
+            self.archive_isolated_renderer_button = QPushButton("Reload D3D11")
             self.archive_isolated_renderer_button.setToolTip(
-                "Open the native Direct3D 11 preview inside the Archive Preview panel. "
-                "Legacy OpenGL remains available as the fallback."
+                "Rebuild and reload the active native Direct3D 11 preview package."
             )
             self.archive_isolated_renderer_button.setEnabled(False)
+            self.archive_isolated_renderer_button.setVisible(False)
             self.archive_model_preview_reset_overrides_button = QPushButton("Reset")
             self.archive_model_preview_reset_overrides_button.setToolTip(
                 "Clear the temporary Flip Base V and Disable Support Maps preview overrides."
@@ -10589,7 +10604,7 @@ def run_gui() -> int:
             self.settings.setValue("archive/model_use_textures", preview_settings.use_textures_by_default)
             self.settings.setValue("archive/model_high_quality", preview_settings.high_quality_by_default)
             self.settings.setValue("archive/model_preview_dark_background", self.archive_model_preview_darkmode_button.isChecked())
-            self.settings.setValue("preview/archive_renderer_backend", ARCHIVE_MODEL_RENDERER_LEGACY_OPENGL)
+            self.settings.setValue("preview/archive_renderer_backend", self._archive_model_renderer_backend())
             archive_performance_settings = self._current_archive_performance_settings()
             self.settings.setValue("archive/enable_sidecar_indexing", archive_performance_settings.enable_sidecar_indexing)
             self.settings.setValue("archive/sidecar_worker_count", archive_performance_settings.sidecar_worker_count)
@@ -10875,6 +10890,7 @@ def run_gui() -> int:
             )
             self._update_archive_tree_sort_indicator()
             self._model_preview_render_settings = self._read_model_preview_render_settings()
+            self.archive_model_renderer_backend = self._read_archive_model_renderer_backend()
             dark_background = self._read_bool("archive/model_preview_dark_background", True)
             self.archive_model_preview_darkmode_button.setChecked(dark_background)
             self.archive_model_preview.set_dark_background_enabled(dark_background)
@@ -17218,6 +17234,8 @@ def run_gui() -> int:
 
         def _clear_archive_preview(self, message: str) -> None:
             self.archive_preview_request_id += 1
+            if hasattr(self, "_shutdown_archive_isolated_renderer_host") and not getattr(self, "_shutting_down", False):
+                self._shutdown_archive_isolated_renderer_host()
             self.archive_preview_cache_keys.clear()
             self.archive_preview_request_started_at.clear()
             self.archive_preview_request_phase_timings.clear()
@@ -18140,7 +18158,14 @@ def run_gui() -> int:
             return current_entry
 
         def _archive_model_renderer_backend(self) -> str:
-            return ARCHIVE_MODEL_RENDERER_LEGACY_OPENGL
+            return normalize_archive_model_renderer_backend(
+                getattr(self, "archive_model_renderer_backend", ARCHIVE_MODEL_RENDERER_DEFAULT)
+            )
+
+        def _read_archive_model_renderer_backend(self) -> str:
+            return normalize_archive_model_renderer_backend(
+                self.settings.value("preview/archive_renderer_backend", ARCHIVE_MODEL_RENDERER_DEFAULT)
+            )
 
         def _archive_model_preview_widgets(self) -> Tuple[object, ...]:
             return (self.archive_model_preview,)
@@ -18164,7 +18189,11 @@ def run_gui() -> int:
         def _archive_model_preview_controls_target(self) -> Optional[object]:
             if self.archive_preview_showing_loose:
                 return None
-            if self._active_archive_model_preview_widget() is None:
+            current_widget = self.archive_preview_stack.currentWidget()
+            if (
+                self._active_archive_model_preview_widget() is None
+                and current_widget is not self.archive_d3d11_preview_host
+            ):
                 return None
             if self.current_archive_preview_result is None:
                 return None
@@ -18216,6 +18245,13 @@ def run_gui() -> int:
             for widget in self._archive_model_preview_widgets():
                 if hasattr(widget, "set_dark_background_enabled"):
                     widget.set_dark_background_enabled(bool(checked))
+            if (
+                self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
+                and self.current_archive_preview_result is not None
+                and not self.archive_preview_showing_loose
+                and getattr(self.current_archive_preview_result, "preview_model", None) is not None
+            ):
+                self._launch_archive_isolated_preview_result(self.current_archive_preview_result)
             self.schedule_settings_save()
 
         def _archive_isolated_renderer_process_running(self) -> bool:
@@ -18865,7 +18901,12 @@ def run_gui() -> int:
             )
             self._sync_archive_model_action_menu_buttons()
             self.archive_model_preview_settings_button.setEnabled(True)
-            self.archive_isolated_renderer_button.setEnabled(bool(preview_model is not None and not self.archive_preview_showing_loose))
+            d3d11_backend_active = self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
+            self.archive_isolated_renderer_button.setText("Reload D3D11")
+            self.archive_isolated_renderer_button.setVisible(bool(d3d11_backend_active and can_export_preview))
+            self.archive_isolated_renderer_button.setEnabled(
+                bool(d3d11_backend_active and can_export_preview and controls_enabled)
+            )
             preview_settings = self._current_model_preview_render_settings()
             for widget in self._archive_model_preview_widgets():
                 if hasattr(widget, "set_use_textures"):
@@ -19114,6 +19155,8 @@ def run_gui() -> int:
             if dialog is not None:
                 dialog.set_settings(settings)
                 dialog.set_archive_performance_settings(self._current_archive_performance_settings())
+                if hasattr(dialog, "set_archive_renderer_backend"):
+                    dialog.set_archive_renderer_backend(self._archive_model_renderer_backend())
 
         def _sync_archive_performance_settings_controls(self) -> None:
             settings_tab = getattr(self, "settings_tab", None)
@@ -19129,15 +19172,19 @@ def run_gui() -> int:
                 dialog = ModelPreviewSettingsDialog(
                     settings=self._current_model_preview_render_settings(),
                     archive_performance_settings=self._current_archive_performance_settings(),
+                    archive_renderer_backend=self._archive_model_renderer_backend(),
                     parent=self,
                 )
                 dialog.settings_changed.connect(self._handle_model_preview_settings_changed)
                 dialog.archive_performance_changed.connect(self._handle_archive_performance_settings_changed)
+                dialog.archive_renderer_backend_changed.connect(self._handle_archive_renderer_backend_changed)
                 dialog.clear_preview_cache_requested.connect(self._handle_clear_archive_preview_cache_requested)
                 self.model_preview_settings_dialog = dialog
             else:
                 dialog.set_settings(self._current_model_preview_render_settings())
                 dialog.set_archive_performance_settings(self._current_archive_performance_settings())
+                if hasattr(dialog, "set_archive_renderer_backend"):
+                    dialog.set_archive_renderer_backend(self._archive_model_renderer_backend())
             dialog.show()
             dialog.raise_()
             dialog.activateWindow()
@@ -19146,12 +19193,14 @@ def run_gui() -> int:
             dialog = ModelPreviewSettingsDialog(
                 settings=self._current_model_preview_render_settings(),
                 archive_performance_settings=self._current_archive_performance_settings(),
+                archive_renderer_backend=self._archive_model_renderer_backend(),
                 parent=parent_dialog,
             )
             dialog.setAttribute(Qt.WA_DeleteOnClose, True)
             dialog.setWindowModality(Qt.WindowModal)
             dialog.settings_changed.connect(self._handle_model_preview_settings_changed)
             dialog.archive_performance_changed.connect(self._handle_archive_performance_settings_changed)
+            dialog.archive_renderer_backend_changed.connect(self._handle_archive_renderer_backend_changed)
             dialog.clear_preview_cache_requested.connect(self._handle_clear_archive_preview_cache_requested)
             active_dialogs = getattr(self, "_modal_model_preview_settings_dialogs", None)
             if active_dialogs is None:
@@ -19173,6 +19222,43 @@ def run_gui() -> int:
             self._clear_archive_preview_cache()
             self.append_archive_log(f"Cleared {cleared_count:,} in-memory archive preview cache entr{'y' if cleared_count == 1 else 'ies'}.")
             self.set_status_message("Archive preview cache cleared.")
+
+        def _handle_archive_renderer_backend_changed(self, backend: str) -> None:
+            normalized = normalize_archive_model_renderer_backend(backend)
+            if normalized == self._archive_model_renderer_backend():
+                return
+            self.archive_model_renderer_backend = normalized
+            dialog = getattr(self, "model_preview_settings_dialog", None)
+            if dialog is not None and hasattr(dialog, "set_archive_renderer_backend"):
+                dialog.set_archive_renderer_backend(normalized)
+            self._sync_archive_model_preview_debug_controls(self._archive_model_preview_controls_target())
+            result = self.current_archive_preview_result
+            if (
+                result is not None
+                and not self.archive_preview_showing_loose
+                and getattr(result, "preview_model", None) is not None
+            ):
+                if normalized == ARCHIVE_MODEL_RENDERER_D3D11:
+                    self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
+                    self._launch_archive_isolated_preview_result(result)
+                else:
+                    self._shutdown_archive_isolated_renderer_host()
+                    self.archive_model_preview.set_prepared_model(
+                        result.preview_model,
+                        getattr(result, "prepared_preview_model", None),
+                    )
+                    self.archive_preview_stack.setCurrentWidget(self.archive_model_preview)
+                    self._refresh_archive_preview_details_text()
+                    self._apply_archive_preview_zoom()
+            self._update_archive_model_action_controls(
+                None if result is None else getattr(result, "preview_model", None)
+            )
+            self.set_status_message(
+                "Archive model renderer set to Native D3D11."
+                if normalized == ARCHIVE_MODEL_RENDERER_D3D11
+                else "Archive model renderer set to Legacy OpenGL."
+            )
+            self.schedule_settings_save()
 
         def _configure_model_preview_widget(
             self,
@@ -19227,15 +19313,39 @@ def run_gui() -> int:
                 widget.set_render_settings(preview_settings)
                 widget.set_use_textures(bool(preview_settings.use_textures_by_default))
                 widget.set_high_quality_textures(bool(preview_settings.high_quality_by_default))
-            if (
+            needs_asset_refresh = (
                 previous_settings.preview_texture_max_dimension != preview_settings.preview_texture_max_dimension
                 or previous_settings.low_quality_texture_max_dimension != preview_settings.low_quality_texture_max_dimension
                 or previous_settings.visible_texture_mode != preview_settings.visible_texture_mode
-                or previous_settings.disable_all_support_maps != preview_settings.disable_all_support_maps
+            )
+            support_slot_settings_changed = (
+                previous_settings.disable_all_support_maps != preview_settings.disable_all_support_maps
                 or previous_settings.disable_normal_map != preview_settings.disable_normal_map
                 or previous_settings.disable_material_map != preview_settings.disable_material_map
                 or previous_settings.disable_height_map != preview_settings.disable_height_map
+            )
+            d3d11_package_only_changed = (
+                previous_settings.use_textures_by_default != preview_settings.use_textures_by_default
+                or previous_settings.high_quality_by_default != preview_settings.high_quality_by_default
+                or support_slot_settings_changed
+                or previous_settings.orbit_sensitivity != preview_settings.orbit_sensitivity
+                or previous_settings.pan_sensitivity != preview_settings.pan_sensitivity
+                or previous_settings.invert_orbit_x != preview_settings.invert_orbit_x
+                or previous_settings.invert_orbit_y != preview_settings.invert_orbit_y
+                or previous_settings.invert_pan_x != preview_settings.invert_pan_x
+                or previous_settings.invert_pan_y != preview_settings.invert_pan_y
+            )
+            if needs_asset_refresh:
+                self._schedule_current_model_preview_asset_refresh()
+            elif (
+                d3d11_package_only_changed
+                and self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
+                and self.current_archive_preview_result is not None
+                and not self.archive_preview_showing_loose
+                and getattr(self.current_archive_preview_result, "preview_model", None) is not None
             ):
+                self._launch_archive_isolated_preview_result(self.current_archive_preview_result)
+            elif support_slot_settings_changed:
                 self._schedule_current_model_preview_asset_refresh()
             preview_model = None
             if self.current_archive_preview_result is not None and not self.archive_preview_showing_loose:
@@ -57626,6 +57736,27 @@ def run_gui() -> int:
                 if request_id is not None and request_id != self.archive_preview_request_id:
                     return 0.0
                 model_apply_started_at = time.perf_counter()
+                renderer_backend = self._archive_model_renderer_backend()
+                if renderer_backend == ARCHIVE_MODEL_RENDERER_D3D11:
+                    host_binary = find_native_d3d11_host()
+                    if host_binary is not None:
+                        detail_text = self._detail_text_with_renderer_note(detail_text, None)
+                        self._set_archive_preview_base_detail_text(detail_text, include_current_model_debug=False)
+                        self.archive_media_preview.clear_media("No media preview available.")
+                        self.archive_preview_label.clear_preview("No image preview available.")
+                        self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
+                        self.archive_preview_tabs.setCurrentIndex(0)
+                        self._update_archive_model_action_controls(result.preview_model)
+                        self._set_archive_preview_image_controls_enabled(True)
+                        self._apply_archive_preview_zoom()
+                        self._launch_archive_isolated_preview_result(result)
+                        return max(0.0, float(time.perf_counter() - model_apply_started_at))
+                    self._set_archive_isolated_renderer_debug(
+                        "Native D3D11 Preview: host binary is unavailable, falling back to Legacy OpenGL. "
+                        "Build native/cdmw_d3d11_preview or set CDMW_D3D11_PREVIEW_BIN."
+                    )
+                    self.set_status_message("Native D3D11 preview host is unavailable; using Legacy OpenGL fallback.", error=True)
+
                 model_preview_widget = self._selected_archive_model_preview_widget()
                 detail_text = self._detail_text_with_renderer_note(detail_text, model_preview_widget)
                 self._set_archive_preview_base_detail_text(detail_text, include_current_model_debug=False)
