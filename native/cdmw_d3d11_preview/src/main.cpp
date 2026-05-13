@@ -12,6 +12,7 @@
 #include <cstring>
 #include <cstdint>
 #include <cstdlib>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -56,6 +57,10 @@ struct PreviewBatch {
     std::wstring base_dds;
     std::wstring normal_dds;
     std::wstring material_dds;
+    std::wstring occlusion_dds;
+    std::wstring roughness_dds;
+    std::wstring metalness_dds;
+    std::wstring specular_dds;
     std::wstring height_dds;
     std::wstring base_png;
     std::wstring normal_png;
@@ -66,6 +71,10 @@ struct PreviewBatch {
     std::wstring height_png;
     float normal_strength = 1.0f;
     float height_amount = 0.0f;
+    float roughness_hint = 0.0f;
+    float metalness_hint = 0.0f;
+    float specular_hint = 0.0f;
+    float height_scale_hint = 0.0f;
     ComPtr<ID3D11Buffer> vertex_buffer;
     ComPtr<ID3D11ShaderResourceView> base_srv;
     ComPtr<ID3D11ShaderResourceView> normal_srv;
@@ -84,12 +93,15 @@ struct ConstantBuffer {
     DirectX::XMFLOAT4 flags;
     DirectX::XMFLOAT4 flags2;
     DirectX::XMFLOAT4 material_params;
+    DirectX::XMFLOAT4 material_hints;
 };
 
 struct RendererStats {
     int batch_count = 0;
     int vertex_count = 0;
     int png_fallback = 0;
+    int texture_cache_hits = 0;
+    int low_resolution_base_textures = 0;
     SlotCounts dds_candidates;
     SlotCounts dds_uploaded;
     SlotCounts png_uploaded;
@@ -103,6 +115,12 @@ struct RendererStats {
     double texture_ms = 0.0;
     double first_frame_ms = 0.0;
     std::vector<std::string> skipped;
+};
+
+struct TextureLoadInfo {
+    std::string format_name;
+    size_t width = 0;
+    size_t height = 0;
 };
 
 static std::string wide_to_utf8(const std::wstring& text) {
@@ -330,6 +348,97 @@ static std::vector<std::string> json_string_array_field(const std::string& objec
     return values;
 }
 
+static std::string lower_copy(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
+}
+
+static bool contains_text(const std::string& haystack, const std::string& needle) {
+    return haystack.find(needle) != std::string::npos;
+}
+
+static bool looks_like_path_suffix(const std::string& source_path, const std::string& suffix) {
+    std::string lower = lower_copy(source_path);
+    size_t slash = lower.find_last_of("/\\");
+    std::string name = slash == std::string::npos ? lower : lower.substr(slash + 1);
+    if (name.size() >= suffix.size() + 4 && name.ends_with(suffix + ".dds")) return true;
+    if (name.size() >= suffix.size() && name.ends_with(suffix)) return true;
+    return false;
+}
+
+static int material_dds_candidate_score(const std::string& object, const std::string& role) {
+    std::string source_path = json_string_field(object, "source_path");
+    if (source_path.empty()) return -1000;
+    if (!json_bool_field(object, "available", true)) return -1000;
+    std::string slot = lower_copy(json_string_field(object, "slot"));
+    std::string parameter = lower_copy(json_string_field(object, "parameter_name"));
+    std::string semantic_type = lower_copy(json_string_field(object, "semantic_type"));
+    std::string semantic_subtype = lower_copy(json_string_field(object, "semantic_subtype"));
+    std::string descriptor = lower_copy(source_path + " " + slot + " " + parameter + " " + semantic_type + " " + semantic_subtype);
+
+    if (role == "specular") {
+        int score = -1000;
+        if (looks_like_path_suffix(source_path, "_sp")) score = std::max(score, 110);
+        if (contains_text(parameter, "specular")) score = std::max(score, 100);
+        if (semantic_subtype == "specular" || semantic_type == "specular") score = std::max(score, 96);
+        if (contains_text(descriptor, "gloss") || contains_text(descriptor, "smoothness")) score = std::max(score, 76);
+        if (contains_text(descriptor, "opacity") || contains_text(descriptor, "normal") || contains_text(descriptor, "height")) score -= 200;
+        return score;
+    }
+    if (role == "roughness") {
+        int score = -1000;
+        if (contains_text(parameter, "roughness") || semantic_subtype == "roughness" || semantic_type == "roughness") score = std::max(score, 100);
+        if (contains_text(descriptor, "gloss") || contains_text(descriptor, "smoothness")) score = std::max(score, 72);
+        if (contains_text(descriptor, "opacity") || contains_text(descriptor, "normal") || contains_text(descriptor, "height")) score -= 200;
+        return score;
+    }
+    if (role == "metalness") {
+        int score = -1000;
+        if (contains_text(parameter, "metallic") || contains_text(parameter, "metalness")) score = std::max(score, 100);
+        if (semantic_subtype == "metallic" || semantic_subtype == "metalness" || semantic_type == "metallic") score = std::max(score, 96);
+        if (contains_text(descriptor, "opacity") || contains_text(descriptor, "normal") || contains_text(descriptor, "height")) score -= 200;
+        return score;
+    }
+    if (role == "occlusion") {
+        int score = -1000;
+        if (contains_text(parameter, "occlusion") || semantic_subtype == "ao" || semantic_subtype == "ambient_occlusion") score = std::max(score, 96);
+        if (looks_like_path_suffix(source_path, "_ao")) score = std::max(score, 86);
+        if (contains_text(descriptor, "opacity") || contains_text(descriptor, "normal") || contains_text(descriptor, "height")) score -= 200;
+        return score;
+    }
+    if (role == "material") {
+        int score = -1000;
+        if (looks_like_path_suffix(source_path, "_ma")) score = std::max(score, 112);
+        if (semantic_subtype == "material_mask" || semantic_subtype == "material_response" || semantic_subtype == "packed_mask") score = std::max(score, 100);
+        if (contains_text(parameter, "materialtexture") || contains_text(parameter, "materialmask")) score = std::max(score, 92);
+        if (looks_like_path_suffix(source_path, "_m")) score = std::max(score, 72);
+        if (looks_like_path_suffix(source_path, "_mg") || contains_text(parameter, "detailmask") || contains_text(parameter, "colorblendingmask")) score = std::max(score, 28);
+        if (contains_text(descriptor, "specular") || looks_like_path_suffix(source_path, "_sp")) score -= 120;
+        if (contains_text(descriptor, "opacity") || contains_text(descriptor, "normal") || contains_text(descriptor, "height")) score -= 200;
+        return score;
+    }
+    return -1000;
+}
+
+static std::wstring best_material_dds_for_role(const std::string& object, const std::string& role) {
+    int best_score = -1000;
+    std::string best_path;
+    for (const std::string& candidate : objects_with_key(object, "source_path")) {
+        int score = material_dds_candidate_score(candidate, role);
+        if (score > best_score) {
+            std::string source_path = json_string_field(candidate, "source_path");
+            if (!source_path.empty()) {
+                best_score = score;
+                best_path = source_path;
+            }
+        }
+    }
+    if (best_score < 40 || best_path.empty()) return L"";
+    return utf8_to_wide(best_path);
+}
+
 static void increment_slot(SlotCounts& counts, const std::string& slot) {
     if (slot == "base") ++counts.base;
     else if (slot == "normal") ++counts.normal;
@@ -419,6 +528,11 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.base_dds = dds_slot_source(object, "base");
         batch.normal_dds = dds_slot_source(object, "normal");
         batch.material_dds = dds_slot_source(object, "material");
+        if (batch.material_dds.empty()) batch.material_dds = best_material_dds_for_role(object, "material");
+        batch.occlusion_dds = best_material_dds_for_role(object, "occlusion");
+        batch.roughness_dds = best_material_dds_for_role(object, "roughness");
+        batch.metalness_dds = best_material_dds_for_role(object, "metalness");
+        batch.specular_dds = best_material_dds_for_role(object, "specular");
         batch.height_dds = dds_slot_source(object, "height");
         batch.base_png = texture_slot_relative(package_dir, object, "base");
         batch.normal_png = texture_slot_relative(package_dir, object, "normal");
@@ -429,9 +543,17 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.height_png = texture_slot_relative(package_dir, object, "height");
         batch.normal_strength = std::clamp(json_float_field(object, "normal_strength", 1.0f), 0.0f, 2.0f);
         batch.height_amount = std::clamp(json_float_field(object, "height_amount", 0.0f), 0.0f, 0.16f);
+        batch.roughness_hint = std::clamp(json_float_field(object, "roughness", 0.0f), 0.0f, 1.0f);
+        batch.metalness_hint = std::clamp(json_float_field(object, "metalness", 0.0f), 0.0f, 1.0f);
+        batch.specular_hint = std::clamp(json_float_field(object, "specular", 0.0f), 0.0f, 1.0f);
+        batch.height_scale_hint = std::clamp(json_float_field(object, "height_scale", 0.0f), 0.0f, 1.0f);
         if (!batch.base_dds.empty()) increment_slot(stats.dds_candidates, "base");
         if (!batch.normal_dds.empty()) increment_slot(stats.dds_candidates, "normal");
         if (!batch.material_dds.empty()) increment_slot(stats.dds_candidates, "material");
+        if (!batch.occlusion_dds.empty()) increment_slot(stats.dds_candidates, "occlusion");
+        if (!batch.roughness_dds.empty()) increment_slot(stats.dds_candidates, "roughness");
+        if (!batch.metalness_dds.empty()) increment_slot(stats.dds_candidates, "metalness");
+        if (!batch.specular_dds.empty()) increment_slot(stats.dds_candidates, "specular");
         if (!batch.height_dds.empty()) increment_slot(stats.dds_candidates, "height");
         if (json_bool_field(object, "material_combiner_active", false)) {
             ++stats.material_combiner_active_batches;
@@ -483,6 +605,8 @@ static std::string loaded_payload(const RendererStats& stats) {
            << "\"vertex_count\":" << stats.vertex_count << ","
            << "\"textures\":" << slot_counts_json(stats.textures_loaded) << ","
            << "\"png_fallback\":" << stats.png_fallback << ","
+           << "\"texture_cache_hits\":" << stats.texture_cache_hits << ","
+           << "\"low_resolution_base_textures\":" << stats.low_resolution_base_textures << ","
            << "\"png_fallbacks\":" << slot_counts_json(stats.png_uploaded) << ","
            << "\"dds_direct_upload_candidates\":" << slot_counts_json(stats.dds_candidates) << ","
            << "\"dds_direct_uploads\":" << slot_counts_json(stats.dds_uploaded) << ","
@@ -520,6 +644,7 @@ cbuffer Constants : register(b0) {
     float4 flags;
     float4 flags2;
     float4 material_params;
+    float4 material_hints;
 };
 Texture2D base_tex : register(t0);
 Texture2D normal_tex : register(t1);
@@ -566,9 +691,19 @@ float4 ps_main(VSOut input) : SV_TARGET {
         albedo = base_tex.Sample(preview_sampler, uv).rgb;
     }
     float3 n = normalize(input.normal);
+    float3 t = input.tangent;
+    float3 b = input.bitangent;
+    if (dot(t, t) < 1e-5) {
+        t = float3(1.0, 0.0, 0.0);
+    } else {
+        t = normalize(t);
+    }
+    if (dot(b, b) < 1e-5) {
+        b = normalize(cross(n, t));
+    } else {
+        b = normalize(b);
+    }
     if (flags.y > 0.5) {
-        float3 t = normalize(input.tangent);
-        float3 b = normalize(input.bitangent);
         float3 sampled = normal_tex.Sample(preview_sampler, uv).xyz;
         float2 xy = sampled.xy * 2.0 - 1.0;
         xy.y = -xy.y;
@@ -581,6 +716,15 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float roughness = 0.55;
     float specular = 0.15;
     float metalness = 0.0;
+    if (material_hints.x > 0.02) {
+        roughness = lerp(roughness, material_hints.x, 0.32);
+    }
+    if (material_hints.y > 0.02) {
+        metalness = max(metalness, material_hints.y);
+    }
+    if (material_hints.z > 0.02) {
+        specular = max(specular, material_hints.z);
+    }
     if (flags.z > 0.5) {
         float4 m = material_tex.Sample(preview_sampler, uv);
         ao = min(ao, max(0.35, m.r));
@@ -598,11 +742,29 @@ float4 ps_main(VSOut input) : SV_TARGET {
         metalness = saturate(metalness_tex.Sample(preview_sampler, uv).r);
     }
     if (flags2.w > 0.5) {
-        specular = saturate(specular_tex.Sample(preview_sampler, uv).r);
+        float3 spec_sample = specular_tex.Sample(preview_sampler, uv).rgb;
+        float spec_value = max(spec_sample.r, max(spec_sample.g, spec_sample.b));
+        specular = saturate(max(specular, spec_value * 0.88));
+        if (flags2.y < 0.5) {
+            roughness = min(roughness, lerp(0.72, 0.24, spec_value));
+        }
     }
     float height_value = 0.5;
     if (flags.w > 0.5) {
         height_value = height_tex.Sample(preview_sampler, uv).r;
+        float2 duv_x = ddx(uv);
+        float2 duv_y = ddy(uv);
+        if (dot(duv_x, duv_x) < 1e-8) {
+            duv_x = float2(1.0 / 1024.0, 0.0);
+        }
+        if (dot(duv_y, duv_y) < 1e-8) {
+            duv_y = float2(0.0, 1.0 / 1024.0);
+        }
+        float hx = height_tex.Sample(preview_sampler, uv + duv_x).r - height_tex.Sample(preview_sampler, uv - duv_x).r;
+        float hy = height_tex.Sample(preview_sampler, uv + duv_y).r - height_tex.Sample(preview_sampler, uv - duv_y).r;
+        float height_strength = saturate((material_params.y + material_hints.w * 0.04) * 8.0);
+        float3 height_normal = normalize(n - t * hx * height_strength * 2.4 + b * hy * height_strength * 2.4);
+        n = normalize(lerp(n, height_normal, height_strength));
         float relief = (height_value - 0.5) * saturate(material_params.y * 10.0);
         roughness = saturate(roughness - relief * 0.10);
     }
@@ -725,6 +887,11 @@ public:
                 batch.height_amount,
                 0.0f,
                 0.0f);
+            constants.material_hints = DirectX::XMFLOAT4(
+                batch.roughness_hint,
+                batch.metalness_hint,
+                batch.specular_hint,
+                batch.height_scale_hint);
             context_->UpdateSubresource(constants_.Get(), 0, nullptr, &constants, 0, 0);
             context_->VSSetConstantBuffers(0, 1, constants_.GetAddressOf());
             context_->PSSetConstantBuffers(0, 1, constants_.GetAddressOf());
@@ -835,8 +1002,8 @@ private:
         sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
         sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
         sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-        sampler_desc.MipLODBias = -0.35f;
-        sampler_desc.MaxAnisotropy = 8;
+        sampler_desc.MipLODBias = -0.85f;
+        sampler_desc.MaxAnisotropy = 16;
         sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
         hr = device_->CreateSamplerState(&sampler_desc, sampler_.GetAddressOf());
         if (FAILED(hr)) return false;
@@ -881,10 +1048,10 @@ private:
             load_batch_texture(batch.base_dds, batch.base_png, batch.base_srv, "base");
             load_batch_texture(batch.normal_dds, batch.normal_png, batch.normal_srv, "normal");
             load_batch_texture(batch.material_dds, L"", batch.material_srv, "material");
-            load_batch_texture(L"", batch.occlusion_png, batch.occlusion_srv, "occlusion");
-            load_batch_texture(L"", batch.roughness_png, batch.roughness_srv, "roughness");
-            load_batch_texture(L"", batch.metalness_png, batch.metalness_srv, "metalness");
-            load_batch_texture(L"", batch.specular_png, batch.specular_srv, "specular");
+            load_batch_texture(batch.occlusion_dds, batch.occlusion_png, batch.occlusion_srv, "occlusion");
+            load_batch_texture(batch.roughness_dds, batch.roughness_png, batch.roughness_srv, "roughness");
+            load_batch_texture(batch.metalness_dds, batch.metalness_png, batch.metalness_srv, "metalness");
+            load_batch_texture(batch.specular_dds, batch.specular_png, batch.specular_srv, "specular");
             load_batch_texture(batch.height_dds, batch.height_png, batch.height_srv, "height");
         }
         stats_.texture_ms = std::chrono::duration<double, std::milli>(
@@ -899,12 +1066,15 @@ private:
         const char* slot) {
         const std::string slot_name(slot);
         if (!dds_path.empty() && fs::is_regular_file(fs::path(dds_path))) {
-            std::string format_name;
-            if (load_srv_from_file(dds_path, true, target, &format_name)) {
+            TextureLoadInfo info{};
+            if (load_srv_from_file(dds_path, true, target, &info)) {
                 increment_slot(stats_.dds_uploaded, slot_name);
                 increment_slot(stats_.textures_loaded, slot_name);
-                if (!format_name.empty()) {
-                    ++stats_.dds_upload_formats[format_name];
+                if (!info.format_name.empty()) {
+                    ++stats_.dds_upload_formats[info.format_name];
+                }
+                if (slot_name == "base" && std::max(info.width, info.height) > 0 && std::max(info.width, info.height) < 512) {
+                    ++stats_.low_resolution_base_textures;
                 }
                 return;
             }
@@ -925,7 +1095,20 @@ private:
         const std::wstring& path,
         bool dds,
         ComPtr<ID3D11ShaderResourceView>& target,
-        std::string* format_name) {
+        TextureLoadInfo* info) {
+        std::wstring cache_key = (dds ? L"dds|" : L"wic|") + path;
+        auto cached = srv_cache_.find(cache_key);
+        if (cached != srv_cache_.end() && cached->second) {
+            target = cached->second;
+            ++stats_.texture_cache_hits;
+            if (info) {
+                auto cached_info = texture_info_cache_.find(cache_key);
+                if (cached_info != texture_info_cache_.end()) {
+                    *info = cached_info->second;
+                }
+            }
+            return true;
+        }
         DirectX::ScratchImage image;
         DirectX::TexMetadata metadata{};
         HRESULT hr = dds
@@ -938,8 +1121,16 @@ private:
             image.GetImageCount(),
             metadata,
             target.ReleaseAndGetAddressOf());
-        if (SUCCEEDED(hr) && format_name) {
-            *format_name = dxgi_format_name(metadata.format);
+        if (SUCCEEDED(hr)) {
+            TextureLoadInfo loaded_info{};
+            loaded_info.format_name = dxgi_format_name(metadata.format);
+            loaded_info.width = metadata.width;
+            loaded_info.height = metadata.height;
+            srv_cache_[cache_key] = target;
+            texture_info_cache_[cache_key] = loaded_info;
+            if (info) {
+                *info = loaded_info;
+            }
         }
         return SUCCEEDED(hr);
     }
@@ -967,6 +1158,8 @@ private:
     ComPtr<ID3D11SamplerState> sampler_;
     ComPtr<ID3D11RasterizerState> rasterizer_;
     ComPtr<ID3D11DepthStencilState> depth_state_;
+    std::map<std::wstring, ComPtr<ID3D11ShaderResourceView>> srv_cache_;
+    std::map<std::wstring, TextureLoadInfo> texture_info_cache_;
 };
 
 static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {

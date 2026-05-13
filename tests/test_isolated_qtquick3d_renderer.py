@@ -9,6 +9,7 @@ from cdmw.models import (
     ModelPreviewData,
     PreparedModelPreviewBatch,
     PreparedModelPreviewData,
+    PreviewMaterialParameterInput,
     PreviewMaterialTextureInput,
 )
 from cdmw.rendering.qtquick3d_preview_package import (
@@ -119,6 +120,19 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                                 texture_name="blade_sp",
                                 preview_texture_path=str(specular),
                                 semantic_subtype="specular",
+                                shader_family="SkinnedMeshStandard_Ver2",
+                                material_parameters=(
+                                    PreviewMaterialParameterInput(
+                                        parameter_kind="byte4",
+                                        parameter_name="_scratchMetallic",
+                                        value="16777215",
+                                    ),
+                                    PreviewMaterialParameterInput(
+                                        parameter_kind="byte4",
+                                        parameter_name="_scratchRoughness",
+                                        value="8388607",
+                                    ),
+                                ),
                             ),
                             PreviewMaterialTextureInput(
                                 slot_kind="material",
@@ -154,6 +168,8 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertEqual("", textures["roughness"])
             self.assertEqual("", textures["metalness"])
             self.assertTrue(batch["tangents_usable"])
+            self.assertGreater(batch["native_material_hints"]["metalness"], 0.0)
+            self.assertGreater(batch["native_material_hints"]["specular"], 0.0)
             self.assertIn("packed material map skipped", " ".join(batch["notes"]))
 
     def test_package_combiner_generates_independent_pbr_slots(self) -> None:
@@ -278,6 +294,9 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("dds_direct_upload_candidates", source)
         self.assertIn("dds_direct_uploads", source)
         self.assertIn("dds_upload_formats", source)
+        self.assertIn("texture_cache_hits", source)
+        self.assertIn("best_material_dds_for_role", source)
+        self.assertIn("material_hints", source)
         self.assertIn("png_fallbacks", source)
         self.assertIn("material_combiner_outputs", source)
         self.assertIn("Texture2D roughness_tex", source)
@@ -312,6 +331,7 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
 
         self.assertIn("archive_isolated_renderer_button", source)
         self.assertIn("archive_d3d11_preview_host", source)
+        self.assertIn("low_res_base", source)
         self.assertIn("find_native_d3d11_host", source)
         self.assertIn("--preview-package", source)
         self.assertIn("--status-file", source)

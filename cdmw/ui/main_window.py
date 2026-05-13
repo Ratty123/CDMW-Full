@@ -18167,6 +18167,8 @@ def run_gui() -> int:
                 texture_text = "none"
             skipped = tuple(str(item) for item in tuple(payload.get("skipped", ()) or ()) if str(item))
             skipped_text = "; ".join(skipped[:8]) if skipped else "none"
+            cache_hits = int(payload.get("texture_cache_hits", 0) or 0)
+            low_res_base_count = int(payload.get("low_resolution_base_textures", 0) or 0)
             combiner_outputs = payload.get("material_combiner_outputs", {})
             if isinstance(combiner_outputs, Mapping):
                 combiner_output_text = " ".join(
@@ -18193,7 +18195,8 @@ def run_gui() -> int:
                 f"manifest={float(payload.get('manifest_read_ms', 0.0) or 0.0):.1f} ms; "
                 f"textures={float(payload.get('texture_bind_ms', 0.0) or 0.0):.1f} ms; "
                 f"geometry={float(payload.get('geometry_upload_ms', 0.0) or 0.0):.1f} ms; "
-                f"first_frame={float(payload.get('first_frame_ms', 0.0) or 0.0):.1f} ms\n"
+                f"first_frame={float(payload.get('first_frame_ms', 0.0) or 0.0):.1f} ms; "
+                f"cache_hits={cache_hits:,}; low_res_base={low_res_base_count:,}\n"
                 "Native D3D11 Material Combiner: "
                 f"active_batches={int(payload.get('material_combiner_active', 0) or 0):,}; "
                 f"outputs={combiner_output_text}; decode={combiner_mode_text}\n"

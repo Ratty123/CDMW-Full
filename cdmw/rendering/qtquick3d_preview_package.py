@@ -277,6 +277,82 @@ def _render_settings_to_dict(settings: Optional[ModelPreviewRenderSettings]) -> 
     }
 
 
+def _normalized_material_key(value: object) -> str:
+    return "".join(ch for ch in str(value or "").strip().lower() if ch.isalnum())
+
+
+def _byte4_channels(value: object) -> Tuple[float, float, float, float]:
+    text = str(value or "").strip()
+    if not text:
+        return ()
+    try:
+        integer = int(text, 0)
+    except (TypeError, ValueError, OverflowError):
+        return ()
+    integer = max(0, min(0xFFFFFFFF, integer))
+    return tuple(((integer >> (8 * index)) & 0xFF) / 255.0 for index in range(4))  # type: ignore[return-value]
+
+
+def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[str, object]:
+    inputs = tuple(
+        texture_input
+        for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
+        if isinstance(texture_input, PreviewMaterialTextureInput)
+    )
+    shader_families = tuple(
+        dict.fromkeys(
+            str(getattr(texture_input, "shader_family", "") or "").strip()
+            for texture_input in inputs
+            if str(getattr(texture_input, "shader_family", "") or "").strip()
+        )
+    )
+    roughness_values: list[float] = []
+    metalness_values: list[float] = []
+    specular_values: list[float] = []
+    height_values: list[float] = []
+    for texture_input in inputs:
+        for parameter in tuple(getattr(texture_input, "material_parameters", ()) or ()):
+            key = _normalized_material_key(getattr(parameter, "parameter_name", ""))
+            if not key:
+                continue
+            numeric_value = getattr(parameter, "numeric_value", None)
+            if numeric_value is not None:
+                numeric = _clamp01(numeric_value)
+                if "screenspacedisplacementscale" in key or "heightintensity" in key:
+                    height_values.append(numeric if "heightintensity" in key else min(1.0, numeric * 8.0))
+                if "specular" in key or "sheen" in key:
+                    specular_values.append(numeric)
+                if "roughness" in key:
+                    roughness_values.append(numeric)
+                if "metallic" in key or "metalness" in key:
+                    metalness_values.append(numeric)
+                continue
+            channels = _byte4_channels(getattr(parameter, "value", ""))
+            if not channels:
+                continue
+            channel_peak = max(channels)
+            if "scratchroughness" in key or key.endswith("roughness"):
+                roughness_values.append(channel_peak)
+            if "scratchmetallic" in key or "metallic" in key or "metalness" in key:
+                metalness_values.append(channel_peak)
+            if "specular" in key:
+                specular_values.append(channel_peak)
+
+    roughness_hint = max(roughness_values) if roughness_values else 0.0
+    metalness_hint = max(metalness_values) if metalness_values else 0.0
+    specular_hint = max(specular_values) if specular_values else 0.0
+    if metalness_hint > 0.02:
+        specular_hint = max(specular_hint, 0.14 + (metalness_hint * 0.32))
+    return {
+        "shader_families": list(shader_families[:4]),
+        "roughness": round(float(max(0.0, min(1.0, roughness_hint))), 4),
+        "metalness": round(float(max(0.0, min(1.0, metalness_hint * 0.42))), 4),
+        "specular": round(float(max(0.0, min(1.0, specular_hint * 0.72))), 4),
+        "height_scale": round(float(max(0.0, min(1.0, max(height_values) if height_values else 0.0))), 4),
+        "source": "sidecar_parameters" if any((roughness_values, metalness_values, specular_values, height_values)) else "",
+    }
+
+
 def _material_input_to_dict(texture_input: PreviewMaterialTextureInput) -> Dict[str, object]:
     def to_jsonable(value: object) -> object:
         if dataclasses.is_dataclass(value) and not isinstance(value, type):
@@ -631,6 +707,9 @@ def _texture_sources_for_batch(
                 return
             if textures.get(kind):
                 return
+            if prefer_direct_dds and _source_dds_for_preview_path(source_path):
+                notes.append(f"{kind} PNG fallback skipped; direct DDS material input available")
+                return
             textures[kind] = _copy_texture(
                 source_path,
                 package_dir=package_dir,
@@ -759,6 +838,7 @@ def write_isolated_qtquick3d_preview_package(
                 "tangents_usable": tangents_usable,
                 "normal_strength": normal_strength,
                 "height_amount": height_amount,
+                "native_material_hints": _native_material_hints_for_batch(batch),
                 "notes": list(notes),
                 "material_combiner_active": bool(combiner_metadata.get("active", False)),
                 "material_combiner_outputs": list(tuple(combiner_metadata.get("outputs", ()) or ())),
