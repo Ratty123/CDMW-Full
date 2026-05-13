@@ -400,7 +400,13 @@ def _source_dds_for_preview_path(preview_path: str) -> str:
     return str(source) if source.is_file() else ""
 
 
-def _dds_manifest_entry(source_path: str, *, slot_name: str, reason: str = "") -> Dict[str, object]:
+def _dds_manifest_entry(
+    source_path: str,
+    *,
+    slot_name: str,
+    reason: str = "",
+    inspect_cache: Optional[Dict[str, Dict[str, object]]] = None,
+) -> Dict[str, object]:
     raw = str(source_path or "").strip()
     if not raw:
         return {}
@@ -420,16 +426,30 @@ def _dds_manifest_entry(source_path: str, *, slot_name: str, reason: str = "") -
             "available": False,
             "reason": reason or "DDS file missing",
         }
-    try:
-        info = inspect_dds_native_path(source)
-        report = dds_native_report_dict(source, info, backend="dds_native_manifest")
-    except Exception as exc:
-        return {
-            "slot": str(slot_name or ""),
-            "source_path": str(source),
-            "available": False,
-            "reason": f"DDS inspect failed: {exc}",
-        }
+    cache_key = str(source).casefold()
+    report: Dict[str, object]
+    cached_report = inspect_cache.get(cache_key) if inspect_cache is not None else None
+    if cached_report is not None:
+        report = dict(cached_report)
+    else:
+        try:
+            info = inspect_dds_native_path(source)
+            report = dds_native_report_dict(source, info, backend="dds_native_manifest")
+        except Exception as exc:
+            return {
+                "slot": str(slot_name or ""),
+                "source_path": str(source),
+                "available": False,
+                "reason": f"DDS inspect failed: {exc}",
+            }
+        report.update(
+            {
+                "available": True,
+                "direct_upload_candidate": bool(report.get("supported_compressed", False)),
+            }
+        )
+        if inspect_cache is not None:
+            inspect_cache[cache_key] = dict(report)
     report.update(
         {
             "slot": str(slot_name or ""),
@@ -442,7 +462,11 @@ def _dds_manifest_entry(source_path: str, *, slot_name: str, reason: str = "") -
     return report
 
 
-def _dds_textures_for_batch(batch: PreparedModelPreviewBatch) -> Dict[str, object]:
+def _dds_textures_for_batch(
+    batch: PreparedModelPreviewBatch,
+    *,
+    inspect_cache: Optional[Dict[str, Dict[str, object]]] = None,
+) -> Dict[str, object]:
     slots = {
         "base": str(getattr(batch, "preview_texture_dds_path", "") or "")
         or _source_dds_for_preview_path(str(getattr(batch, "preview_texture_path", "") or "")),
@@ -454,7 +478,7 @@ def _dds_textures_for_batch(batch: PreparedModelPreviewBatch) -> Dict[str, objec
         or _source_dds_for_preview_path(str(getattr(batch, "preview_height_texture_path", "") or "")),
     }
     output: Dict[str, object] = {
-        slot_name: _dds_manifest_entry(source_path, slot_name=slot_name)
+        slot_name: _dds_manifest_entry(source_path, slot_name=slot_name, inspect_cache=inspect_cache)
         for slot_name, source_path in slots.items()
         if str(source_path or "").strip()
     }
@@ -468,7 +492,7 @@ def _dds_textures_for_batch(batch: PreparedModelPreviewBatch) -> Dict[str, objec
         if not source_path:
             continue
         slot_name = str(getattr(texture_input, "slot_kind", "") or "material").strip().lower() or "material"
-        entry = _dds_manifest_entry(source_path, slot_name=slot_name)
+        entry = _dds_manifest_entry(source_path, slot_name=slot_name, inspect_cache=inspect_cache)
         entry["parameter_name"] = str(getattr(texture_input, "parameter_name", "") or "")
         entry["semantic_type"] = str(getattr(texture_input, "semantic_type", "") or "")
         entry["semantic_subtype"] = str(getattr(texture_input, "semantic_subtype", "") or "")
@@ -492,6 +516,7 @@ def _texture_sources_for_batch(
     copy_cache: Dict[str, str],
     enable_material_combiner: bool = True,
     prefer_direct_dds: bool = False,
+    direct_dds_slots: Optional[Mapping[str, object]] = None,
 ) -> Tuple[Dict[str, str], Tuple[str, ...], Dict[str, object]]:
     notes: list[str] = []
     textures: Dict[str, str] = {
@@ -520,7 +545,9 @@ def _texture_sources_for_batch(
         notes.append("textures disabled" if not use_textures else "missing UVs")
         return textures, tuple(notes), combiner_metadata
 
-    direct_dds_slots = _dds_textures_for_batch(batch) if prefer_direct_dds else {}
+    direct_dds_slots = direct_dds_slots if prefer_direct_dds and isinstance(direct_dds_slots, Mapping) else (
+        _dds_textures_for_batch(batch) if prefer_direct_dds else {}
+    )
 
     def has_direct_dds(slot_name: str) -> bool:
         entry = direct_dds_slots.get(slot_name)
@@ -778,6 +805,7 @@ def write_isolated_qtquick3d_preview_package(
 
     settings = clamp_model_preview_render_settings(render_settings)
     copy_cache: Dict[str, str] = {}
+    dds_inspect_cache: Dict[str, Dict[str, object]] = {}
     batches: list[Dict[str, object]] = []
     total_vertices = 0
     for batch_index, batch in enumerate(tuple(getattr(prepared_preview, "batches", ()) or ())):
@@ -794,6 +822,7 @@ def write_isolated_qtquick3d_preview_package(
         geometry_path = geometry_dir / f"batch_{batch_index:03d}.bin"
         geometry_path.write_bytes(usable_blob)
         tangents_usable = _tangents_usable(usable_blob, vertex_count)
+        dds_textures = _dds_textures_for_batch(batch, inspect_cache=dds_inspect_cache)
         textures, notes, combiner_metadata = _texture_sources_for_batch(
             batch,
             package_dir=package_dir,
@@ -806,6 +835,7 @@ def write_isolated_qtquick3d_preview_package(
             copy_cache=copy_cache,
             enable_material_combiner=bool(enable_material_combiner),
             prefer_direct_dds=bool(prefer_direct_dds),
+            direct_dds_slots=dds_textures,
         )
         total_vertices += vertex_count
         normal_strength = max(
@@ -832,7 +862,7 @@ def write_isolated_qtquick3d_preview_package(
                 "vertex_count": vertex_count,
                 "base_color": list(_first_vertex_color(usable_blob)),
                 "textures": textures,
-                "dds_textures": _dds_textures_for_batch(batch),
+                "dds_textures": dds_textures,
                 "texture_flip_vertical": texture_flip_vertical,
                 "has_texture_coordinates": bool(getattr(batch, "has_texture_coordinates", False)),
                 "tangents_usable": tangents_usable,

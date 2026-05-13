@@ -115,6 +115,8 @@ struct RendererStats {
     int png_fallback = 0;
     int texture_cache_hits = 0;
     int low_resolution_base_textures = 0;
+    int srgb_color_uploads = 0;
+    int linear_data_uploads = 0;
     SlotCounts dds_candidates;
     SlotCounts dds_uploaded;
     SlotCounts png_uploaded;
@@ -679,6 +681,8 @@ static std::string loaded_payload(const RendererStats& stats) {
            << "\"png_fallback\":" << stats.png_fallback << ","
            << "\"texture_cache_hits\":" << stats.texture_cache_hits << ","
            << "\"low_resolution_base_textures\":" << stats.low_resolution_base_textures << ","
+           << "\"srgb_color_uploads\":" << stats.srgb_color_uploads << ","
+           << "\"linear_data_uploads\":" << stats.linear_data_uploads << ","
            << "\"png_fallbacks\":" << slot_counts_json(stats.png_uploaded) << ","
            << "\"dds_direct_upload_candidates\":" << slot_counts_json(stats.dds_candidates) << ","
            << "\"dds_direct_uploads\":" << slot_counts_json(stats.dds_uploaded) << ","
@@ -1303,11 +1307,15 @@ private:
         ComPtr<ID3D11ShaderResourceView>& target,
         const char* slot) {
         const std::string slot_name(slot);
+        const DirectX::CREATETEX_FLAGS create_flags =
+            slot_name == "base" ? DirectX::CREATETEX_FORCE_SRGB : DirectX::CREATETEX_IGNORE_SRGB;
         if (!dds_path.empty() && fs::is_regular_file(fs::path(dds_path))) {
             TextureLoadInfo info{};
-            if (load_srv_from_file(dds_path, true, target, &info)) {
+            if (load_srv_from_file(dds_path, true, target, &info, create_flags)) {
                 increment_slot(stats_.dds_uploaded, slot_name);
                 increment_slot(stats_.textures_loaded, slot_name);
+                if (slot_name == "base") ++stats_.srgb_color_uploads;
+                else ++stats_.linear_data_uploads;
                 if (!info.format_name.empty()) {
                     ++stats_.dds_upload_formats[info.format_name];
                 }
@@ -1319,10 +1327,12 @@ private:
             stats_.skipped.push_back(slot_name + " DDS upload failed:" + wide_to_utf8(dds_path));
         }
         if (!png_fallback.empty() && fs::is_regular_file(fs::path(png_fallback))) {
-            if (load_srv_from_file(png_fallback, false, target, nullptr)) {
+            if (load_srv_from_file(png_fallback, false, target, nullptr, create_flags)) {
                 ++stats_.png_fallback;
                 increment_slot(stats_.png_uploaded, slot_name);
                 increment_slot(stats_.textures_loaded, slot_name);
+                if (slot_name == "base") ++stats_.srgb_color_uploads;
+                else ++stats_.linear_data_uploads;
                 return;
             }
             stats_.skipped.push_back(slot_name + " PNG fallback failed:" + wide_to_utf8(png_fallback));
@@ -1333,8 +1343,9 @@ private:
         const std::wstring& path,
         bool dds,
         ComPtr<ID3D11ShaderResourceView>& target,
-        TextureLoadInfo* info) {
-        std::wstring cache_key = (dds ? L"dds|" : L"wic|") + path;
+        TextureLoadInfo* info,
+        DirectX::CREATETEX_FLAGS create_flags) {
+        std::wstring cache_key = (dds ? L"dds|" : L"wic|") + std::to_wstring(static_cast<uint32_t>(create_flags)) + L"|" + path;
         auto cached = srv_cache_.find(cache_key);
         if (cached != srv_cache_.end() && cached->second) {
             target = cached->second;
@@ -1353,11 +1364,16 @@ private:
             ? DirectX::LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, &metadata, image)
             : DirectX::LoadFromWICFile(path.c_str(), DirectX::WIC_FLAGS_NONE, &metadata, image);
         if (FAILED(hr)) return false;
-        hr = DirectX::CreateShaderResourceView(
+        hr = DirectX::CreateShaderResourceViewEx(
             device_.Get(),
             image.GetImages(),
             image.GetImageCount(),
             metadata,
+            D3D11_USAGE_DEFAULT,
+            D3D11_BIND_SHADER_RESOURCE,
+            0,
+            0,
+            create_flags,
             target.ReleaseAndGetAddressOf());
         if (SUCCEEDED(hr)) {
             TextureLoadInfo loaded_info{};
