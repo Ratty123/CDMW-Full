@@ -19,6 +19,7 @@
 #include <iostream>
 #include <map>
 #include <regex>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -35,6 +36,8 @@ static constexpr float kZoomSteps[] = {0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0
 static constexpr UINT kCdmwSetZoomMessage = WM_APP + 0x431u;
 static constexpr UINT kCdmwSetFitMessage = WM_APP + 0x432u;
 static constexpr UINT kCdmwResetViewMessage = WM_APP + 0x433u;
+static constexpr ULONG_PTR kCdmwCommandCopyData = 0x43444D57u; // "CDMW"
+static constexpr ULONG_PTR kCdmwEventCopyData = 0x44334431u; // "D3D1"
 
 struct Args {
     std::wstring backend = L"d3d11";
@@ -86,6 +89,9 @@ struct PreviewBatch {
     float metalness_hint = 0.0f;
     float specular_hint = 0.0f;
     float height_scale_hint = 0.0f;
+    int source_submesh_index = -1;
+    std::wstring identity_file;
+    float highlight_strength = 0.0f;
     ComPtr<ID3D11Buffer> vertex_buffer;
     ComPtr<ID3D11ShaderResourceView> base_srv;
     ComPtr<ID3D11ShaderResourceView> normal_srv;
@@ -109,6 +115,7 @@ struct ConstantBuffer {
     DirectX::XMFLOAT4 flags3;
     DirectX::XMFLOAT4 render_tuning;
     DirectX::XMFLOAT4 render_tuning2;
+    DirectX::XMFLOAT4 editor_tint;
 };
 
 struct RendererStats {
@@ -384,6 +391,31 @@ static std::vector<std::string> json_string_array_field(const std::string& objec
     return values;
 }
 
+static std::vector<int> json_int_array_field(const std::string& object, const std::string& name) {
+    std::vector<int> values;
+    std::regex pattern("\"" + name + "\"\\s*:\\s*\\[([^\\]]*)\\]");
+    std::smatch match;
+    if (!std::regex_search(object, match, pattern)) return values;
+    std::string array_text = match[1].str();
+    std::regex item_pattern("-?\\d+");
+    auto begin = std::sregex_iterator(array_text.begin(), array_text.end(), item_pattern);
+    auto end = std::sregex_iterator();
+    for (auto it = begin; it != end; ++it) {
+        try {
+            values.push_back(std::stoi(it->str()));
+        } catch (...) {
+        }
+    }
+    return values;
+}
+
+static std::string json_object_field(const std::string& object, const std::string& name) {
+    std::regex pattern("\"" + name + "\"\\s*:\\s*\\{([^{}]*)\\}");
+    std::smatch match;
+    if (!std::regex_search(object, match, pattern)) return "";
+    return match[1].str();
+}
+
 static std::string lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
         return static_cast<char>(std::tolower(ch));
@@ -621,6 +653,9 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.metalness_hint = std::clamp(json_float_field(object, "metalness", 0.0f), 0.0f, 1.0f);
         batch.specular_hint = std::clamp(json_float_field(object, "specular", 0.0f), 0.0f, 1.0f);
         batch.height_scale_hint = std::clamp(json_float_field(object, "height_scale", 0.0f), 0.0f, 1.0f);
+        std::string editor_identity = json_object_field(object, "editor_identity");
+        batch.source_submesh_index = json_int_field(editor_identity, "source_submesh_index", -1);
+        batch.identity_file = absolute_from_manifest_path(package_dir, json_string_field(editor_identity, "identity_file"));
         if (!batch.base_dds.empty()) increment_slot(stats.dds_candidates, "base");
         if (!batch.normal_dds.empty()) increment_slot(stats.dds_candidates, "normal");
         if (!batch.material_dds.empty()) increment_slot(stats.dds_candidates, "material");
@@ -748,6 +783,7 @@ cbuffer Constants : register(b0) {
     float4 flags3;
     float4 render_tuning;
     float4 render_tuning2;
+    float4 editor_tint;
 };
 Texture2D base_tex : register(t0);
 Texture2D normal_tex : register(t1);
@@ -898,6 +934,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float3 diffuse = albedo * (render_tuning.x + ndotl * render_tuning.y) * ao * height_light * lerp(1.0, 0.72, metalness);
     float3 specular_color = lerp(highlight.xxx, highlight.xxx * max(albedo, 0.12), metalness);
     float3 color = diffuse + specular_color;
+    color = lerp(color, editor_tint.rgb, saturate(editor_tint.a));
     return float4(linear_to_srgb(color), 1.0);
 }
 )";
@@ -945,8 +982,46 @@ public:
         return create_render_targets() && create_pipeline() && upload_batches();
     }
 
+    bool load_package(const fs::path& package_dir, const fs::path& status_file, bool reset_view_state) {
+        if (package_dir.empty() || !fs::is_directory(package_dir)) {
+            write_status(status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"preview package directory is missing\"}");
+            return false;
+        }
+        args_.preview_package = package_dir;
+        if (!status_file.empty()) {
+            args_.status_file = status_file;
+        }
+        write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"manifest\",\"message\":\"Loading native D3D11 preview package...\"}");
+        auto start = std::chrono::steady_clock::now();
+        std::string manifest = read_text(args_.preview_package / L"manifest.json");
+        RendererStats next_stats;
+        std::vector<PreviewBatch> next_batches = parse_manifest_batches(args_.preview_package, manifest, next_stats);
+        ViewSettings next_view_settings = parse_view_settings(manifest);
+        RenderTuning next_render_tuning = parse_render_tuning(manifest);
+        next_stats.manifest_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+        batches_ = std::move(next_batches);
+        stats_ = next_stats;
+        view_settings_ = next_view_settings;
+        render_tuning_ = next_render_tuning;
+        first_frame_started_ = false;
+        first_frame_reported_ = false;
+        if (reset_view_state) {
+            reset_view();
+        }
+        write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
+        if (!upload_batches()) {
+            write_status(args_.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"native D3D11 package reload failed\"}");
+            return false;
+        }
+        write_status(args_.status_file, loaded_payload(stats_));
+        return true;
+    }
+
     bool handle_window_message(UINT msg, WPARAM wparam, LPARAM lparam, LRESULT& result) {
         switch (msg) {
+        case WM_COPYDATA:
+            result = handle_copy_data(reinterpret_cast<COPYDATASTRUCT*>(lparam)) ? 1 : 0;
+            return true;
         case kCdmwSetZoomMessage:
             set_zoom_factor(static_cast<float>(wparam) / 1000.0f);
             result = 0;
@@ -1077,6 +1152,11 @@ public:
                 render_tuning_.shininess_max,
                 0.0f,
                 0.0f);
+            constants.editor_tint = DirectX::XMFLOAT4(
+                1.0f,
+                0.72f,
+                0.18f,
+                std::clamp(batch.highlight_strength, 0.0f, 0.42f));
             context_->UpdateSubresource(constants_.Get(), 0, nullptr, &constants, 0, 0);
             context_->VSSetConstantBuffers(0, 1, constants_.GetAddressOf());
             context_->PSSetConstantBuffers(0, 1, constants_.GetAddressOf());
@@ -1105,6 +1185,17 @@ public:
         }
     }
 
+    void process_pending_commands() {
+        if (pending_package_dir_.empty()) return;
+        fs::path package_dir = pending_package_dir_;
+        fs::path status_file = pending_status_file_;
+        bool reset_view_state = pending_reset_view_;
+        pending_package_dir_.clear();
+        pending_status_file_.clear();
+        pending_reset_view_ = false;
+        load_package(package_dir, status_file, reset_view_state);
+    }
+
 private:
     static float current_display_scale(float distance) {
         return std::max(0.1f, kFitDistance / std::max(distance, 0.01f));
@@ -1114,6 +1205,71 @@ private:
         float viewport_height = std::max(1.0f, static_cast<float>(height_));
         float visible_height = 2.0f * std::max(distance_, 0.1f) * std::tan(DirectX::XMConvertToRadians(kVerticalFovDegrees) * 0.5f);
         return visible_height / viewport_height;
+    }
+
+    void send_json_event(const std::string& payload) const {
+        HWND parent = reinterpret_cast<HWND>(args_.parent_hwnd);
+        if (!parent || !IsWindow(parent)) return;
+        COPYDATASTRUCT cds{};
+        cds.dwData = kCdmwEventCopyData;
+        cds.cbData = static_cast<DWORD>(payload.size() + 1);
+        cds.lpData = const_cast<char*>(payload.c_str());
+        SendMessageW(parent, WM_COPYDATA, reinterpret_cast<WPARAM>(hwnd_), reinterpret_cast<LPARAM>(&cds));
+    }
+
+    void send_view_event(const char* reason) const {
+        std::ostringstream out;
+        out << "{\"event\":\"view_state\",\"reason\":\"" << json_escape(reason ? reason : "") << "\""
+            << ",\"zoom_factor\":" << zoom_factor_
+            << ",\"fit_to_view\":" << (fit_to_view_ ? "true" : "false")
+            << ",\"yaw\":" << yaw_
+            << ",\"pitch\":" << pitch_
+            << ",\"pan\":[" << pan_x_ << "," << pan_y_ << "," << pan_z_ << "]"
+            << "}";
+        send_json_event(out.str());
+    }
+
+    bool handle_copy_data(const COPYDATASTRUCT* cds) {
+        if (!cds || cds->dwData != kCdmwCommandCopyData || !cds->lpData || cds->cbData == 0) return false;
+        const char* data = reinterpret_cast<const char*>(cds->lpData);
+        size_t payload_size = static_cast<size_t>(cds->cbData);
+        if (payload_size > 0 && data[payload_size - 1] == '\0') --payload_size;
+        std::string payload(data, data + payload_size);
+        std::string command = lower_copy(json_string_field(payload, "command"));
+        if (command == "load_package") {
+            pending_package_dir_ = utf8_to_wide(json_string_field(payload, "package_dir"));
+            pending_status_file_ = utf8_to_wide(json_string_field(payload, "status_file"));
+            pending_reset_view_ = json_bool_field(payload, "reset_view", false);
+            send_json_event("{\"event\":\"command_result\",\"command\":\"load_package\",\"ok\":true,\"queued\":true}");
+            return true;
+        }
+        if (command == "set_highlights") {
+            std::set<int> highlighted;
+            for (int value : json_int_array_field(payload, "source_submesh_indices")) {
+                highlighted.insert(value);
+            }
+            int highlighted_batches = 0;
+            for (PreviewBatch& batch : batches_) {
+                bool active = highlighted.find(batch.source_submesh_index) != highlighted.end();
+                batch.highlight_strength = active ? 0.34f : 0.0f;
+                if (active) ++highlighted_batches;
+            }
+            std::ostringstream event;
+            event << "{\"event\":\"highlight_state\",\"highlighted_batches\":" << highlighted_batches << "}";
+            send_json_event(event.str());
+            return true;
+        }
+        if (command == "set_view") {
+            yaw_ = json_float_field(payload, "yaw", yaw_);
+            pitch_ = std::clamp(json_float_field(payload, "pitch", pitch_), -89.0f, 89.0f);
+            zoom_factor_ = std::clamp(json_float_field(payload, "zoom_factor", zoom_factor_), 0.1f, 16.0f);
+            fit_to_view_ = json_bool_field(payload, "fit_to_view", fit_to_view_);
+            distance_ = fit_to_view_ ? kFitDistance : kFitDistance / std::max(zoom_factor_, 0.1f);
+            send_view_event("set_view");
+            return true;
+        }
+        send_json_event("{\"event\":\"warning\",\"message\":\"unknown D3D11 host command\"}");
+        return false;
     }
 
     void reset_view() {
@@ -1128,17 +1284,20 @@ private:
         drag_mode_ = 0;
         drag_button_ = 0;
         if (GetCapture() == hwnd_) ReleaseCapture();
+        send_view_event("reset");
     }
 
     void set_zoom_factor(float zoom_factor) {
         zoom_factor_ = std::clamp(zoom_factor, 0.1f, 16.0f);
         fit_to_view_ = false;
         distance_ = kFitDistance / zoom_factor_;
+        send_view_event("zoom");
     }
 
     void set_fit_to_view(bool fit_to_view) {
         fit_to_view_ = fit_to_view;
         distance_ = fit_to_view_ ? kFitDistance : kFitDistance / std::max(zoom_factor_, 0.1f);
+        send_view_event("fit");
     }
 
     void begin_mouse_drag(UINT msg, WPARAM wparam, int x, int y) {
@@ -1184,6 +1343,7 @@ private:
         drag_mode_ = 0;
         drag_button_ = 0;
         if (GetCapture() == hwnd_) ReleaseCapture();
+        send_view_event("drag");
     }
 
     void apply_wheel_delta(int wheel_delta) {
@@ -1203,6 +1363,7 @@ private:
         fit_to_view_ = false;
         zoom_factor_ = kZoomSteps[next_index];
         distance_ = kFitDistance / zoom_factor_;
+        send_view_event("wheel");
     }
 
     bool create_render_targets() {
@@ -1472,6 +1633,9 @@ private:
     ComPtr<ID3D11DepthStencilState> depth_state_;
     std::map<std::wstring, ComPtr<ID3D11ShaderResourceView>> srv_cache_;
     std::map<std::wstring, TextureLoadInfo> texture_info_cache_;
+    fs::path pending_package_dir_;
+    fs::path pending_status_file_;
+    bool pending_reset_view_ = false;
 };
 
 static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
@@ -1584,6 +1748,7 @@ static int run_host(const Args& args) {
             }
         }
         if (running) {
+            renderer.process_pending_commands();
             renderer.render();
         }
     }

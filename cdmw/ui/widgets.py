@@ -2242,6 +2242,22 @@ class ModelPreviewWidget(QOpenGLWidget):
                 raise RunCancelled("Model preview preparation cancelled.")
             start = int(batch.first_vertex) * bytes_per_vertex
             end = start + (int(batch.vertex_count) * bytes_per_vertex)
+            mesh_source_submesh_index = int(getattr(mesh, "source_submesh_index", -1) or -1)
+            mesh_source_vertices = tuple(int(index) for index in tuple(getattr(mesh, "source_vertex_indices", ()) or ()))
+            mesh_indices = tuple(int(index) for index in tuple(getattr(mesh, "indices", ()) or ()))
+            emitted_source_vertices: Tuple[int, ...] = ()
+            if mesh_source_vertices and mesh_indices:
+                emitted: List[int] = []
+                for index in mesh_indices[: int(batch.vertex_count)]:
+                    if 0 <= int(index) < len(mesh_source_vertices):
+                        emitted.append(int(mesh_source_vertices[int(index)]))
+                    else:
+                        emitted.append(int(index))
+                emitted_source_vertices = tuple(emitted)
+            elif mesh_indices:
+                emitted_source_vertices = tuple(mesh_indices[: int(batch.vertex_count)])
+            elif int(batch.vertex_count) > 0:
+                emitted_source_vertices = tuple(range(int(batch.vertex_count)))
             prepared_batches.append(
                 PreparedModelPreviewBatch(
                     material_name=str(getattr(mesh, "material_name", "") or "").strip(),
@@ -2278,6 +2294,16 @@ class ModelPreviewWidget(QOpenGLWidget):
                     preview_debug_disable_support_maps=bool(batch.support_maps_disabled),
                     position_y_min=float(getattr(batch, "position_y_min", 0.0) or 0.0),
                     position_y_max=float(getattr(batch, "position_y_max", 0.0) or 0.0),
+                    source_submesh_index=mesh_source_submesh_index,
+                    source_vertex_indices=emitted_source_vertices,
+                    editor_role=str(getattr(mesh, "preview_role", "") or "").strip(),
+                    editor_part_name=str(
+                        getattr(mesh, "material_name", "")
+                        or getattr(mesh, "texture_name", "")
+                        or getattr(mesh, "source_submesh_index", "")
+                        or ""
+                    ).strip(),
+                    editor_editable=mesh_source_submesh_index >= 0,
                 )
             )
         return cloned_model, PreparedModelPreviewData(

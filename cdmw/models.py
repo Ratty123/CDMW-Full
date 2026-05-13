@@ -1167,6 +1167,11 @@ class PreparedModelPreviewBatch:
     preview_debug_disable_support_maps: bool = False
     position_y_min: float = 0.0
     position_y_max: float = 0.0
+    source_submesh_index: int = -1
+    source_vertex_indices: Tuple[int, ...] = ()
+    editor_role: str = ""
+    editor_part_name: str = ""
+    editor_editable: bool = True
 
 
 @dataclass(slots=True)

@@ -502,12 +502,29 @@ def run_gui() -> int:
         _WM_SET_ZOOM = 0x8000 + 0x431
         _WM_SET_FIT = 0x8000 + 0x432
         _WM_RESET_VIEW = 0x8000 + 0x433
+        _WM_COPYDATA = 0x004A
+        _WM_COPYDATA_COMMAND = 0x43444D57
+        _WM_COPYDATA_EVENT = 0x44334431
         _HOST_CLASS = "CDMWNativeD3D11PreviewWindow"
+        view_state_changed = Signal(float, bool)
+        debug_details_changed = Signal(str)
+        native_event_received = Signal(object)
+        alignment_drag_started = Signal()
+        alignment_drag_changed = Signal(float, float, float)
+        alignment_drag_finished = Signal(float, float, float)
+        alignment_rotation_changed = Signal(float, float, float)
+        alignment_rotation_finished = Signal(float, float, float)
+        mesh_edit_stroke_started = Signal(object)
+        mesh_edit_stroke_previewed = Signal(object)
+        mesh_edit_stroke_finished = Signal(object)
+        mesh_edit_stroke_cancelled = Signal(object)
+        mesh_edit_selection_changed = Signal(object)
 
         def __init__(self, parent: Optional[QWidget] = None) -> None:
             super().__init__(parent)
             self._zoom_factor = 1.0
             self._fit_to_view = True
+            self._last_event_payload: Dict[str, object] = {}
 
         def _host_hwnd(self) -> int:
             try:
@@ -535,6 +552,106 @@ def run_gui() -> int:
                 user32.SendMessageW(ctypes.c_void_p(hwnd), int(message), int(wparam), int(lparam))
             except Exception:
                 return
+
+        def _send_host_json_command(self, payload: Mapping[str, object]) -> bool:
+            hwnd = self._host_hwnd()
+            if hwnd <= 0:
+                return False
+
+            class _CopyDataStruct(ctypes.Structure):
+                _fields_ = [
+                    ("dwData", ctypes.c_size_t),
+                    ("cbData", ctypes.c_uint),
+                    ("lpData", ctypes.c_void_p),
+                ]
+
+            try:
+                encoded = json.dumps(dict(payload), separators=(",", ":")).encode("utf-8") + b"\0"
+                buffer = ctypes.create_string_buffer(encoded)
+                cds = _CopyDataStruct(
+                    self._WM_COPYDATA_COMMAND,
+                    len(encoded),
+                    ctypes.cast(buffer, ctypes.c_void_p),
+                )
+                user32 = ctypes.windll.user32
+                user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_void_p]
+                user32.SendMessageW.restype = ctypes.c_ssize_t
+                result = user32.SendMessageW(
+                    ctypes.c_void_p(hwnd),
+                    self._WM_COPYDATA,
+                    int(self.winId()),
+                    ctypes.byref(cds),
+                )
+                return bool(result)
+            except Exception:
+                return False
+
+        def load_package(self, package_dir: Path, status_file: Path, *, reset_view: bool = False) -> bool:
+            return self._send_host_json_command(
+                {
+                    "command": "load_package",
+                    "package_dir": str(Path(package_dir)),
+                    "status_file": str(Path(status_file)),
+                    "reset_view": bool(reset_view),
+                }
+            )
+
+        def set_highlighted_source_submeshes(self, source_submesh_indices: Sequence[int]) -> bool:
+            ordered = sorted({int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0})
+            return self._send_host_json_command(
+                {
+                    "command": "set_highlights",
+                    "source_submesh_indices": ordered,
+                }
+            )
+
+        def nativeEvent(self, event_type: object, message: object) -> tuple[bool, int]:  # type: ignore[override]
+            if platform.system().lower() != "windows":
+                return super().nativeEvent(event_type, message)
+            try:
+                class _Msg(ctypes.Structure):
+                    _fields_ = [
+                        ("hwnd", ctypes.c_void_p),
+                        ("message", ctypes.c_uint),
+                        ("wParam", ctypes.c_size_t),
+                        ("lParam", ctypes.c_ssize_t),
+                        ("time", ctypes.c_uint),
+                        ("pt_x", ctypes.c_long),
+                        ("pt_y", ctypes.c_long),
+                    ]
+
+                class _CopyDataStruct(ctypes.Structure):
+                    _fields_ = [
+                        ("dwData", ctypes.c_size_t),
+                        ("cbData", ctypes.c_uint),
+                        ("lpData", ctypes.c_void_p),
+                    ]
+
+                msg = _Msg.from_address(int(message))
+                if int(msg.message) != self._WM_COPYDATA or int(msg.lParam) == 0:
+                    return super().nativeEvent(event_type, message)
+                cds = _CopyDataStruct.from_address(int(msg.lParam))
+                if int(cds.dwData) != self._WM_COPYDATA_EVENT or int(cds.cbData) <= 0 or int(cds.lpData or 0) == 0:
+                    return super().nativeEvent(event_type, message)
+                raw = ctypes.string_at(cds.lpData, int(cds.cbData)).rstrip(b"\0")
+                payload = json.loads(raw.decode("utf-8", errors="replace"))
+                if not isinstance(payload, Mapping):
+                    return True, 1
+                self._last_event_payload = dict(payload)
+                event = str(payload.get("event", "") or "").strip().lower()
+                if event == "view_state":
+                    try:
+                        self._zoom_factor = max(0.1, min(16.0, float(payload.get("zoom_factor", self._zoom_factor))))
+                    except (TypeError, ValueError):
+                        pass
+                    self._fit_to_view = bool(payload.get("fit_to_view", self._fit_to_view))
+                    self.view_state_changed.emit(float(self._zoom_factor), bool(self._fit_to_view))
+                else:
+                    self.debug_details_changed.emit(json.dumps(dict(payload), separators=(",", ":")))
+                self.native_event_received.emit(dict(payload))
+                return True, 1
+            except Exception:
+                return super().nativeEvent(event_type, message)
 
         def set_zoom_factor(self, zoom_factor: float) -> None:
             self._zoom_factor = min(max(float(zoom_factor), 0.1), 16.0)
@@ -37280,12 +37397,31 @@ def run_gui() -> int:
                     QTimer.singleShot(0, lambda model=pending_model, label=pending_label: _start_alignment_d3d11_package_worker(model, label))
 
             def _start_alignment_d3d11_process(package_dir: Path) -> None:
-                _alignment_d3d11_stop_process()
                 status_file = package_dir / "host_status.json"
                 try:
                     status_file.unlink(missing_ok=True)
                 except OSError:
                     pass
+                existing_process = alignment_d3d11_state.get("process")
+                if isinstance(existing_process, QProcess) and existing_process.state() != QProcess.NotRunning:
+                    previous_package = alignment_d3d11_state.get("active_package")
+                    alignment_d3d11_state["active_package"] = package_dir
+                    alignment_d3d11_state["status_file"] = status_file
+                    alignment_d3d11_state["status_mtime"] = 0.0
+                    if alignment_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
+                        _cleanup_alignment_d3d11_package(previous_package, delay_ms=5000)
+                        preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
+                        alignment_d3d11_preview_status_label.setText("Reloading native D3D11 alignment preview without restarting the renderer...")
+                        preview_performance_label.setText(
+                            "Preview timing: "
+                            f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.1f} ms, "
+                            f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.1f} ms, "
+                            "native D3D11 host reload queued"
+                        )
+                        alignment_d3d11_status_timer.start()
+                        return
+                    alignment_d3d11_state["active_package"] = previous_package
+                _alignment_d3d11_stop_process()
                 alignment_d3d11_state["active_package"] = package_dir
                 alignment_d3d11_state["status_file"] = status_file
                 alignment_d3d11_state["status_mtime"] = 0.0
@@ -37458,6 +37594,8 @@ def run_gui() -> int:
                 highlighted_original_indices.update(selected_original_highlight_indices)
                 highlighted_original_indices.update(selected_target_original_highlight_indices)
                 highlighted_original_indices.update(hovered_original_highlight_indices)
+                if _alignment_d3d11_preview_active():
+                    alignment_d3d11_preview_host.set_highlighted_source_submeshes(tuple(highlighted_source_indices))
 
             def _set_preview_mode() -> None:
                 mode = str(preview_mode_combo.currentData() or "side_by_side")

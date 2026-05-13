@@ -25,11 +25,12 @@ from cdmw.models import (
 )
 
 
-ISOLATED_PREVIEW_SCHEMA_VERSION = 2
-SUPPORTED_ISOLATED_PREVIEW_SCHEMA_VERSIONS = {1, 2}
+ISOLATED_PREVIEW_SCHEMA_VERSION = 3
+SUPPORTED_ISOLATED_PREVIEW_SCHEMA_VERSIONS = {1, 2, 3}
 ISOLATED_PREVIEW_VERTEX_FLOATS = 23
 ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES = ISOLATED_PREVIEW_VERTEX_FLOATS * 4
 _VERTEX_STRUCT = struct.Struct("<23f")
+_IDENTITY_STRUCT = struct.Struct("<ii")
 
 
 def _safe_float(value: object, fallback: float = 0.0) -> float:
@@ -95,6 +96,34 @@ def _tangents_usable(vertex_blob: bytes, vertex_count: int) -> bool:
         ):
             valid += 1
     return bool(checked > 0 and valid / float(checked) >= 0.80)
+
+
+def _write_editor_identity_blob(
+    package_dir: Path,
+    geometry_dir: Path,
+    batch_index: int,
+    batch: PreparedModelPreviewBatch,
+    vertex_count: int,
+) -> Dict[str, object]:
+    source_submesh_index = _safe_int(getattr(batch, "source_submesh_index", -1), -1)
+    raw_source_vertices = tuple(int(index) for index in tuple(getattr(batch, "source_vertex_indices", ()) or ()))
+    identity_path = geometry_dir / f"batch_{batch_index:03d}_identity.bin"
+    with identity_path.open("wb") as stream:
+        for vertex_offset in range(vertex_count):
+            source_vertex_index = (
+                int(raw_source_vertices[vertex_offset])
+                if vertex_offset < len(raw_source_vertices)
+                else int(vertex_offset)
+            )
+            stream.write(_IDENTITY_STRUCT.pack(source_submesh_index, source_vertex_index))
+    return {
+        "source_submesh_index": source_submesh_index,
+        "source_vertex_count": len(raw_source_vertices),
+        "identity_file": identity_path.relative_to(package_dir).as_posix(),
+        "role": str(getattr(batch, "editor_role", "") or ""),
+        "part_name": str(getattr(batch, "editor_part_name", "") or ""),
+        "editable": bool(getattr(batch, "editor_editable", source_submesh_index >= 0)),
+    }
 
 
 def _suffix_tokens(name: str) -> Tuple[str, ...]:
@@ -1024,6 +1053,13 @@ def write_isolated_qtquick3d_preview_package(
         usable_blob = blob[: vertex_count * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES]
         geometry_path = geometry_dir / f"batch_{batch_index:03d}.bin"
         geometry_path.write_bytes(usable_blob)
+        editor_identity = _write_editor_identity_blob(
+            package_dir,
+            geometry_dir,
+            batch_index,
+            batch,
+            vertex_count,
+        )
         tangents_usable = _tangents_usable(usable_blob, vertex_count)
         dds_textures = _filter_dds_textures_for_preview_settings(
             _dds_textures_for_batch(batch, inspect_cache=dds_inspect_cache),
@@ -1069,6 +1105,7 @@ def write_isolated_qtquick3d_preview_package(
                 "texture_name": str(getattr(batch, "texture_name", "") or ""),
                 "vertex_file": geometry_path.relative_to(package_dir).as_posix(),
                 "vertex_count": vertex_count,
+                "editor_identity": editor_identity,
                 "base_color": list(_first_vertex_color(usable_blob)),
                 "textures": textures,
                 "dds_textures": dds_textures,

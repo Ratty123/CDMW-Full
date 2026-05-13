@@ -81,7 +81,7 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             )
             manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
 
-        self.assertEqual(2, manifest["schema_version"])
+        self.assertEqual(3, manifest["schema_version"])
         self.assertEqual("empty.pac", manifest["source_path"])
         self.assertEqual([], manifest["batches"])
 
@@ -159,6 +159,10 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                             ),
                         ),
                         has_texture_coordinates=True,
+                        source_submesh_index=7,
+                        source_vertex_indices=(10, 11, 12),
+                        editor_role="replacement",
+                        editor_part_name="blade",
                     ),
                 ),
             )
@@ -174,8 +178,14 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             geometry_path = package_dir / batch["vertex_file"]
             textures = batch["textures"]
             dds_textures = batch["dds_textures"]
+            editor_identity = batch["editor_identity"]
 
             self.assertEqual(3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES, geometry_path.stat().st_size)
+            self.assertEqual(7, editor_identity["source_submesh_index"])
+            self.assertEqual("replacement", editor_identity["role"])
+            self.assertEqual("blade", editor_identity["part_name"])
+            identity_blob = (package_dir / editor_identity["identity_file"]).read_bytes()
+            self.assertEqual((7, 10, 7, 11, 7, 12), struct.unpack("<iiiiii", identity_blob))
             self.assertTrue((package_dir / textures["base"]).is_file())
             self.assertTrue(dds_textures["base"]["direct_upload_candidate"])
             self.assertEqual("bc1", dds_textures["base"]["compressed_family"])
@@ -514,6 +524,12 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("begin_mouse_drag", source)
         self.assertIn("kZoomSteps", source)
         self.assertIn("WM_MOUSEWHEEL", source)
+        self.assertIn("WM_COPYDATA", source)
+        self.assertIn("kCdmwCommandCopyData", source)
+        self.assertIn("process_pending_commands", source)
+        self.assertIn("load_package", source)
+        self.assertIn("source_submesh_indices", source)
+        self.assertIn("highlight_strength", source)
         self.assertIn("png_fallbacks", source)
         self.assertIn("material_combiner_outputs", source)
         self.assertIn("Texture2D roughness_tex", source)
@@ -554,6 +570,10 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("low_res_base", source)
         self.assertIn("NativeD3D11PreviewHostFrame", source)
         self.assertIn("_WM_SET_ZOOM", source)
+        self.assertIn("_WM_COPYDATA_COMMAND", source)
+        self.assertIn("load_package(self, package_dir", source)
+        self.assertIn("set_highlighted_source_submeshes", source)
+        self.assertIn("Reloading native D3D11 alignment preview without restarting", source)
         self.assertIn("base_srgb", source)
         self.assertIn("find_native_d3d11_host", source)
         self.assertIn("--preview-package", source)

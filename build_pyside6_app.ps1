@@ -3,6 +3,7 @@ param(
     [string]$Mode = "onefile",
     [ValidateSet("release", "fast", "debug")]
     [string]$BuildProfile = "release",
+    [switch]$SkipNativeBuild,
     [switch]$DescribeOnly
 )
 
@@ -315,6 +316,17 @@ New-Item -ItemType Directory -Path $stableBuildDir -Force | Out-Null
 $resolvedVgmstreamRuntimeDir = Ensure-VgmstreamRuntime -RuntimeDir $vgmstreamRuntimeDir
 if (-not (Test-Path -LiteralPath (Join-Path $resolvedVgmstreamRuntimeDir "vgmstream-cli.exe"))) {
     throw "vgmstream runtime is incomplete: $resolvedVgmstreamRuntimeDir"
+}
+
+if (-not $SkipNativeBuild) {
+    $nativeConfig = if ($BuildProfile -eq "debug") { "Debug" } else { "Release" }
+    Write-Host "Building native texture and D3D11 preview helpers ($nativeConfig)..."
+    & (Join-Path $scriptDir "build_native_windows.ps1") -Configuration $nativeConfig
+    if ($LASTEXITCODE -ne 0) {
+        throw "Native helper build failed with exit code $LASTEXITCODE."
+    }
+} else {
+    Write-Warning "Skipping native helper build. Release packaging still requires existing native binaries."
 }
 
 $pyInstallerArgs = @(
