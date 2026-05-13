@@ -162,6 +162,14 @@ def _texture_label(*values: object) -> str:
     return "texture"
 
 
+def _normalize_texture_key(value: object) -> str:
+    text = str(value or "").replace("\\", "/").strip().lower()
+    if not text:
+        return ""
+    path = PurePosixPath(text)
+    return path.name or text
+
+
 def _stem_tokens(*values: object) -> Tuple[str, ...]:
     tokens: list[str] = []
     for value in values:
@@ -372,6 +380,26 @@ def _material_parameter_integer(input_item: PreviewMaterialTextureInput, *tokens
 def _color_blending_disabled(input_item: PreviewMaterialTextureInput) -> bool:
     value = _material_parameter_integer(input_item, "colorblendingflag")
     return value == 0
+
+
+def _color_blending_channel_enabled(input_item: PreviewMaterialTextureInput, channel: str, role: str) -> bool:
+    value = _material_parameter_integer(input_item, "colorblendingflag")
+    if value is None:
+        return True
+    if value == 0:
+        return False
+    channel_index = _LAYER_CHANNEL_INDEX.get(str(channel or "").strip().lower(), -1)
+    if channel_index < 0:
+        return True
+    # Corpus values such as 0x00FF, 0x0F0F, and 0x0FFF appear to gate repeated
+    # RGB/A layer groups rather than one single suffix. Until the exact shader
+    # bit layout is proven, accept the channel if any known nibble group enables it.
+    candidate_bits = (channel_index, channel_index + 4, channel_index + 8)
+    if any(value & (1 << bit) for bit in candidate_bits):
+        return True
+    if role in {"base", "overlay", "emissive"}:
+        return True
+    return False
 
 
 def _material_parameter_hint(input_item: PreviewMaterialTextureInput, *tokens: str) -> float:
@@ -651,6 +679,8 @@ def _layer_weight_from_parameters(
         return 0.0
     role = _visible_layer_role(input_item)
     channel = _layer_channel(input_item)
+    if not _color_blending_channel_enabled(input_item, channel, role):
+        return 0.0
     if role == "base":
         return 1.0
     if role == "overlay":
@@ -1198,6 +1228,55 @@ def _material_slot_priority(decode_mode: str, slot_name: str) -> int:
         },
     }
     return int(priorities.get(slot, {}).get(mode, 0))
+
+
+def _material_parameter_index(input_item: PreviewMaterialTextureInput) -> int:
+    key = _parameter_key(input_item)
+    source = _normalize_texture_key(
+        str(getattr(input_item, "source_texture_path", "") or "")
+        or str(getattr(input_item, "texture_name", "") or "")
+    )
+    best_index = 9999
+    for parameter in _material_parameters(input_item):
+        parameter_key = _normalized_key(getattr(parameter, "parameter_name", ""))
+        if key and parameter_key != key:
+            continue
+        texture_path = _normalize_texture_key(str(getattr(parameter, "texture_path", "") or ""))
+        if source and texture_path and source != texture_path:
+            continue
+        try:
+            index = int(getattr(parameter, "index", -1))
+        except (TypeError, ValueError, OverflowError):
+            index = -1
+        if index >= 0:
+            best_index = min(best_index, index)
+    return best_index
+
+
+def _material_slot_priority_for_input(
+    input_item: PreviewMaterialTextureInput,
+    decode_mode: str,
+    slot_name: str,
+) -> int:
+    priority = _material_slot_priority(decode_mode, slot_name)
+    if priority <= 0:
+        return priority
+    key = _parameter_key(input_item)
+    adjustment = 0
+    if "grimematerial" in key:
+        adjustment += 12
+    elif "detailmaterial" in key:
+        adjustment += 8
+    elif "damage" in key:
+        adjustment += 7
+    elif "specular" in key:
+        adjustment += 5
+    elif "materialtexture" in key:
+        adjustment += 4
+    parameter_index = _material_parameter_index(input_item)
+    if parameter_index != 9999:
+        adjustment += max(0, 6 - min(6, parameter_index // 24))
+    return priority + adjustment
 
 
 def _material_candidate_group(decode_mode: str) -> str:
@@ -1991,6 +2070,8 @@ def combine_qtquick3d_material(
         if mask_item is not None:
             layer_mask_channel = mask_channel or "r"
             layer_weight = _layer_weight_from_parameters(item, has_base=bool(base_source))
+            if layer_weight <= 0.001:
+                notes.append(f"material layer disabled by colorBlendingFlag:{mask_label}")
             layer_mask_image = _image_reader(str(getattr(mask_item, "preview_texture_path", "") or ""))
             if layer_mask_image.isNull():
                 notes.append(f"material layer mask unreadable:{mask_label}")
@@ -2019,7 +2100,7 @@ def combine_qtquick3d_material(
                 slot_source = source_by_slot.get(slot_name, "")
                 if not slot_source:
                     continue
-                priority = _material_slot_priority(mode, slot_name)
+                priority = _material_slot_priority_for_input(item, mode, slot_name)
                 if priority <= material_slot_priorities.get(slot_name, -1):
                     material_slot_layers.setdefault(slot_name, []).append((priority, mode, slot_source))
                 else:
@@ -2027,6 +2108,9 @@ def combine_qtquick3d_material(
                     material_slot_modes[slot_name] = mode
                     material_slot_layers.setdefault(slot_name, []).append((priority, mode, slot_source))
             outputs.extend(slot for slot in generated_slots if slot not in outputs)
+
+    if any(material_slot_layers.values()) and shader_rule in {"standard_v2", "emissive_v2", "cloth_v2", "cloth"}:
+        notes.append("material blend order: sidecar parameter order + grime/detail channel masks")
 
     blended_slots: list[str] = []
     for slot_name in ("occlusion", "roughness", "metalness", "specular"):

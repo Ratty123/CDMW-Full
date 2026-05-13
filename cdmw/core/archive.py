@@ -12381,6 +12381,11 @@ def build_binary_sidecar_analysis_document(
         if normalized_extension == ".prefab"
         else []
     )
+    prefab_material_override_rows = (
+        _prefab_material_override_evidence_rows(schema_member_rows, asset_references)
+        if normalized_extension == ".prefab"
+        else []
+    )
     field_rows = [
         {
             "offset": record.offset,
@@ -12428,6 +12433,7 @@ def build_binary_sidecar_analysis_document(
             "schema_declared_members": len(schema_member_rows),
             "schema_layout_signature": str(schema_declarations.get("layout_signature") or ""),
             "prefab_evidence_rows": len(prefab_evidence_rows),
+            "prefab_material_override_rows": len(prefab_material_override_rows),
             "seqmt_recognized": bool(seqmt_metadata.get("recognized"))
             if isinstance(seqmt_metadata, Mapping)
             else False,
@@ -12457,6 +12463,7 @@ def build_binary_sidecar_analysis_document(
         "schema_declarations": schema_declarations,
         "prefab": {
             "evidence_rows": prefab_evidence_rows,
+            "material_override_rows": prefab_material_override_rows,
             "editing_supported": False,
             "note": ".prefab files describe scene/resource/component metadata; renderable geometry usually lives in linked .pac/.pam/.pamlod assets.",
         } if normalized_extension == ".prefab" else {},
@@ -15563,10 +15570,19 @@ def _prefab_capability_lines(
     declaration_rows: Sequence[Mapping[str, object]],
     asset_references: Sequence[str],
 ) -> List[str]:
-    return [
+    lines = [
         f"- {row['label']}: {row['detail']}"
         for row in _prefab_evidence_rows(declaration_rows, asset_references)
     ]
+    override_rows = _prefab_material_override_evidence_rows(declaration_rows, asset_references)
+    if override_rows:
+        routed = sum(1 for row in override_rows if row.get("role") == "resolved_material_sidecar_reference")
+        lines.append(
+            "- Material override routing: "
+            f"{len(override_rows):,} read-only candidate row(s)"
+            + (f", {routed:,} resolved material sidecar reference(s)" if routed else "")
+        )
+    return lines
 
 
 def _prefab_evidence_rows(
@@ -15646,6 +15662,125 @@ def _prefab_evidence_rows(
     if not rows:
         add("Readable metadata", "no specific component family was proven, but identifiers and references are still shown below.")
     return rows
+
+
+_PREFAB_MATERIAL_FIELD_TOKENS = (
+    "material",
+    "modelproperty",
+    "materialproperty",
+    "prefabmaterial",
+    "override",
+    "overrided",
+    "pbdmaterial",
+    "resource",
+    "texture",
+    "shader",
+    "technique",
+    "dye",
+    "tint",
+    "color",
+    "roughness",
+    "specular",
+    "metal",
+    "grime",
+    "detail",
+)
+
+
+def _prefab_material_reference_role(reference: str) -> str:
+    suffix = PurePosixPath(str(reference or "").replace("\\", "/")).suffix.lower()
+    normalized = str(reference or "").replace("\\", "/").lower()
+    if suffix in {".pac_xml", ".pam_xml", ".pamlod_xml", ".pami"} or "modelproperty/" in normalized:
+        return "resolved_material_sidecar_reference"
+    if suffix in {".material", ".technique"}:
+        return "resolved_shader_material_reference"
+    if suffix == ".dds":
+        return "resolved_texture_reference"
+    if suffix in {".prefabdata_xml", ".prefabdata"}:
+        return "resolved_prefab_metadata_reference"
+    return "asset_reference"
+
+
+def _normalize_prefab_material_token_text(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").strip().lower())
+
+
+def _prefab_material_override_evidence_rows(
+    declaration_rows: Sequence[Mapping[str, object]],
+    asset_references: Sequence[str],
+) -> List[Dict[str, str]]:
+    rows: List[Dict[str, str]] = []
+    seen: set[Tuple[str, str, str]] = set()
+
+    def add(
+        *,
+        field_name: str,
+        declared_type: str,
+        role: str,
+        confidence: str,
+        offset: object = "",
+        descriptor_hex: object = "",
+        edit_status: str = "read_only_layout_unproven",
+    ) -> None:
+        key = (str(field_name), str(declared_type), str(role))
+        if key in seen:
+            return
+        seen.add(key)
+        row: Dict[str, str] = {
+            "field_name": str(field_name or ""),
+            "declared_type": str(declared_type or ""),
+            "role": str(role or ""),
+            "confidence": str(confidence or ""),
+            "edit_status": str(edit_status or ""),
+        }
+        if offset not in ("", None):
+            row["offset"] = str(offset)
+        if descriptor_hex not in ("", None):
+            row["descriptor_hex"] = str(descriptor_hex)
+        rows.append(row)
+
+    for row in declaration_rows:
+        if not isinstance(row, Mapping):
+            continue
+        field_name = str(row.get("name") or "").strip()
+        declared_type = str(row.get("declared_type") or "").strip()
+        normalized = _normalize_prefab_material_token_text(f"{field_name} {declared_type}")
+        if not normalized:
+            continue
+        if not any(token in normalized for token in _PREFAB_MATERIAL_FIELD_TOKENS):
+            continue
+        role = "material_override_field"
+        if "texture" in normalized:
+            role = "texture_override_field"
+        if "technique" in normalized or "shader" in normalized:
+            role = "shader_override_field"
+        if "override" in normalized or "overrided" in normalized or "prefabmaterial" in normalized:
+            role = "material_instance_override_field"
+        add(
+            field_name=field_name,
+            declared_type=declared_type,
+            role=role,
+            confidence="declared_member_name",
+            offset=row.get("offset", ""),
+            descriptor_hex=row.get("descriptor_hex", ""),
+        )
+
+    for reference in asset_references:
+        reference_text = str(reference or "").strip()
+        if not reference_text:
+            continue
+        role = _prefab_material_reference_role(reference_text)
+        if role == "asset_reference":
+            continue
+        add(
+            field_name=reference_text,
+            declared_type="asset_reference",
+            role=role,
+            confidence="readable_asset_reference",
+            edit_status="read_only_reference_routing",
+        )
+
+    return rows[:64]
 
 
 def _seqmt_preview_lines(seqmt_metadata: Mapping[str, object], *, max_rows: int = 24) -> List[str]:

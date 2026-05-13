@@ -566,6 +566,82 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
             self.assertEqual("", combined.legacy_material_source)
             self.assertIn("material layer mask applied:detail:r", "; ".join(combined.notes))
 
+    def test_material_combiner_gates_standard_v2_channel_with_color_blending_flag(self) -> None:
+        from PySide6.QtGui import QColor, QImage
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            detail_mask = temp / "blade_mg.png"
+            mask_image = QImage(3, 3, QImage.Format_RGBA8888)
+            mask_image.fill(QColor(255, 255, 255, 255))
+            self.assertTrue(mask_image.save(str(detail_mask), "PNG"))
+            detail_material = temp / "blade_detail_sp.png"
+            material_image = QImage(3, 3, QImage.Format_RGBA8888)
+            material_image.fill(QColor(255, 255, 255, 255))
+            self.assertTrue(material_image.save(str(detail_material), "PNG"))
+            parameters = (
+                PreviewMaterialParameterInput(
+                    parameter_kind="bitflag",
+                    parameter_name="_colorBlendingFlag",
+                    value="2",
+                    index=1,
+                ),
+                PreviewMaterialParameterInput(
+                    parameter_kind="texture",
+                    parameter_name="_detailMaterialMaskR",
+                    texture_path="cd_texturelayer_003_0016_sp.dds",
+                    index=2,
+                ),
+            )
+            payload = type(
+                "Payload",
+                (),
+                {
+                    "material_name": "CD_PHM_02_Blade_0014",
+                    "texture_name": "CD_PHM_02_Blade_0014",
+                    "texture_flip_vertical": False,
+                    "tangents_usable": True,
+                    "normal_texture_strength": 0.8,
+                    "material_texture_inputs": (
+                        PreviewMaterialTextureInput(
+                            slot_kind="material",
+                            parameter_name="_detailMaskTexture",
+                            source_texture_path="cd_phm_02_blade_0014_mg.dds",
+                            texture_name="cd_phm_02_blade_0014_mg.dds",
+                            preview_texture_path=str(detail_mask),
+                            semantic_type="mask",
+                            semantic_subtype="detail_mask",
+                            material_name="CD_PHM_02_Blade_0014",
+                            shader_family="SkinnedMeshStandard_Ver2",
+                            material_parameters=parameters,
+                        ),
+                        PreviewMaterialTextureInput(
+                            slot_kind="material",
+                            parameter_name="_detailMaterialMaskR",
+                            source_texture_path="cd_texturelayer_003_0016_sp.dds",
+                            texture_name="cd_texturelayer_003_0016_sp.dds",
+                            preview_texture_path=str(detail_material),
+                            semantic_type="material",
+                            semantic_subtype="material_response",
+                            material_name="CD_PHM_02_Blade_0014",
+                            shader_family="SkinnedMeshStandard_Ver2",
+                            material_parameters=parameters,
+                        ),
+                    ),
+                },
+            )()
+
+            combined = combine_qtquick3d_material(
+                payload,
+                temp / "out",
+                0,
+                settings=QtQuick3DMaterialCombinerSettings(support_map_max_dimension=96),
+            )
+
+            self.assertIn("standard_v2_material", combined.decode_modes)
+            self.assertEqual((), combined.material_slots)
+            self.assertIn("material layer disabled by colorBlendingFlag:detail:r", "; ".join(combined.notes))
+
     def test_material_combiner_uses_standard_v2_channel_specific_scratch_hints(self) -> None:
         from PySide6.QtGui import QColor, QImage
 

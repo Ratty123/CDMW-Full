@@ -12,6 +12,7 @@ from cdmw.core.archive_relationships import (
 )
 from cdmw.core.archive import (
     _prefab_evidence_rows,
+    _prefab_material_override_evidence_rows,
     build_prefab_socket_name_patch,
     build_archive_entry_basename_index,
     build_archive_entry_path_index,
@@ -701,6 +702,33 @@ class ArchiveRelationshipTests(unittest.TestCase):
         labels = {row["label"] for row in rows}
 
         self.assertIn("Material override hooks", labels)
+
+    def test_prefab_material_override_evidence_preserves_field_and_reference_routing(self):
+        rows = _prefab_material_override_evidence_rows(
+            (
+                {
+                    "name": "_overridedPbdMaterialProperty",
+                    "declared_type": "ResourceReferencePath_IMaterial",
+                    "offset": "0x40",
+                    "descriptor_hex": "01020304",
+                },
+                {"name": "_dyeingColorOverrides", "declared_type": "Vector<Byte4>"},
+            ),
+            (
+                "character/modelproperty/test_shield.pac_xml",
+                "character/shader/skinned.technique",
+                "character/texture/test_shield_sp.dds",
+            ),
+        )
+
+        roles = {row["role"] for row in rows}
+        fields = {row["field_name"]: row for row in rows}
+
+        self.assertIn("material_instance_override_field", roles)
+        self.assertIn("resolved_material_sidecar_reference", roles)
+        self.assertIn("resolved_shader_material_reference", roles)
+        self.assertIn("resolved_texture_reference", roles)
+        self.assertEqual("read_only_layout_unproven", fields["_overridedPbdMaterialProperty"]["edit_status"])
 
     def test_material_sidecar_preview_referenced_files_dedupes_graph_texture(self):
         entries = self._entries(
