@@ -1,4 +1,5 @@
 import json
+import threading
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,6 +7,7 @@ from unittest.mock import patch
 
 from cdmw.core import texture_native
 from cdmw.core.dds_native import dds_native_report_dict, inspect_dds_native
+from cdmw.models import RunCancelled
 
 
 def _minimal_bc_dds(fourcc: bytes = b"DXT1", *, width: int = 4, height: int = 4, mip_count: int = 1) -> bytes:
@@ -169,15 +171,10 @@ class NativeTextureBackendTests(unittest.TestCase):
                     )
                 report_path.write_text(json.dumps({"status": "ok", "items": items}), encoding="utf-8")
 
-                class Completed:
-                    returncode = 0
-                    stdout = b"{}"
-                    stderr = b""
-
-                return Completed()
+                return 0, "{}", ""
 
             with patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=binary_path):
-                with patch("cdmw.core.texture_native.subprocess.run", side_effect=fake_run):
+                with patch("cdmw.core.texture_native.run_process_with_cancellation", side_effect=fake_run):
                     results = texture_native.ensure_directxtex_dds_preview_pngs(
                         (
                             {"dds_path": str(dds_a), "slot_kind": "base", "max_dimension": 512},
@@ -219,15 +216,10 @@ class NativeTextureBackendTests(unittest.TestCase):
                     )
                 report_path.write_text(json.dumps({"status": "ok", "items": items}), encoding="utf-8")
 
-                class Completed:
-                    returncode = 0
-                    stdout = b"{}"
-                    stderr = b""
-
-                return Completed()
+                return 0, "{}", ""
 
             with patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=binary_path):
-                with patch("cdmw.core.texture_native.subprocess.run", side_effect=fake_run):
+                with patch("cdmw.core.texture_native.run_process_with_cancellation", side_effect=fake_run):
                     results = texture_native.ensure_directxtex_dds_preview_pngs(
                         (
                             {"dds_path": str(dds_path), "slot_kind": "base", "max_dimension": 512},
@@ -252,6 +244,24 @@ class NativeTextureBackendTests(unittest.TestCase):
             self.assertIn(base_key, results)
             self.assertIn(normal_key, results)
             self.assertNotEqual(results[base_key], results[normal_key])
+
+    def test_directxtex_batch_preview_honors_cancel_before_helper_launch(self) -> None:
+        stop_event = threading.Event()
+        stop_event.set()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            binary_path = root / "cd-texture-dx.exe"
+            binary_path.write_bytes(b"fake")
+            dds_path = root / "cancel.dds"
+            dds_path.write_bytes(_minimal_bc_dds(b"DXT1"))
+            with patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=binary_path):
+                with patch("cdmw.core.texture_native.run_process_with_cancellation") as run_mock:
+                    with self.assertRaises(RunCancelled):
+                        texture_native.ensure_directxtex_dds_preview_pngs(
+                            ({"dds_path": str(dds_path), "slot_kind": "base", "max_dimension": 512},),
+                            stop_event=stop_event,
+                        )
+            run_mock.assert_not_called()
 
     def test_report_sidecar_path_is_next_to_preview_png(self) -> None:
         sidecar = texture_native.native_texture_report_sidecar_path(Path("preview.png"))

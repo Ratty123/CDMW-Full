@@ -501,6 +501,9 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
 
         self.assertIn("QProcess", source)
+        self.assertIn("ArchiveD3D11PackageWorker", source)
+        self.assertIn("_start_archive_isolated_preview_package_worker", source)
+        self.assertIn("_handle_archive_isolated_package_ready", source)
         self.assertIn("_launch_archive_isolated_preview_result", source)
         self.assertIn("_poll_archive_isolated_renderer_status", source)
         self.assertIn("archive_isolated_renderer_status_timer", source)
@@ -512,6 +515,7 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("_archive_isolated_renderer_sender_is_current", source)
         self.assertIn("process.disconnect()", source)
         self.assertIn('elif event == "loading":', source)
+        self.assertNotIn("waitForFinished(", source)
         self.assertNotIn("readyReadStandardOutput.connect(self._handle_archive_isolated_renderer_stdout)", source)
         self.assertNotIn('"command": "load"', source)
         self.assertNotIn('"command": "shutdown"', source)

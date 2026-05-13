@@ -8866,7 +8866,12 @@ def _prefetch_archive_model_texture_preview_paths(
 
     try:
         timeout_seconds = max(10.0, min(180.0, 4.0 + (len(jobs) * 4.0)))
-        results = ensure_directxtex_dds_preview_pngs(jobs, timeout_seconds=timeout_seconds, include_job_keys=True)
+        results = ensure_directxtex_dds_preview_pngs(
+            jobs,
+            timeout_seconds=timeout_seconds,
+            include_job_keys=True,
+            stop_event=stop_event,
+        )
     except RunCancelled:
         raise
     except Exception:

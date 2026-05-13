@@ -2672,6 +2672,65 @@ def run_gui() -> int:
                 return None
             return image
 
+    class ArchiveD3D11PackageWorker(QObject):
+        completed = Signal(int, int, object, float)
+        error = Signal(int, int, str)
+        finished = Signal()
+
+        def __init__(
+            self,
+            request_id: int,
+            archive_preview_request_id: int,
+            preview_model: object,
+            prepared_preview: PreparedModelPreviewData,
+            render_settings: ModelPreviewRenderSettings,
+            *,
+            use_textures: bool,
+            high_quality_textures: bool,
+        ) -> None:
+            super().__init__()
+            self.request_id = int(request_id)
+            self.archive_preview_request_id = int(archive_preview_request_id)
+            self.preview_model = preview_model
+            self.prepared_preview = prepared_preview
+            self.render_settings = clamp_model_preview_render_settings(render_settings)
+            self.use_textures = bool(use_textures)
+            self.high_quality_textures = bool(high_quality_textures)
+            self.stop_event = threading.Event()
+
+        def stop(self) -> None:
+            self.stop_event.set()
+
+        @Slot()
+        def run(self) -> None:
+            try:
+                if self.stop_event.is_set():
+                    return
+                started = time.perf_counter()
+                package_dir = write_isolated_d3d11_preview_package(
+                    self.preview_model,
+                    self.prepared_preview,
+                    render_settings=self.render_settings,
+                    use_textures=self.use_textures,
+                    high_quality_textures=self.high_quality_textures,
+                    backend="d3d11",
+                    enable_material_combiner=False,
+                    prefer_direct_dds=True,
+                )
+                elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
+                if not self.stop_event.is_set():
+                    self.completed.emit(self.request_id, self.archive_preview_request_id, package_dir, elapsed_ms)
+                else:
+                    try:
+                        shutil.rmtree(package_dir, ignore_errors=True)
+                    except OSError:
+                        pass
+            except Exception as exc:
+                if not self.stop_event.is_set():
+                    self.error.emit(self.request_id, self.archive_preview_request_id, str(exc))
+            finally:
+                self.finished.emit()
+
     class DetachedToolWindow(QMainWindow):
         def __init__(self, owner: "MainWindow", tool_key: str, title: str) -> None:
             super().__init__(owner, Qt.Window)
@@ -3247,6 +3306,10 @@ def run_gui() -> int:
             self.archive_isolated_renderer_status_timer.setInterval(250)
             self.archive_isolated_renderer_status_timer.timeout.connect(self._poll_archive_isolated_renderer_status)
             self.archive_isolated_renderer_debug_text = ""
+            self.archive_isolated_package_thread: Optional[QThread] = None
+            self.archive_isolated_package_worker: Optional[ArchiveD3D11PackageWorker] = None
+            self.archive_isolated_package_request_id = 0
+            self.archive_isolated_package_pending_result: Optional[ArchivePreviewResult] = None
             self.archive_preview_requested_loose = False
             self.archive_preview_showing_loose = False
             self.archive_entries: List[ArchiveEntry] = []
@@ -18281,42 +18344,124 @@ def run_gui() -> int:
                 except OSError:
                     pass
 
-        def _write_archive_isolated_preview_package(self, result: ArchivePreviewResult) -> Optional[Path]:
+        def _remove_archive_isolated_package_dir(self, package_dir: Optional[Path]) -> None:
+            if package_dir is None:
+                return
+            try:
+                shutil.rmtree(package_dir, ignore_errors=True)
+            except OSError:
+                pass
+
+        def _kill_archive_isolated_renderer_process_if_running(self, process: QProcess) -> None:
+            try:
+                if process.state() != QProcess.NotRunning:
+                    process.kill()
+            except RuntimeError:
+                pass
+
+        def _start_archive_isolated_preview_package_worker(self, result: ArchivePreviewResult) -> None:
             preview_model = getattr(result, "preview_model", None)
             prepared_preview = getattr(result, "prepared_preview_model", None)
             if preview_model is None or not isinstance(prepared_preview, PreparedModelPreviewData):
                 self.set_status_message("No prepared model preview is available for the isolated D3D11 renderer.", error=True)
-                return None
+                return
+            if self.archive_isolated_package_thread is not None:
+                self.archive_isolated_package_request_id += 1
+                self.archive_isolated_package_pending_result = result
+                if self.archive_isolated_package_worker is not None:
+                    self.archive_isolated_package_worker.stop()
+                self.archive_d3d11_preview_status_label.setText("Queued latest D3D11 preview package...")
+                self.set_status_message("Queued latest D3D11 preview package; waiting for the previous package job to stop.")
+                return
+
             settings = self._current_model_preview_render_settings()
-            started = time.perf_counter()
+            self.archive_isolated_package_request_id += 1
+            request_id = self.archive_isolated_package_request_id
+            archive_preview_request_id = int(self.archive_preview_request_id)
+            worker = ArchiveD3D11PackageWorker(
+                request_id,
+                archive_preview_request_id,
+                preview_model,
+                prepared_preview,
+                settings,
+                use_textures=bool(settings.use_textures_by_default),
+                high_quality_textures=bool(settings.high_quality_by_default),
+            )
+            thread = QThread(self)
+            worker.moveToThread(thread)
+            thread.started.connect(worker.run)
+            worker.completed.connect(self._handle_archive_isolated_package_ready)
+            worker.error.connect(self._handle_archive_isolated_package_error)
+            worker.finished.connect(thread.quit)
+            worker.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
+            thread.finished.connect(self._cleanup_archive_isolated_package_worker_refs)
+            self.archive_isolated_package_worker = worker
+            self.archive_isolated_package_thread = thread
+            self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
+            self.archive_d3d11_preview_status_label.setText("Preparing native D3D11 preview package...")
+            self._set_archive_isolated_renderer_debug(
+                "Native D3D11 Preview: preparing package in a background thread. "
+                "The Archive Browser should remain responsive while geometry and texture references are staged."
+            )
+            self.set_status_message("Preparing native D3D11 preview package...")
+            thread.start()
+
+        def _launch_archive_isolated_preview_result(self, result: ArchivePreviewResult) -> None:
+            self._shutdown_archive_isolated_renderer_host()
+            self._start_archive_isolated_preview_package_worker(result)
+
+        def _handle_archive_isolated_package_ready(
+            self,
+            request_id: int,
+            archive_preview_request_id: int,
+            package_dir_object: object,
+            elapsed_ms: float,
+        ) -> None:
             try:
-                package_dir = write_isolated_d3d11_preview_package(
-                    preview_model,
-                    prepared_preview,
-                    render_settings=settings,
-                    use_textures=bool(settings.use_textures_by_default),
-                    high_quality_textures=bool(settings.high_quality_by_default),
-                    backend="d3d11",
-                    enable_material_combiner=False,
-                    prefer_direct_dds=True,
-                )
-            except Exception as exc:
-                self.set_status_message(f"Failed to prepare isolated D3D11 preview package: {exc}", error=True)
-                self._set_archive_isolated_renderer_debug(f"Isolated Renderer: package preparation failed: {exc}")
-                return None
-            elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
+                package_dir = Path(package_dir_object)
+            except TypeError:
+                return
+            if (
+                int(request_id) != int(getattr(self, "archive_isolated_package_request_id", 0) or 0)
+                or int(archive_preview_request_id) != int(self.archive_preview_request_id)
+            ):
+                try:
+                    shutil.rmtree(package_dir, ignore_errors=True)
+                except OSError:
+                    pass
+                return
             previous = getattr(self, "archive_isolated_renderer_active_package", None)
             if previous is not None:
                 self.archive_isolated_renderer_retired_packages.append(previous)
             self.archive_isolated_renderer_active_package = package_dir
-            self.set_status_message(f"Prepared isolated D3D11 preview package in {elapsed_ms:.1f} ms.")
-            return package_dir
+            self.set_status_message(f"Prepared native D3D11 preview package in {float(elapsed_ms):.1f} ms.")
+            self._start_archive_isolated_renderer_process(package_dir)
 
-        def _launch_archive_isolated_preview_result(self, result: ArchivePreviewResult) -> None:
-            self._shutdown_archive_isolated_renderer_host()
-            package_dir = self._write_archive_isolated_preview_package(result)
-            if package_dir is None:
+        def _handle_archive_isolated_package_error(
+            self,
+            request_id: int,
+            archive_preview_request_id: int,
+            message: str,
+        ) -> None:
+            if (
+                int(request_id) != int(getattr(self, "archive_isolated_package_request_id", 0) or 0)
+                or int(archive_preview_request_id) != int(self.archive_preview_request_id)
+            ):
                 return
+            self.set_status_message(f"Failed to prepare native D3D11 preview package: {message}", error=True)
+            self.archive_d3d11_preview_status_label.setText("D3D11 package preparation failed.")
+            self._set_archive_isolated_renderer_debug(f"Native D3D11 Preview: package preparation failed: {message}")
+
+        def _cleanup_archive_isolated_package_worker_refs(self) -> None:
+            self.archive_isolated_package_thread = None
+            self.archive_isolated_package_worker = None
+            pending_result = self.archive_isolated_package_pending_result
+            self.archive_isolated_package_pending_result = None
+            if pending_result is not None and not self._shutting_down:
+                QTimer.singleShot(0, lambda result=pending_result: self._launch_archive_isolated_preview_result(result))
+
+        def _start_archive_isolated_renderer_process(self, package_dir: Path) -> None:
             status_file = package_dir / "host_status.json"
             try:
                 status_file.unlink(missing_ok=True)
@@ -18492,6 +18637,13 @@ def run_gui() -> int:
                 self.archive_isolated_renderer_status_timer.stop()
                 self._cleanup_archive_isolated_renderer_packages(include_active=True)
                 return
+            package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
+            self.archive_isolated_renderer_process = None
+            self.archive_isolated_renderer_active_process = None
+            self.archive_isolated_renderer_active_package = None
+            self.archive_isolated_renderer_status_file = None
+            self.archive_isolated_renderer_status_mtime = 0.0
+            self.archive_isolated_renderer_status_timer.stop()
             try:
                 process.disconnect()
             except RuntimeError:
@@ -18500,16 +18652,24 @@ def run_gui() -> int:
                 pass
             try:
                 if process.state() != QProcess.NotRunning:
+                    process.finished.connect(
+                        lambda *_args, package_dir=package_dir, process=process: (
+                            self._remove_archive_isolated_package_dir(package_dir),
+                            process.deleteLater(),
+                        )
+                    )
                     process.terminate()
-                    if not process.waitForFinished(1000):
-                        process.kill()
-                    process.waitForFinished(500)
+                    QTimer.singleShot(
+                        1200,
+                        lambda process=process: self._kill_archive_isolated_renderer_process_if_running(process),
+                    )
+                    QTimer.singleShot(7000, lambda package_dir=package_dir: self._remove_archive_isolated_package_dir(package_dir))
+                else:
+                    self._remove_archive_isolated_package_dir(package_dir)
+                    process.deleteLater()
             except RuntimeError:
-                pass
-            self.archive_isolated_renderer_process = None
-            self.archive_isolated_renderer_active_process = None
-            self.archive_isolated_renderer_status_timer.stop()
-            self._cleanup_archive_isolated_renderer_packages(include_active=True)
+                self._remove_archive_isolated_package_dir(package_dir)
+            self._cleanup_archive_isolated_renderer_packages(include_active=False)
             self.archive_d3d11_preview_status_label.setText("D3D11 preview is not running.")
 
         def _handle_archive_model_preview_reset_overrides(self) -> None:
@@ -59205,6 +59365,7 @@ def run_gui() -> int:
                 ("archive_derived_cache_thread", self.archive_derived_cache_thread, self.archive_derived_cache_worker),
                 ("compare_preview_thread", self.compare_preview_thread, self.compare_preview_worker),
                 ("archive_preview_thread", self.archive_preview_thread, self.archive_preview_worker),
+                ("archive_isolated_package_thread", self.archive_isolated_package_thread, self.archive_isolated_package_worker),
             ]
 
         def _running_worker_threads(self) -> List[QThread]:

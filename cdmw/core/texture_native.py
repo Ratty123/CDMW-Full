@@ -6,12 +6,14 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
 from cdmw.constants import APP_NAME
-from cdmw.core.common import hidden_subprocess_kwargs
+from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled, run_process_with_cancellation
 from cdmw.core.dds_native import dds_native_report_dict, inspect_dds_native_path
+from cdmw.models import RunCancelled
 
 NATIVE_TEXTURE_BACKEND_ID = "cd_texture_rust_0.1"
 DIRECTXTEX_TEXTURE_BACKEND_ID = "directxtex_native_0.1"
@@ -270,6 +272,7 @@ def ensure_directxtex_dds_preview_png(
     srgb: str = "auto",
     normal_space: str = "auto",
     timeout_seconds: float = 20.0,
+    stop_event: Optional[threading.Event] = None,
 ) -> Optional[Path]:
     results = ensure_directxtex_dds_preview_pngs(
         (
@@ -282,6 +285,7 @@ def ensure_directxtex_dds_preview_png(
             },
         ),
         timeout_seconds=timeout_seconds,
+        stop_event=stop_event,
     )
     return results.get(str(Path(dds_path).expanduser().resolve()))
 
@@ -291,13 +295,16 @@ def ensure_directxtex_dds_preview_pngs(
     *,
     timeout_seconds: float = 45.0,
     include_job_keys: bool = False,
+    stop_event: Optional[threading.Event] = None,
 ) -> Dict[str, Path]:
+    raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
     binary = find_directxtex_texture_binary()
     if binary is None:
         return {}
     normalized_jobs: list[Dict[str, object]] = []
     results: Dict[str, Path] = {}
     for job in jobs:
+        raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
         raw_path = str(job.get("dds_path") or job.get("input") or "").strip()
         if not raw_path:
             continue
@@ -355,23 +362,23 @@ def ensure_directxtex_dds_preview_pngs(
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
     try:
+        raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
         for job in normalized_jobs:
             Path(str(job["output"])).parent.mkdir(parents=True, exist_ok=True)
         job_path.write_text(
             json.dumps({"version": 1, "backend": DIRECTXTEX_TEXTURE_BACKEND_ID, "jobs": normalized_jobs}, indent=2),
             encoding="utf-8",
         )
-        completed = subprocess.run(
+        returncode, _stdout, _stderr = run_process_with_cancellation(
             [str(binary), "batch-preview-json", str(job_path), str(report_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
             timeout=max(1.0, float(timeout_seconds)),
-            check=False,
-            **hidden_subprocess_kwargs(),
+            stop_event=stop_event,
         )
-    except (OSError, subprocess.SubprocessError, ValueError, OverflowError):
+    except RunCancelled:
+        raise
+    except Exception:
         return results
-    if completed.returncode != 0 or not report_path.is_file():
+    if returncode != 0 or not report_path.is_file():
         return results
     try:
         parsed = json.loads(report_path.read_text(encoding="utf-8"))
