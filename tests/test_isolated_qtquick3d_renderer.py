@@ -12,6 +12,7 @@ from cdmw.models import (
     PreviewMaterialParameterInput,
     PreviewMaterialTextureInput,
 )
+from cdmw.core.texture_native import write_native_texture_report_sidecar
 from cdmw.rendering.qtquick3d_preview_package import (
     ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES,
     read_isolated_qtquick3d_preview_manifest,
@@ -187,6 +188,132 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertGreater(batch["native_material_hints"]["metalness"], 0.0)
             self.assertGreater(batch["native_material_hints"]["specular"], 0.0)
             self.assertIn("packed material map skipped", " ".join(batch["notes"]))
+
+    def test_prefer_direct_dds_skips_preview_png_fallbacks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "base.png"
+            specular = temp_path / "material_sp.png"
+            pbr = temp_path / "legacy_pbr.png"
+            base_dds = temp_path / "base.dds"
+            specular_dds = temp_path / "material_sp.dds"
+            material_dds = temp_path / "material_ma.dds"
+            for path in (base, specular, pbr):
+                path.write_bytes(path.name.encode("ascii"))
+            for path in (base_dds, specular_dds, material_dds):
+                path.write_bytes(_minimal_bc_dds(b"DXT1"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="weapon.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="blade",
+                        texture_name="blade_base",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_texture_dds_path=str(base_dds),
+                        preview_material_texture_path=str(pbr),
+                        preview_material_texture_dds_path=str(material_dds),
+                        preview_material_texture_subtype="legacy_pbr_combined",
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                texture_name="blade_sp",
+                                source_dds_path=str(specular_dds),
+                                preview_texture_path=str(specular),
+                                semantic_subtype="specular",
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                ModelPreviewData(path="weapon.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                enable_material_combiner=False,
+                prefer_direct_dds=True,
+            )
+            batch = read_isolated_qtquick3d_preview_manifest(package_dir)["batches"][0]
+            textures = batch["textures"]
+
+            self.assertEqual("", textures["base"])
+            self.assertEqual("", textures["specular"])
+            self.assertEqual("", textures["roughness"])
+            self.assertFalse((package_dir / "textures" / "combined").exists())
+            notes = " ".join(batch["notes"])
+            self.assertIn("base PNG fallback skipped", notes)
+            self.assertIn("specular PNG fallback skipped", notes)
+            self.assertIn("legacy PBR PNG split skipped", notes)
+
+    def test_prefer_direct_dds_keeps_png_fallback_when_dds_is_not_uploadable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            specular = temp_path / "material_sp.png"
+            specular_dds = temp_path / "material_sp.dds"
+            specular.write_bytes(b"preview")
+            specular_dds.write_bytes(b"not a dds")
+            self.assertTrue(
+                write_native_texture_report_sidecar(
+                    specular,
+                    {
+                        "source_path": str(specular_dds),
+                        "slot_kind": "specular",
+                        "direct_upload_candidate": False,
+                    },
+                )
+            )
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="weapon.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="blade",
+                        texture_name="blade_base",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                texture_name="blade_sp",
+                                preview_texture_path=str(specular),
+                                semantic_subtype="specular",
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                ModelPreviewData(path="weapon.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                enable_material_combiner=False,
+                prefer_direct_dds=True,
+            )
+            batch = read_isolated_qtquick3d_preview_manifest(package_dir)["batches"][0]
+            textures = batch["textures"]
+
+            self.assertTrue(textures["specular"])
+            self.assertTrue((package_dir / textures["specular"]).is_file())
+            notes = " ".join(batch["notes"])
+            self.assertNotIn("specular PNG fallback skipped", notes)
 
     def test_package_combiner_generates_independent_pbr_slots(self) -> None:
         from PySide6.QtGui import QColor, QImage

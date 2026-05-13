@@ -234,6 +234,27 @@ def _directxtex_preview_cache_path(
     return cache_dir / f"{dds_path.stem}.png"
 
 
+def directxtex_preview_result_key(
+    dds_path: Path,
+    *,
+    max_dimension: int,
+    slot_kind: str = "base",
+    srgb: str = "auto",
+    normal_space: str = "auto",
+) -> str:
+    try:
+        source_key = str(Path(dds_path).expanduser().resolve())
+    except OSError:
+        source_key = str(dds_path)
+    slot_key = str(slot_kind or "base").strip().lower() or "base"
+    srgb_key = str(srgb or "auto").strip().lower() or "auto"
+    normal_key = str(normal_space or "auto").strip().lower() or "auto"
+    return (
+        f"{source_key}|slot={slot_key}|max={max(1, int(max_dimension or 4096))}|"
+        f"srgb={srgb_key}|normal={normal_key}"
+    )
+
+
 def _cached_preview_is_valid(preview_path: Path) -> bool:
     try:
         return preview_path.is_file() and preview_path.stat().st_size > 0 and native_texture_report_sidecar_path(preview_path).is_file()
@@ -269,6 +290,7 @@ def ensure_directxtex_dds_preview_pngs(
     jobs: Sequence[Mapping[str, object]],
     *,
     timeout_seconds: float = 45.0,
+    include_job_keys: bool = False,
 ) -> Dict[str, Path]:
     binary = find_directxtex_texture_binary()
     if binary is None:
@@ -298,8 +320,17 @@ def ensure_directxtex_dds_preview_pngs(
             binary=binary,
         )
         key = str(dds_path)
+        job_key = directxtex_preview_result_key(
+            dds_path,
+            max_dimension=max_dimension,
+            slot_kind=slot_kind,
+            srgb=srgb,
+            normal_space=normal_space,
+        )
         if _cached_preview_is_valid(preview_path):
             results[key] = preview_path
+            if include_job_keys:
+                results[job_key] = preview_path
             continue
         normalized_jobs.append(
             {
@@ -309,11 +340,17 @@ def ensure_directxtex_dds_preview_pngs(
                 "slot": slot_kind,
                 "srgb": srgb,
                 "normal_space": normal_space,
+                "result_key": job_key,
             }
         )
     if not normalized_jobs:
         return results
 
+    job_keys_by_output = {
+        str(job.get("output", "")): str(job.get("result_key", ""))
+        for job in normalized_jobs
+        if str(job.get("output", "")) and str(job.get("result_key", ""))
+    }
     job_root = Path(tempfile.mkdtemp(prefix="cdmw_directxtex_batch_"))
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
@@ -354,9 +391,23 @@ def ensure_directxtex_dds_preview_pngs(
         item.setdefault("native_backend", "directxtex")
         if write_native_texture_report_sidecar(output_path, item):
             try:
-                results[str(source_path.expanduser().resolve())] = output_path
+                source_key = str(source_path.expanduser().resolve())
             except OSError:
-                results[str(source_path)] = output_path
+                source_key = str(source_path)
+            results[source_key] = output_path
+            if include_job_keys:
+                result_key = str(item.get("result_key") or "").strip()
+                if not result_key:
+                    result_key = job_keys_by_output.get(str(output_path), "")
+                if not result_key:
+                    result_key = directxtex_preview_result_key(
+                        source_path,
+                        max_dimension=int(item.get("max_dimension") or item.get("max_dim") or 4096),
+                        slot_kind=str(item.get("slot") or item.get("slot_kind") or "base"),
+                        srgb=str(item.get("srgb") or "auto"),
+                        normal_space=str(item.get("normal_space") or "auto"),
+                    )
+                results[result_key] = output_path
     return results
 
 

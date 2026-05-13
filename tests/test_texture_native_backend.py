@@ -191,6 +191,68 @@ class NativeTextureBackendTests(unittest.TestCase):
             for preview_path in results.values():
                 self.assertTrue(texture_native.native_texture_report_sidecar_path(preview_path).is_file())
 
+    def test_directxtex_batch_preview_can_return_per_slot_job_keys(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            binary_path = root / "cd-texture-dx.exe"
+            binary_path.write_bytes(b"fake")
+            dds_path = root / "shared.dds"
+            dds_path.write_bytes(_minimal_bc_dds(b"DXT1"))
+
+            def fake_run(command, **_kwargs):
+                job_path = Path(command[2])
+                report_path = Path(command[3])
+                job = json.loads(job_path.read_text(encoding="utf-8"))
+                items = []
+                for item in job["jobs"]:
+                    output = Path(item["output"])
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(f"png:{item['slot']}".encode("ascii"))
+                    items.append(
+                        {
+                            "status": "decoded",
+                            "backend": "directxtex_native_0.1",
+                            "source_path": item["input"],
+                            "output_path": item["output"],
+                            "slot": item["slot"],
+                        }
+                    )
+                report_path.write_text(json.dumps({"status": "ok", "items": items}), encoding="utf-8")
+
+                class Completed:
+                    returncode = 0
+                    stdout = b"{}"
+                    stderr = b""
+
+                return Completed()
+
+            with patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=binary_path):
+                with patch("cdmw.core.texture_native.subprocess.run", side_effect=fake_run):
+                    results = texture_native.ensure_directxtex_dds_preview_pngs(
+                        (
+                            {"dds_path": str(dds_path), "slot_kind": "base", "max_dimension": 512},
+                            {
+                                "dds_path": str(dds_path),
+                                "slot_kind": "normal",
+                                "max_dimension": 192,
+                                "normal_space": "opengl",
+                            },
+                        ),
+                        include_job_keys=True,
+                    )
+
+            base_key = texture_native.directxtex_preview_result_key(dds_path, max_dimension=512, slot_kind="base")
+            normal_key = texture_native.directxtex_preview_result_key(
+                dds_path,
+                max_dimension=192,
+                slot_kind="normal",
+                normal_space="opengl",
+            )
+            self.assertIn(str(dds_path.resolve()), results)
+            self.assertIn(base_key, results)
+            self.assertIn(normal_key, results)
+            self.assertNotEqual(results[base_key], results[normal_key])
+
     def test_report_sidecar_path_is_next_to_preview_png(self) -> None:
         sidecar = texture_native.native_texture_report_sidecar_path(Path("preview.png"))
         self.assertEqual("preview.png.cdmw_texture.json", sidecar.name)

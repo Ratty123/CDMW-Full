@@ -557,9 +557,122 @@ def _texture_sources_for_batch(
         _dds_textures_for_batch(batch) if prefer_direct_dds else {}
     )
 
+    material_inputs: Tuple[PreviewMaterialTextureInput, ...] = tuple(
+        texture_input
+        for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
+        if isinstance(texture_input, PreviewMaterialTextureInput)
+    )
+
+    def _direct_dds_entry_available(entry: object) -> bool:
+        return bool(
+            isinstance(entry, Mapping)
+            and entry.get("available")
+            and entry.get("source_path")
+            and entry.get("direct_upload_candidate")
+        )
+
     def has_direct_dds(slot_name: str) -> bool:
         entry = direct_dds_slots.get(slot_name)
-        return bool(isinstance(entry, Mapping) and entry.get("available") and entry.get("source_path"))
+        return _direct_dds_entry_available(entry)
+
+    def _direct_material_input_entries() -> Tuple[Mapping[str, object], ...]:
+        entries = direct_dds_slots.get("material_inputs")
+        if not isinstance(entries, Sequence) or isinstance(entries, (str, bytes, bytearray)):
+            return ()
+        return tuple(entry for entry in entries if isinstance(entry, Mapping))
+
+    def _direct_material_descriptor(entry: Mapping[str, object]) -> str:
+        return " ".join(
+            str(entry.get(field, "") or "")
+            for field in ("slot", "parameter_name", "semantic_type", "semantic_subtype", "source_path")
+        ).lower()
+
+    def _direct_material_source(entry: Mapping[str, object]) -> str:
+        try:
+            return str(Path(str(entry.get("source_path", "") or "")).expanduser().resolve()).casefold()
+        except OSError:
+            return str(entry.get("source_path", "") or "").casefold()
+
+    def _source_identity(source_path: str) -> str:
+        try:
+            return str(Path(str(source_path or "")).expanduser().resolve()).casefold()
+        except OSError:
+            return str(source_path or "").casefold()
+
+    def _direct_material_input_available_for(kind: str, texture_input: Optional[PreviewMaterialTextureInput] = None) -> bool:
+        normalized_kind = str(kind or "").strip().lower()
+        direct_source = ""
+        if texture_input is not None:
+            direct_source = str(getattr(texture_input, "source_dds_path", "") or "").strip()
+            if not direct_source:
+                direct_source = _source_dds_for_preview_path(str(getattr(texture_input, "preview_texture_path", "") or ""))
+        direct_source_key = _source_identity(direct_source) if direct_source else ""
+        for entry in _direct_material_input_entries():
+            if not _direct_dds_entry_available(entry):
+                continue
+            if direct_source_key and _direct_material_source(entry) == direct_source_key:
+                return True
+            descriptor = _direct_material_descriptor(entry)
+            technical = _technical_texture_kind(str(entry.get("source_path", "") or ""))
+            if normalized_kind == "base":
+                if (
+                    "base" in descriptor
+                    or "albedo" in descriptor
+                    or "diffuse" in descriptor
+                    or "color" in descriptor
+                ) and technical not in {"normal", "height", "packed_material", "detail_mask", "opacity", "specular"}:
+                    return True
+            elif normalized_kind == "normal" and technical == "normal":
+                return True
+            elif normalized_kind == "height" and technical == "height":
+                return True
+            elif normalized_kind == "specular" and (
+                technical == "specular" or "specular" in descriptor or "_sp" in descriptor
+            ):
+                return True
+            elif normalized_kind == "roughness" and ("roughness" in descriptor or "gloss" in descriptor or "smoothness" in descriptor):
+                return True
+            elif normalized_kind == "metalness" and ("metallic" in descriptor or "metalness" in descriptor):
+                return True
+            elif normalized_kind in {"material", "packed_material", "occlusion"} and (
+                technical == "packed_material"
+                or "material_mask" in descriptor
+                or "packed_mask" in descriptor
+                or "_ma" in descriptor
+            ):
+                return True
+            elif normalized_kind in {"detail", "detail_mask"} and (
+                technical == "detail_mask" or "detailmask" in descriptor or "colorblendingmask" in descriptor or "_mg" in descriptor
+            ):
+                return True
+        return False
+
+    def _direct_material_response_available() -> bool:
+        return bool(
+            has_direct_dds("material")
+            or _direct_material_input_available_for("material")
+            or _direct_material_input_available_for("specular")
+            or _direct_material_input_available_for("roughness")
+            or _direct_material_input_available_for("metalness")
+            or _direct_material_input_available_for("detail")
+        )
+
+    def _direct_dds_available_for_source(source_path: str) -> bool:
+        source_key = _source_identity(source_path)
+        if not source_key:
+            return False
+        for slot_name in ("base", "normal", "material", "height"):
+            entry = direct_dds_slots.get(slot_name)
+            if _direct_dds_entry_available(entry) and _direct_material_source(entry) == source_key:
+                return True
+        for entry in _direct_material_input_entries():
+            if _direct_dds_entry_available(entry) and _direct_material_source(entry) == source_key:
+                return True
+        return False
+
+    def _preview_source_has_direct_dds_upload(preview_path: str) -> bool:
+        dds_path = _source_dds_for_preview_path(preview_path)
+        return bool(dds_path and _direct_dds_available_for_source(dds_path))
 
     def package_relative(source_ref: str, slot_name: str) -> str:
         raw = str(source_ref or "").strip()
@@ -636,33 +749,31 @@ def _texture_sources_for_batch(
                 notes=notes,
             )
 
-    material_inputs: Tuple[PreviewMaterialTextureInput, ...] = tuple(
-        texture_input
-        for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
-        if isinstance(texture_input, PreviewMaterialTextureInput)
-    )
     material_path = str(getattr(batch, "preview_material_texture_path", "") or "")
     material_subtype = str(getattr(batch, "preview_material_texture_subtype", "") or "").strip().lower()
     reused_legacy_pbr = False
     if support_enabled and material_path and material_subtype in {"pbr_combined", "legacy_pbr_combined"}:
-        generated = _split_legacy_pbr_texture(
-            material_path,
-            package_dir=package_dir,
-            textures_dir=textures_dir,
-            batch_index=batch_index,
-            notes=notes,
-        )
-        if not bool(getattr(render_settings, "disable_material_map", False)):
-            for slot_name, relative_path in generated.items():
-                textures[slot_name] = relative_path
-        if generated:
-            reused_legacy_pbr = True
-            combiner_metadata = {
-                "active": True,
-                "outputs": tuple(generated.keys()),
-                "decode_modes": ("pbr_combined",),
-                "notes": ("legacy PBR response reused",),
-            }
+        if prefer_direct_dds and _direct_material_response_available():
+            notes.append("legacy PBR PNG split skipped; direct DDS material inputs available")
+        else:
+            generated = _split_legacy_pbr_texture(
+                material_path,
+                package_dir=package_dir,
+                textures_dir=textures_dir,
+                batch_index=batch_index,
+                notes=notes,
+            )
+            if not bool(getattr(render_settings, "disable_material_map", False)):
+                for slot_name, relative_path in generated.items():
+                    textures[slot_name] = relative_path
+            if generated:
+                reused_legacy_pbr = True
+                combiner_metadata = {
+                    "active": True,
+                    "outputs": tuple(generated.keys()),
+                    "decode_modes": ("pbr_combined",),
+                    "notes": ("legacy PBR response reused",),
+                }
 
     if enable_material_combiner and not reused_legacy_pbr and (support_enabled or material_inputs):
         try:
@@ -727,6 +838,9 @@ def _texture_sources_for_batch(
         if kind in {"base", "normal", "height"}:
             if textures.get(kind):
                 return
+            if prefer_direct_dds and _preview_source_has_direct_dds_upload(source_path):
+                notes.append(f"{kind} PNG fallback skipped; direct DDS material input available")
+                return
             textures[kind] = _copy_texture(
                 source_path,
                 package_dir=package_dir,
@@ -742,7 +856,7 @@ def _texture_sources_for_batch(
                 return
             if textures.get(kind):
                 return
-            if prefer_direct_dds and _source_dds_for_preview_path(source_path):
+            if prefer_direct_dds and _preview_source_has_direct_dds_upload(source_path):
                 notes.append(f"{kind} PNG fallback skipped; direct DDS material input available")
                 return
             textures[kind] = _copy_texture(
@@ -781,6 +895,9 @@ def _texture_sources_for_batch(
             continue
         kind = _input_texture_kind(texture_input)
         label = str(getattr(texture_input, "texture_name", "") or "").strip() or Path(source).name
+        if kind and prefer_direct_dds and _direct_material_input_available_for(kind, texture_input):
+            notes.append(f"{kind} PNG fallback skipped; direct DDS material input available")
+            continue
         assign_kind(kind, source, label)
 
     return textures, tuple(dict.fromkeys(note for note in notes if note)), combiner_metadata
@@ -908,7 +1025,7 @@ def write_isolated_qtquick3d_preview_package(
         "high_quality_textures": bool(high_quality_textures),
         "batches": batches,
     }
-    (package_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    (package_dir / "manifest.json").write_text(json.dumps(manifest, separators=(",", ":")), encoding="utf-8")
     return package_dir
 
 

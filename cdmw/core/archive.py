@@ -8787,7 +8787,7 @@ def _prefetch_archive_model_texture_preview_paths(
     if not requests:
         return
     try:
-        from cdmw.core.texture_native import ensure_directxtex_dds_preview_pngs
+        from cdmw.core.texture_native import directxtex_preview_result_key, ensure_directxtex_dds_preview_pngs
     except Exception:
         return
 
@@ -8829,6 +8829,7 @@ def _prefetch_archive_model_texture_preview_paths(
         return
 
     jobs: List[Dict[str, object]] = []
+    by_job_key: Dict[str, Tuple[str, Tuple[object, ...]]] = {}
     by_source: Dict[str, Tuple[str, Tuple[object, ...]]] = {}
     for texture_entry, slot_key, resolved_max_dimension, local_key, cache_key in normalized_requests:
         raise_if_cancelled(stop_event)
@@ -8850,19 +8851,44 @@ def _prefetch_archive_model_texture_preview_paths(
                 "srgb": "auto",
             }
         )
-        by_source[source_key] = (local_key, cache_key)
+        job_key = directxtex_preview_result_key(
+            Path(source_key),
+            max_dimension=resolved_max_dimension,
+            slot_kind=slot_key,
+            srgb="auto",
+            normal_space="opengl" if slot_key == "normal" else "auto",
+        )
+        by_job_key[job_key] = (local_key, cache_key)
+        by_source.setdefault(source_key, (local_key, cache_key))
 
     if not jobs:
         return
 
     try:
         timeout_seconds = max(10.0, min(180.0, 4.0 + (len(jobs) * 4.0)))
-        results = ensure_directxtex_dds_preview_pngs(jobs, timeout_seconds=timeout_seconds)
+        results = ensure_directxtex_dds_preview_pngs(jobs, timeout_seconds=timeout_seconds, include_job_keys=True)
     except RunCancelled:
         raise
     except Exception:
         return
+    for result_key, mapped in by_job_key.items():
+        preview_path = results.get(result_key)
+        if preview_path is None:
+            source_key = result_key.split("|slot=", 1)[0]
+            preview_path = results.get(source_key)
+        if preview_path is None:
+            continue
+        local_key, cache_key = mapped
+        preview_path_text = str(preview_path)
+        preview_cache[local_key] = preview_path_text
+        with _MODEL_TEXTURE_PREVIEW_PATH_CACHE_LOCK:
+            _MODEL_TEXTURE_PREVIEW_PATH_CACHE[cache_key] = preview_path_text
+            _MODEL_TEXTURE_PREVIEW_PATH_CACHE.move_to_end(cache_key)
+            while len(_MODEL_TEXTURE_PREVIEW_PATH_CACHE) > _MODEL_TEXTURE_PREVIEW_PATH_CACHE_LIMIT:
+                _MODEL_TEXTURE_PREVIEW_PATH_CACHE.popitem(last=False)
     for source_key, preview_path in results.items():
+        if "|slot=" in str(source_key):
+            continue
         mapped = by_source.get(str(source_key))
         if mapped is None:
             try:
@@ -8872,6 +8898,8 @@ def _prefetch_archive_model_texture_preview_paths(
         if mapped is None:
             continue
         local_key, cache_key = mapped
+        if local_key in preview_cache:
+            continue
         preview_path_text = str(preview_path)
         preview_cache[local_key] = preview_path_text
         with _MODEL_TEXTURE_PREVIEW_PATH_CACHE_LOCK:
