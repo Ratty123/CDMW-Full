@@ -29,13 +29,14 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         dialog.close()
         dialog.deleteLater()
 
-    def test_enhanced_relief_sliders_are_not_shown_in_settings_dialog(self) -> None:
+    def test_material_quality_sliders_are_available_in_settings_dialog(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(settings=ModelPreviewRenderSettings(render_diagnostic_mode="lit"))
 
-        self.assertNotIn("height_effect_max", dialog._slider_controls)
-        self.assertNotIn("specular_max", dialog._slider_controls)
-        self.assertNotIn("shininess_max", dialog._slider_controls)
+        self.assertIn("normal_strength_cap", dialog._slider_controls)
+        self.assertIn("height_effect_max", dialog._slider_controls)
+        self.assertIn("specular_max", dialog._slider_controls)
+        self.assertIn("shininess_max", dialog._slider_controls)
         self.assertEqual(
             ModelPreviewRenderSettings().height_effect_max,
             dialog.current_settings().height_effect_max,
@@ -88,6 +89,10 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertEqual("d3d11_native", dialog.current_archive_renderer_backend())
         self.assertTrue(dialog.render_diagnostic_mode_combo.isHidden())
         self.assertTrue(dialog.disable_depth_test_checkbox.isHidden())
+        self.assertFalse(dialog.disable_all_support_maps_checkbox.isHidden())
+        self.assertFalse(dialog.disable_normal_map_checkbox.isHidden())
+        self.assertFalse(dialog._slider_controls["max_anisotropy"].isHidden())
+        self.assertFalse(dialog._slider_controls["ambient_strength"].isHidden())
         self.assertFalse(dialog.d3d11_hint_label.isHidden())
 
         legacy_index = dialog.archive_renderer_backend_combo.findData("legacy_opengl")

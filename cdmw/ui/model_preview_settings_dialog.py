@@ -161,12 +161,14 @@ class ModelPreviewSettingsDialog(QDialog):
         root_layout.addWidget(self.tabs, stretch=1)
 
         general_tab, general_layout = self._create_scroll_tab()
+        quality_tab, quality_layout = self._create_scroll_tab()
         controls_tab, controls_layout = self._create_scroll_tab()
         diagnostics_tab, diagnostics_layout = self._create_scroll_tab()
         performance_tab, performance_layout = self._create_scroll_tab()
         self._diagnostics_tab = diagnostics_tab
 
         self.tabs.addTab(general_tab, "General")
+        self.tabs.addTab(quality_tab, "Quality / Lighting")
         self.tabs.addTab(diagnostics_tab, "Render Diagnostics")
         self.tabs.addTab(controls_tab, "Controls")
         self.tabs.addTab(performance_tab, "Archive Performance")
@@ -183,6 +185,10 @@ class ModelPreviewSettingsDialog(QDialog):
         )
         self.use_textures_checkbox = QCheckBox("Use textures when available")
         self.high_quality_checkbox = QCheckBox("Use support-map preview shading")
+        self.disable_all_support_maps_checkbox = QCheckBox("Disable all support maps")
+        self.disable_normal_map_checkbox = QCheckBox("Disable normal map")
+        self.disable_material_map_checkbox = QCheckBox("Disable material map")
+        self.disable_height_map_checkbox = QCheckBox("Disable height map")
         self.visible_texture_mode_combo = QComboBox()
         for mode in MODEL_PREVIEW_VISIBLE_TEXTURE_MODES:
             self.visible_texture_mode_combo.addItem(
@@ -198,6 +204,10 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.addRow("Renderer backend", self.archive_renderer_backend_combo)
         general_form.addRow("", self.use_textures_checkbox)
         general_form.addRow("", self.high_quality_checkbox)
+        general_form.addRow("", self.disable_all_support_maps_checkbox)
+        general_form.addRow("", self.disable_normal_map_checkbox)
+        general_form.addRow("", self.disable_material_map_checkbox)
+        general_form.addRow("", self.disable_height_map_checkbox)
         general_form.addRow("Visible texture mode", self.visible_texture_mode_combo)
         general_form.addRow("Diagnostic render mode", self.render_diagnostic_mode_combo)
         general_layout.addLayout(general_form)
@@ -214,6 +224,76 @@ class ModelPreviewSettingsDialog(QDialog):
         self.d3d11_hint_label.setWordWrap(True)
         general_layout.addWidget(self.d3d11_hint_label)
         general_layout.addStretch(1)
+
+        quality_form = QFormLayout()
+        quality_form.setContentsMargins(0, 0, 0, 0)
+        quality_form.setHorizontalSpacing(12)
+        quality_form.setVerticalSpacing(10)
+        self._add_slider_row(
+            quality_form,
+            "Texture anisotropy",
+            "max_anisotropy",
+            step=1.0,
+            decimals=0,
+            suffix="x",
+        )
+        self._add_slider_row(
+            quality_form,
+            "Ambient light",
+            "ambient_strength",
+            step=0.01,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Diffuse light",
+            "diffuse_light_scale",
+            step=0.01,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Normal strength",
+            "normal_strength_cap",
+            step=0.01,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Height / depth",
+            "height_effect_max",
+            step=0.01,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Specular floor",
+            "specular_base",
+            step=0.005,
+            decimals=3,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Specular ceiling",
+            "specular_max",
+            step=0.01,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Highlight sharpness",
+            "shininess_max",
+            step=1.0,
+            decimals=0,
+        )
+        quality_layout.addLayout(quality_form)
+        quality_hint = QLabel(
+            "Native D3D11 applies these to its shader and sampler directly. Legacy OpenGL uses the same values for its preview shader. Texture resolution for D3D11 normally comes from direct DDS upload; generated fallback maps still use the existing preview cache pipeline."
+        )
+        quality_hint.setObjectName("HintLabel")
+        quality_hint.setWordWrap(True)
+        quality_layout.addWidget(quality_hint)
+        quality_layout.addStretch(1)
 
         diagnostics_form = QFormLayout()
         diagnostics_form.setContentsMargins(0, 0, 0, 0)
@@ -242,10 +322,6 @@ class ModelPreviewSettingsDialog(QDialog):
         self.disable_brightness_checkbox = QCheckBox("Disable brightness")
         self.disable_uv_scale_checkbox = QCheckBox("Disable UV scale")
         self.force_nearest_no_mipmaps_checkbox = QCheckBox("Force nearest filtering / no mipmaps")
-        self.disable_normal_map_checkbox = QCheckBox("Disable normal map")
-        self.disable_material_map_checkbox = QCheckBox("Disable material map")
-        self.disable_height_map_checkbox = QCheckBox("Disable height map")
-        self.disable_all_support_maps_checkbox = QCheckBox("Disable all support maps")
         self.disable_lighting_checkbox = QCheckBox("Disable lighting")
         self.disable_depth_test_checkbox = QCheckBox("Disable depth test")
         self.show_texture_debug_strip_checkbox = QCheckBox("Show texture debug strip")
@@ -264,10 +340,6 @@ class ModelPreviewSettingsDialog(QDialog):
             self.disable_brightness_checkbox,
             self.disable_uv_scale_checkbox,
             self.force_nearest_no_mipmaps_checkbox,
-            self.disable_normal_map_checkbox,
-            self.disable_material_map_checkbox,
-            self.disable_height_map_checkbox,
-            self.disable_all_support_maps_checkbox,
             self.disable_lighting_checkbox,
             self.disable_depth_test_checkbox,
             self.show_texture_debug_strip_checkbox,
@@ -532,10 +604,6 @@ class ModelPreviewSettingsDialog(QDialog):
             self.disable_brightness_checkbox,
             self.disable_uv_scale_checkbox,
             self.force_nearest_no_mipmaps_checkbox,
-            self.disable_normal_map_checkbox,
-            self.disable_material_map_checkbox,
-            self.disable_height_map_checkbox,
-            self.disable_all_support_maps_checkbox,
             self.disable_lighting_checkbox,
             self.disable_depth_test_checkbox,
             self.show_texture_debug_strip_checkbox,
@@ -546,7 +614,7 @@ class ModelPreviewSettingsDialog(QDialog):
             widget.setVisible(legacy)
         self.d3d11_hint_label.setVisible(d3d11)
         self.high_quality_checkbox.setToolTip(
-            "D3D11 packages normal/material/height DDS support maps only when this is enabled."
+            "D3D11 packages and shades resolved normal/material/height support maps only when this is enabled."
             if d3d11
             else "Legacy OpenGL samples resolved normal, material, and height maps for approximate support-map shading."
         )
@@ -709,16 +777,32 @@ class ModelPreviewSettingsDialog(QDialog):
             )
         relief_control_modes = {"rich_lit", "height_calibrated", "relief_control_test"}
         relief_controls_enabled = bool(
-            mode in relief_control_modes
-            and self.use_textures_checkbox.isChecked()
+            self.use_textures_checkbox.isChecked()
             and self.high_quality_checkbox.isChecked()
+            and not self.disable_all_support_maps_checkbox.isChecked()
+            and (
+                self.current_archive_renderer_backend() == self.ARCHIVE_RENDERER_D3D11
+                or mode in relief_control_modes
+            )
         )
         relief_tooltip = (
-            "Controls Enhanced Relief Preview using true height maps or base-derived relief."
+            "Controls support-map lighting, normal, and height response for the selected renderer."
             if relief_controls_enabled
-            else "Select Enhanced Relief Preview or a relief diagnostic mode, then enable textures plus support-map preview shading."
+            else "Enable textures and support-map preview shading. Legacy OpenGL also requires Enhanced Relief Preview or a relief diagnostic mode."
         )
-        for key in ("height_effect_max", "specular_max", "shininess_max"):
+        support_controls_enabled = bool(
+            self.use_textures_checkbox.isChecked()
+            and self.high_quality_checkbox.isChecked()
+        )
+        self.disable_all_support_maps_checkbox.setEnabled(support_controls_enabled)
+        per_slot_enabled = bool(support_controls_enabled and not self.disable_all_support_maps_checkbox.isChecked())
+        for checkbox in (
+            self.disable_normal_map_checkbox,
+            self.disable_material_map_checkbox,
+            self.disable_height_map_checkbox,
+        ):
+            checkbox.setEnabled(per_slot_enabled)
+        for key in ("normal_strength_cap", "height_effect_max", "specular_max", "shininess_max"):
             control = self._slider_controls.get(key)
             if control is not None:
                 control.setEnabled(relief_controls_enabled)

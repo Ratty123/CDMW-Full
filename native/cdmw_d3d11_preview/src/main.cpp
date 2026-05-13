@@ -107,6 +107,8 @@ struct ConstantBuffer {
     DirectX::XMFLOAT4 material_params;
     DirectX::XMFLOAT4 material_hints;
     DirectX::XMFLOAT4 flags3;
+    DirectX::XMFLOAT4 render_tuning;
+    DirectX::XMFLOAT4 render_tuning2;
 };
 
 struct RendererStats {
@@ -145,6 +147,16 @@ struct ViewSettings {
     bool invert_orbit_y = false;
     bool invert_pan_x = false;
     bool invert_pan_y = false;
+};
+
+struct RenderTuning {
+    int max_anisotropy = 16;
+    float ambient_strength = 0.55f;
+    float diffuse_light_scale = 0.65f;
+    float specular_base = 0.05f;
+    float specular_max = 0.18f;
+    float shininess_min = 28.0f;
+    float shininess_max = 72.0f;
 };
 
 static std::string wide_to_utf8(const std::wstring& text) {
@@ -647,6 +659,18 @@ static ViewSettings parse_view_settings(const std::string& manifest) {
     return settings;
 }
 
+static RenderTuning parse_render_tuning(const std::string& manifest) {
+    RenderTuning tuning;
+    tuning.max_anisotropy = std::clamp(json_int_field(manifest, "max_anisotropy", tuning.max_anisotropy), 1, 16);
+    tuning.ambient_strength = std::clamp(json_float_field(manifest, "ambient_strength", tuning.ambient_strength), 0.05f, 1.20f);
+    tuning.diffuse_light_scale = std::clamp(json_float_field(manifest, "diffuse_light_scale", tuning.diffuse_light_scale), 0.05f, 1.50f);
+    tuning.specular_base = std::clamp(json_float_field(manifest, "specular_base", tuning.specular_base), 0.0f, 0.50f);
+    tuning.specular_max = std::clamp(json_float_field(manifest, "specular_max", tuning.specular_max), tuning.specular_base, 1.00f);
+    tuning.shininess_min = std::clamp(json_float_field(manifest, "shininess_min", tuning.shininess_min), 1.0f, 128.0f);
+    tuning.shininess_max = std::clamp(json_float_field(manifest, "shininess_max", tuning.shininess_max), tuning.shininess_min, 256.0f);
+    return tuning;
+}
+
 static DirectX::XMFLOAT4 parse_hex_color(const std::string& hex, DirectX::XMFLOAT4 fallback) {
     if (hex.size() < 7 || hex[0] != '#') return fallback;
     try {
@@ -722,6 +746,8 @@ cbuffer Constants : register(b0) {
     float4 material_params;
     float4 material_hints;
     float4 flags3;
+    float4 render_tuning;
+    float4 render_tuning2;
 };
 Texture2D base_tex : register(t0);
 Texture2D normal_tex : register(t1);
@@ -809,6 +835,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
     if (material_hints.z > 0.02) {
         specular = max(specular, material_hints.z);
     }
+    specular = max(specular, render_tuning.z);
     if (flags.z > 0.5) {
         float4 m = material_tex.Sample(preview_sampler, uv);
         ao = min(ao, max(0.35, m.r));
@@ -841,6 +868,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
             specular = saturate(max(specular, detail_value * 0.16));
         }
     }
+    specular = min(specular, max(render_tuning.w, render_tuning.z));
     float height_value = 0.5;
     if (flags.w > 0.5) {
         height_value = height_tex.Sample(preview_sampler, uv).r;
@@ -864,10 +892,10 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float ndotl = saturate(dot(n, l));
     float3 view_dir = float3(0.0, 0.0, -1.0);
     float3 h = normalize(l - view_dir);
-    float shine_power = lerp(96.0, 10.0, roughness);
+    float shine_power = lerp(render_tuning2.y, render_tuning2.x, roughness);
     float highlight = pow(saturate(dot(n, h)), shine_power) * lerp(specular, max(specular, 0.72), metalness);
     float height_light = lerp(1.0 - material_params.y, 1.0 + material_params.y, height_value);
-    float3 diffuse = albedo * (0.28 + ndotl * 0.82) * ao * height_light * lerp(1.0, 0.72, metalness);
+    float3 diffuse = albedo * (render_tuning.x + ndotl * render_tuning.y) * ao * height_light * lerp(1.0, 0.72, metalness);
     float3 specular_color = lerp(highlight.xxx, highlight.xxx * max(albedo, 0.12), metalness);
     float3 color = diffuse + specular_color;
     return float4(linear_to_srgb(color), 1.0);
@@ -876,8 +904,8 @@ float4 ps_main(VSOut input) : SV_TARGET {
 
 class Renderer {
 public:
-    Renderer(HWND hwnd, const Args& args, std::vector<PreviewBatch> batches, RendererStats& stats, ViewSettings view_settings)
-        : hwnd_(hwnd), args_(args), batches_(std::move(batches)), stats_(stats), view_settings_(view_settings) {}
+    Renderer(HWND hwnd, const Args& args, std::vector<PreviewBatch> batches, RendererStats& stats, ViewSettings view_settings, RenderTuning render_tuning)
+        : hwnd_(hwnd), args_(args), batches_(std::move(batches)), stats_(stats), view_settings_(view_settings), render_tuning_(render_tuning) {}
 
     bool initialize() {
         RECT rect{};
@@ -1037,6 +1065,16 @@ public:
             constants.flags3 = DirectX::XMFLOAT4(
                 batch.detail_srv ? 1.0f : 0.0f,
                 0.0f,
+                0.0f,
+                0.0f);
+            constants.render_tuning = DirectX::XMFLOAT4(
+                render_tuning_.ambient_strength,
+                render_tuning_.diffuse_light_scale,
+                render_tuning_.specular_base,
+                render_tuning_.specular_max);
+            constants.render_tuning2 = DirectX::XMFLOAT4(
+                render_tuning_.shininess_min,
+                render_tuning_.shininess_max,
                 0.0f,
                 0.0f);
             context_->UpdateSubresource(constants_.Get(), 0, nullptr, &constants, 0, 0);
@@ -1250,7 +1288,7 @@ private:
         sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
         sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
         sampler_desc.MipLODBias = -0.85f;
-        sampler_desc.MaxAnisotropy = 16;
+        sampler_desc.MaxAnisotropy = static_cast<UINT>(std::clamp(render_tuning_.max_anisotropy, 1, 16));
         sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
         hr = device_->CreateSamplerState(&sampler_desc, sampler_.GetAddressOf());
         if (FAILED(hr)) return false;
@@ -1400,6 +1438,7 @@ private:
     std::vector<PreviewBatch> batches_;
     RendererStats& stats_;
     ViewSettings view_settings_;
+    RenderTuning render_tuning_;
     LONG width_ = 1;
     LONG height_ = 1;
     float yaw_ = kDefaultYawDegrees;
@@ -1461,6 +1500,7 @@ static int run_host(const Args& args) {
     RendererStats stats;
     std::vector<PreviewBatch> batches = parse_manifest_batches(args.preview_package, manifest, stats);
     ViewSettings view_settings = parse_view_settings(manifest);
+    RenderTuning render_tuning = parse_render_tuning(manifest);
     stats.manifest_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 
     WNDCLASSW wc{};
@@ -1508,7 +1548,7 @@ static int run_host(const Args& args) {
     }
 
     write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
-    Renderer renderer(hwnd, args, std::move(batches), stats, view_settings);
+    Renderer renderer(hwnd, args, std::move(batches), stats, view_settings, render_tuning);
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&renderer));
     if (!renderer.initialize()) {
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
