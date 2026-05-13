@@ -100,6 +100,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("native_preview_core_enabled", main_window_text)
         self.assertIn("preview-job", source_text)
         self.assertIn("--service", source_text)
+        self.assertIn("parse_pac_submeshes", source_text)
+        self.assertIn("crypt_chacha20_filename", source_text)
+        self.assertIn("lz4_decompress_block", source_text)
+        self.assertIn("dds_textures", source_text)
         self.assertIn("_get_native_preview_core_service", Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8"))
 
 

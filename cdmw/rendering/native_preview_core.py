@@ -70,7 +70,21 @@ class NativePreviewCoreAttempt:
         reason = self.fallback_reason or str(self.diagnostics.get("message") or "").strip()
         timing = f"{self.elapsed_ms:.1f} ms" if self.elapsed_ms > 0.0 else "n/a"
         if self.succeeded:
-            return f"Native Preview Core: active; package={self.package_path}; time={timing}."
+            batch_count = self.diagnostics.get("batch_count")
+            vertex_count = self.diagnostics.get("vertex_count")
+            dds_extracted = self.diagnostics.get("dds_extracted")
+            mesh_parser = str(self.diagnostics.get("native_mesh_parser") or "").strip()
+            metrics = []
+            if isinstance(batch_count, int):
+                metrics.append(f"batches={batch_count:,}")
+            if isinstance(vertex_count, int):
+                metrics.append(f"vertices={vertex_count:,}")
+            if isinstance(dds_extracted, int):
+                metrics.append(f"dds={dds_extracted:,}")
+            if mesh_parser:
+                metrics.append(f"parser={mesh_parser}")
+            suffix = f"; {'; '.join(metrics)}" if metrics else ""
+            return f"Native Preview Core: active; package={self.package_path}; time={timing}{suffix}."
         return f"Native Preview Core: fallback; reason={reason or self.status}; time={timing}."
 
 

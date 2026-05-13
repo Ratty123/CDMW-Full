@@ -2989,7 +2989,7 @@ def run_gui() -> int:
                     render_settings=self.render_settings,
                     companion_entry=self.companion_entry,
                     package_root=self.native_preview_core_package_root,
-                    timeout_seconds=3.0,
+                    timeout_seconds=8.0,
                     stop_event=self.stop_event,
                 )
             except RunCancelled:
