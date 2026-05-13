@@ -414,6 +414,8 @@ def _texture_sources_for_batch(
     high_quality_textures: bool,
     tangents_usable: bool,
     copy_cache: Dict[str, str],
+    enable_material_combiner: bool = True,
+    prefer_direct_dds: bool = False,
 ) -> Tuple[Dict[str, str], Tuple[str, ...], Dict[str, object]]:
     notes: list[str] = []
     textures: Dict[str, str] = {
@@ -441,6 +443,12 @@ def _texture_sources_for_batch(
     if not use_textures or not has_uv:
         notes.append("textures disabled" if not use_textures else "missing UVs")
         return textures, tuple(notes), combiner_metadata
+
+    direct_dds_slots = _dds_textures_for_batch(batch) if prefer_direct_dds else {}
+
+    def has_direct_dds(slot_name: str) -> bool:
+        entry = direct_dds_slots.get(slot_name)
+        return bool(isinstance(entry, Mapping) and entry.get("available") and entry.get("source_path"))
 
     def package_relative(source_ref: str, slot_name: str) -> str:
         raw = str(source_ref or "").strip()
@@ -475,38 +483,47 @@ def _texture_sources_for_batch(
 
     base_path = str(getattr(batch, "preview_texture_path", "") or "")
     if base_path:
-        textures["base"] = _copy_texture(
-            base_path,
-            package_dir=package_dir,
-            textures_dir=textures_dir,
-            batch_index=batch_index,
-            slot_name="base",
-            copy_cache=copy_cache,
-            notes=notes,
-        )
+        if has_direct_dds("base"):
+            notes.append("base PNG fallback skipped; direct DDS available")
+        else:
+            textures["base"] = _copy_texture(
+                base_path,
+                package_dir=package_dir,
+                textures_dir=textures_dir,
+                batch_index=batch_index,
+                slot_name="base",
+                copy_cache=copy_cache,
+                notes=notes,
+            )
     else:
         notes.append("no reliable base DDS")
 
     if support_enabled and not bool(getattr(render_settings, "disable_normal_map", False)):
-        textures["normal"] = _copy_texture(
-            str(getattr(batch, "preview_normal_texture_path", "") or ""),
-            package_dir=package_dir,
-            textures_dir=textures_dir,
-            batch_index=batch_index,
-            slot_name="normal",
-            copy_cache=copy_cache,
-            notes=notes,
-        )
+        if has_direct_dds("normal"):
+            notes.append("normal PNG fallback skipped; direct DDS available")
+        else:
+            textures["normal"] = _copy_texture(
+                str(getattr(batch, "preview_normal_texture_path", "") or ""),
+                package_dir=package_dir,
+                textures_dir=textures_dir,
+                batch_index=batch_index,
+                slot_name="normal",
+                copy_cache=copy_cache,
+                notes=notes,
+            )
     if support_enabled and not bool(getattr(render_settings, "disable_height_map", False)):
-        textures["height"] = _copy_texture(
-            str(getattr(batch, "preview_height_texture_path", "") or ""),
-            package_dir=package_dir,
-            textures_dir=textures_dir,
-            batch_index=batch_index,
-            slot_name="height",
-            copy_cache=copy_cache,
-            notes=notes,
-        )
+        if has_direct_dds("height"):
+            notes.append("height PNG fallback skipped; direct DDS available")
+        else:
+            textures["height"] = _copy_texture(
+                str(getattr(batch, "preview_height_texture_path", "") or ""),
+                package_dir=package_dir,
+                textures_dir=textures_dir,
+                batch_index=batch_index,
+                slot_name="height",
+                copy_cache=copy_cache,
+                notes=notes,
+            )
 
     material_inputs: Tuple[PreviewMaterialTextureInput, ...] = tuple(
         texture_input
@@ -536,7 +553,7 @@ def _texture_sources_for_batch(
                 "notes": ("legacy PBR response reused",),
             }
 
-    if not reused_legacy_pbr and (support_enabled or material_inputs):
+    if enable_material_combiner and not reused_legacy_pbr and (support_enabled or material_inputs):
         try:
             from cdmw.ui.model_preview_material_combiner import (
                 MaterialPreviewCombinerSettings,
@@ -664,6 +681,8 @@ def write_isolated_qtquick3d_preview_package(
     high_quality_textures: bool = True,
     backend: str = "d3d11",
     output_root: Optional[Path] = None,
+    enable_material_combiner: bool = True,
+    prefer_direct_dds: bool = False,
 ) -> Path:
     if not isinstance(prepared_preview, PreparedModelPreviewData):
         raise TypeError("prepared_preview must be PreparedModelPreviewData")
@@ -706,6 +725,8 @@ def write_isolated_qtquick3d_preview_package(
             high_quality_textures=bool(high_quality_textures),
             tangents_usable=tangents_usable,
             copy_cache=copy_cache,
+            enable_material_combiner=bool(enable_material_combiner),
+            prefer_direct_dds=bool(prefer_direct_dds),
         )
         total_vertices += vertex_count
         normal_strength = max(

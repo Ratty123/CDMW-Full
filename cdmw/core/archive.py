@@ -8777,6 +8777,110 @@ def _ensure_archive_model_texture_preview_path(
     return preview_path_text
 
 
+def _prefetch_archive_model_texture_preview_paths(
+    resolved_texconv_path: Path,
+    requests: Sequence[Tuple[ArchiveEntry, str, int]],
+    preview_cache: Dict[str, str],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> None:
+    if not requests:
+        return
+    try:
+        from cdmw.core.texture_native import ensure_directxtex_dds_preview_pngs
+    except Exception:
+        return
+
+    normalized_requests: List[Tuple[ArchiveEntry, str, int, str, Tuple[object, ...]]] = []
+    seen: set[Tuple[str, str, int]] = set()
+    for texture_entry, slot_kind, max_dimension in requests:
+        slot_key = str(slot_kind or "base").strip().lower() or "base"
+        resolved_max_dimension = max(1, int(max_dimension or _MODEL_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION))
+        normalized_path = _normalize_model_texture_reference(texture_entry.path)
+        if not normalized_path:
+            continue
+        local_key = f"{normalized_path}|{slot_key}"
+        dedupe_key = (normalized_path, slot_key, resolved_max_dimension)
+        if dedupe_key in seen or preview_cache.get(local_key):
+            continue
+        seen.add(dedupe_key)
+        cache_key: Tuple[object, ...] = (
+            _archive_entry_identity_signature(texture_entry),
+            _archive_entry_pathc_identity_signature(texture_entry),
+            _texconv_identity_signature(resolved_texconv_path),
+            resolved_max_dimension,
+            slot_key,
+        )
+        with _MODEL_TEXTURE_PREVIEW_PATH_CACHE_LOCK:
+            cached_preview_path = _MODEL_TEXTURE_PREVIEW_PATH_CACHE.get(cache_key)
+            if cached_preview_path:
+                cached_path = Path(cached_preview_path)
+                try:
+                    if cached_path.is_file() and cached_path.stat().st_size > 0:
+                        _MODEL_TEXTURE_PREVIEW_PATH_CACHE.move_to_end(cache_key)
+                        preview_cache[local_key] = cached_preview_path
+                        continue
+                except OSError:
+                    pass
+                _MODEL_TEXTURE_PREVIEW_PATH_CACHE.pop(cache_key, None)
+        normalized_requests.append((texture_entry, slot_key, resolved_max_dimension, local_key, cache_key))
+
+    if not normalized_requests:
+        return
+
+    jobs: List[Dict[str, object]] = []
+    by_source: Dict[str, Tuple[str, Tuple[object, ...]]] = {}
+    for texture_entry, slot_key, resolved_max_dimension, local_key, cache_key in normalized_requests:
+        raise_if_cancelled(stop_event)
+        try:
+            texture_source_path, _texture_note = ensure_archive_preview_source(texture_entry, stop_event=stop_event)
+            source_key = str(texture_source_path.expanduser().resolve())
+        except RunCancelled:
+            raise
+        except OSError:
+            continue
+        except Exception:
+            continue
+        jobs.append(
+            {
+                "dds_path": source_key,
+                "slot_kind": slot_key,
+                "max_dimension": resolved_max_dimension,
+                "normal_space": "opengl" if slot_key == "normal" else "auto",
+                "srgb": "auto",
+            }
+        )
+        by_source[source_key] = (local_key, cache_key)
+
+    if not jobs:
+        return
+
+    try:
+        timeout_seconds = max(10.0, min(180.0, 4.0 + (len(jobs) * 4.0)))
+        results = ensure_directxtex_dds_preview_pngs(jobs, timeout_seconds=timeout_seconds)
+    except RunCancelled:
+        raise
+    except Exception:
+        return
+    for source_key, preview_path in results.items():
+        mapped = by_source.get(str(source_key))
+        if mapped is None:
+            try:
+                mapped = by_source.get(str(Path(source_key).expanduser().resolve()))
+            except OSError:
+                mapped = None
+        if mapped is None:
+            continue
+        local_key, cache_key = mapped
+        preview_path_text = str(preview_path)
+        preview_cache[local_key] = preview_path_text
+        with _MODEL_TEXTURE_PREVIEW_PATH_CACHE_LOCK:
+            _MODEL_TEXTURE_PREVIEW_PATH_CACHE[cache_key] = preview_path_text
+            _MODEL_TEXTURE_PREVIEW_PATH_CACHE.move_to_end(cache_key)
+            while len(_MODEL_TEXTURE_PREVIEW_PATH_CACHE) > _MODEL_TEXTURE_PREVIEW_PATH_CACHE_LIMIT:
+                _MODEL_TEXTURE_PREVIEW_PATH_CACHE.popitem(last=False)
+
+
 def _model_preview_sidecar_tint(binding: _ArchiveModelSidecarTextureBinding) -> Tuple[float, float, float]:
     tint = tuple(getattr(binding, "tint_color", ()) or ())
     if len(tint) < 3:
@@ -9115,6 +9219,26 @@ def _attach_model_sidecar_texture_preview_paths(
                 global_visible_bindings.append((texture_entry, binding.parameter_name, binding.submesh_name, binding))
         if binding.sidecar_path and binding.sidecar_path not in sidecar_paths:
             sidecar_paths.append(binding.sidecar_path)
+
+    prefetch_requests: List[Tuple[ArchiveEntry, str, int]] = []
+    for _candidate_key, texture_entry, _parameter_name, _submesh_name, _binding in resolved_by_submesh.values():
+        prefetch_requests.append((texture_entry, "base", int(_MODEL_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION)))
+    mesh_count = max(1, len(tuple(getattr(model_preview, "meshes", ()) or ())))
+    for texture_entry, _parameter_name, _submesh_name, _binding in global_visible_bindings[:mesh_count]:
+        prefetch_requests.append((texture_entry, "base", int(_MODEL_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION)))
+    fallback_prefetch_limit = max(mesh_count * 2, 8)
+    for _candidate_key, texture_entry, _parameter_name, _submesh_name, _binding in sorted(
+        fallback_visible_bindings,
+        key=lambda item: item[0],
+        reverse=True,
+    )[:fallback_prefetch_limit]:
+        prefetch_requests.append((texture_entry, "base", int(_MODEL_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION)))
+    _prefetch_archive_model_texture_preview_paths(
+        resolved_texconv_path,
+        prefetch_requests,
+        preview_cache,
+        stop_event=stop_event,
+    )
 
     assigned_count = 0
     identity_override_count = 0
@@ -9976,6 +10100,23 @@ def _attach_model_support_texture_preview_paths(
                 )
         if binding.sidecar_path and binding.sidecar_path not in exact_sidecar_paths:
             exact_sidecar_paths.append(binding.sidecar_path)
+
+    support_prefetch_requests: List[Tuple[ArchiveEntry, str, int]] = []
+    support_max_dimension = int(_MODEL_SUPPORT_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION)
+    for (slot_name, _submesh_key), (_candidate_key, texture_entry, _parameter_name, _submesh_name) in exact_resolved_by_submesh.items():
+        support_prefetch_requests.append((texture_entry, slot_name, support_max_dimension))
+    for slot_name, bindings in exact_global_bindings.items():
+        for _candidate_key, texture_entry, _parameter_name, _submesh_name in bindings:
+            support_prefetch_requests.append((texture_entry, slot_name, support_max_dimension))
+    for candidates in exact_material_inputs_by_submesh.values():
+        for _candidate_key, texture_entry, _parameter_name, _binding in _select_rich_material_input_candidates(candidates):
+            support_prefetch_requests.append((texture_entry, "material", support_max_dimension))
+    _prefetch_archive_model_texture_preview_paths(
+        resolved_texconv_path,
+        support_prefetch_requests,
+        preview_cache,
+        stop_event=stop_event,
+    )
 
     for mesh_index, mesh in enumerate(model_preview.meshes):
         raise_if_cancelled(stop_event)

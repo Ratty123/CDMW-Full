@@ -5221,10 +5221,10 @@ def run_gui() -> int:
                 "Toggle only the 3D preview background between the themed dark background and a light background."
             )
             self.archive_model_preview_darkmode_button.setText("Dark")
-            self.archive_isolated_renderer_button = QPushButton("Open D3D11 Preview")
+            self.archive_isolated_renderer_button = QPushButton("D3D11 Preview")
             self.archive_isolated_renderer_button.setToolTip(
-                "Open a separate isolated Direct3D 11 preview process. "
-                "This does not replace the embedded preview."
+                "Open the native Direct3D 11 preview inside the Archive Preview panel. "
+                "Legacy OpenGL remains available as the fallback."
             )
             self.archive_isolated_renderer_button.setEnabled(False)
             self.archive_model_preview_reset_overrides_button = QPushButton("Reset")
@@ -5751,6 +5751,18 @@ def run_gui() -> int:
             )
             self.archive_model_preview.view_state_changed.connect(self._handle_archive_model_view_state_changed)
             self.archive_model_preview.debug_details_changed.connect(self._refresh_archive_preview_details_text)
+            self.archive_d3d11_preview_host = QFrame()
+            self.archive_d3d11_preview_host.setObjectName("NativeD3D11PreviewHost")
+            self.archive_d3d11_preview_host.setAttribute(Qt.WA_NativeWindow, True)
+            self.archive_d3d11_preview_host.setMinimumHeight(260)
+            self.archive_d3d11_preview_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            archive_d3d11_preview_layout = QVBoxLayout(self.archive_d3d11_preview_host)
+            archive_d3d11_preview_layout.setContentsMargins(0, 0, 0, 0)
+            archive_d3d11_preview_layout.setSpacing(0)
+            self.archive_d3d11_preview_status_label = QLabel("D3D11 preview is not running.")
+            self.archive_d3d11_preview_status_label.setObjectName("HintLabel")
+            self.archive_d3d11_preview_status_label.setAlignment(Qt.AlignCenter)
+            archive_d3d11_preview_layout.addWidget(self.archive_d3d11_preview_status_label)
             self.archive_media_preview = MediaPreviewWidget(
                 "Select an archive file to preview it here.",
                 theme_key=self.current_theme_key,
@@ -5761,6 +5773,7 @@ def run_gui() -> int:
             self.archive_preview_info_edit.document().setMaximumBlockCount(2000)
             self.archive_preview_stack.addWidget(self.archive_preview_scroll)
             self.archive_preview_stack.addWidget(self.archive_model_preview)
+            self.archive_preview_stack.addWidget(self.archive_d3d11_preview_host)
             self.archive_preview_stack.addWidget(self.archive_media_preview)
             self.archive_preview_stack.addWidget(self.archive_preview_text_edit)
             self.archive_preview_stack.addWidget(self.archive_preview_info_edit)
@@ -18112,7 +18125,7 @@ def run_gui() -> int:
                     "Native D3D11 preview host is not built. Build native/cdmw_d3d11_preview or set CDMW_D3D11_PREVIEW_BIN."
                 )
             theme_payload = self._archive_isolated_renderer_theme_payload()
-            return str(host_binary), [
+            arguments = [
                 "--backend",
                 "d3d11",
                 "--preview-package",
@@ -18124,6 +18137,14 @@ def run_gui() -> int:
                 "--theme-text",
                 theme_payload["text"],
             ]
+            try:
+                self.archive_d3d11_preview_host.setAttribute(Qt.WA_NativeWindow, True)
+                parent_hwnd = int(self.archive_d3d11_preview_host.winId())
+            except Exception:
+                parent_hwnd = 0
+            if parent_hwnd:
+                arguments.extend(["--parent-hwnd", str(parent_hwnd)])
+            return str(host_binary), arguments
 
         def _archive_isolated_renderer_theme_payload(self) -> Dict[str, str]:
             theme = get_theme(self.current_theme_key)
@@ -18165,18 +18186,18 @@ def run_gui() -> int:
             else:
                 combiner_mode_text = "none"
             return (
-                "Isolated Renderer: D3D11 child process; "
+                "Native D3D11 Preview: embedded child process; "
                 f"backend={backend}; batches={int(payload.get('batch_count', 0) or 0):,}; "
                 f"vertices={int(payload.get('vertex_count', 0) or 0):,}; textures={texture_text}\n"
-                "Isolated Timing: "
+                "Native D3D11 Timing: "
                 f"manifest={float(payload.get('manifest_read_ms', 0.0) or 0.0):.1f} ms; "
                 f"textures={float(payload.get('texture_bind_ms', 0.0) or 0.0):.1f} ms; "
                 f"geometry={float(payload.get('geometry_upload_ms', 0.0) or 0.0):.1f} ms; "
                 f"first_frame={float(payload.get('first_frame_ms', 0.0) or 0.0):.1f} ms\n"
-                "Isolated Material Combiner: "
+                "Native D3D11 Material Combiner: "
                 f"active_batches={int(payload.get('material_combiner_active', 0) or 0):,}; "
                 f"outputs={combiner_output_text}; decode={combiner_mode_text}\n"
-                f"Isolated Material Notes: skipped={skipped_text}"
+                f"Native D3D11 Material Notes: skipped={skipped_text}"
             )
 
         def _set_archive_isolated_renderer_debug(self, text: str) -> None:
@@ -18214,6 +18235,8 @@ def run_gui() -> int:
                     use_textures=bool(settings.use_textures_by_default),
                     high_quality_textures=bool(settings.high_quality_by_default),
                     backend="d3d11",
+                    enable_material_combiner=False,
+                    prefer_direct_dds=True,
                 )
             except Exception as exc:
                 self.set_status_message(f"Failed to prepare isolated D3D11 preview package: {exc}", error=True)
@@ -18266,8 +18289,10 @@ def run_gui() -> int:
             process.errorOccurred.connect(self._handle_archive_isolated_renderer_error)
             self.archive_isolated_renderer_process = process
             self.archive_isolated_renderer_active_process = process
+            self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
+            self.archive_d3d11_preview_status_label.setText("Starting native D3D11 preview...")
             self._set_archive_isolated_renderer_debug(
-                "Isolated Renderer: launching one-shot D3D11 preview. "
+                "Native D3D11 Preview: launching embedded one-shot preview. "
                 f"Package: {package_dir}\n"
                 "If Windows Defender quarantines this unsigned experimental build, submit the EXE to Microsoft for analysis before allowing it: "
                 "https://www.microsoft.com/wdsi/filesubmission"
@@ -18337,6 +18362,7 @@ def run_gui() -> int:
             if event == "loaded":
                 self._cleanup_archive_isolated_renderer_packages(include_active=False)
                 self._set_archive_isolated_renderer_debug(self._format_archive_isolated_renderer_debug(payload))
+                self.archive_d3d11_preview_status_label.setText("")
                 self.set_status_message("Isolated D3D11 preview loaded.")
             elif event == "loading":
                 stage = str(payload.get("stage", "") or "loading")
@@ -18351,9 +18377,11 @@ def run_gui() -> int:
                     "If Windows Defender quarantines this unsigned experimental build, submit the EXE to Microsoft for analysis before allowing it: "
                     "https://www.microsoft.com/wdsi/filesubmission"
                 )
+                self.archive_d3d11_preview_status_label.setText(message)
                 self.set_status_message(f"Isolated D3D11 renderer: {message}")
             elif event == "error":
                 message = str(payload.get("message", "") or "Renderer error.")
+                self.archive_d3d11_preview_status_label.setText(message)
                 self.set_status_message(f"Isolated D3D11 renderer error: {message}", error=True)
                 self._set_archive_isolated_renderer_debug(
                     f"Isolated Renderer error: {message}\n"
@@ -18361,6 +18389,7 @@ def run_gui() -> int:
                     "https://www.microsoft.com/wdsi/filesubmission"
                 )
             elif event == "closed":
+                self.archive_d3d11_preview_status_label.setText("D3D11 preview closed.")
                 self.set_status_message("Isolated D3D11 renderer closed.")
 
         def _handle_archive_isolated_renderer_error(self, error) -> None:
@@ -18385,6 +18414,8 @@ def run_gui() -> int:
             self.archive_isolated_renderer_active_process = None
             self.archive_isolated_renderer_status_timer.stop()
             self._cleanup_archive_isolated_renderer_packages(include_active=True)
+            if self.archive_preview_stack.currentWidget() is self.archive_d3d11_preview_host:
+                self.archive_preview_stack.setCurrentWidget(self.archive_model_preview)
             self.set_status_message(f"Isolated D3D11 renderer exited with code {int(exit_code)}.")
             if int(exit_code) != 0:
                 self._set_archive_isolated_renderer_debug(
@@ -18417,6 +18448,7 @@ def run_gui() -> int:
             self.archive_isolated_renderer_active_process = None
             self.archive_isolated_renderer_status_timer.stop()
             self._cleanup_archive_isolated_renderer_packages(include_active=True)
+            self.archive_d3d11_preview_status_label.setText("D3D11 preview is not running.")
 
         def _handle_archive_model_preview_reset_overrides(self) -> None:
             self.archive_model_preview.reset_preview_overrides()

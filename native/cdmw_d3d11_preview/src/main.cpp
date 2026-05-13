@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstring>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -31,6 +32,7 @@ struct Args {
     fs::path status_file;
     std::string theme_background = "#080b0e";
     std::string theme_text = "#c5ced8";
+    uintptr_t parent_hwnd = 0;
     bool self_test = false;
 };
 
@@ -202,6 +204,11 @@ static Args parse_args(int argc, wchar_t** argv) {
         else if (key == L"--status-file") args.status_file = next();
         else if (key == L"--theme-background") args.theme_background = wide_to_utf8(next());
         else if (key == L"--theme-text") args.theme_text = wide_to_utf8(next());
+        else if (key == L"--parent-hwnd") {
+            std::wstring value = next();
+            wchar_t* end = nullptr;
+            args.parent_hwnd = static_cast<uintptr_t>(_wcstoui64(value.c_str(), &end, 0));
+        }
     }
     return args;
 }
@@ -658,6 +665,7 @@ public:
 
     void render() {
         if (!context_ || !swap_chain_) return;
+        resize_if_needed();
         if (!first_frame_started_) {
             first_frame_timer_ = std::chrono::steady_clock::now();
             first_frame_started_ = true;
@@ -765,6 +773,30 @@ private:
         return SUCCEEDED(device_->CreateDepthStencilView(depth_texture.Get(), nullptr, depth_view_.GetAddressOf()));
     }
 
+    bool resize_if_needed() {
+        RECT rect{};
+        GetClientRect(hwnd_, &rect);
+        LONG next_width = std::max<LONG>(1, rect.right - rect.left);
+        LONG next_height = std::max<LONG>(1, rect.bottom - rect.top);
+        if (next_width == width_ && next_height == height_) {
+            return true;
+        }
+        width_ = next_width;
+        height_ = next_height;
+        if (context_) {
+            ID3D11RenderTargetView* null_target = nullptr;
+            context_->OMSetRenderTargets(1, &null_target, nullptr);
+        }
+        render_target_.Reset();
+        depth_view_.Reset();
+        HRESULT hr = swap_chain_->ResizeBuffers(0, static_cast<UINT>(width_), static_cast<UINT>(height_), DXGI_FORMAT_UNKNOWN, 0);
+        if (FAILED(hr)) {
+            stats_.skipped.push_back("swap chain resize failed");
+            return false;
+        }
+        return create_render_targets();
+    }
+
     bool create_pipeline() {
         clear_color_ = parse_hex_color(args_.theme_background, DirectX::XMFLOAT4(0.03f, 0.04f, 0.05f, 1.0f));
         std::string shader_error;
@@ -799,10 +831,12 @@ private:
         hr = device_->CreateBuffer(&cb_desc, nullptr, constants_.GetAddressOf());
         if (FAILED(hr)) return false;
         D3D11_SAMPLER_DESC sampler_desc{};
-        sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        sampler_desc.Filter = D3D11_FILTER_ANISOTROPIC;
         sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
         sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
         sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+        sampler_desc.MipLODBias = -0.35f;
+        sampler_desc.MaxAnisotropy = 8;
         sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
         hr = device_->CreateSamplerState(&sampler_desc, sampler_.GetAddressOf());
         if (FAILED(hr)) return false;
@@ -962,16 +996,34 @@ static int run_host(const Args& args) {
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     RegisterClassW(&wc);
 
+    HWND parent_hwnd = reinterpret_cast<HWND>(args.parent_hwnd);
+    RECT parent_rect{};
+    int window_x = CW_USEDEFAULT;
+    int window_y = CW_USEDEFAULT;
+    int window_width = 980;
+    int window_height = 720;
+    DWORD window_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+    if (parent_hwnd && IsWindow(parent_hwnd)) {
+        GetClientRect(parent_hwnd, &parent_rect);
+        window_x = 0;
+        window_y = 0;
+        window_width = std::max<LONG>(1, parent_rect.right - parent_rect.left);
+        window_height = std::max<LONG>(1, parent_rect.bottom - parent_rect.top);
+        window_style = WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+    } else {
+        parent_hwnd = nullptr;
+    }
+
     HWND hwnd = CreateWindowExW(
         0,
         wc.lpszClassName,
         L"CDMW Native D3D11 Preview",
-        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        980,
-        720,
-        nullptr,
+        window_style,
+        window_x,
+        window_y,
+        window_width,
+        window_height,
+        parent_hwnd,
         nullptr,
         wc.hInstance,
         nullptr);
@@ -990,6 +1042,7 @@ static int run_host(const Args& args) {
 
     MSG msg{};
     bool running = true;
+    auto last_parent_sync = std::chrono::steady_clock::now();
     while (running) {
         while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
             if (msg.message == WM_QUIT) {
@@ -998,6 +1051,20 @@ static int run_host(const Args& args) {
             }
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
+        }
+        if (running && parent_hwnd) {
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration<double, std::milli>(now - last_parent_sync).count() >= 100.0) {
+                last_parent_sync = now;
+                RECT rect{};
+                if (!IsWindow(parent_hwnd)) {
+                    running = false;
+                } else if (GetClientRect(parent_hwnd, &rect)) {
+                    int width = std::max<LONG>(1, rect.right - rect.left);
+                    int height = std::max<LONG>(1, rect.bottom - rect.top);
+                    SetWindowPos(hwnd, nullptr, 0, 0, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+                }
+            }
         }
         if (running) {
             renderer.render();
