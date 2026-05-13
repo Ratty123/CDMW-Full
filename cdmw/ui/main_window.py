@@ -605,6 +605,25 @@ def run_gui() -> int:
                 }
             )
 
+        def set_alignment_state(
+            self,
+            *,
+            enabled: bool,
+            source_submesh_indices: Sequence[int] = (),
+            translation_sensitivity: float = 0.85,
+            rotation_degrees_per_pixel: float = 0.18,
+        ) -> bool:
+            ordered = sorted({int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0})
+            return self._send_host_json_command(
+                {
+                    "command": "set_alignment_state",
+                    "enabled": bool(enabled),
+                    "source_submesh_indices": ordered,
+                    "translation_sensitivity": float(translation_sensitivity),
+                    "rotation_degrees_per_pixel": float(rotation_degrees_per_pixel),
+                }
+            )
+
         def set_mesh_edit_state(
             self,
             *,
@@ -676,6 +695,32 @@ def run_gui() -> int:
                         pass
                     self._fit_to_view = bool(payload.get("fit_to_view", self._fit_to_view))
                     self.view_state_changed.emit(float(self._zoom_factor), bool(self._fit_to_view))
+                elif event == "alignment_drag_started":
+                    self.alignment_drag_started.emit()
+                elif event == "alignment_drag_changed":
+                    self.alignment_drag_changed.emit(
+                        float(payload.get("x", 0.0) or 0.0),
+                        float(payload.get("y", 0.0) or 0.0),
+                        float(payload.get("z", 0.0) or 0.0),
+                    )
+                elif event == "alignment_drag_finished":
+                    self.alignment_drag_finished.emit(
+                        float(payload.get("x", 0.0) or 0.0),
+                        float(payload.get("y", 0.0) or 0.0),
+                        float(payload.get("z", 0.0) or 0.0),
+                    )
+                elif event == "alignment_rotation_changed":
+                    self.alignment_rotation_changed.emit(
+                        float(payload.get("x", 0.0) or 0.0),
+                        float(payload.get("y", 0.0) or 0.0),
+                        float(payload.get("z", 0.0) or 0.0),
+                    )
+                elif event == "alignment_rotation_finished":
+                    self.alignment_rotation_finished.emit(
+                        float(payload.get("x", 0.0) or 0.0),
+                        float(payload.get("y", 0.0) or 0.0),
+                        float(payload.get("z", 0.0) or 0.0),
+                    )
                 elif event == "mesh_edit_stroke_started":
                     self.mesh_edit_stroke_started.emit(payload.get("payload", {}))
                 elif event == "mesh_edit_stroke_previewed":
@@ -37607,11 +37652,12 @@ def run_gui() -> int:
                 if _alignment_d3d11_preview_active():
                     preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                     preview_help.setText(
-                        "Native D3D11 accurate preview. Mesh edit brush/vertex strokes run in D3D11; Legacy OpenGL edit remains available for older alignment handles."
+                        "Native D3D11 accurate preview. Mesh edit brush/vertex strokes and alignment handles run in D3D11; Legacy OpenGL edit remains as fallback."
                     )
                     alignment_preview_settings_button.setToolTip(
                         "Open 3D preview settings supported by the native D3D11 renderer, including lighting, support maps, depth, shine, and resolution."
                     )
+                    _sync_highlight_sets()
                     _queue_static_preview_refresh()
                     return
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
@@ -37636,6 +37682,12 @@ def run_gui() -> int:
                 highlighted_original_indices.update(hovered_original_highlight_indices)
                 if _alignment_d3d11_preview_active():
                     alignment_d3d11_preview_host.set_highlighted_source_submeshes(tuple(highlighted_source_indices))
+                    alignment_d3d11_preview_host.set_alignment_state(
+                        enabled=True,
+                        source_submesh_indices=tuple(selected_source_highlight_indices),
+                        translation_sensitivity=0.85,
+                        rotation_degrees_per_pixel=0.18,
+                    )
 
             def _set_preview_mode() -> None:
                 mode = str(preview_mode_combo.currentData() or "side_by_side")
@@ -47750,6 +47802,9 @@ def run_gui() -> int:
                 static_preview_refresh_timer.stop()
                 _sync_alignment_preview_rotation_context(preview_widget)
 
+            def _prepare_alignment_d3d11_preview_drag() -> None:
+                static_preview_refresh_timer.stop()
+
             def _commit_alignment_preview_translation(dx: float, dy: float, dz: float) -> None:
                 static_preview_refresh_timer.stop()
                 part_source_indices = _alignment_part_source_indices_for_commit()
@@ -47817,6 +47872,9 @@ def run_gui() -> int:
             alignment_d3d11_preview_host.mesh_edit_stroke_finished.connect(_mesh_edit_finish_stroke)
             alignment_d3d11_preview_host.mesh_edit_stroke_cancelled.connect(_mesh_edit_cancel_stroke)
             alignment_d3d11_preview_host.mesh_edit_selection_changed.connect(_mesh_edit_selection_changed)
+            alignment_d3d11_preview_host.alignment_drag_started.connect(_prepare_alignment_d3d11_preview_drag)
+            alignment_d3d11_preview_host.alignment_drag_finished.connect(_commit_alignment_preview_translation)
+            alignment_d3d11_preview_host.alignment_rotation_finished.connect(_commit_alignment_preview_rotation)
             preview_controls_ready["ready"] = True
             dialog.finished.connect(lambda _result=0: _shutdown_alignment_d3d11_preview())
             QTimer.singleShot(0, _set_preview_renderer)

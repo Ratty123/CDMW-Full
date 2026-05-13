@@ -137,6 +137,27 @@ struct MeshEditState {
     std::set<std::pair<int, int>> selected_vertices;
 };
 
+struct AlignmentState {
+    bool enabled = false;
+    std::set<int> selected_source_submeshes;
+    std::string hover_axis;
+    std::string drag_axis;
+    bool drag_active = false;
+    bool rotation_drag_active = false;
+    bool rotation_drag_roll = false;
+    float translation_sensitivity = 0.85f;
+    float rotation_degrees_per_pixel = 0.18f;
+    int last_x = 0;
+    int last_y = 0;
+    DirectX::XMFLOAT3 translation_total{0.0f, 0.0f, 0.0f};
+    DirectX::XMFLOAT3 rotation_total{0.0f, 0.0f, 0.0f};
+};
+
+struct ScreenPoint {
+    float x = 0.0f;
+    float y = 0.0f;
+};
+
 struct ConstantBuffer {
     DirectX::XMFLOAT4X4 mvp;
     DirectX::XMFLOAT4 light_dir;
@@ -1051,6 +1072,11 @@ public:
         mesh_edit_.drag_active = false;
         mesh_edit_.drag_candidates.clear();
         mesh_edit_.selected_vertices.clear();
+        alignment_.drag_active = false;
+        alignment_.rotation_drag_active = false;
+        alignment_.hover_axis.clear();
+        alignment_.drag_axis.clear();
+        alignment_.selected_source_submeshes.clear();
         if (reset_view_state) {
             reset_view();
         }
@@ -1089,6 +1115,10 @@ public:
                 result = 0;
                 return true;
             }
+            if (begin_alignment_drag(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                result = 0;
+                return true;
+            }
             [[fallthrough]];
         case WM_MBUTTONDOWN:
         case WM_RBUTTONDOWN:
@@ -1100,11 +1130,20 @@ public:
                 result = 0;
                 return true;
             }
+            if (update_alignment_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam), wparam)) {
+                result = 0;
+                return true;
+            }
+            update_alignment_hover(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             update_mouse_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             result = 0;
             return drag_mode_ != 0;
         case WM_LBUTTONUP:
             if (finish_mesh_edit_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                result = 0;
+                return true;
+            }
+            if (finish_alignment_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam), wparam)) {
                 result = 0;
                 return true;
             }
@@ -1116,6 +1155,7 @@ public:
             return true;
         case WM_CAPTURECHANGED:
             cancel_mesh_edit_drag();
+            cancel_alignment_drag();
             drag_mode_ = 0;
             drag_button_ = 0;
             return false;
@@ -1238,6 +1278,7 @@ public:
             context_->PSSetShaderResources(0, 9, clear_srvs);
         }
         swap_chain_->Present(1, 0);
+        draw_alignment_overlay_gdi();
         if (!first_frame_reported_) {
             stats_.first_frame_ms = std::chrono::duration<double, std::milli>(
                 std::chrono::steady_clock::now() - first_frame_timer_).count();
@@ -1303,6 +1344,326 @@ private:
         screen_x = (clip.x * 0.5f + 0.5f) * static_cast<float>(width_);
         screen_y = (0.5f - clip.y * 0.5f) * static_cast<float>(height_);
         return std::isfinite(screen_x) && std::isfinite(screen_y);
+    }
+
+    bool alignment_batch_active(const PreviewBatch& batch) const {
+        return alignment_.selected_source_submeshes.empty()
+            || alignment_.selected_source_submeshes.find(batch.source_submesh_index) != alignment_.selected_source_submeshes.end();
+    }
+
+    bool alignment_handle_origin(DirectX::XMFLOAT3& origin) const {
+        bool found = false;
+        float min_x = 0.0f;
+        float min_y = 0.0f;
+        float min_z = 0.0f;
+        float max_x = 0.0f;
+        float max_y = 0.0f;
+        float max_z = 0.0f;
+        for (const PreviewBatch& batch : batches_) {
+            if (!alignment_batch_active(batch)) continue;
+            for (const DirectX::XMFLOAT3& position : batch.cpu_positions) {
+                if (!found) {
+                    min_x = max_x = position.x;
+                    min_y = max_y = position.y;
+                    min_z = max_z = position.z;
+                    found = true;
+                    continue;
+                }
+                min_x = std::min(min_x, position.x);
+                min_y = std::min(min_y, position.y);
+                min_z = std::min(min_z, position.z);
+                max_x = std::max(max_x, position.x);
+                max_y = std::max(max_y, position.y);
+                max_z = std::max(max_z, position.z);
+            }
+        }
+        if (!found) return false;
+        origin = DirectX::XMFLOAT3(
+            (min_x + max_x) * 0.5f + alignment_.translation_total.x,
+            (min_y + max_y) * 0.5f + alignment_.translation_total.y,
+            (min_z + max_z) * 0.5f + alignment_.translation_total.z);
+        return true;
+    }
+
+    std::map<std::string, std::pair<ScreenPoint, ScreenPoint>> alignment_axis_points() const {
+        std::map<std::string, std::pair<ScreenPoint, ScreenPoint>> points;
+        if (!alignment_.enabled || batches_.empty()) return points;
+        DirectX::XMFLOAT3 origin{};
+        if (!alignment_handle_origin(origin)) return points;
+        float origin_x = 0.0f;
+        float origin_y = 0.0f;
+        if (!project_position(origin, origin_x, origin_y)) return points;
+        constexpr float kAxisExtent = 0.72f;
+        const std::pair<const char*, DirectX::XMFLOAT3> axes[] = {
+            {"x", DirectX::XMFLOAT3(origin.x + kAxisExtent, origin.y, origin.z)},
+            {"y", DirectX::XMFLOAT3(origin.x, origin.y + kAxisExtent, origin.z)},
+            {"z", DirectX::XMFLOAT3(origin.x, origin.y, origin.z + kAxisExtent)},
+        };
+        for (const auto& axis : axes) {
+            float end_x = 0.0f;
+            float end_y = 0.0f;
+            if (!project_position(axis.second, end_x, end_y)) continue;
+            points[axis.first] = std::pair<ScreenPoint, ScreenPoint>(
+                ScreenPoint{origin_x, origin_y},
+                ScreenPoint{end_x, end_y});
+        }
+        return points;
+    }
+
+    static float distance_to_segment(float x, float y, const ScreenPoint& start, const ScreenPoint& end) {
+        float vx = end.x - start.x;
+        float vy = end.y - start.y;
+        float length_sq = vx * vx + vy * vy;
+        if (length_sq <= 1e-8f) {
+            return std::hypot(x - start.x, y - start.y);
+        }
+        float t = std::clamp(((x - start.x) * vx + (y - start.y) * vy) / length_sq, 0.0f, 1.0f);
+        float closest_x = start.x + vx * t;
+        float closest_y = start.y + vy * t;
+        return std::hypot(x - closest_x, y - closest_y);
+    }
+
+    std::string alignment_axis_at(int x, int y) const {
+        if (!alignment_.enabled) return "";
+        DirectX::XMFLOAT3 origin{};
+        if (alignment_handle_origin(origin)) {
+            float origin_x = 0.0f;
+            float origin_y = 0.0f;
+            if (project_position(origin, origin_x, origin_y) && std::hypot(static_cast<float>(x) - origin_x, static_cast<float>(y) - origin_y) <= 18.0f) {
+                return "screen";
+            }
+        }
+        std::string best_axis;
+        float best_distance = 20.0f;
+        for (const auto& [axis, segment] : alignment_axis_points()) {
+            float distance = distance_to_segment(static_cast<float>(x), static_cast<float>(y), segment.first, segment.second);
+            if (distance < best_distance) {
+                best_axis = axis;
+                best_distance = distance;
+            }
+        }
+        return best_axis;
+    }
+
+    DirectX::XMFLOAT3 alignment_screen_drag_delta(int delta_x, int delta_y, float units_per_pixel) const {
+        DirectX::XMMATRIX rotation = DirectX::XMMatrixRotationRollPitchYaw(
+            DirectX::XMConvertToRadians(pitch_),
+            DirectX::XMConvertToRadians(yaw_),
+            0.0f);
+        DirectX::XMVECTOR determinant{};
+        DirectX::XMMATRIX inverse_rotation = DirectX::XMMatrixInverse(&determinant, rotation);
+        DirectX::XMVECTOR right = DirectX::XMVector3TransformNormal(DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), inverse_rotation);
+        DirectX::XMVECTOR up = DirectX::XMVector3TransformNormal(DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), inverse_rotation);
+        DirectX::XMVECTOR horizontal = DirectX::XMVectorScale(right, static_cast<float>(delta_x) * units_per_pixel);
+        DirectX::XMVECTOR vertical = DirectX::XMVectorScale(up, static_cast<float>(delta_y) * units_per_pixel);
+        DirectX::XMVECTOR delta = DirectX::XMVectorSubtract(horizontal, vertical);
+        DirectX::XMFLOAT3 output{};
+        DirectX::XMStoreFloat3(&output, delta);
+        return output;
+    }
+
+    void send_alignment_vector_event(const char* event_name, const DirectX::XMFLOAT3& value) const {
+        std::ostringstream out;
+        out << "{\"event\":\"" << json_escape(event_name ? event_name : "") << "\""
+            << ",\"x\":" << value.x
+            << ",\"y\":" << value.y
+            << ",\"z\":" << value.z
+            << "}";
+        send_json_event(out.str());
+    }
+
+    void send_alignment_started_event(const char* mode, const char* axis) const {
+        std::ostringstream out;
+        out << "{\"event\":\"alignment_drag_started\""
+            << ",\"mode\":\"" << json_escape(mode ? mode : "") << "\""
+            << ",\"axis\":\"" << json_escape(axis ? axis : "") << "\""
+            << "}";
+        send_json_event(out.str());
+    }
+
+    bool begin_alignment_drag(WPARAM wparam, int x, int y) {
+        if (!alignment_.enabled || mesh_edit_.enabled) return false;
+        bool alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
+        bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+        if (alt_down) {
+            alignment_.rotation_drag_active = true;
+            alignment_.rotation_drag_roll = shift_down;
+            alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+            alignment_.last_x = x;
+            alignment_.last_y = y;
+            SetCapture(hwnd_);
+            send_alignment_started_event("rotation", alignment_.rotation_drag_roll ? "roll" : "orbit");
+            return true;
+        }
+        std::string axis = alignment_axis_at(x, y);
+        if (axis.empty()) return false;
+        alignment_.drag_axis = axis;
+        alignment_.hover_axis = axis;
+        alignment_.drag_active = true;
+        alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.last_x = x;
+        alignment_.last_y = y;
+        SetCapture(hwnd_);
+        send_alignment_started_event("translation", axis.c_str());
+        return true;
+    }
+
+    bool update_alignment_translation_drag(int x, int y, WPARAM wparam) {
+        if (!alignment_.drag_active || alignment_.drag_axis.empty()) return false;
+        int delta_x = x - alignment_.last_x;
+        int delta_y = y - alignment_.last_y;
+        alignment_.last_x = x;
+        alignment_.last_y = y;
+        if (delta_x == 0 && delta_y == 0) return true;
+        bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+        bool ctrl_down = (wparam & MK_CONTROL) != 0 || (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+        float movement_scale = shift_down ? 0.10f : (ctrl_down ? 4.0f : 1.0f);
+        float units_per_pixel = world_units_per_pixel() * std::max(0.01f, alignment_.translation_sensitivity) * movement_scale;
+        DirectX::XMFLOAT3 delta(0.0f, 0.0f, 0.0f);
+        if (alignment_.drag_axis == "screen") {
+            delta = alignment_screen_drag_delta(delta_x, delta_y, units_per_pixel);
+        } else {
+            auto points = alignment_axis_points();
+            auto found = points.find(alignment_.drag_axis);
+            if (found == points.end()) return true;
+            float axis_dx = found->second.second.x - found->second.first.x;
+            float axis_dy = found->second.second.y - found->second.first.y;
+            float axis_length = std::max(std::hypot(axis_dx, axis_dy), 1.0f);
+            float projected_pixels = (static_cast<float>(delta_x) * axis_dx + static_cast<float>(delta_y) * axis_dy) / axis_length;
+            float movement = projected_pixels * units_per_pixel;
+            if (alignment_.drag_axis == "x") delta.x = movement;
+            else if (alignment_.drag_axis == "y") delta.y = movement;
+            else if (alignment_.drag_axis == "z") delta.z = movement;
+        }
+        alignment_.translation_total.x += delta.x;
+        alignment_.translation_total.y += delta.y;
+        alignment_.translation_total.z += delta.z;
+        send_alignment_vector_event("alignment_drag_changed", alignment_.translation_total);
+        return true;
+    }
+
+    bool update_alignment_rotation_drag(int x, int y, WPARAM wparam) {
+        if (!alignment_.rotation_drag_active) return false;
+        int delta_x = x - alignment_.last_x;
+        int delta_y = y - alignment_.last_y;
+        alignment_.last_x = x;
+        alignment_.last_y = y;
+        if (delta_x == 0 && delta_y == 0) return true;
+        bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+        bool ctrl_down = (wparam & MK_CONTROL) != 0 || (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+        float degrees_per_pixel = std::max(0.001f, alignment_.rotation_degrees_per_pixel);
+        if (ctrl_down) degrees_per_pixel *= 4.0f;
+        else if (shift_down && !alignment_.rotation_drag_roll) degrees_per_pixel *= 0.25f;
+        DirectX::XMFLOAT3 delta(0.0f, 0.0f, 0.0f);
+        if (alignment_.rotation_drag_roll) {
+            delta.z = static_cast<float>(delta_x) * degrees_per_pixel;
+        } else {
+            delta.x = static_cast<float>(delta_y) * degrees_per_pixel;
+            delta.y = static_cast<float>(delta_x) * degrees_per_pixel;
+        }
+        alignment_.rotation_total.x += delta.x;
+        alignment_.rotation_total.y += delta.y;
+        alignment_.rotation_total.z += delta.z;
+        send_alignment_vector_event("alignment_rotation_changed", alignment_.rotation_total);
+        return true;
+    }
+
+    bool update_alignment_drag(int x, int y, WPARAM wparam) {
+        if (alignment_.rotation_drag_active) return update_alignment_rotation_drag(x, y, wparam);
+        if (alignment_.drag_active) return update_alignment_translation_drag(x, y, wparam);
+        return false;
+    }
+
+    void update_alignment_hover(int x, int y) {
+        if (!alignment_.enabled || mesh_edit_.enabled || alignment_.drag_active || alignment_.rotation_drag_active) {
+            return;
+        }
+        alignment_.hover_axis = alignment_axis_at(x, y);
+    }
+
+    bool finish_alignment_drag(int x, int y, WPARAM wparam) {
+        if (alignment_.rotation_drag_active) {
+            update_alignment_rotation_drag(x, y, wparam);
+            send_alignment_vector_event("alignment_rotation_finished", alignment_.rotation_total);
+            alignment_.rotation_drag_active = false;
+            alignment_.rotation_drag_roll = false;
+            alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+            if (GetCapture() == hwnd_) ReleaseCapture();
+            return true;
+        }
+        if (alignment_.drag_active) {
+            update_alignment_translation_drag(x, y, wparam);
+            send_alignment_vector_event("alignment_drag_finished", alignment_.translation_total);
+            alignment_.drag_active = false;
+            alignment_.drag_axis.clear();
+            alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+            if (GetCapture() == hwnd_) ReleaseCapture();
+            return true;
+        }
+        return false;
+    }
+
+    bool cancel_alignment_drag() {
+        bool was_active = alignment_.drag_active || alignment_.rotation_drag_active;
+        alignment_.drag_active = false;
+        alignment_.rotation_drag_active = false;
+        alignment_.rotation_drag_roll = false;
+        alignment_.drag_axis.clear();
+        alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        return was_active;
+    }
+
+    void draw_alignment_overlay_gdi() const {
+        if (!alignment_.enabled || width_ <= 1 || height_ <= 1) return;
+        auto points = alignment_axis_points();
+        if (points.empty()) return;
+        HDC dc = GetDC(hwnd_);
+        if (!dc) return;
+        int old_bk_mode = SetBkMode(dc, TRANSPARENT);
+        COLORREF old_text_color = SetTextColor(dc, RGB(226, 232, 240));
+        HPEN old_pen = reinterpret_cast<HPEN>(SelectObject(dc, GetStockObject(DC_PEN)));
+        HBRUSH old_brush = reinterpret_cast<HBRUSH>(SelectObject(dc, GetStockObject(NULL_BRUSH)));
+        const auto draw_axis = [&](const char* axis, COLORREF color, const ScreenPoint& start, const ScreenPoint& end) {
+            bool active = alignment_.drag_axis == axis || alignment_.hover_axis == axis;
+            SetDCPenColor(dc, color);
+            SelectObject(dc, GetStockObject(DC_PEN));
+            MoveToEx(dc, static_cast<int>(std::round(start.x)), static_cast<int>(std::round(start.y)), nullptr);
+            LineTo(dc, static_cast<int>(std::round(end.x)), static_cast<int>(std::round(end.y)));
+            int radius = active ? 8 : 6;
+            Ellipse(
+                dc,
+                static_cast<int>(std::round(end.x)) - radius,
+                static_cast<int>(std::round(end.y)) - radius,
+                static_cast<int>(std::round(end.x)) + radius,
+                static_cast<int>(std::round(end.y)) + radius);
+            TextOutA(dc, static_cast<int>(std::round(end.x)) + 8, static_cast<int>(std::round(end.y)) - 8, axis, 1);
+        };
+        for (const auto& [axis, segment] : points) {
+            COLORREF color = RGB(239, 68, 68);
+            if (axis == "y") color = RGB(59, 130, 246);
+            else if (axis == "z") color = RGB(34, 197, 94);
+            draw_axis(axis.c_str(), color, segment.first, segment.second);
+        }
+        const ScreenPoint& origin = points.begin()->second.first;
+        bool screen_active = alignment_.drag_axis == "screen" || alignment_.hover_axis == "screen";
+        SetDCPenColor(dc, RGB(255, 244, 179));
+        int radius = screen_active ? 10 : 8;
+        Ellipse(
+            dc,
+            static_cast<int>(std::round(origin.x)) - radius,
+            static_cast<int>(std::round(origin.y)) - radius,
+            static_cast<int>(std::round(origin.x)) + radius,
+            static_cast<int>(std::round(origin.y)) + radius);
+        MoveToEx(dc, static_cast<int>(std::round(origin.x)) - radius + 3, static_cast<int>(std::round(origin.y)), nullptr);
+        LineTo(dc, static_cast<int>(std::round(origin.x)) + radius - 3, static_cast<int>(std::round(origin.y)));
+        MoveToEx(dc, static_cast<int>(std::round(origin.x)), static_cast<int>(std::round(origin.y)) - radius + 3, nullptr);
+        LineTo(dc, static_cast<int>(std::round(origin.x)), static_cast<int>(std::round(origin.y)) + radius - 3);
+        SelectObject(dc, old_pen);
+        SelectObject(dc, old_brush);
+        SetTextColor(dc, old_text_color);
+        SetBkMode(dc, old_bk_mode);
+        ReleaseDC(hwnd_, dc);
     }
 
     float mesh_edit_falloff_weight(float distance_pixels, float radius_pixels) const {
@@ -1663,6 +2024,27 @@ private:
                 cancel_mesh_edit_drag();
             }
             send_json_event("{\"event\":\"mesh_edit_state\",\"ok\":true}");
+            return true;
+        }
+        if (command == "set_alignment_state") {
+            alignment_.enabled = json_bool_field(payload, "enabled", alignment_.enabled);
+            alignment_.translation_sensitivity = std::clamp(
+                json_float_field(payload, "translation_sensitivity", alignment_.translation_sensitivity),
+                0.05f,
+                10.0f);
+            alignment_.rotation_degrees_per_pixel = std::clamp(
+                json_float_field(payload, "rotation_degrees_per_pixel", alignment_.rotation_degrees_per_pixel),
+                0.001f,
+                8.0f);
+            alignment_.selected_source_submeshes.clear();
+            for (int value : json_int_array_field(payload, "source_submesh_indices")) {
+                if (value >= 0) alignment_.selected_source_submeshes.insert(value);
+            }
+            if (!alignment_.enabled) {
+                cancel_alignment_drag();
+                alignment_.hover_axis.clear();
+            }
+            send_json_event("{\"event\":\"alignment_state\",\"ok\":true}");
             return true;
         }
         if (command == "clear_mesh_edit_selection") {
@@ -2058,6 +2440,7 @@ private:
     float pan_x_ = 0.0f;
     float pan_y_ = 0.0f;
     float pan_z_ = 0.0f;
+    AlignmentState alignment_;
     MeshEditState mesh_edit_;
     int drag_mode_ = 0;
     UINT drag_button_ = 0;
