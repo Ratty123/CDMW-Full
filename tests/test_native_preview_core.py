@@ -104,7 +104,24 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("crypt_chacha20_filename", source_text)
         self.assertIn("lz4_decompress_block", source_text)
         self.assertIn("dds_textures", source_text)
+        self.assertIn("parse_pam_submeshes", source_text)
+        self.assertIn("parse_pamlod_submeshes", source_text)
+        self.assertIn("material_sidecars", source_text)
+        self.assertIn("native_sidecar_index", source_text)
         self.assertIn("_get_native_preview_core_service", Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8"))
+
+    def test_archive_preview_worker_owns_native_preview_core_helpers(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        archive_worker_start = source.index("class ArchivePreviewWorker(QObject):")
+        d3d11_worker_start = source.index("class ArchiveD3D11PackageWorker(QObject):")
+        archive_worker_source = source[archive_worker_start:d3d11_worker_start]
+        d3d11_worker_source = source[d3d11_worker_start:source.index("class AlignmentD3D11PackageWorker(QObject):")]
+
+        self.assertIn("def _try_native_preview_core", archive_worker_source)
+        self.assertIn("def _native_preview_core_result", archive_worker_source)
+        self.assertIn("def _attach_native_preview_core_note", archive_worker_source)
+        self.assertNotIn("def _try_native_preview_core", d3d11_worker_source)
+        self.assertNotIn("self._try_native_preview_core()", d3d11_worker_source)
 
 
 if __name__ == "__main__":

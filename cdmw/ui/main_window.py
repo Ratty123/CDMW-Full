@@ -2915,65 +2915,6 @@ def run_gui() -> int:
                 return None
             return image
 
-    class ArchiveD3D11PackageWorker(QObject):
-        completed = Signal(int, int, object, float)
-        error = Signal(int, int, str)
-        finished = Signal()
-
-        def __init__(
-            self,
-            request_id: int,
-            archive_preview_request_id: int,
-            preview_model: object,
-            prepared_preview: PreparedModelPreviewData,
-            render_settings: ModelPreviewRenderSettings,
-            *,
-            use_textures: bool,
-            high_quality_textures: bool,
-        ) -> None:
-            super().__init__()
-            self.request_id = int(request_id)
-            self.archive_preview_request_id = int(archive_preview_request_id)
-            self.preview_model = preview_model
-            self.prepared_preview = prepared_preview
-            self.render_settings = clamp_model_preview_render_settings(render_settings)
-            self.use_textures = bool(use_textures)
-            self.high_quality_textures = bool(high_quality_textures)
-            self.stop_event = threading.Event()
-
-        def stop(self) -> None:
-            self.stop_event.set()
-
-        @Slot()
-        def run(self) -> None:
-            try:
-                if self.stop_event.is_set():
-                    return
-                started = time.perf_counter()
-                package_dir = write_isolated_d3d11_preview_package(
-                    self.preview_model,
-                    self.prepared_preview,
-                    render_settings=self.render_settings,
-                    use_textures=self.use_textures,
-                    high_quality_textures=self.high_quality_textures,
-                    backend="d3d11",
-                    enable_material_combiner=False,
-                    prefer_direct_dds=True,
-                )
-                elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
-                if not self.stop_event.is_set():
-                    self.completed.emit(self.request_id, self.archive_preview_request_id, package_dir, elapsed_ms)
-                else:
-                    try:
-                        shutil.rmtree(package_dir, ignore_errors=True)
-                    except OSError:
-                        pass
-            except Exception as exc:
-                if not self.stop_event.is_set():
-                    self.error.emit(self.request_id, self.archive_preview_request_id, str(exc))
-            finally:
-                self.finished.emit()
-
         def _try_native_preview_core(self) -> Optional[NativePreviewCoreAttempt]:
             if not self.native_preview_core_enabled or self.entry is None:
                 return None
@@ -3048,6 +2989,65 @@ def run_gui() -> int:
                 detail_text=updated_detail,
                 native_preview_diagnostics=diagnostics,
             )
+
+    class ArchiveD3D11PackageWorker(QObject):
+        completed = Signal(int, int, object, float)
+        error = Signal(int, int, str)
+        finished = Signal()
+
+        def __init__(
+            self,
+            request_id: int,
+            archive_preview_request_id: int,
+            preview_model: object,
+            prepared_preview: PreparedModelPreviewData,
+            render_settings: ModelPreviewRenderSettings,
+            *,
+            use_textures: bool,
+            high_quality_textures: bool,
+        ) -> None:
+            super().__init__()
+            self.request_id = int(request_id)
+            self.archive_preview_request_id = int(archive_preview_request_id)
+            self.preview_model = preview_model
+            self.prepared_preview = prepared_preview
+            self.render_settings = clamp_model_preview_render_settings(render_settings)
+            self.use_textures = bool(use_textures)
+            self.high_quality_textures = bool(high_quality_textures)
+            self.stop_event = threading.Event()
+
+        def stop(self) -> None:
+            self.stop_event.set()
+
+        @Slot()
+        def run(self) -> None:
+            try:
+                if self.stop_event.is_set():
+                    return
+                started = time.perf_counter()
+                package_dir = write_isolated_d3d11_preview_package(
+                    self.preview_model,
+                    self.prepared_preview,
+                    render_settings=self.render_settings,
+                    use_textures=self.use_textures,
+                    high_quality_textures=self.high_quality_textures,
+                    backend="d3d11",
+                    enable_material_combiner=False,
+                    prefer_direct_dds=True,
+                )
+                elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
+                if not self.stop_event.is_set():
+                    self.completed.emit(self.request_id, self.archive_preview_request_id, package_dir, elapsed_ms)
+                else:
+                    try:
+                        shutil.rmtree(package_dir, ignore_errors=True)
+                    except OSError:
+                        pass
+            except Exception as exc:
+                if not self.stop_event.is_set():
+                    self.error.emit(self.request_id, self.archive_preview_request_id, str(exc))
+            finally:
+                self.finished.emit()
 
     class AlignmentD3D11PackageWorker(QObject):
         completed = Signal(int, object, float, float)

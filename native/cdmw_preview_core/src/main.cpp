@@ -10,11 +10,13 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <regex>
 #include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -182,6 +184,20 @@ static std::string basename_from_path(const std::string& path) {
     return slash == std::string::npos ? path : path.substr(slash + 1);
 }
 
+static std::string dirname_from_path(const std::string& path) {
+    const size_t slash = path.find_last_of("/\\");
+    return slash == std::string::npos ? "" : path.substr(0, slash);
+}
+
+static std::string stem_from_path(const std::string& path) {
+    std::string base = basename_from_path(path);
+    const std::string ext = extension_from_path(base);
+    if (!ext.empty() && base.size() > ext.size()) {
+        base.resize(base.size() - ext.size());
+    }
+    return base;
+}
+
 struct ArchiveEntryRef {
     std::string path;
     std::string basename;
@@ -278,6 +294,7 @@ struct NativeSubmesh {
     std::vector<Vec2> uvs;
     std::vector<Vec3> normals;
     std::vector<std::uint32_t> indices;
+    std::vector<std::int32_t> source_vertex_indices;
     int source_submesh_index = -1;
 };
 
@@ -304,12 +321,17 @@ struct NativePackage {
     std::string material_index = "none";
     std::string texture_resolution = "none";
     std::vector<std::string> notes;
+    int lod_count = 0;
 };
 
 static std::uint16_t read_u16(const std::vector<char>& data, size_t offset) {
     if (offset + 2 > data.size()) throw std::runtime_error("u16 read outside buffer");
     const auto* p = reinterpret_cast<const unsigned char*>(data.data() + offset);
     return static_cast<std::uint16_t>(p[0] | (p[1] << 8));
+}
+
+static std::int16_t read_i16(const std::vector<char>& data, size_t offset) {
+    return static_cast<std::int16_t>(read_u16(data, offset));
 }
 
 static std::uint32_t read_u32(const std::vector<char>& data, size_t offset) {
@@ -350,6 +372,34 @@ static float half_to_float(std::uint16_t value) {
     float result = 0.0f;
     std::memcpy(&result, &out, sizeof(float));
     return std::isfinite(result) ? result : 0.0f;
+}
+
+static std::string read_c_string(const std::vector<char>& data, size_t offset, size_t max_length) {
+    if (offset >= data.size()) return "";
+    const size_t limit = std::min(data.size(), offset + max_length);
+    size_t end = offset;
+    while (end < limit && data[end] != '\0') ++end;
+    if (end <= offset) return "";
+    std::string out(data.data() + offset, data.data() + end);
+    out.erase(std::remove_if(out.begin(), out.end(), [](unsigned char ch) {
+        return ch < 0x20 || ch > 0x7E;
+    }), out.end());
+    return out;
+}
+
+static bool looks_like_dds_string(const std::vector<char>& data, size_t offset, size_t max_length = 256) {
+    if (offset >= data.size()) return false;
+    if (offset > 0) {
+        const unsigned char previous = static_cast<unsigned char>(data[offset - 1]);
+        if (previous >= 32 && previous <= 126) return false;
+    }
+    const size_t limit = std::min(data.size(), offset + max_length);
+    size_t end = offset;
+    while (end < limit && data[end] != '\0') ++end;
+    const size_t length = end - offset;
+    if (length <= 4 || length > 255) return false;
+    std::string text(data.data() + offset, data.data() + end);
+    return lower_copy(text).ends_with(".dds");
 }
 
 EntryJob parse_job(const fs::path& job_path) {
@@ -550,8 +600,44 @@ static std::vector<char> decode_archive_ref_bytes(const ArchiveEntryRef& entry, 
     throw std::runtime_error("unsupported archive compression type " + std::to_string(entry.compression_type()));
 }
 
+static std::string archive_ref_identity(const ArchiveEntryRef& entry) {
+    return entry.pamt_path.string() + "|" + entry.paz_file.string() + "|" + entry.path + "|" +
+        std::to_string(entry.offset) + "|" + std::to_string(entry.comp_size) + "|" +
+        std::to_string(entry.orig_size) + "|" + std::to_string(entry.flags);
+}
+
+static std::unordered_map<std::string, std::vector<char>> g_decoded_entry_cache;
+static size_t g_decoded_entry_cache_bytes = 0;
+static constexpr size_t kDecodedEntryCacheMaxEntries = 1024;
+static constexpr size_t kDecodedEntryCacheMaxBytes = 512ull * 1024ull * 1024ull;
+
+static size_t decoded_entry_cache_entries() {
+    return g_decoded_entry_cache.size();
+}
+
+static size_t decoded_entry_cache_bytes() {
+    return g_decoded_entry_cache_bytes;
+}
+
 static std::vector<char> read_archive_ref_decoded_bytes(const ArchiveEntryRef& entry) {
-    return decode_archive_ref_bytes(entry, read_archive_ref_raw_bytes(entry));
+    const std::string key = archive_ref_identity(entry);
+    auto found = g_decoded_entry_cache.find(key);
+    if (found != g_decoded_entry_cache.end()) {
+        return found->second;
+    }
+    std::vector<char> decoded = decode_archive_ref_bytes(entry, read_archive_ref_raw_bytes(entry));
+    if (decoded.size() <= 64ull * 1024ull * 1024ull) {
+        if (
+            g_decoded_entry_cache.size() >= kDecodedEntryCacheMaxEntries ||
+            g_decoded_entry_cache_bytes + decoded.size() > kDecodedEntryCacheMaxBytes
+        ) {
+            g_decoded_entry_cache.clear();
+            g_decoded_entry_cache_bytes = 0;
+        }
+        g_decoded_entry_cache_bytes += decoded.size();
+        g_decoded_entry_cache.emplace(key, decoded);
+    }
+    return decoded;
 }
 
 static std::vector<char> read_entry_decoded_bytes(const EntryJob& job) {
@@ -780,6 +866,7 @@ struct PamtIndex {
     fs::path pamt_path;
     std::unordered_map<std::string, std::vector<ArchiveEntryRef>> by_basename;
     std::unordered_map<std::string, ArchiveEntryRef> by_path;
+    std::vector<ArchiveEntryRef> material_sidecars;
     size_t entry_count = 0;
 };
 
@@ -901,6 +988,17 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
         ref.flags = flags;
         index.by_basename[lower_copy(ref.basename)].push_back(ref);
         index.by_path[lower_copy(full_path)] = ref;
+        if (
+            ref.extension == ".pami" ||
+            ref.extension == ".pac_xml" ||
+            ref.extension == ".pam_xml" ||
+            ref.extension == ".pamlod_xml" ||
+            ref.extension == ".material" ||
+            ref.extension == ".technique" ||
+            ref.extension == ".prefab"
+        ) {
+            index.material_sidecars.push_back(ref);
+        }
     }
     return index;
 }
@@ -1242,6 +1340,7 @@ static NativeSubmesh decode_pac_submesh_vertices(
             decode_pac_position(yu, desc.bbox_min.y, desc.bbox_extent.y),
             decode_pac_position(zu, desc.bbox_min.z, desc.bbox_extent.z),
         });
+        mesh.source_vertex_indices.push_back(static_cast<std::int32_t>(vi));
         const float u = half_to_float(read_u16(data, rec_off + 8));
         const float v = half_to_float(read_u16(data, rec_off + 10));
         mesh.uvs.push_back(Vec2{std::isfinite(u) ? u : 0.0f, std::isfinite(v) ? v : 0.0f});
@@ -1375,6 +1474,595 @@ static std::vector<NativeSubmesh> parse_pac_submeshes(const std::vector<char>& d
         return a.geom_section_idx > b.geom_section_idx;
     });
     return std::move(candidates.front().meshes);
+}
+
+struct NativeMeshParseResult {
+    std::vector<NativeSubmesh> meshes;
+    std::string parser;
+    int lod_count = 0;
+};
+
+static float dequantize_u16(std::uint16_t value, float minimum, float maximum) {
+    return minimum + (static_cast<float>(value) / 65535.0f) * (maximum - minimum);
+}
+
+static float dequantize_i16(std::int16_t value, float minimum, float maximum) {
+    return minimum + ((static_cast<float>(value) + 32768.0f) / 65536.0f) * (maximum - minimum);
+}
+
+static void compute_missing_normals(NativeSubmesh& mesh) {
+    if (mesh.normals.size() == mesh.positions.size()) return;
+    mesh.normals.assign(mesh.positions.size(), Vec3{});
+    for (size_t i = 0; i + 2 < mesh.indices.size(); i += 3) {
+        const std::uint32_t ia = mesh.indices[i];
+        const std::uint32_t ib = mesh.indices[i + 1];
+        const std::uint32_t ic = mesh.indices[i + 2];
+        if (ia >= mesh.positions.size() || ib >= mesh.positions.size() || ic >= mesh.positions.size()) continue;
+        const Vec3 ab = vec_sub(mesh.positions[ib], mesh.positions[ia]);
+        const Vec3 ac = vec_sub(mesh.positions[ic], mesh.positions[ia]);
+        const Vec3 normal = vec_cross(ab, ac);
+        if (vec_dot(normal, normal) <= 1.0e-18f) continue;
+        mesh.normals[ia] = vec_add(mesh.normals[ia], normal);
+        mesh.normals[ib] = vec_add(mesh.normals[ib], normal);
+        mesh.normals[ic] = vec_add(mesh.normals[ic], normal);
+    }
+    for (Vec3& normal : mesh.normals) {
+        normal = vec_normalize(normal);
+    }
+}
+
+static bool native_mesh_renderable(const NativeSubmesh& mesh) {
+    if (mesh.positions.size() < 3 || mesh.indices.size() < 3) return false;
+    Vec3 min_v{1.0e30f, 1.0e30f, 1.0e30f};
+    Vec3 max_v{-1.0e30f, -1.0e30f, -1.0e30f};
+    for (const Vec3& p : mesh.positions) {
+        min_v.x = std::min(min_v.x, p.x); min_v.y = std::min(min_v.y, p.y); min_v.z = std::min(min_v.z, p.z);
+        max_v.x = std::max(max_v.x, p.x); max_v.y = std::max(max_v.y, p.y); max_v.z = std::max(max_v.z, p.z);
+    }
+    const float dim = std::max({max_v.x - min_v.x, max_v.y - min_v.y, max_v.z - min_v.z});
+    if (dim <= 1.0e-9f || !std::isfinite(dim)) return false;
+    int non_degenerate = 0;
+    for (size_t i = 0; i + 2 < mesh.indices.size(); i += 3) {
+        const std::uint32_t ia = mesh.indices[i];
+        const std::uint32_t ib = mesh.indices[i + 1];
+        const std::uint32_t ic = mesh.indices[i + 2];
+        if (ia >= mesh.positions.size() || ib >= mesh.positions.size() || ic >= mesh.positions.size()) continue;
+        const Vec3 normal = vec_cross(vec_sub(mesh.positions[ib], mesh.positions[ia]), vec_sub(mesh.positions[ic], mesh.positions[ia]));
+        if (vec_dot(normal, normal) > 1.0e-18f && ++non_degenerate >= 1) return true;
+    }
+    return false;
+}
+
+static void finalize_native_meshes(std::vector<NativeSubmesh>& meshes) {
+    std::vector<NativeSubmesh> filtered;
+    filtered.reserve(meshes.size());
+    for (NativeSubmesh& mesh : meshes) {
+        if (!native_mesh_renderable(mesh)) continue;
+        compute_missing_normals(mesh);
+        filtered.push_back(std::move(mesh));
+    }
+    meshes = std::move(filtered);
+}
+
+struct RawPamEntry {
+    int index = 0;
+    std::uint32_t vertex_count = 0;
+    std::uint32_t index_count = 0;
+    std::uint32_t vertex_element_offset = 0;
+    std::uint32_t index_element_offset = 0;
+    std::string texture_name;
+    std::string material_name;
+};
+
+static constexpr int kPamSubmeshTableOffset = 1040;
+static constexpr int kPamSubmeshStride = 536;
+static constexpr int kPamHeaderMeshCountOffset = 16;
+static constexpr int kPamHeaderBboxMinOffset = 20;
+static constexpr int kPamHeaderBboxMaxOffset = 32;
+static constexpr int kPamHeaderGeomOffset = 60;
+static constexpr int kPamGlobalVertexBase = 3068;
+static constexpr int kPamGlobalIndexOffset = 104512;
+static constexpr int kPamTextureNameOffset = 16;
+static constexpr int kPamMaterialNameOffset = 272;
+static constexpr int kPamNameMaxLength = 256;
+static constexpr int kPamlodHeaderLodCountOffset = 0;
+static constexpr int kPamlodHeaderGeomOffset = 4;
+static constexpr int kPamlodHeaderBboxMinOffset = 16;
+static constexpr int kPamlodHeaderBboxMaxOffset = 28;
+static constexpr int kPamlodEntryTableOffset = 80;
+
+static const std::array<int, 16> kPamCandidateStrides = {
+    6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40
+};
+static const std::array<int, 16> kPamGlobalVertexBaseCandidates = {
+    kPamGlobalVertexBase, 0, 256, 512, 1024, 1536, 2048, 2560,
+    2816, 3328, 3584, 4096, 4608, 5120, 6144, 7168
+};
+
+static Vec3 read_vec3_f32(const std::vector<char>& data, size_t offset) {
+    return Vec3{read_f32(data, offset), read_f32(data, offset + 4), read_f32(data, offset + 8)};
+}
+
+static std::vector<RawPamEntry> read_pam_entries(const std::vector<char>& data, int mesh_count) {
+    std::vector<RawPamEntry> entries;
+    for (int i = 0; i < mesh_count; ++i) {
+        const size_t off = static_cast<size_t>(kPamSubmeshTableOffset) + static_cast<size_t>(i) * kPamSubmeshStride;
+        if (off + kPamSubmeshStride > data.size()) break;
+        entries.push_back(RawPamEntry{
+            i,
+            read_u32(data, off),
+            read_u32(data, off + 4),
+            read_u32(data, off + 8),
+            read_u32(data, off + 12),
+            read_c_string(data, off + kPamTextureNameOffset, kPamNameMaxLength),
+            read_c_string(data, off + kPamMaterialNameOffset, kPamNameMaxLength),
+        });
+    }
+    return entries;
+}
+
+static bool pam_uses_combined_layout(const std::vector<RawPamEntry>& entries) {
+    if (entries.size() <= 1) return false;
+    std::uint32_t expected_vertex_offset = 0;
+    std::uint32_t expected_index_offset = 0;
+    for (const RawPamEntry& entry : entries) {
+        if (entry.vertex_element_offset != expected_vertex_offset || entry.index_element_offset != expected_index_offset) return false;
+        expected_vertex_offset += entry.vertex_count;
+        expected_index_offset += entry.index_count;
+    }
+    return true;
+}
+
+static bool indices_fit_vertex_count(
+    const std::vector<char>& data,
+    size_t index_offset,
+    std::uint32_t index_count,
+    std::uint32_t vertex_count
+) {
+    if (index_offset + static_cast<size_t>(index_count) * 2u > data.size()) return false;
+    for (std::uint32_t i = 0; i < index_count; ++i) {
+        if (read_u16(data, index_offset + static_cast<size_t>(i) * 2u) >= vertex_count) return false;
+    }
+    return true;
+}
+
+static NativeSubmesh parse_quantized_pam_mesh(
+    const std::vector<char>& data,
+    const RawPamEntry& raw,
+    size_t vertex_base,
+    size_t index_offset,
+    int stride,
+    const Vec3& bbox_min,
+    const Vec3& bbox_max
+) {
+    NativeSubmesh mesh;
+    mesh.name = raw.texture_name.empty() ? raw.material_name : raw.texture_name;
+    mesh.material = raw.material_name.empty() ? raw.texture_name : raw.material_name;
+    mesh.source_submesh_index = raw.index;
+    if (vertex_base >= data.size() || index_offset + static_cast<size_t>(raw.index_count) * 2u > data.size()) return mesh;
+    std::vector<std::uint32_t> source_indices;
+    source_indices.reserve(raw.index_count);
+    std::set<std::uint32_t> unique_indices;
+    for (std::uint32_t i = 0; i < raw.index_count; ++i) {
+        std::uint32_t index = read_u16(data, index_offset + static_cast<size_t>(i) * 2u);
+        source_indices.push_back(index);
+        unique_indices.insert(index);
+    }
+    std::unordered_map<std::uint32_t, std::uint32_t> source_to_local;
+    for (std::uint32_t source_index : unique_indices) {
+        const size_t voff = vertex_base + static_cast<size_t>(source_index) * static_cast<size_t>(stride);
+        if (voff + 6 > data.size()) continue;
+        source_to_local[source_index] = static_cast<std::uint32_t>(mesh.positions.size());
+        mesh.positions.push_back(Vec3{
+            dequantize_u16(read_u16(data, voff), bbox_min.x, bbox_max.x),
+            dequantize_u16(read_u16(data, voff + 2), bbox_min.y, bbox_max.y),
+            dequantize_u16(read_u16(data, voff + 4), bbox_min.z, bbox_max.z),
+        });
+        mesh.source_vertex_indices.push_back(static_cast<std::int32_t>(source_index));
+        if (stride >= 12 && voff + 12 <= data.size()) {
+            mesh.uvs.push_back(Vec2{
+                half_to_float(read_u16(data, voff + 8)),
+                half_to_float(read_u16(data, voff + 10)),
+            });
+        } else {
+            mesh.uvs.push_back(Vec2{});
+        }
+    }
+    for (size_t i = 0; i + 2 < source_indices.size(); i += 3) {
+        auto a = source_to_local.find(source_indices[i]);
+        auto b = source_to_local.find(source_indices[i + 1]);
+        auto c = source_to_local.find(source_indices[i + 2]);
+        if (a == source_to_local.end() || b == source_to_local.end() || c == source_to_local.end()) continue;
+        if (a->second == b->second || b->second == c->second || a->second == c->second) continue;
+        mesh.indices.push_back(a->second);
+        mesh.indices.push_back(b->second);
+        mesh.indices.push_back(c->second);
+    }
+    return mesh;
+}
+
+static NativeSubmesh parse_global_pam_mesh_at(
+    const std::vector<char>& data,
+    const RawPamEntry& raw,
+    int geom_offset,
+    const Vec3& bbox_min,
+    const Vec3& bbox_max,
+    size_t index_offset,
+    int global_vertex_base
+) {
+    NativeSubmesh mesh;
+    mesh.name = raw.texture_name.empty() ? raw.material_name : raw.texture_name;
+    mesh.material = raw.material_name.empty() ? raw.texture_name : raw.material_name;
+    mesh.source_submesh_index = raw.index;
+    if (index_offset + static_cast<size_t>(raw.index_count) * 2u > data.size()) return mesh;
+    std::vector<std::uint32_t> source_indices;
+    source_indices.reserve(raw.index_count);
+    std::set<std::uint32_t> unique_indices;
+    for (std::uint32_t i = 0; i < raw.index_count; ++i) {
+        std::uint32_t index = read_u16(data, index_offset + static_cast<size_t>(i) * 2u);
+        source_indices.push_back(index);
+        unique_indices.insert(index);
+    }
+    std::unordered_map<std::uint32_t, std::uint32_t> source_to_local;
+    for (std::uint32_t source_index : unique_indices) {
+        const int vertex_index = static_cast<int>(source_index) - global_vertex_base;
+        if (vertex_index < 0) continue;
+        const size_t voff = static_cast<size_t>(geom_offset) + static_cast<size_t>(vertex_index) * 6u;
+        if (voff + 6 > data.size()) continue;
+        source_to_local[source_index] = static_cast<std::uint32_t>(mesh.positions.size());
+        mesh.positions.push_back(Vec3{
+            dequantize_i16(read_i16(data, voff), bbox_min.x, bbox_max.x),
+            dequantize_i16(read_i16(data, voff + 2), bbox_min.y, bbox_max.y),
+            dequantize_i16(read_i16(data, voff + 4), bbox_min.z, bbox_max.z),
+        });
+        mesh.uvs.push_back(Vec2{});
+        mesh.source_vertex_indices.push_back(static_cast<std::int32_t>(source_index));
+    }
+    for (size_t i = 0; i + 2 < source_indices.size(); i += 3) {
+        auto a = source_to_local.find(source_indices[i]);
+        auto b = source_to_local.find(source_indices[i + 1]);
+        auto c = source_to_local.find(source_indices[i + 2]);
+        if (a == source_to_local.end() || b == source_to_local.end() || c == source_to_local.end()) continue;
+        if (a->second == b->second || b->second == c->second || a->second == c->second) continue;
+        mesh.indices.push_back(a->second);
+        mesh.indices.push_back(b->second);
+        mesh.indices.push_back(c->second);
+    }
+    return mesh;
+}
+
+static float mesh_parse_score(const NativeSubmesh& mesh, const RawPamEntry& raw) {
+    if (!native_mesh_renderable(mesh)) return -1.0e30f;
+    std::set<std::uint32_t> referenced;
+    int non_degenerate = 0;
+    float max_edge2 = 0.0f;
+    for (size_t i = 0; i + 2 < mesh.indices.size(); i += 3) {
+        const std::uint32_t ia = mesh.indices[i];
+        const std::uint32_t ib = mesh.indices[i + 1];
+        const std::uint32_t ic = mesh.indices[i + 2];
+        if (ia >= mesh.positions.size() || ib >= mesh.positions.size() || ic >= mesh.positions.size()) continue;
+        referenced.insert(ia); referenced.insert(ib); referenced.insert(ic);
+        const Vec3 ab = vec_sub(mesh.positions[ib], mesh.positions[ia]);
+        const Vec3 ac = vec_sub(mesh.positions[ic], mesh.positions[ia]);
+        if (vec_dot(vec_cross(ab, ac), vec_cross(ab, ac)) > 1.0e-18f) ++non_degenerate;
+        max_edge2 = std::max({max_edge2, vec_dot(ab, ab), vec_dot(ac, ac), vec_dot(vec_sub(mesh.positions[ic], mesh.positions[ib]), vec_sub(mesh.positions[ic], mesh.positions[ib]))});
+    }
+    const float face_ratio = static_cast<float>(mesh.indices.size() / 3u) / static_cast<float>(std::max<std::uint32_t>(1, raw.index_count / 3u));
+    const float ref_ratio = static_cast<float>(referenced.size()) / static_cast<float>(std::max<size_t>(1, mesh.positions.size()));
+    const float nondeg_ratio = static_cast<float>(non_degenerate) / static_cast<float>(std::max<size_t>(1, mesh.indices.size() / 3u));
+    return face_ratio * 4.0f + ref_ratio * 3.0f + nondeg_ratio * 2.0f - std::sqrt(std::max(0.0f, max_edge2)) * 0.35f;
+}
+
+static std::vector<int> pam_global_index_offset_candidates(
+    const std::vector<char>& data,
+    int geom_offset,
+    const RawPamEntry& raw
+) {
+    std::vector<int> candidates;
+    if (raw.index_count < 120 || raw.vertex_count < 256) return candidates;
+    const int sample_count = static_cast<int>(std::min<std::uint32_t>(raw.index_count, 180));
+    const int min_unique = std::min<int>(static_cast<int>(raw.vertex_count), std::max(12, std::min(24, sample_count / 6)));
+    int search_start = std::max(kPamGlobalIndexOffset, geom_offset);
+    int search_stop = static_cast<int>(data.size()) - sample_count * 2;
+    if (search_stop <= search_start) return candidates;
+    if (search_stop - search_start > 8 * 1024 * 1024) search_stop = search_start + 8 * 1024 * 1024;
+    const int max_index_value = static_cast<int>(raw.vertex_count) + 8192;
+    const auto started = std::chrono::steady_clock::now();
+    for (int off = search_start; off <= search_stop; off += 2) {
+        if ((off & 0x1FF) == 0) {
+            const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+            if (elapsed > 0.35) break;
+        }
+        std::set<std::uint16_t> sampled;
+        bool valid = true;
+        for (int i = 0; i < sample_count; i += 3) {
+            const std::uint16_t value = read_u16(data, static_cast<size_t>(off) + static_cast<size_t>(i) * 2u);
+            if (value > max_index_value) {
+                valid = false;
+                break;
+            }
+            sampled.insert(value);
+        }
+        if (!valid || static_cast<int>(sampled.size()) < min_unique) continue;
+        candidates.push_back(off);
+        if (candidates.size() >= 12) break;
+    }
+    return candidates;
+}
+
+static NativeSubmesh parse_best_global_pam_mesh(
+    const std::vector<char>& data,
+    const RawPamEntry& raw,
+    int geom_offset,
+    const Vec3& bbox_min,
+    const Vec3& bbox_max
+) {
+    NativeSubmesh best = parse_global_pam_mesh_at(
+        data,
+        raw,
+        geom_offset,
+        bbox_min,
+        bbox_max,
+        static_cast<size_t>(kPamGlobalIndexOffset) + static_cast<size_t>(raw.index_element_offset) * 2u,
+        kPamGlobalVertexBase
+    );
+    float best_score = mesh_parse_score(best, raw);
+    for (int candidate_index_offset : pam_global_index_offset_candidates(data, geom_offset, raw)) {
+        for (int global_vertex_base : kPamGlobalVertexBaseCandidates) {
+            NativeSubmesh candidate = parse_global_pam_mesh_at(
+                data,
+                raw,
+                geom_offset,
+                bbox_min,
+                bbox_max,
+                static_cast<size_t>(candidate_index_offset),
+                global_vertex_base
+            );
+            const float score = mesh_parse_score(candidate, raw);
+            if (score > best_score) {
+                best_score = score;
+                best = std::move(candidate);
+            }
+        }
+    }
+    return best;
+}
+
+static std::optional<std::pair<int, size_t>> find_combined_pam_layout(
+    const std::vector<char>& data,
+    const std::vector<RawPamEntry>& entries,
+    int geom_offset
+) {
+    std::uint64_t total_vertices = 0;
+    std::uint64_t total_indices = 0;
+    for (const RawPamEntry& entry : entries) {
+        total_vertices += entry.vertex_count;
+        total_indices += entry.index_count;
+    }
+    if (total_vertices == 0 || total_indices == 0 || geom_offset < 0 || static_cast<size_t>(geom_offset) >= data.size()) return std::nullopt;
+    const double target_stride = static_cast<double>(data.size() - static_cast<size_t>(geom_offset) - total_indices * 2u) / static_cast<double>(total_vertices);
+    std::vector<int> strides(kPamCandidateStrides.begin(), kPamCandidateStrides.end());
+    std::sort(strides.begin(), strides.end(), [target_stride](int a, int b) {
+        return std::abs(static_cast<double>(a) - target_stride) < std::abs(static_cast<double>(b) - target_stride);
+    });
+    for (int stride : strides) {
+        const size_t index_block = static_cast<size_t>(geom_offset) + static_cast<size_t>(total_vertices) * static_cast<size_t>(stride);
+        if (index_block + static_cast<size_t>(total_indices) * 2u > data.size()) continue;
+        bool ok = true;
+        for (const RawPamEntry& entry : entries) {
+            if (!indices_fit_vertex_count(data, index_block + static_cast<size_t>(entry.index_element_offset) * 2u, entry.index_count, entry.vertex_count)) {
+                ok = false;
+                break;
+            }
+        }
+        if (ok) return std::make_pair(stride, index_block);
+    }
+    return std::nullopt;
+}
+
+static std::optional<std::pair<int, size_t>> find_local_pam_layout(
+    const std::vector<char>& data,
+    int geom_offset,
+    const RawPamEntry& raw
+) {
+    const size_t vertex_base = static_cast<size_t>(geom_offset) + raw.vertex_element_offset;
+    if (vertex_base >= data.size()) return std::nullopt;
+    for (int stride : kPamCandidateStrides) {
+        const size_t index_offset = vertex_base + static_cast<size_t>(raw.vertex_count) * static_cast<size_t>(stride);
+        if (indices_fit_vertex_count(data, index_offset, raw.index_count, raw.vertex_count)) {
+            return std::make_pair(stride, index_offset);
+        }
+    }
+    return std::nullopt;
+}
+
+static NativeMeshParseResult parse_pam_submeshes(const std::vector<char>& data) {
+    if (data.size() < 64 || std::string(data.data(), data.data() + 4) != "PAR ") {
+        throw std::runtime_error("selected PAM is missing a PAR header");
+    }
+    const Vec3 bbox_min = read_vec3_f32(data, kPamHeaderBboxMinOffset);
+    const Vec3 bbox_max = read_vec3_f32(data, kPamHeaderBboxMaxOffset);
+    const int geom_offset = static_cast<int>(read_u32(data, kPamHeaderGeomOffset));
+    const int mesh_count = static_cast<int>(read_u32(data, kPamHeaderMeshCountOffset));
+    if (geom_offset <= 0 || static_cast<size_t>(geom_offset) >= data.size() || mesh_count <= 0 || mesh_count > 4096) {
+        throw std::runtime_error("PAM geometry header is invalid");
+    }
+    std::vector<RawPamEntry> entries = read_pam_entries(data, mesh_count);
+    if (entries.empty()) throw std::runtime_error("PAM submesh table is empty");
+
+    if (pam_uses_combined_layout(entries)) {
+        auto layout = find_combined_pam_layout(data, entries, geom_offset);
+        if (layout.has_value()) {
+            std::vector<NativeSubmesh> meshes;
+            for (const RawPamEntry& raw : entries) {
+                if (raw.vertex_count == 0 || raw.index_count < 3) continue;
+                meshes.push_back(parse_quantized_pam_mesh(
+                    data,
+                    raw,
+                    static_cast<size_t>(geom_offset) + static_cast<size_t>(raw.vertex_element_offset) * static_cast<size_t>(layout->first),
+                    layout->second + static_cast<size_t>(raw.index_element_offset) * 2u,
+                    layout->first,
+                    bbox_min,
+                    bbox_max
+                ));
+            }
+            finalize_native_meshes(meshes);
+            if (!meshes.empty()) return NativeMeshParseResult{std::move(meshes), "native_pam_combined", 0};
+        }
+    }
+
+    std::vector<NativeSubmesh> local_meshes;
+    const std::uint32_t max_global_index_count = data.size() > kPamGlobalIndexOffset
+        ? static_cast<std::uint32_t>((data.size() - kPamGlobalIndexOffset) / 2u)
+        : 0u;
+    bool used_global = false;
+    for (const RawPamEntry& raw : entries) {
+        if (raw.vertex_count == 0 || raw.index_count < 3) continue;
+        auto local_layout = find_local_pam_layout(data, geom_offset, raw);
+        if (local_layout.has_value()) {
+            local_meshes.push_back(parse_quantized_pam_mesh(
+                data,
+                raw,
+                static_cast<size_t>(geom_offset) + raw.vertex_element_offset,
+                local_layout->second,
+                local_layout->first,
+                bbox_min,
+                bbox_max
+            ));
+        } else if (raw.index_element_offset + raw.index_count <= max_global_index_count) {
+            used_global = true;
+            local_meshes.push_back(parse_best_global_pam_mesh(data, raw, geom_offset, bbox_min, bbox_max));
+        }
+    }
+    finalize_native_meshes(local_meshes);
+    if (local_meshes.empty()) throw std::runtime_error("native PAM parser found no renderable geometry");
+    return NativeMeshParseResult{std::move(local_meshes), used_global ? "native_pam_global" : "native_pam_local", 0};
+}
+
+static std::vector<RawPamEntry> read_pamlod_entries(const std::vector<char>& data, int geom_offset) {
+    std::vector<RawPamEntry> entries;
+    const int search_limit = std::max(kPamlodEntryTableOffset, geom_offset - 5);
+    for (int off = kPamlodEntryTableOffset; off < search_limit; ++off) {
+        if (!looks_like_dds_string(data, static_cast<size_t>(off), kPamNameMaxLength)) continue;
+        const int entry_offset = off - 16;
+        if (entry_offset < kPamlodEntryTableOffset || static_cast<size_t>(off) + kPamNameMaxLength > data.size()) continue;
+        const std::uint32_t vc = read_u32(data, entry_offset);
+        const std::uint32_t ic = read_u32(data, entry_offset + 4);
+        if (vc == 0 || vc > 131072 || ic == 0 || (ic % 3) != 0) continue;
+        entries.push_back(RawPamEntry{
+            static_cast<int>(entries.size()),
+            vc,
+            ic,
+            read_u32(data, off - 8),
+            read_u32(data, off - 4),
+            read_c_string(data, off, kPamNameMaxLength),
+            read_c_string(data, static_cast<size_t>(off) + kPamNameMaxLength, kPamNameMaxLength),
+        });
+    }
+    return entries;
+}
+
+static std::vector<std::vector<RawPamEntry>> group_pamlod_entries(const std::vector<RawPamEntry>& entries, int lod_count) {
+    std::vector<std::vector<RawPamEntry>> groups;
+    std::vector<RawPamEntry> current;
+    std::uint32_t expected_vertex_offset = 0;
+    std::uint32_t expected_index_offset = 0;
+    for (const RawPamEntry& entry : entries) {
+        if (!current.empty() && (entry.vertex_element_offset != expected_vertex_offset || entry.index_element_offset != expected_index_offset)) {
+            groups.push_back(current);
+            current.clear();
+        }
+        current.push_back(entry);
+        expected_vertex_offset = entry.vertex_element_offset + entry.vertex_count;
+        expected_index_offset = entry.index_element_offset + entry.index_count;
+    }
+    if (!current.empty()) groups.push_back(current);
+    if (lod_count >= 0 && static_cast<int>(groups.size()) > lod_count) groups.resize(static_cast<size_t>(lod_count));
+    return groups;
+}
+
+static std::vector<int> pamlod_padding_candidates() {
+    std::vector<int> out;
+    for (int i = 0; i < 64; i += 2) out.push_back(i);
+    for (int i = 64; i < 512; i += 4) out.push_back(i);
+    for (int i = 512; i < 4096; i += 8) out.push_back(i);
+    return out;
+}
+
+static std::optional<std::tuple<size_t, int, size_t>> find_pamlod_group_layout(
+    const std::vector<char>& data,
+    size_t cursor,
+    const std::vector<RawPamEntry>& group
+) {
+    std::uint64_t total_vertices = 0;
+    std::uint64_t total_indices = 0;
+    for (const RawPamEntry& raw : group) {
+        total_vertices += raw.vertex_count;
+        total_indices += raw.index_count;
+    }
+    if (total_vertices == 0 || total_indices == 0) return std::nullopt;
+    std::vector<int> strides(kPamCandidateStrides.begin(), kPamCandidateStrides.end());
+    std::sort(strides.begin(), strides.end(), [](int a, int b) {
+        return std::pair<int, int>(std::abs(a - 20), a) < std::pair<int, int>(std::abs(b - 20), b);
+    });
+    for (int padding : pamlod_padding_candidates()) {
+        const size_t vertex_base = cursor + static_cast<size_t>(padding);
+        for (int stride : strides) {
+            const size_t index_offset = vertex_base + static_cast<size_t>(total_vertices) * static_cast<size_t>(stride);
+            if (index_offset + static_cast<size_t>(total_indices) * 2u > data.size()) continue;
+            bool ok = true;
+            for (const RawPamEntry& raw : group) {
+                if (!indices_fit_vertex_count(data, index_offset + static_cast<size_t>(raw.index_element_offset) * 2u, raw.index_count, raw.vertex_count)) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) return std::make_tuple(vertex_base, stride, index_offset);
+        }
+    }
+    return std::nullopt;
+}
+
+static NativeMeshParseResult parse_pamlod_submeshes(const std::vector<char>& data) {
+    if (data.size() < kPamlodEntryTableOffset) {
+        throw std::runtime_error("selected PAMLOD is too small");
+    }
+    const int lod_count = static_cast<int>(read_u32(data, kPamlodHeaderLodCountOffset));
+    const int geom_offset = static_cast<int>(read_u32(data, kPamlodHeaderGeomOffset));
+    if (lod_count <= 0 || lod_count > 32 || geom_offset <= 0 || static_cast<size_t>(geom_offset) >= data.size()) {
+        throw std::runtime_error("PAMLOD geometry header is invalid");
+    }
+    const Vec3 bbox_min = read_vec3_f32(data, kPamlodHeaderBboxMinOffset);
+    const Vec3 bbox_max = read_vec3_f32(data, kPamlodHeaderBboxMaxOffset);
+    std::vector<RawPamEntry> entries = read_pamlod_entries(data, geom_offset);
+    if (entries.empty()) throw std::runtime_error("PAMLOD mesh table is empty");
+    std::vector<std::vector<RawPamEntry>> groups = group_pamlod_entries(entries, lod_count);
+    size_t cursor = static_cast<size_t>(geom_offset);
+    for (const std::vector<RawPamEntry>& group : groups) {
+        auto layout = find_pamlod_group_layout(data, cursor, group);
+        if (!layout.has_value()) continue;
+        const size_t vertex_base = std::get<0>(*layout);
+        const int stride = std::get<1>(*layout);
+        const size_t index_offset = std::get<2>(*layout);
+        std::vector<NativeSubmesh> meshes;
+        for (const RawPamEntry& raw : group) {
+            meshes.push_back(parse_quantized_pam_mesh(
+                data,
+                raw,
+                vertex_base + static_cast<size_t>(raw.vertex_element_offset) * static_cast<size_t>(stride),
+                index_offset + static_cast<size_t>(raw.index_element_offset) * 2u,
+                stride,
+                bbox_min,
+                bbox_max
+            ));
+        }
+        finalize_native_meshes(meshes);
+        if (!meshes.empty()) return NativeMeshParseResult{std::move(meshes), "native_pamlod_lod0", static_cast<int>(groups.size())};
+        std::uint64_t total_indices = 0;
+        for (const RawPamEntry& raw : group) total_indices += raw.index_count;
+        cursor = index_offset + static_cast<size_t>(total_indices) * 2u;
+    }
+    throw std::runtime_error("native PAMLOD parser found no renderable LOD geometry");
 }
 
 static std::string texture_role_from_name(const std::string& raw_name) {
@@ -1535,64 +2223,225 @@ static const TextureBinding* best_binding_for_role(
     return best;
 }
 
+static std::string shader_rule_for_family(const std::string& family) {
+    const std::string lower = lower_copy(family);
+    if (lower.find("skinnedmeshskin") != std::string::npos) return "skin";
+    if (lower.find("skinnedmeshcloth_ver2") != std::string::npos) return "cloth_v2";
+    if (lower.find("skinnedmeshcloth") != std::string::npos) return "cloth";
+    if (lower.find("skinnedmeshstandard_ver2") != std::string::npos) return "standard_v2";
+    if (lower.find("skinnedmeshstandard") != std::string::npos) return "standard";
+    if (lower.find("skinnedmeshhair") != std::string::npos) return "hair";
+    if (lower.find("multitextured") != std::string::npos) return "static_multitextured";
+    if (lower.find("standard") != std::string::npos) return "static_standard";
+    return "generic";
+}
+
+static void add_sidecar_candidate(
+    std::vector<ArchiveEntryRef>& out,
+    std::set<std::string>& seen,
+    const ArchiveEntryRef& ref
+) {
+    if (ref.path.empty() || ref.comp_size == 0) return;
+    const std::string key = lower_copy(ref.path);
+    if (seen.insert(key).second) out.push_back(ref);
+}
+
+static void add_sidecar_basename_candidates(
+    std::vector<ArchiveEntryRef>& out,
+    std::set<std::string>& seen,
+    const PamtIndex& index,
+    const std::string& basename,
+    const std::string& preferred_dir
+) {
+    auto it = index.by_basename.find(lower_copy(basename));
+    if (it == index.by_basename.end()) return;
+    std::vector<std::pair<int, ArchiveEntryRef>> scored;
+    for (const ArchiveEntryRef& ref : it->second) {
+        int score = 10;
+        const std::string path = lower_copy(ref.path);
+        const std::string dir = lower_copy(dirname_from_path(ref.path));
+        if (!preferred_dir.empty() && dir == lower_copy(preferred_dir)) score += 80;
+        if (path.find("/modelproperty/") != std::string::npos) score += 30;
+        if (path.find("/model/") != std::string::npos) score += 10;
+        scored.emplace_back(score, ref);
+    }
+    std::sort(scored.begin(), scored.end(), [](const auto& a, const auto& b) {
+        return a.first > b.first;
+    });
+    for (const auto& item : scored) add_sidecar_candidate(out, seen, item.second);
+}
+
+static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
+    const EntryJob& job,
+    const PamtIndex& index
+) {
+    std::vector<ArchiveEntryRef> candidates;
+    std::set<std::string> seen;
+    add_sidecar_candidate(candidates, seen, job.companion_entry);
+
+    const std::string model_stem = stem_from_path(job.path);
+    const std::string model_stem_lower = lower_copy(model_stem);
+    const std::string model_dir = dirname_from_path(job.path);
+    std::vector<std::string> basenames;
+    if (job.extension == ".pac") {
+        basenames = {model_stem + ".pac_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab"};
+    } else if (job.extension == ".pam") {
+        basenames = {model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab"};
+    } else if (job.extension == ".pamlod") {
+        basenames = {model_stem + ".pamlod_xml", model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab"};
+    }
+    for (const std::string& base : basenames) {
+        add_sidecar_basename_candidates(candidates, seen, index, base, model_dir);
+    }
+
+    std::vector<std::pair<int, ArchiveEntryRef>> scored;
+    const std::string model_dir_lower = lower_copy(model_dir);
+    const std::string model_property_dir = lower_copy([&]() {
+        std::string converted = model_dir;
+        const std::string marker = "/model/";
+        const size_t pos = lower_copy(converted).find(marker);
+        if (pos != std::string::npos) {
+            converted.replace(pos, marker.size(), "/modelproperty/");
+        }
+        return converted;
+    }());
+    for (const ArchiveEntryRef& ref : index.material_sidecars) {
+        if (seen.find(lower_copy(ref.path)) != seen.end()) continue;
+        const std::string ref_stem = lower_copy(stem_from_path(ref.path));
+        const std::string ref_path = lower_copy(ref.path);
+        const std::string ref_dir = lower_copy(dirname_from_path(ref.path));
+        int score = 0;
+        if (!model_stem_lower.empty() && ref_stem == model_stem_lower) score += 100;
+        if (!model_stem_lower.empty() && ref_path.find(model_stem_lower) != std::string::npos) score += 40;
+        if (!model_dir_lower.empty() && ref_dir == model_dir_lower) score += 25;
+        if (!model_property_dir.empty() && ref_dir == model_property_dir) score += 45;
+        if (ref.extension == ".pami" && (job.extension == ".pam" || job.extension == ".pamlod")) score += 20;
+        if ((ref.extension == ".pac_xml" || ref.extension == ".pam_xml" || ref.extension == ".pamlod_xml") && ref_path.find("/modelproperty/") != std::string::npos) score += 15;
+        if (score >= 80) scored.emplace_back(score, ref);
+    }
+    std::sort(scored.begin(), scored.end(), [](const auto& a, const auto& b) {
+        return a.first > b.first;
+    });
+    for (const auto& item : scored) {
+        if (candidates.size() >= 24) break;
+        add_sidecar_candidate(candidates, seen, item.second);
+    }
+    return candidates;
+}
+
 static std::vector<TextureBinding> build_material_bindings(
     const EntryJob& job,
     const PamtIndex& index,
     NativePackage& package
 ) {
     std::vector<TextureBinding> bindings;
-    if (job.companion_entry.path.empty() || job.companion_entry.comp_size == 0) return bindings;
-    std::vector<char> sidecar_bytes;
-    try {
-        sidecar_bytes = read_archive_ref_decoded_bytes(job.companion_entry);
-    } catch (const std::exception& exc) {
-        package.notes.push_back(std::string("native material sidecar read failed:") + exc.what());
+    const std::vector<ArchiveEntryRef> sidecars = material_sidecar_candidates_for_job(job, index);
+    if (sidecars.empty()) {
+        package.material_index = "native_index_no_sidecar";
+        package.texture_resolution = "none";
+        package.notes.push_back("native material index: no matching .pac_xml/.pam_xml/.pamlod_xml/.pami/.material/.technique/.prefab sidecar");
         return bindings;
     }
-    std::string sidecar_text(sidecar_bytes.begin(), sidecar_bytes.end());
-    const std::string shader_family = extract_shader_family_hint(sidecar_text);
-    const std::vector<SidecarTextureRef> refs = extract_sidecar_texture_refs(sidecar_text);
-    package.dds_candidates = static_cast<int>(refs.size());
     std::vector<std::string> notes;
-    for (const SidecarTextureRef& texture_ref : refs) {
-        const std::string base = lower_copy(basename_from_path(texture_ref.path));
-        auto it = index.by_basename.find(base);
-        if (it == index.by_basename.end()) {
+    std::set<std::string> seen_bindings;
+    std::set<std::string> sidecar_kinds;
+    std::set<std::string> shader_rules;
+    for (const ArchiveEntryRef& sidecar : sidecars) {
+        std::vector<char> sidecar_bytes;
+        try {
+            sidecar_bytes = read_archive_ref_decoded_bytes(sidecar);
+        } catch (const std::exception& exc) {
+            package.notes.push_back(std::string("native material sidecar read failed:") + sidecar.path + ": " + exc.what());
             continue;
         }
-        const ArchiveEntryRef* selected = nullptr;
-        for (const ArchiveEntryRef& ref : it->second) {
-            if (lower_copy(ref.basename) == base) {
-                selected = &ref;
-                break;
+        std::string sidecar_text(sidecar_bytes.begin(), sidecar_bytes.end());
+        std::string shader_family = extract_shader_family_hint(sidecar_text);
+        if (shader_family.empty()) {
+            shader_family = sidecar.extension == ".pami" ? "StaticMaterial" : "";
+        }
+        shader_rules.insert(shader_rule_for_family(shader_family));
+        sidecar_kinds.insert(sidecar.extension.empty() ? "unknown" : sidecar.extension);
+        std::vector<SidecarTextureRef> refs = extract_sidecar_texture_refs(sidecar_text);
+        if (refs.empty()) {
+            for (const std::string& token : extract_dds_tokens(sidecar_text)) {
+                refs.push_back(SidecarTextureRef{token, ""});
             }
         }
-        if (selected == nullptr && !it->second.empty()) selected = &it->second.front();
-        if (selected == nullptr) continue;
-        const std::string extracted = extracted_dds_path_for_entry(*selected, job.cache_root, notes);
-        if (extracted.empty()) continue;
-        TextureBinding binding;
-        binding.role = texture_role_from_name(base);
-        binding.source_path = extracted;
-        binding.archive_path = selected->path;
-        binding.texture_name = selected->basename;
-        binding.parameter_name = texture_ref.parameter_name.empty() ? base : texture_ref.parameter_name;
-        const std::string parameter_lower = lower_copy(binding.parameter_name);
-        if (parameter_lower.find("normal") != std::string::npos) binding.role = "normal";
-        else if (parameter_lower.find("height") != std::string::npos || parameter_lower.find("displacement") != std::string::npos) binding.role = "height";
-        else if (parameter_lower.find("specular") != std::string::npos) binding.role = "specular";
-        else if (parameter_lower.find("detail") != std::string::npos && parameter_lower.find("diffuse") != std::string::npos) binding.role = "base";
-        else if (parameter_lower.find("overlaycolor") != std::string::npos) binding.role = "base";
-        else if (parameter_lower.find("basecolor") != std::string::npos || parameter_lower.find("diffuse") != std::string::npos) binding.role = "base";
-        else if (parameter_lower.find("mask") != std::string::npos || parameter_lower.find("material") != std::string::npos || parameter_lower.find("blending") != std::string::npos) binding.role = "material";
-        binding.semantic_type = binding.role == "base" ? "albedo" : "material";
-        binding.semantic_subtype = semantic_subtype_for_role(binding.role);
-        binding.shader_family = shader_family;
-        bindings.push_back(binding);
+        package.dds_candidates += static_cast<int>(refs.size());
+        for (const SidecarTextureRef& texture_ref : refs) {
+            const std::string base = lower_copy(basename_from_path(texture_ref.path));
+            auto it = index.by_basename.find(base);
+            if (it == index.by_basename.end()) {
+                continue;
+            }
+            const ArchiveEntryRef* selected = nullptr;
+            int best_score = -100000;
+            const std::string sidecar_dir = lower_copy(dirname_from_path(sidecar.path));
+            for (const ArchiveEntryRef& ref : it->second) {
+                int score = 10;
+                const std::string ref_path = lower_copy(ref.path);
+                const std::string ref_dir = lower_copy(dirname_from_path(ref.path));
+                if (lower_copy(ref.basename) == base) score += 30;
+                if (!sidecar_dir.empty() && ref_dir == sidecar_dir) score += 50;
+                if (ref_path.find("/texture/") != std::string::npos) score += 20;
+                if (ref_path.find("/modelproperty/") != std::string::npos) score += 5;
+                if (score > best_score) {
+                    best_score = score;
+                    selected = &ref;
+                }
+            }
+            if (selected == nullptr && !it->second.empty()) selected = &it->second.front();
+            if (selected == nullptr) continue;
+            const std::string extracted = extracted_dds_path_for_entry(*selected, job.cache_root, notes);
+            if (extracted.empty()) continue;
+            TextureBinding binding;
+            binding.role = texture_role_from_name(base);
+            binding.source_path = extracted;
+            binding.archive_path = selected->path;
+            binding.texture_name = selected->basename;
+            binding.parameter_name = texture_ref.parameter_name.empty() ? base : texture_ref.parameter_name;
+            const std::string parameter_lower = lower_copy(binding.parameter_name);
+            if (parameter_lower.find("normal") != std::string::npos || parameter_lower == "n") binding.role = "normal";
+            else if (parameter_lower.find("height") != std::string::npos || parameter_lower.find("displacement") != std::string::npos || parameter_lower.find("disp") != std::string::npos) binding.role = "height";
+            else if (parameter_lower.find("specular") != std::string::npos || parameter_lower.find("_sp") != std::string::npos) binding.role = "specular";
+            else if (parameter_lower.find("detail") != std::string::npos && parameter_lower.find("diffuse") != std::string::npos) binding.role = "base";
+            else if (parameter_lower.find("overlaycolor") != std::string::npos || parameter_lower.find("layercolor") != std::string::npos) binding.role = "base";
+            else if (parameter_lower.find("basecolor") != std::string::npos || parameter_lower.find("diffuse") != std::string::npos || parameter_lower.find("albedo") != std::string::npos) binding.role = "base";
+            else if (parameter_lower.find("mask") != std::string::npos || parameter_lower.find("material") != std::string::npos || parameter_lower.find("blending") != std::string::npos) binding.role = "material";
+            if (binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))) {
+                binding.role = texture_role_from_name(base);
+            }
+            binding.semantic_type = binding.role == "base" ? "albedo" : "material";
+            binding.semantic_subtype = semantic_subtype_for_role(binding.role);
+            binding.shader_family = shader_family;
+            binding.material_name = stem_from_path(sidecar.path);
+            const std::string binding_key = lower_copy(binding.role + "|" + binding.archive_path + "|" + binding.parameter_name);
+            if (seen_bindings.insert(binding_key).second) {
+                bindings.push_back(binding);
+            }
+        }
     }
     package.dds_extracted = static_cast<int>(bindings.size());
-    package.material_index = bindings.empty() ? "sidecar_no_resolved_dds" : "pac_xml_dds_tokens";
+    std::ostringstream kind_summary;
+    bool first_kind = true;
+    for (const std::string& kind : sidecar_kinds) {
+        if (!first_kind) kind_summary << "+";
+        first_kind = false;
+        kind_summary << kind;
+    }
+    std::ostringstream rule_summary;
+    bool first_rule = true;
+    for (const std::string& rule : shader_rules) {
+        if (!first_rule) rule_summary << "+";
+        first_rule = false;
+        rule_summary << rule;
+    }
+    package.material_index = bindings.empty() ? "native_sidecars_no_resolved_dds" : ("native_sidecar_index:" + kind_summary.str());
     package.texture_resolution = bindings.empty() ? "none" : "same_pamt_basename";
+    package.notes.push_back(
+        std::string("native material accuracy: inferred; sidecars=") + std::to_string(sidecars.size()) +
+        "; shader_rules=" + (rule_summary.str().empty() ? "generic" : rule_summary.str())
+    );
     for (const std::string& note : notes) {
         package.notes.push_back(note);
     }
@@ -1684,6 +2533,9 @@ static void write_geometry_blob(
                 bitangent = vec_normalize(vec_cross(normal, tangent), Vec3{0.0f, 0.0f, 1.0f});
             }
             const Vec2 uv = vi < mesh.uvs.size() ? mesh.uvs[vi] : Vec2{};
+            const std::int32_t source_vertex = vi < mesh.source_vertex_indices.size()
+                ? mesh.source_vertex_indices[vi]
+                : static_cast<std::int32_t>(vi);
             const float bary[3] = {corner == 0 ? 1.0f : 0.0f, corner == 1 ? 1.0f : 0.0f, corner == 2 ? 1.0f : 0.0f};
             for (float value : {
                 position.x, position.y, position.z,
@@ -1698,7 +2550,7 @@ static void write_geometry_blob(
                 append_float(geometry, value);
             }
             append_int32(identity, static_cast<std::int32_t>(mesh.source_submesh_index));
-            append_int32(identity, static_cast<std::int32_t>(vi));
+            append_int32(identity, source_vertex);
         }
     }
     write_binary(geometry_path, geometry);
@@ -1829,7 +2681,7 @@ static NativePackage write_d3d11_package(
             << "\"specular\":0.45,"
             << "\"height_scale\":0.35,"
             << "\"native_material_hints\":{\"shader_family\":\"" << json_escape(bindings.empty() ? "" : bindings.front().shader_family) << "\",\"roughness\":0.45,\"specular\":0.45,\"height_scale\":0.35},"
-            << "\"notes\":[\"generated by cdmw-preview-core native PAC path\"],"
+            << "\"notes\":[\"generated by cdmw-preview-core " << json_escape(package.mesh_parse) << " path\"],"
             << "\"material_combiner_active\":false,"
             << "\"material_combiner_outputs\":[],"
             << "\"material_combiner_decode_modes\":[\"direct_dds_sidecar\"]"
@@ -1839,13 +2691,16 @@ static NativePackage write_d3d11_package(
     package.batch_count = emitted_batch_count;
     package.vertex_count = emitted_vertex_count;
     package.face_count = face_total;
+    const std::string format = job.extension.size() > 1 && job.extension.front() == '.'
+        ? job.extension.substr(1)
+        : job.extension;
     std::ostringstream manifest;
     manifest << "{"
         << "\"schema_version\":" << std::max(4, job.schema_version) << ","
         << "\"backend\":\"d3d11\","
         << "\"source_path\":\"" << json_escape(job.path) << "\","
-        << "\"format\":\"pac\","
-        << "\"summary\":\"Native preview-core PAC package\","
+        << "\"format\":\"" << json_escape(format) << "\","
+        << "\"summary\":\"Native preview-core " << json_escape(format) << " package\","
         << "\"mesh_count\":" << emitted_batch_count << ","
         << "\"source_vertex_count\":" << source_vertex_total << ","
         << "\"vertex_count\":" << emitted_vertex_count << ","
@@ -1867,7 +2722,7 @@ static NativePackage write_d3d11_package(
         << "\"shininess_max\":180.0,"
         << "\"use_textures\":true,"
         << "\"high_quality_textures\":true,"
-        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\"},"
+        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"lod_count\":" << package.lod_count << "},"
         << "\"batches\":[" << batches_json.str() << "]"
         << "}";
     write_text(package_dir / "manifest.json", manifest.str());
@@ -1876,21 +2731,30 @@ static NativePackage write_d3d11_package(
 
 static NativePackage try_generate_native_package(const EntryJob& job, const std::vector<char>& data) {
     NativePackage package;
-    if (job.extension != ".pac") {
-        throw std::runtime_error("native preview-core package generation currently supports PAC first; PAM/PAMLOD still use Python fallback");
+    NativeMeshParseResult parsed;
+    if (job.extension == ".pac") {
+        parsed.meshes = parse_pac_submeshes(data);
+        parsed.parser = "native_pac_par_sections";
+    } else if (job.extension == ".pam") {
+        parsed = parse_pam_submeshes(data);
+    } else if (job.extension == ".pamlod") {
+        parsed = parse_pamlod_submeshes(data);
+    } else {
+        throw std::runtime_error("native preview-core package generation only supports .pac, .pam, and .pamlod");
     }
-    std::vector<NativeSubmesh> submeshes = parse_pac_submeshes(data);
-    package.mesh_parse = "native_pac_par_sections";
+    if (parsed.meshes.empty()) {
+        throw std::runtime_error("native model parser found no renderable geometry");
+    }
+    package.mesh_parse = parsed.parser;
+    package.lod_count = parsed.lod_count;
     const PamtIndex& index = cached_pamt_index(job.entry.pamt_path);
     std::vector<TextureBinding> bindings = build_material_bindings(job, index, package);
-    if (!job.companion_entry.path.empty() && bindings.empty()) {
-        throw std::runtime_error("native PAC geometry parsed, but no reliable DDS sidecar bindings were resolved; using Python material fallback");
-    }
     if (bindings.empty()) {
-        package.material_index = "none";
+        if (package.material_index.empty()) package.material_index = "none";
         package.texture_resolution = "none";
+        package.notes.push_back("native package emitted geometry with fallback batch colors because no direct DDS bindings were resolved");
     }
-    return write_d3d11_package(job, submeshes, bindings, package);
+    return write_d3d11_package(job, parsed.meshes, bindings, package);
 }
 
 std::string preview_report_for_job(const fs::path& job_path) {
@@ -1958,8 +2822,11 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"batch_count\":" << package.batch_count << ","
         << "\"vertex_count\":" << package.vertex_count << ","
         << "\"face_count\":" << package.face_count << ","
+        << "\"lod_count\":" << package.lod_count << ","
         << "\"dds_candidates\":" << package.dds_candidates << ","
         << "\"dds_extracted\":" << package.dds_extracted << ","
+        << "\"decoded_cache_entries\":" << decoded_entry_cache_entries() << ","
+        << "\"decoded_cache_bytes\":" << decoded_entry_cache_bytes() << ","
         << "\"elapsed_ms\":" << elapsed_ms << ","
         << "\"package_path\":\"" << json_escape(status == "ok" ? package.path.string() : "") << "\","
         << "\"fallback_reason\":\"" << json_escape(fallback_reason) << "\","
