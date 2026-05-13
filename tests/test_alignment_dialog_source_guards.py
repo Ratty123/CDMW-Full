@@ -100,6 +100,19 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def _mark_final_test_preview_stale", source)
         self.assertIn("test_build_preview_button.clicked.connect(_test_build_final_preview)", source)
 
+    def test_alignment_dialog_has_native_d3d11_accurate_preview_mode(self) -> None:
+        source = _main_window_source()
+        self.assertIn('preview_renderer_combo.addItem("Native D3D11 accurate", "d3d11")', source)
+        self.assertIn('preview_renderer_combo.addItem("Legacy OpenGL edit", "legacy")', source)
+        self.assertIn("alignment_d3d11_preview_host = NativeD3D11PreviewHostFrame", source)
+        self.assertIn("AlignmentD3D11PackageWorker", source)
+        self.assertIn("write_isolated_d3d11_preview_package(", source)
+        self.assertIn("ModelPreviewWidget.prepare_model_preview(", source)
+        self.assertIn("def _alignment_d3d11_display_model", source)
+        self.assertIn("def _side_by_side_alignment_preview_model", source)
+        self.assertIn("Mesh Edit uses viewport strokes from Legacy OpenGL edit", source)
+        self.assertIn("Native D3D11 accurate preview. Use Legacy OpenGL edit", source)
+
     def test_alignment_dialog_build_mod_keeps_window_open_for_repeat_exports(self) -> None:
         source = _main_window_source()
         self.assertIn(

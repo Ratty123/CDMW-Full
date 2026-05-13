@@ -2746,6 +2746,72 @@ def run_gui() -> int:
             finally:
                 self.finished.emit()
 
+    class AlignmentD3D11PackageWorker(QObject):
+        completed = Signal(int, object, float, float)
+        error = Signal(int, str)
+        finished = Signal()
+
+        def __init__(
+            self,
+            request_id: int,
+            preview_model: object,
+            render_settings: ModelPreviewRenderSettings,
+            *,
+            use_textures: bool,
+            high_quality_textures: bool,
+        ) -> None:
+            super().__init__()
+            self.request_id = int(request_id)
+            self.preview_model = preview_model
+            self.render_settings = clamp_model_preview_render_settings(render_settings)
+            self.use_textures = bool(use_textures)
+            self.high_quality_textures = bool(high_quality_textures)
+            self.stop_event = threading.Event()
+
+        def stop(self) -> None:
+            self.stop_event.set()
+
+        @Slot()
+        def run(self) -> None:
+            try:
+                if self.stop_event.is_set():
+                    return
+                prepare_started = time.perf_counter()
+                prepared_model, prepared_preview = ModelPreviewWidget.prepare_model_preview(
+                    self.preview_model,
+                    render_settings=self.render_settings,
+                    stop_event=self.stop_event,
+                )
+                prepare_ms = max(0.0, (time.perf_counter() - prepare_started) * 1000.0)
+                if self.stop_event.is_set():
+                    return
+                package_started = time.perf_counter()
+                package_dir = write_isolated_d3d11_preview_package(
+                    prepared_model,
+                    prepared_preview,
+                    render_settings=self.render_settings,
+                    use_textures=self.use_textures,
+                    high_quality_textures=self.high_quality_textures,
+                    backend="d3d11",
+                    enable_material_combiner=False,
+                    prefer_direct_dds=True,
+                )
+                package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
+                if not self.stop_event.is_set():
+                    self.completed.emit(self.request_id, package_dir, prepare_ms, package_ms)
+                else:
+                    try:
+                        shutil.rmtree(package_dir, ignore_errors=True)
+                    except OSError:
+                        pass
+            except RunCancelled:
+                pass
+            except Exception as exc:
+                if not self.stop_event.is_set():
+                    self.error.emit(self.request_id, str(exc))
+            finally:
+                self.finished.emit()
+
     class DetachedToolWindow(QMainWindow):
         def __init__(self, owner: "MainWindow", tool_key: str, title: str) -> None:
             super().__init__(owner, Qt.Window)
@@ -18273,13 +18339,19 @@ def run_gui() -> int:
                 return True
             return sender is getattr(self, "archive_isolated_renderer_process", None)
 
-        def _archive_isolated_renderer_command(self, package_dir: Path, status_file: Path) -> Tuple[str, List[str]]:
+        def _native_d3d11_renderer_command(
+            self,
+            package_dir: Path,
+            status_file: Path,
+            *,
+            host_widget: QWidget,
+            theme_payload: Mapping[str, str],
+        ) -> Tuple[str, List[str]]:
             host_binary = find_native_d3d11_host()
             if host_binary is None:
                 raise FileNotFoundError(
                     "Native D3D11 preview host is not built. Build native/cdmw_d3d11_preview or set CDMW_D3D11_PREVIEW_BIN."
                 )
-            theme_payload = self._archive_isolated_renderer_theme_payload()
             arguments = [
                 "--backend",
                 "d3d11",
@@ -18293,13 +18365,21 @@ def run_gui() -> int:
                 theme_payload["text"],
             ]
             try:
-                self.archive_d3d11_preview_host.setAttribute(Qt.WA_NativeWindow, True)
-                parent_hwnd = int(self.archive_d3d11_preview_host.winId())
+                host_widget.setAttribute(Qt.WA_NativeWindow, True)
+                parent_hwnd = int(host_widget.winId())
             except Exception:
                 parent_hwnd = 0
             if parent_hwnd:
                 arguments.extend(["--parent-hwnd", str(parent_hwnd)])
             return str(host_binary), arguments
+
+        def _archive_isolated_renderer_command(self, package_dir: Path, status_file: Path) -> Tuple[str, List[str]]:
+            return self._native_d3d11_renderer_command(
+                package_dir,
+                status_file,
+                host_widget=self.archive_d3d11_preview_host,
+                theme_payload=self._archive_isolated_renderer_theme_payload(),
+            )
 
         def _archive_isolated_renderer_theme_payload(self) -> Dict[str, str]:
             theme = get_theme(self.current_theme_key)
@@ -35417,6 +35497,21 @@ def run_gui() -> int:
             preview_header = QHBoxLayout()
             preview_header.addWidget(QLabel("Live Alignment Preview"))
             preview_header.addStretch(1)
+            alignment_d3d11_available = find_native_d3d11_host() is not None
+            preview_renderer_combo = QComboBox()
+            preview_renderer_combo.addItem("Native D3D11 accurate", "d3d11")
+            preview_renderer_combo.addItem("Legacy OpenGL edit", "legacy")
+            if not alignment_d3d11_available:
+                preview_renderer_combo.setCurrentIndex(max(0, preview_renderer_combo.findData("legacy")))
+            preview_renderer_combo.setToolTip(
+                "Native D3D11 shows the most accurate material preview in this dialog. "
+                "Legacy OpenGL remains available for viewport drag handles and mesh-edit strokes."
+            )
+            preview_renderer_combo.setMinimumWidth(0)
+            preview_renderer_combo.setMinimumContentsLength(16)
+            preview_renderer_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            preview_header.addWidget(QLabel("Renderer"))
+            preview_header.addWidget(preview_renderer_combo)
             preview_mode_combo = QComboBox()
             preview_mode_combo.addItem("Side by side", "side_by_side")
             preview_mode_combo.addItem("Overlay", "overlay")
@@ -35580,6 +35675,41 @@ def run_gui() -> int:
             replacement_only_preview.set_high_quality_textures(True)
             replacement_only_preview.set_alignment_guides_visible(True)
             replacement_only_preview.set_alignment_editing_enabled(True)
+            alignment_d3d11_preview_page = QWidget(preview_panel)
+            alignment_d3d11_preview_layout = QVBoxLayout(alignment_d3d11_preview_page)
+            alignment_d3d11_preview_layout.setContentsMargins(0, 0, 0, 0)
+            alignment_d3d11_preview_layout.setSpacing(3)
+            alignment_d3d11_preview_host = NativeD3D11PreviewHostFrame(alignment_d3d11_preview_page)
+            alignment_d3d11_preview_host.setObjectName("AlignmentNativeD3D11PreviewHost")
+            alignment_d3d11_preview_host.setAttribute(Qt.WA_NativeWindow, True)
+            alignment_d3d11_preview_host.setMinimumSize(300, 280)
+            alignment_d3d11_preview_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            alignment_d3d11_preview_status_label = QLabel("Native D3D11 alignment preview is waiting for the first refresh.")
+            alignment_d3d11_preview_status_label.setObjectName("HintLabel")
+            alignment_d3d11_preview_status_label.setAlignment(Qt.AlignCenter)
+            alignment_d3d11_preview_status_label.setWordWrap(True)
+            alignment_d3d11_preview_layout.addWidget(alignment_d3d11_preview_host, 1)
+            alignment_d3d11_preview_layout.addWidget(alignment_d3d11_preview_status_label)
+            alignment_d3d11_status_timer = QTimer(dialog)
+            alignment_d3d11_status_timer.setInterval(250)
+            alignment_d3d11_reload_timer = QTimer(dialog)
+            alignment_d3d11_reload_timer.setSingleShot(True)
+            alignment_d3d11_reload_timer.setInterval(260)
+            alignment_d3d11_state: Dict[str, object] = {
+                "request_id": 0,
+                "thread": None,
+                "worker": None,
+                "process": None,
+                "active_package": None,
+                "status_file": None,
+                "status_mtime": 0.0,
+                "pending_model": None,
+                "pending_label": "",
+                "queued_model": None,
+                "queued_label": "",
+                "prepare_ms": 0.0,
+                "package_ms": 0.0,
+            }
             alignment_preview_view_sync = {"active": False}
 
             def _sync_alignment_preview_view_state(source_widget: ModelPreviewWidget, *target_widgets: ModelPreviewWidget) -> None:
@@ -35699,6 +35829,7 @@ def run_gui() -> int:
             preview_stack.addWidget(preview_splitter)
             preview_stack.addWidget(overlay_dialog_preview)
             preview_stack.addWidget(replacement_only_preview)
+            preview_stack.addWidget(alignment_d3d11_preview_page)
             preview_panel_layout.addWidget(preview_stack, 1)
             preview_help = QLabel(
                 "Live preview. Test Build Preview validates final package paths."
@@ -36940,6 +37071,384 @@ def run_gui() -> int:
                         normal_space=normal_space,
                     )
 
+            def _alignment_d3d11_preview_active() -> bool:
+                return (
+                    str(preview_renderer_combo.currentData() or "").strip().lower() == "d3d11"
+                    and bool(alignment_d3d11_available)
+                )
+
+            def _alignment_d3d11_theme_payload() -> Dict[str, str]:
+                theme = get_theme(self.current_theme_key)
+                return {
+                    "background": str(theme["preview_bg"]),
+                    "text": str(theme["text_muted"]),
+                }
+
+            def _cleanup_alignment_d3d11_package(package_dir: object, *, delay_ms: int = 0) -> None:
+                if package_dir is None:
+                    return
+                try:
+                    package_path = Path(package_dir)
+                except TypeError:
+                    return
+
+                def _remove() -> None:
+                    try:
+                        shutil.rmtree(package_path, ignore_errors=True)
+                    except OSError:
+                        pass
+
+                if delay_ms > 0:
+                    QTimer.singleShot(int(delay_ms), _remove)
+                else:
+                    _remove()
+
+            def _alignment_d3d11_stop_process() -> None:
+                process = alignment_d3d11_state.get("process")
+                package_dir = alignment_d3d11_state.get("active_package")
+                alignment_d3d11_state["process"] = None
+                alignment_d3d11_state["active_package"] = None
+                alignment_d3d11_state["status_file"] = None
+                alignment_d3d11_state["status_mtime"] = 0.0
+                alignment_d3d11_status_timer.stop()
+                if not isinstance(process, QProcess):
+                    _cleanup_alignment_d3d11_package(package_dir)
+                    return
+                try:
+                    process.disconnect()
+                except (RuntimeError, TypeError):
+                    pass
+                try:
+                    if process.state() != QProcess.NotRunning:
+                        process.terminate()
+                        QTimer.singleShot(1200, lambda process=process: self._kill_archive_isolated_renderer_process_if_running(process))
+                        _cleanup_alignment_d3d11_package(package_dir, delay_ms=5000)
+                    else:
+                        _cleanup_alignment_d3d11_package(package_dir)
+                    process.deleteLater()
+                except RuntimeError:
+                    _cleanup_alignment_d3d11_package(package_dir)
+
+            def _alignment_d3d11_stop_worker() -> None:
+                worker = alignment_d3d11_state.get("worker")
+                if isinstance(worker, AlignmentD3D11PackageWorker):
+                    worker.stop()
+
+            def _shutdown_alignment_d3d11_preview() -> None:
+                alignment_d3d11_reload_timer.stop()
+                alignment_d3d11_stop_worker()
+                _alignment_d3d11_stop_process()
+                pending_package = alignment_d3d11_state.get("active_package")
+                _cleanup_alignment_d3d11_package(pending_package)
+
+            def _model_bounds_x(model: object) -> tuple[float, float]:
+                values: List[float] = []
+                for mesh in getattr(model, "meshes", ()) or ():
+                    for position in getattr(mesh, "positions", ()) or ():
+                        try:
+                            values.append(float(position[0]))
+                        except (TypeError, ValueError, IndexError):
+                            continue
+                if not values:
+                    return (-0.5, 0.5)
+                return (min(values), max(values))
+
+            def _translated_preview_model(model: object, delta_x: float) -> object:
+                cloned = _clone_preview_model(model)
+                if not isinstance(cloned, ModelPreviewData):
+                    return cloned
+                for mesh in getattr(cloned, "meshes", ()) or ():
+                    translated_positions = []
+                    for position in getattr(mesh, "positions", ()) or ():
+                        if len(position) >= 3:
+                            translated_positions.append((float(position[0]) + float(delta_x), float(position[1]), float(position[2])))
+                    if translated_positions:
+                        mesh.positions = translated_positions
+                return cloned
+
+            def _side_by_side_alignment_preview_model(original_model: object, replacement_model: object) -> Optional[object]:
+                if not isinstance(original_model, ModelPreviewData) or not isinstance(replacement_model, ModelPreviewData):
+                    return replacement_model if isinstance(replacement_model, ModelPreviewData) else None
+                original_min, original_max = _model_bounds_x(original_model)
+                replacement_min, replacement_max = _model_bounds_x(replacement_model)
+                original_width = max(0.1, original_max - original_min)
+                replacement_width = max(0.1, replacement_max - replacement_min)
+                gap = max(0.45, max(original_width, replacement_width) * 0.45)
+                original_center = (original_min + original_max) * 0.5
+                replacement_center = (replacement_min + replacement_max) * 0.5
+                left_target = -((original_width + gap) * 0.5)
+                right_target = (replacement_width + gap) * 0.5
+                original_shifted = _translated_preview_model(
+                    _tint_preview_model(original_model, (0.30, 0.42, 0.54), clear_textures=False),
+                    left_target - original_center,
+                )
+                replacement_shifted = _translated_preview_model(replacement_model, right_target - replacement_center)
+                return _combine_preview_models(original_shifted, replacement_shifted)
+
+            def _alignment_d3d11_display_model(preview_model: object, overlay_model: object = None) -> Optional[object]:
+                active_preview_mode = str(preview_mode_combo.currentData() or "side_by_side")
+                if active_preview_mode == "overlay" and isinstance(overlay_model, ModelPreviewData):
+                    return overlay_model
+                if active_preview_mode == "side_by_side" and isinstance(original_reference_preview_model, ModelPreviewData):
+                    return _side_by_side_alignment_preview_model(original_reference_preview_model, preview_model)
+                return preview_model if isinstance(preview_model, ModelPreviewData) else None
+
+            def _queue_alignment_d3d11_preview(model: object, *, label: str = "Live alignment preview") -> None:
+                if not _alignment_d3d11_preview_active():
+                    return
+                if not isinstance(model, ModelPreviewData):
+                    alignment_d3d11_preview_status_label.setText("Native D3D11 preview has no renderable model yet.")
+                    return
+                alignment_d3d11_state["queued_model"] = _clone_preview_model(model)
+                alignment_d3d11_state["queued_label"] = str(label or "Live alignment preview")
+                alignment_d3d11_preview_status_label.setText("Queued native D3D11 alignment preview...")
+                alignment_d3d11_reload_timer.start()
+
+            def _start_alignment_d3d11_package_worker(model: object, label: str) -> None:
+                if not _alignment_d3d11_preview_active() or not isinstance(model, ModelPreviewData):
+                    return
+                if isinstance(alignment_d3d11_state.get("thread"), QThread):
+                    alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
+                    alignment_d3d11_state["pending_model"] = model
+                    alignment_d3d11_state["pending_label"] = label
+                    _alignment_d3d11_stop_worker()
+                    alignment_d3d11_preview_status_label.setText("Queued latest native D3D11 alignment preview...")
+                    return
+                alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
+                request_id = int(alignment_d3d11_state["request_id"])
+                settings = _current_alignment_preview_render_settings()
+                worker = AlignmentD3D11PackageWorker(
+                    request_id,
+                    model,
+                    settings,
+                    use_textures=True,
+                    high_quality_textures=True,
+                )
+                thread = QThread(dialog)
+                worker.moveToThread(thread)
+                thread.started.connect(worker.run)
+                worker.completed.connect(_handle_alignment_d3d11_package_ready)
+                worker.error.connect(_handle_alignment_d3d11_package_error)
+                worker.finished.connect(thread.quit)
+                worker.finished.connect(worker.deleteLater)
+                thread.finished.connect(thread.deleteLater)
+                thread.finished.connect(_cleanup_alignment_d3d11_package_worker_refs)
+                alignment_d3d11_state["worker"] = worker
+                alignment_d3d11_state["thread"] = thread
+                alignment_d3d11_preview_status_label.setText(f"Preparing native D3D11 preview package: {label}")
+                preview_performance_label.setText("Preview timing: preparing native D3D11 package in a background thread.")
+                thread.start()
+
+            def _flush_alignment_d3d11_preview_request() -> None:
+                model = alignment_d3d11_state.get("queued_model")
+                label = str(alignment_d3d11_state.get("queued_label", "") or "Live alignment preview")
+                alignment_d3d11_state["queued_model"] = None
+                alignment_d3d11_state["queued_label"] = ""
+                _start_alignment_d3d11_package_worker(model, label)
+
+            def _handle_alignment_d3d11_package_ready(
+                request_id: int,
+                package_dir_object: object,
+                prepare_ms: float,
+                package_ms: float,
+            ) -> None:
+                try:
+                    package_dir = Path(package_dir_object)
+                except TypeError:
+                    return
+                if int(request_id) != int(alignment_d3d11_state.get("request_id", 0) or 0):
+                    _cleanup_alignment_d3d11_package(package_dir)
+                    return
+                alignment_d3d11_state["prepare_ms"] = float(prepare_ms)
+                alignment_d3d11_state["package_ms"] = float(package_ms)
+                _start_alignment_d3d11_process(package_dir)
+
+            def _handle_alignment_d3d11_package_error(request_id: int, message: str) -> None:
+                if int(request_id) != int(alignment_d3d11_state.get("request_id", 0) or 0):
+                    return
+                alignment_d3d11_preview_status_label.setText(f"Native D3D11 package failed: {message}")
+                preview_performance_label.setText(f"Preview timing: native D3D11 package failed: {message}")
+
+            def _cleanup_alignment_d3d11_package_worker_refs() -> None:
+                alignment_d3d11_state["thread"] = None
+                alignment_d3d11_state["worker"] = None
+                pending_model = alignment_d3d11_state.get("pending_model")
+                pending_label = str(alignment_d3d11_state.get("pending_label", "") or "Live alignment preview")
+                alignment_d3d11_state["pending_model"] = None
+                alignment_d3d11_state["pending_label"] = ""
+                if _alignment_d3d11_preview_active() and isinstance(pending_model, ModelPreviewData):
+                    QTimer.singleShot(0, lambda model=pending_model, label=pending_label: _start_alignment_d3d11_package_worker(model, label))
+
+            def _start_alignment_d3d11_process(package_dir: Path) -> None:
+                _alignment_d3d11_stop_process()
+                status_file = package_dir / "host_status.json"
+                try:
+                    status_file.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                alignment_d3d11_state["active_package"] = package_dir
+                alignment_d3d11_state["status_file"] = status_file
+                alignment_d3d11_state["status_mtime"] = 0.0
+                process = QProcess(dialog)
+                try:
+                    program, arguments = self._native_d3d11_renderer_command(
+                        package_dir,
+                        status_file,
+                        host_widget=alignment_d3d11_preview_host,
+                        theme_payload=_alignment_d3d11_theme_payload(),
+                    )
+                except Exception as exc:
+                    alignment_d3d11_preview_status_label.setText(f"Native D3D11 unavailable: {exc}")
+                    preview_performance_label.setText(
+                        "Preview timing: native D3D11 unavailable; switch to Legacy OpenGL edit. "
+                        "If Defender quarantines an unsigned experimental EXE, submit it to Microsoft before allowing it."
+                    )
+                    _cleanup_alignment_d3d11_package(package_dir)
+                    alignment_d3d11_state["active_package"] = None
+                    return
+                process.setProgram(program)
+                process.setArguments(arguments)
+                try:
+                    process.setWorkingDirectory(str(Path(__file__).resolve().parents[2]))
+                except Exception:
+                    pass
+                process.setProcessChannelMode(QProcess.SeparateChannels)
+                process.readyReadStandardError.connect(lambda process=process: _handle_alignment_d3d11_stderr(process))
+                process.finished.connect(lambda exit_code, exit_status, process=process: _handle_alignment_d3d11_finished(process, exit_code, exit_status))
+                process.errorOccurred.connect(lambda error, process=process: _handle_alignment_d3d11_error(process, error))
+                alignment_d3d11_state["process"] = process
+                preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
+                alignment_d3d11_preview_status_label.setText("Starting native D3D11 alignment preview...")
+                preview_performance_label.setText(
+                    "Preview timing: "
+                    f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.1f} ms, "
+                    f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.1f} ms, "
+                    "starting native D3D11 host"
+                )
+                alignment_d3d11_status_timer.start()
+                process.start()
+                QTimer.singleShot(10000, lambda expected_status=status_file: _check_alignment_d3d11_start_timeout(expected_status))
+
+            def _check_alignment_d3d11_start_timeout(expected_status: Path) -> None:
+                if alignment_d3d11_state.get("status_file") != expected_status:
+                    return
+                process = alignment_d3d11_state.get("process")
+                if not isinstance(process, QProcess) or process.state() == QProcess.NotRunning:
+                    return
+                if expected_status.is_file():
+                    return
+                alignment_d3d11_preview_status_label.setText("Native D3D11 host has not written status yet.")
+                preview_performance_label.setText(
+                    "Preview timing: native D3D11 startup timeout waiting for status. "
+                    "If Defender quarantines an unsigned experimental EXE, submit it to Microsoft before allowing it."
+                )
+
+            def _handle_alignment_d3d11_stderr(process: QProcess) -> None:
+                if process is not alignment_d3d11_state.get("process"):
+                    return
+                try:
+                    chunk = bytes(process.readAllStandardError()).decode("utf-8", errors="replace").strip()
+                except RuntimeError:
+                    return
+                if chunk:
+                    alignment_d3d11_preview_status_label.setText(f"Native D3D11 stderr: {chunk[-300:]}")
+
+            def _handle_alignment_d3d11_error(process: QProcess, error: object) -> None:
+                if process is not alignment_d3d11_state.get("process"):
+                    return
+                alignment_d3d11_preview_status_label.setText(f"Native D3D11 process error: {error}")
+
+            def _handle_alignment_d3d11_finished(process: QProcess, exit_code: int, exit_status: object) -> None:
+                if process is not alignment_d3d11_state.get("process"):
+                    return
+                _poll_alignment_d3d11_status()
+                alignment_d3d11_state["process"] = None
+                alignment_d3d11_status_timer.stop()
+                package_dir = alignment_d3d11_state.get("active_package")
+                alignment_d3d11_state["active_package"] = None
+                alignment_d3d11_state["status_file"] = None
+                _cleanup_alignment_d3d11_package(package_dir)
+                if int(exit_code) != 0:
+                    alignment_d3d11_preview_status_label.setText(f"Native D3D11 exited with code {int(exit_code)} ({exit_status}).")
+
+            def _poll_alignment_d3d11_status() -> None:
+                status_file = alignment_d3d11_state.get("status_file")
+                if not isinstance(status_file, Path):
+                    return
+                try:
+                    stat = status_file.stat()
+                except OSError:
+                    return
+                mtime = float(getattr(stat, "st_mtime", 0.0) or 0.0)
+                if mtime <= float(alignment_d3d11_state.get("status_mtime", 0.0) or 0.0):
+                    return
+                alignment_d3d11_state["status_mtime"] = mtime
+                try:
+                    payload = json.loads(status_file.read_text(encoding="utf-8"))
+                except Exception as exc:
+                    alignment_d3d11_preview_status_label.setText(f"Native D3D11 status read failed: {exc}")
+                    return
+                if not isinstance(payload, Mapping):
+                    return
+                event = str(payload.get("event", "") or "").strip().lower()
+                if event == "loaded":
+                    textures = payload.get("textures", {})
+                    texture_text = "none"
+                    if isinstance(textures, Mapping):
+                        texture_text = " ".join(
+                            f"{slot}:{int(count)}"
+                            for slot, count in sorted(textures.items())
+                            if int(count or 0) > 0
+                        ) or "none"
+                    alignment_d3d11_preview_status_label.setText("Native D3D11 alignment preview loaded.")
+                    preview_performance_label.setText(
+                        "Preview timing: "
+                        f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.1f} ms, "
+                        f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.1f} ms, "
+                        f"D3D11 manifest {float(payload.get('manifest_read_ms', 0.0) or 0.0):.1f} ms, "
+                        f"textures {float(payload.get('texture_bind_ms', 0.0) or 0.0):.1f} ms, "
+                        f"geometry {float(payload.get('geometry_upload_ms', 0.0) or 0.0):.1f} ms; "
+                        f"textures {texture_text}"
+                    )
+                elif event == "loading":
+                    message = str(payload.get("message", "") or "Loading native D3D11 alignment preview...")
+                    alignment_d3d11_preview_status_label.setText(message)
+                elif event == "error":
+                    message = str(payload.get("message", "") or "Native D3D11 renderer error.")
+                    alignment_d3d11_preview_status_label.setText(message)
+                    preview_performance_label.setText(f"Preview timing: native D3D11 renderer error: {message}")
+                elif event == "closed":
+                    alignment_d3d11_preview_status_label.setText("Native D3D11 alignment preview closed.")
+
+            def _set_preview_renderer() -> None:
+                if str(preview_renderer_combo.currentData() or "").strip().lower() == "d3d11" and not alignment_d3d11_available:
+                    preview_renderer_combo.blockSignals(True)
+                    preview_renderer_combo.setCurrentIndex(max(0, preview_renderer_combo.findData("legacy")))
+                    preview_renderer_combo.blockSignals(False)
+                    alignment_d3d11_preview_status_label.setText(
+                        "Native D3D11 preview host is unavailable; using Legacy OpenGL edit."
+                    )
+                if _alignment_d3d11_preview_active():
+                    preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
+                    preview_help.setText(
+                        "Native D3D11 accurate preview. Use Legacy OpenGL edit when you need viewport drag handles or vertex-edit strokes."
+                    )
+                    alignment_preview_settings_button.setToolTip(
+                        "Open 3D preview settings supported by the native D3D11 renderer, including lighting, support maps, depth, shine, and resolution."
+                    )
+                    _queue_static_preview_refresh()
+                    return
+                alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
+                alignment_d3d11_state["queued_model"] = None
+                alignment_d3d11_state["pending_model"] = None
+                _alignment_d3d11_stop_worker()
+                _alignment_d3d11_stop_process()
+                preview_help.setText("Live preview. Test Build Preview validates final package paths.")
+                alignment_preview_settings_button.setToolTip(
+                    "Open global 3D preview settings, including render mode, tint/brightness/UV toggles, support maps, depth, shine, and roughness."
+                )
+                _set_preview_mode()
+
             def _sync_highlight_sets() -> None:
                 highlighted_source_indices.clear()
                 highlighted_source_indices.update(selected_source_highlight_indices)
@@ -36952,7 +37461,10 @@ def run_gui() -> int:
 
             def _set_preview_mode() -> None:
                 mode = str(preview_mode_combo.currentData() or "side_by_side")
-                preview_stack.setCurrentIndex({"side_by_side": 0, "overlay": 1, "replacement_only": 2}.get(mode, 0))
+                if _alignment_d3d11_preview_active():
+                    preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
+                else:
+                    preview_stack.setCurrentIndex({"side_by_side": 0, "overlay": 1, "replacement_only": 2}.get(mode, 0))
                 overlay_original_locked_checkbox.blockSignals(True)
                 overlay_original_locked_checkbox.setChecked(True)
                 overlay_original_locked_checkbox.blockSignals(False)
@@ -36964,9 +37476,12 @@ def run_gui() -> int:
                 static_preview_prepared_cache.clear()
                 _queue_static_preview_refresh()
 
+            preview_renderer_combo.currentIndexChanged.connect(lambda _index: _set_preview_renderer())
             preview_mode_combo.currentIndexChanged.connect(_set_preview_mode)
             preview_detail_combo.currentIndexChanged.connect(_set_preview_detail)
             overlay_original_locked_checkbox.toggled.connect(_queue_static_preview_refresh)
+            alignment_d3d11_status_timer.timeout.connect(_poll_alignment_d3d11_status)
+            alignment_d3d11_reload_timer.timeout.connect(_flush_alignment_d3d11_preview_request)
 
             class _StaticMappingHoverFilter(QObject):
                 def __init__(self, source_indices: Sequence[int], refresh: Callable[[], None]) -> None:
@@ -40552,13 +41067,16 @@ def run_gui() -> int:
 
                 def _refresh_mesh_edit_controls() -> None:
                     can_edit, reason = _mesh_edit_can_edit_selected_source()
+                    renderer_requires_legacy = _alignment_d3d11_preview_active()
+                    if renderer_requires_legacy:
+                        reason = "Mesh Edit uses viewport strokes from Legacy OpenGL edit; switch the preview renderer to Legacy OpenGL edit to use it."
                     mesh_edit_group.setEnabled(mesh_edit_supported)
-                    mesh_edit_enabled_checkbox.setEnabled(can_edit)
-                    if not can_edit:
+                    mesh_edit_enabled_checkbox.setEnabled(can_edit and not renderer_requires_legacy)
+                    if not can_edit or renderer_requires_legacy:
                         mesh_edit_enabled_checkbox.blockSignals(True)
                         mesh_edit_enabled_checkbox.setChecked(False)
                         mesh_edit_enabled_checkbox.blockSignals(False)
-                    editing_active = bool(mesh_edit_enabled_checkbox.isChecked()) and can_edit
+                    editing_active = bool(mesh_edit_enabled_checkbox.isChecked()) and can_edit and not renderer_requires_legacy
                     for widget in (
                         mesh_edit_target_combo,
                         mesh_edit_tool_combo,
@@ -42481,6 +42999,44 @@ def run_gui() -> int:
                         current_mappings=current_mappings,
                     )
                     refreshed_preview_widgets: List[ModelPreviewWidget] = []
+
+                    if _alignment_d3d11_preview_active():
+                        overlay_model_for_d3d11 = None
+                        if active_preview_mode == "overlay" and original_reference_preview_model is not None:
+                            original_overlay_model = _tint_preview_model(
+                                original_reference_preview_model,
+                                (0.30, 0.42, 0.54),
+                                clear_textures=False,
+                            )
+                            for mesh in getattr(original_overlay_model, "meshes", ()) or ():
+                                mesh.source_submesh_index = -1
+                                mesh.source_vertex_indices = []
+                            if highlighted_original_indices:
+                                for mesh_index, mesh in enumerate(getattr(original_overlay_model, "meshes", ()) or ()):
+                                    if mesh_index in highlighted_original_indices:
+                                        mesh.preview_color = (1.0, 0.72, 0.22)
+                            overlay_model_for_d3d11 = _combine_preview_models(
+                                original_overlay_model,
+                                preview_model,
+                            )
+                        d3d11_preview_model = _alignment_d3d11_display_model(
+                            preview_model,
+                            overlay_model_for_d3d11,
+                        )
+                        if d3d11_preview_model is not None:
+                            _queue_alignment_d3d11_preview(
+                                d3d11_preview_model,
+                                label=f"{active_preview_mode.replace('_', ' ').title()} alignment preview",
+                            )
+                        _sync_mesh_edit_preview_settings()
+                        _capture_static_preview_baked_transform_state(selected_preview_indices)
+                        preview_performance_label.setText(
+                            "Preview timing: "
+                            f"refresh {(time.perf_counter() - refresh_started) * 1000.0:.1f} ms, "
+                            f"geometry {geometry_elapsed_ms:.1f} ms, "
+                            "native D3D11 package queued"
+                        )
+                        return
 
                     def _set_cached_static_preview_model(
                         widget: ModelPreviewWidget,
@@ -47064,6 +47620,8 @@ def run_gui() -> int:
                 preview_widget.mesh_edit_stroke_cancelled.connect(_mesh_edit_cancel_stroke)
                 preview_widget.mesh_edit_selection_changed.connect(_mesh_edit_selection_changed)
             preview_controls_ready["ready"] = True
+            dialog.finished.connect(lambda _result=0: _shutdown_alignment_d3d11_preview())
+            QTimer.singleShot(0, _set_preview_renderer)
             QTimer.singleShot(0, _refresh_static_dialog_preview)
             QTimer.singleShot(0, _clear_all_part_selections)
 
@@ -47324,7 +47882,10 @@ def run_gui() -> int:
                     preview_mode_combo.blockSignals(True)
                     preview_mode_combo.setCurrentIndex(max(0, preview_mode_combo.findData("side_by_side")))
                     preview_mode_combo.blockSignals(False)
-                    preview_stack.setCurrentIndex(0)
+                    if _alignment_d3d11_preview_active():
+                        preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
+                    else:
+                        preview_stack.setCurrentIndex(0)
                     static_dialog_preview.set_model(final_model_for_display)
                     static_dialog_preview.restore_view_state(static_view_state)
                     replacement_only_preview.set_model(final_model_for_display)
@@ -47367,6 +47928,10 @@ def run_gui() -> int:
                         stale=False,
                         message=f"Final Test Build Preview - not written{suffix}{contract_suffix}",
                     )
+                    if _alignment_d3d11_preview_active():
+                        d3d11_final_model = _alignment_d3d11_display_model(final_model_for_display)
+                        if d3d11_final_model is not None:
+                            _queue_alignment_d3d11_preview(d3d11_final_model, label="Final Test Build Preview")
                 except Exception as exc:
                     _set_final_test_preview_state(
                         active=False,
