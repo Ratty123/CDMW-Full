@@ -800,6 +800,10 @@ def run_gui() -> int:
         write_isolated_qtquick3d_preview_package as write_isolated_d3d11_preview_package,
     )
     from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
+    from cdmw.rendering.native_preview_core import (
+        NativePreviewCoreAttempt,
+        run_native_preview_core_preview_job,
+    )
     from cdmw.ui.policy_preview_dialog import TexturePolicyPreviewDialog
     from cdmw.ui.safe_upscale_wizard import SafeUpscaleWizard
     from cdmw.ui.replace_assistant_tab import ReplaceAssistantTab
@@ -2739,6 +2743,9 @@ def run_gui() -> int:
             include_loose_preview_assets: bool = False,
             sidecar_generation: int = 0,
             attach_preview_images: bool = True,
+            native_preview_core_enabled: bool = False,
+            native_preview_core_cache_root: Optional[Path] = None,
+            native_preview_core_package_root: Optional[Path] = None,
         ):
             super().__init__()
             self.request_id = request_id
@@ -2763,6 +2770,9 @@ def run_gui() -> int:
             self.include_loose_preview_assets = include_loose_preview_assets
             self.sidecar_generation = int(sidecar_generation)
             self.attach_preview_images = bool(attach_preview_images)
+            self.native_preview_core_enabled = bool(native_preview_core_enabled)
+            self.native_preview_core_cache_root = native_preview_core_cache_root
+            self.native_preview_core_package_root = native_preview_core_package_root
             self.stop_event = threading.Event()
 
         def stop(self) -> None:
@@ -2774,6 +2784,14 @@ def run_gui() -> int:
                 timings: Dict[str, float] = {}
                 if self.stop_event.is_set():
                     return
+                native_attempt = self._try_native_preview_core()
+                if native_attempt is not None:
+                    timings["native_preview_core_s"] = max(0.0, float(native_attempt.elapsed_ms) / 1000.0)
+                    if native_attempt.succeeded:
+                        payload = self._native_preview_core_result(native_attempt, timings)
+                        if not self.stop_event.is_set():
+                            self.completed.emit(self.request_id, payload)
+                        return
                 worker_build_started_at = time.perf_counter()
                 payload = build_archive_preview_result(
                     self.texconv_path,
@@ -2790,6 +2808,8 @@ def run_gui() -> int:
                     stop_event=self.stop_event,
                 )
                 timings["worker_build_s"] = max(0.0, float(time.perf_counter() - worker_build_started_at))
+                if native_attempt is not None:
+                    payload = self._attach_native_preview_core_note(payload, native_attempt)
                 if self.stop_event.is_set():
                     return
                 has_preview_model = getattr(payload, "preview_model", None) is not None
@@ -2953,6 +2973,81 @@ def run_gui() -> int:
                     self.error.emit(self.request_id, self.archive_preview_request_id, str(exc))
             finally:
                 self.finished.emit()
+
+        def _try_native_preview_core(self) -> Optional[NativePreviewCoreAttempt]:
+            if not self.native_preview_core_enabled or self.entry is None:
+                return None
+            if str(getattr(self.entry, "extension", "") or "").strip().lower() not in ARCHIVE_MODEL_EXTENSIONS:
+                return None
+            cache_root = self.native_preview_core_cache_root
+            if cache_root is None:
+                return None
+            try:
+                return run_native_preview_core_preview_job(
+                    self.entry,
+                    cache_root=cache_root,
+                    render_settings=self.render_settings,
+                    companion_entry=self.companion_entry,
+                    package_root=self.native_preview_core_package_root,
+                    timeout_seconds=3.0,
+                    stop_event=self.stop_event,
+                )
+            except RunCancelled:
+                raise
+            except Exception as exc:
+                return NativePreviewCoreAttempt(
+                    status="error",
+                    fallback_reason=f"native preview-core failed before fallback: {exc}",
+                )
+
+        def _native_preview_core_result(
+            self,
+            native_attempt: NativePreviewCoreAttempt,
+            timings: Mapping[str, float],
+        ) -> ArchivePreviewResult:
+            entry = self.entry
+            metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
+            detail_text = "\n".join(
+                part
+                for part in (
+                    "Native Preview Core generated a D3D11 preview package without Python mesh preparation.",
+                    native_attempt.diagnostic_line(),
+                )
+                if part
+            )
+            return ArchivePreviewResult(
+                status="ok",
+                title=entry.basename if entry is not None else "Native Preview",
+                metadata_summary=metadata_summary,
+                detail_text=detail_text,
+                timings=dict(timings),
+                preview_model=None,
+                native_preview_package_path=native_attempt.package_path,
+                native_preview_diagnostics=dict(native_attempt.diagnostics),
+                preferred_view="model",
+                sidecar_generation=self.sidecar_generation,
+            )
+
+        @staticmethod
+        def _attach_native_preview_core_note(
+            payload: ArchivePreviewResult,
+            native_attempt: NativePreviewCoreAttempt,
+        ) -> ArchivePreviewResult:
+            note = native_attempt.diagnostic_line()
+            if not note:
+                return payload
+            detail_text = str(getattr(payload, "detail_text", "") or "")
+            if note in detail_text:
+                return payload
+            updated_detail = f"{detail_text.rstrip()}\n\n{note}".strip()
+            diagnostics = dict(getattr(payload, "native_preview_diagnostics", {}) or {})
+            diagnostics.update(native_attempt.diagnostics)
+            diagnostics.setdefault("fallback_reason", native_attempt.fallback_reason)
+            return dataclasses.replace(
+                payload,
+                detail_text=updated_detail,
+                native_preview_diagnostics=diagnostics,
+            )
 
     class AlignmentD3D11PackageWorker(QObject):
         completed = Signal(int, object, float, float)
@@ -17722,6 +17817,8 @@ def run_gui() -> int:
             )
 
         def _archive_preview_result_cacheable(self, result: ArchivePreviewResult) -> bool:
+            if str(getattr(result, "native_preview_package_path", "") or "").strip():
+                return False
             if getattr(result, "preview_model", None) is None:
                 return True
             prepared_preview = getattr(result, "prepared_preview_model", None)
@@ -18168,6 +18265,15 @@ def run_gui() -> int:
                 render_settings=preview_settings,
                 include_loose_preview_assets=include_loose_preview_assets,
                 sidecar_generation=self.archive_sidecar_generation,
+                native_preview_core_enabled=(
+                    self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
+                ),
+                native_preview_core_cache_root=self.archive_cache_root / "native_preview_core",
+                native_preview_core_package_root=(
+                    Path(self.archive_package_root_edit.text().strip()).expanduser()
+                    if self.archive_package_root_edit.text().strip()
+                    else None
+                ),
             )
             thread = QThread(self)
             worker.moveToThread(thread)
@@ -58607,6 +58713,40 @@ def run_gui() -> int:
                 self._set_archive_preview_image_controls_enabled(True)
                 self._apply_archive_preview_zoom()
                 return 0.0
+
+            native_package_path = str(getattr(result, "native_preview_package_path", "") or "").strip()
+            if preferred_view == "model" and native_package_path and not self.archive_preview_showing_loose:
+                if request_id is not None and request_id != self.archive_preview_request_id:
+                    return 0.0
+                model_apply_started_at = time.perf_counter()
+                renderer_backend = self._archive_model_renderer_backend()
+                host_binary = find_native_d3d11_host() if renderer_backend == ARCHIVE_MODEL_RENDERER_D3D11 else None
+                if host_binary is not None:
+                    package_dir = Path(native_package_path)
+                    previous = getattr(self, "archive_isolated_renderer_active_package", None)
+                    if previous is not None:
+                        self.archive_isolated_renderer_retired_packages.append(previous)
+                    self.archive_isolated_renderer_active_package = package_dir
+                    detail_text = self._detail_text_with_renderer_note(detail_text, None)
+                    self._set_archive_preview_base_detail_text(detail_text, include_current_model_debug=False)
+                    self.archive_media_preview.clear_media("No media preview available.")
+                    self.archive_preview_label.clear_preview("No image preview available.")
+                    self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
+                    self.archive_preview_tabs.setCurrentIndex(0)
+                    self._update_archive_model_action_controls(None)
+                    self._set_archive_preview_image_controls_enabled(True)
+                    self._apply_archive_preview_zoom()
+                    self.set_status_message("Launching native D3D11 preview package generated by cdmw-preview-core.")
+                    self._set_archive_isolated_renderer_debug(
+                        "Native Preview Core: launching native D3D11 package without Python mesh preparation."
+                    )
+                    self._start_archive_isolated_renderer_process(package_dir)
+                    return max(0.0, float(time.perf_counter() - model_apply_started_at))
+                detail_text = (
+                    f"{detail_text.rstrip()}\n\n"
+                    "Native Preview Core generated a package, but the native D3D11 host is unavailable; "
+                    "showing details instead."
+                ).strip()
 
             if preferred_view == "model" and result.preview_model is not None and not self.archive_preview_showing_loose:
                 if request_id is not None and request_id != self.archive_preview_request_id:

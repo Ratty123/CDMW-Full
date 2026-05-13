@@ -65,9 +65,11 @@ def _add_native_binary(source, destination, *, required_release=False):
 
 
 _add_native_binary("native/cd_texture_dx/build/Release/cd-texture-dx.exe", "native", required_release=True)
+_add_native_binary("native/cdmw_preview_core/build/Release/cdmw-preview-core.exe", "native", required_release=True)
 _add_native_binary("native/cdmw_d3d11_preview/build/Release/cdmw-d3d11-preview.exe", "native", required_release=True)
 if PROFILE != "release":
     _add_native_binary("native/cd_texture_dx/build/Debug/cd-texture-dx.exe", "native")
+    _add_native_binary("native/cdmw_preview_core/build/Debug/cdmw-preview-core.exe", "native")
     _add_native_binary("native/cdmw_d3d11_preview/build/Debug/cdmw-d3d11-preview.exe", "native")
 
 vgmstream_dir = ROOT / ".tools" / "vgmstream"

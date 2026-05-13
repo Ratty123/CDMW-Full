@@ -81,7 +81,7 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             )
             manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
 
-        self.assertEqual(3, manifest["schema_version"])
+        self.assertEqual(4, manifest["schema_version"])
         self.assertEqual("empty.pac", manifest["source_path"])
         self.assertEqual([], manifest["batches"])
 

@@ -1,0 +1,107 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings
+from cdmw.rendering import native_preview_core
+from cdmw.rendering.native_preview_core import (
+    build_native_preview_core_job,
+    run_native_preview_core_preview_job,
+)
+
+
+def _entry() -> ArchiveEntry:
+    return ArchiveEntry(
+        path="character/model/example/cd_example.pac",
+        pamt_path=Path("C:/game/0009/0.pamt"),
+        paz_file=Path("C:/game/0009/1.paz"),
+        offset=128,
+        comp_size=64,
+        orig_size=64,
+        flags=0,
+        paz_index=1,
+    )
+
+
+class NativePreviewCoreTests(unittest.TestCase):
+    def test_build_job_carries_archive_entry_and_schema_v4(self) -> None:
+        job = build_native_preview_core_job(
+            _entry(),
+            cache_root=Path("C:/cache/native"),
+            output_root=Path("C:/cache/package"),
+            render_settings=ModelPreviewRenderSettings(),
+            package_root=Path("C:/game"),
+        )
+
+        self.assertEqual(4, job["schema_version"])
+        self.assertEqual("d3d11", job["renderer_backend"])
+        self.assertEqual("character/model/example/cd_example.pac", job["entry"]["path"])
+        self.assertEqual("C:\\game\\0009\\1.paz", job["entry"]["paz_file"])
+        self.assertTrue(job["capabilities"]["direct_dds"])
+        self.assertTrue(job["capabilities"]["python_fallback_allowed"])
+
+    def test_missing_binary_returns_fallback_attempt(self) -> None:
+        with patch.object(native_preview_core, "find_native_preview_core_binary", return_value=None):
+            attempt = run_native_preview_core_preview_job(
+                _entry(),
+                cache_root=Path("C:/cache/native"),
+                timeout_seconds=0.5,
+            )
+
+        self.assertEqual("missing", attempt.status)
+        self.assertFalse(attempt.succeeded)
+        self.assertIn("unavailable", attempt.diagnostic_line())
+
+    def test_report_success_returns_package_path(self) -> None:
+        def fake_run_process(cmd, **_kwargs):
+            report_path = Path(cmd[3])
+            report_path.write_text(
+                json.dumps(
+                    {
+                        "status": "ok",
+                        "package_path": "C:/cache/native/package_001",
+                        "backend": "cdmw_preview_core_0.1",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return 0, "", ""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fake_binary = Path(temp_dir) / "cdmw-preview-core.exe"
+            fake_binary.write_text("stub", encoding="utf-8")
+            with (
+                patch.object(native_preview_core, "find_native_preview_core_binary", return_value=fake_binary),
+                patch.object(native_preview_core, "run_process_with_cancellation", side_effect=fake_run_process),
+            ):
+                attempt = run_native_preview_core_preview_job(
+                    _entry(),
+                    cache_root=Path(temp_dir) / "cache",
+                    timeout_seconds=0.5,
+                    use_service=False,
+                )
+
+        self.assertTrue(attempt.succeeded)
+        self.assertEqual("C:/cache/native/package_001", attempt.package_path)
+
+    def test_native_preview_core_is_bundled_and_archive_worker_attempts_it(self) -> None:
+        spec_text = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
+        build_text = Path("build_native_windows.ps1").read_text(encoding="utf-8")
+        main_window_text = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source_text = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("cdmw-preview-core.exe", spec_text)
+        self.assertIn("native\\cdmw_preview_core", build_text)
+        self.assertIn("run_native_preview_core_preview_job", main_window_text)
+        self.assertIn("native_preview_core_enabled", main_window_text)
+        self.assertIn("preview-job", source_text)
+        self.assertIn("--service", source_text)
+        self.assertIn("_get_native_preview_core_service", Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8"))
+
+
+if __name__ == "__main__":
+    unittest.main()

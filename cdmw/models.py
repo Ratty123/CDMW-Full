@@ -897,6 +897,8 @@ class ArchivePreviewResult:
     preview_text: str = ""
     preview_model: object = None
     prepared_preview_model: Optional["PreparedModelPreviewData"] = None
+    native_preview_package_path: str = ""
+    native_preview_diagnostics: Dict[str, object] = field(default_factory=dict)
     model_texture_references: Tuple["ArchiveModelTextureReference", ...] = ()
     asset_family_graph: Optional[AssetFamilyGraph] = None
     preferred_view: str = "info"
