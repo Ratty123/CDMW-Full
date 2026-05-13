@@ -235,6 +235,7 @@ class MeshImportSetupSelection:
     placement_review_title: str = ""
     placement_context_note: str = ""
     source_texture_evidence: Tuple[Mapping[str, object], ...] = ()
+    defer_original_texture_preview: bool = False
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
@@ -33812,6 +33813,7 @@ def run_gui() -> int:
             *,
             title: str,
             scene_import_result: Optional[SceneImportResult] = None,
+            original_mesh: Optional[ParsedMesh] = None,
             source_label: str = "",
             force_static_replacement: bool = False,
             placement_review_title: str = "",
@@ -33845,12 +33847,13 @@ def run_gui() -> int:
             is_obj = suffix == ".obj" and not force_static_replacement
             has_roundtrip_sidecar = self._has_valid_obj_roundtrip_sidecar(scene_path) if is_obj else False
             profile: Optional[ReplacementAssetProfile] = None
-            original_mesh_for_setup: Optional[ParsedMesh] = None
+            original_mesh_for_setup: Optional[ParsedMesh] = original_mesh
             try:
-                startup_progress.setLabelText("Reading original mesh donor...")
-                QApplication.processEvents()
-                original_data = read_archive_entry_baseline_data(entry, read_entry_data=read_archive_entry_data).data
-                original_mesh_for_setup = parse_mesh(original_data, entry.path)
+                if original_mesh_for_setup is None:
+                    startup_progress.setLabelText("Reading original mesh donor...")
+                    QApplication.processEvents()
+                    original_data = read_archive_entry_baseline_data(entry, read_entry_data=read_archive_entry_data).data
+                    original_mesh_for_setup = parse_mesh(original_data, entry.path)
                 startup_progress.setLabelText("Checking asset compatibility...")
                 QApplication.processEvents()
                 profile = analyze_replacement_asset(
@@ -34456,10 +34459,10 @@ def run_gui() -> int:
             layout.addLayout(form)
 
             include_family_checkbox = QCheckBox("Use resolved asset-family files for texture/material context")
-            include_family_checkbox.setChecked(True)
+            include_family_checkbox.setChecked(False)
             include_family_checkbox.setToolTip(
                 "Adds exact/recommended resolved family files as supplemental context. "
-                "Weak hint rows are not copied by default."
+                "This can copy many DDS/material files and slow Modify Original startup; enable it when you need a visible workspace or material inspection."
             )
             open_after_checkbox = QCheckBox("Open workspace folder when finished")
             open_after_checkbox.setChecked(False)
@@ -34653,6 +34656,11 @@ def run_gui() -> int:
                 if not obj_paths:
                     raise ValueError("OBJ export did not produce an editable clone file.")
                 obj_path = obj_paths[0]
+                log("Preloading Modify Original clone geometry off the UI thread...")
+                scene_import_result = import_scene_mesh_with_report(obj_path)
+                log("Preloading original archive mesh for Geometry alignment...")
+                original_data = read_archive_entry_baseline_data(entry, read_entry_data=read_archive_entry_data).data
+                original_mesh = parse_mesh(original_data, entry.path)
                 supplemental_files = self._modify_original_workspace_supplemental_files(workspace_dir)
                 readme_path: Optional[Path] = None
                 manifest_path = workspace_dir / "modify_original_workspace.json"
@@ -34715,6 +34723,8 @@ def run_gui() -> int:
                     "summary_lines": tuple(result.summary_lines),
                     "related_count": len(related_entries),
                     "supplemental_files": supplemental_files,
+                    "scene_import_result": scene_import_result,
+                    "original_mesh": original_mesh,
                 }
 
             def _handle_complete(result: object) -> None:
@@ -34763,17 +34773,26 @@ def run_gui() -> int:
             supplemental_files = tuple(
                 path for path in result.get("supplemental_files", ()) if isinstance(path, Path)
             )
+            scene_import_result = result.get("scene_import_result")
+            if not isinstance(scene_import_result, SceneImportResult):
+                scene_import_result = None
+            original_mesh = result.get("original_mesh")
+            if not isinstance(original_mesh, ParsedMesh):
+                original_mesh = None
             if not bool(result.get("create_workspace")):
                 setup = MeshImportSetupSelection(
                     scene_path=obj_path,
                     import_mode="static_replacement",
                     supplemental_files=supplemental_files,
+                    scene_import_result=scene_import_result,
+                    original_mesh=original_mesh,
                     source_label=f"Modify Original in-app clone: {obj_path.name}",
                     placement_review_title="Modify Original Geometry",
                     placement_context_note=(
                         "This is an internal clone of the selected archive mesh. "
                         "Geometry can resize or move existing parts; no workspace export was required, and output is written only through loose-mod save."
                     ),
+                    defer_original_texture_preview=True,
                 )
                 self._start_archive_mesh_patch(entry, preset_setup=setup)
                 return
@@ -34781,6 +34800,8 @@ def run_gui() -> int:
                 entry,
                 obj_path,
                 title="Modify Original Mesh Setup",
+                scene_import_result=scene_import_result,
+                original_mesh=original_mesh,
                 source_label=f"Modify Original clone: {obj_path}",
                 force_static_replacement=True,
                 placement_review_title="Modify Original Geometry",
@@ -35230,6 +35251,7 @@ def run_gui() -> int:
             placement_context_note: str = "",
             source_texture_evidence: Sequence[Mapping[str, object]] = (),
             extra_supplemental_specs: Sequence[MeshImportSupplementalFileSpec] = (),
+            defer_original_texture_preview: bool = False,
             continue_build_callback: Optional[Callable[[StaticMeshReplacementOptions], bool]] = None,
         ) -> Optional[StaticMeshReplacementOptions]:
             modify_original_clone_mode = (
@@ -35237,7 +35259,8 @@ def run_gui() -> int:
                 and self._has_valid_obj_roundtrip_sidecar(obj_path)
                 and self._obj_roundtrip_source_matches_entry(obj_path, entry)
             )
-            original_texture_preview_state = {"enabled": bool(modify_original_clone_mode)}
+            original_texture_preview_default = bool(modify_original_clone_mode and not defer_original_texture_preview)
+            original_texture_preview_state = {"enabled": original_texture_preview_default}
 
             def _preserve_modify_original_material_preview() -> bool:
                 return bool(modify_original_clone_mode and original_texture_preview_state.get("enabled"))
@@ -36160,7 +36183,6 @@ def run_gui() -> int:
             selected_target_original_highlight_indices: set[int] = set()
             hovered_original_highlight_indices: set[int] = set()
             hover_filters: List[QObject] = []
-            texture_preview_cache: Dict[tuple[str, int, int], str] = {}
             texture_uv_transform_state: Dict[str, Dict[str, object]] = {}
             source_material_texture_override_assignments: Dict[Tuple[str, str], str] = {}
             donor_material_plans_by_target: Dict[int, StaticDonorMaterialPlan] = {}
@@ -42272,25 +42294,9 @@ def run_gui() -> int:
                         source = Path(source_path_text).expanduser()
                         if source.suffix.lower() != ".dds":
                             return str(source)
-                        try:
-                            stat = source.stat()
-                            cache_key = (str(source.resolve()).lower(), int(stat.st_mtime_ns), int(stat.st_size))
-                            cached = texture_preview_cache.get(cache_key)
-                            if cached:
-                                return cached
-                        except Exception:
-                            cache_key = None
-                        texconv_text = self.texconv_path_edit.text().strip()
-                        if not texconv_text:
-                            return str(source)
-                        try:
-                            dds_info = parse_dds(source)
-                            preview_path = ensure_dds_display_preview_png(Path(texconv_text).expanduser(), source, dds_info=dds_info)
-                            if cache_key is not None:
-                                texture_preview_cache[cache_key] = preview_path
-                            return preview_path
-                        except Exception:
-                            return str(source)
+                        # The alignment dialog is latency-sensitive. Feed DDS sources to the native preview
+                        # loader instead of launching texconv synchronously while the UI is rebuilding.
+                        return str(source)
 
                     def _texture_set_for_mapping(mapping: StaticSubmeshMapping) -> Optional[object]:
                         if not texture_sets:
@@ -42330,6 +42336,8 @@ def run_gui() -> int:
                             source_path = getattr(base_slot, "source_path", None)
                             if isinstance(source_path, Path):
                                 mesh.preview_texture_path = _source_preview_path(str(source_path))
+                                if source_path.suffix.lower() == ".dds":
+                                    mesh.preview_texture_dds_path = str(source_path)
                                 mesh.texture_name = source_path.name
                                 mesh.preview_texture_flip_vertical = False
                         normal_slot = slots.get("normal")
@@ -42337,6 +42345,8 @@ def run_gui() -> int:
                             source_path = getattr(normal_slot, "source_path", None)
                             if isinstance(source_path, Path):
                                 mesh.preview_normal_texture_path = _source_preview_path(str(source_path))
+                                if source_path.suffix.lower() == ".dds":
+                                    mesh.preview_normal_texture_dds_path = str(source_path)
                                 mesh.preview_normal_texture_name = source_path.name
                                 mesh.preview_normal_texture_strength = _infer_model_preview_normal_strength(
                                     normal_texture_path=source_path.name,
@@ -42349,6 +42359,8 @@ def run_gui() -> int:
                             source_path = getattr(height_slot, "source_path", None)
                             if isinstance(source_path, Path):
                                 mesh.preview_height_texture_path = _source_preview_path(str(source_path))
+                                if source_path.suffix.lower() == ".dds":
+                                    mesh.preview_height_texture_dds_path = str(source_path)
                                 mesh.preview_height_texture_name = source_path.name
                         material_slot = slots.get("material")
                         if material_slot is not None:
@@ -42356,6 +42368,8 @@ def run_gui() -> int:
                             if isinstance(source_path, Path):
                                 semantic_type, semantic_subtype, _confidence, packed_channels = _resolve_model_texture_semantic_details(source_path)
                                 mesh.preview_material_texture_path = _source_preview_path(str(source_path))
+                                if source_path.suffix.lower() == ".dds":
+                                    mesh.preview_material_texture_dds_path = str(source_path)
                                 mesh.preview_material_texture_name = source_path.name
                                 mesh.preview_material_texture_type = semantic_type
                                 mesh.preview_material_texture_subtype = semantic_subtype
@@ -43332,7 +43346,8 @@ def run_gui() -> int:
                 original_texture_preview_checkbox.setChecked(bool(original_texture_preview_state.get("enabled")))
                 original_texture_preview_checkbox.setEnabled(bool(modify_original_clone_mode))
                 original_texture_preview_checkbox.setToolTip(
-                    "For Modify Original clones, reuse the selected archive model's resolved texture bindings in the live replacement preview."
+                    "For Modify Original clones, reuse the selected archive model's resolved texture bindings in the live replacement preview. "
+                    "This can trigger DDS preview preparation and is opt-in for fast in-app Geometry startup."
                 )
                 original_texture_preview_row = QHBoxLayout()
                 original_texture_preview_row.setContentsMargins(0, 0, 0, 0)
@@ -43345,19 +43360,27 @@ def run_gui() -> int:
                 )
                 original_texture_preview_layout.addLayout(original_texture_preview_row)
                 original_texture_preview_note = QLabel(
-                    "Preview-only; exported only when replaced."
+                    (
+                        "Off by default for fast Geometry startup; enable when you need original DDS/material display."
+                        if modify_original_clone_mode and defer_original_texture_preview
+                        else "Preview-only; exported only when replaced."
+                    )
                     if modify_original_clone_mode
                     else "Exact Modify Original clones only."
                 )
                 original_texture_preview_note.setObjectName("HintLabel")
                 original_texture_preview_note.setWordWrap(True)
                 original_texture_preview_note.setToolTip(
-                    "Preview-only: original game DDS files are reused for display and are not copied into the loose mod unless you add replacement textures."
+                    (
+                        "Original game DDS files are reused only for display. Enabling this can slow preview rebuilds while DDS previews are prepared."
+                        if defer_original_texture_preview
+                        else "Preview-only: original game DDS files are reused for display and are not copied into the loose mod unless you add replacement textures."
+                    )
                     if modify_original_clone_mode
                     else "Available when the imported OBJ is an exact Modify Original clone of the selected archive model."
                 )
                 original_texture_preview_layout.addWidget(original_texture_preview_note)
-                original_texture_preview_note.setVisible(False)
+                original_texture_preview_note.setVisible(bool(modify_original_clone_mode and defer_original_texture_preview))
                 original_texture_preview_group.setVisible(bool(modify_original_clone_mode))
                 textures_layout.addWidget(original_texture_preview_group, 0)
 
@@ -47880,6 +47903,7 @@ def run_gui() -> int:
                     placement_context_note=setup.placement_context_note,
                     source_texture_evidence=setup.source_texture_evidence,
                     extra_supplemental_specs=setup.extra_supplemental_specs,
+                    defer_original_texture_preview=bool(setup.defer_original_texture_preview),
                     continue_build_callback=_start_build_with_static_options,
                 )
                 return
