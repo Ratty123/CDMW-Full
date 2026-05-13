@@ -749,6 +749,12 @@ struct VSOut {
     float3 tangent : TANGENT;
     float3 bitangent : BINORMAL;
 };
+float3 srgb_to_linear(float3 color) {
+    return pow(saturate(color), 2.2);
+}
+float3 linear_to_srgb(float3 color) {
+    return pow(saturate(color), 1.0 / 2.2);
+}
 VSOut vs_main(VSIn input) {
     VSOut output;
     output.position = mul(float4(input.position, 1.0), mvp);
@@ -764,7 +770,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
     if (base_color_flip.w > 0.5) {
         uv.y = 1.0 - uv.y;
     }
-    float3 albedo = max(input.color, base_color_flip.rgb);
+    float3 albedo = srgb_to_linear(max(input.color, base_color_flip.rgb));
     if (flags.x > 0.5) {
         albedo = base_tex.Sample(preview_sampler, uv).rgb;
     }
@@ -864,7 +870,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float3 diffuse = albedo * (0.28 + ndotl * 0.82) * ao * height_light * lerp(1.0, 0.72, metalness);
     float3 specular_color = lerp(highlight.xxx, highlight.xxx * max(albedo, 0.12), metalness);
     float3 color = diffuse + specular_color;
-    return float4(saturate(color), 1.0);
+    return float4(linear_to_srgb(color), 1.0);
 }
 )";
 

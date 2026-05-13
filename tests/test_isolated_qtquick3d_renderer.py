@@ -317,6 +317,8 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("CREATETEX_FORCE_SRGB", source)
         self.assertIn("CREATETEX_IGNORE_SRGB", source)
         self.assertIn("srgb_color_uploads", source)
+        self.assertIn("linear_to_srgb", source)
+        self.assertIn("srgb_to_linear", source)
         self.assertIn("begin_mouse_drag", source)
         self.assertIn("kZoomSteps", source)
         self.assertIn("WM_MOUSEWHEEL", source)

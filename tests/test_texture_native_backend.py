@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cdmw.core import texture_native
-from cdmw.core.dds_native import inspect_dds_native
+from cdmw.core.dds_native import dds_native_report_dict, inspect_dds_native
 
 
 def _minimal_bc_dds(fourcc: bytes = b"DXT1", *, width: int = 4, height: int = 4, mip_count: int = 1) -> bytes:
@@ -21,6 +21,30 @@ def _minimal_bc_dds(fourcc: bytes = b"DXT1", *, width: int = 4, height: int = 4,
     header[80:84] = fourcc
     payload_size = max(1, (width + 3) // 4) * max(1, (height + 3) // 4) * block_bytes
     return b"DDS " + bytes(header) + (b"\x00" * payload_size)
+
+
+def _minimal_dx10_dds(
+    dxgi_format: int,
+    *,
+    width: int = 4,
+    height: int = 4,
+    mip_count: int = 1,
+    bytes_per_pixel: int = 4,
+) -> bytes:
+    header = bytearray(124)
+    header[0:4] = (124).to_bytes(4, "little")
+    header[4:8] = (0x0002100F).to_bytes(4, "little")
+    header[8:12] = int(height).to_bytes(4, "little")
+    header[12:16] = int(width).to_bytes(4, "little")
+    header[24:28] = max(1, int(mip_count)).to_bytes(4, "little")
+    header[72:76] = (32).to_bytes(4, "little")
+    header[76:80] = (0x4).to_bytes(4, "little")
+    header[80:84] = b"DX10"
+    dx10 = bytearray(20)
+    dx10[0:4] = int(dxgi_format).to_bytes(4, "little")
+    dx10[4:8] = (3).to_bytes(4, "little")
+    payload_size = max(1, int(width)) * max(1, int(height)) * max(1, int(bytes_per_pixel))
+    return b"DDS " + bytes(header) + bytes(dx10) + (b"\x00" * payload_size)
 
 
 class NativeTextureBackendTests(unittest.TestCase):
@@ -95,6 +119,22 @@ class NativeTextureBackendTests(unittest.TestCase):
         self.assertEqual(1, len(info.mip_levels))
         self.assertEqual(0, info.mip_levels[0].level)
         self.assertEqual(128, info.mip_levels[0].offset)
+
+    def test_dds_native_parser_marks_common_dx10_uncompressed_uploadable(self) -> None:
+        info = inspect_dds_native(_minimal_dx10_dds(28, width=4, height=4, bytes_per_pixel=4))
+
+        self.assertTrue(info.supported_uncompressed)
+        self.assertFalse(info.supported_compressed)
+        self.assertEqual("R8G8B8A8_UNORM", info.format_name)
+        self.assertEqual("rgba8", info.compressed_family)
+        self.assertEqual(1, info.block_width)
+        self.assertEqual(1, info.block_height)
+        self.assertEqual(148, info.mip_levels[0].offset)
+        self.assertEqual(64, info.mip_levels[0].byte_count)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "rgba.dds"
+            report = dds_native_report_dict(path, info)
+        self.assertTrue(report["direct_upload_candidate"])
 
     def test_directxtex_batch_preview_uses_one_helper_command(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -445,7 +445,11 @@ def _dds_manifest_entry(
         report.update(
             {
                 "available": True,
-                "direct_upload_candidate": bool(report.get("supported_compressed", False)),
+                "direct_upload_candidate": bool(
+                    report.get("direct_upload_candidate", False)
+                    or report.get("supported_compressed", False)
+                    or report.get("supported_uncompressed", False)
+                ),
             }
         )
         if inspect_cache is not None:
@@ -454,7 +458,11 @@ def _dds_manifest_entry(
         {
             "slot": str(slot_name or ""),
             "available": True,
-            "direct_upload_candidate": bool(report.get("supported_compressed", False)),
+            "direct_upload_candidate": bool(
+                report.get("direct_upload_candidate", False)
+                or report.get("supported_compressed", False)
+                or report.get("supported_uncompressed", False)
+            ),
         }
     )
     if reason:

@@ -38,6 +38,7 @@ class DdsNativeInfo:
     data_offset: int = 128
     mip_levels: Tuple[DdsMipLevel, ...] = ()
     supported_compressed: bool = False
+    supported_uncompressed: bool = False
     compressed_family: str = ""
     srgb: bool = False
     has_alpha: bool = False
@@ -61,6 +62,17 @@ _DXGI_COMPRESSED_FORMATS: Dict[int, Tuple[str, str, int, bool, bool]] = {
     99: ("BC7_UNORM_SRGB", "bc7", 16, True, True),
 }
 
+_DXGI_UNCOMPRESSED_FORMATS: Dict[int, Tuple[str, str, int, bool, bool]] = {
+    28: ("R8G8B8A8_UNORM", "rgba8", 4, False, True),
+    29: ("R8G8B8A8_UNORM_SRGB", "rgba8", 4, True, True),
+    49: ("R8G8_UNORM", "rg8", 2, False, False),
+    61: ("R8_UNORM", "r8", 1, False, False),
+    87: ("B8G8R8A8_UNORM", "bgra8", 4, False, True),
+    88: ("B8G8R8X8_UNORM", "bgrx8", 4, False, False),
+    91: ("B8G8R8A8_UNORM_SRGB", "bgra8", 4, True, True),
+    93: ("B8G8R8X8_UNORM_SRGB", "bgrx8", 4, True, False),
+}
+
 _FOURCC_COMPRESSED_FORMATS: Dict[bytes, Tuple[str, str, int, bool, bool]] = {
     b"DXT1": ("BC1_UNORM", "bc1", 8, False, True),
     b"DXT2": ("BC2_UNORM", "bc2", 16, False, True),
@@ -82,9 +94,11 @@ def _read_u32(data: bytes, offset: int) -> int:
     return struct.unpack_from("<I", data, offset)[0]
 
 
-def _mip_byte_count(width: int, height: int, bytes_per_block: int) -> int:
-    blocks_wide = max(1, (int(width) + 3) // 4)
-    blocks_high = max(1, (int(height) + 3) // 4)
+def _mip_byte_count(width: int, height: int, bytes_per_block: int, *, block_width: int = 4, block_height: int = 4) -> int:
+    safe_block_width = max(1, int(block_width))
+    safe_block_height = max(1, int(block_height))
+    blocks_wide = max(1, (int(width) + safe_block_width - 1) // safe_block_width)
+    blocks_high = max(1, (int(height) + safe_block_height - 1) // safe_block_height)
     return blocks_wide * blocks_high * int(bytes_per_block)
 
 
@@ -96,13 +110,21 @@ def _build_mip_layout(
     data_offset: int,
     bytes_per_block: int,
     payload_size: int,
+    block_width: int = 4,
+    block_height: int = 4,
 ) -> Tuple[DdsMipLevel, ...]:
     levels = []
     offset = int(data_offset)
     level_width = max(1, int(width))
     level_height = max(1, int(height))
     for level in range(max(1, int(mip_count))):
-        byte_count = _mip_byte_count(level_width, level_height, bytes_per_block)
+        byte_count = _mip_byte_count(
+            level_width,
+            level_height,
+            bytes_per_block,
+            block_width=block_width,
+            block_height=block_height,
+        )
         if offset + byte_count > payload_size:
             break
         levels.append(
@@ -138,6 +160,7 @@ def inspect_dds_native(data: bytes) -> DdsNativeInfo:
     data_offset = 128
     dxgi_format = 0
     format_tuple: Optional[Tuple[str, str, int, bool, bool]] = None
+    is_compressed = True
     fourcc = ""
     if pf_flags & DDS_FOURCC:
         fourcc = fourcc_bytes.decode("ascii", errors="replace").rstrip("\0")
@@ -147,6 +170,9 @@ def inspect_dds_native(data: bytes) -> DdsNativeInfo:
             dxgi_format = _read_u32(data, 128)
             data_offset = 148
             format_tuple = _DXGI_COMPRESSED_FORMATS.get(dxgi_format)
+            if format_tuple is None:
+                format_tuple = _DXGI_UNCOMPRESSED_FORMATS.get(dxgi_format)
+                is_compressed = False
         else:
             format_tuple = _FOURCC_COMPRESSED_FORMATS.get(fourcc_bytes)
     if format_tuple is None:
@@ -162,6 +188,8 @@ def inspect_dds_native(data: bytes) -> DdsNativeInfo:
             reason="DDS format is not a supported BC compressed 2D texture",
         )
     format_name, family, bytes_per_block, srgb, default_alpha = format_tuple
+    block_width = 4 if is_compressed else 1
+    block_height = 4 if is_compressed else 1
     has_alpha = default_alpha or bool(pf_flags & DDS_ALPHA_PIXELS)
     levels = _build_mip_layout(
         width=width,
@@ -170,6 +198,8 @@ def inspect_dds_native(data: bytes) -> DdsNativeInfo:
         data_offset=data_offset,
         bytes_per_block=bytes_per_block,
         payload_size=len(data),
+        block_width=block_width,
+        block_height=block_height,
     )
     if not levels:
         return DdsNativeInfo(
@@ -179,6 +209,8 @@ def inspect_dds_native(data: bytes) -> DdsNativeInfo:
             format_name,
             dxgi_format=dxgi_format,
             fourcc=fourcc,
+            block_width=block_width,
+            block_height=block_height,
             bytes_per_block=bytes_per_block,
             data_offset=data_offset,
             compressed_family=family,
@@ -193,10 +225,13 @@ def inspect_dds_native(data: bytes) -> DdsNativeInfo:
         format_name,
         dxgi_format=dxgi_format,
         fourcc=fourcc,
+        block_width=block_width,
+        block_height=block_height,
         bytes_per_block=bytes_per_block,
         data_offset=data_offset,
         mip_levels=levels,
-        supported_compressed=True,
+        supported_compressed=is_compressed,
+        supported_uncompressed=not is_compressed,
         compressed_family=family,
         srgb=srgb,
         has_alpha=has_alpha,
@@ -219,6 +254,8 @@ def dds_native_report_dict(path: Path, info: DdsNativeInfo, *, backend: str = "d
         "height": info.height,
         "mip_count": info.mip_count,
         "supported_compressed": info.supported_compressed,
+        "supported_uncompressed": info.supported_uncompressed,
+        "direct_upload_candidate": bool(info.supported_compressed or info.supported_uncompressed),
         "compressed_family": info.compressed_family,
         "srgb": info.srgb,
         "has_alpha": info.has_alpha,
