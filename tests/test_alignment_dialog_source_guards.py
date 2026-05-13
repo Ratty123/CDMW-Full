@@ -102,6 +102,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
 
     def test_alignment_dialog_has_native_d3d11_accurate_preview_mode(self) -> None:
         source = _main_window_source()
+        native_source = (ROOT / "native" / "cdmw_d3d11_preview" / "src" / "main.cpp").read_text(encoding="utf-8")
         self.assertIn('preview_renderer_combo.addItem("Native D3D11 accurate", "d3d11")', source)
         self.assertIn('preview_renderer_combo.addItem("Legacy OpenGL edit", "legacy")', source)
         self.assertIn("alignment_d3d11_preview_host = NativeD3D11PreviewHostFrame", source)
@@ -110,8 +111,15 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("ModelPreviewWidget.prepare_model_preview(", source)
         self.assertIn("def _alignment_d3d11_display_model", source)
         self.assertIn("def _side_by_side_alignment_preview_model", source)
-        self.assertIn("Mesh Edit uses viewport strokes from Legacy OpenGL edit", source)
-        self.assertIn("Native D3D11 accurate preview. Use Legacy OpenGL edit", source)
+        self.assertIn("Native D3D11 accurate preview. Mesh edit brush/vertex strokes run in D3D11", source)
+        self.assertIn("alignment_d3d11_preview_host.set_mesh_edit_state(", source)
+        self.assertIn("alignment_d3d11_preview_host.mesh_edit_stroke_started.connect(_mesh_edit_begin_stroke)", source)
+        self.assertNotIn("Mesh Edit uses viewport strokes from Legacy OpenGL edit", source)
+        self.assertIn("std::vector<EditorCandidate> mesh_edit_candidates_at", native_source)
+        self.assertIn("send_mesh_edit_event(\"mesh_edit_stroke_started\"", native_source)
+        self.assertIn("send_mesh_edit_event(\"mesh_edit_stroke_previewed\"", native_source)
+        self.assertIn("source_vertex_weights", native_source)
+        self.assertIn("identity_file", native_source)
 
     def test_alignment_dialog_build_mod_keeps_window_open_for_repeat_exports(self) -> None:
         source = _main_window_source()

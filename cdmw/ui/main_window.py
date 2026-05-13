@@ -605,6 +605,36 @@ def run_gui() -> int:
                 }
             )
 
+        def set_mesh_edit_state(
+            self,
+            *,
+            enabled: bool,
+            target_mode: str,
+            tool: str,
+            radius_pixels: float,
+            strength: float,
+            falloff: str,
+            show_vertices: bool,
+        ) -> bool:
+            return self._send_host_json_command(
+                {
+                    "command": "set_mesh_edit_state",
+                    "enabled": bool(enabled),
+                    "target_mode": str(target_mode or "brush"),
+                    "tool": str(tool or "grab"),
+                    "radius_pixels": float(radius_pixels),
+                    "strength": float(strength),
+                    "falloff": str(falloff or "smooth"),
+                    "show_vertices": bool(show_vertices),
+                }
+            )
+
+        def clear_mesh_edit_vertex_selection(self) -> bool:
+            return self._send_host_json_command({"command": "clear_mesh_edit_selection"})
+
+        def select_mesh_edit_brush_vertices(self) -> bool:
+            return self._send_host_json_command({"command": "select_mesh_edit_brush"})
+
         def nativeEvent(self, event_type: object, message: object) -> tuple[bool, int]:  # type: ignore[override]
             if platform.system().lower() != "windows":
                 return super().nativeEvent(event_type, message)
@@ -646,6 +676,16 @@ def run_gui() -> int:
                         pass
                     self._fit_to_view = bool(payload.get("fit_to_view", self._fit_to_view))
                     self.view_state_changed.emit(float(self._zoom_factor), bool(self._fit_to_view))
+                elif event == "mesh_edit_stroke_started":
+                    self.mesh_edit_stroke_started.emit(payload.get("payload", {}))
+                elif event == "mesh_edit_stroke_previewed":
+                    self.mesh_edit_stroke_previewed.emit(payload.get("payload", {}))
+                elif event == "mesh_edit_stroke_finished":
+                    self.mesh_edit_stroke_finished.emit(payload.get("payload", {}))
+                elif event == "mesh_edit_stroke_cancelled":
+                    self.mesh_edit_stroke_cancelled.emit(payload.get("payload", {}))
+                elif event == "mesh_edit_selection_changed":
+                    self.mesh_edit_selection_changed.emit(payload.get("payload", {}))
                 else:
                     self.debug_details_changed.emit(json.dumps(dict(payload), separators=(",", ":")))
                 self.native_event_received.emit(dict(payload))
@@ -37567,7 +37607,7 @@ def run_gui() -> int:
                 if _alignment_d3d11_preview_active():
                     preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                     preview_help.setText(
-                        "Native D3D11 accurate preview. Use Legacy OpenGL edit when you need viewport drag handles or vertex-edit strokes."
+                        "Native D3D11 accurate preview. Mesh edit brush/vertex strokes run in D3D11; Legacy OpenGL edit remains available for older alignment handles."
                     )
                     alignment_preview_settings_button.setToolTip(
                         "Open 3D preview settings supported by the native D3D11 renderer, including lighting, support maps, depth, shine, and resolution."
@@ -41192,6 +41232,16 @@ def run_gui() -> int:
 
                 def _sync_mesh_edit_preview_settings() -> None:
                     active = bool(mesh_edit_enabled_checkbox.isChecked()) and _mesh_edit_can_edit_selected_source()[0]
+                    if _alignment_d3d11_preview_active():
+                        alignment_d3d11_preview_host.set_mesh_edit_state(
+                            enabled=active,
+                            target_mode=str(mesh_edit_target_combo.currentData() or "brush"),
+                            tool=str(mesh_edit_tool_combo.currentData() or "grab"),
+                            radius_pixels=float(mesh_edit_radius_spin.value()),
+                            strength=float(mesh_edit_strength_spin.value()) / 100.0,
+                            falloff=str(mesh_edit_falloff_combo.currentData() or "smooth"),
+                            show_vertices=bool(mesh_edit_show_vertices_checkbox.isChecked()),
+                        )
                     for preview_widget in (static_dialog_preview, overlay_dialog_preview, replacement_only_preview):
                         preview_widget.set_mesh_edit_target_mode(str(mesh_edit_target_combo.currentData() or "brush"))
                         preview_widget.set_mesh_edit_tool(str(mesh_edit_tool_combo.currentData() or "grab"))
@@ -41205,16 +41255,13 @@ def run_gui() -> int:
 
                 def _refresh_mesh_edit_controls() -> None:
                     can_edit, reason = _mesh_edit_can_edit_selected_source()
-                    renderer_requires_legacy = _alignment_d3d11_preview_active()
-                    if renderer_requires_legacy:
-                        reason = "Mesh Edit uses viewport strokes from Legacy OpenGL edit; switch the preview renderer to Legacy OpenGL edit to use it."
                     mesh_edit_group.setEnabled(mesh_edit_supported)
-                    mesh_edit_enabled_checkbox.setEnabled(can_edit and not renderer_requires_legacy)
-                    if not can_edit or renderer_requires_legacy:
+                    mesh_edit_enabled_checkbox.setEnabled(can_edit)
+                    if not can_edit:
                         mesh_edit_enabled_checkbox.blockSignals(True)
                         mesh_edit_enabled_checkbox.setChecked(False)
                         mesh_edit_enabled_checkbox.blockSignals(False)
-                    editing_active = bool(mesh_edit_enabled_checkbox.isChecked()) and can_edit and not renderer_requires_legacy
+                    editing_active = bool(mesh_edit_enabled_checkbox.isChecked()) and can_edit
                     for widget in (
                         mesh_edit_target_combo,
                         mesh_edit_tool_combo,
@@ -41546,11 +41593,19 @@ def run_gui() -> int:
                     return (static_dialog_preview,)
 
                 def _mesh_edit_clear_vertex_selection() -> None:
+                    if _alignment_d3d11_preview_active():
+                        alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()
+                        _refresh_mesh_edit_controls()
+                        return
                     for preview_widget in (static_dialog_preview, overlay_dialog_preview, replacement_only_preview):
                         preview_widget.clear_mesh_edit_vertex_selection()
                     _refresh_mesh_edit_controls()
 
                 def _mesh_edit_select_brush_vertices() -> None:
+                    if _alignment_d3d11_preview_active():
+                        alignment_d3d11_preview_host.select_mesh_edit_brush_vertices()
+                        _refresh_mesh_edit_controls()
+                        return
                     for preview_widget in _mesh_edit_active_preview_widgets():
                         preview_widget.select_mesh_edit_brush_vertices()
                     _refresh_mesh_edit_controls()
@@ -47757,6 +47812,11 @@ def run_gui() -> int:
                 preview_widget.mesh_edit_stroke_finished.connect(_mesh_edit_finish_stroke)
                 preview_widget.mesh_edit_stroke_cancelled.connect(_mesh_edit_cancel_stroke)
                 preview_widget.mesh_edit_selection_changed.connect(_mesh_edit_selection_changed)
+            alignment_d3d11_preview_host.mesh_edit_stroke_started.connect(_mesh_edit_begin_stroke)
+            alignment_d3d11_preview_host.mesh_edit_stroke_previewed.connect(_mesh_edit_apply_preview_payload)
+            alignment_d3d11_preview_host.mesh_edit_stroke_finished.connect(_mesh_edit_finish_stroke)
+            alignment_d3d11_preview_host.mesh_edit_stroke_cancelled.connect(_mesh_edit_cancel_stroke)
+            alignment_d3d11_preview_host.mesh_edit_selection_changed.connect(_mesh_edit_selection_changed)
             preview_controls_ready["ready"] = True
             dialog.finished.connect(lambda _result=0: _shutdown_alignment_d3d11_preview())
             QTimer.singleShot(0, _set_preview_renderer)

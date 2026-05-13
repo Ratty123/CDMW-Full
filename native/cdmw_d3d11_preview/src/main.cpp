@@ -92,6 +92,9 @@ struct PreviewBatch {
     int source_submesh_index = -1;
     std::wstring identity_file;
     float highlight_strength = 0.0f;
+    std::vector<DirectX::XMFLOAT3> cpu_positions;
+    std::vector<int> cpu_source_submeshes;
+    std::vector<int> cpu_source_vertices;
     ComPtr<ID3D11Buffer> vertex_buffer;
     ComPtr<ID3D11ShaderResourceView> base_srv;
     ComPtr<ID3D11ShaderResourceView> normal_srv;
@@ -102,6 +105,36 @@ struct PreviewBatch {
     ComPtr<ID3D11ShaderResourceView> specular_srv;
     ComPtr<ID3D11ShaderResourceView> detail_srv;
     ComPtr<ID3D11ShaderResourceView> height_srv;
+};
+
+struct EditorCandidate {
+    int batch_index = -1;
+    int source_submesh_index = -1;
+    int source_vertex_index = -1;
+    DirectX::XMFLOAT3 position{0.0f, 0.0f, 0.0f};
+    float screen_x = 0.0f;
+    float screen_y = 0.0f;
+    float distance = 0.0f;
+    float weight = 1.0f;
+};
+
+struct MeshEditState {
+    bool enabled = false;
+    std::string target_mode = "brush";
+    std::string tool = "grab";
+    std::string falloff = "smooth";
+    float radius_pixels = 24.0f;
+    float strength = 0.5f;
+    bool show_vertices = false;
+    bool drag_active = false;
+    int stroke_id = 0;
+    int start_x = 0;
+    int start_y = 0;
+    int last_x = 0;
+    int last_y = 0;
+    bool previewed = false;
+    std::vector<EditorCandidate> drag_candidates;
+    std::set<std::pair<int, int>> selected_vertices;
 };
 
 struct ConstantBuffer {
@@ -729,6 +762,16 @@ static std::string skipped_json(const std::vector<std::string>& skipped) {
     return out.str();
 }
 
+static std::string float3_json(const DirectX::XMFLOAT3& value) {
+    std::ostringstream out;
+    out << "[" << value.x << "," << value.y << "," << value.z << "]";
+    return out.str();
+}
+
+static std::string float3_delta_json(const DirectX::XMFLOAT3& value) {
+    return float3_json(value);
+}
+
 static std::string loaded_payload(const RendererStats& stats) {
     std::ostringstream loaded;
     loaded << "{"
@@ -1005,6 +1048,9 @@ public:
         render_tuning_ = next_render_tuning;
         first_frame_started_ = false;
         first_frame_reported_ = false;
+        mesh_edit_.drag_active = false;
+        mesh_edit_.drag_candidates.clear();
+        mesh_edit_.selected_vertices.clear();
         if (reset_view_state) {
             reset_view();
         }
@@ -1039,22 +1085,37 @@ public:
             result = 0;
             return true;
         case WM_LBUTTONDOWN:
+            if (begin_mesh_edit_drag(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                result = 0;
+                return true;
+            }
+            [[fallthrough]];
         case WM_MBUTTONDOWN:
         case WM_RBUTTONDOWN:
             begin_mouse_drag(msg, wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             result = 0;
             return true;
         case WM_MOUSEMOVE:
+            if (update_mesh_edit_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                result = 0;
+                return true;
+            }
             update_mouse_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             result = 0;
             return drag_mode_ != 0;
         case WM_LBUTTONUP:
+            if (finish_mesh_edit_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                result = 0;
+                return true;
+            }
+            [[fallthrough]];
         case WM_MBUTTONUP:
         case WM_RBUTTONUP:
             end_mouse_drag(msg);
             result = 0;
             return true;
         case WM_CAPTURECHANGED:
+            cancel_mesh_edit_drag();
             drag_mode_ = 0;
             drag_button_ = 0;
             return false;
@@ -1207,6 +1268,337 @@ private:
         return visible_height / viewport_height;
     }
 
+    DirectX::XMMATRIX current_world_matrix() const {
+        return DirectX::XMMatrixRotationRollPitchYaw(
+                DirectX::XMConvertToRadians(pitch_),
+                DirectX::XMConvertToRadians(yaw_),
+                0.0f)
+            * DirectX::XMMatrixTranslation(pan_x_, pan_y_, pan_z_);
+    }
+
+    DirectX::XMMATRIX current_view_projection_matrix() const {
+        DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(
+            DirectX::XMVectorSet(0.0f, 0.0f, -distance_, 1.0f),
+            DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
+            DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+        DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(
+            DirectX::XMConvertToRadians(kVerticalFovDegrees),
+            static_cast<float>(width_) / std::max(1.0f, static_cast<float>(height_)),
+            0.05f,
+            100.0f);
+        return view * projection;
+    }
+
+    DirectX::XMMATRIX current_mvp_matrix() const {
+        return current_world_matrix() * current_view_projection_matrix();
+    }
+
+    bool project_position(const DirectX::XMFLOAT3& position, float& screen_x, float& screen_y) const {
+        DirectX::XMVECTOR source = DirectX::XMLoadFloat3(&position);
+        DirectX::XMVECTOR projected = DirectX::XMVector3TransformCoord(source, current_mvp_matrix());
+        DirectX::XMFLOAT3 clip{};
+        DirectX::XMStoreFloat3(&clip, projected);
+        if (!std::isfinite(clip.x) || !std::isfinite(clip.y) || !std::isfinite(clip.z)) return false;
+        if (clip.z < 0.0f || clip.z > 1.0f) return false;
+        screen_x = (clip.x * 0.5f + 0.5f) * static_cast<float>(width_);
+        screen_y = (0.5f - clip.y * 0.5f) * static_cast<float>(height_);
+        return std::isfinite(screen_x) && std::isfinite(screen_y);
+    }
+
+    float mesh_edit_falloff_weight(float distance_pixels, float radius_pixels) const {
+        float normalized = std::clamp(distance_pixels / std::max(radius_pixels, 1e-6f), 0.0f, 1.0f);
+        if (normalized >= 1.0f) return 0.0f;
+        std::string mode = lower_copy(mesh_edit_.falloff);
+        if (mode == "linear") return 1.0f - normalized;
+        if (mode == "sharp") return (1.0f - normalized) * (1.0f - normalized);
+        if (mode == "constant") return 1.0f;
+        return 1.0f - (normalized * normalized * (3.0f - 2.0f * normalized));
+    }
+
+    std::vector<EditorCandidate> mesh_edit_candidates_at(int x, int y, float radius_pixels, bool nearest_only) const {
+        std::vector<EditorCandidate> candidates;
+        if (!mesh_edit_.enabled || width_ <= 0 || height_ <= 0) return candidates;
+        for (const PreviewBatch& batch : batches_) {
+            if (batch.cpu_positions.empty()) continue;
+            for (size_t vertex_index = 0; vertex_index < batch.cpu_positions.size(); ++vertex_index) {
+                int source_submesh = vertex_index < batch.cpu_source_submeshes.size()
+                    ? batch.cpu_source_submeshes[vertex_index]
+                    : batch.source_submesh_index;
+                int source_vertex = vertex_index < batch.cpu_source_vertices.size()
+                    ? batch.cpu_source_vertices[vertex_index]
+                    : static_cast<int>(vertex_index);
+                if (source_submesh < 0 || source_vertex < 0) continue;
+                float screen_x = 0.0f;
+                float screen_y = 0.0f;
+                if (!project_position(batch.cpu_positions[vertex_index], screen_x, screen_y)) continue;
+                float distance = std::hypot(static_cast<float>(x) - screen_x, static_cast<float>(y) - screen_y);
+                if (distance > radius_pixels) continue;
+                EditorCandidate candidate;
+                candidate.batch_index = batch.index;
+                candidate.source_submesh_index = source_submesh;
+                candidate.source_vertex_index = source_vertex;
+                candidate.position = batch.cpu_positions[vertex_index];
+                candidate.screen_x = screen_x;
+                candidate.screen_y = screen_y;
+                candidate.distance = distance;
+                candidate.weight = mesh_edit_falloff_weight(distance, radius_pixels);
+                if (candidate.weight > 0.0f) candidates.push_back(candidate);
+            }
+        }
+        std::sort(candidates.begin(), candidates.end(), [](const EditorCandidate& left, const EditorCandidate& right) {
+            return left.distance < right.distance;
+        });
+        if (nearest_only && candidates.size() > 1) {
+            candidates.resize(1);
+        }
+        constexpr size_t kMaxBrushCandidates = 6000;
+        if (!nearest_only && candidates.size() > kMaxBrushCandidates) {
+            candidates.resize(kMaxBrushCandidates);
+        }
+        return candidates;
+    }
+
+    std::vector<EditorCandidate> mesh_edit_selected_candidates() const {
+        std::vector<EditorCandidate> candidates;
+        if (mesh_edit_.selected_vertices.empty()) return candidates;
+        std::set<std::pair<int, int>> seen;
+        for (const PreviewBatch& batch : batches_) {
+            for (size_t vertex_index = 0; vertex_index < batch.cpu_positions.size(); ++vertex_index) {
+                int source_submesh = vertex_index < batch.cpu_source_submeshes.size()
+                    ? batch.cpu_source_submeshes[vertex_index]
+                    : batch.source_submesh_index;
+                int source_vertex = vertex_index < batch.cpu_source_vertices.size()
+                    ? batch.cpu_source_vertices[vertex_index]
+                    : static_cast<int>(vertex_index);
+                std::pair<int, int> key(source_submesh, source_vertex);
+                if (mesh_edit_.selected_vertices.find(key) == mesh_edit_.selected_vertices.end() || seen.find(key) != seen.end()) {
+                    continue;
+                }
+                seen.insert(key);
+                EditorCandidate candidate;
+                candidate.batch_index = batch.index;
+                candidate.source_submesh_index = source_submesh;
+                candidate.source_vertex_index = source_vertex;
+                candidate.position = batch.cpu_positions[vertex_index];
+                candidate.weight = 1.0f;
+                candidates.push_back(candidate);
+            }
+        }
+        return candidates;
+    }
+
+    DirectX::XMFLOAT3 mesh_edit_average_position(const std::vector<EditorCandidate>& candidates) const {
+        if (candidates.empty()) return DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        DirectX::XMFLOAT3 total(0.0f, 0.0f, 0.0f);
+        for (const EditorCandidate& candidate : candidates) {
+            total.x += candidate.position.x;
+            total.y += candidate.position.y;
+            total.z += candidate.position.z;
+        }
+        float scale = 1.0f / static_cast<float>(candidates.size());
+        return DirectX::XMFLOAT3(total.x * scale, total.y * scale, total.z * scale);
+    }
+
+    DirectX::XMFLOAT3 mesh_edit_drag_delta(int start_x, int start_y, int end_x, int end_y) const {
+        float delta_x = static_cast<float>(end_x - start_x);
+        float delta_y = static_cast<float>(end_y - start_y);
+        float units_per_pixel = world_units_per_pixel();
+        DirectX::XMMATRIX rotation = DirectX::XMMatrixRotationRollPitchYaw(
+            DirectX::XMConvertToRadians(pitch_),
+            DirectX::XMConvertToRadians(yaw_),
+            0.0f);
+        DirectX::XMVECTOR determinant{};
+        DirectX::XMMATRIX inverse_rotation = DirectX::XMMatrixInverse(&determinant, rotation);
+        DirectX::XMVECTOR right = DirectX::XMVector3TransformNormal(DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), inverse_rotation);
+        DirectX::XMVECTOR up = DirectX::XMVector3TransformNormal(DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), inverse_rotation);
+        DirectX::XMVECTOR horizontal = DirectX::XMVectorScale(right, delta_x * units_per_pixel);
+        DirectX::XMVECTOR vertical = DirectX::XMVectorScale(up, delta_y * units_per_pixel);
+        DirectX::XMVECTOR delta = DirectX::XMVectorSubtract(horizontal, vertical);
+        DirectX::XMFLOAT3 output{};
+        DirectX::XMStoreFloat3(&output, delta);
+        return output;
+    }
+
+    std::string mesh_edit_groups_json(const std::vector<EditorCandidate>& candidates, bool full_weight) const {
+        std::map<int, std::map<int, float>> grouped;
+        for (const EditorCandidate& candidate : candidates) {
+            if (candidate.source_submesh_index < 0 || candidate.source_vertex_index < 0) continue;
+            float weight = full_weight ? 1.0f : std::clamp(candidate.weight, 0.0f, 1.0f);
+            if (weight <= 0.0f) continue;
+            float& slot = grouped[candidate.source_submesh_index][candidate.source_vertex_index];
+            slot = std::max(slot, weight);
+        }
+        std::ostringstream out;
+        out << "[";
+        size_t group_index = 0;
+        for (const auto& [source_submesh, weights] : grouped) {
+            if (group_index++) out << ",";
+            out << "{\"source_submesh_index\":" << source_submesh << ",\"source_vertex_indices\":[";
+            size_t index = 0;
+            for (const auto& [source_vertex, _weight] : weights) {
+                if (index++) out << ",";
+                out << source_vertex;
+            }
+            out << "],\"source_vertex_weights\":[";
+            index = 0;
+            for (const auto& [source_vertex, weight] : weights) {
+                if (index++) out << ",";
+                out << "[" << source_vertex << "," << weight << "]";
+            }
+            out << "]}";
+        }
+        out << "]";
+        return out.str();
+    }
+
+    std::string mesh_edit_payload_json(
+        const char* phase,
+        const std::vector<EditorCandidate>& candidates,
+        int x,
+        int y,
+        bool invert) const {
+        bool drag_mode = mesh_edit_.tool == "grab" || mesh_edit_.tool == "vertex";
+        DirectX::XMFLOAT3 center = mesh_edit_average_position(candidates);
+        DirectX::XMFLOAT3 delta = mesh_edit_drag_delta(mesh_edit_.start_x, mesh_edit_.start_y, x, y);
+        DirectX::XMFLOAT3 step_delta = mesh_edit_drag_delta(mesh_edit_.last_x, mesh_edit_.last_y, x, y);
+        float radius_world = mesh_edit_.radius_pixels * world_units_per_pixel();
+        float amount_world = drag_mode ? -static_cast<float>(y - mesh_edit_.start_y) * world_units_per_pixel() : radius_world * 0.08f;
+        bool full_weight = mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex";
+        std::ostringstream out;
+        out << "{\"stroke_id\":" << mesh_edit_.stroke_id
+            << ",\"phase\":\"" << json_escape(phase ? phase : "") << "\""
+            << ",\"mode\":\"" << (drag_mode ? "drag" : "brush") << "\""
+            << ",\"tool\":\"" << json_escape(mesh_edit_.tool) << "\""
+            << ",\"target_mode\":\"" << json_escape(mesh_edit_.target_mode) << "\""
+            << ",\"selected_vertex_count\":" << mesh_edit_.selected_vertices.size()
+            << ",\"center\":" << float3_json(center)
+            << ",\"delta\":" << float3_delta_json(delta)
+            << ",\"step_delta\":" << float3_delta_json(step_delta)
+            << ",\"amount\":" << amount_world
+            << ",\"radius\":" << radius_world
+            << ",\"strength\":" << std::clamp(mesh_edit_.strength, 0.0f, 1.0f)
+            << ",\"falloff\":\"" << json_escape(mesh_edit_.falloff) << "\""
+            << ",\"invert\":" << (invert ? "true" : "false")
+            << ",\"groups\":" << mesh_edit_groups_json(candidates, full_weight)
+            << "}";
+        return out.str();
+    }
+
+    void send_mesh_edit_event(const char* event_name, const std::string& payload_json) const {
+        std::ostringstream out;
+        out << "{\"event\":\"" << json_escape(event_name ? event_name : "") << "\",\"payload\":" << payload_json << "}";
+        send_json_event(out.str());
+    }
+
+    void send_mesh_edit_selection_event() const {
+        std::map<int, std::vector<int>> grouped;
+        for (const auto& key : mesh_edit_.selected_vertices) {
+            grouped[key.first].push_back(key.second);
+        }
+        std::ostringstream payload;
+        payload << "{\"selected_vertex_count\":" << mesh_edit_.selected_vertices.size() << ",\"groups\":[";
+        size_t group_index = 0;
+        for (auto& [source_submesh, vertices] : grouped) {
+            std::sort(vertices.begin(), vertices.end());
+            if (group_index++) payload << ",";
+            payload << "{\"source_submesh_index\":" << source_submesh << ",\"source_vertex_indices\":[";
+            for (size_t index = 0; index < vertices.size(); ++index) {
+                if (index) payload << ",";
+                payload << vertices[index];
+            }
+            payload << "]}";
+        }
+        payload << "]}";
+        send_mesh_edit_event("mesh_edit_selection_changed", payload.str());
+    }
+
+    bool begin_mesh_edit_drag(WPARAM wparam, int x, int y) {
+        if (!mesh_edit_.enabled) return false;
+        bool alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
+        if (alt_down) return false;
+        bool vertex_mode = mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex";
+        bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+        std::vector<EditorCandidate> candidates = mesh_edit_candidates_at(
+            x,
+            y,
+            vertex_mode ? 12.0f : mesh_edit_.radius_pixels,
+            vertex_mode);
+        if (vertex_mode && shift_down && !candidates.empty()) {
+            std::pair<int, int> key(candidates[0].source_submesh_index, candidates[0].source_vertex_index);
+            if (mesh_edit_.selected_vertices.find(key) == mesh_edit_.selected_vertices.end()) {
+                mesh_edit_.selected_vertices.insert(key);
+            } else {
+                mesh_edit_.selected_vertices.erase(key);
+            }
+            send_mesh_edit_selection_event();
+            return true;
+        }
+        if (vertex_mode && !candidates.empty()) {
+            mesh_edit_.selected_vertices.clear();
+            mesh_edit_.selected_vertices.insert(std::pair<int, int>(candidates[0].source_submesh_index, candidates[0].source_vertex_index));
+            send_mesh_edit_selection_event();
+        }
+        std::vector<EditorCandidate> selected = mesh_edit_selected_candidates();
+        if (vertex_mode && !selected.empty()) {
+            candidates = std::move(selected);
+        }
+        if (candidates.empty()) return true;
+        mesh_edit_.drag_active = true;
+        mesh_edit_.previewed = false;
+        mesh_edit_.stroke_id += 1;
+        mesh_edit_.start_x = x;
+        mesh_edit_.start_y = y;
+        mesh_edit_.last_x = x;
+        mesh_edit_.last_y = y;
+        mesh_edit_.drag_candidates = candidates;
+        SetCapture(hwnd_);
+        send_mesh_edit_event("mesh_edit_stroke_started", mesh_edit_payload_json("start", candidates, x, y, false));
+        return true;
+    }
+
+    bool update_mesh_edit_drag(int x, int y) {
+        if (!mesh_edit_.drag_active) return false;
+        bool drag_mode = mesh_edit_.tool == "grab" || mesh_edit_.tool == "vertex";
+        std::vector<EditorCandidate> candidates = drag_mode
+            ? mesh_edit_.drag_candidates
+            : mesh_edit_candidates_at(x, y, mesh_edit_.radius_pixels, false);
+        if (candidates.empty()) return true;
+        bool ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+        send_mesh_edit_event("mesh_edit_stroke_previewed", mesh_edit_payload_json("preview", candidates, x, y, ctrl_down));
+        mesh_edit_.last_x = x;
+        mesh_edit_.last_y = y;
+        mesh_edit_.previewed = true;
+        return true;
+    }
+
+    bool finish_mesh_edit_drag(int x, int y) {
+        if (!mesh_edit_.drag_active) return false;
+        update_mesh_edit_drag(x, y);
+        std::ostringstream payload;
+        payload << "{\"stroke_id\":" << mesh_edit_.stroke_id
+                << ",\"phase\":\"finish\",\"tool\":\"" << json_escape(mesh_edit_.tool)
+                << "\",\"previewed\":" << (mesh_edit_.previewed ? "true" : "false") << "}";
+        send_mesh_edit_event("mesh_edit_stroke_finished", payload.str());
+        mesh_edit_.drag_active = false;
+        mesh_edit_.drag_candidates.clear();
+        mesh_edit_.previewed = false;
+        if (GetCapture() == hwnd_) ReleaseCapture();
+        return true;
+    }
+
+    bool cancel_mesh_edit_drag() {
+        if (!mesh_edit_.drag_active) return false;
+        std::ostringstream payload;
+        payload << "{\"stroke_id\":" << mesh_edit_.stroke_id
+                << ",\"phase\":\"cancel\",\"tool\":\"" << json_escape(mesh_edit_.tool) << "\"}";
+        send_mesh_edit_event("mesh_edit_stroke_cancelled", payload.str());
+        mesh_edit_.drag_active = false;
+        mesh_edit_.drag_candidates.clear();
+        mesh_edit_.previewed = false;
+        if (GetCapture() == hwnd_) ReleaseCapture();
+        return true;
+    }
+
     void send_json_event(const std::string& payload) const {
         HWND parent = reinterpret_cast<HWND>(args_.parent_hwnd);
         if (!parent || !IsWindow(parent)) return;
@@ -1257,6 +1649,38 @@ private:
             std::ostringstream event;
             event << "{\"event\":\"highlight_state\",\"highlighted_batches\":" << highlighted_batches << "}";
             send_json_event(event.str());
+            return true;
+        }
+        if (command == "set_mesh_edit_state") {
+            mesh_edit_.enabled = json_bool_field(payload, "enabled", mesh_edit_.enabled);
+            mesh_edit_.target_mode = lower_copy(json_string_field(payload, "target_mode", mesh_edit_.target_mode));
+            mesh_edit_.tool = lower_copy(json_string_field(payload, "tool", mesh_edit_.tool));
+            mesh_edit_.falloff = lower_copy(json_string_field(payload, "falloff", mesh_edit_.falloff));
+            mesh_edit_.radius_pixels = std::clamp(json_float_field(payload, "radius_pixels", mesh_edit_.radius_pixels), 2.0f, 512.0f);
+            mesh_edit_.strength = std::clamp(json_float_field(payload, "strength", mesh_edit_.strength), 0.0f, 1.0f);
+            mesh_edit_.show_vertices = json_bool_field(payload, "show_vertices", mesh_edit_.show_vertices);
+            if (!mesh_edit_.enabled) {
+                cancel_mesh_edit_drag();
+            }
+            send_json_event("{\"event\":\"mesh_edit_state\",\"ok\":true}");
+            return true;
+        }
+        if (command == "clear_mesh_edit_selection") {
+            mesh_edit_.selected_vertices.clear();
+            send_mesh_edit_selection_event();
+            return true;
+        }
+        if (command == "select_mesh_edit_brush") {
+            std::vector<EditorCandidate> candidates = mesh_edit_candidates_at(
+                last_mouse_x_,
+                last_mouse_y_,
+                mesh_edit_.radius_pixels,
+                false);
+            mesh_edit_.selected_vertices.clear();
+            for (const EditorCandidate& candidate : candidates) {
+                mesh_edit_.selected_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.source_vertex_index));
+            }
+            send_mesh_edit_selection_event();
             return true;
         }
         if (command == "set_view") {
@@ -1475,6 +1899,30 @@ private:
                 stats_.skipped.push_back("geometry missing/truncated:" + wide_to_utf8(batch.vertex_file));
                 continue;
             }
+            batch.cpu_positions.clear();
+            batch.cpu_source_submeshes.clear();
+            batch.cpu_source_vertices.clear();
+            batch.cpu_positions.reserve(static_cast<size_t>(batch.vertex_count));
+            for (int vertex_index = 0; vertex_index < batch.vertex_count; ++vertex_index) {
+                const float* values = reinterpret_cast<const float*>(data.data() + static_cast<size_t>(vertex_index) * kVertexStrideBytes);
+                batch.cpu_positions.push_back(DirectX::XMFLOAT3(values[0], values[1], values[2]));
+            }
+            std::vector<uint8_t> identity_data = batch.identity_file.empty() ? std::vector<uint8_t>() : read_binary(batch.identity_file);
+            if (identity_data.size() >= static_cast<size_t>(batch.vertex_count) * sizeof(int32_t) * 2u) {
+                batch.cpu_source_submeshes.reserve(static_cast<size_t>(batch.vertex_count));
+                batch.cpu_source_vertices.reserve(static_cast<size_t>(batch.vertex_count));
+                const int32_t* identity = reinterpret_cast<const int32_t*>(identity_data.data());
+                for (int vertex_index = 0; vertex_index < batch.vertex_count; ++vertex_index) {
+                    batch.cpu_source_submeshes.push_back(static_cast<int>(identity[vertex_index * 2]));
+                    batch.cpu_source_vertices.push_back(static_cast<int>(identity[vertex_index * 2 + 1]));
+                }
+            } else {
+                batch.cpu_source_submeshes.assign(static_cast<size_t>(batch.vertex_count), batch.source_submesh_index);
+                batch.cpu_source_vertices.reserve(static_cast<size_t>(batch.vertex_count));
+                for (int vertex_index = 0; vertex_index < batch.vertex_count; ++vertex_index) {
+                    batch.cpu_source_vertices.push_back(vertex_index);
+                }
+            }
             D3D11_BUFFER_DESC desc{};
             desc.ByteWidth = static_cast<UINT>(expected);
             desc.Usage = D3D11_USAGE_DEFAULT;
@@ -1610,6 +2058,7 @@ private:
     float pan_x_ = 0.0f;
     float pan_y_ = 0.0f;
     float pan_z_ = 0.0f;
+    MeshEditState mesh_edit_;
     int drag_mode_ = 0;
     UINT drag_button_ = 0;
     int last_mouse_x_ = 0;
