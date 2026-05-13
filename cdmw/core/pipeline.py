@@ -5415,6 +5415,109 @@ def rebuild_dds_files(
         manifest_path = build_manifest_path(normalized.output_root)
         manifest_entries = load_incremental_manifest(manifest_path)
         emit_log(f"Incremental manifest: {manifest_path}")
+    native_encoded_outputs: Dict[str, Dict[str, Any]] = {}
+
+    def _resolved_output_key(path: Path) -> str:
+        try:
+            return str(path.expanduser().resolve())
+        except OSError:
+            return str(path)
+
+    def _prebuild_directxtex_batch_outputs() -> None:
+        nonlocal native_encoded_outputs
+        if normalized.dry_run or not backend_dds_files_requiring_png:
+            return
+        try:
+            from cdmw.core.texture_native import encode_dds_batch_with_directxtex, find_directxtex_texture_binary
+        except Exception as exc:
+            emit_log(f"DirectXTex native DDS batch encode unavailable; texconv fallback remains active ({exc}).")
+            return
+        if find_directxtex_texture_binary() is None:
+            emit_log("DirectXTex native DDS batch encode unavailable; texconv fallback remains active.")
+            return
+        jobs: List[Dict[str, object]] = []
+        for dds_path in dds_files:
+            raise_if_cancelled(stop_event)
+            rel_path = dds_path.relative_to(normalized.original_dds_root)
+            rel_display = rel_path.as_posix()
+            if rel_display in staging_failures:
+                continue
+            plan_entry = plan_by_rel.get(rel_display)
+            if plan_entry is None or plan_entry.action in {"preserve_original", "skip_by_rule"}:
+                continue
+            png_path, _match_note = resolve_png(
+                rel_path,
+                relative_png_index,
+                basename_png_index,
+                normalized.allow_unique_basename_fallback,
+            )
+            if png_path is None:
+                continue
+            try:
+                if _validate_high_precision_staged_png(png_path, plan_entry) is not None:
+                    continue
+                png_width, png_height = read_png_dimensions(png_path)
+                png_has_alpha = png_has_alpha_channel(png_path)
+                output_settings = _resolve_plan_output_settings(
+                    normalized,
+                    plan_entry,
+                    png_width,
+                    png_height,
+                    has_alpha=png_has_alpha,
+                )
+                if output_settings.texconv_color_args or output_settings.texconv_extra_args:
+                    continue
+                target_file = normalized.output_root / rel_path
+                if manifest_path is not None and manifest_entry_matches(
+                    manifest_entries.get(rel_path.as_posix(), {}),
+                    dds_path,
+                    png_path,
+                    target_file,
+                    output_settings,
+                ):
+                    continue
+                if target_file.exists() and not normalized.overwrite_existing_dds:
+                    continue
+                jobs.append(
+                    {
+                        "png_path": str(png_path),
+                        "output_path": str(target_file),
+                        "format": output_settings.texconv_format,
+                        "width": output_settings.width if output_settings.resize_to_dimensions else 0,
+                        "height": output_settings.height if output_settings.resize_to_dimensions else 0,
+                        "mip_count": output_settings.mip_count,
+                        "overwrite": normalized.overwrite_existing_dds,
+                    }
+                )
+            except RunCancelled:
+                raise
+            except Exception:
+                continue
+        if not jobs:
+            return
+        emit_log(f"DirectXTex native DDS batch encode: attempting {len(jobs):,} file(s) before texconv fallback.")
+        try:
+            timeout_seconds = max(120.0, min(3600.0, 30.0 * len(jobs)))
+            native_encoded_outputs = encode_dds_batch_with_directxtex(
+                jobs,
+                timeout_seconds=timeout_seconds,
+                stop_event=stop_event,
+            )
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            native_encoded_outputs = {}
+            emit_log(f"DirectXTex native DDS batch encode failed; texconv fallback remains active ({exc}).")
+            return
+        if native_encoded_outputs:
+            emit_log(
+                f"DirectXTex native DDS batch encode produced {len(native_encoded_outputs):,} DDS file(s); "
+                "remaining files will use texconv fallback if needed."
+            )
+        else:
+            emit_log("DirectXTex native DDS batch encode produced no DDS files; texconv fallback remains active.")
+
+    _prebuild_directxtex_batch_outputs()
 
     try:
         for index, dds_path in enumerate(dds_files, start=1):
@@ -5804,47 +5907,69 @@ def rebuild_dds_files(
                     status = "dry-run"
                     note = "; ".join(notes)
                 else:
-                    return_code, stdout, stderr, elapsed_seconds = _run_texture_workflow_texconv(
-                        cmd,
-                        detail_label=f"[{index}/{total}] BUILD {rel_display}",
-                        on_log=on_log,
-                        stop_event=stop_event,
-                    )
-                    if return_code != 0:
-                        failed += 1
-                        status = "failed"
-                        detail = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
-                        notes.append(detail)
+                    native_report = native_encoded_outputs.get(_resolved_output_key(target_file))
+                    if native_report and target_file.is_file() and target_file.stat().st_size > 0:
+                        output_size = target_file.stat().st_size
+                        converted += 1
+                        status = "converted"
+                        encode_ms = native_report.get("encode_ms")
+                        notes.append("DirectXTex native batch encode")
                         note = "; ".join(notes)
-                        emit_log(f"[{index}/{total}] FAIL {rel_display} -> {detail}")
+                        elapsed_text = f"{float(encode_ms) / 1000.0:.1f}s" if isinstance(encode_ms, (int, float)) else "native batch"
+                        emit_log(
+                            f"[{index}/{total}] BUILT {rel_display} with DirectXTex native batch in {elapsed_text} "
+                            f"-> {target_file} ({output_size:,} bytes)"
+                        )
+                        if manifest_path is not None:
+                            manifest_entries[rel_path.as_posix()] = build_incremental_manifest_entry(
+                                dds_path,
+                                png_path,
+                                target_file,
+                                output_settings,
+                            )
+                            save_incremental_manifest(manifest_path, manifest_entries)
                     else:
-                        try:
-                            output_size = target_file.stat().st_size
-                        except OSError:
-                            output_size = 0
-                        if output_size <= 0:
+                        return_code, stdout, stderr, elapsed_seconds = _run_texture_workflow_texconv(
+                            cmd,
+                            detail_label=f"[{index}/{total}] BUILD {rel_display}",
+                            on_log=on_log,
+                            stop_event=stop_event,
+                        )
+                        if return_code != 0:
                             failed += 1
                             status = "failed"
-                            detail = f"texconv reported success but did not produce expected DDS: {target_file}"
+                            detail = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
                             notes.append(detail)
                             note = "; ".join(notes)
                             emit_log(f"[{index}/{total}] FAIL {rel_display} -> {detail}")
                         else:
-                            converted += 1
-                            status = "converted"
-                            note = "; ".join(notes)
-                            emit_log(
-                                f"[{index}/{total}] BUILT {rel_display} in {elapsed_seconds:.1f}s "
-                                f"-> {target_file} ({output_size:,} bytes)"
-                            )
-                            if manifest_path is not None:
-                                manifest_entries[rel_path.as_posix()] = build_incremental_manifest_entry(
-                                    dds_path,
-                                    png_path,
-                                    target_file,
-                                    output_settings,
+                            try:
+                                output_size = target_file.stat().st_size
+                            except OSError:
+                                output_size = 0
+                            if output_size <= 0:
+                                failed += 1
+                                status = "failed"
+                                detail = f"texconv reported success but did not produce expected DDS: {target_file}"
+                                notes.append(detail)
+                                note = "; ".join(notes)
+                                emit_log(f"[{index}/{total}] FAIL {rel_display} -> {detail}")
+                            else:
+                                converted += 1
+                                status = "converted"
+                                note = "; ".join(notes)
+                                emit_log(
+                                    f"[{index}/{total}] BUILT {rel_display} in {elapsed_seconds:.1f}s "
+                                    f"-> {target_file} ({output_size:,} bytes)"
                                 )
-                                save_incremental_manifest(manifest_path, manifest_entries)
+                                if manifest_path is not None:
+                                    manifest_entries[rel_path.as_posix()] = build_incremental_manifest_entry(
+                                        dds_path,
+                                        png_path,
+                                        target_file,
+                                        output_settings,
+                                    )
+                                    save_incremental_manifest(manifest_path, manifest_entries)
 
                 results.append(
                     JobResult(

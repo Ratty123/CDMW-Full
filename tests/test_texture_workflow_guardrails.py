@@ -105,6 +105,42 @@ class TextureWorkflowGuardrailTests(unittest.TestCase):
             self.assertIn(600.0, timeout_values)
             self.assertTrue(any("BUILT character/texture/sample.dds in " in line for line in logs))
 
+    def test_rebuild_uses_directxtex_batch_encode_before_texconv(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            original_root, png_root, output_root, texconv = _write_source_pair(root)
+            native_binary = root / "cd-texture-dx.exe"
+            native_binary.write_bytes(b"fake native")
+            logs: list[str] = []
+
+            def fake_encode(jobs, **_kwargs):
+                results = {}
+                jobs = list(jobs)
+                self.assertEqual(1, len(jobs))
+                output = Path(str(jobs[0]["output_path"]))
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_bytes(_fake_dds_bytes(128, 128, mips=8))
+                results[str(output.resolve())] = {
+                    "status": "encoded",
+                    "backend": "directxtex_native_0.1",
+                    "output_path": str(output),
+                    "encode_ms": 12.0,
+                }
+                return results
+
+            with (
+                patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=native_binary),
+                patch("cdmw.core.texture_native.encode_dds_batch_with_directxtex", side_effect=fake_encode),
+                patch("cdmw.core.pipeline._run_texture_workflow_texconv") as texconv_run,
+            ):
+                summary = rebuild_dds_files(_config(original_root, png_root, output_root, texconv), on_log=logs.append)
+
+            self.assertEqual(1, summary.converted)
+            self.assertEqual(0, summary.failed)
+            texconv_run.assert_not_called()
+            self.assertIn("DirectXTex native batch encode", summary.results[0].note)
+            self.assertTrue(any("with DirectXTex native batch" in line for line in logs))
+
     def test_rebuild_success_without_expected_dds_is_failed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -2369,6 +2369,9 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
     for (const std::string& base : basenames) {
         add_sidecar_basename_candidates(candidates, seen, index, base, model_dir);
     }
+    if ((job.extension == ".pam" || job.extension == ".pamlod") && !candidates.empty()) {
+        return candidates;
+    }
 
     std::vector<std::pair<int, ArchiveEntryRef>> scored;
     const std::string model_dir_lower = lower_copy(model_dir);

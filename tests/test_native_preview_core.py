@@ -139,6 +139,13 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("timeout_seconds=5.0", source)
         self.assertIn("run_native_preview_core_preview_job", source)
 
+    def test_static_native_material_index_prefers_exact_sidecars(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn('job.extension == ".pam" || job.extension == ".pamlod"', source)
+        self.assertIn("!candidates.empty()", source)
+        self.assertIn("return candidates;", source)
+
 
 if __name__ == "__main__":
     unittest.main()
