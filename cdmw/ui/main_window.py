@@ -514,6 +514,8 @@ def run_gui() -> int:
         alignment_drag_finished = Signal(float, float, float)
         alignment_rotation_changed = Signal(float, float, float)
         alignment_rotation_finished = Signal(float, float, float)
+        source_part_hovered = Signal(int)
+        source_part_selected = Signal(int)
         mesh_edit_stroke_started = Signal(object)
         mesh_edit_stroke_previewed = Signal(object)
         mesh_edit_stroke_finished = Signal(object)
@@ -721,6 +723,10 @@ def run_gui() -> int:
                         float(payload.get("y", 0.0) or 0.0),
                         float(payload.get("z", 0.0) or 0.0),
                     )
+                elif event == "source_part_hovered":
+                    self.source_part_hovered.emit(int(payload.get("source_submesh_index", -1) or -1))
+                elif event == "source_part_selected":
+                    self.source_part_selected.emit(int(payload.get("source_submesh_index", -1) or -1))
                 elif event == "mesh_edit_stroke_started":
                     self.mesh_edit_stroke_started.emit(payload.get("payload", {}))
                 elif event == "mesh_edit_stroke_previewed":
@@ -41064,6 +41070,29 @@ def run_gui() -> int:
                 def _source_selection_changed(_current: Optional[QTreeWidgetItem], _previous: Optional[QTreeWidgetItem]) -> None:
                     _refresh_source_tree_selection_state()
 
+                def _d3d11_source_part_hovered(source_index: int) -> None:
+                    if not _alignment_d3d11_preview_active():
+                        return
+                    next_indices = {int(source_index)} if int(source_index) >= 0 else set()
+                    if hovered_source_highlight_indices == next_indices:
+                        return
+                    hovered_source_highlight_indices.clear()
+                    hovered_source_highlight_indices.update(next_indices)
+                    _sync_highlight_sets()
+                    _queue_static_preview_refresh()
+
+                def _d3d11_source_part_selected(source_index: int) -> None:
+                    if not _alignment_d3d11_preview_active() or int(source_index) < 0:
+                        return
+                    source_item = source_items_by_index.get(int(source_index))
+                    if source_item is None:
+                        return
+                    source_tree.setCurrentItem(source_item)
+                    source_tree.clearSelection()
+                    source_item.setSelected(True)
+                    source_tree.scrollToItem(source_item)
+                    _refresh_source_tree_selection_state()
+
                 def _original_selection_changed(current: Optional[QTreeWidgetItem], _previous: Optional[QTreeWidgetItem]) -> None:
                     raw_indices = current.data(0, Qt.UserRole) if current is not None else ()
                     try:
@@ -47875,6 +47904,8 @@ def run_gui() -> int:
             alignment_d3d11_preview_host.alignment_drag_started.connect(_prepare_alignment_d3d11_preview_drag)
             alignment_d3d11_preview_host.alignment_drag_finished.connect(_commit_alignment_preview_translation)
             alignment_d3d11_preview_host.alignment_rotation_finished.connect(_commit_alignment_preview_rotation)
+            alignment_d3d11_preview_host.source_part_hovered.connect(_d3d11_source_part_hovered)
+            alignment_d3d11_preview_host.source_part_selected.connect(_d3d11_source_part_selected)
             preview_controls_ready["ready"] = True
             dialog.finished.connect(lambda _result=0: _shutdown_alignment_d3d11_preview())
             QTimer.singleShot(0, _set_preview_renderer)

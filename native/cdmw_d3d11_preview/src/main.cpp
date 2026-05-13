@@ -153,6 +153,14 @@ struct AlignmentState {
     DirectX::XMFLOAT3 rotation_total{0.0f, 0.0f, 0.0f};
 };
 
+struct SourcePartInteractionState {
+    int hovered_source_submesh = -1;
+    bool click_pending = false;
+    int click_source_submesh = -1;
+    int start_x = 0;
+    int start_y = 0;
+};
+
 struct ScreenPoint {
     float x = 0.0f;
     float y = 0.0f;
@@ -1077,6 +1085,9 @@ public:
         alignment_.hover_axis.clear();
         alignment_.drag_axis.clear();
         alignment_.selected_source_submeshes.clear();
+        source_part_.hovered_source_submesh = -1;
+        source_part_.click_pending = false;
+        source_part_.click_source_submesh = -1;
         if (reset_view_state) {
             reset_view();
         }
@@ -1119,6 +1130,7 @@ public:
                 result = 0;
                 return true;
             }
+            begin_source_part_click(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             [[fallthrough]];
         case WM_MBUTTONDOWN:
         case WM_RBUTTONDOWN:
@@ -1135,6 +1147,7 @@ public:
                 return true;
             }
             update_alignment_hover(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+            update_source_part_hover(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             update_mouse_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             result = 0;
             return drag_mode_ != 0;
@@ -1147,6 +1160,7 @@ public:
                 result = 0;
                 return true;
             }
+            finish_source_part_click(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             [[fallthrough]];
         case WM_MBUTTONUP:
         case WM_RBUTTONUP:
@@ -1156,6 +1170,7 @@ public:
         case WM_CAPTURECHANGED:
             cancel_mesh_edit_drag();
             cancel_alignment_drag();
+            source_part_.click_pending = false;
             drag_mode_ = 0;
             drag_button_ = 0;
             return false;
@@ -1664,6 +1679,70 @@ private:
         SetTextColor(dc, old_text_color);
         SetBkMode(dc, old_bk_mode);
         ReleaseDC(hwnd_, dc);
+    }
+
+    int source_part_at(int x, int y, float radius_pixels) const {
+        int best_source_submesh = -1;
+        float best_distance = radius_pixels;
+        for (const PreviewBatch& batch : batches_) {
+            if (batch.source_submesh_index < 0 || batch.cpu_positions.empty()) continue;
+            for (const DirectX::XMFLOAT3& position : batch.cpu_positions) {
+                float screen_x = 0.0f;
+                float screen_y = 0.0f;
+                if (!project_position(position, screen_x, screen_y)) continue;
+                float distance = std::hypot(static_cast<float>(x) - screen_x, static_cast<float>(y) - screen_y);
+                if (distance < best_distance) {
+                    best_distance = distance;
+                    best_source_submesh = batch.source_submesh_index;
+                }
+            }
+        }
+        return best_source_submesh;
+    }
+
+    void send_source_part_event(const char* event_name, int source_submesh_index) const {
+        std::ostringstream out;
+        out << "{\"event\":\"" << json_escape(event_name ? event_name : "") << "\""
+            << ",\"source_submesh_index\":" << source_submesh_index
+            << "}";
+        send_json_event(out.str());
+    }
+
+    void update_source_part_hover(int x, int y) {
+        if (mesh_edit_.enabled || alignment_.drag_active || alignment_.rotation_drag_active || drag_mode_ != 0) {
+            return;
+        }
+        int source_submesh = source_part_at(x, y, 24.0f);
+        if (source_submesh == source_part_.hovered_source_submesh) return;
+        source_part_.hovered_source_submesh = source_submesh;
+        send_source_part_event("source_part_hovered", source_submesh);
+    }
+
+    void begin_source_part_click(WPARAM wparam, int x, int y) {
+        source_part_.click_pending = false;
+        source_part_.click_source_submesh = -1;
+        bool alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
+        bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+        bool ctrl_down = (wparam & MK_CONTROL) != 0 || (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+        if (mesh_edit_.enabled || alt_down || shift_down || ctrl_down) return;
+        int source_submesh = source_part_at(x, y, 28.0f);
+        if (source_submesh < 0) return;
+        source_part_.click_pending = true;
+        source_part_.click_source_submesh = source_submesh;
+        source_part_.start_x = x;
+        source_part_.start_y = y;
+    }
+
+    void finish_source_part_click(int x, int y) {
+        if (!source_part_.click_pending) return;
+        int source_submesh = source_part_.click_source_submesh;
+        source_part_.click_pending = false;
+        source_part_.click_source_submesh = -1;
+        if (source_submesh < 0) return;
+        if (std::hypot(static_cast<float>(x - source_part_.start_x), static_cast<float>(y - source_part_.start_y)) > 6.0f) {
+            return;
+        }
+        send_source_part_event("source_part_selected", source_submesh);
     }
 
     float mesh_edit_falloff_weight(float distance_pixels, float radius_pixels) const {
@@ -2441,6 +2520,7 @@ private:
     float pan_y_ = 0.0f;
     float pan_z_ = 0.0f;
     AlignmentState alignment_;
+    SourcePartInteractionState source_part_;
     MeshEditState mesh_edit_;
     int drag_mode_ = 0;
     UINT drag_button_ = 0;
