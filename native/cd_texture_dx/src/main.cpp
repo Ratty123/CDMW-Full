@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -12,9 +13,21 @@
 #include <regex>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace fs = std::filesystem;
+
+struct ComInitScope {
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    bool needs_uninit = (hr == S_OK || hr == S_FALSE);
+
+    ~ComInitScope() {
+        if (needs_uninit) {
+            CoUninitialize();
+        }
+    }
+};
 
 struct PreviewJob {
     std::wstring input;
@@ -23,6 +36,17 @@ struct PreviewJob {
     std::string srgb = "auto";
     std::string normal_space = "auto";
     int max_dimension = 4096;
+};
+
+struct EncodeJob {
+    std::wstring input;
+    std::wstring output;
+    std::string format = "BC7_UNORM";
+    std::string srgb = "auto";
+    int width = 0;
+    int height = 0;
+    int mip_count = 1;
+    bool overwrite = true;
 };
 
 static std::wstring utf8_to_wide(const std::string& text) {
@@ -116,6 +140,15 @@ static int json_int_field(const std::string& object, const std::string& name, in
     }
 }
 
+static bool json_bool_field(const std::string& object, const std::string& name, bool fallback = false) {
+    std::regex pattern("\"" + name + "\"\\s*:\\s*(true|false|1|0)", std::regex_constants::icase);
+    std::smatch match;
+    if (!std::regex_search(object, match, pattern)) return fallback;
+    std::string value = match[1].str();
+    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+    return value == "true" || value == "1";
+}
+
 static std::vector<PreviewJob> parse_jobs(const std::string& text) {
     std::vector<PreviewJob> jobs;
     std::regex object_pattern("\\{[^{}]*\"(?:input|dds_path)\"[^{}]*\\}");
@@ -136,6 +169,70 @@ static std::vector<PreviewJob> parse_jobs(const std::string& text) {
         jobs.push_back(job);
     }
     return jobs;
+}
+
+static std::vector<EncodeJob> parse_encode_jobs(const std::string& text) {
+    std::vector<EncodeJob> jobs;
+    std::regex object_pattern("\\{[^{}]*\"(?:input|png_path|source_path)\"[^{}]*\\}");
+    auto begin = std::sregex_iterator(text.begin(), text.end(), object_pattern);
+    auto end = std::sregex_iterator();
+    for (auto it = begin; it != end; ++it) {
+        std::string object = it->str();
+        std::string input = json_string_field(object, "input", json_string_field(object, "png_path", json_string_field(object, "source_path")));
+        std::string output = json_string_field(object, "output", json_string_field(object, "dds_path", json_string_field(object, "output_path")));
+        if (input.empty() || output.empty()) continue;
+        EncodeJob job;
+        job.input = utf8_to_wide(input);
+        job.output = utf8_to_wide(output);
+        job.format = json_string_field(object, "format", json_string_field(object, "texconv_format", "BC7_UNORM"));
+        job.srgb = json_string_field(object, "srgb", "auto");
+        job.width = std::max(0, json_int_field(object, "width", json_int_field(object, "target_width", 0)));
+        job.height = std::max(0, json_int_field(object, "height", json_int_field(object, "target_height", 0)));
+        job.mip_count = std::max(1, json_int_field(object, "mip_count", json_int_field(object, "mips", 1)));
+        job.overwrite = json_bool_field(object, "overwrite", true);
+        jobs.push_back(job);
+    }
+    return jobs;
+}
+
+static std::string upper_copy(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+    return value;
+}
+
+static DXGI_FORMAT dxgi_format_from_name(const std::string& raw_format) {
+    std::string name = upper_copy(raw_format);
+    if (name.rfind("DXGI_FORMAT_", 0) == 0) {
+        name = name.substr(12);
+    }
+    static const std::unordered_map<std::string, DXGI_FORMAT> formats = {
+        {"BC1_UNORM", DXGI_FORMAT_BC1_UNORM},
+        {"BC1_UNORM_SRGB", DXGI_FORMAT_BC1_UNORM_SRGB},
+        {"BC2_UNORM", DXGI_FORMAT_BC2_UNORM},
+        {"BC2_UNORM_SRGB", DXGI_FORMAT_BC2_UNORM_SRGB},
+        {"BC3_UNORM", DXGI_FORMAT_BC3_UNORM},
+        {"BC3_UNORM_SRGB", DXGI_FORMAT_BC3_UNORM_SRGB},
+        {"BC4_UNORM", DXGI_FORMAT_BC4_UNORM},
+        {"BC4_SNORM", DXGI_FORMAT_BC4_SNORM},
+        {"BC5_UNORM", DXGI_FORMAT_BC5_UNORM},
+        {"BC5_SNORM", DXGI_FORMAT_BC5_SNORM},
+        {"BC6H_UF16", DXGI_FORMAT_BC6H_UF16},
+        {"BC6H_SF16", DXGI_FORMAT_BC6H_SF16},
+        {"BC7_UNORM", DXGI_FORMAT_BC7_UNORM},
+        {"BC7_UNORM_SRGB", DXGI_FORMAT_BC7_UNORM_SRGB},
+        {"R8G8B8A8_UNORM", DXGI_FORMAT_R8G8B8A8_UNORM},
+        {"R8G8B8A8_UNORM_SRGB", DXGI_FORMAT_R8G8B8A8_UNORM_SRGB},
+        {"B8G8R8A8_UNORM", DXGI_FORMAT_B8G8R8A8_UNORM},
+        {"B8G8R8A8_UNORM_SRGB", DXGI_FORMAT_B8G8R8A8_UNORM_SRGB},
+        {"R16G16B16A16_FLOAT", DXGI_FORMAT_R16G16B16A16_FLOAT},
+        {"R16G16B16A16_UNORM", DXGI_FORMAT_R16G16B16A16_UNORM},
+        {"R16G16B16A16_SNORM", DXGI_FORMAT_R16G16B16A16_SNORM},
+        {"R32G32B32A32_FLOAT", DXGI_FORMAT_R32G32B32A32_FLOAT},
+    };
+    auto it = formats.find(name);
+    return it == formats.end() ? DXGI_FORMAT_UNKNOWN : it->second;
 }
 
 static std::string dxgi_format_name(DXGI_FORMAT format) {
@@ -396,7 +493,173 @@ static int batch_preview_json(const fs::path& job_file, const fs::path& report_f
     return 0;
 }
 
+static std::string encode_dds(const EncodeJob& job) {
+    auto started = std::chrono::steady_clock::now();
+    if (!job.overwrite && fs::exists(fs::path(job.output))) {
+        return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+            json_escape(wide_to_utf8(job.input)) + "\",\"output_path\":\"" + json_escape(wide_to_utf8(job.output)) +
+            "\",\"message\":\"output exists and overwrite=false\"}";
+    }
+    DXGI_FORMAT target_format = dxgi_format_from_name(job.format);
+    if (target_format == DXGI_FORMAT_UNKNOWN) {
+        return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+            json_escape(wide_to_utf8(job.input)) + "\",\"output_path\":\"" + json_escape(wide_to_utf8(job.output)) +
+            "\",\"message\":\"unsupported DDS format " + json_escape(job.format) + "\"}";
+    }
+
+    DirectX::ScratchImage source_image;
+    DirectX::TexMetadata source_metadata{};
+    HRESULT hr = DirectX::LoadFromWICFile(job.input.c_str(), DirectX::WIC_FLAGS_NONE, &source_metadata, source_image);
+    if (FAILED(hr)) {
+        return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+            json_escape(wide_to_utf8(job.input)) + "\",\"output_path\":\"" + json_escape(wide_to_utf8(job.output)) +
+            "\",\"message\":\"LoadFromWICFile failed: 0x" + std::to_string(static_cast<unsigned int>(hr)) + "\"}";
+    }
+    const DirectX::Image* image = source_image.GetImage(0, 0, 0);
+    if (!image) {
+        return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+            json_escape(wide_to_utf8(job.input)) + "\",\"output_path\":\"" + json_escape(wide_to_utf8(job.output)) +
+            "\",\"message\":\"input image has no first frame\"}";
+    }
+
+    DirectX::ScratchImage converted;
+    DirectX::ScratchImage* working = &source_image;
+    DXGI_FORMAT intermediate_format = DirectX::IsCompressed(target_format)
+        ? DXGI_FORMAT_R8G8B8A8_UNORM
+        : target_format;
+    if (image->format != intermediate_format) {
+        hr = DirectX::Convert(*image, intermediate_format, DirectX::TEX_FILTER_DEFAULT, DirectX::TEX_THRESHOLD_DEFAULT, converted);
+        if (FAILED(hr)) {
+            return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+                json_escape(wide_to_utf8(job.input)) + "\",\"output_path\":\"" + json_escape(wide_to_utf8(job.output)) +
+                "\",\"message\":\"Convert failed: 0x" + std::to_string(static_cast<unsigned int>(hr)) + "\"}";
+        }
+        working = &converted;
+        image = working->GetImage(0, 0, 0);
+    }
+
+    DirectX::ScratchImage resized;
+    const size_t target_width = job.width > 0 ? static_cast<size_t>(job.width) : image->width;
+    const size_t target_height = job.height > 0 ? static_cast<size_t>(job.height) : image->height;
+    if (target_width != image->width || target_height != image->height) {
+        hr = DirectX::Resize(*image, target_width, target_height, DirectX::TEX_FILTER_DEFAULT, resized);
+        if (FAILED(hr)) {
+            return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+                json_escape(wide_to_utf8(job.input)) + "\",\"output_path\":\"" + json_escape(wide_to_utf8(job.output)) +
+                "\",\"message\":\"Resize failed: 0x" + std::to_string(static_cast<unsigned int>(hr)) + "\"}";
+        }
+        working = &resized;
+        image = working->GetImage(0, 0, 0);
+    }
+
+    DirectX::ScratchImage mip_chain;
+    if (job.mip_count > 1) {
+        hr = DirectX::GenerateMipMaps(
+            *image,
+            DirectX::TEX_FILTER_DEFAULT,
+            static_cast<size_t>(job.mip_count),
+            mip_chain
+        );
+        if (SUCCEEDED(hr)) {
+            working = &mip_chain;
+        }
+    }
+
+    DirectX::ScratchImage compressed_or_final;
+    DirectX::ScratchImage* final_image = working;
+    if (DirectX::IsCompressed(target_format)) {
+        hr = DirectX::Compress(
+            working->GetImages(),
+            working->GetImageCount(),
+            working->GetMetadata(),
+            target_format,
+            DirectX::TEX_COMPRESS_DEFAULT,
+            DirectX::TEX_THRESHOLD_DEFAULT,
+            compressed_or_final
+        );
+        if (FAILED(hr)) {
+            return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+                json_escape(wide_to_utf8(job.input)) + "\",\"output_path\":\"" + json_escape(wide_to_utf8(job.output)) +
+                "\",\"message\":\"Compress failed: 0x" + std::to_string(static_cast<unsigned int>(hr)) + "\"}";
+        }
+        final_image = &compressed_or_final;
+    } else if (working->GetMetadata().format != target_format) {
+        hr = DirectX::Convert(
+            working->GetImages(),
+            working->GetImageCount(),
+            working->GetMetadata(),
+            target_format,
+            DirectX::TEX_FILTER_DEFAULT,
+            DirectX::TEX_THRESHOLD_DEFAULT,
+            compressed_or_final
+        );
+        if (FAILED(hr)) {
+            return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+                json_escape(wide_to_utf8(job.input)) + "\",\"output_path\":\"" + json_escape(wide_to_utf8(job.output)) +
+                "\",\"message\":\"Final Convert failed: 0x" + std::to_string(static_cast<unsigned int>(hr)) + "\"}";
+        }
+        final_image = &compressed_or_final;
+    }
+
+    std::error_code ec;
+    fs::create_directories(fs::path(job.output).parent_path(), ec);
+    hr = DirectX::SaveToDDSFile(
+        final_image->GetImages(),
+        final_image->GetImageCount(),
+        final_image->GetMetadata(),
+        DirectX::DDS_FLAGS_NONE,
+        job.output.c_str()
+    );
+    const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+    if (FAILED(hr)) {
+        return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+            json_escape(wide_to_utf8(job.input)) + "\",\"output_path\":\"" + json_escape(wide_to_utf8(job.output)) +
+            "\",\"message\":\"SaveToDDSFile failed: 0x" + std::to_string(static_cast<unsigned int>(hr)) + "\"}";
+    }
+    const DirectX::TexMetadata metadata = final_image->GetMetadata();
+    std::ostringstream out;
+    out << "{"
+        << "\"status\":\"encoded\","
+        << "\"backend\":\"directxtex_native_0.1\","
+        << "\"native_backend\":\"directxtex\","
+        << "\"source_path\":\"" << json_escape(wide_to_utf8(job.input)) << "\","
+        << "\"output_path\":\"" << json_escape(wide_to_utf8(job.output)) << "\","
+        << "\"format\":\"" << dxgi_format_name(metadata.format) << "\","
+        << "\"requested_format\":\"" << json_escape(job.format) << "\","
+        << "\"dxgi_format\":" << static_cast<unsigned int>(metadata.format) << ","
+        << "\"compressed\":" << (DirectX::IsCompressed(metadata.format) ? "true" : "false") << ","
+        << "\"compressed_family\":\"" << json_escape(bc_family(metadata.format)) << "\","
+        << "\"srgb\":" << (is_srgb_format(metadata.format) ? "true" : "false") << ","
+        << "\"width\":" << metadata.width << ","
+        << "\"height\":" << metadata.height << ","
+        << "\"mip_count\":" << metadata.mipLevels << ","
+        << "\"encode_ms\":" << elapsed
+        << "}";
+    return out.str();
+}
+
+static int batch_encode_json(const fs::path& job_file, const fs::path& report_file) {
+    std::vector<EncodeJob> jobs = parse_encode_jobs(read_text_file(job_file));
+    std::ostringstream report;
+    report << "{\"status\":\"ok\",\"backend\":\"directxtex_native_0.1\",\"batch_size\":" << jobs.size() << ",\"items\":[";
+    bool any_error = false;
+    for (size_t index = 0; index < jobs.size(); ++index) {
+        if (index) report << ",";
+        const std::string item = encode_dds(jobs[index]);
+        if (item.find("\"status\":\"error\"") != std::string::npos) any_error = true;
+        report << item;
+    }
+    report << "]}";
+    if (!write_text_file(report_file, report.str())) {
+        std::cerr << "failed to write report: " << report_file << "\n";
+        return 3;
+    }
+    std::cout << report.str() << "\n";
+    return any_error ? 2 : 0;
+}
+
 int wmain(int argc, wchar_t** argv) {
+    ComInitScope com_init;
     if (argc >= 2 && std::wstring(argv[1]) == L"self-test") {
         std::cout << "{\"event\":\"self_test\",\"ok\":true,\"backend\":\"directxtex_native_0.1\"}\n";
         return 0;
@@ -407,6 +670,9 @@ int wmain(int argc, wchar_t** argv) {
     if (argc >= 4 && std::wstring(argv[1]) == L"batch-preview-json") {
         return batch_preview_json(fs::path(argv[2]), fs::path(argv[3]));
     }
-    std::cerr << "usage: cd-texture-dx self-test | inspect-json <dds> | batch-preview-json <job.json> <report.json>\n";
+    if (argc >= 4 && std::wstring(argv[1]) == L"batch-encode-json") {
+        return batch_encode_json(fs::path(argv[2]), fs::path(argv[3]));
+    }
+    std::cerr << "usage: cd-texture-dx self-test | inspect-json <dds> | batch-preview-json <job.json> <report.json> | batch-encode-json <job.json> <report.json>\n";
     return 1;
 }

@@ -2205,7 +2205,7 @@ def build_archive_texture_payload_from_png(
     entry: ArchiveEntry,
     replacement_png_path: Path,
     *,
-    texconv_path: Path,
+    texconv_path: Optional[Path],
     on_log: Optional[Callable[[str], None]] = None,
 ) -> bytes:
     from cdmw.core.archive import ensure_archive_preview_source
@@ -2221,10 +2221,6 @@ def build_archive_texture_payload_from_png(
     resolved_png = replacement_png_path.expanduser().resolve()
     if not resolved_png.is_file():
         raise FileNotFoundError(f"Replacement PNG was not found: {resolved_png}")
-
-    resolved_texconv = texconv_path.expanduser().resolve()
-    if not resolved_texconv.is_file():
-        raise FileNotFoundError(f"texconv.exe was not found: {resolved_texconv}")
 
     original_dds_path, _note = ensure_archive_preview_source(entry)
     original_info = parse_dds(original_dds_path)
@@ -2243,6 +2239,41 @@ def build_archive_texture_payload_from_png(
                 int(original_info.mip_count or 1),
             ),
         )
+        native_output_path = output_dir / f"{target_stem}.dds"
+        try:
+            from cdmw.core.texture_native import encode_dds_with_directxtex
+
+            native_report = encode_dds_with_directxtex(
+                normalized_png_path,
+                native_output_path,
+                dds_format=original_info.texconv_format,
+                width=original_info.width,
+                height=original_info.height,
+                mip_count=mip_count,
+                timeout_seconds=120.0,
+            )
+        except Exception as exc:
+            native_report = None
+            _safe_log(on_log, f"DirectXTex native DDS rebuild unavailable for {entry.path}: {exc}")
+        if native_report and native_output_path.is_file():
+            _safe_log(
+                on_log,
+                (
+                    f"Rebuilt DDS for {entry.path} from {resolved_png.name} "
+                    f"with DirectXTex native backend using {original_info.texconv_format} "
+                    f"at {original_info.width}x{original_info.height}."
+                ),
+            )
+            return native_output_path.read_bytes()
+
+        if texconv_path is None:
+            raise FileNotFoundError(
+                "DirectXTex native DDS rebuild failed or is unavailable, and no texconv.exe path was provided."
+            )
+        resolved_texconv = texconv_path.expanduser().resolve()
+        if not resolved_texconv.is_file():
+            raise FileNotFoundError(f"texconv.exe was not found: {resolved_texconv}")
+
         texconv_cmd = build_texconv_command(
             resolved_texconv,
             normalized_png_path,

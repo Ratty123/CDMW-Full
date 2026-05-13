@@ -551,6 +551,10 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
 
         self.assertIn("DirectX::LoadFromDDSFile", source)
         self.assertIn("DirectX::SaveToWICFile", source)
+        self.assertIn("DirectX::SaveToDDSFile", source)
+        self.assertIn("batch-encode-json", source)
+        self.assertIn("parse_encode_jobs", source)
+        self.assertIn("CoInitializeEx", source)
         self.assertIn("DXGI_FORMAT_BC1_UNORM", source)
         self.assertIn("DXGI_FORMAT_BC3_UNORM", source)
         self.assertIn("DXGI_FORMAT_BC5_UNORM", source)

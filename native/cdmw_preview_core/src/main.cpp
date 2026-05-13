@@ -307,7 +307,13 @@ struct TextureBinding {
     std::string semantic_type;
     std::string semantic_subtype;
     std::string shader_family;
+    std::string shader_rule;
     std::string material_name;
+    std::string sidecar_path;
+    std::string sidecar_kind;
+    std::string linked_mesh_path;
+    std::string packed_channels;
+    std::string material_output_quality = "inferred";
 };
 
 struct NativePackage {
@@ -320,6 +326,7 @@ struct NativePackage {
     std::string mesh_parse = "unsupported";
     std::string material_index = "none";
     std::string texture_resolution = "none";
+    std::string material_output_quality = "approximate";
     std::vector<std::string> notes;
     int lod_count = 0;
 };
@@ -2236,6 +2243,75 @@ static std::string shader_rule_for_family(const std::string& family) {
     return "generic";
 }
 
+struct SidecarParameterSummary {
+    int texture_params = 0;
+    int float_params = 0;
+    int color_params = 0;
+    int byte4_params = 0;
+    int bit_flags = 0;
+    std::string linked_mesh_path;
+};
+
+static int regex_count(const std::string& text, const std::regex& pattern) {
+    return static_cast<int>(std::distance(std::sregex_iterator(text.begin(), text.end(), pattern), std::sregex_iterator()));
+}
+
+static SidecarParameterSummary summarize_sidecar_parameters(const std::string& text) {
+    SidecarParameterSummary summary;
+    summary.texture_params = regex_count(text, std::regex("MaterialParameterTexture", std::regex_constants::icase));
+    summary.float_params = regex_count(text, std::regex("MaterialParameterFloat|<FloatParameter|_float", std::regex_constants::icase));
+    summary.color_params = regex_count(text, std::regex("MaterialParameterColor|ColorParameter|Tint|_color", std::regex_constants::icase));
+    summary.byte4_params = regex_count(text, std::regex("MaterialParameterByte4|Byte4", std::regex_constants::icase));
+    summary.bit_flags = regex_count(text, std::regex("BitFlag|MaterialBit|_flag", std::regex_constants::icase));
+    const std::regex linked_mesh_pattern("([A-Za-z0-9_./\\\\-]+\\.(?:pac|pam|pamlod))", std::regex_constants::icase);
+    std::smatch match;
+    if (std::regex_search(text, match, linked_mesh_pattern)) {
+        summary.linked_mesh_path = match[1].str();
+        std::replace(summary.linked_mesh_path.begin(), summary.linked_mesh_path.end(), '\\', '/');
+    }
+    return summary;
+}
+
+static std::string packed_channels_for_role(const std::string& role, const std::string& name, const std::string& parameter_name) {
+    const std::string lower = lower_copy(name + " " + parameter_name);
+    if (role == "material") {
+        if (lower.find("orm") != std::string::npos) return "r=occlusion,g=roughness,b=metalness";
+        if (lower.find("rma") != std::string::npos) return "r=roughness,g=metalness,b=occlusion";
+        if (lower.find("mra") != std::string::npos) return "r=metalness,g=roughness,b=occlusion";
+        if (lower.find("arm") != std::string::npos) return "r=occlusion,g=roughness,b=metalness";
+        if (lower.find("_ma") != std::string::npos || lower.find("material") != std::string::npos) {
+            return "approx:r=occlusion,g=roughness,b=metalness,a=specular";
+        }
+        if (lower.find("_m") != std::string::npos) return "approx:packed_material_mask";
+    }
+    if (role == "detail") return "approx:detail/grime/dye mask weights";
+    if (role == "specular") return "approx:specular/roughness response";
+    if (role == "height") return "height";
+    if (role == "normal") return "normal_xy";
+    return "";
+}
+
+static std::string role_from_parameter_shader_and_name(
+    const std::string& parameter_name,
+    const std::string& shader_rule,
+    const std::string& texture_name
+) {
+    const std::string p = lower_copy(parameter_name);
+    const std::string t = lower_copy(texture_name);
+    if (p.find("normal") != std::string::npos || p == "n" || t.find("_n.dds") != std::string::npos) return "normal";
+    if (p.find("height") != std::string::npos || p.find("displacement") != std::string::npos || p.find("disp") != std::string::npos || t.find("_disp.dds") != std::string::npos) return "height";
+    if (p.find("specular") != std::string::npos || p.find("_sp") != std::string::npos || t.find("_sp.dds") != std::string::npos) return "specular";
+    if (p.find("detail") != std::string::npos || p.find("grime") != std::string::npos || p.find("dye") != std::string::npos || p.find("mask") != std::string::npos || t.find("_mg.dds") != std::string::npos) {
+        if (p.find("diffuse") != std::string::npos || p.find("albedo") != std::string::npos || p.find("color") != std::string::npos) return "base";
+        return "detail";
+    }
+    if (p.find("material") != std::string::npos || p.find("blending") != std::string::npos || t.find("_ma.dds") != std::string::npos || t.find("_m.dds") != std::string::npos) return "material";
+    if (p.find("overlaycolor") != std::string::npos || p.find("layercolor") != std::string::npos) return "base";
+    if (p.find("basecolor") != std::string::npos || p.find("diffuse") != std::string::npos || p.find("albedo") != std::string::npos) return "base";
+    if (shader_rule == "skin" && t.find("_sp.dds") != std::string::npos) return "specular";
+    return texture_role_from_name(texture_name);
+}
+
 static void add_sidecar_candidate(
     std::vector<ArchiveEntryRef>& out,
     std::set<std::string>& seen,
@@ -2359,8 +2435,19 @@ static std::vector<TextureBinding> build_material_bindings(
         if (shader_family.empty()) {
             shader_family = sidecar.extension == ".pami" ? "StaticMaterial" : "";
         }
-        shader_rules.insert(shader_rule_for_family(shader_family));
+        const std::string shader_rule = shader_rule_for_family(shader_family);
+        const SidecarParameterSummary parameter_summary = summarize_sidecar_parameters(sidecar_text);
+        shader_rules.insert(shader_rule);
         sidecar_kinds.insert(sidecar.extension.empty() ? "unknown" : sidecar.extension);
+        package.notes.push_back(
+            "native material sidecar: " + sidecar.path +
+            "; rule=" + shader_rule +
+            "; texture_params=" + std::to_string(parameter_summary.texture_params) +
+            "; float_params=" + std::to_string(parameter_summary.float_params) +
+            "; color_params=" + std::to_string(parameter_summary.color_params) +
+            "; byte4_params=" + std::to_string(parameter_summary.byte4_params) +
+            "; flags=" + std::to_string(parameter_summary.bit_flags)
+        );
         std::vector<SidecarTextureRef> refs = extract_sidecar_texture_refs(sidecar_text);
         if (refs.empty()) {
             for (const std::string& token : extract_dds_tokens(sidecar_text)) {
@@ -2395,26 +2482,27 @@ static std::vector<TextureBinding> build_material_bindings(
             const std::string extracted = extracted_dds_path_for_entry(*selected, job.cache_root, notes);
             if (extracted.empty()) continue;
             TextureBinding binding;
-            binding.role = texture_role_from_name(base);
+            binding.role = role_from_parameter_shader_and_name(texture_ref.parameter_name, shader_rule, base);
             binding.source_path = extracted;
             binding.archive_path = selected->path;
             binding.texture_name = selected->basename;
             binding.parameter_name = texture_ref.parameter_name.empty() ? base : texture_ref.parameter_name;
             const std::string parameter_lower = lower_copy(binding.parameter_name);
-            if (parameter_lower.find("normal") != std::string::npos || parameter_lower == "n") binding.role = "normal";
-            else if (parameter_lower.find("height") != std::string::npos || parameter_lower.find("displacement") != std::string::npos || parameter_lower.find("disp") != std::string::npos) binding.role = "height";
-            else if (parameter_lower.find("specular") != std::string::npos || parameter_lower.find("_sp") != std::string::npos) binding.role = "specular";
-            else if (parameter_lower.find("detail") != std::string::npos && parameter_lower.find("diffuse") != std::string::npos) binding.role = "base";
-            else if (parameter_lower.find("overlaycolor") != std::string::npos || parameter_lower.find("layercolor") != std::string::npos) binding.role = "base";
-            else if (parameter_lower.find("basecolor") != std::string::npos || parameter_lower.find("diffuse") != std::string::npos || parameter_lower.find("albedo") != std::string::npos) binding.role = "base";
-            else if (parameter_lower.find("mask") != std::string::npos || parameter_lower.find("material") != std::string::npos || parameter_lower.find("blending") != std::string::npos) binding.role = "material";
             if (binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))) {
                 binding.role = texture_role_from_name(base);
             }
             binding.semantic_type = binding.role == "base" ? "albedo" : "material";
             binding.semantic_subtype = semantic_subtype_for_role(binding.role);
             binding.shader_family = shader_family;
+            binding.shader_rule = shader_rule;
             binding.material_name = stem_from_path(sidecar.path);
+            binding.sidecar_path = sidecar.path;
+            binding.sidecar_kind = sidecar.extension;
+            binding.linked_mesh_path = parameter_summary.linked_mesh_path;
+            binding.packed_channels = packed_channels_for_role(binding.role, base, parameter_lower);
+            binding.material_output_quality = binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))
+                ? "approximate"
+                : "inferred";
             const std::string binding_key = lower_copy(binding.role + "|" + binding.archive_path + "|" + binding.parameter_name);
             if (seen_bindings.insert(binding_key).second) {
                 bindings.push_back(binding);
@@ -2438,6 +2526,7 @@ static std::vector<TextureBinding> build_material_bindings(
     }
     package.material_index = bindings.empty() ? "native_sidecars_no_resolved_dds" : ("native_sidecar_index:" + kind_summary.str());
     package.texture_resolution = bindings.empty() ? "none" : "same_pamt_basename";
+    package.material_output_quality = bindings.empty() ? "approximate" : "inferred";
     package.notes.push_back(
         std::string("native material accuracy: inferred; sidecars=") + std::to_string(sidecars.size()) +
         "; shader_rules=" + (rule_summary.str().empty() ? "generic" : rule_summary.str())
@@ -2567,6 +2656,13 @@ static std::string dds_entry_json(const TextureBinding* binding, const std::stri
         << "\"parameter_name\":\"" << json_escape(binding->parameter_name) << "\","
         << "\"semantic_type\":\"" << json_escape(binding->semantic_type) << "\","
         << "\"semantic_subtype\":\"" << json_escape(binding->semantic_subtype) << "\","
+        << "\"shader_family\":\"" << json_escape(binding->shader_family) << "\","
+        << "\"shader_rule\":\"" << json_escape(binding->shader_rule) << "\","
+        << "\"sidecar_path\":\"" << json_escape(binding->sidecar_path) << "\","
+        << "\"sidecar_kind\":\"" << json_escape(binding->sidecar_kind) << "\","
+        << "\"linked_mesh_path\":\"" << json_escape(binding->linked_mesh_path) << "\","
+        << "\"packed_channels\":\"" << json_escape(binding->packed_channels) << "\","
+        << "\"material_output_quality\":\"" << json_escape(binding->material_output_quality) << "\","
         << "\"available\":true,"
         << "\"direct_upload_candidate\":true"
         << "}";
@@ -2664,6 +2760,12 @@ static NativePackage write_d3d11_package(
                     << "\"semantic_subtype\":\"" << json_escape(binding.semantic_subtype) << "\","
                     << "\"material_name\":\"" << json_escape(mesh.material) << "\","
                     << "\"shader_family\":\"" << json_escape(binding.shader_family) << "\","
+                    << "\"shader_rule\":\"" << json_escape(binding.shader_rule) << "\","
+                    << "\"sidecar_path\":\"" << json_escape(binding.sidecar_path) << "\","
+                    << "\"sidecar_kind\":\"" << json_escape(binding.sidecar_kind) << "\","
+                    << "\"linked_mesh_path\":\"" << json_escape(binding.linked_mesh_path) << "\","
+                    << "\"packed_channels\":\"" << json_escape(binding.packed_channels) << "\","
+                    << "\"material_output_quality\":\"" << json_escape(binding.material_output_quality) << "\","
                     << "\"available\":true,"
                     << "\"direct_upload_candidate\":true"
                     << "}";
@@ -2722,7 +2824,7 @@ static NativePackage write_d3d11_package(
         << "\"shininess_max\":180.0,"
         << "\"use_textures\":true,"
         << "\"high_quality_textures\":true,"
-        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"lod_count\":" << package.lod_count << "},"
+        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"lod_count\":" << package.lod_count << "},"
         << "\"batches\":[" << batches_json.str() << "]"
         << "}";
     write_text(package_dir / "manifest.json", manifest.str());
@@ -2813,6 +2915,7 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"native_mesh_parser\":\"" << json_escape(package.mesh_parse.empty() ? "pending" : package.mesh_parse) << "\","
         << "\"native_material_index\":\"" << json_escape(package.material_index.empty() ? "pending" : package.material_index) << "\","
         << "\"native_texture_resolution\":\"" << json_escape(package.texture_resolution.empty() ? "pending" : package.texture_resolution) << "\","
+        << "\"native_material_output_quality\":\"" << json_escape(package.material_output_quality.empty() ? "pending" : package.material_output_quality) << "\","
         << "\"schema_version\":" << job.schema_version << ","
         << "\"entry_path\":\"" << json_escape(job.path) << "\","
         << "\"extension\":\"" << json_escape(job.extension) << "\","

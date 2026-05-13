@@ -499,6 +499,121 @@ def ensure_native_dds_preview_png(
     return preview_path if preview_path.is_file() and preview_path.stat().st_size > 0 else None
 
 
+def encode_dds_with_directxtex(
+    png_path: Path,
+    output_dds_path: Path,
+    *,
+    dds_format: str,
+    width: int = 0,
+    height: int = 0,
+    mip_count: int = 1,
+    timeout_seconds: float = 60.0,
+    stop_event: Optional[threading.Event] = None,
+) -> Optional[Dict[str, Any]]:
+    results = encode_dds_batch_with_directxtex(
+        (
+            {
+                "png_path": str(png_path),
+                "output_path": str(output_dds_path),
+                "format": str(dds_format or "BC7_UNORM"),
+                "width": int(width or 0),
+                "height": int(height or 0),
+                "mip_count": int(mip_count or 1),
+            },
+        ),
+        timeout_seconds=timeout_seconds,
+        stop_event=stop_event,
+    )
+    try:
+        output_key = str(Path(output_dds_path).expanduser().resolve())
+    except OSError:
+        output_key = str(output_dds_path)
+    return results.get(output_key)
+
+
+def encode_dds_batch_with_directxtex(
+    jobs: Sequence[Mapping[str, object]],
+    *,
+    timeout_seconds: float = 120.0,
+    stop_event: Optional[threading.Event] = None,
+) -> Dict[str, Dict[str, Any]]:
+    raise_if_cancelled(stop_event, "DirectXTex DDS encode cancelled.")
+    binary = find_directxtex_texture_binary()
+    if binary is None:
+        return {}
+    normalized_jobs: list[Dict[str, object]] = []
+    for job in jobs:
+        raise_if_cancelled(stop_event, "DirectXTex DDS encode cancelled.")
+        raw_input = str(job.get("png_path") or job.get("input") or job.get("source_path") or "").strip()
+        raw_output = str(job.get("output_path") or job.get("dds_path") or job.get("output") or "").strip()
+        if not raw_input or not raw_output:
+            continue
+        try:
+            input_path = Path(raw_input).expanduser().resolve()
+            output_path = Path(raw_output).expanduser().resolve()
+        except OSError:
+            continue
+        if not input_path.is_file():
+            continue
+        normalized_jobs.append(
+            {
+                "input": str(input_path),
+                "output": str(output_path),
+                "format": str(job.get("format") or job.get("texconv_format") or "BC7_UNORM"),
+                "width": max(0, int(job.get("width") or job.get("target_width") or 0)),
+                "height": max(0, int(job.get("height") or job.get("target_height") or 0)),
+                "mip_count": max(1, int(job.get("mip_count") or job.get("mips") or 1)),
+                "overwrite": bool(job.get("overwrite", True)),
+            }
+        )
+    if not normalized_jobs:
+        return {}
+
+    job_root = Path(tempfile.mkdtemp(prefix="cdmw_directxtex_encode_"))
+    job_path = job_root / "job.json"
+    report_path = job_root / "report.json"
+    try:
+        for job in normalized_jobs:
+            Path(str(job["output"])).parent.mkdir(parents=True, exist_ok=True)
+        job_path.write_text(
+            json.dumps({"version": 1, "backend": DIRECTXTEX_TEXTURE_BACKEND_ID, "jobs": normalized_jobs}, indent=2),
+            encoding="utf-8",
+        )
+        returncode, _stdout, _stderr = run_process_with_cancellation(
+            [str(binary), "batch-encode-json", str(job_path), str(report_path)],
+            timeout=max(1.0, float(timeout_seconds)),
+            stop_event=stop_event,
+        )
+    except RunCancelled:
+        raise
+    except Exception:
+        return {}
+    if returncode not in {0, 2} or not report_path.is_file():
+        return {}
+    try:
+        parsed = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    items = parsed.get("items") if isinstance(parsed, dict) else None
+    if not isinstance(items, list):
+        return {}
+    results: Dict[str, Dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict) or str(item.get("status") or "").lower() != "encoded":
+            continue
+        output = Path(str(item.get("output_path") or ""))
+        if not output.is_file():
+            continue
+        item.setdefault("backend", DIRECTXTEX_TEXTURE_BACKEND_ID)
+        item.setdefault("native_backend", "directxtex")
+        try:
+            output_key = str(output.expanduser().resolve())
+        except OSError:
+            output_key = str(output)
+        results[output_key] = dict(item)
+    return results
+
+
 def texconv_preview_report(
     dds_path: Path,
     preview_path: Path,

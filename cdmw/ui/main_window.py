@@ -3049,6 +3049,51 @@ def run_gui() -> int:
             finally:
                 self.finished.emit()
 
+    class ArchiveNativePreviewPrefetchWorker(QObject):
+        finished = Signal()
+
+        def __init__(
+            self,
+            jobs: Sequence[Tuple[ArchiveEntry, Optional[ArchiveEntry]]],
+            render_settings: ModelPreviewRenderSettings,
+            cache_root: Path,
+            package_root: Optional[Path],
+        ) -> None:
+            super().__init__()
+            self.jobs = tuple(jobs)
+            self.render_settings = clamp_model_preview_render_settings(render_settings)
+            self.cache_root = cache_root
+            self.package_root = package_root
+            self.stop_event = threading.Event()
+
+        def stop(self) -> None:
+            self.stop_event.set()
+
+        @Slot()
+        def run(self) -> None:
+            try:
+                for entry, companion_entry in self.jobs:
+                    if self.stop_event.is_set():
+                        return
+                    if str(getattr(entry, "extension", "") or "").strip().lower() not in ARCHIVE_MODEL_EXTENSIONS:
+                        continue
+                    try:
+                        run_native_preview_core_preview_job(
+                            entry,
+                            cache_root=self.cache_root,
+                            render_settings=self.render_settings,
+                            companion_entry=companion_entry,
+                            package_root=self.package_root,
+                            timeout_seconds=5.0,
+                            stop_event=self.stop_event,
+                        )
+                    except RunCancelled:
+                        return
+                    except Exception:
+                        continue
+            finally:
+                self.finished.emit()
+
     class AlignmentD3D11PackageWorker(QObject):
         completed = Signal(int, object, float, float)
         error = Signal(int, str)
@@ -3695,6 +3740,9 @@ def run_gui() -> int:
             self.archive_isolated_package_worker: Optional[ArchiveD3D11PackageWorker] = None
             self.archive_isolated_package_request_id = 0
             self.archive_isolated_package_pending_result: Optional[ArchivePreviewResult] = None
+            self.archive_native_prefetch_thread: Optional[QThread] = None
+            self.archive_native_prefetch_worker: Optional[ArchiveNativePreviewPrefetchWorker] = None
+            self.archive_native_prefetch_request_id = 0
             self.archive_preview_requested_loose = False
             self.archive_preview_showing_loose = False
             self.archive_entries: List[ArchiveEntry] = []
@@ -3783,6 +3831,10 @@ def run_gui() -> int:
             self.archive_preview_debounce_timer.setSingleShot(True)
             self.archive_preview_debounce_timer.setInterval(90)
             self.archive_preview_debounce_timer.timeout.connect(self._flush_scheduled_archive_preview_request)
+            self.archive_native_prefetch_timer = QTimer(self)
+            self.archive_native_prefetch_timer.setSingleShot(True)
+            self.archive_native_prefetch_timer.setInterval(180)
+            self.archive_native_prefetch_timer.timeout.connect(self._start_archive_native_preview_prefetch)
             self.archive_preview_loading_timer = QTimer(self)
             self.archive_preview_loading_timer.setInterval(250)
             self.archive_preview_loading_timer.timeout.connect(self._update_archive_preview_loading_indicator)
@@ -14015,6 +14067,7 @@ def run_gui() -> int:
             self.pending_archive_preview_request = None
             self.scheduled_archive_preview_request = None
             self.archive_preview_debounce_timer.stop()
+            self._stop_archive_native_preview_prefetch()
             if self.archive_preview_worker is not None:
                 try:
                     self.archive_preview_worker.stop()
@@ -17613,6 +17666,7 @@ def run_gui() -> int:
             self.pending_archive_preview_request = None
             self.scheduled_archive_preview_request = None
             self.archive_preview_debounce_timer.stop()
+            self._stop_archive_native_preview_prefetch()
             if self.archive_preview_worker is not None:
                 self.archive_preview_worker.stop()
             self._stop_archive_preview_loading_indicator(success=None)
@@ -18182,6 +18236,8 @@ def run_gui() -> int:
             self.pending_archive_preview_request = None
             self.scheduled_archive_preview_request = (request_id, entry, include_loose_preview_assets)
             self.archive_preview_debounce_timer.start()
+            if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
+                self.archive_native_prefetch_timer.start()
 
         def _flush_scheduled_archive_preview_request(self) -> None:
             if self.scheduled_archive_preview_request is None:
@@ -18238,6 +18294,85 @@ def run_gui() -> int:
                 loose_search_roots,
                 include_loose_preview_assets=include_loose_preview_assets,
             )
+
+        def _archive_native_prefetch_candidate_entries(self) -> Tuple[ArchiveEntry, ...]:
+            current = self._current_archive_entry()
+            if current is None or not self.archive_filtered_entries:
+                return ()
+            current_key = str(getattr(current, "path", "") or "").replace("\\", "/").lower()
+            current_index = -1
+            for index, entry in enumerate(self.archive_filtered_entries):
+                if str(getattr(entry, "path", "") or "").replace("\\", "/").lower() == current_key:
+                    current_index = index
+                    break
+            if current_index < 0:
+                return (current,)
+            candidates: List[ArchiveEntry] = []
+            for offset in (0, 1, -1, 2, -2):
+                index = current_index + offset
+                if index < 0 or index >= len(self.archive_filtered_entries):
+                    continue
+                entry = self.archive_filtered_entries[index]
+                if str(getattr(entry, "extension", "") or "").strip().lower() in ARCHIVE_MODEL_EXTENSIONS:
+                    candidates.append(entry)
+            seen: set[str] = set()
+            unique: List[ArchiveEntry] = []
+            for entry in candidates:
+                key = str(getattr(entry, "path", "") or "").replace("\\", "/").lower()
+                if key and key not in seen:
+                    seen.add(key)
+                    unique.append(entry)
+            return tuple(unique[:5])
+
+        def _start_archive_native_preview_prefetch(self) -> None:
+            if self._shutting_down:
+                return
+            if self._archive_model_renderer_backend() != ARCHIVE_MODEL_RENDERER_D3D11:
+                return
+            entries = self._archive_native_prefetch_candidate_entries()
+            if not entries:
+                return
+            self.archive_native_prefetch_request_id += 1
+            if self.archive_native_prefetch_worker is not None:
+                self.archive_native_prefetch_worker.stop()
+            if self.archive_native_prefetch_thread is not None:
+                return
+            render_settings = self._current_model_preview_render_settings()
+            package_root = (
+                Path(self.archive_package_root_edit.text().strip()).expanduser()
+                if self.archive_package_root_edit.text().strip()
+                else None
+            )
+            jobs = tuple((entry, self._find_archive_preview_companion_entry(entry)) for entry in entries)
+            worker = ArchiveNativePreviewPrefetchWorker(
+                jobs,
+                render_settings,
+                self.archive_cache_root / "native_preview_core",
+                package_root,
+            )
+            thread = QThread(self)
+            worker.moveToThread(thread)
+            thread.started.connect(worker.run)
+            worker.finished.connect(thread.quit)
+            worker.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
+            thread.finished.connect(self._cleanup_archive_native_prefetch_refs)
+            self.archive_native_prefetch_worker = worker
+            self.archive_native_prefetch_thread = thread
+            thread.start()
+
+        def _cleanup_archive_native_prefetch_refs(self) -> None:
+            self.archive_native_prefetch_worker = None
+            self.archive_native_prefetch_thread = None
+
+        def _stop_archive_native_preview_prefetch(self) -> None:
+            if hasattr(self, "archive_native_prefetch_timer"):
+                self.archive_native_prefetch_timer.stop()
+            if self.archive_native_prefetch_worker is not None:
+                try:
+                    self.archive_native_prefetch_worker.stop()
+                except Exception:
+                    pass
 
         def _start_archive_preview_worker(
             self,
@@ -60513,6 +60648,7 @@ def run_gui() -> int:
                 ("compare_preview_thread", self.compare_preview_thread, self.compare_preview_worker),
                 ("archive_preview_thread", self.archive_preview_thread, self.archive_preview_worker),
                 ("archive_isolated_package_thread", self.archive_isolated_package_thread, self.archive_isolated_package_worker),
+                ("archive_native_prefetch_thread", self.archive_native_prefetch_thread, self.archive_native_prefetch_worker),
             ]
 
         def _running_worker_threads(self) -> List[QThread]:
@@ -60577,6 +60713,7 @@ def run_gui() -> int:
             self._chainner_analysis_timer.stop()
             self._compare_preview_timer.stop()
             self.archive_preview_debounce_timer.stop()
+            self.archive_native_prefetch_timer.stop()
             self.archive_preview_loading_timer.stop()
             self.archive_selection_state_timer.stop()
             self.pending_compare_preview_selection = None
@@ -60614,6 +60751,7 @@ def run_gui() -> int:
             self._chainner_analysis_timer.stop()
             self._compare_preview_timer.stop()
             self.archive_preview_debounce_timer.stop()
+            self.archive_native_prefetch_timer.stop()
             self.archive_preview_loading_timer.stop()
             self.archive_selection_state_timer.stop()
             self.archive_media_preview.shutdown()

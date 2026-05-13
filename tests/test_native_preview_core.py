@@ -108,6 +108,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("parse_pamlod_submeshes", source_text)
         self.assertIn("material_sidecars", source_text)
         self.assertIn("native_sidecar_index", source_text)
+        self.assertIn("shader_rule_for_family", source_text)
+        self.assertIn("role_from_parameter_shader_and_name", source_text)
+        self.assertIn("packed_channels_for_role", source_text)
+        self.assertIn("material_output_quality", source_text)
         self.assertIn("_get_native_preview_core_service", Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8"))
 
     def test_archive_preview_worker_owns_native_preview_core_helpers(self) -> None:
@@ -122,6 +126,18 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("def _attach_native_preview_core_note", archive_worker_source)
         self.assertNotIn("def _try_native_preview_core", d3d11_worker_source)
         self.assertNotIn("self._try_native_preview_core()", d3d11_worker_source)
+
+    def test_archive_browser_has_native_preview_prefetch_worker(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+
+        self.assertIn("class ArchiveNativePreviewPrefetchWorker(QObject):", source)
+        self.assertIn("archive_native_prefetch_timer", source)
+        self.assertIn("def _archive_native_prefetch_candidate_entries", source)
+        self.assertIn("def _start_archive_native_preview_prefetch", source)
+        self.assertIn("def _stop_archive_native_preview_prefetch", source)
+        self.assertIn("archive_native_prefetch_thread", source)
+        self.assertIn("timeout_seconds=5.0", source)
+        self.assertIn("run_native_preview_core_preview_job", source)
 
 
 if __name__ == "__main__":

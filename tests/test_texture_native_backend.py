@@ -188,6 +188,76 @@ class NativeTextureBackendTests(unittest.TestCase):
             for preview_path in results.values():
                 self.assertTrue(texture_native.native_texture_report_sidecar_path(preview_path).is_file())
 
+    def test_directxtex_batch_encode_uses_one_helper_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            binary_path = root / "cd-texture-dx.exe"
+            binary_path.write_bytes(b"fake")
+            png_a = root / "a.png"
+            png_b = root / "b.png"
+            png_a.write_bytes(b"\x89PNG\r\n\x1a\nfake-a")
+            png_b.write_bytes(b"\x89PNG\r\n\x1a\nfake-b")
+            output_a = root / "out" / "a.dds"
+            output_b = root / "out" / "b.dds"
+            run_commands = []
+
+            def fake_run(command, **_kwargs):
+                run_commands.append(command)
+                job_path = Path(command[2])
+                report_path = Path(command[3])
+                job = json.loads(job_path.read_text(encoding="utf-8"))
+                self.assertEqual("directxtex_native_0.1", job["backend"])
+                items = []
+                for item in job["jobs"]:
+                    output = Path(item["output"])
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"DDS fake")
+                    items.append(
+                        {
+                            "status": "encoded",
+                            "backend": "directxtex_native_0.1",
+                            "native_backend": "directxtex",
+                            "source_path": item["input"],
+                            "output_path": item["output"],
+                            "format": item["format"],
+                            "width": item["width"],
+                            "height": item["height"],
+                            "mip_count": item["mip_count"],
+                        }
+                    )
+                report_path.write_text(json.dumps({"status": "ok", "items": items}), encoding="utf-8")
+
+                return 0, "{}", ""
+
+            with patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=binary_path):
+                with patch("cdmw.core.texture_native.run_process_with_cancellation", side_effect=fake_run):
+                    results = texture_native.encode_dds_batch_with_directxtex(
+                        (
+                            {
+                                "png_path": str(png_a),
+                                "output_path": str(output_a),
+                                "format": "BC7_UNORM",
+                                "width": 256,
+                                "height": 256,
+                                "mip_count": 4,
+                            },
+                            {
+                                "png_path": str(png_b),
+                                "output_path": str(output_b),
+                                "format": "BC5_UNORM",
+                                "width": 128,
+                                "height": 128,
+                                "mip_count": 1,
+                            },
+                        )
+                    )
+
+            self.assertEqual(1, len(run_commands))
+            self.assertEqual({"batch-encode-json"}, {Path(run_commands[0][1]).name})
+            self.assertEqual({str(output_a.resolve()), str(output_b.resolve())}, set(results))
+            self.assertEqual("BC7_UNORM", results[str(output_a.resolve())]["format"])
+            self.assertEqual(4, results[str(output_a.resolve())]["mip_count"])
+
     def test_directxtex_batch_preview_can_return_per_slot_job_keys(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
