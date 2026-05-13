@@ -77,12 +77,79 @@ class StaticTextureSlotOverride:
     slot_kind: str = ""
     target_material_name: str = ""
     enabled: bool = True
+    source_material_name: str = ""
+
+
+@dataclass
+class StaticSourceMaterialTextureOverride:
+    source_material_name: str
+    slot_kind: str
+    source_path: str
+    enabled: bool = True
+
+
+@dataclass
+class StaticDonorMaterialTextureBinding:
+    parameter_name: str = ""
+    texture_path: str = ""
+    slot_kind: str = ""
+    semantic_subtype: str = ""
+
+
+@dataclass
+class StaticDonorMaterialPlan:
+    target_material_name: str
+    donor_sidecar_path: str = ""
+    donor_sidecar_text: str = ""
+    donor_sidecar_kind: str = ""
+    donor_material_name: str = ""
+    donor_submesh_name: str = ""
+    donor_shader_family: str = ""
+    patch_mode: str = "material_behavior"
+    texture_bindings: list[StaticDonorMaterialTextureBinding] = field(default_factory=list)
+    target_anchor_texture_paths: list[str] = field(default_factory=list)
+    donor_anchor_texture_paths: list[str] = field(default_factory=list)
+    enabled: bool = True
+
+
+@dataclass
+class StaticTextureUvTransform:
+    source_material_name: str
+    rotate_degrees: int = 0
+    flip_u: bool = False
+    flip_v: bool = False
+    offset_uv: tuple[float, float] = (0.0, 0.0)
+    scale_uv: tuple[float, float] = (1.0, 1.0)
+    pivot_uv: tuple[float, float] = (0.5, 0.5)
+
+
+@dataclass
+class StaticIndependentPart:
+    source_submesh_index: int
+    label: str = ""
+    material_name: str = ""
+    enabled: bool = True
+    preview_only: bool = False
+    clone_target_submesh_index: int = -1
+
+
+@dataclass
+class StaticOutputDrawSection:
+    output_index: int
+    target_submesh_index: int
+    target_submesh_name: str
+    source_submesh_indices: list[int] = field(default_factory=list)
+    target_material_slot_index: int = 0
+    clone_source_target_index: int = -1
+    vertex_count: int = 0
+    is_cloned_section: bool = False
 
 
 @dataclass
 class StaticMeshReplacementOptions:
     transform: StaticReplacementTransform = field(default_factory=StaticReplacementTransform)
     submesh_mappings: list[StaticSubmeshMapping] = field(default_factory=list)
+    edited_source_mesh: ParsedMesh | None = None
     material_mapping_mode: str = "source_driven_materials"
     allow_merge_source_submeshes: bool = True
     allow_empty_target_submeshes: bool = True
@@ -90,10 +157,18 @@ class StaticMeshReplacementOptions:
     enable_missing_base_color_parameters: bool = False
     texture_slot_overrides: list[StaticTextureSlotOverride] = field(default_factory=list)
     texture_output_size_mode: str = "source"
+    texture_uv_transforms: list[StaticTextureUvTransform] = field(default_factory=list)
     source_part_adjustments: list[StaticSourcePartAdjustment] = field(default_factory=list)
     original_part_copies: list[StaticOriginalPartCopy] = field(default_factory=list)
+    global_transform_exempt_source_indices: list[int] = field(default_factory=list)
+    independent_output_parts: list[StaticIndependentPart] = field(default_factory=list)
+    additional_supplemental_files: list[object] = field(default_factory=list)
+    custom_item_icon_override: object | None = None
     replace_lods: bool = False
     strict_static_only: bool = True
+    source_material_texture_overrides: list[StaticSourceMaterialTextureOverride] = field(default_factory=list)
+    donor_material_plans: list[StaticDonorMaterialPlan] = field(default_factory=list)
+    dense_export_mode: str = "preserve_split"
 
 
 @dataclass
@@ -108,6 +183,8 @@ class StaticMeshReplacementReport:
     errors: list[str] = field(default_factory=list)
     mapping_summary: list[str] = field(default_factory=list)
     alignment_summary: list[str] = field(default_factory=list)
+    output_draw_sections: list[StaticOutputDrawSection] = field(default_factory=list)
+    dense_summary: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -170,6 +247,221 @@ _TIP_MARKER_NAMES = ("cdmw_tip_anchor", "cft_tip_anchor")
 _MARKER_NAMES = {*_GRIP_MARKER_NAMES, *_TIP_MARKER_NAMES}
 
 
+def _replacement_mesh_from_options(
+    replacement_mesh: ParsedMesh,
+    options: StaticMeshReplacementOptions,
+) -> ParsedMesh:
+    edited = getattr(options, "edited_source_mesh", None)
+    if isinstance(edited, ParsedMesh):
+        return edited
+    return replacement_mesh
+
+
+def _independent_parts_for_options(
+    options: StaticMeshReplacementOptions,
+    replacement_mesh: ParsedMesh,
+    *,
+    include_preview_only: bool,
+) -> list[StaticIndependentPart]:
+    parts: list[StaticIndependentPart] = []
+    seen: set[int] = set()
+    for raw_part in getattr(options, "independent_output_parts", []) or []:
+        if not bool(getattr(raw_part, "enabled", True)):
+            continue
+        if bool(getattr(raw_part, "preview_only", False)) and not include_preview_only:
+            continue
+        try:
+            source_index = int(getattr(raw_part, "source_submesh_index"))
+        except (TypeError, ValueError):
+            continue
+        if source_index < 0 or source_index >= len(replacement_mesh.submeshes):
+            continue
+        if source_index in seen:
+            continue
+        submesh = replacement_mesh.submeshes[source_index]
+        if _is_marker_submesh(submesh):
+            continue
+        seen.add(source_index)
+        parts.append(
+            StaticIndependentPart(
+                source_submesh_index=source_index,
+                label=str(getattr(raw_part, "label", "") or ""),
+                material_name=str(getattr(raw_part, "material_name", "") or ""),
+                enabled=True,
+                preview_only=bool(getattr(raw_part, "preview_only", False)),
+                clone_target_submesh_index=int(getattr(raw_part, "clone_target_submesh_index", -1) or -1),
+            )
+        )
+    return parts
+
+
+def _independent_source_indices(
+    options: StaticMeshReplacementOptions,
+    replacement_mesh: ParsedMesh,
+    *,
+    include_preview_only: bool,
+) -> set[int]:
+    return {
+        int(part.source_submesh_index)
+        for part in _independent_parts_for_options(
+            options,
+            replacement_mesh,
+            include_preview_only=include_preview_only,
+        )
+    }
+
+
+def _dense_export_mode(options: StaticMeshReplacementOptions) -> str:
+    mode = str(getattr(options, "dense_export_mode", "preserve_split") or "preserve_split").strip().lower()
+    return mode if mode in {"preserve_split", "legacy_merge"} else "preserve_split"
+
+
+def _source_vertex_count(
+    replacement_mesh: ParsedMesh,
+    source_index: int,
+    options: StaticMeshReplacementOptions,
+) -> int:
+    if source_index < 0 or source_index >= len(replacement_mesh.submeshes):
+        return 0
+    source = replacement_mesh.submeshes[source_index]
+    if _is_marker_submesh(source):
+        return 0
+    adjustment = _source_part_adjustments_by_index(options.source_part_adjustments).get(
+        source_index,
+        StaticSourcePartAdjustment(source_index),
+    )
+    if not bool(adjustment.enabled):
+        return 0
+    return len(getattr(source, "vertices", ()) or ())
+
+
+def _partition_source_indices_for_vertex_limit(
+    replacement_mesh: ParsedMesh,
+    source_indices: Iterable[int],
+    options: StaticMeshReplacementOptions,
+) -> tuple[list[list[int]], list[str]]:
+    groups: list[list[int]] = []
+    errors: list[str] = []
+    current_group: list[int] = []
+    current_vertices = 0
+    for raw_source_index in source_indices:
+        try:
+            source_index = int(raw_source_index)
+        except (TypeError, ValueError):
+            continue
+        vertex_count = _source_vertex_count(replacement_mesh, source_index, options)
+        if vertex_count <= 0:
+            continue
+        if vertex_count > _STATIC_REPLACEMENT_VERTEX_LIMIT:
+            errors.append(
+                f"Replacement source {source_index} has {vertex_count:,} vertices; "
+                f"16-bit PAC/PAM draw sections support at most {_STATIC_REPLACEMENT_VERTEX_LIMIT:,}."
+            )
+            continue
+        if current_group and current_vertices + vertex_count > _STATIC_REPLACEMENT_VERTEX_LIMIT:
+            groups.append(current_group)
+            current_group = []
+            current_vertices = 0
+        current_group.append(source_index)
+        current_vertices += vertex_count
+    if current_group:
+        groups.append(current_group)
+    if not groups:
+        groups.append([])
+    return groups, errors
+
+
+def plan_static_output_draw_sections(
+    original_mesh: ParsedMesh,
+    replacement_mesh: ParsedMesh,
+    mappings: list[StaticSubmeshMapping],
+    options: StaticMeshReplacementOptions | None = None,
+) -> tuple[list[StaticOutputDrawSection], list[str], list[str]]:
+    """Plan export draw sections, preserving dense source parts when possible."""
+    normalized_options = options or StaticMeshReplacementOptions()
+    mode = _dense_export_mode(normalized_options)
+    mappings_by_target = {mapping.target_submesh_index: mapping for mapping in mappings}
+    original_sections: list[StaticOutputDrawSection] = []
+    cloned_sections: list[StaticOutputDrawSection] = []
+    warnings: list[str] = []
+    errors: list[str] = []
+
+    for target_index, target in enumerate(original_mesh.submeshes):
+        mapping = mappings_by_target.get(target_index)
+        source_indices = list(mapping.source_submesh_indices if mapping is not None else [])
+        target_name = (
+            str(getattr(mapping, "target_submesh_name", "") or "").strip()
+            if mapping is not None
+            else ""
+        ) or target.material or target.name or f"target {target_index}"
+        material_slot_index = (
+            int(getattr(mapping, "target_material_slot_index", target_index) or target_index)
+            if mapping is not None
+            else target_index
+        )
+
+        if mode == "legacy_merge":
+            groups = [source_indices]
+            oversized_groups = [
+                sum(_source_vertex_count(replacement_mesh, source_index, normalized_options) for source_index in source_indices)
+            ]
+            if oversized_groups[0] > _STATIC_REPLACEMENT_VERTEX_LIMIT:
+                errors.append(
+                    f"{target_name} receives {oversized_groups[0]:,} vertices; "
+                    f"legacy merge mode exceeds the {_STATIC_REPLACEMENT_VERTEX_LIMIT:,}-vertex draw-section limit."
+                )
+        else:
+            groups, group_errors = _partition_source_indices_for_vertex_limit(
+                replacement_mesh,
+                source_indices,
+                normalized_options,
+            )
+            errors.extend(group_errors)
+
+        first_group = groups[0] if groups else []
+        original_sections.append(
+            StaticOutputDrawSection(
+                output_index=0,
+                target_submesh_index=target_index,
+                target_submesh_name=target_name,
+                source_submesh_indices=list(first_group),
+                target_material_slot_index=material_slot_index,
+                clone_source_target_index=-1,
+                vertex_count=sum(
+                    _source_vertex_count(replacement_mesh, source_index, normalized_options)
+                    for source_index in first_group
+                ),
+                is_cloned_section=False,
+            )
+        )
+        for group in groups[1:]:
+            cloned_sections.append(
+                StaticOutputDrawSection(
+                    output_index=0,
+                    target_submesh_index=target_index,
+                    target_submesh_name=target_name,
+                    source_submesh_indices=list(group),
+                    target_material_slot_index=material_slot_index,
+                    clone_source_target_index=target_index,
+                    vertex_count=sum(
+                        _source_vertex_count(replacement_mesh, source_index, normalized_options)
+                        for source_index in group
+                    ),
+                    is_cloned_section=True,
+                )
+            )
+
+    planned = original_sections + cloned_sections
+    for output_index, section in enumerate(planned):
+        section.output_index = output_index
+    if cloned_sections:
+        warnings.append(
+            "Dense replacement will preserve source parts by cloning PAC draw section(s): "
+            f"{len(cloned_sections)} cloned section(s)."
+        )
+    return planned, warnings, errors
+
+
 def analyze_static_replacement(
     original_mesh: ParsedMesh,
     replacement_mesh: ParsedMesh,
@@ -177,6 +469,7 @@ def analyze_static_replacement(
 ) -> StaticMeshReplacementReport:
     """Analyze a replacement OBJ against an original parsed mesh."""
     normalized_options = options or StaticMeshReplacementOptions()
+    replacement_mesh = _replacement_mesh_from_options(replacement_mesh, normalized_options)
     effective_replacement_mesh, _preserve_source_indices = _replacement_mesh_with_original_part_copies(
         original_mesh,
         replacement_mesh,
@@ -190,6 +483,23 @@ def analyze_static_replacement(
     _append_mapping_summary(report, original_mesh, effective_replacement_mesh, mappings)
     _append_static_warnings(report, original_mesh, effective_replacement_mesh, mappings, normalized_options)
     _append_mapping_errors(report, original_mesh, effective_replacement_mesh, mappings, normalized_options)
+    output_sections, dense_warnings, dense_errors = plan_static_output_draw_sections(
+        original_mesh,
+        effective_replacement_mesh,
+        mappings,
+        normalized_options,
+    )
+    report.output_draw_sections = output_sections
+    report.dense_summary.extend(dense_warnings)
+    report.warnings.extend(dense_warnings)
+    if dense_errors:
+        report.dense_summary.extend(dense_errors)
+        report.errors.extend(dense_errors)
+    if any(section.is_cloned_section for section in output_sections) and original_mesh.format.lower() != "pac":
+        report.errors.append(
+            "Dense preserve-split output needs cloned draw sections, but this asset is not a PAC. "
+            "Reduce the source mesh or map fewer source parts into each target draw slot."
+        )
     _append_alignment_summary(report, original_mesh, effective_replacement_mesh, normalized_options.transform)
     return report
 
@@ -240,6 +550,7 @@ def build_static_mesh_replacement(
 ) -> tuple[bytes, StaticMeshReplacementReport]:
     """Build a static replacement PAC/PAM payload from an arbitrary OBJ mesh."""
     normalized_options = options or StaticMeshReplacementOptions()
+    replacement_mesh = _replacement_mesh_from_options(replacement_mesh, normalized_options)
     effective_replacement_mesh, _preserve_source_indices = _replacement_mesh_with_original_part_copies(
         original_mesh,
         replacement_mesh,
@@ -258,8 +569,36 @@ def build_static_mesh_replacement(
 
     if original_mesh.format.lower() == "pamlod":
         report.errors.append("Static replacement currently supports one selected PAC/PAM mesh payload, not PAMLOD.")
+    independent_output_parts = _independent_parts_for_options(
+        normalized_options,
+        effective_replacement_mesh,
+        include_preview_only=False,
+    )
+    if independent_output_parts:
+        labels = ", ".join(
+            str(part.label or f"source {part.source_submesh_index}")
+            for part in independent_output_parts[:4]
+        )
+        if len(independent_output_parts) > 4:
+            labels += f", +{len(independent_output_parts) - 4} more"
+        report.errors.append(
+            "Independent added mesh parts cannot be written into this PAC/PAM layout yet because the current "
+            "serializer preserves the original draw-section descriptor set. Attach the part to an existing target "
+            f"draw slot, or export after native draw-section cloning is available. Independent part(s): {labels}."
+        )
     if normalized_options.replace_lods:
         report.warnings.append("LOD replacement was requested, but this first version only replaces the selected mesh/LOD.")
+    fmt = original_mesh.format.lower()
+    cloned_draw_sections = [
+        section
+        for section in report.output_draw_sections
+        if bool(getattr(section, "is_cloned_section", False))
+    ]
+    if cloned_draw_sections and fmt != "pac":
+        report.errors.append(
+            "Dense preserve-split output requires PAC draw-section cloning. "
+            "PAM/PAMLOD cloning is not enabled; reduce the source mesh or map fewer source parts into each target."
+        )
     if report.errors:
         raise ValueError(_format_static_report_failure(report))
 
@@ -268,13 +607,21 @@ def build_static_mesh_replacement(
         replacement_mesh,
         mappings,
         normalized_options,
+        output_draw_sections=report.output_draw_sections,
     )
 
-    fmt = original_mesh.format.lower()
     if fmt == "pac":
         from .mesh_importer import _build_pac_full_rebuild
 
-        rebuilt = _build_pac_full_rebuild(original_mesh, working_mesh, original_data)
+        rebuilt = _build_pac_full_rebuild(
+            original_mesh,
+            working_mesh,
+            original_data,
+            clone_descriptor_sources=[
+                int(section.clone_source_target_index)
+                for section in cloned_draw_sections
+            ],
+        )
     elif fmt == "pam":
         from .mesh_importer import build_pam
 
@@ -302,6 +649,7 @@ def build_static_replacement_preview_mesh(
 ) -> ParsedMesh:
     """Build the mapped/transformed preview mesh without serializing a PAC/PAM payload."""
     normalized_options = options or StaticMeshReplacementOptions()
+    replacement_mesh = _replacement_mesh_from_options(replacement_mesh, normalized_options)
     effective_replacement_mesh, _preserve_source_indices = _replacement_mesh_with_original_part_copies(
         original_mesh,
         replacement_mesh,
@@ -600,6 +948,7 @@ def effective_static_replacement_source_mesh(
 ) -> ParsedMesh:
     """Return the replacement source mesh after appending copied original parts."""
     normalized_options = options or StaticMeshReplacementOptions()
+    replacement_mesh = _replacement_mesh_from_options(replacement_mesh, normalized_options)
     effective_mesh, _preserve_source_indices = _replacement_mesh_with_original_part_copies(
         original_mesh,
         replacement_mesh,
@@ -651,7 +1000,12 @@ def _append_static_warnings(
             "Replacement uses more material names than the original; static replacement reuses original material slots."
         )
     if any(len(mapping.source_submesh_indices) > 1 for mapping in mappings):
-        report.warnings.append("Multiple replacement submeshes will be merged into at least one original draw section.")
+        if _dense_export_mode(options) == "preserve_split":
+            report.warnings.append(
+                "Multiple replacement submeshes map to at least one original draw section; dense groups will be split before export when needed."
+            )
+        else:
+            report.warnings.append("Multiple replacement submeshes will be merged into at least one original draw section.")
     low_confidence_mappings = [
         mapping
         for mapping in mappings
@@ -739,6 +1093,11 @@ def _append_mapping_errors(
         for index, source_submesh in enumerate(replacement_mesh.submeshes)
         if not _is_marker_submesh(source_submesh) and index not in disabled_sources
     }
+    render_source_indices -= _independent_source_indices(
+        options,
+        replacement_mesh,
+        include_preview_only=True,
+    )
     missing_sources = render_source_indices - seen_sources
     if missing_sources:
         report.warnings.append(f"Replacement source submesh index(es) not used by mapping: {sorted(missing_sources)}.")
@@ -752,28 +1111,87 @@ def _build_mapped_replacement_mesh(
     *,
     enforce_vertex_limit: bool = True,
     max_source_faces_per_submesh: int | None = None,
+    output_draw_sections: list[StaticOutputDrawSection] | None = None,
 ) -> ParsedMesh:
     effective_replacement_mesh, preserve_source_indices = _replacement_mesh_with_original_part_copies(
         original_mesh,
         replacement_mesh,
         options.original_part_copies,
     )
+    preserve_source_indices = set(preserve_source_indices)
+    for index in getattr(options, "global_transform_exempt_source_indices", []) or []:
+        try:
+            source_index = int(index)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= source_index < len(effective_replacement_mesh.submeshes):
+            preserve_source_indices.add(source_index)
+    adjustments_by_index = _source_part_adjustments_by_index(options.source_part_adjustments)
+    mapped_enabled_source_indices: set[int] = set()
+    for mapping in mappings:
+        for source_index in mapping.source_submesh_indices:
+            if (
+                0 <= source_index < len(effective_replacement_mesh.submeshes)
+                and not _is_marker_submesh(effective_replacement_mesh.submeshes[source_index])
+                and adjustments_by_index.get(source_index, StaticSourcePartAdjustment(source_index)).enabled
+            ):
+                mapped_enabled_source_indices.add(source_index)
+    independent_parts = _independent_parts_for_options(
+        options,
+        effective_replacement_mesh,
+        include_preview_only=not enforce_vertex_limit,
+    )
+    independent_source_indices = {int(part.source_submesh_index) for part in independent_parts}
     transformed_sources = _transformed_replacement_sources(
         original_mesh,
         effective_replacement_mesh,
         options.transform,
         options.source_part_adjustments,
-        global_transform_exempt_indices=preserve_source_indices,
+        options.texture_uv_transforms,
+        global_transform_exempt_indices=preserve_source_indices | independent_source_indices,
+        global_transform_source_indices=mapped_enabled_source_indices,
         max_source_faces_per_submesh=max_source_faces_per_submesh,
+        output_source_indices=mapped_enabled_source_indices | independent_source_indices,
     )
-    adjustments_by_index = _source_part_adjustments_by_index(options.source_part_adjustments)
     mapped_submeshes: list[SubMesh] = []
-    mappings_by_target = {mapping.target_submesh_index: mapping for mapping in mappings}
-    for target_index, target in enumerate(original_mesh.submeshes):
-        mapping = mappings_by_target[target_index]
+    sections = list(output_draw_sections or [])
+    if not sections:
+        if enforce_vertex_limit:
+            sections, _dense_warnings, dense_errors = plan_static_output_draw_sections(
+                original_mesh,
+                effective_replacement_mesh,
+                mappings,
+                options,
+            )
+            if dense_errors:
+                raise ValueError("; ".join(dense_errors))
+        else:
+            mappings_by_target = {mapping.target_submesh_index: mapping for mapping in mappings}
+            sections = [
+                StaticOutputDrawSection(
+                    output_index=target_index,
+                    target_submesh_index=target_index,
+                    target_submesh_name=target.material or target.name or f"target {target_index}",
+                    source_submesh_indices=list(
+                        mappings_by_target.get(
+                            target_index,
+                            StaticSubmeshMapping(target_index, target.material or target.name or "", [], target_index),
+                        ).source_submesh_indices
+                    ),
+                    target_material_slot_index=target_index,
+                )
+                for target_index, target in enumerate(original_mesh.submeshes)
+            ]
+    for section in sections:
+        target_index = int(section.target_submesh_index)
+        if target_index < 0 or target_index >= len(original_mesh.submeshes):
+            if enforce_vertex_limit:
+                raise ValueError(f"Output draw section references invalid target submesh index {target_index}.")
+            continue
+        target = original_mesh.submeshes[target_index]
         source_parts = [
             copy.deepcopy(transformed_sources[source_index])
-            for source_index in mapping.source_submesh_indices
+            for source_index in section.source_submesh_indices
             if (
                 0 <= source_index < len(transformed_sources)
                 and not _is_marker_submesh(transformed_sources[source_index])
@@ -781,12 +1199,47 @@ def _build_mapped_replacement_mesh(
             )
         ]
         merged = _merge_source_submeshes(source_parts, target)
+        section_label = str(section.target_submesh_name or "").strip()
+        if section_label:
+            merged.name = section_label
+            if not merged.material:
+                merged.material = section_label
         if enforce_vertex_limit and len(merged.vertices) > _STATIC_REPLACEMENT_VERTEX_LIMIT:
             raise ValueError(
                 f"Static replacement target {target_index} has {len(merged.vertices):,} vertices; "
-                f"current serializers use 16-bit indices and support at most {_STATIC_REPLACEMENT_VERTEX_LIMIT:,} vertices per target."
+                f"current serializers use 16-bit indices and support at most {_STATIC_REPLACEMENT_VERTEX_LIMIT:,} vertices per draw section."
             )
         mapped_submeshes.append(merged)
+
+    for independent_part in independent_parts:
+        source_index = int(independent_part.source_submesh_index)
+        if source_index < 0 or source_index >= len(transformed_sources):
+            continue
+        source_submesh = transformed_sources[source_index]
+        if _is_marker_submesh(source_submesh):
+            continue
+        adjustment = adjustments_by_index.get(source_index, StaticSourcePartAdjustment(source_index))
+        if not bool(adjustment.enabled):
+            continue
+        independent_submesh = copy.deepcopy(source_submesh)
+        label = str(independent_part.label or "").strip()
+        material_name = str(independent_part.material_name or "").strip()
+        if label:
+            independent_submesh.name = label
+        if material_name:
+            independent_submesh.material = material_name
+        elif not str(independent_submesh.material or "").strip():
+            independent_submesh.material = independent_submesh.name or f"independent_{source_index}"
+        if enforce_vertex_limit and len(independent_submesh.vertices) > _STATIC_REPLACEMENT_VERTEX_LIMIT:
+            raise ValueError(
+                f"Independent replacement part {source_index} has {len(independent_submesh.vertices):,} vertices; "
+                f"current serializers use 16-bit indices and support at most {_STATIC_REPLACEMENT_VERTEX_LIMIT:,} vertices per draw section."
+            )
+        if not independent_submesh.normals or len(independent_submesh.normals) != len(independent_submesh.vertices):
+            independent_submesh.normals = _compute_smooth_normals(independent_submesh.vertices, independent_submesh.faces)
+        independent_submesh.vertex_count = len(independent_submesh.vertices)
+        independent_submesh.face_count = len(independent_submesh.faces)
+        mapped_submeshes.append(independent_submesh)
 
     all_vertices = [vertex for submesh in mapped_submeshes for vertex in submesh.vertices]
     bbox_min, bbox_max = _bbox(all_vertices)
@@ -808,41 +1261,64 @@ def _transformed_replacement_sources(
     replacement_mesh: ParsedMesh,
     transform: StaticReplacementTransform,
     source_part_adjustments: list[StaticSourcePartAdjustment] | None = None,
+    texture_uv_transforms: list[StaticTextureUvTransform] | None = None,
     global_transform_exempt_indices: set[int] | None = None,
+    global_transform_source_indices: set[int] | None = None,
     *,
     max_source_faces_per_submesh: int | None = None,
+    output_source_indices: set[int] | None = None,
 ) -> list[SubMesh]:
-    sources = [copy.deepcopy(submesh) for submesh in replacement_mesh.submeshes]
+    bound_indices = None if global_transform_source_indices is None else {int(index) for index in global_transform_source_indices}
+    requested_output_indices = None if output_source_indices is None else {int(index) for index in output_source_indices}
+    if requested_output_indices is None:
+        indices_to_copy = set(range(len(replacement_mesh.submeshes)))
+    else:
+        indices_to_copy = set(requested_output_indices)
+        if bound_indices is not None:
+            indices_to_copy.update(bound_indices)
+    sources: list[SubMesh] = []
+    for source_index, submesh in enumerate(replacement_mesh.submeshes):
+        if source_index in indices_to_copy:
+            sources.append(copy.deepcopy(submesh))
+            continue
+        sources.append(
+            SubMesh(
+                name=str(getattr(submesh, "name", "") or ""),
+                material=str(getattr(submesh, "material", "") or ""),
+                texture=str(getattr(submesh, "texture", "") or ""),
+            )
+        )
     if not sources:
         return sources
-    max_preview_faces = _normalized_preview_face_limit(max_source_faces_per_submesh)
-    if max_preview_faces > 0:
-        sources = [_decimate_submesh_for_preview(submesh, max_preview_faces) for submesh in sources]
-
     adjustments_by_index = _source_part_adjustments_by_index(source_part_adjustments or [])
-    for source_index, submesh in enumerate(sources):
-        adjustment = adjustments_by_index.get(source_index)
-        if adjustment is None or not adjustment.enabled or _is_marker_submesh(submesh):
-            continue
-        _apply_source_part_adjustment(submesh, adjustment)
-
     exempt_indices = set(global_transform_exempt_indices or set())
-    transform_bound_sources = [
+
+    # Manual source-part edits are fine-tuning controls. They should not change
+    # the auto-alignment basis, and preview decimation should not change their
+    # rotation/scale pivot. Compute both from the full source mesh before any
+    # preview-only face sampling.
+    alignment_bound_sources = [
         submesh
         for source_index, submesh in enumerate(sources)
-        if source_index not in exempt_indices
+        if source_index not in exempt_indices and (bound_indices is None or source_index in bound_indices)
     ] or sources
     alignment_replacement_mesh = copy.copy(replacement_mesh)
-    alignment_replacement_mesh.submeshes = [
-        submesh
-        for source_index, submesh in enumerate(sources)
-        if source_index not in exempt_indices
-    ] or list(sources)
+    alignment_replacement_mesh.submeshes = list(alignment_bound_sources)
 
-    all_vertices = [vertex for submesh in transform_bound_sources for vertex in submesh.vertices]
+    all_vertices = [vertex for submesh in alignment_bound_sources for vertex in submesh.vertices]
     src_min, src_max = _bbox(all_vertices)
     dst_min, dst_max = _bbox([vertex for submesh in original_mesh.submeshes for vertex in submesh.vertices])
     alignment = _compute_anchor_alignment(original_mesh, alignment_replacement_mesh, transform)
+    adjustment_pivots = {
+        source_index: _center(*_bbox(submesh.vertices))
+        for source_index, submesh in enumerate(sources)
+        if (
+            source_index in adjustments_by_index
+            and adjustments_by_index[source_index].enabled
+            and not _is_marker_submesh(submesh)
+            and bool(submesh.vertices)
+        )
+    }
 
     fit_scale_xyz = (1.0, 1.0, 1.0)
     fit_offset = (0.0, 0.0, 0.0)
@@ -865,6 +1341,23 @@ def _transformed_replacement_sources(
         src_center = _center(src_min, src_max)
         dst_center = _center(dst_min, dst_max)
         fit_offset = tuple(dst_center[index] - src_center[index] * fit_scale_xyz[index] for index in range(3))
+
+    max_preview_faces = _normalized_preview_face_limit(max_source_faces_per_submesh)
+    if max_preview_faces > 0:
+        sources = [_decimate_submesh_for_preview(submesh, max_preview_faces) for submesh in sources]
+
+    uv_transforms_by_key = _texture_uv_transforms_by_key(texture_uv_transforms or [])
+    if uv_transforms_by_key:
+        for submesh in sources:
+            uv_transform = _texture_uv_transform_for_submesh(submesh, uv_transforms_by_key)
+            if uv_transform is not None:
+                _apply_texture_uv_transform(submesh, uv_transform)
+
+    for source_index, submesh in enumerate(sources):
+        adjustment = adjustments_by_index.get(source_index)
+        if adjustment is None or not adjustment.enabled or _is_marker_submesh(submesh):
+            continue
+        _apply_source_part_adjustment(submesh, adjustment, pivot=adjustment_pivots.get(source_index))
 
     for source_index, submesh in enumerate(sources):
         if source_index in exempt_indices:
@@ -889,6 +1382,62 @@ def _transformed_replacement_sources(
     return sources
 
 
+def _texture_uv_transforms_by_key(
+    transforms: list[StaticTextureUvTransform],
+) -> dict[str, StaticTextureUvTransform]:
+    by_key: dict[str, StaticTextureUvTransform] = {}
+    for transform in transforms or []:
+        material_name = str(getattr(transform, "source_material_name", "") or "").strip()
+        if not material_name:
+            continue
+        by_key[material_name.lower()] = transform
+    return by_key
+
+
+def _texture_uv_transform_for_submesh(
+    submesh: SubMesh,
+    transforms_by_key: dict[str, StaticTextureUvTransform],
+) -> StaticTextureUvTransform | None:
+    for value in (submesh.material, submesh.name):
+        key = str(value or "").strip().lower()
+        if key and key in transforms_by_key:
+            return transforms_by_key[key]
+    return None
+
+
+def _apply_texture_uv_transform(submesh: SubMesh, transform: StaticTextureUvTransform) -> None:
+    if not submesh.uvs or len(submesh.uvs) != len(submesh.vertices):
+        return
+    pivot_u, pivot_v = _uv_pair(transform.pivot_uv, (0.5, 0.5))
+    offset_u, offset_v = _uv_pair(transform.offset_uv, (0.0, 0.0))
+    scale_u, scale_v = _uv_pair(transform.scale_uv, (1.0, 1.0))
+    scale_u = scale_u if abs(scale_u) > 1e-8 else 1.0
+    scale_v = scale_v if abs(scale_v) > 1e-8 else 1.0
+    rotate_steps = int(round(float(getattr(transform, "rotate_degrees", 0) or 0) / 90.0)) % 4
+
+    transformed: list[tuple[float, float]] = []
+    for raw_u, raw_v in submesh.uvs:
+        u = (float(raw_u) - pivot_u) * scale_u
+        v = (float(raw_v) - pivot_v) * scale_v
+        if bool(transform.flip_u):
+            u = -u
+        if bool(transform.flip_v):
+            v = -v
+        for _step in range(rotate_steps):
+            u, v = -v, u
+        transformed.append((u + pivot_u + offset_u, v + pivot_v + offset_v))
+    submesh.uvs = transformed
+
+
+def _uv_pair(value: tuple[float, float] | None, fallback: tuple[float, float]) -> tuple[float, float]:
+    try:
+        if value is None:
+            return fallback
+        return (float(value[0]), float(value[1]))
+    except Exception:
+        return fallback
+
+
 def _source_part_adjustments_by_index(
     adjustments: list[StaticSourcePartAdjustment] | None,
 ) -> dict[int, StaticSourcePartAdjustment]:
@@ -903,10 +1452,15 @@ def _source_part_adjustments_by_index(
     return by_index
 
 
-def _apply_source_part_adjustment(submesh: SubMesh, adjustment: StaticSourcePartAdjustment) -> None:
+def _apply_source_part_adjustment(
+    submesh: SubMesh,
+    adjustment: StaticSourcePartAdjustment,
+    *,
+    pivot: tuple[float, float, float] | None = None,
+) -> None:
     if not submesh.vertices:
         return
-    pivot = _center(*_bbox(submesh.vertices))
+    pivot = pivot if pivot is not None else _center(*_bbox(submesh.vertices))
     sx, sy, sz = adjustment.scale_xyz or (1.0, 1.0, 1.0)
     uniform = float(adjustment.uniform_scale or 1.0)
     scale_xyz = (float(sx) * uniform, float(sy) * uniform, float(sz) * uniform)
@@ -1540,13 +2094,19 @@ def _auto_roll_angle(
     return _signed_angle_around_axis(rotated_source_secondary, target_secondary, target_axis)
 
 
-def _secondary_axis_vector(mesh: ParsedMesh, primary_axis: tuple[float, float, float]) -> tuple[float, float, float]:
-    vertices = [
+def _renderable_mesh_vertices(mesh: ParsedMesh) -> list[tuple[float, float, float]]:
+    return [
         vertex
         for submesh in mesh.submeshes
         if not _is_marker_submesh(submesh)
         for vertex in submesh.vertices
     ]
+
+
+def _axis_aligned_secondary_axis_vector(
+    vertices: list[tuple[float, float, float]],
+    primary_axis: tuple[float, float, float],
+) -> tuple[float, float, float]:
     if not vertices:
         return (0.0, 1.0, 0.0)
     bmin, bmax = _bbox(vertices)
@@ -1555,6 +2115,73 @@ def _secondary_axis_vector(mesh: ParsedMesh, primary_axis: tuple[float, float, f
     candidates = [index for index in range(3) if index != primary_index]
     secondary_index = max(candidates, key=lambda index: dims[index]) if candidates else 1
     return ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))[secondary_index]
+
+
+def _canonical_axis_sign(axis: tuple[float, float, float]) -> tuple[float, float, float]:
+    dominant_index = max(range(3), key=lambda index: abs(axis[index]))
+    if axis[dominant_index] < 0.0:
+        return (-axis[0], -axis[1], -axis[2])
+    return axis
+
+
+def _projected_principal_secondary_axis(
+    vertices: list[tuple[float, float, float]],
+    primary_axis: tuple[float, float, float],
+) -> tuple[float, float, float] | None:
+    if len(vertices) < 3:
+        return None
+    primary = _normalize(primary_axis)
+    if _dot(primary, primary) <= 1e-12:
+        return None
+    reference = (0.0, 0.0, 1.0) if abs(primary[2]) < 0.82 else (1.0, 0.0, 0.0)
+    u = _normalize(_cross(primary, reference))
+    if _dot(u, u) <= 1e-12:
+        return None
+    v = _normalize(_cross(primary, u))
+    center = _centroid(vertices)
+    covariance_uu = 0.0
+    covariance_uv = 0.0
+    covariance_vv = 0.0
+    for vertex in vertices:
+        centered = _sub(vertex, center)
+        projected_u = _dot(centered, u)
+        projected_v = _dot(centered, v)
+        covariance_uu += projected_u * projected_u
+        covariance_uv += projected_u * projected_v
+        covariance_vv += projected_v * projected_v
+    count = float(max(1, len(vertices)))
+    covariance_uu /= count
+    covariance_uv /= count
+    covariance_vv /= count
+    trace = covariance_uu + covariance_vv
+    if trace <= 1e-12:
+        return None
+    delta = math.sqrt(((covariance_uu - covariance_vv) * 0.5) ** 2 + covariance_uv * covariance_uv)
+    major = (trace * 0.5) + delta
+    minor = max(0.0, (trace * 0.5) - delta)
+    if major <= 1e-12 or (major - minor) / major < 0.08:
+        return None
+    angle = 0.5 * math.atan2(2.0 * covariance_uv, covariance_uu - covariance_vv)
+    secondary = _normalize(
+        (
+            (u[0] * math.cos(angle)) + (v[0] * math.sin(angle)),
+            (u[1] * math.cos(angle)) + (v[1] * math.sin(angle)),
+            (u[2] * math.cos(angle)) + (v[2] * math.sin(angle)),
+        )
+    )
+    if _dot(secondary, secondary) <= 1e-12:
+        return None
+    return _canonical_axis_sign(secondary)
+
+
+def _secondary_axis_vector(mesh: ParsedMesh, primary_axis: tuple[float, float, float]) -> tuple[float, float, float]:
+    vertices = _renderable_mesh_vertices(mesh)
+    if not vertices:
+        return (0.0, 1.0, 0.0)
+    projected_secondary = _projected_principal_secondary_axis(vertices, primary_axis)
+    if projected_secondary is not None:
+        return projected_secondary
+    return _axis_aligned_secondary_axis_vector(vertices, primary_axis)
 
 
 def _signed_angle_around_axis(
@@ -1728,6 +2355,17 @@ def _format_static_report_failure(report: StaticMeshReplacementReport) -> str:
     if report.mapping_summary:
         lines.extend(["", "Mapping:"])
         lines.extend(f"  {line}" for line in report.mapping_summary)
+    if report.output_draw_sections:
+        lines.extend(["", "Output draw sections:"])
+        for section in report.output_draw_sections[:12]:
+            suffix = " cloned" if section.is_cloned_section else ""
+            sources = ", ".join(str(index) for index in section.source_submesh_indices) or "empty"
+            lines.append(
+                f"  {section.output_index}: target {section.target_submesh_index}{suffix}, "
+                f"sources [{sources}], vertices {section.vertex_count:,}"
+            )
+        if len(report.output_draw_sections) > 12:
+            lines.append(f"  ... {len(report.output_draw_sections) - 12} more")
     if report.warnings:
         lines.extend(["", "Warnings:"])
         lines.extend(f"  {line}" for line in report.warnings)

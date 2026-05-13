@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from cdmw.core.archive import _find_archive_model_related_entries
+from cdmw.modding.asset_replacement import _find_related_files
 from cdmw.models import ArchiveEntry
 
 
@@ -34,6 +35,7 @@ class MeshCompanionDiscoveryTests(unittest.TestCase):
                 _entry("character/model/weapon/test_weapon.app_xml", root),
                 _entry("character/model/weapon/test_weapon.prefabdata.xml", root),
                 _entry("character/model/weapon/test_weapon.hkx", root),
+                _entry("character/model/weapon/test_weapon.hkt", root),
             ]
             basename_index: dict[str, list[ArchiveEntry]] = {}
             for entry in (source, *companions):
@@ -44,6 +46,19 @@ class MeshCompanionDiscoveryTests(unittest.TestCase):
 
             for companion in companions:
                 self.assertIn(companion.path, related_paths)
+
+    def test_mesh_replacement_companions_include_hkt_physics(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = _entry("character/model/weapon/test_weapon.pac", root)
+            hkt = _entry("character/model/weapon/test_weapon.hkt", root)
+            basename_index: dict[str, list[ArchiveEntry]] = {}
+            for entry in (source, hkt):
+                basename_index.setdefault(entry.basename.lower(), []).append(entry)
+
+            related = _find_related_files(source, basename_index)
+
+            self.assertTrue(any(file.path == hkt.path and file.role == "Animation/physics" for file in related))
 
 
 if __name__ == "__main__":

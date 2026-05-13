@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "cdmw_app.py"
 MAIN_WINDOW = ROOT / "cdmw" / "ui" / "main_window.py"
 ARCHIVE = ROOT / "cdmw" / "core" / "archive.py"
+CONSTANTS = ROOT / "cdmw" / "constants.py"
 THEMES = ROOT / "cdmw" / "ui" / "themes.py"
 WIDGETS = ROOT / "cdmw" / "ui" / "widgets.py"
 RESEARCH_TAB = ROOT / "cdmw" / "ui" / "research_tab.py"
@@ -30,7 +31,25 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def _start_hang_watchdog", source)
         self.assertIn('"app_hang_detected"', source)
         self.assertIn('"previous_session_unclean_exit"', source)
+        self.assertIn("_previous_session_unclean = _check_previous_unclean_exit()", source)
+        self.assertIn("timer.timeout.connect(_write_heartbeat)", source)
         self.assertIn("faulthandler.enable", source)
+
+    def test_app_icon_is_loaded_from_packaged_and_internal_paths(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn("def iter_app_icon_candidate_paths() -> Tuple[Path, ...]:", source)
+        self.assertIn('Path("_internal") / "assets" / "cdmw.ico"', source)
+        self.assertIn("def load_app_icon() -> Tuple[QIcon, Optional[Path]]:", source)
+        self.assertIn("if not icon.isNull():", source)
+        self.assertIn("class AppWindowIconEventFilter(QObject):", source)
+        self.assertIn("app_icon, _icon_path = load_app_icon()", source)
+        self.assertIn("self.setWindowIcon(app_icon)", source)
+        self.assertIn("app.setWindowIcon(app_icon)", source)
+        self.assertIn("startup_splash.setWindowIcon(app.windowIcon())", source)
+        self.assertLess(
+            source.index("apply_windows_app_user_model_id()"),
+            source.index("app = QApplication(sys.argv)"),
+        )
 
     def test_background_crash_context_does_not_read_live_qt_widgets(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -57,6 +76,26 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('"phase": "parse_archive_pamt"', archive_source)
         self.assertIn('"pamt_path": str(pamt_path)', archive_source)
 
+    def test_ui_breadcrumbs_are_recorded_for_unclean_exit_context(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn("ui_breadcrumb.json", source)
+        self.assertIn("texture_workflow_breadcrumb.json", source)
+        self.assertIn("def _write_ui_breadcrumb", source)
+        self.assertIn("def _write_texture_workflow_breadcrumb", source)
+        self.assertIn("def _add_persisted_crash_breadcrumbs", source)
+        self.assertIn('context["ui_breadcrumb"]', source)
+        self.assertIn('context["texture_workflow_breadcrumb"]', source)
+        self.assertIn("previous_context: Dict[str, object]", source)
+        self.assertIn("_add_persisted_crash_breadcrumbs(previous_context)", source)
+
+    def test_texture_workflow_workers_write_breadcrumbs_from_callbacks(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn("_texture_workflow_breadcrumb_base(self.config, \"BuildWorker\")", source)
+        self.assertIn("_texture_workflow_breadcrumb_base(self.config, \"DdsToPngWorker\")", source)
+        self.assertIn("last_external_tool_step", source)
+        self.assertIn("on_log=emit_log", source)
+        self.assertIn("on_current_file=emit_current_file", source)
+
     def test_archive_scan_progress_is_not_emitted_from_nested_python_thread(self) -> None:
         archive_source = ARCHIVE.read_text(encoding="utf-8")
         self.assertNotIn("emit_parse_heartbeat", archive_source)
@@ -71,7 +110,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('struct.iter_unpack("<IIIIHH", file_table)', archive_source)
         self.assertNotIn('files = list(struct.iter_unpack("<IIIIHH"', archive_source)
 
-    def test_archive_preview_inner_splitter_collapses_references_before_overlap(self) -> None:
+    def test_archive_preview_inner_splitter_keeps_references_visible_before_overlap(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
         self.assertIn("archive_preview_main_widget.setMinimumWidth(0)", source)
         self.assertIn("self.archive_preview_title_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)", source)
@@ -79,9 +118,12 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.archive_preview_content_splitter.setChildrenCollapsible(True)", source)
         self.assertIn("def _clamp_archive_preview_asset_map_splitter(self, *, prefer_default: bool = False) -> None:", source)
         self.assertIn("min_preview_width = 560", source)
-        self.assertIn("min_refs_width = 300", source)
+        self.assertIn("min_refs_width = max(240, min(320, configured_refs_min or 300))", source)
         self.assertIn("max_refs_width = min(680", source)
-        self.assertIn("target_sizes = [total, 0]", source)
+        self.assertIn("Keep Asset Family visible even in compact or freshly reflowed layouts.", source)
+        self.assertIn("self.archive_preview_content_splitter.setCollapsible(1, not has_asset_relationships)", source)
+        self.assertIn("self.archive_preview_content_splitter.setCollapsible(1, False)", source)
+        self.assertNotIn("target_sizes = [total, 0]", source)
         self.assertIn("self.archive_preview_content_splitter.setSizes(target_sizes)", source)
 
     def test_loose_preview_toggle_is_two_state_action(self) -> None:
@@ -119,10 +161,15 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("remaining_minimum_visible_ms", source)
         self.assertIn("self._minimum_visible_seconds = 3.0", source)
         self.assertIn("QTimer.singleShot(remaining_ms, self._release_startup_splash)", source)
-        self.assertIn("def _show_main_window_behind_startup_splash(self) -> None:", source)
-        self.assertIn("QTimer.singleShot(0, self._show_main_window_behind_startup_splash)", source)
+        self.assertIn("def _show_main_window_after_startup_splash(self) -> None:", source)
+        self.assertIn("def _finish_startup_splash_and_show_main_window(self) -> None:", source)
+        finish_start = source.index("def _finish_startup_splash_and_show_main_window(self) -> None:")
+        finish_body = source[finish_start : source.index("def _release_startup_splash(self) -> None:", finish_start)]
+        self.assertLess(finish_body.index("self._show_main_window_after_startup_splash()"), finish_body.index("self._finish_startup_splash_now()"))
+        self.assertIn("app.processEvents()", finish_body)
+        self.assertIn("QTimer.singleShot(0, self._finish_startup_splash_and_show_main_window)", source)
+        self.assertNotIn("_show_main_window_behind_startup_splash", source)
         self.assertIn("def _finish_startup_splash_now(self) -> None:", source)
-        self.assertIn("QTimer.singleShot(delay_ms, self._finish_startup_splash_now)", source)
         self.assertIn("def pump_animation_frame", source)
         self.assertIn("MainWindow(startup_splash=startup_splash)", source)
         self.assertIn('pump_startup_splash("Preparing archive browser...")', source)
@@ -138,6 +185,14 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('"crimson_desert"', source)
         self.assertIn('"label": "Crimson Desert"', source)
         self.assertIn('"accent": "#c56d43"', source)
+        self.assertIn("QMenu::item:disabled", source)
+        self.assertIn("QMenu::item:!enabled", source)
+        self.assertIn("QMenu::item:selected:disabled", source)
+        self.assertIn("QMenu::item:disabled:selected", source)
+        self.assertIn("QMenu::item:selected:!enabled", source)
+        self.assertIn("QMenu::item:!enabled:selected", source)
+        self.assertIn("QToolButton#ArchiveActionMenuButton:disabled", source)
+        self.assertIn('color: {theme["button_disabled_text"]};', source)
 
     def test_main_window_has_about_license_tab(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -205,7 +260,9 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.restore_archive_filters_checkbox = QCheckBox(\"Restore Archive Browser filters on startup\")", settings_source)
         self.assertIn("\"preferences/restore_archive_filters_on_startup\"", settings_source)
         self.assertIn("restore_archive_filters = self._preference_bool(\"restore_archive_filters_on_startup\", False)", main_source)
-        self.assertIn("QTimer.singleShot(6500, window._release_startup_splash)", main_source)
+        self.assertNotIn("QTimer.singleShot(6500, window._release_startup_splash)", main_source)
+        self.assertIn('startup_splash.set_detail("Loading Archive Browser...")', main_source)
+        self.assertIn("Startup archive auto-load skipped because the previous session did not shut down cleanly", main_source)
         self.assertIn("self.archive_startup_autoload_defer_preview = True", main_source)
         self.assertIn("defer_default_selection=defer_default_selection", main_source)
         self.assertIn("def show_settings_section(self, key: str) -> None:", settings_source)
@@ -227,7 +284,16 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("category_tree.setHeaderHidden(True)", source)
         self.assertIn("item_grid.setViewMode(QListView.ViewMode.IconMode)", source)
         self.assertIn("item_grid.setIconSize(QSize(86, 86))", source)
+        self.assertIn("def _queue_catalog_row_icons_for_all_shown_rows() -> None:", source)
+        self.assertIn('"thumb_preload_pending"', source)
+        self.assertIn("QTimer.singleShot(220, _queue_catalog_row_icons_for_all_shown_rows)", source)
         self.assertIn("icon_row_timer.timeout.connect(_load_next_catalog_row_icon)", source)
+        self.assertIn("archive_item_icon_preload_timer = QTimer(self)", source)
+        self.assertIn("def _schedule_archive_asset_catalog_icon_preload(self, delay_ms: int = 900) -> None:", source)
+        self.assertIn("self._schedule_archive_asset_catalog_icon_preload()", source)
+        self.assertIn("self._cached_archive_asset_catalog_inventory_icon_pixmap(row, 120)", source)
+        self.assertIn("self._cached_archive_asset_catalog_inventory_icon_pixmap(row, 86)", source)
+        self.assertIn("evidence_label.setMinimumHeight(112)", source)
         self.assertIn("def _apply_archive_direct_scope(", source)
         self.assertIn("def _clear_archive_asset_catalog_scope(self) -> None:", source)
         self.assertIn("linked_tree.setHeaderLabels([\"Linked files\", \"Path\"])", source)
@@ -237,7 +303,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def _archive_asset_catalog_group_choices(self, category: str = \"\") -> Tuple[str, ...]:", source)
         self.assertIn("no full archive scan", source)
         self.assertIn("Item Finder scoped Archive Browser to:", source)
-        self.assertIn('self.archive_texture_scope_all_button = QPushButton("Show Only This Family")', source)
+        self.assertIn('self.archive_texture_scope_all_button = QPushButton("Filter to Family")', source)
         self.assertIn("def _scope_all_archive_texture_references(self) -> None:", source)
         self.assertIn("Referenced file set scoped Archive Browser to:", source)
 
@@ -248,14 +314,28 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.archive_extension_filter_combo.setInsertPolicy(QComboBox.NoInsert)", source)
         self.assertIn("self.archive_extension_filter_combo.setDuplicatesEnabled(False)", source)
         self.assertIn("self.archive_extension_filter_combo.setMaxVisibleItems(32)", source)
-        self.assertIn("self.archive_extension_filter_combo.setMinimumWidth(210)", source)
+        self.assertIn("self.archive_filter_edit.setMinimumWidth(0)", source)
+        self.assertIn("self.archive_filter_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)", source)
+        self.assertIn("self.archive_extension_filter_combo.setMinimumContentsLength(8)", source)
+        self.assertIn("self.archive_extension_filter_combo.setMinimumWidth(0)", source)
+        self.assertIn("self.archive_extension_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)", source)
         self.assertIn("QComboBox#ArchiveExtensionFilter::drop-down", source)
         self.assertIn('extension_line_edit.setPlaceholderText("Select or type extension")', source)
         self.assertIn("type a specific extension directly", source)
         self.assertIn("self.archive_extension_picker_button = QToolButton()", source)
         self.assertIn('self.archive_extension_picker_button.setText("Select")', source)
+        self.assertIn("self.archive_extension_picker_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)", source)
+        self.assertIn("archive_filter_grid = QGridLayout()", source)
+        self.assertIn("archive_filter_grid.setColumnMinimumWidth(0, 64)", source)
+        self.assertIn("archive_filter_grid.setColumnStretch(1, 1)", source)
+        self.assertIn("archive_filter_grid.addWidget(self.archive_extension_filter_combo, 1, 1)", source)
+        self.assertIn("archive_filter_grid.addWidget(self.archive_extension_picker_button, 1, 2)", source)
         self.assertIn("self.archive_extension_picker_button.clicked.connect(self._open_archive_extension_picker)", source)
         self.assertIn("def _open_archive_extension_picker(self) -> None:", source)
+        picker_start = source.index("def _open_archive_extension_picker(self) -> None:")
+        picker_body = source[picker_start : source.index("def _rebuild_archive_extension_filter_choices", picker_start)]
+        self.assertIn('cancel_button = QPushButton("Cancel")', picker_body)
+        self.assertNotIn("continue_build_callback", picker_body)
         self.assertIn("def _archive_extension_group_label(extension: str) -> str:", source)
         self.assertIn('extension_tree.setHeaderLabels(["Extension", "Entries", "Group"])', source)
         self.assertIn('group_order = (', source)
@@ -268,6 +348,15 @@ class CrashReportingGuardTests(unittest.TestCase):
         animation_group_start = source.index('if ext in {".paseqc"')
         animation_group = source[animation_group_start : source.index('return "Animation / Scene"', animation_group_start)]
         self.assertIn('".paa"', animation_group)
+
+    def test_archive_browser_defaults_to_flat_view(self) -> None:
+        constants_source = CONSTANTS.read_text(encoding="utf-8")
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn('ARCHIVE_BROWSER_VIEW_MODE = "flat"', constants_source)
+        self.assertIn('self._add_combo_choice(self.archive_browser_view_mode_combo, "Flat", "flat")', source)
+        self.assertIn('view_mode_value = ARCHIVE_BROWSER_VIEW_MODE', source)
+        self.assertIn('view_mode_value = "folders" if self._read_bool("archive/tree_view", True) else "flat"', source)
+        self.assertIn('self._set_combo_by_value(self.archive_browser_view_mode_combo, str(view_mode_value or ARCHIVE_BROWSER_VIEW_MODE))', source)
 
     def test_archive_controls_sidebar_keeps_readable_width(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")

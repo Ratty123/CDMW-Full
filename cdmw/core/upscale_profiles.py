@@ -80,7 +80,7 @@ _GROUP_SUFFIX_PATTERNS: Tuple[re.Pattern[str], ...] = (
     re.compile(r"(?<=\d)[a-z]$", re.IGNORECASE),
 )
 
-_SIDECARE_EXTENSIONS = {".xml", ".material", ".shader", ".json", ".pami"}
+_SIDECARE_EXTENSIONS = {".xml", ".material", ".shader", ".technique", ".json", ".pami"}
 _TEXTURE_REFERENCE_EXTENSIONS = {".dds", ".png", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff"}
 
 _PRESET_UPSCALE_TYPES: Dict[str, Tuple[str, ...]] = {
@@ -512,6 +512,144 @@ def _material_parameter_record(parameter: ET.Element, *, texture_path: str = "")
     )
 
 
+def _material_definition_parameter_record(parameter: ET.Element) -> MaterialSidecarParameter:
+    value = _first_attr(parameter, ("Value", "_value", "value", "DefaultValue", "defaultValue", "_defaultValue"))
+    parsed_float: Optional[float] = None
+    if value:
+        try:
+            parsed_float = float(str(value).strip())
+        except (TypeError, ValueError):
+            parsed_float = None
+    return MaterialSidecarParameter(
+        parameter_name=_sidecar_parameter_name(parameter),
+        tag_name=_strip_texture_sidecar_xml_namespace(parameter.tag),
+        string_item_id=_first_attr(parameter, ("StringItemID", "stringItemID", "_stringItemID")),
+        item_id=_first_attr(parameter, ("ItemID", "itemID", "_itemID")),
+        index=_sidecar_parameter_index(parameter),
+        value=value,
+        texture_path="",
+        color_value=_parse_sidecar_color_attrs(parameter) or _parse_sidecar_color(value),
+        numeric_value=parsed_float,
+    )
+
+
+def _shader_family_from_material_node(wrapper: ET.Element, sidecar_kind: str) -> str:
+    for child in wrapper.iter():
+        if _strip_texture_sidecar_xml_namespace(child.tag) != "Technique":
+            continue
+        technique = _first_attr(child, ("Name", "name", "Technique", "technique"))
+        if technique:
+            return technique
+    for child in wrapper.iter():
+        child_tag = _strip_texture_sidecar_xml_namespace(child.tag)
+        if child_tag == "Common":
+            shader_family = _first_attr(child, ("MaterialName", "materialName", "_materialName", "Name", "name"))
+            if shader_family:
+                return shader_family
+    for child in wrapper.iter():
+        child_tag = _strip_texture_sidecar_xml_namespace(child.tag)
+        if child_tag != "Material":
+            continue
+        if child is wrapper and sidecar_kind != "pac_xml":
+            shader_family = _first_attr(child, ("_materialName", "MaterialName", "materialName"))
+        else:
+            shader_family = _first_attr(child, ("_materialName", "MaterialName", "materialName", "Name", "name"))
+        if shader_family:
+            return shader_family
+    return ""
+
+
+def _definition_shader_family(root: ET.Element, sidecar_path: str) -> str:
+    fallback = PurePosixPath(str(sidecar_path or "").replace("\\", "/")).stem
+    first = ""
+    for technique in root.iter():
+        if _strip_texture_sidecar_xml_namespace(technique.tag) != "Technique":
+            continue
+        name = _first_attr(technique, ("Name", "name", "Technique", "technique"))
+        if not name:
+            continue
+        if not first:
+            first = name
+        if str(_first_attr(technique, ("Abstract", "abstract")) or "").strip().lower() != "true":
+            return name
+    return first or fallback
+
+
+def _append_definition_parameter(
+    parameter: ET.Element,
+    *,
+    texture_parameters: List[MaterialSidecarParameter],
+    color_parameters: List[MaterialSidecarParameter],
+    float_parameters: List[MaterialSidecarParameter],
+    flag_parameters: List[MaterialSidecarParameter],
+    byte4_parameters: List[MaterialSidecarParameter],
+) -> None:
+    if _strip_texture_sidecar_xml_namespace(parameter.tag) != "Parameter":
+        return
+    type_key = str(_first_attr(parameter, ("Type", "type")) or "").strip().lower()
+    record = _material_definition_parameter_record(parameter)
+    if type_key == "texture":
+        texture_parameters.append(record)
+    elif type_key == "color":
+        color_parameters.append(record)
+    elif type_key == "bitflag32":
+        flag_parameters.append(record)
+    elif type_key == "byte4":
+        byte4_parameters.append(record)
+    elif record.numeric_value is not None:
+        float_parameters.append(record)
+
+
+def _append_material_parameter_record(
+    parameter: ET.Element,
+    *,
+    texture_parameters: List[MaterialSidecarParameter],
+    color_parameters: List[MaterialSidecarParameter],
+    float_parameters: List[MaterialSidecarParameter],
+    flag_parameters: List[MaterialSidecarParameter],
+    byte4_parameters: List[MaterialSidecarParameter],
+) -> bool:
+    parameter_tag = _strip_texture_sidecar_xml_namespace(parameter.tag)
+    if not parameter_tag.startswith("MaterialParameter"):
+        return False
+    normalized_tag = _normalized_parameter_key(parameter_tag)
+    if "texture" in normalized_tag:
+        texture_paths = tuple(_iter_sidecar_texture_paths(parameter))
+        if texture_paths:
+            for texture_path in texture_paths:
+                texture_parameters.append(_material_parameter_record(parameter, texture_path=texture_path))
+        else:
+            texture_parameters.append(_material_parameter_record(parameter))
+        return True
+    if normalized_tag in {"materialparametercolor", "materialparametercolorpreset"}:
+        color_parameters.append(_material_parameter_record(parameter))
+        return True
+    if normalized_tag == "materialparameterbyte4":
+        byte4_parameters.append(_material_parameter_record(parameter))
+        return True
+    if normalized_tag in {
+        "materialparameterbitflag32",
+        "materialparameteruint",
+        "materialparameterint",
+        "materialparameterenum",
+        "materialparameterclothcategory",
+        "materialparameterlightpreset",
+        "materialparameterheightblendtype",
+        "materialparametersystemeffect",
+    }:
+        flag_parameters.append(_material_parameter_record(parameter))
+        return True
+    if normalized_tag in {
+        "materialparameterfloat",
+        "materialparameterfloat2",
+        "materialparameterfloat3",
+        "materialparameterhalf2",
+    }:
+        float_parameters.append(_material_parameter_record(parameter))
+        return True
+    return False
+
+
 @lru_cache(maxsize=512)
 def _parse_material_sidecar_profile_cached(sidecar_text_value: str, sidecar_path: str) -> MaterialSidecarProfile:
     sidecar_text = str(sidecar_text_value or "").replace("\ufeff", "").replace("\x00", "").strip()
@@ -530,61 +668,97 @@ def _parse_material_sidecar_profile_cached(sidecar_text_value: str, sidecar_path
     if sidecar_kind not in {"pac_xml", "pami"}:
         wrapper_tags = {"SkinnedMeshMaterialWrapper", "Material"}
 
-    for wrapper in root.iter():
-        wrapper_tag = _strip_texture_sidecar_xml_namespace(wrapper.tag)
-        if wrapper_tag not in wrapper_tags:
-            continue
-        if sidecar_kind != "pac_xml" and wrapper_tag == "Material":
-            part_name = _first_attr(wrapper, ("PrimitiveName", "primitiveName", "_subMeshName", "SubMeshName", "subMeshName", "Name", "name"))
-        else:
-            part_name = _first_attr(wrapper, ("_subMeshName", "subMeshName", "SubMeshName", "PrimitiveName", "primitiveName", "Name", "name"))
-        shader_family = ""
-        material_name = part_name
-        for child in wrapper.iter():
-            child_tag = _strip_texture_sidecar_xml_namespace(child.tag)
-            if child_tag == "Material":
-                shader_family = _first_attr(child, ("_materialName", "MaterialName", "materialName", "Name", "name"))
-                if not material_name:
-                    material_name = _first_attr(child, ("PrimitiveName", "primitiveName", "SubMeshName", "subMeshName", "Name", "name"))
-                if shader_family:
-                    break
-            elif child_tag == "Common":
-                shader_family = _first_attr(child, ("MaterialName", "materialName", "_materialName", "Name", "name"))
-                if shader_family:
-                    break
+    wrapper_roots: Tuple[ET.Element, ...] = (root,)
+    if sidecar_kind == "pac_xml":
+        model_properties = tuple(
+            element
+            for element in root.iter()
+            if _strip_texture_sidecar_xml_namespace(element.tag) == "ModelProperty"
+        )
+        if model_properties:
+            wrapper_roots = (model_properties[0],)
 
-        texture_parameters: List[MaterialSidecarParameter] = []
-        color_parameters: List[MaterialSidecarParameter] = []
-        float_parameters: List[MaterialSidecarParameter] = []
-        flag_parameters: List[MaterialSidecarParameter] = []
-        byte4_parameters: List[MaterialSidecarParameter] = []
-        for parameter in wrapper.iter():
-            parameter_tag = _strip_texture_sidecar_xml_namespace(parameter.tag)
-            if not parameter_tag.startswith("MaterialParameter"):
+    for wrapper_root in wrapper_roots:
+        for wrapper in wrapper_root.iter():
+            wrapper_tag = _strip_texture_sidecar_xml_namespace(wrapper.tag)
+            if wrapper_tag not in wrapper_tags:
                 continue
-            if parameter_tag == "MaterialParameterTexture":
-                texture_paths = tuple(_iter_sidecar_texture_paths(parameter))
-                if texture_paths:
-                    for texture_path in texture_paths:
-                        texture_parameters.append(_material_parameter_record(parameter, texture_path=texture_path))
-                else:
-                    texture_parameters.append(_material_parameter_record(parameter))
-            elif parameter_tag == "MaterialParameterColor":
-                color_parameters.append(_material_parameter_record(parameter))
-            elif parameter_tag == "MaterialParameterFloat":
-                float_parameters.append(_material_parameter_record(parameter))
-            elif parameter_tag == "MaterialParameterBitFlag32":
-                flag_parameters.append(_material_parameter_record(parameter))
-            elif parameter_tag == "MaterialParameterByte4":
-                byte4_parameters.append(_material_parameter_record(parameter))
-        order_key = lambda record: (record.index if record.index >= 0 else 999_999, record.parameter_name.lower(), record.texture_path.lower())
+            if sidecar_kind != "pac_xml" and wrapper_tag == "Material":
+                part_name = _first_attr(wrapper, ("PrimitiveName", "primitiveName", "_subMeshName", "SubMeshName", "subMeshName", "Name", "name"))
+            else:
+                part_name = _first_attr(wrapper, ("_subMeshName", "subMeshName", "SubMeshName", "PrimitiveName", "primitiveName", "Name", "name"))
+            shader_family = _shader_family_from_material_node(wrapper, sidecar_kind)
+            material_name = part_name
+            if not material_name:
+                for child in wrapper.iter():
+                    if _strip_texture_sidecar_xml_namespace(child.tag) == "Material":
+                        material_name = _first_attr(child, ("PrimitiveName", "primitiveName", "SubMeshName", "subMeshName", "Name", "name"))
+                        if material_name:
+                            break
+
+            texture_parameters: List[MaterialSidecarParameter] = []
+            color_parameters: List[MaterialSidecarParameter] = []
+            float_parameters: List[MaterialSidecarParameter] = []
+            flag_parameters: List[MaterialSidecarParameter] = []
+            byte4_parameters: List[MaterialSidecarParameter] = []
+            for parameter in wrapper.iter():
+                parameter_tag = _strip_texture_sidecar_xml_namespace(parameter.tag)
+                if _append_material_parameter_record(
+                    parameter,
+                    texture_parameters=texture_parameters,
+                    color_parameters=color_parameters,
+                    float_parameters=float_parameters,
+                    flag_parameters=flag_parameters,
+                    byte4_parameters=byte4_parameters,
+                ):
+                    continue
+                if parameter_tag == "Parameter":
+                    _append_definition_parameter(
+                        parameter,
+                        texture_parameters=texture_parameters,
+                        color_parameters=color_parameters,
+                        float_parameters=float_parameters,
+                        flag_parameters=flag_parameters,
+                        byte4_parameters=byte4_parameters,
+                    )
+            order_key = lambda record: (record.index if record.index >= 0 else 999_999, record.parameter_name.lower(), record.texture_path.lower())
+            if any((texture_parameters, color_parameters, float_parameters, flag_parameters, byte4_parameters)):
+                materials.append(
+                    MaterialSidecarSlot(
+                        part_name=part_name or material_name or "Material",
+                        material_name=material_name or part_name,
+                        shader_family=shader_family,
+                        wrapper_item_id=_first_attr(wrapper, ("ItemID", "itemID", "_itemID")),
+                        texture_parameters=tuple(sorted(texture_parameters, key=order_key)),
+                        color_parameters=tuple(sorted(color_parameters, key=order_key)),
+                        float_parameters=tuple(sorted(float_parameters, key=order_key)),
+                        flag_parameters=tuple(sorted(flag_parameters, key=order_key)),
+                        byte4_parameters=tuple(sorted(byte4_parameters, key=order_key)),
+                    )
+                )
+    if not materials and sidecar_kind in {"material", "technique", "shader"}:
+        texture_parameters = []
+        color_parameters = []
+        float_parameters = []
+        flag_parameters = []
+        byte4_parameters = []
+        for parameter in root.iter():
+            _append_definition_parameter(
+                parameter,
+                texture_parameters=texture_parameters,
+                color_parameters=color_parameters,
+                float_parameters=float_parameters,
+                flag_parameters=flag_parameters,
+                byte4_parameters=byte4_parameters,
+            )
         if any((texture_parameters, color_parameters, float_parameters, flag_parameters, byte4_parameters)):
+            order_key = lambda record: (record.index if record.index >= 0 else 999_999, record.parameter_name.lower(), record.texture_path.lower())
+            material_name = PurePosixPath(str(sidecar_path or "").replace("\\", "/")).stem or "MaterialDefinition"
             materials.append(
                 MaterialSidecarSlot(
-                    part_name=part_name or material_name or "Material",
-                    material_name=material_name or part_name,
-                    shader_family=shader_family,
-                    wrapper_item_id=_first_attr(wrapper, ("ItemID", "itemID", "_itemID")),
+                    part_name=material_name,
+                    material_name=material_name,
+                    shader_family=_definition_shader_family(root, sidecar_path),
                     texture_parameters=tuple(sorted(texture_parameters, key=order_key)),
                     color_parameters=tuple(sorted(color_parameters, key=order_key)),
                     float_parameters=tuple(sorted(float_parameters, key=order_key)),
@@ -785,11 +959,10 @@ def _parse_texture_sidecar_bindings_cached(
             if _strip_texture_sidecar_xml_namespace(material.tag) != "Material":
                 continue
             part_name = _first_attr(material, ("PrimitiveName", "primitiveName", "Name", "name"))
-            shader_family = ""
+            shader_family = _shader_family_from_material_node(material, sidecar_kind)
             represent_color, tint_color, brightness, uv_scale, tile_type = _preview_params_for_material(material)
             for child in material:
                 if _strip_texture_sidecar_xml_namespace(child.tag) == "Common":
-                    shader_family = _first_attr(child, ("MaterialName", "materialName", "Name", "name"))
                     tile_type = tile_type or _first_attr(child, ("TileType", "tileType", "_tileType"))
                     break
             for parameter in material.iter():
@@ -816,36 +989,68 @@ def _parse_texture_sidecar_bindings_cached(
 
     if sidecar_kind == "pac_xml":
         pac_bindings: List[TextureSidecarBinding] = []
-        for wrapper in root.iter():
-            if _strip_texture_sidecar_xml_namespace(wrapper.tag) != "SkinnedMeshMaterialWrapper":
-                continue
-            part_name = _first_attr(wrapper, ("_subMeshName", "subMeshName", "SubMeshName", "Name", "name"))
-            shader_family = ""
-            represent_color, tint_color, brightness, uv_scale, tile_type = _preview_params_for_material(wrapper)
-            for child in wrapper.iter():
-                if _strip_texture_sidecar_xml_namespace(child.tag) == "Material":
-                    shader_family = _first_attr(child, ("_materialName", "MaterialName", "materialName", "Name", "name"))
-                    tile_type = tile_type or _first_attr(child, ("TileType", "tileType", "_tileType"))
-                    if shader_family:
-                        break
-            for parameter in wrapper.iter():
-                if _strip_texture_sidecar_xml_namespace(parameter.tag) != "MaterialParameterTexture":
+        model_properties = tuple(
+            element
+            for element in root.iter()
+            if _strip_texture_sidecar_xml_namespace(element.tag) == "ModelProperty"
+        )
+        wrapper_roots = (model_properties[0],) if model_properties else (root,)
+        for wrapper_root in wrapper_roots:
+            for wrapper in wrapper_root.iter():
+                if _strip_texture_sidecar_xml_namespace(wrapper.tag) != "SkinnedMeshMaterialWrapper":
                     continue
-                parameter_name = _parameter_name_for(parameter)
-                for texture_path in _iter_texture_paths(parameter):
-                    _append_binding(
-                        pac_bindings,
-                        texture_path=texture_path,
-                        parameter_name=parameter_name,
-                        part_name=part_name,
-                        material_name=part_name,
-                        shader_family=shader_family,
-                        represent_color=represent_color,
-                        tint_color=tint_color,
-                        brightness=brightness,
-                        uv_scale=uv_scale,
-                        tile_type=tile_type,
-                    )
+                part_name = _first_attr(wrapper, ("_subMeshName", "subMeshName", "SubMeshName", "Name", "name"))
+                shader_family = _shader_family_from_material_node(wrapper, sidecar_kind)
+                represent_color, tint_color, brightness, uv_scale, tile_type = _preview_params_for_material(wrapper)
+                for child in wrapper.iter():
+                    if _strip_texture_sidecar_xml_namespace(child.tag) == "Material":
+                        tile_type = tile_type or _first_attr(child, ("TileType", "tileType", "_tileType"))
+                        break
+                wrapper_binding_count = len(pac_bindings)
+                for parameter in wrapper.iter():
+                    if _strip_texture_sidecar_xml_namespace(parameter.tag) != "MaterialParameterTexture":
+                        continue
+                    parameter_name = _parameter_name_for(parameter)
+                    for texture_path in _iter_texture_paths(parameter):
+                        _append_binding(
+                            pac_bindings,
+                            texture_path=texture_path,
+                            parameter_name=parameter_name,
+                            part_name=part_name,
+                            material_name=part_name,
+                            shader_family=shader_family,
+                            represent_color=represent_color,
+                            tint_color=tint_color,
+                            brightness=brightness,
+                            uv_scale=uv_scale,
+                            tile_type=tile_type,
+                        )
+                if len(pac_bindings) == wrapper_binding_count:
+                    for resource in wrapper.iter():
+                        if resource is wrapper:
+                            continue
+                        resource_tag = _strip_texture_sidecar_xml_namespace(resource.tag)
+                        normalized_resource_tag = re.sub(r"[^a-z0-9]+", "", resource_tag.lower())
+                        if not (
+                            resource_tag == "ResourceReferencePath_ITexture"
+                            or ("resourcereferencepath" in normalized_resource_tag and "texture" in normalized_resource_tag)
+                        ):
+                            continue
+                        parameter_name = _parameter_name_for(resource)
+                        for texture_path in _iter_texture_paths(resource):
+                            _append_binding(
+                                pac_bindings,
+                                texture_path=texture_path,
+                                parameter_name=parameter_name,
+                                part_name=part_name,
+                                material_name=part_name,
+                                shader_family=shader_family,
+                                represent_color=represent_color,
+                                tint_color=tint_color,
+                                brightness=brightness,
+                                uv_scale=uv_scale,
+                                tile_type=tile_type,
+                            )
         if pac_bindings:
             return tuple(pac_bindings)
 
@@ -870,6 +1075,10 @@ def _parse_texture_sidecar_bindings_cached(
     def _is_texture_parameter_element(parameter: ET.Element) -> bool:
         tag_name = _strip_texture_sidecar_xml_namespace(parameter.tag)
         normalized_tag = re.sub(r"[^a-z0-9]+", "", tag_name.lower())
+        if tag_name == "ResourceReferencePath_ITexture":
+            return True
+        if "resourcereferencepath" in normalized_tag and "texture" in normalized_tag:
+            return True
         if tag_name == "MaterialParameterTexture":
             return True
         if "textureparameter" in normalized_tag:
@@ -979,6 +1188,8 @@ def _semantic_hint_from_sidecar_parameter(
         return "mask", "material_mask", 99, evidence, ()
     if "colorblendingmask" in normalized:
         return "mask", "color_blending_mask", 99, evidence, ("blend",)
+    if normalized == "rgbtexture":
+        return "mask", "layer_blend_mask", 99, evidence, ("layer_r", "layer_g", "layer_b", "layer_a")
     if "detailmask" in normalized:
         return "mask", "detail_mask", 99, evidence, ("detail",)
     if any(token in normalized for token in ("detaildiffuse", "detailalbedo", "detailcolor")):
@@ -1114,6 +1325,9 @@ def classify_texture_type(path_value: str | Path) -> str:
     if registered is not None:
         return str(registered.texture_type or "unknown").strip().lower() or "unknown"
     lowered = normalized.lower()
+    suffix = PurePosixPath(normalized).suffix.lower()
+    if suffix in _SIDECARE_EXTENSIONS:
+        return "sidecar"
     stem = PurePosixPath(normalized).stem.lower()
     exact_override = _EXACT_STEM_TEXTURE_TYPE_OVERRIDES.get(stem)
     if exact_override is not None:

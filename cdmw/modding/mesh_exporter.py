@@ -325,6 +325,57 @@ def _fbx_node(buf: io.BytesIO, name: str, props=None, children=None):
     buf.seek(end_offset)  # restore position
 
 
+def _fbx_bone_visual_sizes(skeleton, scale: float = 1.0) -> dict[int, float]:
+    """Compute FBX LimbNode Size values from child distances."""
+    bones = list(getattr(skeleton, "bones", None) or [])
+    if not bones:
+        return {}
+    abs_scale = abs(float(scale)) if abs(float(scale)) > 1e-8 else 1.0
+    children_by_parent: dict[int, list[object]] = {}
+    bones_by_index: dict[int, object] = {}
+    for bone in bones:
+        index = int(getattr(bone, "index", len(bones_by_index)) or 0)
+        bones_by_index[index] = bone
+        parent_index = int(getattr(bone, "parent_index", -1) or -1)
+        if parent_index >= 0:
+            children_by_parent.setdefault(parent_index, []).append(bone)
+
+    sizes: dict[int, float] = {}
+    for bone in bones:
+        index = int(getattr(bone, "index", 0) or 0)
+        position = tuple(getattr(bone, "position", ()) or (0.0, 0.0, 0.0))
+        if len(position) < 3:
+            continue
+        distances: list[float] = []
+        for child in children_by_parent.get(index, ()):
+            child_position = tuple(getattr(child, "position", ()) or (0.0, 0.0, 0.0))
+            if len(child_position) < 3:
+                continue
+            dx = float(child_position[0]) - float(position[0])
+            dy = float(child_position[1]) - float(position[1])
+            dz = float(child_position[2]) - float(position[2])
+            distance = math.sqrt(dx * dx + dy * dy + dz * dz)
+            if distance > 1e-4:
+                distances.append(distance)
+        if distances:
+            sizes[index] = max(distances) * abs_scale
+
+    default_leaf_size = 0.02 * abs_scale
+    for bone in bones:
+        index = int(getattr(bone, "index", 0) or 0)
+        if index in sizes:
+            continue
+        parent_index = int(getattr(bone, "parent_index", -1) or -1)
+        if parent_index >= 0 and parent_index in sizes:
+            sizes[index] = sizes[parent_index] * 0.5
+        else:
+            sizes[index] = default_leaf_size
+
+    minimum = 0.005 * abs_scale
+    maximum = 2.0 * abs_scale
+    return {index: max(minimum, min(float(size), maximum)) for index, size in sizes.items()}
+
+
 def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
                scale: float = 1.0) -> str:
     """Export mesh to binary FBX 7.4 file.
@@ -572,6 +623,7 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
         for bone in skeleton.bones:
             bone_model_ids[bone.index] = uid()
             bone_attr_ids[bone.index] = uid()
+    bone_visual_sizes = _fbx_bone_visual_sizes(skeleton, scale) if skeleton and skeleton.bones else {}
 
     root_id = uid()
     skin_id = uid() if skeleton and skeleton.bones else None
@@ -596,7 +648,12 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
             for nx, ny, nz in sm.normals:
                 normals_flat.extend([nx, ny, nz])
 
-            def geom_node(b2, vf=verts_flat, iff=indices_flat, nf=normals_flat):
+            uvs_flat = []
+            if len(sm.uvs) == len(sm.vertices):
+                for u, v in sm.uvs:
+                    uvs_flat.extend([u, 1.0 - v])
+
+            def geom_node(b2, vf=verts_flat, iff=indices_flat, nf=normals_flat, uf=uvs_flat):
                 def layer_elem_normal(b3, nf_=nf):
                     W(b3, "Version", [101])
                     W(b3, "Name", [""])
@@ -604,17 +661,31 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
                     W(b3, "ReferenceInformationType", ["Direct"])
                     W(b3, "Normals", [nf_])
 
+                def layer_elem_uv(b3, uf_=uf):
+                    W(b3, "Version", [101])
+                    W(b3, "Name", ["UVMap"])
+                    W(b3, "MappingInformationType", ["ByVertice"])
+                    W(b3, "ReferenceInformationType", ["Direct"])
+                    W(b3, "UV", [uf_])
+
                 def layer0(b3):
                     W(b3, "Version", [100])
                     def le_normal(b4):
                         W(b4, "Type", ["LayerElementNormal"])
                         W(b4, "TypedIndex", [0])
                     W(b3, "LayerElement", children=[le_normal])
+                    if uf:
+                        def le_uv(b4):
+                            W(b4, "Type", ["LayerElementUV"])
+                            W(b4, "TypedIndex", [0])
+                        W(b3, "LayerElement", children=[le_uv])
 
                 W(b2, "Vertices", [vf])
                 W(b2, "PolygonVertexIndex", [iff])
                 if nf:
                     W(b2, "LayerElementNormal", [0], children=[layer_elem_normal])
+                if uf:
+                    W(b2, "LayerElementUV", [0], children=[layer_elem_uv])
                 W(b2, "Layer", [0], children=[layer0])
 
             W(b, "Geometry", [mid, f"{sm.name}\x00\x01Geometry", "Mesh"],
@@ -637,6 +708,9 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
                 # NodeAttribute (LimbNode)
                 def bone_attr(b2, bn=bone):
                     W(b2, "TypeFlags", ["Skeleton"])
+                    def props(b3, size=bone_visual_sizes.get(bn.index, 0.02 * abs(float(scale) or 1.0))):
+                        W(b3, "P", ["Size", "double", "Number", "", float(size)])
+                    W(b2, "Properties70", children=[props])
                 W(b, "NodeAttribute", [bone_attr_ids[bone.index],
                     f"{bone.name}\x00\x01NodeAttribute", "LimbNode"],
                     children=[bone_attr])

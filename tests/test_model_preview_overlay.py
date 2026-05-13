@@ -5,7 +5,7 @@ import math
 from pathlib import Path
 import unittest
 
-from PySide6.QtGui import QColor, QImage
+from PySide6.QtGui import QColor, QImage, QVector3D
 
 from cdmw.models import (
     MODEL_PREVIEW_ALPHA_HANDLING_MODES,
@@ -86,6 +86,42 @@ class ModelPreviewOverlayClipTests(unittest.TestCase):
 
 
 class ModelPreviewRenderSafetyTests(unittest.TestCase):
+    def test_alignment_live_rotation_matrix_matches_static_replacer_euler_order(self) -> None:
+        matrix = ModelPreviewWidget._alignment_euler_xyz_matrix((25.0, -35.0, 12.0))
+        point = matrix.map(QVector3D(0.35, -0.4, 0.9))
+
+        x, y, z = 0.35, -0.4, 0.9
+        rx, ry, rz = (math.radians(value) for value in (25.0, -35.0, 12.0))
+        cy, sy = math.cos(rx), math.sin(rx)
+        y, z = y * cy - z * sy, y * sy + z * cy
+        cx, sx = math.cos(ry), math.sin(ry)
+        x, z = x * cx + z * sx, -x * sx + z * cx
+        cz, sz = math.cos(rz), math.sin(rz)
+        x, y = x * cz - y * sz, x * sz + y * cz
+
+        self.assertAlmostEqual(x, point.x(), places=6)
+        self.assertAlmostEqual(y, point.y(), places=6)
+        self.assertAlmostEqual(z, point.z(), places=6)
+
+    def test_alignment_live_rotation_delta_maps_current_rotation_to_committed_rotation(self) -> None:
+        base_rotation = (18.0, -11.0, 7.0)
+        live_delta = (3.5, 2.25, -1.0)
+        point = QVector3D(0.4, -0.2, 0.8)
+
+        base_matrix = ModelPreviewWidget._alignment_euler_xyz_matrix(base_rotation)
+        target_matrix = ModelPreviewWidget._alignment_euler_xyz_matrix(
+            tuple(base_rotation[index] + live_delta[index] for index in range(3))
+        )
+        delta_matrix = ModelPreviewWidget._alignment_euler_delta_matrix(base_rotation, live_delta)
+
+        current_point = base_matrix.map(point)
+        expected_point = target_matrix.map(point)
+        actual_point = delta_matrix.map(current_point)
+
+        self.assertAlmostEqual(expected_point.x(), actual_point.x(), places=6)
+        self.assertAlmostEqual(expected_point.y(), actual_point.y(), places=6)
+        self.assertAlmostEqual(expected_point.z(), actual_point.z(), places=6)
+
     def test_render_settings_roundtrip_new_diagnostic_controls(self) -> None:
         for mode in MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES:
             settings = clamp_model_preview_render_settings(ModelPreviewRenderSettings(render_diagnostic_mode=mode))
@@ -132,6 +168,29 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertEqual(22, _RENDER_DIAGNOSTIC_MODE_CODES["rich_lit"])
         self.assertEqual(23, _RENDER_DIAGNOSTIC_MODE_CODES["height_calibrated"])
         self.assertEqual(24, _RENDER_DIAGNOSTIC_MODE_CODES["relief_control_test"])
+        self.assertEqual(25, _RENDER_DIAGNOSTIC_MODE_CODES["matcap"])
+        self.assertEqual(26, _RENDER_DIAGNOSTIC_MODE_CODES["wireframe"])
+        self.assertEqual(27, _RENDER_DIAGNOSTIC_MODE_CODES["vertex_normals"])
+        self.assertEqual(28, _RENDER_DIAGNOSTIC_MODE_CODES["uv_checker"])
+
+    def test_sketchfab_style_geometry_diagnostic_modes_are_available(self) -> None:
+        for mode, label in (
+            ("matcap", "Matcap"),
+            ("wireframe", "Wireframe"),
+            ("vertex_normals", "Vertex Normals"),
+            ("uv_checker", "UV Checker"),
+        ):
+            self.assertIn(mode, MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES)
+            self.assertEqual(label, MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS[mode])
+            settings = clamp_model_preview_render_settings(ModelPreviewRenderSettings(render_diagnostic_mode=mode))
+            self.assertEqual(mode, settings.render_diagnostic_mode)
+
+        shader_source = Path("cdmw/ui/widgets.py").read_text(encoding="utf-8")
+        self.assertIn("attribute vec3 barycentric;", shader_source)
+        self.assertIn("wireframe_edge_factor", shader_source)
+        self.assertIn("procedural_matcap", shader_source)
+        self.assertIn("def _draw_vertex_normals_overlay", shader_source)
+        self.assertIn("uv_checker_color", shader_source)
 
     def test_normal_diagnostics_distinguish_geometry_from_texture_maps(self) -> None:
         self.assertEqual("Geometry Normal", MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS["normal"])
@@ -387,7 +446,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertIn("relief_source_code == 2", source)
         self.assertIn("render_diagnostic_mode == 24", source)
         self.assertIn("control_color = max(control_color, vec3(0.22, 0.22, 0.22))", source)
-        self.assertIn('MODEL_PREVIEW_RENDER_BUILD_ID = "2026-04-29-radical-relief-v7"', source)
+        self.assertIn('MODEL_PREVIEW_RENDER_BUILD_ID = "2026-05-13-native-dds-v1"', source)
         self.assertIn("relief_emboss_rgb", source)
         self.assertIn("relief_local_contrast", source)
         self.assertIn("radical_chiseled", source)
@@ -496,6 +555,38 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertTrue(all(math.isfinite(value) for value in values))
         first_normal = tuple(values[3:6])
         self.assertAlmostEqual(1.0, math.sqrt(sum(component * component for component in first_normal)))
+
+    def test_degenerate_uvs_block_support_map_geometry(self) -> None:
+        mesh = ModelPreviewMesh(
+            positions=[
+                (0.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+            ],
+            normals=[
+                (0.0, 0.0, 1.0),
+                (0.0, 0.0, 1.0),
+                (0.0, 0.0, 1.0),
+            ],
+            texture_coordinates=[
+                (0.0, 0.0),
+                (0.0, 0.0),
+                (0.0, 0.0),
+            ],
+            indices=[0, 1, 2],
+            preview_texture_path="base.png",
+            preview_normal_texture_path="normal.png",
+            preview_normal_texture_strength=0.4,
+            preview_material_texture_path="material.png",
+            preview_height_texture_path="height.png",
+        )
+
+        _vertex_blob, _vertex_count, batches = ModelPreviewWidget._build_vertex_blob(ModelPreviewData(meshes=[mesh]))
+
+        self.assertTrue(batches[0].has_texture_coordinates)
+        self.assertEqual(0.0, batches[0].tangent_finite_ratio)
+        self.assertEqual(0.0, batches[0].bitangent_finite_ratio)
+        self.assertFalse(ModelPreviewWidget._support_map_geometry_usable(batches[0]))
 
     def test_vertex_blob_includes_preview_smoothed_normals_for_rich_lighting(self) -> None:
         mesh = ModelPreviewMesh(
@@ -611,6 +702,38 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertIn("self._render_mode_uses_derived_relief(self._render_settings)", source)
         self.assertIn("self._clear_gl_textures()", source)
         self.assertIn("self._rebuild_gl_textures()", source)
+
+    def test_model_preview_reuses_textures_for_transform_only_updates(self) -> None:
+        source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
+        upload_start = source.index("def _upload_geometry")
+        upload_end = source.index("def _current_texture_upload_cache_signature", upload_start)
+        upload_block = source[upload_start:upload_end]
+        self.assertIn("texture_cache_signature = self._current_texture_upload_cache_signature()", upload_block)
+        self.assertIn("if texture_cache_signature != self._texture_upload_cache_signature:", upload_block)
+        self.assertIn("self._texture_upload_cache_signature = texture_cache_signature", upload_block)
+        self.assertNotIn("        self._clear_gl_textures()\n        self._program.bind()", upload_block)
+        self.assertIn("def _current_texture_upload_cache_signature", source)
+        self.assertIn("upload_support_maps = bool(", source)
+        self.assertIn("if upload_support_maps:", source)
+        self.assertIn("existing_texture = self._texture_objects.get(cache_key)", source)
+        self.assertIn("continue", source[source.index("existing_texture = self._texture_objects.get(cache_key)"):])
+
+    def test_model_preview_has_committed_transform_fast_path_and_timing_diagnostics(self) -> None:
+        source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
+        self.assertIn("def set_alignment_committed_preview_transform", source)
+        self.assertIn("_alignment_committed_preview_translation", source)
+        self.assertIn("_alignment_committed_preview_rotation", source)
+        self.assertIn("_alignment_committed_preview_scale", source)
+        self.assertIn("or has_committed_transform", source)
+        self.assertIn("self._alignment_committed_preview_translation = QVector3D(0.0, 0.0, 0.0)", source)
+        self.assertIn("self._last_model_prepare_ms", source)
+        self.assertIn("prepare_elapsed_ms: Optional[float] = None", source)
+        self.assertIn("self.set_prepared_model(cloned_model, prepared_preview, prepare_elapsed_ms=prepare_elapsed_ms)", source)
+        self.assertIn("self._last_gl_upload_ms", source)
+        self.assertIn("def _read_opengl_renderer_info", source)
+        self.assertIn("functions.glGetString", source)
+        self.assertIn("string_at(raw)", source)
+        self.assertIn('"Renderer: "', source)
 
     def test_hkx_physics_overlay_supports_hover_and_ctrl_click_selection(self) -> None:
         source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")

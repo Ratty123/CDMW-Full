@@ -605,7 +605,7 @@ def build_replace_assistant_package(
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     on_current_file: Optional[Callable[[str], None]] = None,
 ) -> ReplaceAssistantBuildSummary:
-    raise_if_cancelled(stop_event, "Replace Assistant build cancelled by user.")
+    raise_if_cancelled(stop_event, "Texture Replacer build cancelled by user.")
     archive_index = build_replace_assistant_archive_index(archive_entries, original_dds_root=original_dds_root)
     resolved_original_dds_root: Optional[Path] = None
     sidecars_by_group: Dict[str, List[Path]] = {}
@@ -636,13 +636,13 @@ def build_replace_assistant_package(
     final_package_root = resolve_mod_package_root(options.package_output_root, options.package_info)
 
     try:
-        raise_if_cancelled(stop_event, "Replace Assistant build cancelled by user.")
+        raise_if_cancelled(stop_event, "Texture Replacer build cancelled by user.")
         stage_root.mkdir(parents=True, exist_ok=True)
         if on_log:
             on_log(f"Building replace package stage in {stage_root}")
 
         for index, item in enumerate(items, start=1):
-            raise_if_cancelled(stop_event, "Replace Assistant build cancelled by user.")
+            raise_if_cancelled(stop_event, "Texture Replacer build cancelled by user.")
             source_path = item.source_path.expanduser().resolve()
             current_file_label = source_path.name
             if on_current_file:
@@ -796,7 +796,7 @@ def build_replace_assistant_package(
             if on_progress:
                 on_progress(index, total_items, f"{index} / {total_items} items")
 
-        raise_if_cancelled(stop_event, "Replace Assistant build cancelled by user.")
+        raise_if_cancelled(stop_event, "Texture Replacer build cancelled by user.")
 
         if failed_items == 0 and unresolved_items == 0:
             if options.overwrite_existing_package_files and final_package_root.exists():
@@ -861,7 +861,7 @@ def build_replace_assistant_package(
     except RunCancelled:
         cancelled = True
         if on_log:
-            on_log("Replace Assistant build cancelled by user.")
+            on_log("Texture Replacer build cancelled by user.")
         return ReplaceAssistantBuildSummary(
             total_items=total_items,
             built_items=built_items,

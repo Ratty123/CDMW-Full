@@ -26,10 +26,15 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     lz4_block = None  # type: ignore[assignment]
 
-from cdmw.constants import APP_NAME
+from cdmw.constants import APP_NAME, DDS_MAGIC
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled, run_process_with_cancellation
 from cdmw.core.mesh_baseline import read_archive_entry_baseline_data
 from cdmw.core.model_preview import _build_lod_summary, _build_model_preview
+from cdmw.core.skeleton_resolver import (
+    SkeletonResolveReport,
+    build_skin_binding_map,
+    resolve_skeleton_for_model,
+)
 from cdmw.models import (
     ArchiveEntry,
     ArchiveModelTextureReference,
@@ -1146,6 +1151,7 @@ def _apply_mesh_import_local_sidecar_texture_overrides(
 
     from cdmw.core.archive import (
         _is_visible_model_texture_type,
+        _is_anonymous_model_submesh_reference_key,
         _iter_model_submesh_reference_candidates,
         _iter_parsed_model_submeshes,
         _model_texture_hint_priority,
@@ -1234,17 +1240,26 @@ def _apply_mesh_import_local_sidecar_texture_overrides(
 
     assigned_count = 0
     unresolved_meshes: List[ModelPreviewMesh] = []
-    for mesh_index, mesh in enumerate(preview_model.meshes):
-        if str(getattr(mesh, "preview_texture_path", "") or "").strip():
-            continue
-        parsed_submesh = parsed_submeshes[mesh_index] if mesh_index < len(parsed_submeshes) else None
-        candidate_keys = _iter_model_submesh_reference_candidates(
+    unresolved_mesh_indices_by_id: Dict[int, int] = {}
+
+    def _mesh_reference_candidates_for_index(mesh_index: int, mesh: ModelPreviewMesh) -> Tuple[str, ...]:
+        parsed_submesh = parsed_submeshes[mesh_index] if 0 <= mesh_index < len(parsed_submeshes) else None
+        return _iter_model_submesh_reference_candidates(
             str(getattr(parsed_submesh, "name", "") or ""),
             str(getattr(parsed_submesh, "material", "") or ""),
             str(getattr(parsed_submesh, "texture", "") or ""),
             str(getattr(mesh, "material_name", "") or ""),
             str(getattr(mesh, "texture_name", "") or ""),
         )
+
+    def _mesh_preview_identity_is_anonymous(mesh_index: int, mesh: ModelPreviewMesh) -> bool:
+        candidate_keys = _mesh_reference_candidates_for_index(mesh_index, mesh)
+        return not candidate_keys or all(_is_anonymous_model_submesh_reference_key(candidate_key) for candidate_key in candidate_keys)
+
+    for mesh_index, mesh in enumerate(preview_model.meshes):
+        if str(getattr(mesh, "preview_texture_path", "") or "").strip():
+            continue
+        candidate_keys = _mesh_reference_candidates_for_index(mesh_index, mesh)
         best_match: Optional[Tuple[Tuple[int, int, int, int], Path, str, str, str]] = None
         for candidate_key_text in candidate_keys:
             resolved = resolved_by_submesh.get(candidate_key_text)
@@ -1254,6 +1269,7 @@ def _apply_mesh_import_local_sidecar_texture_overrides(
                 best_match = resolved
         if best_match is None:
             unresolved_meshes.append(mesh)
+            unresolved_mesh_indices_by_id[id(mesh)] = mesh_index
             continue
         _candidate_key, override_path, _parameter_name, submesh_name, texture_path = best_match
         try:
@@ -1268,16 +1284,25 @@ def _apply_mesh_import_local_sidecar_texture_overrides(
             continue
 
     if not global_visible_bindings and unresolved_meshes and fallback_visible_bindings:
+        unresolved_meshes_are_anonymous = all(
+            _mesh_preview_identity_is_anonymous(unresolved_mesh_indices_by_id.get(id(mesh), -1), mesh)
+            for mesh in unresolved_meshes
+        )
         unique_named_sidecar_submeshes = {
             _normalize_model_submesh_reference(submesh_name)
             for _candidate_key, _override_path, _parameter_name, submesh_name, _texture_path in fallback_visible_bindings
             if _normalize_model_submesh_reference(submesh_name)
         }
         should_promote_fallback = (
-            len(unresolved_meshes) == 1
-            or len(preview_model.meshes) == 1
-            or len(parsed_submeshes) <= 1
-            or len(unique_named_sidecar_submeshes) == 1
+            len(preview_model.meshes) == 1
+            or (
+                unresolved_meshes_are_anonymous
+                and (
+                    len(unresolved_meshes) == 1
+                    or len(parsed_submeshes) <= 1
+                    or len(unique_named_sidecar_submeshes) == 1
+                )
+            )
         )
         if should_promote_fallback:
             fallback_visible_bindings.sort(key=lambda item: item[0], reverse=True)
@@ -2138,8 +2163,10 @@ def get_archive_texture_patch_blocker(entry: ArchiveEntry) -> str:
 def build_archive_texture_payload_from_dds(
     entry: ArchiveEntry,
     replacement_dds_path: Path,
+    *,
+    on_log: Optional[Callable[[str], None]] = None,
 ) -> bytes:
-    from cdmw.core.pipeline import parse_dds
+    from cdmw.core.pipeline import inspect_crimson_dds, parse_dds
 
     if entry.extension != ".dds":
         raise ValueError(f"{entry.path} is not a DDS archive entry.")
@@ -2147,6 +2174,28 @@ def build_archive_texture_payload_from_dds(
     resolved_path = replacement_dds_path.expanduser().resolve()
     if not resolved_path.is_file():
         raise FileNotFoundError(f"Replacement DDS was not found: {resolved_path}")
+
+    pathc_last4: Optional[int] = None
+    try:
+        from cdmw.core.archive import load_pathc_collection, resolve_archive_pathc_path
+
+        pathc_path = resolve_archive_pathc_path(entry)
+        if pathc_path.is_file():
+            pathc_header = load_pathc_collection(pathc_path).get_file_header(entry.path)
+            if len(pathc_header) >= 128 and pathc_header[:4] == DDS_MAGIC:
+                pathc_last4 = struct.unpack_from("<I", pathc_header, 124)[0] or None
+    except Exception:
+        pathc_last4 = None
+
+    crimson_info = inspect_crimson_dds(resolved_path, vpath=entry.path, pathc_last4=pathc_last4)
+    fatal_messages = [finding.message for finding in crimson_info.findings if finding.severity == "fatal"]
+    if fatal_messages:
+        raise ValueError("; ".join(fatal_messages))
+    for finding in crimson_info.findings:
+        if finding.severity == "warning":
+            _safe_log(on_log, f"Crimson DDS warning for {entry.path}: {finding.message}")
+        elif finding.severity == "info" and finding.code == "requires_pathc":
+            _safe_log(on_log, f"Crimson DDS note for {entry.path}: {finding.message}")
 
     parse_dds(resolved_path)
     return resolved_path.read_bytes()
@@ -2228,6 +2277,7 @@ def export_archive_payloads_to_mod_ready_loose(
     package_info: ModPackageInfo,
     export_options: Optional["ModPackageExportOptions"] = None,
     create_no_encrypt_file: bool = True,
+    extra_payloads_to_include: Sequence[MeshImportSupplementalFileSpec] = (),
     on_log: Optional[Callable[[str], None]] = None,
 ) -> ArchiveLooseExportResult:
     from cdmw.core.mod_package import (
@@ -2245,22 +2295,62 @@ def export_archive_payloads_to_mod_ready_loose(
     package_root.mkdir(parents=True, exist_ok=True)
 
     written_files: List[Path] = []
+    written_virtual_paths: set[str] = set()
+    payload_paths: List[str] = []
+    new_file_paths: List[str] = []
     for request in requests:
-        relative_parts = normalize_mod_package_payload_path(request.entry.path).parts
+        normalized_request_path = normalize_mod_package_payload_path(request.entry.path).as_posix()
+        relative_parts = PurePosixPath(normalized_request_path).parts
         if not relative_parts:
             raise ValueError(f"Archive path is invalid: {request.entry.path}")
+        normalized_key = normalized_request_path.lower()
+        if normalized_key in written_virtual_paths:
+            continue
         target_path = package_root.joinpath(*relative_parts)
         target_path.parent.mkdir(parents=True, exist_ok=True)
         _safe_log(on_log, f"Writing loose mod payload: {target_path.relative_to(package_root)}")
         target_path.write_bytes(request.payload_data)
         written_files.append(target_path)
+        written_virtual_paths.add(normalized_key)
+        payload_paths.append(normalized_request_path)
+
+    for spec in tuple(extra_payloads_to_include or ()):
+        if not isinstance(spec, MeshImportSupplementalFileSpec):
+            continue
+        normalized_target_path = normalize_mod_package_payload_path(spec.target_path or "").as_posix()
+        if not normalized_target_path:
+            _safe_log(on_log, f"Skipping extra source payload without a mapped loose target: {spec.source_path.name}")
+            continue
+        normalized_key = normalized_target_path.lower()
+        if normalized_key in written_virtual_paths:
+            continue
+        payload_data = bytes(spec.payload_data or b"")
+        if not payload_data:
+            source_path = spec.source_path.expanduser().resolve()
+            if not source_path.is_file():
+                _safe_log(on_log, f"Skipping missing extra source payload: {spec.source_path}")
+                continue
+            payload_data = source_path.read_bytes()
+        relative_parts = PurePosixPath(normalized_target_path).parts
+        if not relative_parts:
+            continue
+        target_path = package_root.joinpath(*relative_parts)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        _safe_log(on_log, f"Writing extra loose mod payload: {target_path.relative_to(package_root)}")
+        target_path.write_bytes(payload_data)
+        written_files.append(target_path)
+        written_virtual_paths.add(normalized_key)
+        payload_paths.append(normalized_target_path)
+        if not isinstance(spec.target_entry, ArchiveEntry):
+            new_file_paths.append(normalized_target_path)
 
     manifest_path = write_mod_package_manifest(
         package_root,
         package_info,
         kind="archive_loose_mod",
         extra_fields={"file_count": len(written_files)},
-        all_payload_paths=[path.relative_to(package_root).as_posix() for path in written_files],
+        new_file_paths=new_file_paths,
+        all_payload_paths=payload_paths or [path.relative_to(package_root).as_posix() for path in written_files],
         export_options=export_options if isinstance(export_options, ModPackageExportOptions) else None,
         create_no_encrypt_file=create_no_encrypt_file,
     )
@@ -2845,114 +2935,39 @@ def _find_matching_skeleton_entry(
     *,
     archive_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
-) -> tuple[Optional[ArchiveEntry], str, Tuple[str, ...]]:
-    normalized_entry_path = str(entry.path or "").replace("\\", "/").strip()
-    expected_path = PurePosixPath(normalized_entry_path).with_suffix(".pab").as_posix()
-    expected_normalized = _normalize_virtual_path(expected_path)
-    candidate_basenames = iter_pab_candidate_basenames(normalized_entry_path)
-    resolution_tokens: Tuple[str, ...] = tuple(
-        token
-        for token in (
-            PurePosixPath(normalized_entry_path).stem.lower(),
-            *(PurePosixPath(candidate).stem.lower() for candidate in candidate_basenames),
-            *(
-                str(part or "").strip().lower()
-                for part in PurePosixPath(normalized_entry_path.lower()).parts
-                if str(part or "").strip()
-            ),
-        )
-        if token
+) -> tuple[Optional[ArchiveEntry], str, Tuple[str, ...], SkeletonResolveReport]:
+    from cdmw.core.archive import read_archive_entry_data
+
+    try:
+        pac_data, _decompressed, _note = read_archive_entry_data(entry)
+    except Exception:
+        pac_data = b""
+
+    def _read_candidate(candidate: ArchiveEntry) -> bytes:
+        payload, _decompressed, _note = read_archive_entry_data(candidate)
+        return payload
+
+    skeleton_entry, report = resolve_skeleton_for_model(
+        entry,
+        (),
+        archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+        archive_entries_by_basename=archive_entries_by_basename,
+        pac_data=pac_data,
+        read_entry_data=_read_candidate,
     )
-
-    attempted_paths: List[str] = []
-    seen_attempts: set[str] = set()
-
-    def _remember_attempt(raw_value: str) -> None:
-        normalized_value = _normalize_virtual_path(raw_value)
-        if not normalized_value or normalized_value in seen_attempts:
-            return
-        seen_attempts.add(normalized_value)
-        attempted_paths.append(raw_value.replace("\\", "/"))
-
-    def _score_candidate(
-        candidate: ArchiveEntry,
-        *,
-        exact_path: bool = False,
-        matched_basename: str = "",
-    ) -> int:
-        candidate_path = _normalize_virtual_path(candidate.path)
-        if not candidate_path.endswith(".pab"):
-            return -1
-        score = 0
-        if exact_path or candidate_path == expected_normalized:
-            score += 100
-        if matched_basename:
-            score += 30
-        if candidate.pamt_path.parent == entry.pamt_path.parent:
-            score += 10
-        if PurePosixPath(candidate_path).parent == PurePosixPath(expected_normalized).parent:
-            score += 12
-        if "skeleton" in PurePosixPath(candidate_path).parts:
-            score += 15
-        for token in resolution_tokens:
-            if token and token in candidate_path:
-                score += 3
-        return score
-
-    best_entry: Optional[ArchiveEntry] = None
-    best_score = -1
-    seen_candidate_paths: set[str] = set()
-
-    def _consider_candidates(
-        candidates: Sequence[ArchiveEntry],
-        *,
-        exact_path: bool = False,
-        matched_basename: str = "",
-    ) -> None:
-        nonlocal best_entry, best_score
-        for candidate in candidates:
-            candidate_path = _normalize_virtual_path(candidate.path)
-            if not candidate_path or candidate_path in seen_candidate_paths:
-                continue
-            seen_candidate_paths.add(candidate_path)
-            score = _score_candidate(
-                candidate,
-                exact_path=exact_path,
-                matched_basename=matched_basename,
-            )
-            if score > best_score:
-                best_score = score
-                best_entry = candidate
-
-    _remember_attempt(expected_path)
-    if archive_entries_by_normalized_path is not None:
-        _consider_candidates(
-            archive_entries_by_normalized_path.get(expected_normalized, ()),
-            exact_path=True,
-            matched_basename=PurePosixPath(expected_path).name.lower(),
-        )
-
-    if archive_entries_by_basename is not None:
-        for candidate_basename in candidate_basenames:
-            _remember_attempt(candidate_basename)
-            _consider_candidates(
-                archive_entries_by_basename.get(candidate_basename.lower(), ()),
-                matched_basename=candidate_basename.lower(),
-            )
-
-    if best_entry is not None:
-        return best_entry, "", tuple(attempted_paths)
-
+    if skeleton_entry is not None:
+        return skeleton_entry, "", tuple(report.attempted_paths), report
     detail = (
-        f"Could not resolve a matching PAB skeleton for {entry.path}. "
-        f"Tried {len(attempted_paths):,} candidate path(s)/basename(s)."
+        report.blocking_errors[0]
+        if report.blocking_errors
+        else f"Could not resolve a matching PAB skeleton for {entry.path}."
     )
-    if attempted_paths:
-        preview = ", ".join(attempted_paths[:5])
-        if len(attempted_paths) > 5:
+    if report.attempted_paths:
+        preview = ", ".join(report.attempted_paths[:5])
+        if len(report.attempted_paths) > 5:
             preview += " ..."
         detail += f"\nTried: {preview}"
-    return None, detail, tuple(attempted_paths)
+    return None, detail, tuple(report.attempted_paths), report
 
 
 def export_archive_mesh(
@@ -2984,9 +2999,10 @@ def export_archive_mesh(
     skeleton: Optional[Skeleton] = None
     skeleton_entry: Optional[ArchiveEntry] = None
     skeleton_resolution_warning = ""
+    skeleton_resolve_report: Optional[SkeletonResolveReport] = None
     copied_related_count = 0
     if entry.extension == ".pac":
-        skeleton_entry, skeleton_resolution_warning, _attempted_paths = _find_matching_skeleton_entry(
+        skeleton_entry, skeleton_resolution_warning, _attempted_paths, skeleton_resolve_report = _find_matching_skeleton_entry(
             entry,
             archive_entries_by_normalized_path=archive_entries_by_normalized_path,
             archive_entries_by_basename=archive_entries_by_basename,
@@ -3149,6 +3165,21 @@ def export_archive_mesh(
                 for reference in model_texture_references
                 if str(getattr(reference, "relation_group", "") or "").strip() == "Textures"
             ]
+            skeleton_resolver_payload = (
+                dataclasses.asdict(skeleton_resolve_report)
+                if skeleton_resolve_report is not None
+                else {}
+            )
+            skin_binding_payload = (
+                build_skin_binding_map(
+                    skeleton,
+                    (),
+                    source_path=skeleton_entry.path if skeleton_entry is not None else entry.path,
+                    strict=True,
+                ).to_dict()
+                if skeleton is not None and getattr(skeleton, "bones", None)
+                else {}
+            )
             manifest_path = write_roundtrip_manifest(
                 parsed_mesh,
                 manifest_target_path,
@@ -3164,6 +3195,8 @@ def export_archive_mesh(
                     "sidecar_hashes": sidecar_hashes,
                     "paired_pamlod_target": paired_lod_target,
                     "skeleton_identity": skeleton_entry.path if skeleton_entry is not None else "",
+                    "skeleton_resolver": skeleton_resolver_payload,
+                    "skin_binding_map": skin_binding_payload,
                 },
             )
             if manifest_path not in output_paths:
@@ -3183,6 +3216,11 @@ def export_archive_mesh(
     if skeleton_entry is not None and skeleton is not None and skeleton.bones:
         summary_lines.append(f"Skeleton: {skeleton_entry.path}")
         summary_lines.append(f"Skeleton bones: {len(skeleton.bones):,}")
+        if skeleton_resolve_report is not None:
+            summary_lines.append(
+                f"Skeleton confidence: {skeleton_resolve_report.confidence}"
+                + (f" ({skeleton_resolve_report.reason})" if skeleton_resolve_report.reason else "")
+            )
     elif export_kind == "fbx" and entry.extension == ".pac":
         summary_lines.append("Skeleton: mesh-only export")
         if skeleton_resolution_warning:
@@ -3192,7 +3230,7 @@ def export_archive_mesh(
 
 def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPreviewMesh]:
     preview_meshes: List[ModelPreviewMesh] = []
-    for submesh in submeshes:
+    for submesh_index, submesh in enumerate(submeshes):
         if not submesh.vertices or not submesh.faces:
             continue
         indices: List[int] = []
@@ -3206,6 +3244,8 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
                 texture_coordinates=[tuple(uv) for uv in submesh.uvs[: len(submesh.vertices)]],
                 normals=[tuple(normal) for normal in submesh.normals[: len(submesh.vertices)]],
                 indices=indices,
+                source_submesh_index=submesh_index,
+                source_vertex_indices=list(range(len(submesh.vertices))),
             )
         )
     return preview_meshes
@@ -3662,7 +3702,7 @@ def _apply_generated_static_texture_previews(
                 mesh.preview_height_texture_path = preview_path
                 mesh.preview_height_texture_name = source_name
                 assigned_count += 1
-            elif slot_kind == "material":
+            elif slot_kind in {"material", "material_mask", "detail_mask"}:
                 semantic_type, semantic_subtype, _confidence, packed_channels = _resolve_model_texture_semantic_details(source_name)
                 mesh.preview_material_texture_path = preview_path
                 mesh.preview_material_texture_name = source_name
@@ -3706,7 +3746,7 @@ def _apply_generated_static_texture_previews(
                 mesh.preview_height_texture_path = preview_path
                 mesh.preview_height_texture_name = source_name
                 assigned_count += 1
-            elif slot_kind == "material" and not str(getattr(mesh, "preview_material_texture_path", "") or "").strip():
+            elif slot_kind in {"material", "material_mask", "detail_mask"} and not str(getattr(mesh, "preview_material_texture_path", "") or "").strip():
                 semantic_type, semantic_subtype, _confidence, packed_channels = _resolve_model_texture_semantic_details(source_name)
                 mesh.preview_material_texture_path = preview_path
                 mesh.preview_material_texture_name = source_name
@@ -4057,12 +4097,20 @@ def build_mesh_import_preview(
         archive_entries_by_normalized_path=archive_entries_by_normalized_path,
         archive_entries_by_basename=texture_entries_by_basename,
     )
-    if normalized_import_mode == "static_replacement" and resolved_supplemental_files:
+    texture_slot_overrides = tuple(getattr(static_replacement_options, "texture_slot_overrides", ()) or ())
+    source_material_texture_overrides = tuple(
+        getattr(static_replacement_options, "source_material_texture_overrides", ()) or ()
+    )
+    donor_material_plans = tuple(getattr(static_replacement_options, "donor_material_plans", ()) or ())
+    if (
+        normalized_import_mode == "static_replacement"
+        and (resolved_supplemental_files or texture_slot_overrides or source_material_texture_overrides or donor_material_plans)
+    ):
         original_sidecars = _collect_original_mesh_sidecar_texts(entry, texture_entries_by_basename)
         texture_source_files = tuple(
             path for path in resolved_supplemental_files if path.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS
         )
-        if texture_source_files:
+        if texture_source_files or texture_slot_overrides or source_material_texture_overrides or donor_material_plans:
             try:
                 generated_payloads, texture_replacement_report = build_texture_replacement_payloads(
                     obj_mesh=effective_static_source_mesh,
@@ -4075,9 +4123,9 @@ def build_mesh_import_preview(
                     read_original_texture_bytes=_mesh_texture_original_bytes,
                     original_texture_source_path=_mesh_texture_original_source_path,
                     enable_missing_base_color_parameters=enable_missing_base_color_parameters,
-                    texture_slot_overrides=tuple(
-                        getattr(static_replacement_options, "texture_slot_overrides", ()) or ()
-                    ),
+                    texture_slot_overrides=texture_slot_overrides,
+                    source_material_texture_overrides=source_material_texture_overrides,
+                    donor_material_plans=donor_material_plans,
                     texture_output_size_mode=str(
                         getattr(static_replacement_options, "texture_output_size_mode", "source") or "source"
                     ),
@@ -4090,6 +4138,19 @@ def build_mesh_import_preview(
                 texture_replacement_report = None
                 summary_lines.append(f"Static texture replacement failed: {exc}")
             if texture_replacement_report is not None:
+                material_routes = tuple(getattr(texture_replacement_report, "material_routes", ()) or ())
+                if material_routes:
+                    summary_lines.append("Static source material routing:")
+                    for route in material_routes[:16]:
+                        roles = ", ".join(tuple(getattr(route, "detected_roles", ()) or ())) or "-"
+                        source_material = str(getattr(route, "source_material_name", "") or "-")
+                        summary_lines.append(
+                            "  "
+                            f"{getattr(route, 'target_material_name', '')} <- {source_material} "
+                            f"[{getattr(route, 'status', 'Unknown')}; {roles}]"
+                        )
+                    if len(material_routes) > 16:
+                        summary_lines.append(f"  ... {len(material_routes) - 16:,} more routing row(s)")
                 if texture_replacement_report.slot_mappings:
                     summary_lines.append("Static texture replacement mapping:")
                     summary_lines.extend(

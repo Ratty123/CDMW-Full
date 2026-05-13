@@ -12,10 +12,11 @@ import struct
 import sys
 import tempfile
 import threading
+import time
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, cast
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, cast
 
 try:
     from PIL import Image as PilImage
@@ -937,6 +938,496 @@ def parse_dds(dds_path: Path) -> DdsInfo:
     )
 
 
+_CRIMSON_DDS_BLOCK_BYTES_BY_DXGI: Dict[int, int] = {
+    71: 8,
+    72: 8,
+    74: 16,
+    75: 16,
+    77: 16,
+    78: 16,
+    80: 8,
+    81: 8,
+    83: 16,
+    84: 16,
+    95: 16,
+    96: 16,
+    98: 16,
+    99: 16,
+}
+_TEXCONV_WORKFLOW_TIMEOUT_SECONDS = 10.0 * 60.0
+_TEXCONV_WORKFLOW_WARNING_INTERVAL_SECONDS = 30.0
+_CRIMSON_DDS_BLOCK_BYTES_BY_FOURCC: Dict[bytes, int] = {
+    b"DXT1": 8,
+    b"BC4U": 8,
+    b"BC4S": 8,
+    b"ATI1": 8,
+    b"DXT3": 16,
+    b"DXT5": 16,
+    b"BC5U": 16,
+    b"BC5S": 16,
+    b"ATI2": 16,
+    b"RXGB": 16,
+}
+_CRIMSON_DDS_LAST4_BC1_DXGI = frozenset({71, 72})
+_CRIMSON_DDS_LAST4_BC2_BC3_BC7_DXGI = frozenset({74, 75, 77, 78, 98, 99})
+_CRIMSON_DDS_LAST4_BC4_BC5_BC6_DXGI = frozenset({80, 81, 83, 84, 95, 96})
+_CRIMSON_DDS_PATHC_REQUIRED_DXGI = frozenset({95, 96, 98, 99})
+
+
+def _crimson_dds_finding(
+    findings: List[CrimsonDdsFinding],
+    severity: Literal["fatal", "warning", "info"],
+    code: str,
+    message: str,
+) -> None:
+    findings.append(CrimsonDdsFinding(severity=severity, code=code, message=message))
+
+
+def _crimson_dds_format_block_bytes(dxgi_format: int, fourcc: bytes) -> Optional[int]:
+    if dxgi_format in _CRIMSON_DDS_BLOCK_BYTES_BY_DXGI:
+        return _CRIMSON_DDS_BLOCK_BYTES_BY_DXGI[dxgi_format]
+    return _CRIMSON_DDS_BLOCK_BYTES_BY_FOURCC.get(bytes(fourcc or b"").upper())
+
+
+def _crimson_dds_expected_payload_size(
+    *,
+    width: int,
+    height: int,
+    mip_count: int,
+    block_bytes: Optional[int],
+    rgb_bit_count: int = 0,
+) -> int:
+    levels = max(1, int(mip_count or 1))
+    total = 0
+    current_width = max(1, int(width or 0))
+    current_height = max(1, int(height or 0))
+    for _level in range(levels):
+        if block_bytes:
+            total += max(1, (current_width + 3) // 4) * max(1, (current_height + 3) // 4) * int(block_bytes)
+        elif rgb_bit_count:
+            bytes_per_pixel = max(1, (int(rgb_bit_count) + 7) // 8)
+            total += current_width * current_height * bytes_per_pixel
+        else:
+            return 0
+        current_width = max(1, current_width // 2)
+        current_height = max(1, current_height // 2)
+    return total
+
+
+def validate_dds_payload_size(
+    source: bytes | bytearray | memoryview | Path,
+) -> Tuple[bool, str, int, int]:
+    if isinstance(source, (bytes, bytearray, memoryview)):
+        blob = bytes(source)
+    else:
+        blob = Path(source).read_bytes()
+    if len(blob) < 128 or blob[:4] != DDS_MAGIC:
+        return False, "DDS header is missing or too short.", len(blob), 128
+    header = blob[4:128]
+    header_flags = read_u32_le(header, 4)
+    required_header_flags = 0x1 | 0x2 | 0x4 | 0x1000
+    if (header_flags & required_header_flags) != required_header_flags:
+        return True, "DDS payload size could not be proven because required header flags are missing.", len(blob), len(blob)
+    pf_flags = read_u32_le(header, 76)
+    fourcc = header[80:84]
+    rgb_bit_count = read_u32_le(header, 84)
+    width = read_u32_le(header, 12)
+    height = read_u32_le(header, 8)
+    mip_count = max(1, read_u32_le(header, 24) or 1)
+    is_dx10 = bool((pf_flags & DDPF_FOURCC) and fourcc == b"DX10")
+    if is_dx10 and len(blob) < 148:
+        return False, "DDS declares DX10 metadata, but the DX10 header is missing.", len(blob), 148
+    dxgi_format = read_u32_le(blob, 128) if is_dx10 else 0
+    block_bytes = _crimson_dds_format_block_bytes(dxgi_format, fourcc)
+    payload_size = _crimson_dds_expected_payload_size(
+        width=width,
+        height=height,
+        mip_count=mip_count,
+        block_bytes=block_bytes,
+        rgb_bit_count=rgb_bit_count if not block_bytes else 0,
+    )
+    if payload_size <= 0:
+        return True, "DDS payload size could not be proven for this format.", len(blob), len(blob)
+    header_size = 148 if is_dx10 else 128
+    expected_total = header_size + payload_size
+    if len(blob) < expected_total:
+        return (
+            False,
+            f"DDS payload is truncated: {len(blob):,} byte(s), expected at least {expected_total:,}.",
+            len(blob),
+            expected_total,
+        )
+    return True, "DDS payload size is valid.", len(blob), expected_total
+
+
+def _crimson_dds_expected_mips(width: int, height: int, depth: int = 0) -> int:
+    largest = max(1, int(width or 0), int(height or 0), int(depth or 1))
+    return max(1, int(math.floor(math.log2(largest))) + 1)
+
+
+def _crimson_dds_is_power_of_two(value: int) -> bool:
+    numeric = int(value or 0)
+    return numeric > 0 and (numeric & (numeric - 1)) == 0
+
+
+def classify_crimson_dds_vpath_last4(vpath: str) -> Optional[int]:
+    normalized = str(vpath or "").replace("\\", "/").strip()
+    if not normalized:
+        return None
+    normalized = "/" + normalized.lstrip("/")
+    lowered = normalized.lower()
+    name = PurePosixPath(lowered).name
+    if lowered.startswith("/ui/"):
+        return 0x1580
+    if lowered.startswith("/character/texture/") and name.endswith("_n.dds"):
+        return 0x0480
+    if lowered.startswith("/character/texture/") and "tattoo" in name:
+        return 0x1380
+    if lowered.startswith("/character/texture/"):
+        return 0x1280
+    return None
+
+
+def crimson_dds_format_last4(
+    *,
+    dxgi_format: int = 0,
+    fourcc: bytes | str = b"",
+    texconv_format: str = "",
+) -> Optional[int]:
+    fourcc_bytes = (
+        str(fourcc or "").encode("ascii", errors="ignore")
+        if isinstance(fourcc, str)
+        else bytes(fourcc or b"")
+    ).upper()
+    normalized_format = str(texconv_format or "").strip().upper()
+    if int(dxgi_format or 0) in _CRIMSON_DDS_LAST4_BC1_DXGI or fourcc_bytes == b"DXT1" or normalized_format.startswith("BC1_"):
+        return 12
+    if (
+        int(dxgi_format or 0) in _CRIMSON_DDS_LAST4_BC2_BC3_BC7_DXGI
+        or fourcc_bytes in {b"DXT3", b"DXT5"}
+        or normalized_format.startswith(("BC2_", "BC3_", "BC7_"))
+    ):
+        return 15
+    if (
+        int(dxgi_format or 0) in _CRIMSON_DDS_LAST4_BC4_BC5_BC6_DXGI
+        or fourcc_bytes in {b"ATI1", b"ATI2", b"BC4U", b"BC4S", b"BC5U", b"BC5S"}
+        or normalized_format.startswith(("BC4_", "BC5_", "BC6H_"))
+    ):
+        return 4
+    return None
+
+
+def _crimson_dds_texconv_format(
+    *,
+    pf_flags: int,
+    fourcc: bytes,
+    rgb_bit_count: int,
+    r_mask: int,
+    g_mask: int,
+    b_mask: int,
+    a_mask: int,
+    dxgi_format: int,
+    findings: List[CrimsonDdsFinding],
+) -> str:
+    if pf_flags & DDPF_FOURCC:
+        if fourcc == b"DX10":
+            texconv_format = DXGI_TO_TEXCONV.get(dxgi_format, "")
+            if not texconv_format:
+                _crimson_dds_finding(
+                    findings,
+                    "warning",
+                    "unknown_dxgi_format",
+                    f"DDS uses an unknown DXGI format id: {dxgi_format}.",
+                )
+            return texconv_format
+        texconv_format = LEGACY_FOURCC_TO_TEXCONV.get(fourcc, "")
+        if not texconv_format:
+            numeric_fourcc = read_u32_le(fourcc, 0) if len(fourcc) >= 4 else 0
+            texconv_format = LEGACY_NUMERIC_FOURCC_TO_TEXCONV.get(numeric_fourcc, "")
+        if not texconv_format:
+            pretty_fourcc = fourcc.decode("ascii", errors="replace")
+            _crimson_dds_finding(
+                findings,
+                "warning",
+                "unknown_fourcc",
+                f"DDS uses an unknown legacy FOURCC: {pretty_fourcc!r}.",
+            )
+        return texconv_format
+    if pf_flags & DDPF_RGB:
+        if rgb_bit_count == 32:
+            if (r_mask, g_mask, b_mask, a_mask) == (
+                0x000000FF,
+                0x0000FF00,
+                0x00FF0000,
+                0xFF000000,
+            ):
+                return "R8G8B8A8_UNORM"
+            if (r_mask, g_mask, b_mask, a_mask) == (
+                0x00FF0000,
+                0x0000FF00,
+                0x000000FF,
+                0xFF000000,
+            ):
+                return "B8G8R8A8_UNORM"
+            if (r_mask, g_mask, b_mask, a_mask) == (
+                0x00FF0000,
+                0x0000FF00,
+                0x000000FF,
+                0x00000000,
+            ):
+                return "B8G8R8X8_UNORM"
+        _crimson_dds_finding(
+            findings,
+            "warning",
+            "unknown_rgb_layout",
+            f"DDS uses an unsupported RGB layout: bits={rgb_bit_count}.",
+        )
+        return ""
+    if pf_flags & DDPF_LUMINANCE:
+        texconv_format = _legacy_luminance_texconv_format(rgb_bit_count, r_mask, g_mask, b_mask, a_mask) or ""
+        if not texconv_format:
+            _crimson_dds_finding(
+                findings,
+                "warning",
+                "unknown_luminance_layout",
+                f"DDS uses an unsupported luminance layout: bits={rgb_bit_count}.",
+            )
+        return texconv_format
+    if pf_flags & DDPF_ALPHA:
+        texconv_format = _legacy_alpha_texconv_format(rgb_bit_count, r_mask, g_mask, b_mask, a_mask) or ""
+        if not texconv_format:
+            _crimson_dds_finding(
+                findings,
+                "warning",
+                "unknown_alpha_layout",
+                f"DDS uses an unsupported alpha-only layout: bits={rgb_bit_count}.",
+            )
+        return texconv_format
+    _crimson_dds_finding(
+        findings,
+        "warning",
+        "unknown_pixel_format_flags",
+        f"DDS uses unsupported pixel format flags: 0x{pf_flags:08X}.",
+    )
+    return ""
+
+
+def inspect_crimson_dds(
+    source: bytes | bytearray | memoryview | Path,
+    *,
+    vpath: str = "",
+    pathc_last4: Optional[int] = None,
+) -> CrimsonDdsInfo:
+    source_path: Optional[Path] = None
+    if isinstance(source, (bytes, bytearray, memoryview)):
+        blob = bytes(source)
+    else:
+        source_path = Path(source)
+        blob = source_path.read_bytes()
+
+    findings: List[CrimsonDdsFinding] = []
+    normalized_vpath = str(vpath or "").replace("\\", "/").strip()
+    if len(blob) < 128:
+        _crimson_dds_finding(
+            findings,
+            "fatal",
+            "header_too_short",
+            f"DDS header is too short: {len(blob):,} bytes.",
+        )
+        return CrimsonDdsInfo(
+            source_path=source_path,
+            vpath=normalized_vpath,
+            findings=tuple(findings),
+        )
+    if blob[:4] != DDS_MAGIC:
+        _crimson_dds_finding(findings, "fatal", "bad_magic", "DDS magic is missing.")
+        return CrimsonDdsInfo(
+            source_path=source_path,
+            vpath=normalized_vpath,
+            findings=tuple(findings),
+        )
+
+    header = blob[4:128]
+    header_size = read_u32_le(header, 0)
+    if header_size != 124:
+        _crimson_dds_finding(
+            findings,
+            "fatal",
+            "bad_header_size",
+            f"DDS header size is {header_size}, expected 124.",
+        )
+    height = read_u32_le(header, 8)
+    width = read_u32_le(header, 12)
+    depth = read_u32_le(header, 20)
+    raw_mip_count = read_u32_le(header, 24)
+    mip_count = max(1, int(raw_mip_count or 1))
+    reserved1 = tuple(struct.unpack_from("<11I", header, 28))
+    pf_size = read_u32_le(header, 72)
+    if pf_size != 32:
+        _crimson_dds_finding(
+            findings,
+            "fatal",
+            "bad_pixel_format_size",
+            f"DDS pixel format size is {pf_size}, expected 32.",
+        )
+    pf_flags = read_u32_le(header, 76)
+    fourcc = header[80:84]
+    rgb_bit_count = read_u32_le(header, 84)
+    r_mask = read_u32_le(header, 88)
+    g_mask = read_u32_le(header, 92)
+    b_mask = read_u32_le(header, 96)
+    a_mask = read_u32_le(header, 100)
+    crimson_last4_header = read_u32_le(header, 120)
+    is_dx10 = bool((pf_flags & DDPF_FOURCC) and fourcc == b"DX10")
+    dxgi_format = 0
+    if is_dx10:
+        if len(blob) < 148:
+            _crimson_dds_finding(
+                findings,
+                "fatal",
+                "dx10_header_too_short",
+                "DDS declares a DX10 header, but the 20-byte DX10 payload is missing.",
+            )
+        else:
+            dxgi_format = read_u32_le(blob, 128)
+
+    texconv_format = _crimson_dds_texconv_format(
+        pf_flags=pf_flags,
+        fourcc=fourcc,
+        rgb_bit_count=rgb_bit_count,
+        r_mask=r_mask,
+        g_mask=g_mask,
+        b_mask=b_mask,
+        a_mask=a_mask,
+        dxgi_format=dxgi_format,
+        findings=findings,
+    )
+    block_bytes = _crimson_dds_format_block_bytes(dxgi_format, fourcc)
+    path_class_last4 = classify_crimson_dds_vpath_last4(normalized_vpath)
+    format_last4 = crimson_dds_format_last4(
+        dxgi_format=dxgi_format,
+        fourcc=fourcc,
+        texconv_format=texconv_format,
+    )
+    resolved_pathc_last4 = int(pathc_last4) if pathc_last4 is not None else None
+    effective_last4 = (
+        resolved_pathc_last4
+        if resolved_pathc_last4 is not None
+        else path_class_last4
+        if path_class_last4 is not None
+        else format_last4
+    )
+    requires_pathc = bool(is_dx10 and dxgi_format in _CRIMSON_DDS_PATHC_REQUIRED_DXGI)
+
+    if depth <= 0:
+        _crimson_dds_finding(
+            findings,
+            "warning",
+            "depth_zero",
+            "DDS depth field is 0; preserve the target template/PATHC context for Crimson replacements.",
+        )
+    if raw_mip_count <= 0:
+        _crimson_dds_finding(findings, "warning", "mip_count_zero", "DDS mip count field is 0; treating it as 1.")
+    if width <= 0 or height <= 0:
+        _crimson_dds_finding(
+            findings,
+            "fatal",
+            "bad_dimensions",
+            f"DDS dimensions are invalid: {width}x{height}.",
+        )
+    elif not (_crimson_dds_is_power_of_two(width) and _crimson_dds_is_power_of_two(height)):
+        _crimson_dds_finding(
+            findings,
+            "warning",
+            "non_power_of_two_dims",
+            f"DDS dimensions are not powers of two: {width}x{height}.",
+        )
+    expected_mips = _crimson_dds_expected_mips(width, height, depth)
+    if width > 1 and height > 1 and raw_mip_count > 0 and mip_count < expected_mips:
+        _crimson_dds_finding(
+            findings,
+            "warning",
+            "missing_mips",
+            f"DDS mip chain has {mip_count} level(s); {expected_mips} would be a full chain for {width}x{height}.",
+        )
+    if requires_pathc:
+        _crimson_dds_finding(
+            findings,
+            "info",
+            "requires_pathc",
+            f"DDS format {texconv_format or dxgi_format} uses DX10 metadata and should be registered through PATHC/manifest metadata.",
+        )
+    if effective_last4 is not None:
+        _crimson_dds_finding(
+            findings,
+            "info",
+            "effective_last4",
+            f"Effective Crimson last4 class is 0x{effective_last4:04X}.",
+        )
+    payload_ok, payload_message, payload_actual, payload_expected = validate_dds_payload_size(blob)
+    if not payload_ok:
+        _crimson_dds_finding(
+            findings,
+            "fatal",
+            "payload_truncated",
+            payload_message,
+        )
+    elif payload_message == "DDS payload size is valid.":
+        _crimson_dds_finding(
+            findings,
+            "info",
+            "payload_size_valid",
+            payload_message,
+        )
+    if crimson_last4_header and effective_last4 is not None:
+        if crimson_last4_header == effective_last4:
+            _crimson_dds_finding(
+                findings,
+                "info",
+                "overlay_patched",
+                f"DDS header last4 already matches 0x{effective_last4:04X}.",
+            )
+        else:
+            _crimson_dds_finding(
+                findings,
+                "warning",
+                "last4_mismatch",
+                f"DDS header last4 is 0x{crimson_last4_header:04X}; expected 0x{effective_last4:04X} for this path/format.",
+            )
+
+    return CrimsonDdsInfo(
+        source_path=source_path,
+        vpath=normalized_vpath,
+        width=width,
+        height=height,
+        mip_count=mip_count,
+        raw_mip_count=raw_mip_count,
+        depth=depth,
+        texconv_format=texconv_format,
+        is_dx10=is_dx10,
+        dxgi_format=dxgi_format,
+        fourcc=fourcc.decode("ascii", errors="replace"),
+        block_bytes=block_bytes,
+        crimson_last4_header=crimson_last4_header or None,
+        last4_pathc=resolved_pathc_last4,
+        last4_path_class=path_class_last4,
+        last4_format_derived=format_last4,
+        effective_last4=effective_last4,
+        requires_pathc=requires_pathc,
+        reserved1=reserved1,
+        findings=tuple(findings),
+    )
+
+
+def validate_crimson_dds(
+    source: bytes | bytearray | memoryview | Path,
+    *,
+    vpath: str = "",
+    pathc_last4: Optional[int] = None,
+) -> Tuple[CrimsonDdsFinding, ...]:
+    return inspect_crimson_dds(source, vpath=vpath, pathc_last4=pathc_last4).findings
+
+
 def read_png_dimensions(png_path: Path) -> Tuple[int, int]:
     with png_path.open("rb") as handle:
         signature = handle.read(8)
@@ -1198,6 +1689,38 @@ def build_texconv_command(
     return cmd
 
 
+def _run_texture_workflow_texconv(
+    cmd: Sequence[str],
+    *,
+    detail_label: str,
+    on_log: Optional[Callable[[str], None]],
+    stop_event: Optional[threading.Event],
+) -> Tuple[int, str, str, float]:
+    started_at = time.monotonic()
+
+    def emit_timeout_warning(elapsed_seconds: float) -> None:
+        if on_log:
+            on_log(
+                f"{detail_label} is still running after {elapsed_seconds:.0f}s; "
+                f"texconv will be stopped after {_TEXCONV_WORKFLOW_TIMEOUT_SECONDS:.0f}s."
+            )
+
+    try:
+        return_code, stdout, stderr = run_process_with_cancellation(
+            cmd,
+            stop_event=stop_event,
+            timeout_seconds=_TEXCONV_WORKFLOW_TIMEOUT_SECONDS,
+            timeout_warning_interval_seconds=_TEXCONV_WORKFLOW_WARNING_INTERVAL_SECONDS,
+            on_timeout_warning=emit_timeout_warning,
+        )
+    except ProcessTimeoutExpired:
+        elapsed_seconds = time.monotonic() - started_at
+        if on_log:
+            on_log(f"{detail_label} timed out after {elapsed_seconds:.1f}s; texconv was terminated.")
+        raise
+    return return_code, stdout, stderr, time.monotonic() - started_at
+
+
 def resolve_default_mod_ready_export_root(output_root: Path) -> Path:
     return output_root.parent / f"{output_root.name}_{MOD_READY_EXPORT_DIRNAME}"
 
@@ -1206,7 +1729,7 @@ def build_mod_package_export_options_from_config(config: AppConfig) -> ModPackag
     profile = str(getattr(config, "mod_ready_manager_profile", "universal") or "universal").strip() or "universal"
     defaults = mod_package_export_options_for_manager(profile)
     structure = str(getattr(config, "mod_ready_package_structure", "") or "").strip().lower()
-    if structure not in {"game_relative", "files_wrapper", "custom_compact_paths", "dmm_texture"}:
+    if structure not in {"game_relative", "files_wrapper", "custom_compact_paths", "dmm_texture", "field_json_v31"}:
         structure = defaults.structure
     conflict_mode = str(getattr(config, "mod_ready_conflict_mode", "") or "").strip().lower()
     if conflict_mode not in {"", "override"}:
@@ -3634,6 +4157,15 @@ def ensure_dds_preview_png(
         if preview_path.exists():
             try:
                 if preview_path.stat().st_size > 0:
+                    try:
+                        from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
+
+                        write_native_texture_report_sidecar(
+                            preview_path,
+                            texconv_preview_report(dds_path, preview_path, slot_kind="base"),
+                        )
+                    except Exception:
+                        pass
                     return preview_path
             except OSError:
                 pass
@@ -3646,6 +4178,15 @@ def ensure_dds_preview_png(
             except OSError:
                 continue
         if candidates:
+            try:
+                from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
+
+                write_native_texture_report_sidecar(
+                    candidates[0],
+                    texconv_preview_report(dds_path, candidates[0], slot_kind="base"),
+                )
+            except Exception:
+                pass
             return candidates[0]
 
     raise ValueError(f"texconv did not produce a PNG preview for {dds_path.name}.")
@@ -3705,14 +4246,34 @@ def ensure_dds_display_preview_png(
     except Exception:
         native_preview = None
     if resolved_info is None:
-        return ensure_dds_preview_png(texconv_path, dds_path, stop_event=stop_event)
+        preview_path = ensure_dds_preview_png(texconv_path, dds_path, stop_event=stop_event)
+        try:
+            from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
+
+            write_native_texture_report_sidecar(
+                preview_path,
+                texconv_preview_report(dds_path, preview_path, slot_kind=slot_kind, max_dimension=max_dimension),
+            )
+        except Exception:
+            pass
+        return preview_path
     resize_dims = _preview_resize_dimensions(
         resolved_info.width,
         resolved_info.height,
         max_dimension=max_dimension,
     )
     if resize_dims is None:
-        return ensure_dds_preview_png(texconv_path, dds_path, stop_event=stop_event)
+        preview_path = ensure_dds_preview_png(texconv_path, dds_path, stop_event=stop_event)
+        try:
+            from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
+
+            write_native_texture_report_sidecar(
+                preview_path,
+                texconv_preview_report(dds_path, preview_path, slot_kind=slot_kind, max_dimension=max_dimension),
+            )
+        except Exception:
+            pass
+        return preview_path
 
     stat = dds_path.stat()
     texconv_stat = texconv_path.stat()
@@ -3753,6 +4314,15 @@ def ensure_dds_display_preview_png(
         if preview_path.exists():
             try:
                 if preview_path.stat().st_size > 0:
+                    try:
+                        from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
+
+                        write_native_texture_report_sidecar(
+                            preview_path,
+                            texconv_preview_report(dds_path, preview_path, slot_kind=slot_kind, max_dimension=max_dimension),
+                        )
+                    except Exception:
+                        pass
                     return preview_path
             except OSError:
                 pass
@@ -3760,6 +4330,15 @@ def ensure_dds_display_preview_png(
         for candidate in sorted(cache_dir.glob("*.png")):
             try:
                 if candidate.stat().st_size > 0:
+                    try:
+                        from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
+
+                        write_native_texture_report_sidecar(
+                            candidate,
+                            texconv_preview_report(dds_path, candidate, slot_kind=slot_kind, max_dimension=max_dimension),
+                        )
+                    except Exception:
+                        pass
                     return candidate
             except OSError:
                 continue
@@ -3776,14 +4355,15 @@ def stage_dds_to_pngs(
     on_phase_progress: Optional[Callable[[int, int, str], None]] = None,
     on_current_file: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
-) -> None:
+) -> Dict[str, str]:
     if not config.enable_dds_staging or config.dds_staging_root is None:
-        return
+        return {}
 
     stage_root = config.dds_staging_root
     stage_root.mkdir(parents=True, exist_ok=True)
 
     total = len(processing_plan)
+    failures: Dict[str, str] = {}
     if on_phase:
         on_phase("DDS Staging", "Extracting DDS files to PNG...", False)
     if on_log:
@@ -3795,8 +4375,9 @@ def stage_dds_to_pngs(
         raise_if_cancelled(stop_event)
         dds_path = entry.dds_path
         relative_path = dds_path.relative_to(config.original_dds_root)
+        rel_display = relative_path.as_posix()
         if on_current_file:
-            on_current_file(f"Stage: {relative_path.as_posix()}")
+            on_current_file(f"Stage: {rel_display}")
 
         target_dir = stage_root / relative_path.parent
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -3811,7 +4392,7 @@ def stage_dds_to_pngs(
 
         if should_skip:
             if on_log:
-                on_log(f"[{index}/{total}] STAGE SKIP {relative_path.as_posix()} -> PNG is newer than source DDS")
+                on_log(f"[{index}/{total}] STAGE SKIP {rel_display} -> PNG is newer than source DDS")
             if on_phase_progress:
                 on_phase_progress(index, total, f"{index} / {total} DDS staging files")
             continue
@@ -3820,27 +4401,61 @@ def stage_dds_to_pngs(
         if config.dry_run:
             if on_log:
                 on_log(
-                    f"[{index}/{total}] STAGE DRYRUN {relative_path.as_posix()} -> "
+                    f"[{index}/{total}] STAGE DRYRUN {rel_display} -> "
                     f"{_staging_png_format_for_plan(entry)} staging PNG"
                 )
         else:
-            return_code, stdout, stderr = run_process_with_cancellation(cmd, stop_event=stop_event)
+            try:
+                return_code, stdout, stderr, elapsed_seconds = _run_texture_workflow_texconv(
+                    cmd,
+                    detail_label=f"[{index}/{total}] STAGE {rel_display}",
+                    on_log=on_log,
+                    stop_event=stop_event,
+                )
+            except ProcessTimeoutExpired as exc:
+                detail = str(exc)
+                failures[rel_display] = detail
+                if on_log:
+                    on_log(f"[{index}/{total}] STAGE FAIL {rel_display} -> {detail}")
+                if on_phase_progress:
+                    on_phase_progress(index, total, f"{index} / {total} DDS staging files")
+                continue
             if return_code != 0:
                 detail = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
-                raise ValueError(f"Could not stage {relative_path.as_posix()} to PNG: {detail}")
+                failures[rel_display] = detail
+                if on_log:
+                    on_log(f"[{index}/{total}] STAGE FAIL {rel_display} -> {detail}")
+                if on_phase_progress:
+                    on_phase_progress(index, total, f"{index} / {total} DDS staging files")
+                continue
+            try:
+                produced_size = target_png.stat().st_size
+            except OSError:
+                produced_size = 0
+            if produced_size <= 0:
+                detail = f"texconv reported success but did not produce expected staging PNG: {target_png}"
+                failures[rel_display] = detail
+                if on_log:
+                    on_log(f"[{index}/{total}] STAGE FAIL {rel_display} -> {detail}")
+                if on_phase_progress:
+                    on_phase_progress(index, total, f"{index} / {total} DDS staging files")
+                continue
             if entry.path_kind == "technical_high_precision_path":
                 validation_message = _validate_high_precision_staged_png(target_png, entry)
                 if validation_message is not None and on_log:
                     on_log(
-                        f"[{index}/{total}] STAGE WARNING {relative_path.as_posix()} -> {validation_message}"
+                        f"[{index}/{total}] STAGE WARNING {rel_display} -> {validation_message}"
                     )
             if on_log:
                 on_log(
-                    f"[{index}/{total}] STAGE {relative_path.as_posix()} -> "
-                    f"{_staging_png_format_for_plan(entry)} staging PNG"
+                    f"[{index}/{total}] STAGE {rel_display} -> "
+                    f"{_staging_png_format_for_plan(entry)} staging PNG in {elapsed_seconds:.1f}s "
+                    f"({produced_size:,} bytes)"
                 )
         if on_phase_progress:
             on_phase_progress(index, total, f"{index} / {total} DDS staging files")
+
+    return failures
 
 
 def build_compare_preview_pane_result(
@@ -4396,15 +5011,29 @@ def convert_dds_to_pngs(
                     status = "dry-run"
                     note = "planned DDS to PNG conversion"
                 else:
-                    return_code, stdout, stderr = run_process_with_cancellation(cmd, stop_event=stop_event)
+                    return_code, stdout, stderr, elapsed_seconds = _run_texture_workflow_texconv(
+                        cmd,
+                        detail_label=f"[{index}/{total}] CONVERT {rel_display}",
+                        on_log=on_log,
+                        stop_event=stop_event,
+                    )
                     if return_code != 0:
                         failed += 1
                         status = "failed"
                         note = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
                     else:
-                        converted += 1
-                        status = "converted"
-                        note = "DDS converted to PNG"
+                        try:
+                            produced_size = target_png.stat().st_size
+                        except OSError:
+                            produced_size = 0
+                        if produced_size <= 0:
+                            failed += 1
+                            status = "failed"
+                            note = f"texconv reported success but did not produce expected PNG: {target_png}"
+                        else:
+                            converted += 1
+                            status = "converted"
+                            note = f"DDS converted to PNG in {elapsed_seconds:.1f}s ({produced_size:,} bytes)"
 
                 results.append(
                     JobResult(
@@ -4643,6 +5272,7 @@ def rebuild_dds_files(
     plan_by_rel = {entry.relative_path.as_posix(): entry for entry in processing_plan}
     plan_entries_requiring_png = [entry for entry in processing_plan if entry.requires_png_processing]
     dds_files_requiring_png = [entry.dds_path for entry in plan_entries_requiring_png]
+    staging_failures: Dict[str, str] = {}
 
     if normalized.upscale_backend == UPSCALE_BACKEND_NONE or dds_files_requiring_png:
         normalized = validate_backend_runtime_requirements(normalized)
@@ -4674,7 +5304,7 @@ def rebuild_dds_files(
         emit_log(line)
 
     if normalized.enable_dds_staging and dds_files_requiring_png:
-        stage_dds_to_pngs(
+        staging_failures = stage_dds_to_pngs(
             normalized,
             plan_entries_requiring_png,
             on_log=on_log,
@@ -4683,36 +5313,46 @@ def rebuild_dds_files(
             on_current_file=on_current_file,
             stop_event=stop_event,
         )
+        if staging_failures:
+            emit_log(f"DDS staging completed with {len(staging_failures)} failed file(s); failed files will be reported in the rebuild summary.")
         if normalized.upscale_backend == UPSCALE_BACKEND_NONE and normalized.dds_staging_root is not None:
             active_png_root = normalized.dds_staging_root
     elif normalized.enable_dds_staging:
         emit_log("DDS staging skipped because no files require PNG/upscale processing under the current policy.")
 
-    if dds_files_requiring_png:
+    backend_processing_plan = [
+        entry for entry in processing_plan if entry.relative_path.as_posix() not in staging_failures
+    ]
+    backend_plan_entries_requiring_png = [
+        entry for entry in plan_entries_requiring_png if entry.relative_path.as_posix() not in staging_failures
+    ]
+    backend_dds_files_requiring_png = [entry.dds_path for entry in backend_plan_entries_requiring_png]
+
+    if backend_dds_files_requiring_png:
         overlay_texture_editor_pngs(
             normalized.texture_editor_png_root,
             active_png_root,
-            [entry.relative_path for entry in plan_entries_requiring_png],
+            [entry.relative_path for entry in backend_plan_entries_requiring_png],
             on_log=on_log,
             stop_event=stop_event,
         )
 
-    if normalized.upscale_backend == UPSCALE_BACKEND_CHAINNER and dds_files_requiring_png:
+    if normalized.upscale_backend == UPSCALE_BACKEND_CHAINNER and backend_dds_files_requiring_png:
         run_chainner_stage(
             normalized,
             input_root=active_png_root,
-            expected_relative_paths=[entry.relative_path.with_suffix(".png") for entry in plan_entries_requiring_png],
-            expected_output_total=len(dds_files_requiring_png),
+            expected_relative_paths=[entry.relative_path.with_suffix(".png") for entry in backend_plan_entries_requiring_png],
+            expected_output_total=len(backend_dds_files_requiring_png),
             on_log=on_log,
             on_phase=on_phase,
             on_phase_progress=on_phase_progress,
             on_current_file=on_current_file,
             stop_event=stop_event,
         )
-    elif normalized.upscale_backend == UPSCALE_BACKEND_REALESRGAN_NCNN and dds_files_requiring_png:
+    elif normalized.upscale_backend == UPSCALE_BACKEND_REALESRGAN_NCNN and backend_dds_files_requiring_png:
         run_realesrgan_ncnn_stage(
             normalized,
-            processing_plan=processing_plan,
+            processing_plan=backend_processing_plan,
             on_log=on_log,
             on_phase=on_phase,
             on_phase_progress=on_phase_progress,
@@ -4725,7 +5365,7 @@ def rebuild_dds_files(
     relative_png_index: Dict[str, Path] = {}
     basename_png_index: Dict[str, List[Path]] = {}
     png_count = 0
-    if dds_files_requiring_png:
+    if backend_dds_files_requiring_png:
         emit_phase("DDS Rebuild", "Indexing PNG files...", False)
         emit_phase_progress(0, 0, "Indexing PNG files...")
         emit_log("Indexing PNG files...")
@@ -4740,7 +5380,7 @@ def rebuild_dds_files(
             stop_event=stop_event,
         )
         emit_log(f"Indexed {png_count} PNG files.")
-        if normalized.upscale_backend == UPSCALE_BACKEND_CHAINNER and png_count == 0 and dds_files_requiring_png:
+        if normalized.upscale_backend == UPSCALE_BACKEND_CHAINNER and png_count == 0 and backend_dds_files_requiring_png:
             chain_analysis = chain_analysis or ChainnerChainAnalysis()
             detail = ""
             if chain_analysis.warnings:
@@ -4750,7 +5390,7 @@ def rebuild_dds_files(
                 "The chain likely still points at old folders or writes somewhere else."
                 + detail
             )
-        if normalized.upscale_backend == UPSCALE_BACKEND_REALESRGAN_NCNN and png_count == 0 and dds_files_requiring_png:
+        if normalized.upscale_backend == UPSCALE_BACKEND_REALESRGAN_NCNN and png_count == 0 and backend_dds_files_requiring_png:
             raise ValueError(
                 "Real-ESRGAN NCNN finished, but no PNG files were found in the configured PNG root. "
                 "Verify the NCNN executable, model folder, and selected model."
@@ -4795,6 +5435,27 @@ def rebuild_dds_files(
                 raise RuntimeError(f"Missing planner entry for DDS rebuild: {rel_display}")
             dds_info = plan_entry.dds_info
             decision = plan_entry.decision
+            if rel_display in staging_failures:
+                failed += 1
+                note = f"DDS staging failed before rebuild: {staging_failures[rel_display]}"
+                results.append(
+                    JobResult(
+                        original_dds=str(dds_path),
+                        png=str((normalized.dds_staging_root / rel_path.with_suffix(".png")) if normalized.dds_staging_root is not None else ""),
+                        output_dir=str(target_dir),
+                        width=dds_info.width,
+                        height=dds_info.height,
+                        original_mips=dds_info.mip_count,
+                        used_mips=0,
+                        texconv_format=dds_info.texconv_format,
+                        status="failed",
+                        note=note,
+                    )
+                )
+                emit_log(f"[{index}/{total}] FAIL {rel_display} -> {note}")
+                emit_progress(index, total, converted, skipped, failed)
+                emit_phase_progress(index, total, f"{index} / {total} DDS files")
+                continue
             if plan_entry.action in {"preserve_original", "skip_by_rule"}:
                 if plan_entry.action == "skip_by_rule":
                     skipped += 1
@@ -5143,25 +5804,47 @@ def rebuild_dds_files(
                     status = "dry-run"
                     note = "; ".join(notes)
                 else:
-                    return_code, stdout, stderr = run_process_with_cancellation(cmd, stop_event=stop_event)
+                    return_code, stdout, stderr, elapsed_seconds = _run_texture_workflow_texconv(
+                        cmd,
+                        detail_label=f"[{index}/{total}] BUILD {rel_display}",
+                        on_log=on_log,
+                        stop_event=stop_event,
+                    )
                     if return_code != 0:
                         failed += 1
                         status = "failed"
                         detail = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
                         notes.append(detail)
                         note = "; ".join(notes)
+                        emit_log(f"[{index}/{total}] FAIL {rel_display} -> {detail}")
                     else:
-                        converted += 1
-                        status = "converted"
-                        note = "; ".join(notes)
-                        if manifest_path is not None and target_file.exists():
-                            manifest_entries[rel_path.as_posix()] = build_incremental_manifest_entry(
-                                dds_path,
-                                png_path,
-                                target_file,
-                                output_settings,
+                        try:
+                            output_size = target_file.stat().st_size
+                        except OSError:
+                            output_size = 0
+                        if output_size <= 0:
+                            failed += 1
+                            status = "failed"
+                            detail = f"texconv reported success but did not produce expected DDS: {target_file}"
+                            notes.append(detail)
+                            note = "; ".join(notes)
+                            emit_log(f"[{index}/{total}] FAIL {rel_display} -> {detail}")
+                        else:
+                            converted += 1
+                            status = "converted"
+                            note = "; ".join(notes)
+                            emit_log(
+                                f"[{index}/{total}] BUILT {rel_display} in {elapsed_seconds:.1f}s "
+                                f"-> {target_file} ({output_size:,} bytes)"
                             )
-                            save_incremental_manifest(manifest_path, manifest_entries)
+                            if manifest_path is not None:
+                                manifest_entries[rel_path.as_posix()] = build_incremental_manifest_entry(
+                                    dds_path,
+                                    png_path,
+                                    target_file,
+                                    output_settings,
+                                )
+                                save_incremental_manifest(manifest_path, manifest_entries)
 
                 results.append(
                     JobResult(

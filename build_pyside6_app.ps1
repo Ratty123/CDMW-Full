@@ -1,21 +1,26 @@
 param(
     [ValidateSet("onedir", "onefile")]
-    [string]$Mode = "onefile"
+    [string]$Mode = "onefile",
+    [ValidateSet("release", "fast", "debug")]
+    [string]$BuildProfile = "release",
+    [switch]$DescribeOnly
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
 $appName = "CrimsonDesertModWorkbench"
 $legacyAppNames = @("DDSRebuildApp")
-$iconPath = Join-Path $PSScriptRoot "assets\cdmw.ico"
-$customHookDir = Join-Path $PSScriptRoot "pyinstaller_hooks"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
+
 $stableDistDir = Join-Path $scriptDir "dist"
 $stableBuildDir = Join-Path $scriptDir "build"
-$pyInstallerDistDir = Join-Path $stableBuildDir "pyinstaller-dist"
-$pyInstallerWorkDir = Join-Path $stableBuildDir "pyinstaller-work"
+$buildFlavor = "$Mode-$BuildProfile"
+$pyInstallerDistDir = Join-Path $stableBuildDir "pyinstaller-dist-$buildFlavor"
+$pyInstallerWorkDir = Join-Path $stableBuildDir "pyinstaller-work-$buildFlavor"
+$specPath = Join-Path $scriptDir "CrimsonDesertModWorkbench.spec"
 $vgmstreamRuntimeDir = Join-Path $scriptDir ".tools\vgmstream"
 $vgmstreamDownloadUrl = "https://github.com/bnnm/vgmstream-builds/raw/master/bin/vgmstream-latest-test-u.zip"
 
@@ -213,112 +218,135 @@ function Invoke-PyInstallerBuild {
         [Parameter(Mandatory = $true)]
         [string]$PythonExe,
         [Parameter(Mandatory = $true)]
-        [string[]]$Arguments
+        [string[]]$Arguments,
+        [Parameter(Mandatory = $true)]
+        [string]$BuildMode,
+        [Parameter(Mandatory = $true)]
+        [string]$Profile
     )
 
-    & $PythonExe @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
+    $previousMode = [Environment]::GetEnvironmentVariable("CDMW_PYINSTALLER_MODE", "Process")
+    $previousProfile = [Environment]::GetEnvironmentVariable("CDMW_PYINSTALLER_PROFILE", "Process")
+    try {
+        [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_MODE", $BuildMode, "Process")
+        [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_PROFILE", $Profile, "Process")
+        & $PythonExe @Arguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "PyInstaller failed with exit code $LASTEXITCODE."
+        }
+    } finally {
+        [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_MODE", $previousMode, "Process")
+        [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_PROFILE", $previousProfile, "Process")
     }
 }
 
+function Get-BuildProfileDescription {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Profile
+    )
+
+    switch ($Profile) {
+        "release" { return "clean, windowed, validates onefile archives; use for publishing" }
+        "fast" { return "incremental, reuses PyInstaller work cache, skips onefile archive validation; use for local iteration" }
+        "debug" { return "clean, console-enabled, verbose PyInstaller logging, validates onefile archives; use for troubleshooting" }
+        default { throw "Unsupported build profile: $Profile" }
+    }
+}
+
+function Write-BuildSummary {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BuildMode,
+        [Parameter(Mandatory = $true)]
+        [string]$Profile,
+        [Parameter(Mandatory = $true)]
+        [string]$OutputPath
+    )
+
+    Write-Host "Build selection:"
+    Write-Host "  Package: $BuildMode"
+    Write-Host "  Profile: $Profile - $(Get-BuildProfileDescription -Profile $Profile)"
+    Write-Host "  Spec: $specPath"
+    Write-Host "  Work cache: $pyInstallerWorkDir"
+    Write-Host "  Temporary output: $pyInstallerDistDir"
+    Write-Host "  Final output: $OutputPath"
+    Write-Host ""
+}
+
 $pythonExe = Join-Path $scriptDir ".venv\Scripts\python.exe"
-if (-not (Test-Path $pythonExe)) {
+if (-not (Test-Path -LiteralPath $pythonExe)) {
     $pythonExe = "python"
+}
+
+if (-not (Test-Path -LiteralPath $specPath)) {
+    throw "PyInstaller spec file not found: $specPath"
 }
 
 $appVersion = (& $pythonExe -c "from cdmw.constants import APP_VERSION; print(APP_VERSION)").Trim()
 if (-not $appVersion) {
     throw "Could not determine app version from cdmw.constants.APP_VERSION"
 }
-$oneFileOutputName = "$appName-$appVersion-windows-portable.exe"
-$oneDirOutputName = "$appName-$appVersion-windows"
+
+if ($BuildProfile -eq "release") {
+    $oneFileOutputName = "$appName-$appVersion-windows-portable.exe"
+    $oneDirOutputName = "$appName-$appVersion-windows"
+} else {
+    $oneFileOutputName = "$appName-$appVersion-$BuildProfile-windows-portable.exe"
+    $oneDirOutputName = "$appName-$appVersion-$BuildProfile-windows"
+}
+
+$finalOutputPath = if ($Mode -eq "onefile") {
+    Join-Path $stableDistDir $oneFileOutputName
+} else {
+    Join-Path $stableDistDir $oneDirOutputName
+}
+
+Write-BuildSummary -BuildMode $Mode -Profile $BuildProfile -OutputPath $finalOutputPath
+
+if ($DescribeOnly) {
+    return
+}
 
 Stop-AppProcesses -NamePrefixes @($appName, $legacyAppNames)
+New-Item -ItemType Directory -Path $stableDistDir -Force | Out-Null
+New-Item -ItemType Directory -Path $stableBuildDir -Force | Out-Null
+
+$resolvedVgmstreamRuntimeDir = Ensure-VgmstreamRuntime -RuntimeDir $vgmstreamRuntimeDir
+if (-not (Test-Path -LiteralPath (Join-Path $resolvedVgmstreamRuntimeDir "vgmstream-cli.exe"))) {
+    throw "vgmstream runtime is incomplete: $resolvedVgmstreamRuntimeDir"
+}
 
 $pyInstallerArgs = @(
     "-m",
     "PyInstaller",
     "--noconfirm",
-    "--clean",
-    "--noupx",
-    "--windowed",
     "--distpath",
     $pyInstallerDistDir,
     "--workpath",
     $pyInstallerWorkDir,
-    "--name",
-    $appName
+    "--log-level",
+    $(if ($BuildProfile -eq "debug") { "DEBUG" } else { "INFO" }),
+    $specPath
 )
 
-if (Test-Path $customHookDir) {
-    $pyInstallerArgs += @("--additional-hooks-dir", $customHookDir)
+if ($BuildProfile -ne "fast") {
+    $pyInstallerArgs = $pyInstallerArgs[0..1] + @("--clean") + $pyInstallerArgs[2..($pyInstallerArgs.Count - 1)]
 }
 
-if (Test-Path $iconPath) {
-    $pyInstallerArgs += @("--icon", $iconPath)
-    $pyInstallerArgs += @("--add-data", "$iconPath;assets")
-    $pngIconPath = Join-Path $PSScriptRoot "assets\cdmw.png"
-    if (Test-Path $pngIconPath) {
-        $pyInstallerArgs += @("--add-data", "$pngIconPath;assets")
+if ($BuildProfile -ne "fast") {
+    Remove-PathWithRetries -LiteralPath (Join-Path $stableBuildDir $appName) -Recurse
+    foreach ($legacyAppName in $legacyAppNames) {
+        Remove-PathWithRetries -LiteralPath (Join-Path $stableBuildDir $legacyAppName) -Recurse
     }
-}
-
-$thirdPartyNoticesPath = Join-Path $scriptDir "THIRD_PARTY_NOTICES.md"
-if (Test-Path $thirdPartyNoticesPath) {
-    $pyInstallerArgs += @("--add-data", "$thirdPartyNoticesPath;.")
-}
-
-$licensePath = Join-Path $scriptDir "LICENSE"
-if (Test-Path $licensePath) {
-    $pyInstallerArgs += @("--add-data", "$licensePath;.")
-}
-
-$vendoredMeshToolsLicensePath = Join-Path $scriptDir "cdmw\modding\VendoredMeshTools_MIT_LICENSE.txt"
-if (Test-Path $vendoredMeshToolsLicensePath) {
-    $pyInstallerArgs += @("--add-data", "$vendoredMeshToolsLicensePath;third_party")
-}
-
-$pyInstallerArgs += @(
-    "--collect-all", "numpy",
-    "--exclude-module", "numpy.f2py.tests",
-    "--exclude-module", "numpy._pyinstaller.tests",
-    "--exclude-module", "PIL.AvifImagePlugin",
-    "--exclude-module", "PIL._avif",
-    "--exclude-module", "pycparser.lextab",
-    "--exclude-module", "pycparser.yacctab"
-)
-
-$resolvedVgmstreamRuntimeDir = Ensure-VgmstreamRuntime -RuntimeDir $vgmstreamRuntimeDir
-foreach ($runtimeFile in (Get-ChildItem -LiteralPath $resolvedVgmstreamRuntimeDir -File | Sort-Object Name)) {
-    if ($runtimeFile.Name -eq "COPYING") {
-        $pyInstallerArgs += @("--add-data", "$($runtimeFile.FullName);vgmstream")
-        continue
-    }
-    $pyInstallerArgs += @("--add-binary", "$($runtimeFile.FullName);vgmstream")
-}
-
-if ($Mode -eq "onefile") {
-    $pyInstallerArgs += "--onefile"
-} else {
-    $pyInstallerArgs += "--onedir"
-}
-
-New-Item -ItemType Directory -Path $stableDistDir -Force | Out-Null
-New-Item -ItemType Directory -Path $stableBuildDir -Force | Out-Null
-Remove-PathWithRetries -LiteralPath (Join-Path $stableBuildDir $appName) -Recurse
-foreach ($legacyAppName in $legacyAppNames) {
-    Remove-PathWithRetries -LiteralPath (Join-Path $stableBuildDir $legacyAppName) -Recurse
+    Remove-PathWithRetries -LiteralPath $pyInstallerWorkDir -Recurse
 }
 Remove-PathWithRetries -LiteralPath $pyInstallerDistDir -Recurse
-Remove-PathWithRetries -LiteralPath $pyInstallerWorkDir -Recurse
 
-$pyInstallerArgs += "cdmw_app.py"
+Write-Host "Building $appName in $Mode/$BuildProfile mode..."
+Invoke-PyInstallerBuild -PythonExe $pythonExe -Arguments $pyInstallerArgs -BuildMode $Mode -Profile $BuildProfile
 
-Write-Host "Building $appName in $Mode mode..."
-Invoke-PyInstallerBuild -PythonExe $pythonExe -Arguments $pyInstallerArgs
-
-if ($Mode -eq "onefile") {
+if ($Mode -eq "onefile" -and $BuildProfile -ne "fast") {
     $candidateOnefileExe = Join-Path $pyInstallerDistDir "$appName.exe"
     try {
         Test-OnefileArchiveIntegrity -PythonExe $pythonExe -ExePath $candidateOnefileExe
@@ -327,45 +355,45 @@ if ($Mode -eq "onefile") {
         Write-Warning "Retrying the onefile build once with a clean PyInstaller work/dist directory."
         Remove-PathWithRetries -LiteralPath $pyInstallerDistDir -Recurse
         Remove-PathWithRetries -LiteralPath $pyInstallerWorkDir -Recurse
-        Invoke-PyInstallerBuild -PythonExe $pythonExe -Arguments $pyInstallerArgs
+        Invoke-PyInstallerBuild -PythonExe $pythonExe -Arguments $pyInstallerArgs -BuildMode $Mode -Profile $BuildProfile
         Test-OnefileArchiveIntegrity -PythonExe $pythonExe -ExePath $candidateOnefileExe
     }
+} elseif ($Mode -eq "onefile") {
+    Write-Host "Skipping onefile archive validation for fast profile."
 }
 
 if ($Mode -eq "onefile") {
     $builtExe = Join-Path $pyInstallerDistDir "$appName.exe"
-    $versionedExe = Join-Path $stableDistDir $oneFileOutputName
-    if (-not (Test-Path $builtExe)) {
+    if (-not (Test-Path -LiteralPath $builtExe)) {
         throw "Expected build output not found: $builtExe"
     }
-    Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir "$appName") -Recurse
     Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir "$appName.exe")
-    Remove-PathWithRetries -LiteralPath $versionedExe
-    foreach ($legacyAppName in $legacyAppNames) {
-        Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir "$legacyAppName") -Recurse
-        Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir "$legacyAppName.exe")
-        Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir "$legacyAppName-$appVersion-windows-portable.exe")
+    Remove-PathWithRetries -LiteralPath $finalOutputPath
+    if ($BuildProfile -eq "release") {
+        foreach ($legacyAppName in $legacyAppNames) {
+            Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir "$legacyAppName.exe")
+            Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir "$legacyAppName-$appVersion-windows-portable.exe")
+        }
     }
-    Move-PathWithRetries -SourcePath $builtExe -DestinationPath $versionedExe
+    Move-PathWithRetries -SourcePath $builtExe -DestinationPath $finalOutputPath
 } else {
     $builtDir = Join-Path $pyInstallerDistDir $appName
-    $versionedDir = Join-Path $stableDistDir $oneDirOutputName
-    if (-not (Test-Path $builtDir)) {
+    if (-not (Test-Path -LiteralPath $builtDir)) {
         throw "Expected build output not found: $builtDir"
     }
-    Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir "$appName.exe")
-    Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir $oneFileOutputName)
-    foreach ($legacyAppName in $legacyAppNames) {
-        Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir "$legacyAppName.exe")
-        Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir "$legacyAppName-$appVersion-windows-portable.exe")
+    Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir $appName) -Recurse
+    Remove-PathWithRetries -LiteralPath $finalOutputPath -Recurse
+    if ($BuildProfile -eq "release") {
+        foreach ($legacyAppName in $legacyAppNames) {
+            Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir $legacyAppName) -Recurse
+        }
     }
-    Remove-PathWithRetries -LiteralPath $versionedDir -Recurse
-    Move-PathWithRetries -SourcePath $builtDir -DestinationPath $versionedDir
+    Move-PathWithRetries -SourcePath $builtDir -DestinationPath $finalOutputPath
 }
 
 Write-Host "Build complete."
 if ($Mode -eq "onefile") {
-    Write-Host "Output file: $scriptDir\\dist\\$oneFileOutputName"
+    Write-Host "Output file: $finalOutputPath"
 } else {
-    Write-Host "Output folder: $scriptDir\\dist\\$oneDirOutputName"
+    Write-Host "Output folder: $finalOutputPath"
 }

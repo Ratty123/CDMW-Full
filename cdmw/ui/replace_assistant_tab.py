@@ -218,11 +218,11 @@ class ReplaceAssistantBuildWorker(QObject):
                 on_current_file=self.current_file.emit,
             )
             if summary.cancelled:
-                self.cancelled.emit("Replace Assistant build stopped by user.")
+                self.cancelled.emit("Texture Replacer build stopped by user.")
             else:
                 self.completed.emit(summary)
         except RunCancelled as exc:
-            self.cancelled.emit(str(exc) or "Replace Assistant build stopped by user.")
+            self.cancelled.emit(str(exc) or "Texture Replacer build stopped by user.")
         except Exception as exc:
             self.error.emit(str(exc))
         finally:
@@ -555,7 +555,7 @@ class ReplaceAssistantReviewDialog(QDialog):
         self.thread: Optional[QThread] = None
         self.pending_item: Optional[ReplaceAssistantReviewItem] = None
 
-        self.setWindowTitle("Replace Assistant Review")
+        self.setWindowTitle("Texture Replacer Review")
         self.resize(1320, 820)
 
         root_layout = QHBoxLayout(self)
@@ -1045,8 +1045,9 @@ class ReplaceAssistantTab(QWidget):
         self.overwrite_package_checkbox.setToolTip(
             _wrapped_help_tooltip(overwrite_help_text)
         )
+        default_package_options = mod_package_export_options_for_manager("universal")
         self.create_no_encrypt_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["no_encrypt"].label)
-        self.create_no_encrypt_checkbox.setChecked(True)
+        self.create_no_encrypt_checkbox.setChecked(default_package_options.create_no_encrypt_file)
         self.build_package_button = QPushButton("Build Package")
         self.open_output_folder_button = QPushButton("Open Output Folder")
         self.mirror_workflow_button = QPushButton("Mirror Texture Workflow")
@@ -1082,24 +1083,25 @@ class ReplaceAssistantTab(QWidget):
         self.package_description_edit = QLineEdit("")
         self.package_nexus_edit = QLineEdit("")
         self.package_manager_combo = QComboBox()
-        self.package_manager_combo.addItem("Universal metadata (best effort)", "universal")
-        self.package_manager_combo.addItem("JSON Mod Manager", "json_mod_manager")
+        self.package_manager_combo.addItem("Universal / minimal metadata", "universal")
         self.package_manager_combo.addItem("CDUMM", "cdumm")
         self.package_manager_combo.addItem("Definitive Mod Manager", "dmm")
         self.package_manager_combo.addItem("Crimson Sharp / Crimson Browser", "crimson_sharp")
+        self.package_manager_combo.addItem("Field-JSON v3.1", "field_json")
         self.package_structure_combo = QComboBox()
         self.package_structure_combo.addItem("Game-relative folders", "game_relative")
         self.package_structure_combo.addItem("files/ wrapper", "files_wrapper")
         self.package_structure_combo.addItem("Custom compact paths", "custom_compact_paths")
         self.package_structure_combo.addItem("DMM texture folder", "dmm_texture")
+        self.package_structure_combo.addItem("Field-JSON v3.1 assets", "field_json_v31")
         self.package_manifest_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["manifest_json"].label)
-        self.package_manifest_checkbox.setChecked(True)
+        self.package_manifest_checkbox.setChecked(default_package_options.create_manifest_json)
         self.package_mod_json_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["mod_json"].label)
-        self.package_mod_json_checkbox.setChecked(True)
+        self.package_mod_json_checkbox.setChecked(default_package_options.create_mod_json)
         self.package_modinfo_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["modinfo_json"].label)
-        self.package_modinfo_checkbox.setChecked(True)
+        self.package_modinfo_checkbox.setChecked(default_package_options.create_modinfo_json)
         self.package_info_json_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["info_json"].label)
-        self.package_info_json_checkbox.setChecked(True)
+        self.package_info_json_checkbox.setChecked(default_package_options.create_info_json)
         self.package_zip_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["ready_zip"].label)
         self.package_conflict_mode_combo = QComboBox()
         self.package_conflict_mode_combo.addItem("Normal", "")
@@ -1121,7 +1123,7 @@ class ReplaceAssistantTab(QWidget):
         package_layout.addWidget(_make_help_button("Choose the metadata/layout profile to target. Universal writes neutral Workbench metadata only; individual profiles bias the folder structure for that manager."), 5, 2)
         package_layout.addWidget(QLabel("Structure"), 6, 0)
         package_layout.addWidget(self.package_structure_combo, 6, 1)
-        package_layout.addWidget(_make_help_button("Game-relative folders write files directly under paths such as object/... . The files/ wrapper places payload files under files/. Custom compact paths writes character model and sidecar payloads as character/<name>. DMM texture folder writes DDS packages for placement under mods/_textures/ without a files/ wrapper."), 6, 2)
+        package_layout.addWidget(_make_help_button("Game-relative folders write files directly under paths such as object/... . The files/ wrapper places payload files under files/. Custom compact paths writes character model and sidecar payloads as character/<name>. DMM texture folder writes DDS packages for placement under mods/_textures/ without a files/ wrapper. Field-JSON v3.1 writes DDS assets under assets/ and records vpaths in mod.field.json."), 6, 2)
         metadata_grid = QGridLayout()
         metadata_grid.setContentsMargins(0, 0, 0, 0)
         metadata_grid.setHorizontalSpacing(18)
@@ -1269,7 +1271,7 @@ class ReplaceAssistantTab(QWidget):
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
         self.log_view.setMaximumBlockCount(2000)
-        self.log_view.setPlaceholderText("Replace Assistant log will appear here.")
+        self.log_view.setPlaceholderText("Texture Replacer log will appear here.")
         settings_layout.addWidget(self.log_view, stretch=1)
         self.settings_scroll = QScrollArea()
         self.settings_scroll.setWidgetResizable(True)
@@ -1566,7 +1568,11 @@ class ReplaceAssistantTab(QWidget):
             str(self.settings.value("replace_assistant/package_output_root", str((self.base_dir / "replace_assistant_export").resolve())))
         )
         self.overwrite_package_checkbox.setChecked(bool(self.settings.value("replace_assistant/overwrite_existing", True)))
-        self.create_no_encrypt_checkbox.setChecked(bool(self.settings.value("replace_assistant/create_no_encrypt", True)))
+        package_profile_value = str(self.settings.value("replace_assistant/package_manager_profile", "universal"))
+        package_profile_defaults = mod_package_export_options_for_manager(package_profile_value)
+        self.create_no_encrypt_checkbox.setChecked(
+            bool(self.settings.value("replace_assistant/create_no_encrypt", package_profile_defaults.create_no_encrypt_file))
+        )
         self.package_title_edit.setText(str(self.settings.value("replace_assistant/package_title", "Crimson Desert Mod Workbench Mod")))
         self.package_version_edit.setText(str(self.settings.value("replace_assistant/package_version", "1.0")))
         self.package_author_edit.setText(str(self.settings.value("replace_assistant/package_author", "")))
@@ -1574,17 +1580,42 @@ class ReplaceAssistantTab(QWidget):
         self.package_nexus_edit.setText(str(self.settings.value("replace_assistant/package_nexus", "")))
         self._set_combo_by_value(
             self.package_manager_combo,
-            str(self.settings.value("replace_assistant/package_manager_profile", "universal")),
+            package_profile_value,
         )
         self._set_combo_by_value(
             self.package_structure_combo,
             str(self.settings.value("replace_assistant/package_structure", self._combo_value(self.package_structure_combo))),
         )
-        self.package_manifest_checkbox.setChecked(bool(self.settings.value("replace_assistant/package_manifest_json", True)))
-        self.package_mod_json_checkbox.setChecked(bool(self.settings.value("replace_assistant/package_mod_json", True)))
-        self.package_modinfo_checkbox.setChecked(bool(self.settings.value("replace_assistant/package_modinfo_json", True)))
-        self.package_info_json_checkbox.setChecked(bool(self.settings.value("replace_assistant/package_info_json", True)))
-        self.package_zip_checkbox.setChecked(bool(self.settings.value("replace_assistant/package_zip", False)))
+        self.package_manifest_checkbox.setChecked(
+            bool(self.settings.value("replace_assistant/package_manifest_json", package_profile_defaults.create_manifest_json))
+        )
+        self.package_mod_json_checkbox.setChecked(
+            bool(self.settings.value("replace_assistant/package_mod_json", package_profile_defaults.create_mod_json))
+        )
+        self.package_modinfo_checkbox.setChecked(
+            bool(self.settings.value("replace_assistant/package_modinfo_json", package_profile_defaults.create_modinfo_json))
+        )
+        self.package_info_json_checkbox.setChecked(
+            bool(self.settings.value("replace_assistant/package_info_json", package_profile_defaults.create_info_json))
+        )
+        if (
+            package_profile_value.strip().lower() == "universal"
+            and not self.settings.contains("replace_assistant/package_metadata_defaults_minimized")
+            and self.settings.contains("replace_assistant/package_mod_json")
+            and self.package_mod_json_checkbox.isChecked()
+            and self.package_modinfo_checkbox.isChecked()
+            and self.package_info_json_checkbox.isChecked()
+        ):
+            self.package_mod_json_checkbox.setChecked(False)
+            self.package_modinfo_checkbox.setChecked(False)
+            self.package_info_json_checkbox.setChecked(False)
+            self.settings.setValue("replace_assistant/package_mod_json", False)
+            self.settings.setValue("replace_assistant/package_modinfo_json", False)
+            self.settings.setValue("replace_assistant/package_info_json", False)
+        self.settings.setValue("replace_assistant/package_metadata_defaults_minimized", True)
+        self.package_zip_checkbox.setChecked(
+            bool(self.settings.value("replace_assistant/package_zip", package_profile_defaults.create_zip))
+        )
         self._set_combo_by_value(
             self.package_conflict_mode_combo,
             str(self.settings.value("replace_assistant/package_conflict_mode", "")),
@@ -1791,7 +1822,7 @@ class ReplaceAssistantTab(QWidget):
         self.progress_bar.setFormat("Importing...")
         self.status_label.setText("Importing edited files...")
         self.queue_stack.setCurrentWidget(self.queue_tree)
-        self.append_log("Importing edited files into Replace Assistant queue...")
+        self.append_log("Importing edited files into Texture Replacer queue...")
         worker = ReplaceAssistantImportWorker(
             paths,
             archive_entries=active_entries,
@@ -1871,10 +1902,10 @@ class ReplaceAssistantTab(QWidget):
         self.progress_bar.setValue(1)
         self.progress_bar.setFormat("Ready")
         self.status_label.setText(
-            f"Imported {added_count:,} edited file(s) into Replace Assistant. Use Auto-Match when you want to search originals."
+            f"Imported {added_count:,} edited file(s) into Texture Replacer. Use Auto-Match when you want to search originals."
         )
         self.append_log(
-            f"Imported {added_count:,} edited file(s) into Replace Assistant without auto-matching."
+            f"Imported {added_count:,} edited file(s) into Texture Replacer without auto-matching."
         )
 
     def _handle_import_error(self, message: str) -> None:
@@ -2121,7 +2152,7 @@ class ReplaceAssistantTab(QWidget):
             )
             self._refresh_queue_tree()
             self.status_label.setText(f"Added Texture Editor export: {resolved_output.name}")
-            self.append_log(f"Texture Editor export added to Replace Assistant: {resolved_output}")
+            self.append_log(f"Texture Editor export added to Texture Replacer: {resolved_output}")
             return
         self._refresh_queue_tree()
         for row_index, item in enumerate(self.items):
@@ -2131,8 +2162,8 @@ class ReplaceAssistantTab(QWidget):
             if row is not None:
                 self.queue_tree.setCurrentItem(row)
             break
-        self.status_label.setText(f"Updated Replace Assistant item from Texture Editor: {resolved_output.name}")
-        self.append_log(f"Texture Editor export applied to Replace Assistant: {resolved_output}")
+        self.status_label.setText(f"Updated Texture Replacer item from Texture Editor: {resolved_output.name}")
+        self.append_log(f"Texture Editor export applied to Texture Replacer: {resolved_output}")
 
     def accept_editor_export_prepared(
         self,
@@ -2562,7 +2593,7 @@ class ReplaceAssistantTab(QWidget):
         for index in indices:
             self.items.pop(index)
         self._refresh_queue_tree()
-        self.append_log(f"Removed {len(indices):,} item(s) from Replace Assistant.")
+        self.append_log(f"Removed {len(indices):,} item(s) from Texture Replacer.")
 
     def clear_all_items(self) -> None:
         if not self.items:
@@ -2600,21 +2631,22 @@ class ReplaceAssistantTab(QWidget):
             self.package_manager_combo,
             str(getattr(config, "mod_ready_manager_profile", self._combo_value(self.package_manager_combo))),
         )
+        profile_defaults = mod_package_export_options_for_manager(str(getattr(config, "mod_ready_manager_profile", "universal")))
         self._set_combo_by_value(
             self.package_structure_combo,
             str(getattr(config, "mod_ready_package_structure", self._combo_value(self.package_structure_combo))),
         )
-        self.package_manifest_checkbox.setChecked(bool(getattr(config, "mod_ready_create_manifest_json", True)))
-        self.package_mod_json_checkbox.setChecked(bool(getattr(config, "mod_ready_create_mod_json", True)))
-        self.package_modinfo_checkbox.setChecked(bool(getattr(config, "mod_ready_create_modinfo_json", True)))
-        self.package_info_json_checkbox.setChecked(bool(getattr(config, "mod_ready_create_info_json", True)))
-        self.package_zip_checkbox.setChecked(bool(getattr(config, "mod_ready_create_zip", False)))
+        self.package_manifest_checkbox.setChecked(bool(getattr(config, "mod_ready_create_manifest_json", profile_defaults.create_manifest_json)))
+        self.package_mod_json_checkbox.setChecked(bool(getattr(config, "mod_ready_create_mod_json", profile_defaults.create_mod_json)))
+        self.package_modinfo_checkbox.setChecked(bool(getattr(config, "mod_ready_create_modinfo_json", profile_defaults.create_modinfo_json)))
+        self.package_info_json_checkbox.setChecked(bool(getattr(config, "mod_ready_create_info_json", profile_defaults.create_info_json)))
+        self.package_zip_checkbox.setChecked(bool(getattr(config, "mod_ready_create_zip", profile_defaults.create_zip)))
         self._set_combo_by_value(
             self.package_conflict_mode_combo,
             str(getattr(config, "mod_ready_conflict_mode", "")),
         )
         self.package_target_language_edit.setText(str(getattr(config, "mod_ready_target_language", "")))
-        self.append_log("Mirrored Texture Workflow NCNN and policy settings into Replace Assistant.")
+        self.append_log("Mirrored Texture Workflow NCNN and policy settings into Texture Replacer.")
         self._update_controls()
 
     def _current_build_options(self) -> ReplaceAssistantBuildOptions:
@@ -2687,7 +2719,7 @@ class ReplaceAssistantTab(QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("Working...")
         self.status_label.setText("Building replace package...")
-        self.append_log("Starting Replace Assistant build.")
+        self.append_log("Starting Texture Replacer build.")
         worker = ReplaceAssistantBuildWorker(
             self.items,
             options,

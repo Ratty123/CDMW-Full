@@ -6,11 +6,79 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from cdmw.modding.mesh_importer import _build_pac_in_place, _choose_pac_donor_indices, _pack_pac_normal, import_obj
+from cdmw.modding.mesh_importer import (
+    _build_pac_in_place,
+    _choose_pac_donor_indices,
+    _merge_partial_pac_import,
+    _pack_pac_normal,
+    import_obj,
+)
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 
 
 class MeshImportRegressionTests(unittest.TestCase):
+    @staticmethod
+    def _submesh(name: str, vertices: int = 4, faces: int = 2) -> SubMesh:
+        return SubMesh(
+            name=name,
+            material=f"{name}_mat",
+            texture=f"{name}.dds",
+            vertices=[(0.0, 0.0, 0.0)] * vertices,
+            uvs=[(0.0, 0.0)] * vertices,
+            normals=[(0.0, 1.0, 0.0)] * vertices,
+            faces=[(0, 1, 2)] * faces,
+            bone_indices=[(0,)] * vertices,
+            bone_weights=[(1.0,)] * vertices,
+            source_vertex_offsets=list(range(vertices)),
+            source_vertex_map=list(range(vertices)),
+            source_index_count=faces * 3,
+            vertex_count=vertices,
+            face_count=faces,
+        )
+
+    @staticmethod
+    def _mesh(*submeshes: SubMesh) -> ParsedMesh:
+        return ParsedMesh(
+            path="character/test.pac",
+            format="pac",
+            submeshes=list(submeshes),
+            total_vertices=sum(len(submesh.vertices) for submesh in submeshes),
+            total_faces=sum(len(submesh.faces) for submesh in submeshes),
+            has_uvs=any(bool(submesh.uvs) for submesh in submeshes),
+            has_bones=any(bool(submesh.bone_indices) for submesh in submeshes),
+        )
+
+    def test_named_partial_pac_import_empties_unmentioned_original_submeshes(self) -> None:
+        original = self._mesh(
+            self._submesh("helmet_shell"),
+            self._submesh("helmet_wing"),
+            self._submesh("helmet_inside"),
+        )
+        imported = self._mesh(self._submesh("helmet_wing", vertices=5, faces=3))
+
+        merged = _merge_partial_pac_import(original, imported)
+
+        self.assertEqual([submesh.name for submesh in merged.submeshes], ["helmet_shell", "helmet_wing", "helmet_inside"])
+        self.assertEqual(len(merged.submeshes[0].vertices), 0)
+        self.assertEqual(len(merged.submeshes[0].faces), 0)
+        self.assertEqual(merged.submeshes[0].uvs, [])
+        self.assertEqual(merged.submeshes[0].normals, [])
+        self.assertEqual(merged.submeshes[0].bone_indices, [])
+        self.assertEqual(merged.submeshes[0].bone_weights, [])
+        self.assertEqual(merged.submeshes[0].source_vertex_offsets, [])
+        self.assertEqual(merged.submeshes[0].source_vertex_map, [])
+        self.assertGreater(len(merged.submeshes[1].vertices), 0)
+        self.assertEqual(len(merged.submeshes[2].vertices), 0)
+        self.assertEqual(merged.total_vertices, len(merged.submeshes[1].vertices))
+        self.assertEqual(merged.total_faces, len(merged.submeshes[1].faces))
+
+    def test_unnamed_partial_pac_import_is_still_rejected(self) -> None:
+        original = self._mesh(self._submesh("a"), self._submesh("b"), self._submesh("c"))
+        imported = self._mesh(self._submesh(""), self._submesh(""))
+
+        with self.assertRaises(ValueError):
+            _merge_partial_pac_import(original, imported)
+
     def test_obj_roundtrip_vertex_split_preserves_source_vertex_map(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             obj_path = Path(temp_dir) / "split.obj"

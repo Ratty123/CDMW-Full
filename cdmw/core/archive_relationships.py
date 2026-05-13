@@ -18,6 +18,11 @@ from cdmw.core.archive import (
 )
 from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
 from cdmw.core.upscale_profiles import normalize_texture_reference_for_sidecar_lookup, parse_texture_sidecar_bindings
+from cdmw.core.table_catalog import (
+    evidence_label,
+    extract_table_asset_reference_evidence,
+    recognized_table_for_path,
+)
 from cdmw.models import ArchiveEntry
 
 
@@ -49,7 +54,28 @@ _ANIMATION_EXTENSIONS = {
     ".pastage",
     ".seqmt",
 }
-_UNRESOLVED_DESCRIPTOR_SUFFIXES = (".pabc", ".pabv", ".papr", ".hkt")
+_UNRESOLVED_DESCRIPTOR_SUFFIXES = (".pabc", ".pabv", ".papr", ".hkx", ".hkt")
+_SIDECAR_DESCRIPTOR_REFERENCE_SUFFIXES = frozenset(
+    set(ARCHIVE_MESH_EXTENSIONS)
+    | _MATERIAL_SIDECAR_EXTENSIONS
+    | _SKELETON_EXTENSIONS
+    | _PHYSICS_EXTENSIONS
+    | _ANIMATION_EXTENSIONS
+    | {
+        ".app_xml",
+        ".app.xml",
+        ".meshinfo",
+        ".prefab",
+        ".prefabdata",
+        ".prefabdata_xml",
+        ".prefabdata.xml",
+        ".paccd",
+        ".pappt",
+        ".pamhc",
+        ".seqmt",
+        ".xml",
+    }
+)
 _PATH_INDEX_CACHE: Dict[Tuple[int, int, str, str], Dict[str, List[ArchiveEntry]]] = {}
 _BASENAME_INDEX_CACHE: Dict[Tuple[int, int, str, str], Dict[str, List[ArchiveEntry]]] = {}
 _INDEX_CACHE_LIMIT = 4
@@ -68,6 +94,8 @@ class ArchiveRelationEdge:
     risk: bool = False
     suggested_target_path: str = ""
     unresolved: bool = False
+    source_table: str = ""
+    source_field: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +107,17 @@ class ArchiveRelationshipPlan:
     swap_scope: str = ""
     patched_target_app_xml: bytes = b""
     patched_target_app_path: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class CharacterDependencyPlan:
+    body_path: str
+    selected_appearance_path: str = ""
+    appearance_paths: Tuple[str, ...] = ()
+    entries: Tuple[ArchiveEntry, ...] = ()
+    edges: Tuple[ArchiveRelationEdge, ...] = ()
+    warnings: Tuple[str, ...] = ()
+    blocking_errors: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -366,6 +405,8 @@ def _edge_for_entry(
     confidence: str,
     reason: str,
     suggested_target_path: str = "",
+    source_table: str = "",
+    source_field: str = "",
 ) -> ArchiveRelationEdge:
     kind = _relation_kind_for_entry(entry)
     policy, risk = _policy_for_kind(kind)
@@ -380,6 +421,8 @@ def _edge_for_entry(
         include_policy=policy,
         risk=risk,
         suggested_target_path=suggested_target_path,
+        source_table=source_table,
+        source_field=source_field,
     )
 
 
@@ -408,6 +451,53 @@ def _dedupe_edges(edges: Iterable[ArchiveRelationEdge]) -> Tuple[ArchiveRelation
         seen.add(key)
         result.append(edge)
     return tuple(result)
+
+
+def _resolve_table_catalog_edges(
+    table_entry: ArchiveEntry,
+    *,
+    source_path: str,
+    path_index: Mapping[str, Sequence[ArchiveEntry]],
+    basename_index: Mapping[str, Sequence[ArchiveEntry]],
+) -> Tuple[ArchiveRelationEdge, ...]:
+    table_spec = recognized_table_for_path(table_entry.path)
+    if table_spec is None:
+        return ()
+    try:
+        data, _decompressed, _note = read_archive_entry_data(table_entry)
+    except Exception:
+        return ()
+    if not data:
+        return ()
+    string_records = _extract_binary_string_records(data, sample_limit=262_144, max_strings=512)
+    evidence_records = extract_table_asset_reference_evidence(
+        table_spec.source_table,
+        (record.text for record in string_records),
+    )
+    if not evidence_records:
+        return ()
+    edges: List[ArchiveRelationEdge] = []
+    for evidence in evidence_records:
+        resolved_entries = _resolve_basenames(
+            evidence.target,
+            evidence.source_field,
+            basename_index,
+            source_path=source_path,
+            path_index=path_index,
+        )
+        for related in resolved_entries[:16]:
+            edges.append(
+                _edge_for_entry(
+                    source_path,
+                    related,
+                    role=evidence.role,
+                    confidence=evidence.confidence,
+                    reason=f"Referenced by {evidence_label(evidence)} in decoded table/string data",
+                    source_table=evidence.source_table,
+                    source_field=evidence.source_field,
+                )
+            )
+    return _dedupe_edges(edges)
 
 
 def _resolve_sidecar_texture_edges(
@@ -477,6 +567,111 @@ def _resolve_sidecar_texture_edges(
     return _dedupe_edges(edges)
 
 
+def _sidecar_descriptor_attr_name(element: ET.Element, attr_name: str, raw_value: str) -> str:
+    key = str(attr_name or "").strip()
+    if key.lower() not in {"value", "path", "filename", "file", "name"}:
+        return key
+    raw_text = str(raw_value or "").strip()
+    for context_key in ("_name", "name", "Name", "parameter", "Parameter"):
+        context = str(element.attrib.get(context_key, "") or "").strip()
+        if context and context != raw_text:
+            return f"{context}.{key}" if key else context
+    return key
+
+
+def _sidecar_descriptor_reference_value(raw_value: str) -> bool:
+    value = html.unescape(str(raw_value or "")).replace("\\", "/").strip()
+    if not value:
+        return False
+    basename = PurePosixPath(value).name.strip()
+    if not basename:
+        return False
+    suffix = PurePosixPath(basename).suffix.lower()
+    if suffix == ".dds":
+        return False
+    if suffix in _SIDECAR_DESCRIPTOR_REFERENCE_SUFFIXES:
+        return True
+    return bool(suffix and ("/" in value or "\\" in str(raw_value or "")))
+
+
+def _sidecar_descriptor_role(attr_name: str, raw_value: str) -> str:
+    key = str(attr_name or "").casefold()
+    value = str(raw_value or "").replace("\\", "/").casefold()
+    suffix = PurePosixPath(value).suffix.lower()
+    combined = f"{key} {value}"
+    if suffix in _PHYSICS_EXTENSIONS or any(token in combined for token in ("physics", "ragdoll", "collision")):
+        return "sidecar_physics_context"
+    if suffix in _SKELETON_EXTENSIONS or any(token in key for token in ("skeleton", "rig")):
+        return "sidecar_skeleton_context"
+    if "socket" in combined:
+        return "sidecar_socket_descriptor"
+    if suffix in ARCHIVE_MESH_EXTENSIONS or "mesh" in key:
+        return "sidecar_model_resource"
+    if suffix in _ANIMATION_EXTENSIONS or any(token in key for token in ("animation", "motion")):
+        return "sidecar_animation_context"
+    if "prefab" in combined or suffix in {".prefab", ".prefabdata", ".prefabdata_xml"}:
+        return "sidecar_prefab_descriptor"
+    return "sidecar_descriptor"
+
+
+def _resolve_sidecar_descriptor_edges(
+    sidecar_entry: ArchiveEntry,
+    *,
+    source_path: str,
+    archive_entries: Sequence[ArchiveEntry] = (),
+    path_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    basename_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+) -> Tuple[ArchiveRelationEdge, ...]:
+    if path_index is None:
+        path_index = _build_path_index(archive_entries)
+    if basename_index is None:
+        basename_index = _build_basename_index(archive_entries)
+    try:
+        text = _read_entry_text(sidecar_entry)
+    except Exception:
+        return ()
+    root = _parse_xml(text)
+    if root is None:
+        return ()
+    edges: List[ArchiveRelationEdge] = []
+    for element in root.iter():
+        for key, raw_value in element.attrib.items():
+            value = html.unescape(str(raw_value or "")).strip()
+            if not _sidecar_descriptor_reference_value(value):
+                continue
+            attr_name = _sidecar_descriptor_attr_name(element, key, value)
+            role = _sidecar_descriptor_role(attr_name, value)
+            resolved = _resolve_basenames(
+                value,
+                attr_name,
+                basename_index,
+                source_path=sidecar_entry.path,
+                path_index=path_index,
+            )
+            if resolved:
+                for entry in resolved:
+                    edges.append(
+                        _edge_for_entry(
+                            source_path,
+                            entry,
+                            role=role,
+                            confidence="sidecar_descriptor_reference",
+                            reason=f"Descriptor path referenced by {sidecar_entry.basename} attribute {attr_name}",
+                        )
+                    )
+            elif PurePosixPath(value.replace("\\", "/")).suffix.lower() in _UNRESOLVED_DESCRIPTOR_SUFFIXES:
+                edges.append(
+                    _unresolved_edge(
+                        source_path,
+                        value,
+                        attr_name,
+                        role=role,
+                        reason=f"{sidecar_entry.basename} references a descriptor not present in the loaded archive set",
+                    )
+                )
+    return _dedupe_edges(edges)
+
+
 def _sidecar_submesh_names(sidecar_text: str) -> Tuple[str, ...]:
     names: List[str] = []
     for match in re.finditer(r'_subMeshName"\s*value="([^"]+)"', sidecar_text or "", re.IGNORECASE):
@@ -524,6 +719,15 @@ def resolve_material_texture_graph(
         )
         edges.extend(
             _resolve_sidecar_texture_edges(
+                sidecar_entry,
+                source_path=source_path,
+                archive_entries=archive_entries,
+                path_index=path_index,
+                basename_index=basename_index,
+            )
+        )
+        edges.extend(
+            _resolve_sidecar_descriptor_edges(
                 sidecar_entry,
                 source_path=source_path,
                 archive_entries=archive_entries,
@@ -701,6 +905,15 @@ def build_archive_relationship_plan(
         basename_index = _build_basename_index(archive_entries)
     if path_index is None:
         path_index = _build_path_index(archive_entries)
+
+    edges.extend(
+        _resolve_table_catalog_edges(
+            entry,
+            source_path=source_path,
+            path_index=path_index,
+            basename_index=basename_index,
+        )
+    )
 
     if relation_kind in {"model", "material_sidecar"}:
         material_plan = resolve_material_texture_graph(
@@ -1018,4 +1231,144 @@ def build_character_swap_plan(
         swap_scope=swap_scope,
         patched_target_app_xml=patched_payload,
         patched_target_app_path=patched_target_path,
+    )
+
+
+def _edge_resolves_entry(edge: ArchiveRelationEdge, target: ArchiveEntry) -> bool:
+    target_path = _normalized_archive_path(target.path)
+    edge_path = _normalized_archive_path(edge.related_path)
+    if edge_path == target_path:
+        return True
+    if edge.related_entry is not None and _normalized_archive_path(edge.related_entry.path) == target_path:
+        return True
+    return False
+
+
+def _relationship_plan_references_body(
+    plan: ArchiveRelationshipPlan,
+    body_entry: ArchiveEntry,
+) -> bool:
+    body_path = _normalized_archive_path(body_entry.path)
+    body_name = PurePosixPath(body_path).name
+    body_stem = PurePosixPath(body_path).stem
+    for edge in plan.edges:
+        related_path = _normalized_archive_path(edge.related_path)
+        if related_path == body_path:
+            return True
+        related_name = PurePosixPath(related_path).name
+        if related_name == body_name:
+            return True
+        if PurePosixPath(related_path).stem == body_stem and str(edge.relation_kind or "") in {"model", "prefab_data", "prefab"}:
+            return True
+    return False
+
+
+def _strict_animation_token_match(body_entry: ArchiveEntry, candidate: ArchiveEntry) -> bool:
+    body_tokens = {
+        token
+        for token in re.split(r"[^a-z0-9]+", PurePosixPath(_normalized_archive_path(body_entry.path)).stem)
+        if len(token) > 2
+    }
+    if not body_tokens:
+        return False
+    candidate_tokens = {
+        token
+        for token in re.split(r"[^a-z0-9]+", PurePosixPath(_normalized_archive_path(candidate.path)).stem)
+        if len(token) > 2
+    }
+    return bool(body_tokens and body_tokens.issubset(candidate_tokens))
+
+
+def build_character_dependency_plan(
+    body_entry: ArchiveEntry,
+    archive_entries: Sequence[ArchiveEntry],
+    *,
+    selected_appearance_path: str = "",
+) -> CharacterDependencyPlan:
+    body_path = body_entry.path.replace("\\", "/")
+    app_entries = tuple(entry for entry in archive_entries if str(entry.extension or "").lower() == ".app_xml")
+    matched_apps: List[ArchiveEntry] = []
+    plans_by_app: Dict[str, ArchiveRelationshipPlan] = {}
+    warnings: List[str] = []
+    for app_entry in app_entries:
+        try:
+            plan = build_archive_relationship_plan(app_entry, archive_entries, mode="character_dependency_scan")
+        except Exception as exc:
+            warnings.append(f"Skipped {app_entry.path}: {exc}")
+            continue
+        plans_by_app[_normalized_archive_path(app_entry.path)] = plan
+        if _relationship_plan_references_body(plan, body_entry):
+            matched_apps.append(app_entry)
+
+    if not matched_apps:
+        return CharacterDependencyPlan(
+            body_path=body_path,
+            warnings=tuple(dict.fromkeys(warnings)),
+            blocking_errors=(f"No matching appearance descriptor was found for body/model {body_path}.",),
+        )
+
+    selected_key = _normalized_archive_path(selected_appearance_path)
+    selected_app = next(
+        (entry for entry in matched_apps if _normalized_archive_path(entry.path) == selected_key),
+        matched_apps[0],
+    )
+    selected_plan = plans_by_app.get(_normalized_archive_path(selected_app.path))
+    if selected_plan is None:
+        selected_plan = build_archive_relationship_plan(selected_app, archive_entries, mode="character_dependency")
+
+    edges: List[ArchiveRelationEdge] = [
+        ArchiveRelationEdge(
+            source_path=body_path,
+            related_path=selected_app.path.replace("\\", "/"),
+            related_entry=selected_app,
+            relation_kind="appearance",
+            role="selected_appearance",
+            confidence="strict_graph_match",
+            reason="Appearance descriptor relationship graph references the selected body/model.",
+            include_policy=ARCHIVE_REL_INCLUDE_REQUIRED,
+        )
+    ]
+    edges.extend(selected_plan.edges)
+    edges.extend(resolve_material_texture_graph(body_entry, archive_entries).edges)
+
+    for candidate in archive_entries:
+        if str(candidate.extension or "").lower() not in _ANIMATION_EXTENSIONS:
+            continue
+        if _strict_animation_token_match(body_entry, candidate):
+            edges.append(
+                ArchiveRelationEdge(
+                    source_path=body_path,
+                    related_path=candidate.path.replace("\\", "/"),
+                    related_entry=candidate,
+                    relation_kind="animation",
+                    role="strict_token_animation",
+                    confidence="token_match",
+                    reason="Animation/motion entry matched all significant body/model stem tokens.",
+                    include_policy=ARCHIVE_REL_INCLUDE_RECOMMENDED,
+                )
+            )
+
+    entries: List[ArchiveEntry] = [body_entry, selected_app]
+    seen_entries: set[str] = {_entry_key(body_entry), _entry_key(selected_app)}
+    for edge in _dedupe_edges(edges):
+        if edge.related_entry is None:
+            continue
+        key = _entry_key(edge.related_entry)
+        if key in seen_entries:
+            continue
+        seen_entries.add(key)
+        entries.append(edge.related_entry)
+
+    return CharacterDependencyPlan(
+        body_path=body_path,
+        selected_appearance_path=selected_app.path.replace("\\", "/"),
+        appearance_paths=tuple(entry.path.replace("\\", "/") for entry in matched_apps),
+        entries=tuple(entries),
+        edges=_dedupe_edges(edges),
+        warnings=tuple(dict.fromkeys([*warnings, *selected_plan.warnings])),
+        blocking_errors=(
+            ("Multiple matching appearance descriptors were found; user selection is required for exact export.",)
+            if len(matched_apps) > 1 and not selected_appearance_path
+            else ()
+        ),
     )

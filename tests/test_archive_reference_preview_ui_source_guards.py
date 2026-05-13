@@ -45,6 +45,7 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
         self.assertIn("reference_family_graph = build_archive_asset_family_graph(entry, result.model_texture_references)", source)
         self.assertIn('preview_tabs.addTab(family_tab, "Asset Family")', source)
         self.assertIn('family_tree.setHeaderLabels(["Role", "File", "Status", "Evidence", "Why"])', source)
+        self.assertIn("self._install_tree_horizontal_wheel_guard(family_tree)", source)
 
     def test_archive_summary_highlighter_understands_simplified_previews(self) -> None:
         source = (REPO_ROOT / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
@@ -58,6 +59,16 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
         self.assertIn("Detected classes/types:", source)
         self.assertIn("_hex_value_re", source)
         self.assertIn(r"^\s*(?:[-*]\s*)?", source)
+
+    def test_archive_browser_text_fallbacks_share_preview_highlighting(self) -> None:
+        source = (REPO_ROOT / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
+
+        self.assertIn("self.archive_preview_info_edit = ArchiveDetailsEditor", source)
+        self.assertIn("window.archive_preview_info_edit,", source)
+        self.assertIn("window.archive_preview_info_edit.apply_font_preferences(log_font, preserve_size=False)", source)
+        self.assertIn("self.archive_preview_info_tools = self._build_archive_text_tools(self.archive_preview_info_edit)", source)
+        self.assertIn("self.archive_preview_info_edit.set_theme(self.current_theme_key)", source)
+        self.assertIn("current_widget is self.archive_preview_info_edit", source)
 
 
 if __name__ == "__main__":

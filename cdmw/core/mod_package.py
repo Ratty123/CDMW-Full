@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import re
 import shutil
@@ -59,17 +60,20 @@ class ModPackageExportOptions:
     manager_targets: tuple[str, ...] = ("universal",)
     structure: str = "game_relative"
     create_manifest_json: bool = True
-    create_mod_json: bool = True
-    create_modinfo_json: bool = True
-    create_info_json: bool = True
+    create_mod_json: bool = False
+    create_modinfo_json: bool = False
+    create_info_json: bool = False
     create_no_encrypt_file: bool = True
     create_zip: bool = False
+    create_texture_resolution_manifest: bool = False
     conflict_mode: str = ""
     target_language: str = ""
     files_dir: str = "files"
 
 
-MOD_PACKAGE_STRUCTURES = frozenset({"game_relative", "files_wrapper", "custom_compact_paths", "dmm_texture"})
+MOD_PACKAGE_STRUCTURES = frozenset(
+    {"game_relative", "files_wrapper", "custom_compact_paths", "dmm_texture", "field_json_v31"}
+)
 MOD_PACKAGE_FILES_WRAPPER_STRUCTURES = frozenset({"files_wrapper", "custom_compact_paths"})
 
 
@@ -92,10 +96,10 @@ class ModPackageMetadataArtifactInfo:
 
 _MOD_MANAGER_PROFILE_LABELS = {
     "universal": "Universal",
-    "json_mod_manager": "JSON Mod Manager",
     "cdumm": "CDUMM",
     "dmm": "Definitive Mod Manager",
     "crimson_sharp": "Crimson Sharp",
+    "field_json": "Field-JSON v3.1",
 }
 
 MOD_PACKAGE_METADATA_ARTIFACTS: tuple[ModPackageMetadataArtifactInfo, ...] = (
@@ -131,6 +135,12 @@ MOD_PACKAGE_METADATA_ARTIFACTS: tuple[ModPackageMetadataArtifactInfo, ...] = (
         description="Compatibility copy of the structured package metadata for managers that look for info.json.",
     ),
     ModPackageMetadataArtifactInfo(
+        key="mod_field_json",
+        filename="mod.field.json",
+        label="mod.field.json",
+        description="Field-JSON v3.1 asset manifest with DDS targets, vpaths, sizes, and SHA-256 hashes.",
+    ),
+    ModPackageMetadataArtifactInfo(
         key="no_encrypt",
         filename=".no_encrypt",
         label=".no_encrypt",
@@ -157,7 +167,7 @@ _README_DECOR_LINES = (
     ":::::::::-----:::::::::::-::::::::::::---====-----:::::::",
     ":::::::::----::::--::::::::::::::::::::-----------:::::::",
     "::::::::----:::-:::--------=-====-========---:--:::::::::",
-    ":::::::----::--:::-----====+==+++=++**++++=---::::::::::",
+    ":::::::----::--:::-----====+==+++=++**++++=---:::::::::::",
     ":::::::-------:::-----===+++==+++++****++++=--::::-::-:::",
     ":::::--------:::-=-======+++++++++++***+++=+--:::-:------",
     "::::--------:::-========++++*+++++++****++++-:::::-------",
@@ -196,21 +206,38 @@ def mod_package_profile_uses_manager_metadata(profile: str) -> bool:
 
 def mod_package_export_options_for_manager(profile: str) -> ModPackageExportOptions:
     normalized = str(profile or "universal").strip().lower()
+    if normalized in {"field_json", "field_json_v31", "field-json", "field_json_v3_1"}:
+        return ModPackageExportOptions(
+            manager_targets=("field_json",),
+            structure="field_json_v31",
+            create_manifest_json=False,
+            create_mod_json=False,
+            create_modinfo_json=False,
+            create_info_json=False,
+            create_no_encrypt_file=False,
+        )
     if normalized in {"dmm", "definitive", "definitive_mod_manager"}:
         return ModPackageExportOptions(
             manager_targets=("dmm",),
             structure="dmm_texture",
             create_manifest_json=False,
             create_mod_json=False,
+            create_modinfo_json=True,
             create_info_json=False,
             create_no_encrypt_file=False,
         )
     if normalized in {"cdumm", "ultimate", "ultimate_mods_manager"}:
-        return ModPackageExportOptions(manager_targets=("cdumm",), structure="files_wrapper")
-    if normalized in {"json", "json_mod_manager", "jmm"}:
-        return ModPackageExportOptions(manager_targets=("json_mod_manager",), structure="game_relative")
+        return ModPackageExportOptions(
+            manager_targets=("cdumm",),
+            structure="files_wrapper",
+            create_modinfo_json=True,
+        )
     if normalized in {"crimson_sharp", "sharp", "crimson_browser"}:
-        return ModPackageExportOptions(manager_targets=("crimson_sharp",), structure="files_wrapper")
+        return ModPackageExportOptions(
+            manager_targets=("crimson_sharp",),
+            structure="files_wrapper",
+            create_mod_json=True,
+        )
     return ModPackageExportOptions(manager_targets=("universal",), structure="game_relative")
 
 
@@ -297,17 +324,14 @@ def _compact_nested_value(value: object) -> object:
     return value
 
 
-def _is_same_or_child_payload_path(candidate: str, prefix: str) -> bool:
-    candidate = candidate.strip("/")
-    prefix = prefix.strip("/")
-    return bool(candidate and prefix and (candidate == prefix or candidate.startswith(f"{prefix}/")))
-
-
 def normalize_mod_package_new_path_prefixes(
     new_file_paths: Sequence[str | Path],
     *,
     all_payload_paths: Sequence[str | Path] | None = None,
 ) -> list[str]:
+    # Keep exact file paths. Folder-level compaction makes unrelated mods that
+    # add different files under a shared directory look like they conflict.
+    _ = all_payload_paths
     new_paths: list[str] = []
     seen_new: set[str] = set()
     for path_value in new_file_paths:
@@ -317,66 +341,20 @@ def normalize_mod_package_new_path_prefixes(
         seen_new.add(path_text)
         new_paths.append(path_text)
 
-    if not new_paths:
-        return []
-
-    all_paths: list[str] = []
-    seen_all: set[str] = set()
-    for path_value in all_payload_paths or new_paths:
-        path_text = _payload_path_text(path_value)
-        if not path_text or path_text in seen_all:
-            continue
-        seen_all.add(path_text)
-        all_paths.append(path_text)
-    if not all_paths:
-        all_paths = list(new_paths)
-        seen_all = set(new_paths)
-
-    new_path_set = set(new_paths)
-    prefixes: list[str] = []
-
-    def _append_prefix(prefix: str) -> None:
-        normalized_prefix = prefix.strip("/")
-        if not normalized_prefix:
-            return
-        for existing in prefixes:
-            if _is_same_or_child_payload_path(normalized_prefix, existing):
-                return
-        prefixes[:] = [
-            existing
-            for existing in prefixes
-            if not _is_same_or_child_payload_path(existing, normalized_prefix)
-        ]
-        prefixes.append(normalized_prefix)
-
-    for new_path in new_paths:
-        parts = PurePosixPath(new_path).parts
-        selected_prefix = new_path
-        for length in range(2, len(parts)):
-            candidate_prefix = PurePosixPath(*parts[:length]).as_posix()
-            covered_paths = [
-                payload_path
-                for payload_path in all_paths
-                if _is_same_or_child_payload_path(payload_path, candidate_prefix)
-            ]
-            if len(covered_paths) > 1 and all(payload_path in new_path_set for payload_path in covered_paths):
-                selected_prefix = candidate_prefix
-                break
-        _append_prefix(selected_prefix)
-
-    return prefixes
+    return new_paths
 
 
 def _normalize_manager_targets(values: Sequence[str]) -> list[str]:
     targets: list[str] = []
     seen: set[str] = set()
+    supported_targets = set(_MOD_MANAGER_PROFILE_LABELS)
     for value in values:
         normalized = str(value or "").strip().lower()
-        if not normalized or normalized in seen:
+        if not normalized or normalized in seen or normalized not in supported_targets:
             continue
         seen.add(normalized)
         targets.append(normalized)
-    return targets
+    return targets or ["universal"]
 
 
 def _safe_files_dir(value: str) -> str:
@@ -399,6 +377,7 @@ def _effective_export_options_for_kind(
             structure="dmm_texture",
             create_manifest_json=False,
             create_mod_json=False,
+            create_modinfo_json=True,
             create_info_json=False,
             create_no_encrypt_file=False,
         )
@@ -470,6 +449,97 @@ def _write_json(path: Path, payload: object) -> Path:
     return path
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _field_json_modinfo(package_info: ModPackageInfo) -> dict[str, object]:
+    title = (package_info.title or "").strip() or "Crimson Desert Mod Workbench Mod"
+    return _compact_nested_value(
+        {
+            "name": title,
+            "title": title,
+            "version": (package_info.version or "").strip() or "1.0",
+            "author": (package_info.author or "").strip(),
+            "description": (package_info.description or "").strip(),
+            "nexus_url": (package_info.nexus_url or "").strip(),
+        }
+    )  # type: ignore[return-value]
+
+
+def _write_field_json_v31_manifest(
+    root: Path,
+    package_info: ModPackageInfo,
+    *,
+    payload_paths: Sequence[str | Path],
+) -> tuple[Path, list[str]]:
+    warnings: list[str] = []
+    targets: list[dict[str, object]] = []
+    seen_vpaths: set[str] = set()
+    for value in payload_paths:
+        payload_text = normalize_mod_package_payload_path(value).as_posix()
+        if not payload_text or not payload_text.lower().endswith(".dds"):
+            continue
+        source_rel = payload_text
+        if payload_text.lower().startswith("assets/"):
+            vpath_text = payload_text[len("assets/") :].strip("/")
+            file_rel = payload_text
+        else:
+            vpath_text = payload_text.strip("/")
+            file_rel = f"assets/{vpath_text}"
+        if not vpath_text:
+            continue
+        source_path = root.joinpath(*PurePosixPath(source_rel).parts)
+        asset_path = root.joinpath(*PurePosixPath(file_rel).parts)
+        if not source_path.is_file() and asset_path.is_file():
+            source_path = asset_path
+        if not source_path.is_file():
+            warnings.append(f"Field-JSON skipped missing DDS payload: {payload_text}")
+            continue
+        asset_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            same_file = source_path.resolve() == asset_path.resolve()
+        except OSError:
+            same_file = False
+        if not same_file:
+            shutil.copy2(source_path, asset_path)
+        normalized_vpath = "/" + PurePosixPath(vpath_text).as_posix().lstrip("/")
+        vpath_key = normalized_vpath.lower()
+        if vpath_key in seen_vpaths:
+            warnings.append(f"Field-JSON skipped duplicate DDS vpath: {normalized_vpath}")
+            continue
+        seen_vpaths.add(vpath_key)
+        targets.append(
+            {
+                "kind": "asset",
+                "asset_type": "dds",
+                "file": PurePosixPath(file_rel).as_posix(),
+                "vpath": normalized_vpath,
+                "sha256": _sha256_file(asset_path),
+                "size": asset_path.stat().st_size,
+            }
+        )
+
+    payload = {
+        "format": 3,
+        "format_minor": 1,
+        "modinfo": _field_json_modinfo(package_info),
+        "targets": targets,
+    }
+    manifest_path = root / "mod.field.json"
+    _write_json(manifest_path, payload)
+    if not targets:
+        warnings.append("Field-JSON manifest contains no DDS asset targets.")
+    return manifest_path, warnings
+
+
 def _payload_paths_under_root(root: Path, payload_paths: Sequence[str | Path]) -> list[Path]:
     paths: list[Path] = []
     seen: set[str] = set()
@@ -498,6 +568,7 @@ def _discover_payload_paths_under_root(root: Path) -> list[str]:
         "README.txt",
         "info.json",
         "manifest.json",
+        "mod.field.json",
         "mod.json",
         "modinfo.json",
     }
@@ -705,13 +776,15 @@ def finalize_mod_package_export(
     uses_files_wrapper = normalized_structure in MOD_PACKAGE_FILES_WRAPPER_STRUCTURES
     files_dir_value = files_dir_name if uses_files_wrapper else "."
     payload_root = root / files_dir_name if uses_files_wrapper else root
+    effective_payload_paths: Sequence[str | Path] = payload_paths or _discover_payload_paths_under_root(root)
+    field_json_warnings: list[str] = []
 
-    if uses_files_wrapper and payload_paths:
-        _move_payloads_to_files_dir(root, payload_paths, files_dir_name)
+    if uses_files_wrapper and effective_payload_paths:
+        _move_payloads_to_files_dir(root, effective_payload_paths, files_dir_name)
 
     new_path_prefixes = normalize_mod_package_new_path_prefixes(
         new_file_paths,
-        all_payload_paths=payload_paths,
+        all_payload_paths=effective_payload_paths,
     )
     manager_targets = _normalize_manager_targets(resolved_options.manager_targets)
     created = created_utc or datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -769,12 +842,20 @@ def finalize_mod_package_export(
         metadata_files.append(_write_json(root / "modinfo.json", modinfo))
     if resolved_options.create_info_json:
         metadata_files.append(_write_json(root / "info.json", manifest_payload))
+    if normalized_structure == "field_json_v31":
+        field_manifest_path, field_json_warnings = _write_field_json_v31_manifest(
+            root,
+            package_info,
+            payload_paths=effective_payload_paths,
+        )
+        metadata_files.append(field_manifest_path)
 
     zip_path = _write_package_zip(root) if resolved_options.create_zip else None
     return ModPackageFinalizeResult(
         metadata_files=metadata_files,
         zip_path=zip_path,
         payload_root=payload_root,
+        warnings=field_json_warnings,
     )
 
 
@@ -848,7 +929,11 @@ def write_mod_package_readme(
     normalized_structure = str(structure or "").strip().lower()
     normalized_kind = str(kind or "").strip().lower()
     _readme_add_section(lines, "Installation")
-    if "dmm" in target_set and normalized_kind == "dds_loose_mod":
+    if "field_json" in target_set or normalized_structure == "field_json_v31":
+        _readme_append_step(lines, 1, "Import this folder with a tool that supports Field-JSON v3.1 manifests.")
+        _readme_append_step(lines, 2, "Verify mod.field.json and the assets/ folder stay together.")
+        _readme_append_step(lines, 3, "Deploy or mount the package, then verify the replaced DDS assets in game.")
+    elif "dmm" in target_set and normalized_kind == "dds_loose_mod":
         _readme_append_step(lines, 1, "Place this folder inside DMM's mods/_textures/ folder.")
         _readme_append_step(lines, 2, "Refresh DMM, enable the texture mod, then mount it.")
         _readme_append_step(lines, 3, "Verify the replaced DDS files in game.")
@@ -871,6 +956,12 @@ def write_mod_package_readme(
         _readme_append_wrapped(
             lines,
             "This DMM texture layout intentionally does not use a files/ wrapper.",
+        )
+    if normalized_structure == "field_json_v31":
+        _readme_add_section(lines, "Layout")
+        _readme_append_wrapped(
+            lines,
+            "This Field-JSON package writes DDS assets under assets/ and records their game vpaths in mod.field.json.",
         )
 
     readme_path = root / "README.txt"

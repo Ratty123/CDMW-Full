@@ -1,12 +1,19 @@
+import struct
 import unittest
 
-from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, parse_pac
 from cdmw.modding.static_mesh_replacer import (
+    StaticIndependentPart,
     StaticMeshReplacementOptions,
     StaticReplacementTransform,
+    StaticSourcePartAdjustment,
     StaticSubmeshMapping,
+    StaticTextureUvTransform,
     _build_mapped_replacement_mesh,
+    analyze_static_replacement,
+    build_static_mesh_replacement,
     build_static_replacement_preview_mesh,
+    plan_static_output_draw_sections,
 )
 
 
@@ -19,6 +26,75 @@ def _mesh(path: str, submeshes: list[SubMesh]) -> ParsedMesh:
         total_faces=sum(len(submesh.faces) for submesh in submeshes),
         has_uvs=any(bool(submesh.uvs) for submesh in submeshes),
     )
+
+
+def _large_part(name: str, vertex_count: int) -> SubMesh:
+    return SubMesh(
+        name=name,
+        material=name,
+        vertices=[(float(index), float(index % 13), float(index % 7)) for index in range(vertex_count)],
+        faces=[(0, 1, 2)] if vertex_count >= 3 else [],
+    )
+
+
+def _minimal_pac_original() -> tuple[bytes, ParsedMesh]:
+    n_lods = 4
+    vertex_records = bytearray(3 * 40)
+    positions = [(0, 0, 0), (32767, 0, 0), (0, 32767, 0)]
+    for index, position in enumerate(positions):
+        struct.pack_into("<HHH", vertex_records, index * 40, *position)
+        struct.pack_into("<I", vertex_records, index * 40 + 16, 0)
+    indices = struct.pack("<HHH", 0, 1, 2)
+    lod_section = bytes(vertex_records + indices)
+
+    sec0 = bytearray(5 + n_lods * 8)
+    sec0[4] = n_lods
+    sec0.extend(bytes([6]) + b"target")
+    sec0.extend(bytes([6]) + b"target")
+    desc_start = len(sec0)
+    desc = bytearray(64)
+    desc[0] = 0x01
+    struct.pack_into("<8f", desc, 3, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
+    desc[35:40] = bytes([0x04, 0x00, 0x01, 0x02, 0x03])
+    for lod_index in range(n_lods):
+        struct.pack_into("<H", desc, 40 + lod_index * 2, 3)
+        struct.pack_into("<I", desc, 48 + lod_index * 4, 3)
+    sec0.extend(desc)
+
+    header = bytearray(0x50)
+    header[:4] = b"PAR "
+    sections = [bytes(sec0)] + [lod_section] * n_lods
+    for index, payload in enumerate(sections):
+        struct.pack_into("<I", header, 0x10 + index * 8, 0)
+        struct.pack_into("<I", header, 0x10 + index * 8 + 4, len(payload))
+    offsets = []
+    cursor = len(header)
+    for payload in sections:
+        offsets.append(cursor)
+        cursor += len(payload)
+    for lod_index in range(n_lods):
+        section_index = n_lods - lod_index
+        struct.pack_into("<I", sec0, 5 + lod_index * 4, offsets[section_index])
+        struct.pack_into("<I", sec0, 5 + n_lods * 4 + lod_index * 4, offsets[section_index] + len(vertex_records))
+    sections[0] = bytes(sec0)
+    data = bytes(header) + b"".join(sections)
+    lod0_offset = offsets[4]
+    original = _mesh(
+        "target.pac",
+        [
+            SubMesh(
+                name="target",
+                material="target",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                faces=[(0, 1, 2)],
+                source_vertex_offsets=[lod0_offset + index * 40 for index in range(3)],
+                source_vertex_stride=40,
+                source_descriptor_offset=offsets[0] + desc_start,
+                source_lod_count=n_lods,
+            )
+        ],
+    )
+    return data, original
 
 
 class StaticMeshReplacementPreviewTests(unittest.TestCase):
@@ -66,6 +142,99 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         self.assertEqual(preview.submeshes[0].vertices[0], (1.0, 2.0, 3.0))
         with self.assertRaisesRegex(ValueError, "65,535"):
             _build_mapped_replacement_mesh(original, replacement, [mapping], options)
+
+    def test_dense_output_plan_preserves_under_limit_parts_as_cloned_sections(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(
+                    name="target",
+                    material="target",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "dense.gltf",
+            [_large_part(f"part_{index}", 22_000) for index in range(4)],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target",
+            source_submesh_indices=[0, 1, 2, 3],
+            target_material_slot_index=0,
+        )
+        options = StaticMeshReplacementOptions(submesh_mappings=[mapping])
+
+        sections, warnings, errors = plan_static_output_draw_sections(original, replacement, [mapping], options)
+
+        self.assertFalse(errors)
+        self.assertTrue(warnings)
+        self.assertEqual(2, len(sections))
+        self.assertFalse(sections[0].is_cloned_section)
+        self.assertTrue(sections[1].is_cloned_section)
+        self.assertEqual([0, 1], sections[0].source_submesh_indices)
+        self.assertEqual([2, 3], sections[1].source_submesh_indices)
+        self.assertLessEqual(sections[0].vertex_count, 65_535)
+        self.assertLessEqual(sections[1].vertex_count, 65_535)
+
+    def test_dense_output_plan_blocks_single_oversized_source_part(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(
+                    name="target",
+                    material="target",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh("dense.gltf", [_large_part("too_big", 65_536)])
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+
+        _sections, _warnings, errors = plan_static_output_draw_sections(
+            original,
+            replacement,
+            [mapping],
+            StaticMeshReplacementOptions(submesh_mappings=[mapping]),
+        )
+
+        self.assertEqual(1, len(errors))
+        self.assertIn("65,536 vertices", errors[0])
+        self.assertIn("65,535", errors[0])
+
+    def test_pac_dense_rebuild_clones_draw_section_descriptors(self) -> None:
+        original_data, original = _minimal_pac_original()
+        replacement = _mesh(
+            "dense.gltf",
+            [_large_part(f"part_{index}", 22_000) for index in range(4)],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target",
+            source_submesh_indices=[0, 1, 2, 3],
+            target_material_slot_index=0,
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+            submesh_mappings=[mapping],
+        )
+
+        rebuilt, report = build_static_mesh_replacement(original_data, original, replacement, options)
+        parsed = parse_pac(rebuilt, "rebuilt.pac")
+
+        self.assertEqual(2, len(report.output_draw_sections))
+        self.assertEqual(1, sum(1 for section in report.output_draw_sections if section.is_cloned_section))
+        self.assertEqual(2, len(parsed.submeshes))
+        self.assertTrue(all(len(submesh.vertices) <= 65_535 for submesh in parsed.submeshes))
+        self.assertEqual(88_000, sum(len(submesh.vertices) for submesh in parsed.submeshes))
 
     def test_preview_decimation_keeps_transform_responsive(self) -> None:
         original = _mesh(
@@ -118,6 +287,480 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         self.assertLessEqual(len(preview.submeshes[0].faces), 10)
         self.assertLessEqual(len(preview.submeshes[0].vertices), 30)
         self.assertEqual(preview.submeshes[0].vertices[0], (0.5, 0.0, 0.0))
+
+    def test_texture_uv_transform_applies_to_preview_and_export_mesh(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(
+                    name="target",
+                    material="target",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "replacement.obj",
+            [
+                SubMesh(
+                    name="helmet_geo",
+                    material="UV_Samurai_Helmet",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    uvs=[(0.0, 0.0), (1.0, 0.5), (0.25, 1.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(
+                alignment_mode="manual",
+                scale_to_original_length=False,
+            ),
+            submesh_mappings=[mapping],
+            texture_uv_transforms=[
+                StaticTextureUvTransform(
+                    source_material_name="UV_Samurai_Helmet",
+                    rotate_degrees=90,
+                    flip_u=True,
+                    offset_uv=(0.1, -0.2),
+                )
+            ],
+        )
+
+        preview = build_static_replacement_preview_mesh(original, replacement, options)
+        exported = _build_mapped_replacement_mesh(original, replacement, [mapping], options)
+
+        self.assertEqual(preview.submeshes[0].uvs, exported.submeshes[0].uvs)
+        self.assertAlmostEqual(preview.submeshes[0].uvs[0][0], 1.1)
+        self.assertAlmostEqual(preview.submeshes[0].uvs[0][1], 0.8)
+        self.assertAlmostEqual(preview.submeshes[0].uvs[1][0], 0.6)
+        self.assertAlmostEqual(preview.submeshes[0].uvs[1][1], -0.2)
+
+    def test_edited_source_mesh_override_feeds_preview(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(
+                    name="target",
+                    material="target",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "replacement.obj",
+            [
+                SubMesh(
+                    name="source",
+                    material="source",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        edited = _mesh(
+            "replacement.obj",
+            [
+                SubMesh(
+                    name="source",
+                    material="source",
+                    vertices=[(0.25, 0.0, 0.0), (1.25, 0.0, 0.0), (0.25, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+
+        preview = build_static_replacement_preview_mesh(
+            original,
+            replacement,
+            StaticMeshReplacementOptions(
+                transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+                submesh_mappings=[mapping],
+                edited_source_mesh=edited,
+            ),
+        )
+
+        self.assertEqual((0.25, 0.0, 0.0), preview.submeshes[0].vertices[0])
+
+    def test_unmapped_appended_source_does_not_change_mapped_alignment(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(
+                    name="helmet",
+                    material="helmet",
+                    vertices=[(0.0, 0.0, 0.0), (0.0, 2.0, 0.0), (0.0, 0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        mapped_source = SubMesh(
+            name="helmet",
+            material="helmet",
+            vertices=[(0.0, 0.0, 0.0), (0.0, 2.0, 0.0), (0.0, 0.0, 1.0)],
+            faces=[(0, 1, 2)],
+        )
+        far_unmapped_attachment = SubMesh(
+            name="horns",
+            material="horns",
+            vertices=[(100.0, 0.0, 0.0), (101.0, 0.0, 0.0), (100.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="helmet",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(alignment_mode="auto_fit_original", scale_to_original_length=True),
+            submesh_mappings=[mapping],
+        )
+        replacement_without_append = _mesh("replacement.obj", [mapped_source])
+        replacement_with_append = _mesh(
+            "replacement.obj",
+            [
+                SubMesh(**mapped_source.__dict__),
+                far_unmapped_attachment,
+            ],
+        )
+
+        preview_without_append = build_static_replacement_preview_mesh(original, replacement_without_append, options)
+        preview_with_append = build_static_replacement_preview_mesh(original, replacement_with_append, options)
+
+        self.assertEqual(preview_without_append.submeshes[0].vertices, preview_with_append.submeshes[0].vertices)
+
+    def test_mapped_appended_source_can_be_exempt_from_global_alignment(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(
+                    name="helmet",
+                    material="helmet",
+                    vertices=[(0.0, 0.0, 0.0), (0.0, 2.0, 0.0), (0.0, 0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        mapped_source = SubMesh(
+            name="helmet",
+            material="helmet",
+            vertices=[(0.0, 0.0, 0.0), (0.0, 2.0, 0.0), (0.0, 0.0, 1.0)],
+            faces=[(0, 1, 2)],
+        )
+        far_attachment = SubMesh(
+            name="horns",
+            material="horns",
+            vertices=[(100.0, 0.0, 0.0), (101.0, 0.0, 0.0), (100.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+        )
+        baseline_mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="helmet",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+        appended_mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="helmet",
+            source_submesh_indices=[0, 1],
+            target_material_slot_index=0,
+        )
+        transform = StaticReplacementTransform(alignment_mode="auto_fit_original", scale_to_original_length=True)
+        baseline = build_static_replacement_preview_mesh(
+            original,
+            _mesh("replacement.obj", [mapped_source]),
+            StaticMeshReplacementOptions(transform=transform, submesh_mappings=[baseline_mapping]),
+        )
+        with_appended = build_static_replacement_preview_mesh(
+            original,
+            _mesh("replacement.obj", [SubMesh(**mapped_source.__dict__), far_attachment]),
+            StaticMeshReplacementOptions(
+                transform=transform,
+                submesh_mappings=[appended_mapping],
+                global_transform_exempt_source_indices=[1],
+            ),
+        )
+
+        self.assertEqual(baseline.submeshes[0].vertices, with_appended.submeshes[0].vertices[:3])
+        self.assertEqual(6, len(with_appended.submeshes[0].vertices))
+
+    def test_auto_alignment_uses_projected_blade_frame_to_remove_twist(self) -> None:
+        original = _mesh(
+            "original_sword.pac",
+            [
+                SubMesh(
+                    name="blade",
+                    material="blade",
+                    vertices=[
+                        (0.0, -0.5, 0.0),
+                        (0.0, 0.5, 0.0),
+                        (10.0, -0.5, 0.0),
+                        (10.0, 0.5, 0.0),
+                    ],
+                    faces=[(0, 1, 2), (1, 3, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "replacement_sword.obj",
+            [
+                SubMesh(
+                    name="blade",
+                    material="blade",
+                    vertices=[
+                        (-0.5, -0.5, 0.0),
+                        (0.5, 0.5, 0.0),
+                        (-0.5, -0.5, 10.0),
+                        (0.5, 0.5, 10.0),
+                    ],
+                    faces=[(0, 1, 2), (1, 3, 2)],
+                )
+            ],
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(
+                alignment_mode="auto_fit_original",
+                scale_to_original_length=True,
+            ),
+            submesh_mappings=[
+                StaticSubmeshMapping(
+                    target_submesh_index=0,
+                    target_submesh_name="blade",
+                    source_submesh_indices=[0],
+                    target_material_slot_index=0,
+                )
+            ],
+        )
+
+        preview = build_static_replacement_preview_mesh(original, replacement, options)
+        vertices = preview.submeshes[0].vertices
+        x_span = max(vertex[0] for vertex in vertices) - min(vertex[0] for vertex in vertices)
+        y_span = max(vertex[1] for vertex in vertices) - min(vertex[1] for vertex in vertices)
+        z_span = max(vertex[2] for vertex in vertices) - min(vertex[2] for vertex in vertices)
+
+        self.assertAlmostEqual(10.0, x_span, places=6)
+        self.assertGreater(y_span, 1.0)
+        self.assertLess(z_span, 1e-6)
+
+    def test_source_part_adjustment_does_not_recompute_auto_alignment_basis(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(
+                    name="target",
+                    material="target",
+                    vertices=[(0.0, 0.0, 0.0), (0.0, 10.0, 0.0), (0.2, 0.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        main_source = SubMesh(
+            name="main",
+            material="main",
+            vertices=[(0.0, 0.0, 0.0), (0.0, 2.0, 0.0), (0.1, 0.0, 0.0)],
+            faces=[(0, 1, 2)],
+        )
+        adjusted_source = SubMesh(
+            name="attachment",
+            material="attachment",
+            vertices=[(0.0, 0.0, 0.0), (0.0, 0.2, 0.0), (0.1, 0.0, 0.0)],
+            faces=[(0, 1, 2)],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target",
+            source_submesh_indices=[0, 1],
+            target_material_slot_index=0,
+        )
+        transform = StaticReplacementTransform(alignment_mode="auto_fit_original", scale_to_original_length=True)
+        baseline = build_static_replacement_preview_mesh(
+            original,
+            _mesh("replacement.obj", [main_source, adjusted_source]),
+            StaticMeshReplacementOptions(transform=transform, submesh_mappings=[mapping]),
+        )
+        adjusted = build_static_replacement_preview_mesh(
+            original,
+            _mesh("replacement.obj", [SubMesh(**main_source.__dict__), SubMesh(**adjusted_source.__dict__)]),
+            StaticMeshReplacementOptions(
+                transform=transform,
+                submesh_mappings=[mapping],
+                source_part_adjustments=[
+                    StaticSourcePartAdjustment(
+                        source_submesh_index=1,
+                        offset_xyz=(100.0, 0.0, 0.0),
+                        rotate_xyz_degrees=(0.0, 0.0, 90.0),
+                    )
+                ],
+            ),
+        )
+
+        self.assertEqual(baseline.submeshes[0].vertices[:3], adjusted.submeshes[0].vertices[:3])
+
+    def test_preview_decimation_keeps_source_part_adjustment_pivot_stable(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(
+                    name="target",
+                    material="target",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        attachment = SubMesh(
+            name="horn",
+            material="horn",
+            vertices=[
+                (0.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+                (100.0, 0.0, 0.0),
+                (101.0, 0.0, 0.0),
+                (100.0, 1.0, 0.0),
+            ],
+            faces=[(0, 1, 2), (3, 4, 5)],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+            submesh_mappings=[mapping],
+            source_part_adjustments=[
+                StaticSourcePartAdjustment(
+                    source_submesh_index=0,
+                    rotate_xyz_degrees=(0.0, 0.0, 180.0),
+                )
+            ],
+            global_transform_exempt_source_indices=[0],
+        )
+
+        full_preview = build_static_replacement_preview_mesh(original, _mesh("horn.obj", [attachment]), options)
+        decimated_preview = build_static_replacement_preview_mesh(
+            original,
+            _mesh("horn.obj", [attachment]),
+            options,
+            max_source_faces_per_submesh=1,
+        )
+
+        self.assertEqual(full_preview.submeshes[0].vertices[:3], decimated_preview.submeshes[0].vertices[:3])
+
+    def test_independent_output_part_previews_without_target_mapping(self) -> None:
+        original = _mesh(
+            "helmet.pac",
+            [
+                SubMesh(
+                    name="helmet",
+                    material="helmet",
+                    vertices=[(0.0, 0.0, 0.0), (0.0, 2.0, 0.0), (0.0, 0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        helmet_source = SubMesh(
+            name="helmet",
+            material="helmet",
+            vertices=[(0.0, 0.0, 0.0), (0.0, 2.0, 0.0), (0.0, 0.0, 1.0)],
+            faces=[(0, 1, 2)],
+        )
+        horns_source = SubMesh(
+            name="horns",
+            material="horns_source",
+            vertices=[(10.0, 0.0, 0.0), (11.0, 0.0, 0.0), (10.0, 1.0, 0.0)],
+            uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+            faces=[(0, 1, 2)],
+        )
+        replacement = _mesh("replacement.obj", [helmet_source, horns_source])
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="helmet",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(alignment_mode="auto_fit_original", scale_to_original_length=True),
+            submesh_mappings=[mapping],
+            independent_output_parts=[
+                StaticIndependentPart(
+                    source_submesh_index=1,
+                    label="horns attachment",
+                    material_name="horns_custom",
+                )
+            ],
+        )
+
+        preview = build_static_replacement_preview_mesh(original, replacement, options)
+        report = analyze_static_replacement(original, replacement, options)
+
+        self.assertEqual(2, len(preview.submeshes))
+        self.assertEqual("horns attachment", preview.submeshes[1].name)
+        self.assertEqual("horns_custom", preview.submeshes[1].material)
+        self.assertEqual([(10.0, 0.0, 0.0), (11.0, 0.0, 0.0), (10.0, 1.0, 0.0)], preview.submeshes[1].vertices)
+        self.assertFalse(any("not used by mapping" in warning for warning in report.warnings))
+
+    def test_final_build_blocks_independent_parts_until_draw_section_cloning_exists(self) -> None:
+        original = _mesh(
+            "helmet.pac",
+            [
+                SubMesh(
+                    name="helmet",
+                    material="helmet",
+                    vertices=[(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "replacement.obj",
+            [
+                SubMesh(
+                    name="helmet",
+                    material="helmet",
+                    vertices=[(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                ),
+                SubMesh(
+                    name="horns",
+                    material="horns",
+                    vertices=[(1.0, 0.0, 0.0), (2.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                ),
+            ],
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+            submesh_mappings=[
+                StaticSubmeshMapping(
+                    target_submesh_index=0,
+                    target_submesh_name="helmet",
+                    source_submesh_indices=[0],
+                    target_material_slot_index=0,
+                )
+            ],
+            independent_output_parts=[StaticIndependentPart(source_submesh_index=1, label="horns")],
+        )
+
+        with self.assertRaisesRegex(ValueError, "Independent added mesh parts cannot be written"):
+            build_static_mesh_replacement(b"not a real par", original, replacement, options)
 
 
 if __name__ == "__main__":

@@ -69,6 +69,35 @@ class FinalPackageMaterialStatus:
     detail: str = ""
 
 
+@dataclass(slots=True, frozen=True)
+class TextureResolutionManifestRow:
+    material_name: str
+    submesh_name: str
+    role: str
+    parameter_name: str
+    sidecar_path: str
+    requested_texture_path: str
+    resolved_texture_path: str = ""
+    binding_source: str = FINAL_PREVIEW_BINDING_MISSING
+    status: str = FINAL_PREVIEW_MISSING_DDS
+    reason: str = ""
+    skipped_reason: str = ""
+
+
+@dataclass(slots=True, frozen=True)
+class TextureResolutionManifest:
+    schema: str = "cdmw_texture_resolution_manifest_v1"
+    rows: Tuple[TextureResolutionManifestRow, ...] = ()
+    warnings: Tuple[str, ...] = ()
+
+    def to_dict(self) -> dict:
+        return {
+            "schema": self.schema,
+            "rows": [dataclasses.asdict(row) for row in self.rows],
+            "warnings": list(self.warnings),
+        }
+
+
 @dataclass(slots=True)
 class FinalPackagePreviewResult:
     preview_model: ModelPreviewData
@@ -78,6 +107,7 @@ class FinalPackagePreviewResult:
     missing_texture_paths: List[str] = field(default_factory=list)
     summary_lines: List[str] = field(default_factory=list)
     material_statuses: Tuple[FinalPackageMaterialStatus, ...] = ()
+    texture_resolution_manifest: TextureResolutionManifest = field(default_factory=TextureResolutionManifest)
 
 
 @dataclass(slots=True, frozen=True)
@@ -505,6 +535,12 @@ def _material_semantics_for_binding(parameter_name: str, texture_path: str) -> T
     parameter_normalized = re.sub(r"[^a-z0-9]+", "", str(parameter_name or "").lower())
     path_normalized = re.sub(r"[^a-z0-9]+", "", PurePosixPath(str(texture_path or "")).name.lower())
     normalized = f"{parameter_normalized} {path_normalized}"
+    path_stem = PurePosixPath(str(texture_path or "")).stem.lower()
+    path_tokens = tuple(token for token in re.split(r"[^a-z0-9]+", path_stem) if token)
+    if path_tokens and path_tokens[-1] == "mg":
+        return "material", "detail_mask", ("detail",)
+    if path_tokens and path_tokens[-1] == "ma":
+        return "material", "material_mask", ("ao", "roughness", "metallic")
     if any(token in parameter_normalized for token in ("metallic", "metalness", "metal")):
         return "material", "metallic", ("metallic",)
     if any(token in parameter_normalized for token in ("roughness", "rough", "smoothness", "gloss")):
@@ -593,18 +629,46 @@ def _candidate_mesh_indices(preview_model: ModelPreviewData, binding: object) ->
     return ()
 
 
+def _build_texture_resolution_manifest(
+    binding_rows: Sequence[FinalPackageBindingRow],
+    warnings: Sequence[str],
+) -> TextureResolutionManifest:
+    manifest_rows: List[TextureResolutionManifestRow] = []
+    for row in binding_rows:
+        requested = str(row.texture_path or "")
+        normalized_requested = requested.replace("\\", "/").lower()
+        skipped_reason = ""
+        if "nonetexture" in normalized_requested or "none_texture" in normalized_requested:
+            skipped_reason = "engine null texture sentinel"
+        elif row.status == FINAL_PREVIEW_MISSING_DDS:
+            skipped_reason = "missing final DDS payload"
+        elif row.status == FINAL_PREVIEW_ADVANCED_SHADER_ONLY:
+            skipped_reason = "advanced/support shader binding"
+        manifest_rows.append(
+            TextureResolutionManifestRow(
+                material_name=row.material_name,
+                submesh_name=row.part_name or row.material_name,
+                role=row.role,
+                parameter_name=row.parameter_name,
+                sidecar_path=row.sidecar_path,
+                requested_texture_path=requested,
+                resolved_texture_path=row.resolved_texture_path,
+                binding_source=row.binding_source,
+                status=row.status,
+                reason=row.detail,
+                skipped_reason=skipped_reason,
+            )
+        )
+    return TextureResolutionManifest(
+        rows=tuple(manifest_rows),
+        warnings=tuple(str(warning) for warning in warnings),
+    )
+
+
 def _slot_role(parameter_name: str, texture_path: str) -> Tuple[str, str, bool]:
     normalized = re.sub(r"[^a-z0-9]+", "", f"{parameter_name} {PurePosixPath(texture_path).name}".lower())
     if any(token in normalized for token in ("emissive", "glow", "illum")):
         return "emissive", "Emissive", True
-    if any(token in normalized for token in ("colorblendingmask", "detailmask", "material", "metallic", "roughness", "occlusion", "mask")):
-        return "material", "Material / Mask", True
-    if "normal" in normalized:
-        return "normal", "Normal", True
-    if any(token in normalized for token in ("height", "displacement", "depth", "parallax", "bump")):
-        return "height", "Height", True
-    if any(token in normalized for token in ("basecolor", "overlaycolor", "diffuse", "albedo", "colortexture", "basetexture")):
-        return "base", "Base / Color", True
     classification = classify_texture_binding(parameter_name, texture_path)
     slot_kind = str(getattr(classification, "slot_kind", "") or "").strip().lower() or "material"
     semantic_type = str(getattr(classification, "semantic_type", "") or "").strip().lower()
@@ -617,6 +681,18 @@ def _slot_role(parameter_name: str, texture_path: str) -> Tuple[str, str, bool]:
         return "normal", "Normal", bool(getattr(classification, "visualized", False))
     if slot_kind == "height":
         return "height", "Height", bool(getattr(classification, "visualized", False))
+    if slot_kind == "material_mask":
+        return "material", "Material / Mask", bool(getattr(classification, "visualized", False))
+    if slot_kind == "detail_mask":
+        return "material", "Detail Mask", bool(getattr(classification, "visualized", False))
+    if any(token in normalized for token in ("colorblendingmask", "detailmask", "material", "metallic", "roughness", "occlusion", "mask")):
+        return "material", "Material / Mask", True
+    if "normal" in normalized:
+        return "normal", "Normal", True
+    if any(token in normalized for token in ("height", "displacement", "depth", "parallax", "bump")):
+        return "height", "Height", True
+    if any(token in normalized for token in ("basecolor", "overlaycolor", "diffuse", "albedo", "colortexture", "basetexture")):
+        return "base", "Base / Color", True
     return "material", "Material / Mask", bool(getattr(classification, "visualized", False))
 
 
@@ -704,6 +780,64 @@ def _dedupe(values: Iterable[str]) -> List[str]:
     return result
 
 
+def _visible_preview_texture_count(model: object) -> int:
+    textures: set[str] = set()
+    for mesh in getattr(model, "meshes", ()) or ():
+        texture_path = str(getattr(mesh, "preview_texture_path", "") or "").replace("\\", "/").strip()
+        if texture_path:
+            textures.add(texture_path.lower())
+    return len(textures)
+
+
+def _preview_result_texture_contract_warnings(preview_result: MeshImportPreviewResult) -> List[str]:
+    warnings: List[str] = []
+    for line in tuple(getattr(preview_result, "summary_lines", ()) or ()):
+        text = str(line or "").strip()
+        if not text:
+            continue
+        if "Texture routing blocker:" in text:
+            warnings.append(
+                text
+                + " Final preview uses the rebuilt game draw/material slots, so separate source textures cannot be shown on "
+                "one merged target slot. Split the added parts across separate original draw slots, or bake/atlas those "
+                "source textures into one material before export."
+            )
+            continue
+        if "[Blocked;" in text and "<-" in text:
+            warnings.append(
+                "Static texture routing is blocked for one or more source materials. The replacement placement preview can "
+                "show source-material convenience textures, but the final preview can only show the validated rebuilt "
+                "sidecar/DDS contract."
+            )
+    return warnings
+
+
+def _is_stock_or_shared_texture_path(texture_path: str) -> bool:
+    basename = PurePosixPath(str(texture_path or "").replace("\\", "/")).name.lower()
+    return (
+        basename.startswith("cd_texturelayer_")
+        or basename.startswith("cd_temp")
+        or basename.startswith("cd_metal_")
+        or basename.startswith("blackoil")
+        or basename.startswith("cd_common_default")
+        or basename.startswith("nonetexture")
+        or basename.startswith("none_texture")
+    )
+
+
+def _looks_like_normal_texture_path(texture_path: str) -> bool:
+    stem = PurePosixPath(str(texture_path or "").replace("\\", "/")).stem.lower()
+    if "normal" in stem or stem.endswith(("_n", "_wn", "_nm", "_nrm", "_nor", "_no")):
+        return True
+    return bool(re.search(r"(?:^|[_\-.])n(?:$|[_\-.])", stem))
+
+
+def _looks_like_normal_source_path(source_path: object) -> bool:
+    if not isinstance(source_path, Path):
+        return False
+    return _looks_like_normal_texture_path(source_path.name)
+
+
 def build_final_package_preview(
     preview_result: MeshImportPreviewResult,
     *,
@@ -718,6 +852,7 @@ def build_final_package_preview(
     warnings: List[str] = []
     preview_model = _rebuilt_preview_model(preview_result, warnings)
     _clear_texture_slots(preview_model)
+    warnings.extend(_preview_result_texture_contract_warnings(preview_result))
     specs = tuple(supplemental_file_specs if supplemental_file_specs is not None else getattr(preview_result, "supplemental_file_specs", ()) or ())
 
     sidecars: Dict[str, Tuple[str, MeshImportSupplementalFileSpec]] = {}
@@ -757,6 +892,11 @@ def build_final_package_preview(
             dds_by_path.setdefault(final_key, payload)
             if payload.basename:
                 dds_by_basename.setdefault(payload.basename, []).append(payload)
+            if _is_stock_or_shared_texture_path(final_path):
+                warnings.append(
+                    f"Texture contract warning: generated/copied payload overrides stock/shared shader texture {final_path}. "
+                    "This can tint the model, add grime/speckles, or affect shared material layers."
+                )
 
     binding_rows: List[FinalPackageBindingRow] = []
     missing_paths: List[str] = []
@@ -803,11 +943,20 @@ def build_final_package_preview(
             if not texture_path.lower().endswith(".dds"):
                 continue
             parameter_name = str(getattr(binding, "parameter_name", "") or "").strip()
+            if parameter_name.lower() == "_normaltexture" and not _looks_like_normal_texture_path(texture_path):
+                warnings.append(
+                    f"Texture contract warning: _normalTexture points at a non-normal-looking DDS path: {texture_path}."
+                )
             role_key, role_label, visualized = _slot_role(parameter_name, texture_path)
             final_texture_path = _final_payload_path(texture_path, export_options)
             final_texture_key = _normalize_final_path(final_texture_path)
             texture_basename = PurePosixPath(final_texture_path or texture_path).name.lower()
             payload = dds_by_path.get(final_texture_key)
+            if payload is not None and role_key == "base" and _looks_like_normal_source_path(payload.source_path):
+                warnings.append(
+                    f"Texture contract warning: base/overlay color slot {texture_path} resolves to a generated DDS "
+                    f"from normal-map source {payload.source_path.name}."
+                )
             confidence = "exact"
             binding_source = FINAL_PREVIEW_BINDING_MISSING
             detail = ""
@@ -915,11 +1064,40 @@ def build_final_package_preview(
             for target_key in target_keys:
                 rows_by_material.setdefault(target_key, []).append(row)
 
+    referenced_dds_keys = {
+        _normalize_final_path(_final_payload_path(str(row.texture_path or ""), export_options))
+        for row in binding_rows
+        if str(row.texture_path or "").strip()
+    }
+    orphan_payload_paths = [
+        payload.final_path
+        for key, payload in sorted(dds_by_path.items())
+        if key not in referenced_dds_keys
+        and "/ui/" not in payload.final_path.replace("\\", "/").lower()
+        and not payload.final_path.replace("\\", "/").lower().startswith("ui/")
+    ]
+    if sidecars and orphan_payload_paths:
+        warnings.append(
+            "Texture contract warning: generated/copied DDS payloads not referenced by parsed material sidecar: "
+            + ", ".join(orphan_payload_paths[:8])
+            + (" ..." if len(orphan_payload_paths) > 8 else "")
+        )
+
     fallback_assignment_count = _assign_unmatched_visible_textures_by_order(preview_model, binding_rows)
     if fallback_assignment_count:
         warnings.append(
             "Final preview assigned visible textures by draw-order fallback for "
             f"{fallback_assignment_count:,} unmatched mesh batch(es). This is preview-only; material names did not match final sidecar bindings exactly."
+        )
+
+    source_visible_texture_count = _visible_preview_texture_count(getattr(preview_result, "preview_model", None))
+    final_visible_texture_count = _visible_preview_texture_count(preview_model)
+    if source_visible_texture_count > final_visible_texture_count:
+        warnings.append(
+            "Final preview is showing fewer visible texture set(s) than the replacement placement preview "
+            f"({final_visible_texture_count:,}/{source_visible_texture_count:,}). This usually means imported source "
+            "materials were merged into fewer game draw slots, or the final sidecar/DDS paths could not be validated. "
+            "Use separate original target slots where possible, or bake/atlas the source textures when parts must share one slot."
         )
 
     material_statuses: List[FinalPackageMaterialStatus] = []
@@ -977,17 +1155,35 @@ def build_final_package_preview(
         warnings.append("No generated/copied material sidecar payloads were available for final package texture validation.")
 
     ready_materials = sum(1 for status in material_statuses if status.status == FINAL_PREVIEW_READY)
+    contract_base_count = sum(1 for row in binding_rows if row.role in {"Base / Color", "Emissive"})
+    contract_normal_count = sum(1 for row in binding_rows if row.role == "Normal")
+    contract_material_count = sum(1 for row in binding_rows if row.role == "Material / Mask")
+    stock_preserved_count = sum(
+        1
+        for row in binding_rows
+        if _is_stock_or_shared_texture_path(row.texture_path)
+        and row.binding_source == FINAL_PREVIEW_BINDING_ORIGINAL
+    )
     summary_lines = [
         "Final Output Preview",
         f"Parsed sidecar payloads: {len(sidecars):,}" + ("; using kept original sidecar bindings" if binding_sources and not sidecars else ""),
         f"Patched sidecar payloads: {generated_sidecar_count:,}",
         f"Generated/copied DDS payloads: {len(dds_by_path):,}",
         f"Ready material(s): {ready_materials:,}/{len(material_statuses):,}",
+        (
+            "Texture Contract: "
+            f"base/color {contract_base_count:,}, normal {contract_normal_count:,}, "
+            f"material/mask {contract_material_count:,}, stock/shared preserved {stock_preserved_count:,}, "
+            f"orphan DDS {len(orphan_payload_paths):,}"
+        ),
     ]
     if likely_grey_materials:
         summary_lines.append(f"Likely grey material(s): {', '.join(likely_grey_materials[:8])}" + (" ..." if len(likely_grey_materials) > 8 else ""))
     if missing_paths:
         summary_lines.append(f"Missing final DDS payload path(s): {len(_dedupe(missing_paths)):,}")
+    texture_resolution_manifest = _build_texture_resolution_manifest(binding_rows, _dedupe(warnings))
+    if texture_resolution_manifest.rows:
+        summary_lines.append(f"Texture resolution manifest rows: {len(texture_resolution_manifest.rows):,}")
 
     return FinalPackagePreviewResult(
         preview_model=preview_model,
@@ -997,6 +1193,7 @@ def build_final_package_preview(
         missing_texture_paths=_dedupe(missing_paths),
         summary_lines=summary_lines,
         material_statuses=tuple(material_statuses),
+        texture_resolution_manifest=texture_resolution_manifest,
     )
 
 
@@ -1011,8 +1208,10 @@ def texture_plan_role_label(slot_kind: str, source_path: object = None) -> str:
         return "Normal"
     if normalized == "height":
         return "Height"
-    if normalized == "material":
+    if normalized in {"material", "material_mask"}:
         return "Material / Mask"
+    if normalized == "detail_mask":
+        return "Detail Mask"
     if normalized in {"metallic", "roughness", "ao"}:
         return "Metallic / Roughness / AO"
     return "Material / Mask"
@@ -1029,8 +1228,10 @@ def texture_plan_control_description(slot_kind: str, source_path: object = None)
         return "Bumps/surface detail; does not add color."
     if normalized == "height":
         return "Depth/displacement/parallax; does not add color."
-    if normalized == "material":
+    if normalized in {"material", "material_mask"}:
         return "Packed material/mask data: roughness, metal, AO, dye/blend response, and shine depending on channels."
+    if normalized == "detail_mask":
+        return "Detail mask: selects shader/detail layers; useful when the source has a matching CD _mg texture."
     if normalized in {"metallic", "roughness", "ao"}:
         return "Detected standalone PBR map; not game-effective unless packed into or mapped to a compatible material mask."
     return "Advanced shader input; exported only when mapped to a compatible material parameter."
@@ -1046,8 +1247,10 @@ def texture_plan_status_for_slot(slot_kind: str, *, missing_base: bool = False) 
         )
     if normalized == "base":
         return TexturePlanStatus(TEXTURE_PLAN_STATUS_READY, "green", "Visible color source is present.")
-    if normalized == "material":
+    if normalized in {"material", "material_mask"}:
         return TexturePlanStatus(TEXTURE_PLAN_STATUS_READY, "green", "Packed material/mask source can be mapped to the game shader.")
+    if normalized == "detail_mask":
+        return TexturePlanStatus(TEXTURE_PLAN_STATUS_READY, "green", "Detail-mask source can be mapped to the game shader.")
     if normalized in {"normal", "height"}:
         return TexturePlanStatus(TEXTURE_PLAN_STATUS_SUPPORT_ONLY, "orange", "Support map only; it does not add visible color.")
     if normalized in {"metallic", "roughness", "ao"}:
@@ -1109,7 +1312,7 @@ def build_dds_override_table_row(row_state: Mapping[str, object]) -> DdsOverride
             status = texture_plan_status_for_slot("base")
         elif slot_kind in {"normal", "height"}:
             status = texture_plan_status_for_slot(slot_kind)
-        elif slot_kind == "material":
+        elif slot_kind in {"material", "material_mask", "detail_mask"}:
             status = texture_plan_status_for_slot("material")
         elif slot_kind in {"metallic", "roughness", "ao"}:
             status = texture_plan_status_for_slot(slot_kind)

@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence
 
-from .asset_replacement import classify_texture_binding
+from .asset_replacement import classify_texture_binding, infer_cd_texture_role_from_path
 from .mesh_parser import ParsedMesh
 from .static_mesh_replacer import StaticSubmeshMapping, _semantic_tokens
 
@@ -87,11 +87,23 @@ class TextureReplacementPayload:
 @dataclass(slots=True)
 class TextureReplacementReport:
     texture_sets: list[ReplacementTextureSet] = field(default_factory=list)
+    material_routes: list["SourceMaterialRoutingResult"] = field(default_factory=list)
     slot_mappings: list[TextureSlotMapping] = field(default_factory=list)
     sidecar_reports: list[SidecarPatchReport] = field(default_factory=list)
     generated_payloads: list[TextureReplacementPayload] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True, frozen=True)
+class SourceMaterialRoutingResult:
+    target_material_name: str
+    source_material_name: str = ""
+    source_part_names: tuple[str, ...] = ()
+    detected_roles: tuple[str, ...] = ()
+    status: str = "Unknown"
+    reason: str = ""
+    blocker: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -101,6 +113,29 @@ class TextureAssignmentGuidance:
     state_label: str
     reason: str
     advanced: bool = False
+
+
+_HELPER_MATERIAL_SUFFIXES = ("black", "inside")
+
+
+def is_static_replacement_helper_material_name(material_name: str) -> bool:
+    """Return true for technical material wrappers that should stay manual.
+
+    Helmet sidecars often contain helper wrappers such as ``*_black`` and
+    ``*_inside`` for interior/occlusion shader behavior.  They should not
+    receive broad source texture routing just because the replacement only has
+    one material set.
+    """
+
+    normalized = _sanitize_texture_component(material_name)
+    if not normalized:
+        return False
+    parts = tuple(part for part in normalized.split("_") if part)
+    if not parts:
+        return False
+    if parts[-1] in _HELPER_MATERIAL_SUFFIXES:
+        return True
+    return "inside" in parts
 
 
 _TEXTURE_SUFFIXES: tuple[tuple[str, str, str], ...] = (
@@ -176,12 +211,12 @@ _TEXTURE_SUFFIXES: tuple[tuple[str, str, str], ...] = (
     ("normal", "GrimeNormal", ""),
     ("normal", "Nor", ""),
     ("normal", "No", ""),
-    ("material", "MetallicRoughness", "material"),
-    ("material", "Metallic_Roughness", "material"),
-    ("material", "MetalRough", "material"),
-    ("material", "MetallicRough", "material"),
-    ("material", "RoughnessMetallic", "material"),
-    ("material", "RoughMetal", "material"),
+    ("roughness", "MetallicRoughness", "roughness"),
+    ("roughness", "Metallic_Roughness", "roughness"),
+    ("roughness", "MetalRough", "roughness"),
+    ("roughness", "MetallicRough", "roughness"),
+    ("roughness", "RoughnessMetallic", "roughness"),
+    ("roughness", "RoughMetal", "roughness"),
     ("material", "Orm", "material"),
     ("material", "Rma", "material"),
     ("material", "Mra", "material"),
@@ -225,15 +260,15 @@ _TEXTURE_SUFFIXES: tuple[tuple[str, str, str], ...] = (
     ("height", "Ssdm", "height"),
     ("material", "MaterialTexture", "material"),
     ("material", "MaskTexture", "material"),
-    ("material", "ColorBlendingMaskTexture", "material"),
-    ("material", "DetailMaskTexture", "material"),
-    ("material", "DetailMaterialMaskR", "material"),
-    ("material", "DetailMaterialMaskG", "material"),
-    ("material", "DetailMaterialMaskB", "material"),
-    ("material", "DetailMaterialBlend", "material"),
-    ("material", "GrimeMaterialTextureR", "material"),
-    ("material", "GrimeMaterialTextureG", "material"),
-    ("material", "GrimeMaterialTextureB", "material"),
+    ("material_mask", "ColorBlendingMaskTexture", "material"),
+    ("detail_mask", "DetailMaskTexture", "detail"),
+    ("detail_mask", "DetailMaterialMaskR", "detail"),
+    ("detail_mask", "DetailMaterialMaskG", "detail"),
+    ("detail_mask", "DetailMaterialMaskB", "detail"),
+    ("detail_mask", "DetailMaterialBlend", "detail"),
+    ("material_mask", "GrimeMaterialTextureR", "material"),
+    ("material_mask", "GrimeMaterialTextureG", "material"),
+    ("material_mask", "GrimeMaterialTextureB", "material"),
     ("material", "DamageBlendingMaterialTexture", "material"),
     ("material", "IrisMaterialTexture", "material"),
     ("material", "WrinkleMaskTexture0", "material"),
@@ -256,8 +291,8 @@ _TEXTURE_SUFFIXES: tuple[tuple[str, str, str], ...] = (
     ("material", "Material", "material"),
     ("material", "Mat", "material"),
     ("material", "M", "material"),
-    ("material", "Ma", "material"),
-    ("material", "Mg", "material"),
+    ("material_mask", "Ma", "material"),
+    ("detail_mask", "Mg", "detail"),
     ("material", "Sp", "material"),
     ("material", "Spec", "material"),
     ("material", "Specular", "material"),
@@ -279,11 +314,11 @@ _TEXTURE_SUFFIXES: tuple[tuple[str, str, str], ...] = (
     ("material", "Mask", "material"),
     ("material", "Masks", "material"),
     ("material", "Mask_1bit", "material"),
-    ("material", "Mask_AMG", "material"),
-    ("material", "DetailMask", "material"),
-    ("material", "DetailMaterial", "material"),
-    ("material", "ColorBlendingMask", "material"),
-    ("material", "GrimeMaterial", "material"),
+    ("material_mask", "Mask_AMG", "material"),
+    ("detail_mask", "DetailMask", "detail"),
+    ("detail_mask", "DetailMaterial", "detail"),
+    ("material_mask", "ColorBlendingMask", "material"),
+    ("material_mask", "GrimeMaterial", "material"),
 )
 
 
@@ -316,38 +351,80 @@ def build_texture_replacement_payloads(
     on_log: Optional[Callable[[str], None]] = None,
     enable_missing_base_color_parameters: bool = False,
     texture_slot_overrides: Sequence[object] = (),
+    source_material_texture_overrides: Sequence[object] = (),
+    donor_material_plans: Sequence[object] = (),
     texture_output_size_mode: str = "source",
     pac_driven_sidecar: bool = False,
 ) -> tuple[list[TextureReplacementPayload], TextureReplacementReport]:
     """Build generated DDS and patched sidecar payloads for a static replacement."""
     report = analyze_replacement_textures(obj_mesh, texture_files)
     texture_sets = {texture_set.material_name.lower(): texture_set for texture_set in report.texture_sets}
-    if not texture_sets:
+    _apply_source_material_texture_overrides(
+        texture_sets,
+        obj_mesh=obj_mesh,
+        texture_slot_overrides=texture_slot_overrides,
+        source_material_texture_overrides=source_material_texture_overrides,
+        report=report,
+    )
+    if texture_sets:
+        report.warnings[:] = [
+            warning
+            for warning in report.warnings
+            if warning != "No replacement texture files matched known material suffix patterns."
+        ]
+    report.texture_sets = list(texture_sets.values())
+    active_donor_material_plans = tuple(
+        plan for plan in tuple(donor_material_plans or ()) if bool(getattr(plan, "enabled", True))
+    )
+    if not texture_sets and not active_donor_material_plans:
         return [], report
 
-    _attach_source_face_counts(texture_sets, obj_mesh)
-    target_to_source_material = _choose_source_materials_for_targets(obj_mesh, texture_sets, submesh_mappings, report)
+    if texture_sets:
+        _attach_source_face_counts(texture_sets, obj_mesh)
+        target_to_source_material = _choose_source_materials_for_targets(obj_mesh, texture_sets, submesh_mappings, report)
+        if rebuilt_mesh is not None:
+            _augment_source_materials_from_rebuilt_mesh(target_to_source_material, rebuilt_mesh, texture_sets)
+    else:
+        target_to_source_material = {}
 
     if pac_driven_sidecar and rebuilt_mesh is not None:
-        generated_payloads = _build_rebuilt_pac_driven_payloads(
-            obj_mesh=obj_mesh,
-            rebuilt_mesh=rebuilt_mesh,
-            texture_sets=texture_sets,
-            original_texture_refs=original_texture_refs,
-            original_sidecars=original_sidecars,
-            submesh_mappings=submesh_mappings,
-            target_to_source_material=target_to_source_material,
-            texconv_path=texconv_path,
-            read_original_texture_bytes=read_original_texture_bytes,
-            original_texture_source_path=original_texture_source_path,
+        generated_payloads: list[TextureReplacementPayload] = []
+        if texture_sets:
+            generated_payloads = _build_rebuilt_pac_driven_payloads(
+                obj_mesh=obj_mesh,
+                rebuilt_mesh=rebuilt_mesh,
+                texture_sets=texture_sets,
+                original_texture_refs=original_texture_refs,
+                original_sidecars=original_sidecars,
+                submesh_mappings=submesh_mappings,
+                target_to_source_material=target_to_source_material,
+                texconv_path=texconv_path,
+                read_original_texture_bytes=read_original_texture_bytes,
+                original_texture_source_path=original_texture_source_path,
+                report=report,
+                on_log=on_log,
+                enable_missing_base_color_parameters=enable_missing_base_color_parameters,
+                texture_slot_overrides=_manual_target_texture_slot_overrides(texture_slot_overrides),
+                texture_output_size_mode=texture_output_size_mode,
+            )
+        donor_sidecar_payloads = _build_donor_material_sidecar_payloads(
+            original_sidecars=_overlay_original_sidecars_with_payloads(original_sidecars, generated_payloads),
+            donor_material_plans=active_donor_material_plans,
             report=report,
-            on_log=on_log,
-            enable_missing_base_color_parameters=enable_missing_base_color_parameters,
-            texture_slot_overrides=texture_slot_overrides,
-            texture_output_size_mode=texture_output_size_mode,
         )
+        if donor_sidecar_payloads:
+            generated_payloads = _replace_sidecar_payloads(generated_payloads, donor_sidecar_payloads)
         report.generated_payloads = generated_payloads
         _append_unused_texture_warnings(texture_sets, report)
+        return list(report.generated_payloads), report
+
+    if active_donor_material_plans and not texture_sets:
+        donor_sidecar_payloads = _build_donor_material_sidecar_payloads(
+            original_sidecars=original_sidecars,
+            donor_material_plans=active_donor_material_plans,
+            report=report,
+        )
+        report.generated_payloads = donor_sidecar_payloads
         return list(report.generated_payloads), report
 
     texture_payloads: list[TextureReplacementPayload] = []
@@ -355,9 +432,10 @@ def build_texture_replacement_payloads(
     sidecar_parameter_injections: list[SidecarTextureParameterInjection] = []
     reference_by_target_path = _references_by_target_path(original_texture_refs)
     emitted_target_paths: set[str] = set()
-    if texture_slot_overrides:
+    target_texture_slot_overrides = _manual_target_texture_slot_overrides(texture_slot_overrides)
+    if target_texture_slot_overrides:
         override_payloads, override_replacements = _build_manual_texture_slot_override_payloads(
-            texture_slot_overrides=texture_slot_overrides,
+            texture_slot_overrides=target_texture_slot_overrides,
             reference_by_target_path=reference_by_target_path,
             texture_sets=texture_sets,
             texconv_path=texconv_path,
@@ -514,6 +592,20 @@ def build_texture_replacement_payloads(
                 )
             )
 
+    if active_donor_material_plans:
+        donor_sidecar_payloads = _build_donor_material_sidecar_payloads(
+            original_sidecars=_overlay_original_sidecars_with_payloads(original_sidecars, sidecar_payloads),
+            donor_material_plans=active_donor_material_plans,
+            report=report,
+        )
+        if donor_sidecar_payloads:
+            sidecar_payloads = _replace_sidecar_payloads(sidecar_payloads, donor_sidecar_payloads)
+
+    _append_texture_contract_warnings(
+        texture_payloads=texture_payloads,
+        sidecar_payloads=sidecar_payloads,
+        report=report,
+    )
     report.generated_payloads = texture_payloads + sidecar_payloads
     _append_unused_texture_warnings(texture_sets, report)
     return list(report.generated_payloads), report
@@ -582,8 +674,10 @@ def _build_rebuilt_pac_driven_payloads(
 ) -> list[TextureReplacementPayload]:
     """Build texture and sidecar payloads from final rebuilt PAC/PAM draw sections.
 
-    This path intentionally ignores unrelated original sidecar bindings. Only
-    rebuilt submeshes with geometry are considered active texture targets.
+    Only rebuilt submeshes with geometry drive generated texture payloads. The
+    sidecar patch still preserves unrelated shader parameters because many
+    game material wrappers rely on layer/detail/PBD data that is not part of
+    the visible replacement texture set.
     """
     del obj_mesh
     references_by_material = _references_by_material(original_texture_refs)
@@ -645,6 +739,12 @@ def _build_rebuilt_pac_driven_payloads(
 
     for target_name in active_target_names:
         target_key = _normalize_sidecar_material_name(target_name)
+        if is_static_replacement_helper_material_name(target_name) and target_key not in material_source_overrides:
+            _warn_once(
+                report,
+                f"Preserved helper material wrapper {target_name}; automatic texture routing does not patch _black/_inside-style parts.",
+            )
+            continue
         source_material = material_source_overrides.get(target_key) or _best_source_material_for_target(
             target_name,
             target_to_source_material,
@@ -696,7 +796,7 @@ def _build_rebuilt_pac_driven_payloads(
                 source_slot = _slot_for_target(texture_set, slot_kind)
             if source_slot is None:
                 continue
-            if slot_kind == "material" and source_slot.slot_kind != "material":
+            if slot_kind in {"material", "material_mask", "detail_mask"} and source_slot.slot_kind != slot_kind:
                 report.warnings.append(
                     f"{target_path} expects a packed material/mask texture; using {source_slot.slot_kind} source "
                     f"{source_slot.source_path.name}. Bake or pack metallic/roughness/AO into the game's expected mask layout for best results."
@@ -786,13 +886,20 @@ def _build_rebuilt_pac_driven_payloads(
         sidecar_replacements_by_path=sidecar_replacements_by_path,
         sidecar_parameter_injections=sidecar_parameter_injections,
         sidecar_parameter_renames=sidecar_parameter_renames,
-        texture_parameter_keep_rules=_sidecar_keep_rules_from_slot_mappings(
-            report.slot_mappings,
-            references_by_target_path,
-        ),
-        prune_unmapped_texture_parameters=True,
         report=report,
-        include_unchanged_clone=bool(payloads),
+        include_unchanged_clone=bool(
+            payloads
+            and (
+                sidecar_replacements_by_path
+                or sidecar_parameter_injections
+                or sidecar_parameter_renames
+            )
+        ),
+    )
+    _append_texture_contract_warnings(
+        texture_payloads=payloads,
+        sidecar_payloads=sidecar_payloads,
+        report=report,
     )
     if payloads and not sidecar_payloads and original_sidecars:
         report.warnings.append(
@@ -801,7 +908,7 @@ def _build_rebuilt_pac_driven_payloads(
         )
     elif sidecar_payloads:
         report.warnings.append(
-            f"PAC-driven material sidecar rebuild scoped texture bindings to {len(active_target_names):,} rebuilt draw section(s)."
+            "PAC-driven material sidecar rebuild preserved unmodified material parameters and patched only resolved texture bindings."
         )
     return payloads + sidecar_payloads
 
@@ -906,6 +1013,13 @@ def _build_source_driven_pac_material_payloads(
     texture_prefix = _source_driven_texture_prefix(original_sidecars)
 
     for target_name in active_target_names:
+        if is_static_replacement_helper_material_name(target_name):
+            _warn_once(
+                report,
+                f"Preserved helper material wrapper {target_name}; automatic source texture routing does not patch _black/_inside-style parts. "
+                "Use Advanced original-DDS overrides only if you intentionally want to edit that helper shader.",
+            )
+            continue
         source_material = _best_source_material_for_target(target_name, target_to_source_material)
         texture_set = texture_sets.get(str(source_material or "").strip().lower()) if source_material else None
         if texture_set is None and len(texture_sets) == 1:
@@ -1025,12 +1139,20 @@ def _build_source_driven_pac_material_payloads(
         report.warnings.append(
             "PAC XML source-driven patch: preserved original shader wrappers and rebound compatible direct texture slots only."
         )
+        _append_texture_contract_warnings(
+            texture_payloads=generated_payloads,
+            sidecar_payloads=sidecar_payloads,
+            report=report,
+        )
         return generated_payloads + sidecar_payloads
     return []
 
 
 def _source_driven_slots(texture_set: ReplacementTextureSet) -> list[ReplacementTextureSlot]:
-    order = ("base", "normal", "height", "material")
+    # Source-driven .pac_xml patching stays conservative but understands full
+    # Crimson material families.  Clear CD roles (_o/_n/_disp/_ma/_mg) may be
+    # routed; standalone glTF PBR maps remain review/manual.
+    order = ("base", "normal", "height", "material_mask", "detail_mask")
     slots: list[ReplacementTextureSlot] = []
     seen_paths: set[tuple[str, str]] = set()
     for slot_kind in order:
@@ -1051,8 +1173,17 @@ def _source_driven_parameter_name(slot_kind: str) -> str:
         "base": "_overlayColorTexture",
         "normal": "_normalTexture",
         "height": "_heightTexture",
-        "material": "_detailMaskTexture",
+        "material_mask": "_colorBlendingMaskTexture",
+        "detail_mask": "_detailMaskTexture",
     }.get(normalized, "")
+
+
+def _texture_role_for_parameter_and_path(parameter_name: str, texture_path: str) -> str:
+    role = infer_cd_texture_role_from_path(texture_path)
+    if role:
+        return role
+    classification = classify_texture_binding(parameter_name, texture_path)
+    return str(classification.slot_kind or "").strip().lower()
 
 
 def _source_driven_template_reference(
@@ -1064,13 +1195,12 @@ def _source_driven_template_reference(
         "base": ("_overlaycolortexture", "_basecolortexture", "_diffusetexture", "_albedotexture", "_emissiveintensitytexture"),
         "normal": ("_normaltexture",),
         "height": ("_heighttexture",),
-        "material": ("_colorblendingmasktexture", "_detailmasktexture"),
-        "metallic": ("_colorblendingmasktexture", "_detailmasktexture"),
-        "roughness": ("_colorblendingmasktexture", "_detailmasktexture"),
-        "ao": ("_colorblendingmasktexture", "_detailmasktexture"),
+        "material_mask": ("_colorblendingmasktexture", "_overlaycolortexture"),
+        "detail_mask": ("_detailmasktexture",),
     }.get(normalized, ())
 
     fallback: Optional[object] = None
+    parameter_fallback: Optional[object] = None
     for reference in original_texture_refs:
         target_path = _reference_target_path(reference)
         if not target_path.lower().endswith(".dds") or getattr(reference, "resolved_entry", None) is None:
@@ -1078,9 +1208,12 @@ def _source_driven_template_reference(
         if fallback is None:
             fallback = reference
         parameter = str(getattr(reference, "sidecar_parameter_name", "") or "").strip().lower()
-        if parameter in preferred_parameters and not _is_shared_material_layer_texture(target_path):
+        role = _texture_role_for_parameter_and_path(parameter, target_path)
+        if role == normalized:
             return reference
-    return fallback
+        if parameter in preferred_parameters and not parameter_fallback and (not role or role == normalized):
+            parameter_fallback = reference
+    return parameter_fallback or fallback
 
 
 def _source_driven_texture_parent(original_texture_refs: Sequence[object]) -> str:
@@ -1117,23 +1250,130 @@ def _source_driven_texture_output_path(
 ) -> str:
     parent = str(texture_parent or "character/texture").replace("\\", "/").strip("/")
     prefix = _sanitize_texture_component(texture_prefix) or "static_replacement"
-    source_stem = _sanitize_texture_component(source_slot.source_path.stem) or str(source_slot.slot_kind or "texture")
-    base_name = f"{prefix}_{source_stem}.dds"
+    output_stem, role_suffix = _source_driven_texture_output_name_parts(prefix, source_slot)
+    base_name = f"{output_stem}{role_suffix}.dds"
     candidate = f"{parent}/{base_name}" if parent else base_name
     normalized = _normalize_texture_path(candidate)
     if normalized not in emitted_paths:
         emitted_paths.add(normalized)
         return candidate
-    slot_suffix = _sanitize_texture_component(source_slot.slot_kind) or "texture"
     index = 2
     while True:
-        base_name = f"{prefix}_{source_stem}_{slot_suffix}_{index}.dds"
+        base_name = f"{output_stem}_{index}{role_suffix}.dds"
         candidate = f"{parent}/{base_name}" if parent else base_name
         normalized = _normalize_texture_path(candidate)
         if normalized not in emitted_paths:
             emitted_paths.add(normalized)
             return candidate
         index += 1
+
+
+def _source_driven_texture_output_name_parts(
+    texture_prefix: str,
+    source_slot: ReplacementTextureSlot,
+) -> tuple[str, str]:
+    prefix = _sanitize_texture_component(texture_prefix) or "static_replacement"
+    slot_kind = str(source_slot.slot_kind or "").strip().lower()
+    source_stem = _sanitize_texture_component(source_slot.source_path.stem) or slot_kind or "texture"
+    if slot_kind == "normal":
+        source_stem = _strip_source_role_suffix(
+            source_stem,
+            (
+                "normal_opengl",
+                "normal_directx",
+                "normal_dx",
+                "normalmap",
+                "detailnormal",
+                "wrinklenormal",
+                "damagenormal",
+                "normal",
+                "norm",
+                "nrm",
+                "nm",
+                "wn",
+                "n",
+            ),
+        )
+        return _source_driven_prefixed_stem(prefix, source_stem), "_n"
+    if slot_kind == "height":
+        source_stem = _strip_source_role_suffix(
+            source_stem,
+            ("displacement", "height", "depth", "dmap", "disp", "bump", "hgt", "hei", "he", "d", "h"),
+        )
+        return _source_driven_prefixed_stem(prefix, source_stem), "_disp"
+    if slot_kind == "material":
+        source_stem = _strip_source_role_suffix(
+            source_stem,
+            (
+                "colorblendingmask",
+                "detailmaterial",
+                "detailmask",
+                "material_mask",
+                "materialmask",
+                "mask_amg",
+                "mask_1bit",
+                "material",
+                "mask",
+                "masks",
+                "mat",
+                "ma",
+                "mg",
+                "sp",
+                "m",
+            ),
+        )
+        return _source_driven_prefixed_stem(prefix, source_stem), "_ma"
+    if slot_kind == "material_mask":
+        source_stem = _strip_source_role_suffix(
+            source_stem,
+            (
+                "colorblendingmask",
+                "material_mask",
+                "materialmask",
+                "mask_amg",
+                "mask_1bit",
+                "mask",
+                "masks",
+                "mat",
+                "ma",
+                "m",
+            ),
+        )
+        return _source_driven_prefixed_stem(prefix, source_stem), "_ma"
+    if slot_kind == "detail_mask":
+        source_stem = _strip_source_role_suffix(
+            source_stem,
+            (
+                "detailmaterial",
+                "detail_mask",
+                "detailmask",
+                "mg",
+            ),
+        )
+        return _source_driven_prefixed_stem(prefix, source_stem), "_mg"
+    return _source_driven_prefixed_stem(prefix, source_stem), ""
+
+
+def _source_driven_prefixed_stem(prefix: str, source_stem: str) -> str:
+    cleaned = _sanitize_texture_component(source_stem)
+    if not cleaned:
+        return prefix
+    if cleaned == prefix or cleaned.startswith(f"{prefix}_"):
+        return cleaned
+    return f"{prefix}_{cleaned}"
+
+
+def _strip_source_role_suffix(source_stem: str, suffixes: Sequence[str]) -> str:
+    cleaned = _sanitize_texture_component(source_stem)
+    for suffix in sorted((_sanitize_texture_component(value) for value in suffixes), key=len, reverse=True):
+        if not suffix:
+            continue
+        if cleaned == suffix:
+            return ""
+        marker = f"_{suffix}"
+        if cleaned.endswith(marker):
+            return cleaned[: -len(marker)].strip("_")
+    return cleaned
 
 
 def _sanitize_texture_component(value: str) -> str:
@@ -1192,14 +1432,9 @@ def _patch_source_driven_wrapper_texture_slots(
                 patched,
                 ("_overlaycolortexture", "_basecolortexture", "_diffusetexture", "_albedotexture"),
                 texture_value,
+                preferred_existing_roles=("base",),
+                allow_unclassified_parameter=True,
             )
-            if not did_change:
-                patched, did_change = _replace_source_driven_texture_parameter(
-                    patched,
-                    ("_colorblendingmasktexture",),
-                    texture_value,
-                    rename_to="_overlayColorTexture",
-                )
             if not did_change:
                 patched, did_change = _insert_source_driven_texture_parameter(
                     patched,
@@ -1211,18 +1446,40 @@ def _patch_source_driven_wrapper_texture_slots(
                 patched,
                 ("_normaltexture",),
                 texture_value,
+                preferred_existing_roles=("normal",),
+                allow_unclassified_parameter=True,
             )
         elif slot == "height":
             patched, did_change = _replace_source_driven_texture_parameter(
                 patched,
                 ("_heighttexture",),
                 texture_value,
+                preferred_existing_roles=("height",),
+                allow_unclassified_parameter=True,
+            )
+        elif slot == "material_mask":
+            patched, did_change = _replace_source_driven_texture_parameter(
+                patched,
+                ("_colorblendingmasktexture", "_overlaycolortexture"),
+                texture_value,
+                preferred_existing_roles=("material_mask",),
+                allow_unclassified_parameter=True,
+            )
+        elif slot == "detail_mask":
+            patched, did_change = _replace_source_driven_texture_parameter(
+                patched,
+                ("_detailmasktexture",),
+                texture_value,
+                preferred_existing_roles=("detail_mask",),
+                allow_unclassified_parameter=True,
             )
         elif slot == "material":
             patched, did_change = _replace_source_driven_texture_parameter(
                 patched,
-                ("_detailmasktexture", "_colorblendingmasktexture"),
+                ("_colorblendingmasktexture", "_detailmasktexture"),
                 texture_value,
+                preferred_existing_roles=("material", "material_mask", "detail_mask"),
+                allow_unclassified_parameter=True,
             )
         else:
             did_change = False
@@ -1238,6 +1495,8 @@ def _replace_source_driven_texture_parameter(
     texture_path: str,
     *,
     rename_to: str = "",
+    preferred_existing_roles: Sequence[str] = (),
+    allow_unclassified_parameter: bool = False,
 ) -> tuple[str, bool]:
     normalized_candidates = {str(name or "").strip().lower() for name in candidate_names if str(name or "").strip()}
     if not normalized_candidates:
@@ -1246,25 +1505,47 @@ def _replace_source_driven_texture_parameter(
         r"<MaterialParameterTexture\b[^>]*>.*?</MaterialParameterTexture>",
         flags=re.IGNORECASE | re.DOTALL,
     )
+    normalized_preferred_roles = {
+        str(role or "").strip().lower()
+        for role in preferred_existing_roles
+        if str(role or "").strip()
+    }
+    matches: list[tuple[int, re.Match[str], str]] = []
     for match in texture_pattern.finditer(wrapper_text):
         block = match.group(0)
         block_name = _sidecar_parameter_name(block).lower()
         if block_name not in normalized_candidates:
             continue
-        patched_block = block
-        if rename_to:
-            patched_block = _rename_sidecar_parameter_name(patched_block, rename_to)
-        patched_block = re.sub(
-            r'(\b_path=")[^"]*(")',
-            lambda path_match: f'{path_match.group(1)}{_escape_xml_attr(texture_path)}{path_match.group(2)}',
-            patched_block,
-            count=1,
-            flags=re.IGNORECASE,
-        )
-        if patched_block == block:
-            return wrapper_text, False
-        return wrapper_text[: match.start()] + patched_block + wrapper_text[match.end() :], True
-    return wrapper_text, False
+        path_match = re.search(r'\b_path="([^"]*)"', block, flags=re.IGNORECASE)
+        existing_path = path_match.group(1) if path_match is not None else ""
+        role = _texture_role_for_parameter_and_path(block_name, existing_path)
+        if normalized_preferred_roles:
+            if role in normalized_preferred_roles:
+                score = 100
+            elif allow_unclassified_parameter and not infer_cd_texture_role_from_path(existing_path):
+                score = 30
+            else:
+                continue
+        else:
+            score = 50
+        matches.append((score, match, block))
+    if not matches:
+        return wrapper_text, False
+    matches.sort(key=lambda item: item[0], reverse=True)
+    _score, match, block = matches[0]
+    patched_block = block
+    if rename_to:
+        patched_block = _rename_sidecar_parameter_name(patched_block, rename_to)
+    patched_block = re.sub(
+        r'(\b_path=")[^"]*(")',
+        lambda path_match: f'{path_match.group(1)}{_escape_xml_attr(texture_path)}{path_match.group(2)}',
+        patched_block,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    if patched_block == block:
+        return wrapper_text, False
+    return wrapper_text[: match.start()] + patched_block + wrapper_text[match.end() :], True
 
 
 def _insert_source_driven_texture_parameter(
@@ -1341,6 +1622,8 @@ def _source_driven_bindings_for_wrapper(
     default_bindings: Sequence[tuple[str, str, str]],
 ) -> Sequence[tuple[str, str, str]]:
     if not target_bindings:
+        return ()
+    if is_static_replacement_helper_material_name(wrapper_name):
         return ()
     wrapper_key = _normalize_sidecar_material_name(wrapper_name)
     for target_name, bindings in target_bindings.items():
@@ -1499,7 +1782,8 @@ def _sidecar_keep_rules_from_slot_mappings(
         parameter_name = ""
         target_path = str(mapping.target_texture_path or "").replace("\\", "/").strip()
         if target_path.startswith("("):
-            parameter_name = "_overlayColorTexture"
+            parameter_match = re.search(r"source-driven\s+([^)\s]+)", target_path, flags=re.IGNORECASE)
+            parameter_name = parameter_match.group(1) if parameter_match is not None else "_overlayColorTexture"
         else:
             reference = references_by_target_path.get(_normalize_texture_path(target_path))
             parameter_name = str(getattr(reference, "sidecar_parameter_name", "") or "").strip()
@@ -1530,9 +1814,10 @@ def _should_keep_rebuilt_sidecar_texture_parameter(parameter_name: str, slot_kin
         "_heighttexture",
     }:
         return True
-    if normalized_slot == "material" and normalized_parameter in {
+    if normalized_slot in {"material", "material_mask", "detail_mask"} and normalized_parameter in {
         "_colorblendingmasktexture",
         "_detailmasktexture",
+        "_overlaycolortexture",
     }:
         return True
     return False
@@ -1602,6 +1887,359 @@ def _build_patched_sidecar_payloads(
     return sidecar_payloads
 
 
+def _overlay_original_sidecars_with_payloads(
+    original_sidecars: Sequence[tuple[object, str]],
+    generated_payloads: Sequence[TextureReplacementPayload],
+) -> tuple[tuple[object, str], ...]:
+    generated_sidecar_text_by_path: dict[str, str] = {}
+    for payload in tuple(generated_payloads or ()):
+        if str(getattr(payload, "kind", "") or "") != "sidecar_generated":
+            continue
+        target_path = _normalize_texture_path(getattr(payload, "target_path", ""))
+        if not target_path or not getattr(payload, "payload_data", b""):
+            continue
+        try:
+            generated_sidecar_text_by_path[target_path] = bytes(payload.payload_data).decode("utf-8", errors="ignore")
+        except Exception:
+            continue
+    if not generated_sidecar_text_by_path:
+        return tuple(original_sidecars or ())
+    overlaid: list[tuple[object, str]] = []
+    for sidecar_entry, sidecar_text in tuple(original_sidecars or ()):
+        sidecar_path = _normalize_texture_path(str(getattr(sidecar_entry, "path", "") or ""))
+        overlaid.append((sidecar_entry, generated_sidecar_text_by_path.get(sidecar_path, sidecar_text)))
+    return tuple(overlaid)
+
+
+def _replace_sidecar_payloads(
+    generated_payloads: Sequence[TextureReplacementPayload],
+    replacement_sidecar_payloads: Sequence[TextureReplacementPayload],
+) -> list[TextureReplacementPayload]:
+    replacement_targets = {
+        _normalize_texture_path(getattr(payload, "target_path", ""))
+        for payload in tuple(replacement_sidecar_payloads or ())
+        if _normalize_texture_path(getattr(payload, "target_path", ""))
+    }
+    if not replacement_targets:
+        return list(generated_payloads or ())
+    return [
+        payload
+        for payload in tuple(generated_payloads or ())
+        if not (
+            str(getattr(payload, "kind", "") or "") == "sidecar_generated"
+            and _normalize_texture_path(getattr(payload, "target_path", "")) in replacement_targets
+        )
+    ] + list(replacement_sidecar_payloads or ())
+
+
+def _sidecar_kind_from_path(path_value: object) -> str:
+    normalized = str(path_value or "").replace("\\", "/").strip().lower()
+    if normalized.endswith(".pac_xml") or normalized.endswith(".pac.xml"):
+        return "pac_xml"
+    if normalized.endswith(".pami"):
+        return "pami"
+    if normalized.endswith(".pam_xml") or normalized.endswith(".pam.xml"):
+        return "pam_xml"
+    if normalized.endswith(".pamlod_xml") or normalized.endswith(".pamlod.xml"):
+        return "pamlod_xml"
+    if normalized.endswith(".xml"):
+        return "xml"
+    return ""
+
+
+def _donor_plan_texture_bindings(plan: object) -> tuple[tuple[str, str, str, str], ...]:
+    rows: list[tuple[str, str, str, str]] = []
+    for binding in tuple(getattr(plan, "texture_bindings", ()) or ()):
+        parameter_name = str(getattr(binding, "parameter_name", "") or "").strip()
+        texture_path = str(getattr(binding, "texture_path", "") or "").replace("\\", "/").strip()
+        if not texture_path:
+            continue
+        slot_kind = str(getattr(binding, "slot_kind", "") or "").strip().lower()
+        semantic_subtype = str(getattr(binding, "semantic_subtype", "") or "").strip().lower()
+        if not slot_kind:
+            slot_kind = _infer_slot_kind(parameter_name, texture_path)
+        rows.append((parameter_name, texture_path, slot_kind, semantic_subtype))
+    return tuple(rows)
+
+
+def _donor_plan_anchor_texture_paths(plan: object) -> tuple[str, ...]:
+    paths: list[str] = []
+    for raw_path in tuple(getattr(plan, "donor_anchor_texture_paths", ()) or ()):
+        path_text = str(raw_path or "").replace("\\", "/").strip()
+        if path_text and path_text not in paths:
+            paths.append(path_text)
+    for _parameter_name, texture_path, _slot_kind, _semantic_subtype in _donor_plan_texture_bindings(plan):
+        if texture_path and texture_path not in paths:
+            paths.append(texture_path)
+    return tuple(paths)
+
+
+def _donor_binding_is_emissive(parameter_name: str, texture_path: str, semantic_subtype: str = "") -> bool:
+    compact = re.sub(r"[^a-z0-9]+", "", f"{parameter_name} {texture_path} {semantic_subtype}".lower())
+    return any(token in compact for token in ("emissive", "glow", "illum", "emit"))
+
+
+def _donor_parameter_candidates(parameter_name: str, slot_kind: str, texture_path: str, semantic_subtype: str = "") -> tuple[str, ...]:
+    candidates: list[str] = []
+
+    def add(value: str) -> None:
+        key = str(value or "").strip()
+        if key and key.lower() not in {candidate.lower() for candidate in candidates}:
+            candidates.append(key)
+
+    add(parameter_name)
+    normalized_slot = str(slot_kind or "").strip().lower()
+    if _donor_binding_is_emissive(parameter_name, texture_path, semantic_subtype):
+        for name in ("_emissiveTexture", "_emissiveIntensityTexture", "_emissiveProgressTexture"):
+            add(name)
+        return tuple(candidates)
+    if normalized_slot == "base":
+        for name in ("_overlayColorTexture", "_baseColorTexture", "_diffuseTexture", "_albedoTexture"):
+            add(name)
+    elif normalized_slot == "normal":
+        add("_normalTexture")
+    elif normalized_slot == "height":
+        add("_heightTexture")
+    elif normalized_slot in {"material", "material_mask"}:
+        for name in ("_colorBlendingMaskTexture", "_detailMaskTexture"):
+            add(name)
+    elif normalized_slot == "detail_mask":
+        add("_detailMaskTexture")
+    return tuple(candidates)
+
+
+def _patch_donor_texture_bindings_into_wrapper(
+    wrapper_text: str,
+    plan: object,
+) -> tuple[str, bool, set[str]]:
+    patched = wrapper_text
+    changed = False
+    used_paths: set[str] = set()
+    for parameter_name, texture_path, slot_kind, semantic_subtype in _donor_plan_texture_bindings(plan):
+        exact_candidates = (parameter_name,) if parameter_name else ()
+        did_change = False
+        if exact_candidates:
+            patched, did_change = _replace_source_driven_texture_parameter(
+                patched,
+                exact_candidates,
+                texture_path,
+                allow_unclassified_parameter=True,
+            )
+        if not did_change:
+            preferred_existing_roles: tuple[str, ...] = ()
+            if not _donor_binding_is_emissive(parameter_name, texture_path, semantic_subtype) and slot_kind:
+                preferred_existing_roles = (slot_kind,)
+            patched, did_change = _replace_source_driven_texture_parameter(
+                patched,
+                _donor_parameter_candidates(parameter_name, slot_kind, texture_path, semantic_subtype),
+                texture_path,
+                preferred_existing_roles=preferred_existing_roles,
+                allow_unclassified_parameter=True,
+            )
+        if did_change:
+            changed = True
+            used_paths.add(texture_path)
+    return patched, changed, used_paths
+
+
+def _donor_texture_patch_covers_selected_bindings(plan: object, used_paths: set[str]) -> bool:
+    required_paths = {
+        _normalize_texture_path(texture_path)
+        for _parameter_name, texture_path, _slot_kind, _semantic_subtype in _donor_plan_texture_bindings(plan)
+        if _normalize_texture_path(texture_path)
+    }
+    if not required_paths:
+        return False
+    normalized_used_paths = {_normalize_texture_path(path) for path in used_paths if _normalize_texture_path(path)}
+    return required_paths <= normalized_used_paths
+
+
+def _wrapper_open_close(wrapper_text: str) -> tuple[Optional[re.Match[str]], Optional[re.Match[str]]]:
+    open_match = re.match(r"\s*<(?P<tag>[A-Za-z0-9_:.-]*MaterialWrapper)\b[^>]*>", wrapper_text, flags=re.IGNORECASE | re.DOTALL)
+    if open_match is None:
+        return None, None
+    close_matches = list(
+        re.finditer(rf"</{re.escape(open_match.group('tag'))}>\s*$", wrapper_text, flags=re.IGNORECASE | re.DOTALL)
+    )
+    return open_match, close_matches[-1] if close_matches else None
+
+
+def _retarget_wrapper_submesh_attrs(wrapper_text: str, target_name: str) -> str:
+    escaped_target = _escape_xml_attr(target_name)
+    patched = wrapper_text
+    for attr in ("_subMeshName", "subMeshName", "SubMeshName", "PrimitiveName", "primitiveName"):
+        patched = re.sub(
+            rf'({attr}=")[^"]*(")',
+            lambda match: f"{match.group(1)}{escaped_target}{match.group(2)}",
+            patched,
+            flags=re.IGNORECASE,
+        )
+    return patched
+
+
+def _graft_donor_wrapper_payload(target_wrapper_text: str, donor_wrapper_text: str, target_name: str) -> tuple[str, bool]:
+    target_open, target_close = _wrapper_open_close(target_wrapper_text)
+    donor_open, donor_close = _wrapper_open_close(donor_wrapper_text)
+    if target_open is None or target_close is None or donor_open is None or donor_close is None:
+        return target_wrapper_text, False
+    donor_inner = donor_wrapper_text[donor_open.end() : donor_close.start()]
+    patched = (
+        target_wrapper_text[: target_open.start()]
+        + target_open.group(0)
+        + donor_inner
+        + target_close.group(0)
+        + target_wrapper_text[target_close.end() :]
+    )
+    patched = _retarget_wrapper_submesh_attrs(patched, target_name)
+    return patched, patched != target_wrapper_text
+
+
+def _target_wrapper_for_donor_plan(sidecar_text: str, plan: object) -> Optional[re.Match[str]]:
+    target_name = str(getattr(plan, "target_material_name", "") or "").strip()
+    if target_name:
+        wrapper_match = _find_sidecar_material_wrapper(sidecar_text, target_name)
+        if wrapper_match is not None:
+            return wrapper_match
+    return _find_sidecar_material_wrapper_by_texture_paths(
+        sidecar_text,
+        tuple(getattr(plan, "target_anchor_texture_paths", ()) or ()),
+    )
+
+
+def _donor_wrapper_for_plan(plan: object) -> Optional[re.Match[str]]:
+    donor_text = str(getattr(plan, "donor_sidecar_text", "") or "")
+    if not donor_text.strip():
+        return None
+    for candidate in (
+        str(getattr(plan, "donor_submesh_name", "") or "").strip(),
+        str(getattr(plan, "donor_material_name", "") or "").strip(),
+    ):
+        if not candidate:
+            continue
+        wrapper_match = _find_sidecar_material_wrapper(donor_text, candidate)
+        if wrapper_match is not None:
+            return wrapper_match
+    return _find_sidecar_material_wrapper_by_texture_paths(donor_text, _donor_plan_anchor_texture_paths(plan))
+
+
+def _apply_donor_material_plan_to_sidecar(
+    sidecar_text: str,
+    *,
+    sidecar_path: str,
+    plan: object,
+    report: TextureReplacementReport,
+) -> tuple[str, bool, bool]:
+    wrapper_match = _target_wrapper_for_donor_plan(sidecar_text, plan)
+    if wrapper_match is None:
+        return sidecar_text, False, False
+    target_name = str(getattr(plan, "target_material_name", "") or "").strip()
+    patch_mode = str(getattr(plan, "patch_mode", "") or "material_behavior").strip().lower()
+    target_kind = _sidecar_kind_from_path(sidecar_path)
+    donor_kind = str(getattr(plan, "donor_sidecar_kind", "") or "").strip().lower()
+    if not donor_kind:
+        donor_kind = _sidecar_kind_from_path(getattr(plan, "donor_sidecar_path", ""))
+
+    if patch_mode in {"material_behavior", "donor_material_behavior", "graft", "wrapper_graft"}:
+        if target_kind == "pac_xml" and donor_kind == "pac_xml":
+            texture_patched_wrapper, texture_changed, used_paths = _patch_donor_texture_bindings_into_wrapper(wrapper_match.group(0), plan)
+            if texture_changed and _donor_texture_patch_covers_selected_bindings(plan, used_paths):
+                patched = sidecar_text[: wrapper_match.start()] + texture_patched_wrapper + sidecar_text[wrapper_match.end() :]
+                report.warnings.append(
+                    f"Donor material behavior used target-compatible texture parameters: "
+                    f"{getattr(plan, 'donor_material_name', '') or getattr(plan, 'donor_submesh_name', '')} -> {target_name or 'target wrapper'}."
+                )
+                return patched, True, True
+            donor_wrapper_match = _donor_wrapper_for_plan(plan)
+            if donor_wrapper_match is not None:
+                new_wrapper, grafted = _graft_donor_wrapper_payload(
+                    wrapper_match.group(0),
+                    donor_wrapper_match.group(0),
+                    target_name or _source_driven_wrapper_name(wrapper_match.group(0)),
+                )
+                if grafted:
+                    patched = sidecar_text[: wrapper_match.start()] + new_wrapper + sidecar_text[wrapper_match.end() :]
+                    report.warnings.append(
+                        f"Donor material behavior grafted: {getattr(plan, 'donor_material_name', '') or getattr(plan, 'donor_submesh_name', '')} -> {target_name or 'target wrapper'}."
+                    )
+                    return patched, True, True
+                report.warnings.append(f"Donor material behavior graft made no changes for {target_name or 'target wrapper'}.")
+                return sidecar_text, False, True
+            report.warnings.append(f"Donor material behavior could not find donor wrapper for {target_name or 'target wrapper'}.")
+            return sidecar_text, False, True
+        report.warnings.append(
+            f"Donor material behavior for {target_name or 'target wrapper'} needs matching .pac_xml wrappers; "
+            f"falling back to donor texture binding ({donor_kind or 'unknown'} -> {target_kind or 'unknown'})."
+        )
+
+    new_wrapper, changed, _used_paths = _patch_donor_texture_bindings_into_wrapper(wrapper_match.group(0), plan)
+    if not changed:
+        report.warnings.append(f"Donor texture binding found no compatible target parameters for {target_name or 'target wrapper'}.")
+        return sidecar_text, False, True
+    patched = sidecar_text[: wrapper_match.start()] + new_wrapper + sidecar_text[wrapper_match.end() :]
+    report.warnings.append(f"Donor texture binding patched target material wrapper: {target_name or 'target wrapper'}.")
+    return patched, True, True
+
+
+def _build_donor_material_sidecar_payloads(
+    *,
+    original_sidecars: Sequence[tuple[object, str]],
+    donor_material_plans: Sequence[object],
+    report: TextureReplacementReport,
+) -> list[TextureReplacementPayload]:
+    plans = tuple(plan for plan in tuple(donor_material_plans or ()) if bool(getattr(plan, "enabled", True)))
+    if not plans:
+        return []
+    if not original_sidecars:
+        report.warnings.append("Donor material source could not patch .pac_xml because no target material sidecar was available.")
+        return []
+
+    patched_by_path: dict[str, tuple[object, str, bool]] = {}
+    for sidecar_entry, sidecar_text in tuple(original_sidecars or ()):
+        sidecar_path = str(getattr(sidecar_entry, "path", "") or "").strip()
+        if sidecar_path:
+            patched_by_path[sidecar_path] = (sidecar_entry, str(sidecar_text or ""), False)
+
+    for plan in plans:
+        target_name = str(getattr(plan, "target_material_name", "") or "").strip() or "target wrapper"
+        plan_applied = False
+        plan_matched_target = False
+        for sidecar_path in list(patched_by_path):
+            sidecar_entry, current_text, changed_before = patched_by_path[sidecar_path]
+            patched_text, changed, matched_target = _apply_donor_material_plan_to_sidecar(
+                current_text,
+                sidecar_path=sidecar_path,
+                plan=plan,
+                report=report,
+            )
+            plan_matched_target = plan_matched_target or matched_target
+            if changed:
+                patched_by_path[sidecar_path] = (sidecar_entry, patched_text, True)
+                plan_applied = True
+                break
+            patched_by_path[sidecar_path] = (sidecar_entry, current_text, changed_before)
+        if not plan_matched_target:
+            report.warnings.append(f"Donor material source target wrapper was not found: {target_name}.")
+        elif not plan_applied:
+            report.warnings.append(f"Donor material source did not modify target wrapper: {target_name}.")
+
+    sidecar_payloads: list[TextureReplacementPayload] = []
+    for sidecar_path, (_sidecar_entry, patched_text, changed) in patched_by_path.items():
+        if not changed:
+            continue
+        sidecar_payloads.append(
+            TextureReplacementPayload(
+                target_path=sidecar_path,
+                payload_data=patched_text.encode("utf-8"),
+                kind="sidecar_generated",
+                source_path=Path(PurePosixPath(sidecar_path).name),
+                note="Donor material sidecar patched from another original mesh.",
+            )
+        )
+    if sidecar_payloads:
+        report.warnings.append(f"Generated {len(sidecar_payloads):,} donor material sidecar patch payload(s).")
+    return sidecar_payloads
+
+
 def _references_by_target_path(original_texture_refs: Sequence[object]) -> dict[str, object]:
     references: dict[str, object] = {}
     for reference in original_texture_refs:
@@ -1617,6 +2255,199 @@ def _references_by_target_path(original_texture_refs: Sequence[object]) -> dict[
 
 def _normalize_texture_path(value: str) -> str:
     return str(value or "").replace("\\", "/").strip().lower()
+
+
+_SOURCE_MATERIAL_OVERRIDE_SLOT_ALIASES = {
+    "basecolor": "base",
+    "base_color": "base",
+    "color": "base",
+    "colour": "base",
+    "diffuse": "base",
+    "albedo": "base",
+    "normalmap": "normal",
+    "normal_map": "normal",
+    "nrm": "normal",
+    "heightmap": "height",
+    "height_map": "height",
+    "displacement": "height",
+    "disp": "height",
+    "materialmask": "material_mask",
+    "material_mask": "material_mask",
+    "mask_amg": "material_mask",
+    "detailmask": "detail_mask",
+    "detail_mask": "detail_mask",
+    "detailmaterial": "detail_mask",
+}
+
+
+def _manual_target_texture_slot_overrides(texture_slot_overrides: Sequence[object]) -> tuple[object, ...]:
+    return tuple(
+        override
+        for override in tuple(texture_slot_overrides or ())
+        if _override_enabled(override) and _override_target_texture_path(override)
+    )
+
+
+def _apply_source_material_texture_overrides(
+    texture_sets: dict[str, ReplacementTextureSet],
+    *,
+    obj_mesh: ParsedMesh,
+    texture_slot_overrides: Sequence[object],
+    source_material_texture_overrides: Sequence[object],
+    report: TextureReplacementReport,
+) -> None:
+    applied_count = 0
+    for raw_override in tuple(source_material_texture_overrides or ()) + tuple(texture_slot_overrides or ()):
+        parsed = _parse_source_material_texture_override(raw_override)
+        if parsed is None:
+            continue
+        source_material_name, slot_kind, source_path_text = parsed
+        source_path = Path(source_path_text).expanduser()
+        if not source_path.is_absolute():
+            source_path = Path.cwd() / source_path
+        source_path = source_path.resolve()
+        if source_path.suffix.lower() not in {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff"}:
+            _warn_once(report, f"Source-material texture override is not a supported image file: {source_path_text}")
+            continue
+        if not source_path.is_file():
+            _warn_once(report, f"Source-material texture override file is missing: {source_path_text}")
+            continue
+        normalized_slot = _normalize_source_material_override_slot(slot_kind, source_path)
+        if not normalized_slot:
+            _warn_once(
+                report,
+                f"Source-material texture override for {source_material_name} did not specify a recognizable texture slot.",
+            )
+            continue
+        source_role = infer_cd_texture_role_from_path(source_path_text)
+        if (
+            source_role
+            and normalized_slot in {"base", "normal", "height", "material_mask", "detail_mask"}
+            and source_role != normalized_slot
+        ):
+            _warn_once(
+                report,
+                f"Source-material texture override role mismatch: {source_material_name} expects "
+                f"{normalized_slot.replace('_', ' ')}, but {source_path.name} looks like {source_role.replace('_', ' ')}.",
+            )
+        material_name = _canonical_source_material_name(source_material_name, obj_mesh, texture_sets)
+        texture_set = texture_sets.setdefault(material_name.lower(), ReplacementTextureSet(material_name=material_name))
+        normal_space = _normal_space_for_source_path(source_path)
+        texture_set.slots[normalized_slot] = ReplacementTextureSlot(
+            material_name=texture_set.material_name,
+            slot_kind=normalized_slot,
+            source_path=source_path,
+            normal_space=normal_space if normalized_slot == "normal" else "",
+        )
+        applied_count += 1
+    if applied_count:
+        _warn_once(report, f"Applied {applied_count:,} source-material texture override(s).")
+
+
+def _parse_source_material_texture_override(raw_override: object) -> Optional[tuple[str, str, str]]:
+    if not _override_enabled(raw_override):
+        return None
+    if isinstance(raw_override, Mapping):
+        if _override_target_texture_path(raw_override):
+            return None
+        material_name = str(
+            raw_override.get("source_material_name")
+            or raw_override.get("material_name")
+            or raw_override.get("source_material")
+            or ""
+        ).strip()
+        slot_kind = str(raw_override.get("slot_kind") or raw_override.get("slot") or raw_override.get("role") or "").strip()
+        source_path = str(raw_override.get("source_path") or raw_override.get("path") or "").strip()
+    elif isinstance(raw_override, (tuple, list)) and len(raw_override) >= 3:
+        material_name = str(raw_override[0] or "").strip()
+        slot_kind = str(raw_override[1] or "").strip()
+        source_path = str(raw_override[2] or "").strip()
+    else:
+        if _override_target_texture_path(raw_override):
+            return None
+        material_name = str(
+            getattr(raw_override, "source_material_name", "")
+            or getattr(raw_override, "material_name", "")
+            or getattr(raw_override, "source_material", "")
+            or ""
+        ).strip()
+        slot_kind = str(
+            getattr(raw_override, "slot_kind", "")
+            or getattr(raw_override, "slot", "")
+            or getattr(raw_override, "role", "")
+            or ""
+        ).strip()
+        source_path = str(getattr(raw_override, "source_path", "") or getattr(raw_override, "path", "") or "").strip()
+    if not material_name or not source_path:
+        return None
+    return material_name, slot_kind, source_path
+
+
+def _override_enabled(raw_override: object) -> bool:
+    if isinstance(raw_override, Mapping):
+        return bool(raw_override.get("enabled", True))
+    if isinstance(raw_override, (tuple, list)) and len(raw_override) >= 4:
+        return bool(raw_override[3])
+    return bool(getattr(raw_override, "enabled", True))
+
+
+def _override_target_texture_path(raw_override: object) -> str:
+    if isinstance(raw_override, Mapping):
+        return str(
+            raw_override.get("target_texture_path")
+            or raw_override.get("target_path")
+            or raw_override.get("texture_path")
+            or ""
+        ).replace("\\", "/").strip()
+    if isinstance(raw_override, (tuple, list)):
+        return ""
+    return str(
+        getattr(raw_override, "target_texture_path", "")
+        or getattr(raw_override, "target_path", "")
+        or getattr(raw_override, "texture_path", "")
+        or ""
+    ).replace("\\", "/").strip()
+
+
+def _normalize_source_material_override_slot(slot_kind: str, source_path: Path) -> str:
+    normalized = str(slot_kind or "").strip().lower().replace("-", "_").replace(" ", "_")
+    normalized = _SOURCE_MATERIAL_OVERRIDE_SLOT_ALIASES.get(normalized, normalized)
+    if normalized:
+        return normalized
+    source_role = infer_cd_texture_role_from_path(source_path.as_posix())
+    if source_role:
+        return source_role
+    parsed = _parse_replacement_texture_filename(source_path, set())
+    return parsed[1] if parsed is not None else ""
+
+
+def _canonical_source_material_name(
+    source_material_name: str,
+    obj_mesh: ParsedMesh,
+    texture_sets: Mapping[str, ReplacementTextureSet],
+) -> str:
+    raw_name = str(source_material_name or "").strip()
+    key = raw_name.lower()
+    existing = texture_sets.get(key)
+    if existing is not None and str(existing.material_name or "").strip():
+        return str(existing.material_name or "").strip()
+    for submesh in getattr(obj_mesh, "submeshes", ()) or ():
+        for value in (
+            str(getattr(submesh, "material", "") or "").strip(),
+            str(getattr(submesh, "name", "") or "").strip(),
+        ):
+            if value and value.lower() == key:
+                return value
+    return raw_name
+
+
+def _normal_space_for_source_path(source_path: Path) -> str:
+    stem = source_path.stem.lower()
+    if "opengl" in stem:
+        return "opengl"
+    if "directx" in stem or "_dx" in stem:
+        return "directx"
+    return ""
 
 
 def _build_manual_texture_slot_override_payloads(
@@ -1660,6 +2491,19 @@ def _build_manual_texture_slot_override_payloads(
             str(getattr(reference, "sidecar_parameter_name", "") or ""),
             target_path,
         )
+        source_role = infer_cd_texture_role_from_path(source_path_text)
+        if _is_shared_material_layer_texture(target_path):
+            _warn_once(
+                report,
+                f"Manual texture override targets stock/shared shader texture {target_path}; this can tint the model, add grime/speckles, "
+                "or affect shared material layers. Use only when intentionally editing a shader/detail layer.",
+            )
+        if source_role and slot_kind in {"base", "normal", "height", "material_mask", "detail_mask"} and source_role != slot_kind:
+            _warn_once(
+                report,
+                f"Manual texture override role mismatch: {target_path} expects {slot_kind.replace('_', ' ')}, "
+                f"but {source_path.name} looks like {source_role.replace('_', ' ')}.",
+            )
         source_slot = _source_slot_from_manual_path(source_path, slot_kind, texture_sets)
         try:
             payload = _build_texture_payload(
@@ -1946,6 +2790,22 @@ def _texture_slot_semantic_priority(path: Path, slot_kind: str) -> int:
             return 70
         return 60
 
+    if slot == "material_mask":
+        if any(marker in normalized for marker in ("colorblendingmask", "materialmask", "maskamg")):
+            return 100
+        if normalized.endswith(("ma",)):
+            return 95
+        if any(token in tokens for token in ("mask", "material")):
+            return 75
+        return 50
+
+    if slot == "detail_mask":
+        if any(marker in normalized for marker in ("detailmask", "detailmaterial")):
+            return 100
+        if normalized.endswith(("mg",)):
+            return 95
+        return 50
+
     if slot == "material":
         if any(
             marker in normalized
@@ -1985,6 +2845,8 @@ def _attach_source_face_counts(texture_sets: Mapping[str, ReplacementTextureSet]
     for submesh in obj_mesh.submeshes:
         material_key = str(submesh.material or submesh.name or "").strip().lower()
         texture_set = texture_sets.get(material_key)
+        if texture_set is None:
+            texture_set = _texture_set_for_source_texture_reference(submesh, texture_sets)
         if texture_set is not None:
             texture_set.source_face_count += len(submesh.faces)
 
@@ -1996,52 +2858,293 @@ def _choose_source_materials_for_targets(
     report: TextureReplacementReport,
 ) -> dict[str, str]:
     result: dict[str, str] = {}
+    routes = build_source_material_routing_plan(obj_mesh, texture_sets, submesh_mappings)
+    report.material_routes = list(routes)
+    _append_source_material_route_match_warnings(obj_mesh, texture_sets, submesh_mappings, report)
+    blocked_targets: set[str] = set()
+    for route in routes:
+        target_key = str(route.target_material_name or "").strip().lower()
+        if not target_key:
+            continue
+        if route.blocker:
+            blocked_targets.add(target_key)
+            _warn_once(report, route.reason)
+            continue
+        source_material = str(route.source_material_name or "").strip()
+        if source_material:
+            result[target_key] = source_material
+        elif route.status == "Ignored" and route.reason:
+            _warn_once(report, route.reason)
+    for blocked_target in blocked_targets:
+        result.pop(blocked_target, None)
+    return result
+
+
+def _augment_source_materials_from_rebuilt_mesh(
+    target_to_source_material: dict[str, str],
+    rebuilt_mesh: ParsedMesh,
+    texture_sets: Mapping[str, ReplacementTextureSet],
+) -> None:
+    """Allow session-added draw sections to bind textures by their own material name.
+
+    Mapped replacements get target-to-source routes from StaticSubmeshMapping.
+    Independent session parts are already present in the rebuilt preview mesh,
+    but they do not have an original target mapping. Matching them here lets
+    source-driven texture generation use their own material/texture set instead
+    of stealing an original draw slot.
+    """
+    for submesh in getattr(rebuilt_mesh, "submeshes", ()) or ():
+        if not getattr(submesh, "vertices", None) or not getattr(submesh, "faces", None):
+            continue
+        target_material = str(getattr(submesh, "material", "") or getattr(submesh, "name", "") or "").strip()
+        if not target_material:
+            continue
+        texture_set = _texture_set_for_source_submesh(submesh, target_material, texture_sets)
+        if texture_set is None:
+            continue
+        for key in {
+            target_material.lower(),
+            _normalize_sidecar_material_name(target_material),
+        }:
+            if key and key not in target_to_source_material:
+                target_to_source_material[key] = texture_set.material_name
+
+
+def _append_source_material_route_match_warnings(
+    obj_mesh: ParsedMesh,
+    texture_sets: Mapping[str, ReplacementTextureSet],
+    submesh_mappings: Sequence[StaticSubmeshMapping],
+    report: TextureReplacementReport,
+) -> None:
     for mapping in submesh_mappings:
-        candidates: list[ReplacementTextureSet] = []
-        for source_index in mapping.source_submesh_indices:
+        for source_index in tuple(mapping.source_submesh_indices or ()):
             if source_index < 0 or source_index >= len(obj_mesh.submeshes):
                 continue
             source_submesh = obj_mesh.submeshes[source_index]
-            material_key = str(source_submesh.material or source_submesh.name or "").strip().lower()
-            texture_set = texture_sets.get(material_key)
+            material_key = str(getattr(source_submesh, "material", "") or getattr(source_submesh, "name", "") or "").strip().lower()
+            if material_key in texture_sets:
+                continue
+            texture_set = _texture_set_for_source_texture_reference(source_submesh, texture_sets)
             if texture_set is not None:
-                candidates.append(texture_set)
-            else:
-                inferred_texture_set = _best_texture_set_for_source_mapping(
-                    source_submesh,
-                    mapping.target_submesh_name,
-                    texture_sets,
+                texture_name = Path(str(getattr(source_submesh, "texture", "") or "")).name
+                _warn_once(
+                    report,
+                    f"Texture set {texture_set.material_name} was matched from source texture "
+                    f"{texture_name or _source_submesh_display_name(source_submesh, source_index)} "
+                    f"for {mapping.target_submesh_name}.",
                 )
-                if inferred_texture_set is not None:
-                    candidates.append(inferred_texture_set)
-                    report.warnings.append(
-                        f"Texture set {inferred_texture_set.material_name} was matched to renamed source "
-                        f"{source_submesh.material or source_submesh.name or source_index} for {mapping.target_submesh_name}."
-                    )
-        if not candidates:
-            continue
-        candidates.sort(
-            key=lambda item: (
-                _texture_source_candidate_score(mapping.target_submesh_name, item),
-                item.source_face_count,
-                len(item.slots),
-            ),
-            reverse=True,
-        )
-        chosen = candidates[0]
-        result[mapping.target_submesh_name.lower()] = chosen.material_name
-        distinct_candidate_names = {
-            str(candidate.material_name or "").strip().lower(): str(candidate.material_name or "").strip()
-            for candidate in candidates
-            if str(candidate.material_name or "").strip()
-        }
-        if len(distinct_candidate_names) > 1:
-            report.warnings.append(
-                f"Multiple replacement texture sets map to {mapping.target_submesh_name}; "
-                f"using {chosen.material_name}. Split the draw routing or bake/atlas textures to preserve separate source materials. "
-                f"Candidates: {', '.join(distinct_candidate_names.values())}."
+                continue
+            inferred_texture_set = _best_texture_set_for_source_mapping(
+                source_submesh,
+                mapping.target_submesh_name,
+                texture_sets,
             )
-    return result
+            if inferred_texture_set is not None:
+                _warn_once(
+                    report,
+                    f"Texture set {inferred_texture_set.material_name} was matched to renamed source "
+                    f"{_source_submesh_display_name(source_submesh, source_index)} for {mapping.target_submesh_name}.",
+                )
+
+
+def build_source_material_routing_plan(
+    obj_mesh: ParsedMesh,
+    texture_sets: Mapping[str, ReplacementTextureSet],
+    submesh_mappings: Sequence[StaticSubmeshMapping],
+) -> tuple[SourceMaterialRoutingResult, ...]:
+    routes: list[SourceMaterialRoutingResult] = []
+    for mapping in submesh_mappings:
+        target_name = str(mapping.target_submesh_name or "").strip()
+        if not target_name:
+            continue
+        if is_static_replacement_helper_material_name(target_name):
+            routes.append(
+                SourceMaterialRoutingResult(
+                    target_material_name=target_name,
+                    source_part_names=tuple(
+                        _source_submesh_display_name(obj_mesh.submeshes[index], index)
+                        for index in tuple(mapping.source_submesh_indices or ())
+                        if 0 <= index < len(obj_mesh.submeshes)
+                    ),
+                    status="Ignored",
+                    reason=(
+                        f"Helper material wrapper {target_name} is preserved by default; automatic texture routing does not patch "
+                        "_black/_inside-style parts. Use Advanced original-DDS overrides only when you intentionally want to edit it."
+                    ),
+                )
+            )
+            continue
+        source_part_names: list[str] = []
+        ignored_part_names: list[str] = []
+        candidates_by_key: dict[str, ReplacementTextureSet] = {}
+        for source_index in tuple(mapping.source_submesh_indices or ()):
+            if source_index < 0 or source_index >= len(obj_mesh.submeshes):
+                continue
+            source_submesh = obj_mesh.submeshes[source_index]
+            source_label = _source_submesh_display_name(source_submesh, source_index)
+            source_part_names.append(source_label)
+            texture_set = _texture_set_for_source_submesh(source_submesh, target_name, texture_sets)
+            if texture_set is None:
+                ignored_part_names.append(source_label)
+                continue
+            candidates_by_key.setdefault(str(texture_set.material_name or "").strip().lower(), texture_set)
+
+        if not candidates_by_key and len(texture_sets) == 1:
+            texture_set = next(iter(texture_sets.values()))
+            candidates_by_key[str(texture_set.material_name or "").strip().lower()] = texture_set
+
+        candidates = list(candidates_by_key.values())
+        if len(candidates) > 1:
+            candidate_names = [str(candidate.material_name or "").strip() for candidate in candidates if str(candidate.material_name or "").strip()]
+            ignored_note = f" Untextured source part(s) ignored for texture routing: {', '.join(ignored_part_names[:4])}." if ignored_part_names else ""
+            routes.append(
+                SourceMaterialRoutingResult(
+                    target_material_name=target_name,
+                    source_material_name=", ".join(candidate_names),
+                    source_part_names=tuple(source_part_names),
+                    detected_roles=tuple(sorted({role for candidate in candidates for role in _texture_set_detected_roles(candidate)})),
+                    status="Blocked",
+                    reason=(
+                        f"Texture routing blocker: {target_name} receives multiple replacement material sets "
+                        f"({', '.join(candidate_names)}). Split the routing, atlas/bake the source textures, or manually choose one source material."
+                    )
+                    + ignored_note,
+                    blocker=True,
+                )
+            )
+            continue
+
+        if not candidates:
+            routes.append(
+                SourceMaterialRoutingResult(
+                    target_material_name=target_name,
+                    source_part_names=tuple(source_part_names),
+                    status="Ignored",
+                    reason=(
+                        f"Texture routing ignored {target_name}: mapped source part(s) have no detected base/normal texture set"
+                        + (f" ({', '.join(ignored_part_names[:4])})." if ignored_part_names else ".")
+                    ),
+                )
+            )
+            continue
+
+        chosen = candidates[0]
+        roles = _texture_set_detected_roles(chosen)
+        has_base = "base" in roles
+        ignored_note = f" Untextured mapped source part(s) ignored for texture routing: {', '.join(ignored_part_names[:4])}." if ignored_part_names else ""
+        if ignored_part_names and len(source_part_names) > len(ignored_part_names):
+            routes.append(
+                SourceMaterialRoutingResult(
+                    target_material_name=target_name,
+                    source_material_name=str(chosen.material_name or "").strip(),
+                    source_part_names=tuple(source_part_names),
+                    detected_roles=roles,
+                    status="Blocked",
+                    reason=(
+                        f"Texture routing blocker: {target_name} mixes source material "
+                        f"{str(chosen.material_name or '').strip() or 'replacement material'} with untextured/original "
+                        "source part(s) in the same draw/material slot. One game slot can bind one material set, "
+                        "so automatic routing is blocked to avoid repainting the whole target."
+                    )
+                    + ignored_note,
+                    blocker=True,
+                )
+            )
+            continue
+        routes.append(
+            SourceMaterialRoutingResult(
+                target_material_name=target_name,
+                source_material_name=str(chosen.material_name or "").strip(),
+                source_part_names=tuple(source_part_names),
+                detected_roles=roles,
+                status="Ready" if has_base else "Review",
+                reason=(
+                    "Base/color and normal maps will be routed conservatively."
+                    if has_base
+                    else "No base/color map is detected for this routed material; final output may be grey."
+                )
+                + ignored_note,
+            )
+        )
+    return tuple(routes)
+
+
+def _texture_set_for_source_submesh(
+    source_submesh: object,
+    target_material_name: str,
+    texture_sets: Mapping[str, ReplacementTextureSet],
+) -> Optional[ReplacementTextureSet]:
+    material_key = str(getattr(source_submesh, "material", "") or getattr(source_submesh, "name", "") or "").strip().lower()
+    texture_set = texture_sets.get(material_key)
+    if texture_set is not None:
+        return texture_set
+    texture_set = _texture_set_for_source_texture_reference(source_submesh, texture_sets)
+    if texture_set is not None:
+        return texture_set
+    return _best_texture_set_for_source_mapping(source_submesh, target_material_name, texture_sets)
+
+
+def _source_submesh_display_name(source_submesh: object, source_index: int) -> str:
+    return (
+        str(getattr(source_submesh, "material", "") or "").strip()
+        or str(getattr(source_submesh, "name", "") or "").strip()
+        or f"source {source_index}"
+    )
+
+
+def _texture_set_detected_roles(texture_set: ReplacementTextureSet) -> tuple[str, ...]:
+    order = ("base", "normal", "height", "material_mask", "detail_mask", "material", "metallic", "roughness", "ao")
+    slots = getattr(texture_set, "slots", {}) or {}
+    roles = [role for role in order if role in slots]
+    roles.extend(sorted(str(role) for role in slots if str(role) not in set(order)))
+    return tuple(roles)
+
+
+def _texture_reference_keys(raw_reference: object) -> set[str]:
+    raw_text = str(raw_reference or "").strip()
+    if not raw_text:
+        return set()
+    normalized_text = raw_text.replace("\\", "/").lower()
+    keys = {normalized_text}
+    path = Path(raw_text).expanduser()
+    if path.name:
+        keys.add(path.name.lower())
+    if path.stem:
+        keys.add(path.stem.lower())
+    try:
+        keys.add(str(path.resolve()).replace("\\", "/").lower())
+    except Exception:
+        pass
+    return {key for key in keys if key}
+
+
+def _texture_set_for_source_texture_reference(
+    source_submesh: object,
+    texture_sets: Mapping[str, ReplacementTextureSet],
+) -> Optional[ReplacementTextureSet]:
+    source_texture_keys = _texture_reference_keys(getattr(source_submesh, "texture", ""))
+    if not source_texture_keys:
+        return None
+    best: Optional[ReplacementTextureSet] = None
+    best_score = 0
+    slot_priority = {
+        "base": 50,
+        "normal": 30,
+        "material_mask": 22,
+        "detail_mask": 21,
+        "material": 20,
+        "height": 10,
+    }
+    for texture_set in texture_sets.values():
+        for slot_kind, slot in (texture_set.slots or {}).items():
+            slot_keys = _texture_reference_keys(slot.source_path)
+            if not (source_texture_keys & slot_keys):
+                continue
+            score = slot_priority.get(str(slot_kind or "").strip().lower(), 1)
+            if score > best_score:
+                best_score = score
+                best = texture_set
+    return best
 
 
 def _best_texture_set_for_source_mapping(
@@ -2129,7 +3232,22 @@ def _best_source_material_for_target(target_material: str, target_to_source_mate
 
 
 def _material_tokens(value: str) -> set[str]:
-    stop_words = {"cd", "phm", "pc", "texture", "material", "mesh", "obj", "dds", "png"}
+    stop_words = {
+        "cd",
+        "phm",
+        "pc",
+        "texture",
+        "material",
+        "mesh",
+        "obj",
+        "dds",
+        "png",
+        "source",
+        "target",
+        "donor",
+        "original",
+        "replacement",
+    }
     tokens: set[str] = set()
     for raw_token in re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).split():
         token = re.sub(r"\d+$", "", raw_token.strip())
@@ -2160,6 +3278,10 @@ def _is_shared_material_layer_texture(target_path: str) -> bool:
         basename.startswith("cd_texturelayer_")
         or basename.startswith("cd_temp")
         or basename.startswith("cd_metal_")
+        or basename.startswith("blackoil")
+        or basename.startswith("cd_common_default")
+        or basename.startswith("nonetexture")
+        or basename.startswith("none_texture")
     )
 
 
@@ -2179,6 +3301,8 @@ def classify_texture_assignment_guidance(
     classification = classify_texture_binding(parameter_name, target_path)
     has_source = bool(str(suggested_source or "").strip())
     is_shared = _is_shared_material_layer_texture(target_path)
+    source_role = infer_cd_texture_role_from_path(suggested_source) if has_source else ""
+    source_name = PurePosixPath(str(suggested_source or "").replace("\\", "/")).name.lower()
     subtype = str(classification.semantic_subtype or "").strip().lower()
     advanced_subtypes = {
         "color_blending_mask",
@@ -2191,11 +3315,18 @@ def classify_texture_assignment_guidance(
         "direction_vector",
     }
     if is_shared:
+        source_detail = ""
+        if source_role:
+            source_detail = f" Suggested source looks like {source_role.replace('_', ' ')}."
         return TextureAssignmentGuidance(
             checked_by_default=False,
             confidence="manual",
-            state_label="Optional shared layer",
-            reason="Shared cd_texturelayer/cd_temp rows can affect more than one material, so they stay unchecked until explicitly selected.",
+            state_label="Risky stock/shared layer",
+            reason=(
+                "Stock/shared shader rows such as cd_texturelayer, cd_metal, blackoil, and defaults drive grime/detail/dye behavior. "
+                "Overriding them can tint the model, add dirt/speckles, or affect other materials; leave them unchanged unless this is intentional."
+                + source_detail
+            ),
             advanced=True,
         )
     if not has_source:
@@ -2215,6 +3346,54 @@ def classify_texture_assignment_guidance(
             reason="The same source texture matched several target slots. Review before applying it everywhere.",
             advanced=True,
         )
+    target_role = str(classification.slot_kind or "").strip().lower()
+    source_is_pbr = any(
+        token in source_name
+        for token in ("metallicroughness", "metallic_roughness", "metalrough", "roughmetal", "roughnessmetallic")
+    )
+    direct_roles = {"base", "normal", "height", "material_mask", "detail_mask"}
+    if has_source and target_role in direct_roles:
+        if source_is_pbr:
+            return TextureAssignmentGuidance(
+                checked_by_default=False,
+                confidence="suggested",
+                state_label="Review PBR source",
+                reason=(
+                    "Standalone glTF MetallicRoughness/PBR maps are not the same as Crimson material/detail masks. "
+                    "Pack or assign them manually if this shader row should use them."
+                ),
+                advanced=True,
+            )
+        if source_role and source_role != target_role:
+            return TextureAssignmentGuidance(
+                checked_by_default=False,
+                confidence="suggested",
+                state_label="Review role mismatch",
+                reason=(
+                    f"Suggested source looks like {source_role.replace('_', ' ')}, but this row expects "
+                    f"{target_role.replace('_', ' ')}."
+                ),
+                advanced=True,
+            )
+        if target_role in {"material_mask", "detail_mask"} and not source_role:
+            return TextureAssignmentGuidance(
+                checked_by_default=False,
+                confidence="suggested",
+                state_label="Suggested manual",
+                reason=(
+                    f"This row expects a clear CD {target_role.replace('_', ' ')} source "
+                    "such as a matching _ma or _mg texture."
+                ),
+                advanced=True,
+            )
+        if target_role in {"material_mask", "detail_mask"} and source_role == target_role:
+            return TextureAssignmentGuidance(
+                checked_by_default=True,
+                confidence="high",
+                state_label="High-confidence CD mask",
+                reason=classification.reason or "Clear Crimson material-family mask with a matching replacement source.",
+                advanced=False,
+            )
     if not classification.visualized or subtype in advanced_subtypes:
         return TextureAssignmentGuidance(
             checked_by_default=False,
@@ -2223,7 +3402,7 @@ def classify_texture_assignment_guidance(
             reason=classification.reason or "This shader slot is preserved for export but is not safe to auto-assign.",
             advanced=True,
         )
-    if classification.slot_kind in {"base", "normal", "height", "material"}:
+    if classification.slot_kind in {"base", "normal", "height", "material", "material_mask", "detail_mask"}:
         return TextureAssignmentGuidance(
             checked_by_default=True,
             confidence="high",
@@ -2389,10 +3568,12 @@ def _infer_slot_kind(parameter_name: str, texture_path: str) -> str:
 def _slot_for_target(texture_set: ReplacementTextureSet, slot_kind: str) -> Optional[ReplacementTextureSlot]:
     if slot_kind in texture_set.slots:
         return texture_set.slots[slot_kind]
+    if slot_kind == "material_mask":
+        return texture_set.slots.get("material_mask")
+    if slot_kind == "detail_mask":
+        return texture_set.slots.get("detail_mask")
     if slot_kind == "material":
-        for fallback in ("material", "metallic", "roughness", "ao"):
-            if fallback in texture_set.slots:
-                return texture_set.slots[fallback]
+        return texture_set.slots.get("material") or texture_set.slots.get("material_mask") or texture_set.slots.get("detail_mask")
     if slot_kind == "base":
         return texture_set.slots.get("base")
     return None
@@ -3113,6 +4294,144 @@ def _append_unused_texture_warnings(
             )
 
 
+def _warn_once(report: TextureReplacementReport, message: str) -> None:
+    text = str(message or "").strip()
+    if text and text not in report.warnings:
+        report.warnings.append(text)
+
+
+def _looks_like_normal_texture_path(texture_path: str) -> bool:
+    basename = PurePosixPath(str(texture_path or "").replace("\\", "/")).name.lower()
+    stem = PurePosixPath(basename).stem.lower()
+    if not basename:
+        return False
+    if "normal" in stem or stem.endswith(("_n", "_wn", "_nm", "_nrm", "_nor", "_no")):
+        return True
+    if re.search(r"(?:^|[_\-.])n(?:$|[_\-.])", stem):
+        return True
+    return False
+
+
+def _sidecar_texture_parameter_rows(sidecar_text: str) -> list[tuple[str, str]]:
+    rows: list[tuple[str, str]] = []
+    texture_pattern = re.compile(
+        r"<MaterialParameterTexture\b[^>]*>.*?</MaterialParameterTexture>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for match in texture_pattern.finditer(str(sidecar_text or "")):
+        block = match.group(0)
+        parameter_name = _sidecar_parameter_name(block)
+        path_match = re.search(r'\b_path="([^"]*)"', block, flags=re.IGNORECASE)
+        texture_path = str(path_match.group(1) if path_match else "").replace("\\", "/").strip()
+        if parameter_name or texture_path:
+            rows.append((parameter_name, texture_path))
+    return rows
+
+
+def _append_texture_contract_warnings(
+    *,
+    texture_payloads: Sequence[TextureReplacementPayload],
+    sidecar_payloads: Sequence[TextureReplacementPayload],
+    report: TextureReplacementReport,
+) -> None:
+    texture_paths = {
+        _normalize_texture_path(payload.target_path)
+        for payload in texture_payloads
+        if str(payload.kind or "").lower().startswith("texture")
+    }
+    if not texture_paths:
+        return
+
+    for payload in texture_payloads:
+        target_path = str(payload.target_path or "").replace("\\", "/").strip()
+        if _is_shared_material_layer_texture(target_path):
+            _warn_once(
+                report,
+                f"Texture contract warning: generated payload overrides stock/shared shader texture {target_path}; "
+                "this can tint the model, add grime/speckles, or affect shared material layers. "
+                "This is manual-only and should not be produced by conservative auto-routing.",
+            )
+
+    if not sidecar_payloads:
+        return
+
+    generated_role_by_path: dict[str, TextureSlotMapping] = {
+        _normalize_texture_path(mapping.output_texture_path): mapping
+        for mapping in report.slot_mappings
+        if str(mapping.output_texture_path or "").strip()
+    }
+
+    sidecar_rows: list[tuple[str, str]] = []
+    sidecar_text = ""
+    for payload in sidecar_payloads:
+        try:
+            text = bytes(payload.payload_data or b"").decode("utf-8", errors="replace")
+        except Exception:
+            text = ""
+        sidecar_text += "\n" + text
+        sidecar_rows.extend(_sidecar_texture_parameter_rows(text))
+
+    referenced_paths = {
+        _normalize_texture_path(texture_path)
+        for _parameter_name, texture_path in sidecar_rows
+        if str(texture_path or "").strip()
+    }
+    for texture_path in sorted(texture_paths - referenced_paths):
+        _warn_once(
+            report,
+            f"Texture contract warning: generated DDS is not referenced by the patched material sidecar: {texture_path}.",
+        )
+
+    for parameter_name, texture_path in sidecar_rows:
+        parameter_key = str(parameter_name or "").strip().lower()
+        expected_role = _texture_role_for_parameter_and_path(parameter_name, texture_path)
+        generated_mapping = generated_role_by_path.get(_normalize_texture_path(texture_path))
+        generated_role = str(getattr(generated_mapping, "slot_kind", "") or "").strip().lower() if generated_mapping else ""
+        if parameter_key == "_normaltexture" and texture_path and not _looks_like_normal_texture_path(texture_path):
+            _warn_once(
+                report,
+                f"Texture contract warning: _normalTexture points at a non-normal-looking DDS path: {texture_path}.",
+            )
+        if (
+            expected_role in {"base", "normal", "height", "material_mask", "detail_mask"}
+            and generated_role in {"base", "normal", "height", "material_mask", "detail_mask"}
+            and expected_role != generated_role
+        ):
+            source_name = PurePosixPath(str(getattr(generated_mapping, "source_path", "") or "")).name if generated_mapping else ""
+            source_note = f" from {source_name}" if source_name else ""
+            _warn_once(
+                report,
+                f"Texture contract warning: {parameter_name or 'material parameter'} expects {expected_role.replace('_', ' ')}, "
+                f"but the generated DDS at {texture_path} came from a {generated_role.replace('_', ' ')} source{source_note}.",
+            )
+
+
+def _append_crimson_dds_validation_warnings(
+    dds_source: Path,
+    *,
+    vpath: str,
+    report: TextureReplacementReport,
+) -> None:
+    from cdmw.core.pipeline import inspect_crimson_dds
+
+    try:
+        crimson_info = inspect_crimson_dds(dds_source, vpath=vpath)
+    except Exception as exc:
+        _warn_once(report, f"Crimson DDS warning for {vpath or dds_source.name}: could not inspect DDS quirks: {exc}")
+        return
+
+    fatal_messages = [finding.message for finding in crimson_info.findings if finding.severity == "fatal"]
+    if fatal_messages:
+        raise ValueError("; ".join(fatal_messages))
+
+    label = str(vpath or dds_source.name).replace("\\", "/").strip()
+    for finding in crimson_info.findings:
+        if finding.severity == "warning":
+            _warn_once(report, f"Crimson DDS warning for {label}: {finding.message}")
+        elif finding.severity == "info" and finding.code == "requires_pathc":
+            _warn_once(report, f"Crimson DDS note for {label}: {finding.message}")
+
+
 def _build_texture_payload(
     source_slot: ReplacementTextureSlot,
     *,
@@ -3136,6 +4455,8 @@ def _build_texture_payload(
             return int(image.width), int(image.height)
 
     if source_slot.source_path.suffix.lower() == ".dds":
+        target_vpath = str(getattr(target_entry, "path", "") or "").replace("\\", "/").strip()
+        _append_crimson_dds_validation_warnings(source_slot.source_path, vpath=target_vpath, report=report)
         source_info = parse_dds(source_slot.source_path)
         original_info = parse_dds(original_texture_source_path(target_entry))
         mismatch_parts: list[str] = []
@@ -3187,24 +4508,34 @@ def _build_texture_payload(
                 f"{source_png.name}: output DDS size {output_width}x{output_height} is smaller than source "
                 f"{source_width}x{source_height}."
             )
+        output_format = str(original_info.texconv_format or "").strip() or "BC7_UNORM"
+        if str(source_slot.slot_kind or "").strip().lower() == "normal":
+            if output_format.upper() not in {"BC5_UNORM", "BC5_SNORM"}:
+                _warn_once(
+                    report,
+                    f"{source_png.name}: normal map output uses BC5_UNORM instead of template format {output_format}.",
+                )
+                output_format = "BC5_UNORM"
         cmd = build_texconv_command(
             resolved_texconv,
             prepared_png,
             out_dir,
-            original_info.texconv_format,
+            output_format,
             mip_count,
             output_width,
             output_height,
             overwrite_existing_dds=True,
         )
         if on_log:
-            on_log(f"Converting {source_png.name} -> {getattr(target_entry, 'path', 'texture')} ({original_info.texconv_format})")
+            on_log(f"Converting {source_png.name} -> {getattr(target_entry, 'path', 'texture')} ({output_format})")
         return_code, stdout, stderr = run_process_with_cancellation(cmd)
         if return_code != 0:
             raise RuntimeError(stderr.strip() or stdout.strip() or f"texconv exited with code {return_code}")
         produced = out_dir / f"{prepared_png.stem}.dds"
         if not produced.is_file():
             raise FileNotFoundError(f"texconv did not produce {produced.name}")
+        target_vpath = str(getattr(target_entry, "path", "") or "").replace("\\", "/").strip()
+        _append_crimson_dds_validation_warnings(produced, vpath=target_vpath, report=report)
         return produced.read_bytes()
 
 

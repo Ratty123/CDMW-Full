@@ -11,17 +11,53 @@ from cdmw.core.archive_relationships import (
     resolve_material_texture_graph,
 )
 from cdmw.core.archive import (
+    _prefab_evidence_rows,
+    build_prefab_socket_name_patch,
     build_archive_entry_basename_index,
     build_archive_entry_path_index,
     build_archive_asset_family_graph,
+    build_archive_item_icon_references_from_catalog,
     build_archive_preview_result,
     build_archive_relationship_references,
+    inspect_prefab_socket_name_fields,
     parse_socket_bone_data_xml,
 )
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference
 
 
 class ArchiveRelationshipTests(unittest.TestCase):
+    def _prefab_decl(self, name: str, declared_type: str, descriptor: bytes) -> bytes:
+        return (
+            len(name).to_bytes(4, "little")
+            + name.encode("ascii")
+            + len(declared_type).to_bytes(4, "little")
+            + declared_type.encode("ascii")
+            + descriptor
+        )
+
+    def _prefab_string(self, value: str) -> bytes:
+        encoded = value.encode("ascii")
+        return len(encoded).to_bytes(4, "little") + encoded
+
+    def _minimal_prefab_socket_payload(self) -> bytes:
+        string_descriptor = b"\x01\x00\x01\x00\x10\x00\x00\x00"
+        bool_descriptor = b"\x00\x00\x01\x00\x00\x00\x00\x00"
+        declarations = b"".join(
+            (
+                self._prefab_decl("_attachedSocketName", "IndexedStringA", string_descriptor),
+                self._prefab_decl("_pivotSocketName", "IndexedStringA", string_descriptor),
+                self._prefab_decl("_applyPosition", "bool", bool_descriptor),
+            )
+        )
+        return (
+            b"\xff\xff\x04\x00"
+            + declarations
+            + b"\x00" * 32
+            + self._prefab_string("Spine2_B_Socket")
+            + self._prefab_string("Spine2_B_ChildSocket")
+            + self._prefab_string("character/model/1_pc/1_phm/weapon/2_twohandweapon/test.pac")
+        )
+
     def _entries(self, payloads):
         tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(tempdir.cleanup)
@@ -49,6 +85,34 @@ class ArchiveRelationshipTests(unittest.TestCase):
                 offset += len(data)
         return tuple(entries)
 
+    def test_prefab_socket_name_patch_is_proven_for_same_length_rewrite(self):
+        payload = self._minimal_prefab_socket_payload()
+
+        fields = inspect_prefab_socket_name_fields(payload)
+        self.assertEqual([field.value for field in fields], ["Spine2_B_Socket", "Spine2_B_ChildSocket"])
+
+        result = build_prefab_socket_name_patch(
+            payload,
+            attached_socket_name="Pelvis_L_Socket",
+            pivot_socket_name="Pelvis_L_ChildSocket",
+        )
+
+        self.assertEqual(len(result.data), len(payload))
+        self.assertIn(b"Pelvis_L_Socket", result.data)
+        self.assertIn(b"Pelvis_L_ChildSocket", result.data)
+        self.assertNotIn(b"Spine2_B_Socket", result.data)
+        self.assertIn("same-length only", "\n".join(result.proof_lines))
+
+    def test_prefab_socket_name_patch_rejects_length_changing_rewrite(self):
+        payload = self._minimal_prefab_socket_payload()
+
+        with self.assertRaises(ValueError):
+            build_prefab_socket_name_patch(
+                payload,
+                attached_socket_name="RHand_Socket",
+                pivot_socket_name="Basic_ChildSocket",
+            )
+
     def test_model_sidecar_resolves_exact_dds_paths(self):
         entries = self._entries(
             (
@@ -67,6 +131,46 @@ class ArchiveRelationshipTests(unittest.TestCase):
         texture_edges = [edge for edge in plan.edges if edge.relation_kind == "texture"]
         self.assertEqual([edge.related_path for edge in texture_edges], ["character/texture/body.dds"])
         self.assertEqual(texture_edges[0].confidence, "exact_path")
+
+    def test_model_sidecar_resolves_hkt_physics_and_socket_descriptors(self):
+        entries = self._entries(
+            (
+                ("character/model/body.pac", b"PAR "),
+                (
+                    "character/modelproperty/body.pac_xml",
+                    '<SkinnedMesh _physicsFileName="character/bin__/meshphysics/body.hkt" '
+                    'SocketFileName="character/descriptors/socketbonedata/body.sockets.xml" />',
+                ),
+                ("character/bin__/meshphysics/body.hkt", b"HKT"),
+                ("character/descriptors/socketbonedata/body.sockets.xml", "<Sockets />"),
+            )
+        )
+
+        plan = resolve_material_texture_graph(entries[0], entries)
+        by_path = {edge.related_path: edge for edge in plan.edges}
+
+        self.assertIn("character/bin__/meshphysics/body.hkt", by_path)
+        self.assertEqual(by_path["character/bin__/meshphysics/body.hkt"].relation_kind, "physics")
+        self.assertEqual(by_path["character/bin__/meshphysics/body.hkt"].role, "sidecar_physics_context")
+        self.assertEqual(by_path["character/bin__/meshphysics/body.hkt"].include_policy, ARCHIVE_REL_INCLUDE_MANUAL)
+        self.assertTrue(by_path["character/bin__/meshphysics/body.hkt"].risk)
+        self.assertIn("character/descriptors/socketbonedata/body.sockets.xml", by_path)
+        self.assertEqual(by_path["character/descriptors/socketbonedata/body.sockets.xml"].role, "sidecar_socket_descriptor")
+
+    def test_model_sidecar_reports_missing_hkt_physics_descriptor(self):
+        entries = self._entries(
+            (
+                ("character/model/body.pac", b"PAR "),
+                ("character/modelproperty/body.pac_xml", '<SkinnedMesh _physicsFileName="character/model/body.hkt" />'),
+            )
+        )
+
+        plan = resolve_material_texture_graph(entries[0], entries)
+        unresolved = [edge for edge in plan.edges if edge.unresolved]
+
+        self.assertEqual(1, len(unresolved))
+        self.assertEqual("character/model/body.hkt", unresolved[0].related_path)
+        self.assertEqual("sidecar_physics_context", unresolved[0].role)
 
     def test_app_xml_graph_reaches_prefab_model_sidecar_and_textures(self):
         entries = self._entries(
@@ -88,6 +192,38 @@ class ArchiveRelationshipTests(unittest.TestCase):
         self.assertIn("character/modelproperty/body_a.pac_xml", paths)
         self.assertIn("character/texture/body_a.dds", paths)
         self.assertIn("character/customization/meshparam_a.xml", paths)
+
+    def test_table_catalog_edges_carry_field_provenance(self):
+        entries = self._entries(
+            (
+                ("gamedata/binary__/client/bin/uimaptextureinfo.pabgb", b"\x00ui/map/world_icon.dds\x00"),
+                ("ui/map/world_icon.dds", b"DDS "),
+            )
+        )
+
+        plan = build_archive_relationship_plan(entries[0], entries)
+        edges = [edge for edge in plan.edges if edge.related_path == "ui/map/world_icon.dds"]
+
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(edges[0].source_table, "UIMapTextureInfo")
+        self.assertEqual(edges[0].source_field, "_uiTextureName")
+        self.assertEqual(edges[0].confidence, "table_string_reference")
+        self.assertIn("UIMapTextureInfo._uiTextureName", edges[0].reason)
+
+        references = build_archive_relationship_references(
+            entries[0],
+            archive_entries_by_normalized_path=build_archive_entry_path_index(entries),
+            archive_entries_by_basename=build_archive_entry_basename_index(entries),
+        )
+        graph = build_archive_asset_family_graph(entries[0], references)
+
+        self.assertTrue(any(reference.source_table == "UIMapTextureInfo" for reference in references))
+        self.assertTrue(
+            any(
+                row.confidence == "Table" and "UIMapTextureInfo._uiTextureName" in row.reason
+                for row in graph.member_rows
+            )
+        )
 
     def test_app_xml_preview_referenced_files_uses_relationship_graph(self):
         entries = self._entries(
@@ -173,6 +309,41 @@ class ArchiveRelationshipTests(unittest.TestCase):
         self.assertEqual(by_path["character/bin__/meshphysics/body_a.hkx"].relation_group, "Physics / Collision")
         self.assertEqual(by_path["character/bin__/meshphysics/body_a.hkx"].reference_kind, "physics")
 
+    def test_model_family_resolves_left_right_prefab_variants_without_missing_prefab(self):
+        prefab_payload = (
+            b"_attachedSocketName\x00_pivotSocketName\x00_applyPosition\x00_applyRotation\x00_applyScale\x00"
+            b"Pelvis_L_Socket\x00Pelvis_L_ChildSocket\x00"
+            b"character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0110.pac\x00"
+        )
+        entries = self._entries(
+            (
+                ("character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0110.pac", b"PAR "),
+                (
+                    "character/bin__/prefab/1_pc/01_phm/weapon/01_onehandweapon/cd_phm_01_sword_0110_l.prefab",
+                    prefab_payload,
+                ),
+                (
+                    "character/bin__/prefab/1_pc/01_phm/weapon/01_onehandweapon/cd_phm_01_sword_0110_r.prefab",
+                    prefab_payload,
+                ),
+            )
+        )
+
+        references = build_archive_relationship_references(
+            entries[0],
+            archive_entries_by_normalized_path=build_archive_entry_path_index(entries),
+            archive_entries_by_basename=build_archive_entry_basename_index(entries),
+        )
+        graph = build_archive_asset_family_graph(entries[0], references)
+        resolved_paths = {reference.resolved_archive_path for reference in references}
+        prefab_rows = [row for row in graph.member_rows if row.group == "Prefab / Metadata"]
+
+        self.assertIn(entries[1].path, resolved_paths)
+        self.assertIn(entries[2].path, resolved_paths)
+        self.assertTrue(any(row.display_name == "cd_phm_01_sword_0110_l.prefab" for row in prefab_rows))
+        self.assertTrue(any(row.display_name == "cd_phm_01_sword_0110_r.prefab" for row in prefab_rows))
+        self.assertFalse(any(row.status == "Missing" for row in prefab_rows))
+
     def test_asset_family_graph_groups_model_companions_with_evidence_and_summary(self):
         entries = self._entries(
             (
@@ -214,6 +385,27 @@ class ArchiveRelationshipTests(unittest.TestCase):
         self.assertIn("Model OK", graph.summary)
         self.assertIn("texture", graph.summary)
 
+    def test_asset_family_graph_uses_hkt_sidecar_physics_without_fake_missing_hkx(self):
+        entries = self._entries(
+            (
+                ("character/model/body_a.pac", b"PAR "),
+                ("character/modelproperty/body_a.pac_xml", '<SkinnedMesh _physicsFileName="character/bin__/meshphysics/body_a.hkt" />'),
+                ("character/bin__/meshphysics/body_a.hkt", b"HKT"),
+            )
+        )
+
+        result = build_archive_preview_result(
+            None,
+            entries[0],
+            texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
+            texture_entries_by_basename=build_archive_entry_basename_index(entries),
+        )
+        graph = result.asset_family_graph or build_archive_asset_family_graph(entries[0], result.model_texture_references)
+        physics_rows = [row for row in graph.member_rows if row.group == "Physics / HKX"]
+
+        self.assertTrue(any(row.display_name == "body_a.hkt" and row.status == "Resolved" for row in physics_rows))
+        self.assertFalse(any(row.status == "Missing" for row in physics_rows))
+
     def test_asset_family_graph_does_not_label_partial_dds_storage_as_partial_relationship(self):
         entries = self._entries(
             (
@@ -239,6 +431,121 @@ class ArchiveRelationshipTests(unittest.TestCase):
         self.assertEqual("Resolved", texture_rows[0].status)
         self.assertEqual("Exact", texture_rows[0].source_evidence)
         self.assertIn("Partial DDS storage", texture_rows[0].warning)
+
+    def test_item_finder_catalog_icon_row_becomes_recommended_asset_family_member(self):
+        entries = self._entries(
+            (
+                ("character/model/cd_phm_01_sword_0166.pac", b"PAR "),
+                ("ui/itemicon/itemicon_prefab_cd_phm_01_sword_0166.dds", b"DDS "),
+            )
+        )
+        catalog = [
+            {
+                "display_name": "Sword of the Lord",
+                "internal_name": "Item_OneHandSword_0166",
+                "pac_files": (entries[0].path,),
+                "model_stems": ("cd_phm_01_sword_0166",),
+                "icon_paths": (entries[1].path,),
+            }
+        ]
+
+        references = build_archive_item_icon_references_from_catalog(
+            entries[0],
+            catalog,
+            archive_entries_by_normalized_path=build_archive_entry_path_index(entries),
+            archive_entries_by_basename=build_archive_entry_basename_index(entries),
+        )
+        graph = build_archive_asset_family_graph(entries[0], references)
+        icon_rows = [row for row in graph.member_rows if row.group == "Item Icons"]
+
+        self.assertEqual(1, len(references))
+        self.assertEqual("item_icon", references[0].reference_kind)
+        self.assertEqual("Item Icons", references[0].relation_group)
+        self.assertEqual(1, len(icon_rows))
+        self.assertEqual("Inventory Icon", icon_rows[0].role)
+        self.assertEqual("Resolved", icon_rows[0].status)
+        self.assertEqual("Item Finder", icon_rows[0].source_evidence)
+        self.assertEqual("recommended", icon_rows[0].include_policy)
+        self.assertIs(icon_rows[0].resolved_entry, entries[1])
+        export_default_entries = [
+            row.resolved_entry
+            for row in graph.member_rows
+            if row.include_policy in {"required", "recommended"} and row.status != "Missing"
+        ]
+        self.assertIn(entries[1], export_default_entries)
+
+    def test_item_finder_catalog_links_related_texture_selection_to_inventory_icon(self):
+        entries = self._entries(
+            (
+                ("character/model/cd_phm_01_sword_0166.pac", b"PAR "),
+                ("character/texture/cd_phm_01_sword_0166_d.dds", b"DDS "),
+                ("ui/itemicon/icon_prefab_cd_phm_01_sword_0166.dds", b"DDS "),
+            )
+        )
+        catalog = [
+            {
+                "display_name": "Sword of the Lord",
+                "pac_files": (entries[0].path,),
+                "model_stems": ("cd_phm_01_sword_0166",),
+                "icon_paths": (entries[2].path,),
+            }
+        ]
+        owner_model_reference = ArchiveModelTextureReference(
+            reference_name=entries[0].basename,
+            resolved_archive_path=entries[0].path,
+            resolved_entry=entries[0],
+            resolution_status="resolved",
+            relation_confidence="derived_same_stem",
+            relation_group="Used By / Model",
+            reference_kind="used_by",
+        )
+
+        references = build_archive_item_icon_references_from_catalog(
+            entries[1],
+            catalog,
+            archive_entries_by_normalized_path=build_archive_entry_path_index(entries),
+            archive_entries_by_basename=build_archive_entry_basename_index(entries),
+            related_references=(owner_model_reference,),
+        )
+        graph = build_archive_asset_family_graph(entries[1], (owner_model_reference, *references))
+        icon_rows = [row for row in graph.member_rows if row.group == "Item Icons"]
+
+        self.assertEqual([entries[2].path], [reference.resolved_archive_path for reference in references])
+        self.assertEqual("Inventory Icon", icon_rows[0].role)
+        self.assertEqual("Item Finder", icon_rows[0].source_evidence)
+        self.assertEqual("recommended", icon_rows[0].include_policy)
+
+    def test_item_finder_catalog_links_selected_inventory_icon_to_owner_model(self):
+        entries = self._entries(
+            (
+                ("character/model/cd_phm_01_sword_0166.pac", b"PAR "),
+                ("ui/itemicon/icon_cd_phm_01_sword_0166.dds", b"DDS "),
+            )
+        )
+        catalog = [
+            {
+                "display_name": "Sword of the Lord",
+                "pac_files": (entries[0].path,),
+                "model_stems": ("cd_phm_01_sword_0166",),
+                "icon_paths": (entries[1].path,),
+            }
+        ]
+
+        references = build_archive_item_icon_references_from_catalog(
+            entries[1],
+            catalog,
+            archive_entries_by_normalized_path=build_archive_entry_path_index(entries),
+            archive_entries_by_basename=build_archive_entry_basename_index(entries),
+        )
+        graph = build_archive_asset_family_graph(entries[1], references)
+        model_rows = [row for row in graph.member_rows if row.group == "Selected Model"]
+        icon_rows = [row for row in graph.member_rows if row.group == "Item Icons"]
+
+        self.assertEqual([entries[0].path], [reference.resolved_archive_path for reference in references])
+        self.assertEqual("used_by", references[0].reference_kind)
+        self.assertEqual("Item Finder", model_rows[0].source_evidence)
+        self.assertEqual("required", model_rows[0].include_policy)
+        self.assertEqual("Inventory Icon", icon_rows[0].role)
 
     def test_socket_xml_parser_recovers_socket_transforms_and_stack_groups(self):
         document = parse_socket_bone_data_xml(
@@ -352,9 +659,9 @@ class ArchiveRelationshipTests(unittest.TestCase):
                 (
                     "character/bin/_prefab/test_shield.prefab",
                     b"SceneObject\x00"
-                    b"character/model/test_shield.pac\x00"
-                    b"character/descriptors/socketbonedata/test_shield.sockets.xml\x00"
-                    b"character/bin__/meshphysics/test_shield.hkx\x00",
+                    b"character/model/test_shield.pacR\x00"
+                    b"character/descriptors/socketbonedata/test_shield.sockets.xmlK\x00"
+                    b"character/bin__/meshphysics/test_shield.hkxZ\x00",
                 ),
                 ("character/model/test_shield.pac", b"PAR "),
                 ("character/modelproperty/test_shield.pac_xml", '<ResourceReferencePath_ITexture value="character/texture/test_shield.dds"/>'),
@@ -381,6 +688,19 @@ class ArchiveRelationshipTests(unittest.TestCase):
         self.assertEqual(roles["character/model/test_shield.pac"], "prefab_model_resource")
         self.assertEqual(roles["character/descriptors/socketbonedata/test_shield.sockets.xml"], "prefab_socket_descriptor")
         self.assertEqual(roles["character/bin__/meshphysics/test_shield.hkx"], "prefab_physics_context")
+
+    def test_prefab_evidence_marks_material_override_hooks(self):
+        rows = _prefab_evidence_rows(
+            (
+                {"name": "_materialInstanceParameters", "declared_type": "ReflectObjectPtr"},
+                {"name": "_prefabMaterialReferences", "declared_type": "PrefabMaterialReference"},
+            ),
+            ("character/modelproperty/test_shield.pac_xml",),
+        )
+
+        labels = {row["label"] for row in rows}
+
+        self.assertIn("Material override hooks", labels)
 
     def test_material_sidecar_preview_referenced_files_dedupes_graph_texture(self):
         entries = self._entries(

@@ -79,6 +79,154 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertEqual(FINAL_PREVIEW_BINDING_GENERATED, result.binding_rows[0].binding_source)
             self.assertIn("blade_base", result.preview_model.meshes[0].preview_texture_path)
             self.assertNotEqual("source_preview.png", result.preview_model.meshes[0].preview_texture_path)
+            self.assertTrue(any(line.startswith("Texture Contract:") for line in result.summary_lines))
+
+    def test_texture_contract_warns_for_normal_bound_to_color_path_and_orphan_dds(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview(material_name="Helmet")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "helmet_n.dds",
+                    target_path="character/texture/cd_phm_00_hel_0013_05_n.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS normal",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "unused.dds",
+                    target_path="character/texture/cd_phm_00_hel_0013_05_unused.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS unused",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "helmet.pac_xml",
+                    target_path="character/modelproperty/helmet.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=_sidecar("character/texture/cd_phm_00_hel_0013_05.dds", "_normalTexture", "Helmet"),
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            warning_text = "\n".join(result.warnings)
+            self.assertIn("_normalTexture points at a non-normal-looking DDS path", warning_text)
+            self.assertIn("generated/copied DDS payloads not referenced", warning_text)
+            self.assertIn("cd_phm_00_hel_0013_05_n.dds", warning_text)
+
+    def test_texture_contract_warns_for_stock_shared_generated_payloads(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview(material_name="Helmet")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blackoil.dds",
+                    target_path="character/texture/blackoil.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS stock",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "helmet.pac_xml",
+                    target_path="character/modelproperty/helmet.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=_sidecar("character/texture/blackoil.dds", "_baseColorTexture", "Helmet"),
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            self.assertTrue(any("overrides stock/shared shader texture" in warning for warning in result.warnings))
+            self.assertTrue(any("grime/speckles" in warning for warning in result.warnings))
+
+    def test_static_texture_routing_blocker_is_visible_in_final_preview_warnings(self) -> None:
+        preview = _preview(material_name="Helmet")
+        preview.summary_lines.append(
+            "  Texture routing blocker: Helmet receives multiple replacement material sets (Helmet, Horns)."
+        )
+
+        result = build_final_package_preview(preview, supplemental_file_specs=())
+
+        warning_text = "\n".join(result.warnings)
+        self.assertIn("Texture routing blocker", warning_text)
+        self.assertIn("separate source textures cannot be shown on one merged target slot", warning_text)
+        self.assertIn("bake/atlas", warning_text)
+
+    def test_final_preview_warns_when_source_preview_has_more_visible_texture_sets(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"not a parsed mesh in this focused test",
+                parsed_mesh=ParsedMesh(path="character/model/helmet.pac", format="pac"),
+                preview_model=ModelPreviewData(
+                    path="character/model/helmet.pac",
+                    meshes=[
+                        ModelPreviewMesh(
+                            material_name="Helmet",
+                            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                            preview_texture_path="source/helmet.png",
+                        ),
+                        ModelPreviewMesh(
+                            material_name="Horns",
+                            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                            preview_texture_path="source/horns.png",
+                        ),
+                    ],
+                ),
+                summary_lines=[],
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "helmet.dds",
+                    target_path="character/texture/helmet.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS helmet",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "helmet.pac_xml",
+                    target_path="character/modelproperty/helmet.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=_sidecar("character/texture/helmet.dds", material="Helmet"),
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            warning_text = "\n".join(result.warnings)
+            self.assertIn("fewer visible texture set(s)", warning_text)
+            self.assertIn("1/2", warning_text)
+            self.assertIn("bake/atlas", warning_text)
+
+    def test_texture_contract_warns_when_base_slot_uses_normal_source_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview(material_name="Helmet")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "UV_Samurai_Helmet_normal.png",
+                    target_path="character/texture/cd_phm_00_hel_0187_01_01_01.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS normal",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "helmet.pac_xml",
+                    target_path="character/modelproperty/helmet.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=_sidecar(
+                        "character/texture/cd_phm_00_hel_0187_01_01_01.dds",
+                        "_overlayColorTexture",
+                        "Helmet",
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            warning_text = "\n".join(result.warnings)
+            self.assertIn("base/overlay color slot", warning_text)
+            self.assertIn("normal-map source", warning_text)
 
     def test_generated_dds_exact_path_wins_over_original_dds(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -20,7 +20,7 @@ from cdmw.modding.mesh_parser import ParsedMesh
 
 SUPPORTED_MESH_FORMATS = {".pam", ".pamlod", ".pac"}
 MATERIAL_SIDECAR_EXTENSIONS = {".pami", ".pac_xml", ".pam_xml", ".pamlod_xml"}
-RIG_EXTENSIONS = {".pab", ".pabc", ".hkx"}
+RIG_EXTENSIONS = {".pab", ".pabc", ".hkx", ".hkt"}
 METADATA_EXTENSIONS = {".meshinfo", ".xml", ".app_xml", ".prefabdata_xml"}
 
 
@@ -62,6 +62,66 @@ class TextureSlotClassification:
     visual_state: str
     reason: str
     packed_channels: tuple[str, ...] = ()
+
+
+def infer_cd_texture_role_from_path(texture_path: str) -> str:
+    """Return a conservative Crimson-style texture role from the filename.
+
+    Sidecar parameter names are sometimes generic or overloaded. In practice
+    the filename suffix is a stronger signal for CD material families:
+    ``_o`` is visible overlay/base color, ``_n`` is normal, ``_disp`` is height,
+    ``_ma`` is material/color mask, and ``_mg`` is the detail mask.
+    """
+
+    path_text = str(texture_path or "").replace("\\", "/").strip()
+    if not path_text:
+        return ""
+    stem = PurePosixPath(path_text).stem.lower()
+    tokens = tuple(token for token in re.split(r"[^a-z0-9]+", stem) if token)
+    normalized = re.sub(r"[^a-z0-9]+", "", stem)
+    last = tokens[-1] if tokens else normalized
+
+    if last in {"n", "normal", "normalmap", "norm", "nrm", "nm", "wn", "nor", "no"}:
+        return "normal"
+    if normalized.endswith(("normalopengl", "normaldirectx", "normaldx")):
+        return "normal"
+
+    if last in {"disp", "displacement", "height", "hgt", "hei", "depth", "dmap", "bump", "pom", "parallax"}:
+        return "height"
+
+    if last in {"ma", "materialmask", "material_mask", "colorblendingmask", "maskamg", "mask_amg"}:
+        return "material_mask"
+    if normalized.endswith(("materialmask", "colorblendingmask", "maskamg")):
+        return "material_mask"
+
+    if last in {"mg", "detailmask", "detail_mask", "detailmaterial", "detail_material"}:
+        return "detail_mask"
+    if normalized.endswith(("detailmask", "detailmaterial")):
+        return "detail_mask"
+
+    if last in {"orm", "rma", "mra", "arm", "sp", "spec", "specular", "metallicroughness", "metalrough", "roughmetal"}:
+        return "material"
+    if normalized.endswith(("metallicroughness", "metalrough", "roughmetal", "roughnessmetallic")):
+        return "material"
+
+    if last in {
+        "o",
+        "base",
+        "basecolor",
+        "basecolour",
+        "albedo",
+        "diffuse",
+        "dif",
+        "color",
+        "colour",
+        "col",
+        "bc",
+        "bcol",
+    }:
+        return "base"
+    if normalized.endswith(("basecolor", "basecolour", "diffuse", "albedo")):
+        return "base"
+    return ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -274,6 +334,19 @@ def classify_texture_binding(
 
     if "nonetexture" in normalized or "none_texture" in normalized:
         return result("material", "Placeholder", "unknown", "placeholder", False, "Placeholder texture reference; no DDS replacement is required unless the user explicitly assigns one.")
+    path_role = infer_cd_texture_role_from_path(path_text)
+    if path_role == "base":
+        return result("base", "Base / overlay", "color", "albedo", True, "DDS filename suffix identifies this as visible base/overlay color data.")
+    if path_role == "normal":
+        return result("normal", "Normal", "normal", "normal", True, "DDS filename suffix identifies this as a normal map.")
+    if path_role == "height":
+        return result("height", "Height / displacement", "height", "displacement", True, "DDS filename suffix identifies this as height/displacement data.")
+    if path_role == "material_mask":
+        return result("material_mask", "Material/color mask", "mask", "material_mask", True, "DDS filename suffix identifies this as the game's packed material/color mask.", ("material", "mask"))
+    if path_role == "detail_mask":
+        return result("detail_mask", "Detail mask", "mask", "detail_mask", False, "DDS filename suffix identifies this as a shader detail mask; it is exported but not fully reproduced by the alignment preview.", ("detail", "mask"))
+    if path_role == "material":
+        return result("material", "Material / mask", "mask", "material_mask", True, "DDS filename suffix identifies this as packed material/support data.")
     if any(token in normalized for token in ("wrinklecolortexture", "wrinklediffuse", "wrinklealbedo")):
         return result("base", "Wrinkle color", "color", "wrinkle_color", True, "Wrinkle color is shown as a visible color layer when selected.")
     if any(token in normalized for token in ("wrinklenormal", "wrinklenormaltexture")):
@@ -300,7 +373,7 @@ def classify_texture_binding(
         return result("material", "Grime material", "mask", "material_mask", True, "Grime material is routed into the preview material-mask input.")
     if "colorblendingmask" in normalized:
         return result(
-            "material",
+            "material_mask",
             "Color blend mask",
             "mask",
             "color_blending_mask",
@@ -310,7 +383,7 @@ def classify_texture_binding(
         )
     if "detailmask" in normalized:
         return result(
-            "material",
+            "detail_mask",
             "Detail mask",
             "mask",
             "detail_mask",
@@ -323,7 +396,7 @@ def classify_texture_binding(
     if "detailnormal" in normalized:
         return result("normal", "Detail normal", "normal", "detail_normal", True, "Detail normal is routed into the preview normal-map input.")
     if "detailmaterial" in normalized:
-        return result("material", "Detail material", "mask", "detail_material_mask", True, "Detail material is routed into the preview material-mask input.", ("detail",))
+        return result("detail_mask", "Detail material", "mask", "detail_material_mask", True, "Detail material is routed into the preview material-mask input.", ("detail",))
     if any(token in normalized for token in ("flowtexture", "directiontexture", "ssdmdirection", "ssdm", "vectortexture", "pivottexture", "positiontexture")):
         return result(
             "material",
@@ -373,6 +446,10 @@ def classify_texture_binding(
         return result("normal", "Normal", semantic_type, semantic_subtype, True, "DDS semantics identify this as a normal map.")
     if semantic_type == "height" or semantic_subtype in {"displacement", "parallax_height", "height", "bump"}:
         return result("height", semantic_subtype.replace("_", " ").title(), semantic_type, semantic_subtype, True, "DDS semantics identify this as height/displacement data.")
+    if semantic_subtype in {"detail_mask", "detail_material_mask"}:
+        return result("detail_mask", semantic_subtype.replace("_", " ").title(), semantic_type, semantic_subtype, False, "DDS semantics identify this as detail-mask data.", packed_channels)
+    if semantic_subtype in {"material_mask", "color_blending_mask"}:
+        return result("material_mask", semantic_subtype.replace("_", " ").title(), semantic_type, semantic_subtype, True, "DDS semantics identify this as material/color-mask data.", packed_channels)
     if semantic_type in {"mask", "roughness"}:
         return result("material", semantic_subtype.replace("_", " ").title(), semantic_type, semantic_subtype, True, "DDS semantics identify this as material-mask data.", packed_channels)
     if semantic_type == "vector":
@@ -455,7 +532,7 @@ def _find_related_files(
             candidates.append((normalized, confidence))
 
     if source_stem:
-        for suffix in (".xml", ".meshinfo", ".hkx", ".app_xml", ".app.xml", ".prefabdata.xml", ".prefabdata_xml", ".sockets.xml"):
+        for suffix in (".xml", ".meshinfo", ".hkx", ".hkt", ".app_xml", ".app.xml", ".prefabdata.xml", ".prefabdata_xml", ".sockets.xml"):
             add(f"{source_stem}{suffix}")
         if source_extension == ".pam":
             for suffix in (".pamlod", ".pami", ".pam_xml", ".pamlod_xml"):
@@ -474,14 +551,14 @@ def _find_related_files(
                 add(f"{source_stem}{suffix}", "sidecar-linked")
         elif source_extension == ".pac_xml":
             add(f"{source_stem}.pac", "sidecar-linked")
-            for suffix in (".pab", ".pabc", ".meshinfo", ".hkx", ".app_xml", ".app.xml", ".prefabdata.xml", ".prefabdata_xml", ".sockets.xml"):
+            for suffix in (".pab", ".pabc", ".meshinfo", ".hkx", ".hkt", ".app_xml", ".app.xml", ".prefabdata.xml", ".prefabdata_xml", ".sockets.xml"):
                 add(f"{source_stem}{suffix}", "sidecar-linked")
             for skeleton_stem in _probable_pab_family_stems(source_path):
                 add(f"{skeleton_stem}.pab", "family-skeleton")
                 add(f"{skeleton_stem}.pabc", "family-skeleton")
 
     for token in _family_tokens(source_path):
-        for suffix in (".pac", ".pam", ".pamlod", ".pab", ".pami", ".pac_xml", ".pam_xml", ".pamlod_xml", ".meshinfo", ".hkx"):
+        for suffix in (".pac", ".pam", ".pamlod", ".pab", ".pami", ".pac_xml", ".pam_xml", ".pamlod_xml", ".meshinfo", ".hkx", ".hkt"):
             add(f"{token}{suffix}", "family")
 
     related: list[ReplacementRelatedFile] = []
@@ -514,7 +591,7 @@ def _related_role(extension: str) -> str:
         return "Paired mesh"
     if normalized in {".pab", ".pabc"}:
         return "Skeleton"
-    if normalized == ".hkx":
+    if normalized in {".hkx", ".hkt"}:
         return "Animation/physics"
     if normalized in METADATA_EXTENSIONS or normalized == ".app_xml":
         return "Metadata"

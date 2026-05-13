@@ -5,7 +5,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable, Mapping, Optional, Sequence
 
 from cdmw.core.archive import parse_archive_pamt, read_archive_entry_data
-from cdmw.core.mod_package import normalize_mod_package_payload_path
+from cdmw.core.mod_package import is_mod_package_payload_path, normalize_mod_package_payload_path
 from cdmw.models import ArchiveEntry
 
 
@@ -260,6 +260,14 @@ def enrich_source_mix_candidates(
 ) -> tuple[SourceMixCandidate, ...]:
     """Add role/family/match metadata used by overlay review and asset-family flows."""
     target_map = target_entries_by_virtual_path or {}
+    target_entries_by_basename: dict[tuple[str, str], list[ArchiveEntry]] = {}
+    for target_entry in target_map.values():
+        if not isinstance(target_entry, ArchiveEntry):
+            continue
+        target_name = PurePosixPath(str(target_entry.path or "").replace("\\", "/")).name.lower()
+        target_extension = str(getattr(target_entry, "extension", "") or "").lower()
+        if target_name:
+            target_entries_by_basename.setdefault((target_name, target_extension), []).append(target_entry)
     grouped_by_path = group_source_mix_candidates_by_virtual_path(candidates)
     enriched: list[SourceMixCandidate] = []
     for candidate in candidates:
@@ -267,6 +275,16 @@ def enrich_source_mix_candidates(
         target_entry = candidate.target_archive_entry or target_map.get(normalized)
         match_status = "exact" if target_entry is not None else "extra"
         confidence = "Exact virtual path" if target_entry is not None else "Extra source file"
+        if target_entry is None:
+            candidate_name = PurePosixPath(candidate.display_path.replace("\\", "/")).name.lower()
+            candidate_extension = _extension_for_virtual_path(candidate.display_path)
+            basename_matches = target_entries_by_basename.get((candidate_name, candidate_extension), ())
+            if len(basename_matches) == 1:
+                target_entry = basename_matches[0]
+                match_status = "basename"
+                confidence = "Matched archive target by filename; common for compact or CrimsonForge-style loose packages."
+            elif len(basename_matches) > 1:
+                confidence = "Extra source file; filename matched multiple archive targets, so no target was chosen automatically."
         default_action = "replace" if target_entry is not None else "skip"
         conflict_status = _source_mix_candidate_conflict_status(candidate, grouped_by_path)
         if conflict_status == "conflict":
@@ -343,7 +361,7 @@ def scan_loose_folder_source(
     for path in _iter_loose_payload_files(resolved_root):
         display_path = _loose_virtual_path(resolved_root if resolved_root.is_dir() else resolved_root.parent, path)
         normalized = normalize_source_mix_virtual_path(display_path)
-        if not normalized:
+        if not normalized or not is_mod_package_payload_path(display_path):
             continue
         candidates.append(
             SourceMixCandidate(

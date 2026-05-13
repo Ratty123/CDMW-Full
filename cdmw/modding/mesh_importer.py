@@ -16,7 +16,7 @@ import struct
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 from .mesh_parser import (
     ParsedMesh,
@@ -2601,8 +2601,9 @@ def _merge_partial_pac_import(
     """Merge a partial PAC OBJ import onto the original submesh set by name.
 
     Blender exports sometimes omit hidden or unselected PAC objects. In that
-    case we still want to apply the edited submeshes while preserving the
-    untouched original ones.
+    case named OBJ exports are treated as the user's authoritative visible
+    part set: original PAC draw slots that are not present in the OBJ become
+    empty placeholders so they do not silently reappear in game.
     """
     if len(imported_mesh.submeshes) >= len(original_mesh.submeshes):
         return imported_mesh
@@ -2649,6 +2650,8 @@ def _merge_partial_pac_import(
         heuristic_by_name[best_original.name] = imported_unknown
         unmatched_originals = [sm for sm in unmatched_originals if sm.name != best_original.name]
 
+    obj_is_authoritative = bool(imported_by_name)
+    dropped_names: list[str] = []
     merged_submeshes: list[SubMesh] = []
     unnamed_iter = iter(unnamed)
     used_named = 0
@@ -2663,6 +2666,23 @@ def _merge_partial_pac_import(
                 replacement.texture = original_sm.texture
             merged_submeshes.append(replacement)
             used_named += 1
+            continue
+
+        if obj_is_authoritative:
+            placeholder = copy.deepcopy(original_sm)
+            placeholder.vertices = []
+            placeholder.uvs = []
+            placeholder.normals = []
+            placeholder.faces = []
+            placeholder.bone_indices = []
+            placeholder.bone_weights = []
+            placeholder.source_vertex_offsets = []
+            placeholder.source_vertex_map = []
+            placeholder.source_index_count = 0
+            placeholder.vertex_count = 0
+            placeholder.face_count = 0
+            merged_submeshes.append(placeholder)
+            dropped_names.append(original_sm.name)
             continue
 
         try:
@@ -2685,9 +2705,21 @@ def _merge_partial_pac_import(
             "PAC import contains extra unnamed submeshes that could not be matched to the original mesh."
         )
 
-    if used_named == 0 and imported_mesh.submeshes and len(imported_mesh.submeshes) != len(original_mesh.submeshes):
+    if (
+        not obj_is_authoritative
+        and used_named == 0
+        and imported_mesh.submeshes
+        and len(imported_mesh.submeshes) != len(original_mesh.submeshes)
+    ):
         raise ValueError(
             "PAC import only contained a partial mesh without recognizable original submesh names."
+        )
+
+    if dropped_names:
+        logger.info(
+            "PAC OBJ import is authoritative; emitting %d empty placeholder submesh(es): %s",
+            len(dropped_names),
+            ", ".join(dropped_names),
         )
 
     merged = copy.deepcopy(imported_mesh)
@@ -2896,10 +2928,68 @@ def _build_pac_in_place(
     return bytes(result)
 
 
+def _pac_descriptor_record_length(desc: object) -> int:
+    stored_lod_count = max(1, int(getattr(desc, "stored_lod_count", 0) or 0))
+    if stored_lod_count >= 4:
+        return 48 + stored_lod_count * 4
+    if stored_lod_count == 3:
+        return 46 + stored_lod_count * 4
+    return 44 + stored_lod_count * 4
+
+
+def _length_prefixed_ascii(value: object, fallback: str) -> bytes:
+    text = str(value or "").strip() or fallback
+    encoded = text.encode("ascii", "replace")[:120]
+    if not encoded:
+        encoded = fallback.encode("ascii", "replace")[:120] or b"clone"
+    return bytes([len(encoded)]) + encoded
+
+
+def _append_pac_cloned_descriptors(
+    sec0_data: bytearray,
+    *,
+    sec0_offset: int,
+    descriptors: list[object],
+    clone_descriptor_sources: Sequence[int],
+) -> list[object]:
+    if not clone_descriptor_sources:
+        return list(descriptors)
+    planned = list(descriptors)
+    for clone_ordinal, raw_source_index in enumerate(clone_descriptor_sources, start=1):
+        try:
+            source_index = int(raw_source_index)
+        except (TypeError, ValueError):
+            raise ValueError(f"PAC cloned draw section {clone_ordinal} has an invalid descriptor source.")
+        if source_index < 0 or source_index >= len(descriptors):
+            raise ValueError(f"PAC cloned draw section {clone_ordinal} references missing descriptor {source_index}.")
+        source_desc = descriptors[source_index]
+        rel_desc_off = int(getattr(source_desc, "descriptor_offset", -1)) - int(sec0_offset)
+        desc_len = _pac_descriptor_record_length(source_desc)
+        if rel_desc_off < 0 or rel_desc_off + desc_len > len(sec0_data):
+            raise ValueError(f"PAC descriptor {source_index} cannot be cloned from section 0.")
+        desc_bytes = bytes(sec0_data[rel_desc_off:rel_desc_off + desc_len])
+        name = str(getattr(source_desc, "name", "") or f"clone_{source_index}").strip()
+        material = str(getattr(source_desc, "material", "") or name).strip()
+        suffix = f"_clone{clone_ordinal}"
+        prefix = _length_prefixed_ascii(f"{name}{suffix}", f"clone_{clone_ordinal}")
+        prefix += _length_prefixed_ascii(material, f"material_{source_index}")
+        clone_desc_rel_off = len(sec0_data) + len(prefix)
+        sec0_data.extend(prefix)
+        sec0_data.extend(desc_bytes)
+        cloned_desc = copy.copy(source_desc)
+        cloned_desc.name = f"{name}{suffix}"
+        cloned_desc.material = material
+        cloned_desc.descriptor_offset = sec0_offset + clone_desc_rel_off
+        planned.append(cloned_desc)
+    return planned
+
+
 def _build_pac_full_rebuild(
     original_mesh: ParsedMesh,
     working_mesh: ParsedMesh,
     original_data: bytes,
+    *,
+    clone_descriptor_sources: Sequence[int] = (),
 ) -> bytes:
     """Rebuild PAC geometry sections from scratch for topology-changing imports."""
     sections = _parse_par_sections(original_data)
@@ -2913,10 +3003,24 @@ def _build_pac_full_rebuild(
         raise ValueError(f"Invalid PAC LOD count: {n_lods}")
 
     descriptors = _find_pac_descriptors(original_data, sec0["offset"], sec0["size"], n_lods)
-    if len(descriptors) < len(working_mesh.submeshes):
-        raise ValueError("PAC descriptor count does not match the parsed submesh set.")
-
     sec0_data = bytearray(original_data[sec0["offset"]:sec0["offset"] + sec0["size"]])
+    if len(descriptors) < len(original_mesh.submeshes):
+        raise ValueError("PAC descriptor count does not match the parsed original submesh set.")
+    clone_descriptor_sources = tuple(int(index) for index in tuple(clone_descriptor_sources or ()))
+    expected_submesh_count = len(original_mesh.submeshes) + len(clone_descriptor_sources)
+    if len(working_mesh.submeshes) != expected_submesh_count:
+        raise ValueError(
+            "PAC dense replacement output plan does not match the working mesh: "
+            f"{len(working_mesh.submeshes)} submesh(es), expected {expected_submesh_count}."
+        )
+    descriptors = _append_pac_cloned_descriptors(
+        sec0_data,
+        sec0_offset=sec0["offset"],
+        descriptors=descriptors[:len(original_mesh.submeshes)],
+        clone_descriptor_sources=clone_descriptor_sources,
+    )
+    if len(descriptors) < len(working_mesh.submeshes):
+        raise ValueError("PAC descriptor count does not match the planned submesh set.")
     preserved_sections = {
         sec["index"]: original_data[sec["offset"]:sec["offset"] + sec["size"]]
         for sec in sections
@@ -2924,7 +3028,30 @@ def _build_pac_full_rebuild(
     }
 
     prepared_submeshes = []
-    for sm_idx, (orig_sm, new_sm, desc) in enumerate(zip(original_mesh.submeshes, working_mesh.submeshes, descriptors)):
+    for sm_idx, (new_sm, desc) in enumerate(zip(working_mesh.submeshes, descriptors)):
+        if sm_idx < len(original_mesh.submeshes):
+            source_target_index = sm_idx
+        else:
+            source_target_index = clone_descriptor_sources[sm_idx - len(original_mesh.submeshes)]
+        if source_target_index < 0 or source_target_index >= len(original_mesh.submeshes):
+            raise ValueError(f"PAC cloned submesh {sm_idx} references invalid source target {source_target_index}.")
+        orig_sm = original_mesh.submeshes[source_target_index]
+        if not new_sm.vertices and not new_sm.faces:
+            rel_desc_off = desc.descriptor_offset - sec0["offset"]
+            if rel_desc_off < 0 or rel_desc_off + 40 > len(sec0_data):
+                raise ValueError(f"PAC descriptor {sm_idx} points outside section 0.")
+            vc_off = rel_desc_off + 40
+            ic_off = vc_off + desc.stored_lod_count * 2
+            for lod_idx in range(desc.stored_lod_count):
+                struct.pack_into("<H", sec0_data, vc_off + lod_idx * 2, 0)
+                struct.pack_into("<I", sec0_data, ic_off + lod_idx * 4, 0)
+            logger.info(
+                "PAC submesh %d ('%s') is an empty placeholder; writing zero vertex/index counts.",
+                sm_idx,
+                new_sm.name,
+            )
+            continue
+
         if not orig_sm.source_vertex_offsets or orig_sm.source_vertex_stride < 12:
             raise ValueError(
                 f"PAC submesh {sm_idx} is missing source vertex metadata for a full rebuild."

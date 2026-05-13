@@ -22,8 +22,8 @@ Crimson Desert Mod Workbench is built for modders who want one place to:
 - optionally convert DDS to PNG before processing
 - optionally upscale through `chaiNNer` or direct `Real-ESRGAN NCNN`
 - edit visible textures inside the app with `Texture Editor`, including paint, erase, fill, gradient, smudge, dodge/burn, patch, sharpen, soften, clone/heal, floating paste/move, masks, channel locks, adjustment layers, brush presets, brush tips/patterns, custom presets, and layered project saves
-- optionally export rebuilt workflow output as a ready mod package with `info.json`, optional `.no_encrypt`, and preserved loose DDS paths
-- import manually edited `PNG` or `DDS` textures and export a mod-ready loose replacement package with `Replace Assistant`
+- optionally export rebuilt workflow output as a ready mod package with `manifest.json`, optional manager metadata, optional `.no_encrypt`, and preserved loose DDS paths
+- import manually edited `PNG` or `DDS` textures and export a mod-ready loose replacement package with `Texture Replacer`
 - review results in a side-by-side compare view with zoom, pan, and preview-size controls
 - inspect texture sets, references, classification, DDS QA results, and notes in `Research`
 - search archive or loose text-like files such as `.xml`, `.json`, `.cfg`, and `.lua`
@@ -38,8 +38,8 @@ The app still keeps archive mutation explicit and separate from normal browsing.
 
 - `Texture Workflow`: loose DDS scanning, optional DDS-to-PNG staging, optional upscaling, DDS rebuild, and compare review
 - `Texture Workflow` can also emit an additional ready mod package after rebuild without changing the normal `dds_final` output
-- `Replace Assistant`: import edited `PNG` / `DDS`, match them to the original game texture, optionally upscale with direct `NCNN`, rebuild corrected DDS output, and write a mod-ready loose package
-- `Texture Editor`: open visible textures from loose files, Archive Browser, Compare, or Replace Assistant, edit them in layers with selections, masks, adjustments, channel-aware brush/retouch tools, and custom brush presets, then save/export the flattened PNG back into the rebuild pipeline
+- `Texture Replacer`: import edited `PNG` / `DDS`, match them to the original game texture, optionally upscale with direct `NCNN`, rebuild corrected DDS output, and write a mod-ready loose package
+- `Texture Editor`: open visible textures from loose files, Archive Browser, Compare, or Texture Replacer, edit them in layers with selections, masks, adjustments, channel-aware brush/retouch tools, and custom brush presets, then save/export the flattened PNG back into the rebuild pipeline
 - `Archive Browser`: scan archives, switch between flat or tree view, preview supported assets, extract files, inspect referenced mesh textures, export/import supported meshes, and run supported archive patch/restore flows
 - `Research`: group related textures, resolve references, inspect DDS QA results, preview archive files, export analysis reports, and store notes
 - `Text Search`: search archive or loose text-like files, preview results with syntax colors, and export matched files
@@ -65,8 +65,8 @@ The app still keeps archive mutation explicit and separate from normal browsing.
 - compare view with shared preview-size presets, per-side zoom, mouse-wheel zoom, drag pan, `Sync Pan`, and focused compare layout
 - `Research` tools for shared classifier output, grouped texture sets, sidecar/reference discovery, `Classification Review` preview/review/approval, texture analysis, heatmap views, archive file preview, and local notes
 - text search with archive/loose search, regex, local find, wrap toggle, line numbers, and export
-- `Replace Assistant` for edited-texture replacement workflows that use the original DDS as authority for rebuild metadata and mod package paths
-- `Texture Editor` for in-app visible-texture editing, layered projects, masks, adjustment layers, floating selections/transforms, clone/heal/smudge/patch work, brush presets/tips/patterns, channel locks, configurable grids, and exporting flattened PNGs back into `Replace Assistant` or `Texture Workflow`
+- `Texture Replacer` for edited-texture replacement workflows that use the original DDS as authority for rebuild metadata and mod package paths
+- `Texture Editor` for in-app visible-texture editing, layered projects, masks, adjustment layers, floating selections/transforms, clone/heal/smudge/patch work, brush presets/tips/patterns, channel locks, configurable grids, and exporting flattened PNGs back into `Texture Replacer` or `Texture Workflow`
 
 ## Recommended First Run
 
@@ -86,19 +86,19 @@ If you want the safest starting point, use this path first:
 9. Run a small subset first.
 10. Review the results in `Compare` before doing a larger batch.
 
-If you already edited a texture in Photoshop or another tool, you can use `Replace Assistant` instead of the batch workflow:
+If you already edited a texture in Photoshop or another tool, you can use `Texture Replacer` instead of the batch workflow:
 
 1. Import the edited `PNG` or `DDS`.
 2. Let the app match it to the original game DDS, or choose the original manually if needed.
 3. Optionally mirror the current `Texture Workflow` NCNN settings.
-4. Build a mod-ready loose package with `.no_encrypt`, `info.json`, and the correct package-prefixed DDS tree.
+4. Build a mod-ready loose package with `.no_encrypt`, `manifest.json`, and the correct package-prefixed DDS tree.
 
 If you want to do a simple edit directly in the app first:
 
 1. Open the source image or DDS in `Texture Editor`.
 2. Paint, erase, fill, gradient, smudge, dodge/burn, patch, soften, sharpen, clone/heal, use brush presets or pattern brushes, create selections, work with floating pasted regions, control RGBA channel locks, or use masks and adjustment layers.
 3. Save a layered project if you want to keep the editable document.
-4. Send the flattened PNG to `Replace Assistant` or `Texture Workflow`.
+4. Send the flattened PNG to `Texture Replacer` or `Texture Workflow`.
 
 ## Choosing An Upscaling Mode
 

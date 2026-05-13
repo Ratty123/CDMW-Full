@@ -1355,7 +1355,7 @@ class ResearchTab(QWidget):
             "Bundles related texture members and sidecars such as base/_color, _n/_wn, _sp, _m/_ma/_mg, _d/_dmap/_disp, _op/_dr, XML, and material files."
         )
         self.texture_group_tree = EmptyStateTreeWidget(
-            "Refresh research",
+            "Refresh Research",
             "Texture sets will appear here after the archive view has been analyzed.",
         )
         self.texture_group_tree.setAlternatingRowColors(True)
@@ -1772,7 +1772,7 @@ class ResearchTab(QWidget):
         heatmap_group_layout.setSpacing(8)
         self.heatmap_tree = EmptyStateTreeWidget(
             "No usage heatmap",
-            "Texture usage hotspots will appear here after research refresh.",
+            "Texture usage hotspots will appear here after Research refresh.",
         )
         self.heatmap_tree.setAlternatingRowColors(True)
         self.heatmap_tree.setHeaderLabels(
@@ -1982,7 +1982,7 @@ class ResearchTab(QWidget):
         )
         self.mip_tree = EmptyStateTreeWidget(
             "No mip analysis",
-            "Refresh research with original and output roots available to compare mip behavior.",
+            "Refresh Research with original and output roots available to compare mip behavior.",
         )
         self.mip_tree.setRootIsDecorated(False)
         self.mip_tree.setAlternatingRowColors(True)
@@ -2004,7 +2004,7 @@ class ResearchTab(QWidget):
         )
         self.normal_tree = EmptyStateTreeWidget(
             "No normal-map validation",
-            "Normal validation results will appear here after research refresh.",
+            "Normal validation results will appear here after Research refresh.",
         )
         self.normal_tree.setRootIsDecorated(False)
         self.normal_tree.setAlternatingRowColors(True)
@@ -4571,7 +4571,7 @@ class ResearchTab(QWidget):
         mip_rows = self.research_payload.get("mip_rows", [])
         normal_rows = self.research_payload.get("normal_rows", [])
         if not isinstance(mip_rows, list) or not isinstance(normal_rows, list):
-            self.status_message_requested.emit("Refresh research first to build an analysis report.", True)
+            self.status_message_requested.emit("Refresh Research first to build an analysis report.", True)
             return
         budget_rows = self.research_payload.get("budget_rows", [])
         budget_class_rows = self.research_payload.get("budget_class_rows", [])

@@ -5,9 +5,12 @@ import unittest
 from pathlib import Path
 
 from cdmw.core.archive import (
+    active_archive_entry_for_virtual_path,
+    archive_entry_is_mod_package,
     crypt_chacha20_filename,
     filter_archive_entries,
     hashlittle,
+    order_archive_entries_by_active_overrides,
     try_decrypt_archive_entry_data,
 )
 from cdmw.core.item_index import (
@@ -16,10 +19,12 @@ from cdmw.core.item_index import (
     _build_archive_item_icon_path_index,
     _build_archive_item_search_index_from_records,
     _build_archive_model_hash_table_from_entries,
+    _collect_archive_item_index_sources,
     _parse_archive_iteminfo_data,
     _parse_stringinfo_model_icon_hashes_from_data,
     _strip_archive_model_variant_suffix,
 )
+from cdmw.core.table_catalog import summarize_table_evidence
 from cdmw.models import ArchiveEntry
 
 
@@ -29,6 +34,19 @@ def _entry(path: str) -> ArchiveEntry:
         pamt_path=Path("C:/game/0009/0.pamt"),
         paz_file=Path("C:/game/0009/0.paz"),
         offset=0,
+        comp_size=100,
+        orig_size=100,
+        flags=0,
+        paz_index=0,
+    )
+
+
+def _package_entry(path: str, package: str, *, offset: int = 0) -> ArchiveEntry:
+    return ArchiveEntry(
+        path=path,
+        pamt_path=Path(f"C:/game/{package}/0.pamt"),
+        paz_file=Path(f"C:/game/{package}/0.paz"),
+        offset=offset,
         comp_size=100,
         orig_size=100,
         flags=0,
@@ -70,6 +88,37 @@ def _entries_with_payloads(payloads):
 
 
 class ItemNameArchiveSearchTests(unittest.TestCase):
+    def test_dmm_duplicate_archive_entry_is_grouped_and_marked_active(self) -> None:
+        virtual_path = "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0278.pac"
+        original = _package_entry(virtual_path, "0009", offset=10)
+        modded = _package_entry(virtual_path, "dmmsa", offset=20)
+        unrelated = _package_entry(
+            "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0009.pac",
+            "0009",
+            offset=30,
+        )
+
+        self.assertTrue(archive_entry_is_mod_package(modded))
+        self.assertIs(active_archive_entry_for_virtual_path([original, modded]), modded)
+        self.assertEqual(
+            [entry.package_label for entry in order_archive_entries_by_active_overrides([original, unrelated, modded])],
+            ["dmmsa/0.pamt", "0009/0.pamt", "0009/0.pamt"],
+        )
+
+        filtered = filter_archive_entries(
+            [original, unrelated, modded],
+            filter_text="cd_phm_01_sword_0278",
+            exclude_filter_text="",
+            extension_filter="*",
+            package_filter_text="",
+            structure_filter="",
+            role_filter="all",
+            exclude_common_technical_suffixes=False,
+            min_size_kb=0,
+            previewable_only=False,
+        )
+        self.assertEqual([entry.package_label for entry in filtered], ["dmmsa/0.pamt", "0009/0.pamt"])
+
     def test_paloc_binary_payload_passes_chacha20_validation(self) -> None:
         payload = (
             (b"123456", "Vow of the Dead King".encode("utf-8")),
@@ -634,6 +683,8 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].display_name, "Sword of the Lord")
         self.assertEqual(records[0].model_stems, ["cd_phm_01_sword_0166_index01_r"])
+        self.assertIn("ItemInfo._itemName", summarize_table_evidence(records[0].table_evidence))
+        self.assertIn("ItemInfo._itemIconList", summarize_table_evidence(records[0].table_evidence))
 
     def test_iteminfo_prefab_hash_parser_accepts_new_delimiter_byte(self) -> None:
         prefab_hash = hashlittle(b"cd_phm_01_sword_0166", 0xC5EDE)
@@ -654,6 +705,7 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
 
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].prefab_hashes, [prefab_hash])
+        self.assertIn("ItemInfo._prefabDataList", summarize_table_evidence(records[0].table_evidence))
 
     def test_item_records_can_carry_multilingual_names(self) -> None:
         record = ArchiveItemRecord(
@@ -789,6 +841,34 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         self.assertEqual(catalog_row.variant_count, 2)
         self.assertIn("ui/itemicon/itemicon_prefab_cd_phm_01_sword_0166.dds", catalog_row.icon_paths)
         self.assertIn("*cd_phm_01_sword_0166*", catalog_row.scope_filter)
+        self.assertIn("table fields:", catalog_row.evidence)
+        self.assertTrue(any(record.source_field == "_itemIconList" for record in catalog_row.table_evidence))
+        self.assertIn("equip_family:weapon", catalog_row.compatibility_tags)
+        cache_row = catalog_row.to_cache_dict()
+        self.assertTrue(any(row.get("label") == "ItemInfo._itemIconList" for row in cache_row["table_evidence"]))
+        self.assertIn("equip_slot:sword", cache_row["compatibility_tags"])
+
+    def test_item_icon_path_index_accepts_icon_prefab_and_icon_prefixes(self) -> None:
+        sources = _collect_archive_item_index_sources(
+            [
+                _entry("ui/itemicon/icon_prefab_cd_phm_01_sword_0166.dds"),
+                _entry("ui/itemicon/icon_cd_phm_01_sword_0279.dds"),
+                _entry("ui/itemicon/icon_cd_phm_01_sword_0999.png"),
+            ]
+        )
+
+        self.assertEqual(
+            [
+                "ui/itemicon/icon_prefab_cd_phm_01_sword_0166.dds",
+                "ui/itemicon/icon_cd_phm_01_sword_0279.dds",
+            ],
+            [entry.path for entry in sources.icon_entries],
+        )
+
+        icon_index = _build_archive_item_icon_path_index(sources.icon_entries)
+
+        self.assertIn("ui/itemicon/icon_prefab_cd_phm_01_sword_0166.dds", icon_index["cd_phm_01_sword_0166"])
+        self.assertIn("ui/itemicon/icon_cd_phm_01_sword_0279.dds", icon_index["cd_phm_01_sword_0279"])
 
     def test_asset_catalog_builds_friendly_name_when_localization_is_missing(self) -> None:
         index = _build_archive_item_search_index_from_records(
@@ -990,6 +1070,172 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
                 display_name="Rescue Puppy Outfit",
                 model_stems=["petarmor_dog_rescue"],
             ),
+            ArchiveItemRecord(
+                item_id=1030,
+                internal_name="Item_Marni_Laser_Helm",
+                display_name="Marni Laser Helm",
+                model_stems=["cd_marni_laser_hel_0001"],
+                pac_files=["character/model/1_pc/1_phm/armor/13_hel/cd_marni_laser_hel_0001.pac"],
+            ),
+            ArchiveItemRecord(
+                item_id=1031,
+                internal_name="Item_Musket_Border_Guard_Standard_Armor",
+                display_name="Musket Border Guard Standard Armor",
+                model_stems=["cd_musket_border_guard_ub_0001"],
+                pac_files=["character/model/1_pc/1_phm/armor/00_ub/cd_musket_border_guard_ub_0001.pac"],
+            ),
+            ArchiveItemRecord(
+                item_id=1032,
+                internal_name="Item_Musket_Border_Guard_Standard_Helm",
+                display_name="Musket Border Guard Standard Helm",
+                model_stems=["cd_musket_border_guard_hel_0001"],
+                pac_files=["character/model/1_pc/1_phm/armor/13_hel/cd_musket_border_guard_hel_0001.pac"],
+            ),
+            ArchiveItemRecord(
+                item_id=1033,
+                internal_name="Item_Weaponsmith_Pack",
+                display_name="Weaponsmith's Pack",
+                model_stems=["weaponsmith_pack"],
+                pac_files=["character/model/1_pc/1_phm/weapon/tools/weaponsmith_pack.pac"],
+            ),
+            ArchiveItemRecord(
+                item_id=1034,
+                internal_name="Item_Dark_Fog_Lantern",
+                display_name="Dark Fog Lantern",
+                model_stems=["dark_fog_lantern"],
+            ),
+            ArchiveItemRecord(
+                item_id=1035,
+                internal_name="Item_Fancy_Flame_Patterned_Lantern",
+                display_name="Fancy Flame-Patterned Lantern",
+                model_stems=["fancy_flame_patterned_lantern"],
+            ),
+            ArchiveItemRecord(
+                item_id=1036,
+                internal_name="Item_Firefly_Lantern",
+                display_name="Firefly Lantern",
+                model_stems=["firefly_lantern"],
+            ),
+            ArchiveItemRecord(
+                item_id=1037,
+                internal_name="Item_Flame_Lantern",
+                display_name="Flame Lantern",
+                model_stems=["flame_lantern"],
+            ),
+            ArchiveItemRecord(
+                item_id=1038,
+                internal_name="Item_Lantern",
+                display_name="Lantern",
+                model_stems=["lantern"],
+            ),
+            ArchiveItemRecord(
+                item_id=1039,
+                internal_name="Item_Shiny_Blue_Sea_Lantern",
+                display_name="Shiny Blue Sea Lantern",
+                model_stems=["shiny_blue_sea_lantern"],
+            ),
+            ArchiveItemRecord(
+                item_id=1040,
+                internal_name="Item_Wooden_Lantern",
+                display_name="Wooden Lantern",
+                model_stems=["wooden_lantern"],
+            ),
+            ArchiveItemRecord(
+                item_id=1041,
+                internal_name="Item_Blue_Scout_Lantern",
+                display_name="Blue Scout Lantern",
+                model_stems=["blue_scout_lantern"],
+            ),
+            ArchiveItemRecord(
+                item_id=1042,
+                internal_name="Item_Purple_Scout_Lantern",
+                display_name="Purple Scout Lantern",
+                model_stems=["purple_scout_lantern"],
+            ),
+            ArchiveItemRecord(
+                item_id=1043,
+                internal_name="Item_Shroud_Lantern",
+                display_name="Shroud Lantern",
+                model_stems=["shroud_lantern"],
+            ),
+            ArchiveItemRecord(
+                item_id=1044,
+                internal_name="Item_Torch",
+                display_name="Torch",
+                model_stems=["torch"],
+            ),
+            ArchiveItemRecord(
+                item_id=1045,
+                internal_name="Item_Miners_Lantern_Hat",
+                display_name="Miner's Lantern Hat",
+                model_stems=["miners_lantern_hat"],
+            ),
+            ArchiveItemRecord(
+                item_id=1046,
+                internal_name="Item_Tommaso_Guard_Dagger_Tipped_Spear",
+                display_name="Tommaso Guard's Dagger-Tipped Spear",
+                model_stems=["tommaso_guard_dagger_tipped_spear"],
+            ),
+            ArchiveItemRecord(
+                item_id=1047,
+                internal_name="Item_Veil_Leather_Gloves",
+                display_name="Veile Leather Gloves",
+                model_stems=["veile_leather_gloves"],
+            ),
+            ArchiveItemRecord(
+                item_id=1048,
+                internal_name="Item_Face_Oblivion_Of_The_Past",
+                display_name="Oblivion of the Past",
+                model_stems=["oblivion_of_the_past"],
+            ),
+            ArchiveItemRecord(
+                item_id=1049,
+                internal_name="Item_Ashed_Plate_Gloves",
+                display_name="Ashed Plate Gloves",
+                model_stems=["ashed_plate_gloves"],
+            ),
+            ArchiveItemRecord(
+                item_id=1050,
+                internal_name="Item_Arkhan_Plate_Gloves",
+                display_name="Arkhan Plate Gloves",
+                model_stems=["arkhan_plate_gloves"],
+            ),
+            ArchiveItemRecord(
+                item_id=1051,
+                internal_name="Item_Ashed_Plate_Boots",
+                display_name="Ashed Plate Boots",
+                model_stems=["ashed_plate_boots"],
+            ),
+            ArchiveItemRecord(
+                item_id=1052,
+                internal_name="Item_Berkei_Barding",
+                display_name="Berkei Barding",
+                model_stems=["berkei_barding"],
+            ),
+            ArchiveItemRecord(
+                item_id=1053,
+                internal_name="Item_Calpadean_Barding",
+                display_name="Calpadean Barding",
+                model_stems=["calpadean_barding"],
+            ),
+            ArchiveItemRecord(
+                item_id=1054,
+                internal_name="Item_HorseArmor_Royal_Plate",
+                display_name="Royal Plate Armor",
+                model_stems=["royal_plate_horsearmor"],
+            ),
+            ArchiveItemRecord(
+                item_id=1055,
+                internal_name="Item_Artisans_Hand",
+                display_name="Artisan's Hand",
+                model_stems=["artisans_hand"],
+            ),
+            ArchiveItemRecord(
+                item_id=1056,
+                internal_name="Item_Broken_Visione",
+                display_name="Broken Visione",
+                model_stems=["broken_visione"],
+            ),
         ]
 
         index = _build_archive_item_search_index_from_records(records, [])
@@ -1059,6 +1305,57 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         self.assertEqual(rows["Rescue Puppy Outfit"].category, "Mount / Pet")
         self.assertEqual(rows["Rescue Puppy Outfit"].group, "Pet Gear")
         self.assertTrue(rows["Rescue Puppy Outfit"].category_evidence.startswith("Internal ID ->"))
+        self.assertEqual(rows["Marni Laser Helm"].category, "Armor")
+        self.assertEqual(rows["Marni Laser Helm"].group, "Head")
+        self.assertEqual(rows["Musket Border Guard Standard Armor"].category, "Armor")
+        self.assertEqual(rows["Musket Border Guard Standard Armor"].group, "Body")
+        self.assertEqual(rows["Musket Border Guard Standard Helm"].category, "Armor")
+        self.assertEqual(rows["Musket Border Guard Standard Helm"].group, "Head")
+        self.assertEqual(rows["Weaponsmith's Pack"].category, "Tool")
+        self.assertEqual(rows["Weaponsmith's Pack"].group, "Backpack / Pack")
+        for display_name in (
+            "Dark Fog Lantern",
+            "Fancy Flame-Patterned Lantern",
+            "Firefly Lantern",
+            "Flame Lantern",
+            "Lantern",
+            "Shiny Blue Sea Lantern",
+            "Wooden Lantern",
+            "Blue Scout Lantern",
+            "Purple Scout Lantern",
+            "Shroud Lantern",
+            "Torch",
+        ):
+            self.assertEqual(rows[display_name].category, "Tool")
+            self.assertEqual(rows[display_name].group, "Light / Lantern")
+        self.assertEqual(rows["Miner's Lantern Hat"].category, "Tool")
+        self.assertEqual(rows["Miner's Lantern Hat"].group, "Light / Lantern")
+        self.assertEqual(rows["Tommaso Guard's Dagger-Tipped Spear"].category, "Weapon")
+        self.assertEqual(rows["Tommaso Guard's Dagger-Tipped Spear"].group, "Polearm / Spear")
+        for display_name in (
+            "Veile Leather Gloves",
+            "Ashed Plate Gloves",
+            "Arkhan Plate Gloves",
+        ):
+            self.assertEqual(rows[display_name].category, "Armor")
+            self.assertEqual(rows[display_name].group, "Hands")
+        self.assertEqual(rows["Ashed Plate Boots"].category, "Armor")
+        self.assertEqual(rows["Ashed Plate Boots"].group, "Feet")
+        for display_name in (
+            "Berkei Barding",
+            "Calpadean Barding",
+            "Royal Plate Armor",
+        ):
+            self.assertEqual(rows[display_name].category, "Mount / Pet")
+            self.assertEqual(rows[display_name].group, "Horse Gear")
+        for display_name in (
+            "Oblivion of the Past",
+            "Artisan's Hand",
+        ):
+            self.assertEqual(rows[display_name].category, "Weapon")
+            self.assertEqual(rows[display_name].group, "Axe / Mace / Hammer")
+        self.assertEqual(rows["Broken Visione"].category, "Armor")
+        self.assertEqual(rows["Broken Visione"].group, "Head")
 
     def test_item_alias_search_uses_display_token_prefixes(self) -> None:
         filtered = filter_archive_entries(

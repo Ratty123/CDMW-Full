@@ -17,6 +17,9 @@ class RuntimeDependencySmokeTests(unittest.TestCase):
             "Pillow": "PIL",
             "numpy": "numpy",
             "opencv-python-headless": "cv2",
+            "PySide6.QtQml": "PySide6.QtQml",
+            "PySide6.QtQuick": "PySide6.QtQuick",
+            "PySide6.QtQuick3D": "PySide6.QtQuick3D",
         }
         missing: list[str] = []
         for package_name, import_name in packages.items():
@@ -62,8 +65,29 @@ class RuntimeDependencySourceGuardTests(unittest.TestCase):
         source = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
         self.assertIn("ROOT = Path(SPECPATH).resolve()", source)
         self.assertIn("pathex=[str(ROOT)]", source)
+        self.assertIn("CDMW_PYINSTALLER_MODE", source)
+        self.assertIn("CDMW_PYINSTALLER_PROFILE", source)
         self.assertNotIn("C:\\Users\\Ratrider", source)
         self.assertNotIn("Desktop\\app", source)
+
+    def test_windows_builder_uses_maintained_spec(self) -> None:
+        source = Path("build_pyside6_app.ps1").read_text(encoding="utf-8")
+        self.assertIn("CrimsonDesertModWorkbench.spec", source)
+        self.assertIn("BuildProfile", source)
+        self.assertIn("CDMW_PYINSTALLER_MODE", source)
+        self.assertIn("CDMW_PYINSTALLER_PROFILE", source)
+        self.assertNotIn('"--collect-all", "numpy"', source)
+        self.assertNotIn('$pyInstallerArgs += "cdmw_app.py"', source)
+
+        batch_source = Path("build.bat").read_text(encoding="utf-8")
+        for expected in ("onefile", "onedir", "release", "fast", "debug"):
+            self.assertIn(expected, batch_source)
+        self.assertIn("build_gui.py", batch_source)
+
+        gui_source = Path("build_gui.py").read_text(encoding="utf-8")
+        self.assertIn("build_pyside6_app.ps1", gui_source)
+        self.assertIn("PixelProgress", gui_source)
+        self.assertIn("BuildSelection", gui_source)
 
     def test_texture_editor_missing_dependency_fallback_is_wired(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")

@@ -14,6 +14,14 @@ from cdmw.core.archive import (
     read_archive_entry_data,
 )
 from cdmw.core.common import raise_if_cancelled
+from cdmw.core.table_catalog import (
+    TableEvidenceRecord,
+    build_item_table_evidence,
+    compatibility_tags_for_catalog_row,
+    merge_table_evidence,
+    serialize_table_evidence,
+    summarize_table_evidence,
+)
 from cdmw.models import ArchiveEntry
 from cdmw.models import RunCancelled
 
@@ -28,6 +36,7 @@ class ArchiveItemRecord:
     model_stems: List[str] = field(default_factory=list)
     pac_files: List[str] = field(default_factory=list)
     icon_paths: List[str] = field(default_factory=list)
+    table_evidence: tuple[TableEvidenceRecord, ...] = ()
 
 
 @dataclass(slots=True)
@@ -45,6 +54,8 @@ class ArchiveAssetCatalogEntry:
     variant_count: int = 1
     evidence: str = ""
     scope_filter: str = ""
+    table_evidence: tuple[TableEvidenceRecord, ...] = ()
+    compatibility_tags: tuple[str, ...] = ()
 
     def to_cache_dict(self) -> Dict[str, object]:
         return {
@@ -61,6 +72,8 @@ class ArchiveAssetCatalogEntry:
             "variant_count": int(self.variant_count),
             "evidence": self.evidence,
             "scope_filter": self.scope_filter,
+            "table_evidence": serialize_table_evidence(self.table_evidence),
+            "compatibility_tags": list(self.compatibility_tags),
         }
 
 
@@ -128,6 +141,12 @@ _LOCALIZATION_TABLES = (
 )
 _LOCALIZATION_TABLE_BY_NAME = {table_name: language_code for language_code, table_name in _LOCALIZATION_TABLES}
 _ITEM_ICON_PREFAB_PREFIX = "itemicon_prefab_"
+_ITEM_ICON_STEM_PREFIXES = (
+    "itemicon_prefab_",
+    "itemicon_",
+    "icon_prefab_",
+    "icon_",
+)
 _ITEM_ICON_MODEL_COMPATIBILITY_TOKENS: Tuple[Tuple[str, str], ...] = (
     ("onehandsword", "01_sword"),
     ("twohandsword", "02_sword"),
@@ -226,7 +245,12 @@ def _collect_archive_item_index_sources(
         wants_iteminfo = "iteminfo.pabgb" in lower_path
         wants_stringinfo = os.path.basename(lower_path) == "stringinfo.pabgb"
         wants_model_hash = lower_path.endswith((".prefab", ".pac", ".pact"))
-        wants_item_icon = lower_path.endswith(".dds") and "itemicon" in lower_path
+        basename = os.path.basename(lower_path)
+        stem = os.path.splitext(basename)[0]
+        wants_item_icon = lower_path.endswith(".dds") and (
+            "itemicon" in lower_path
+            or any(stem.startswith(prefix) for prefix in _ITEM_ICON_STEM_PREFIXES)
+        )
         if not (wants_localization or wants_iteminfo or wants_stringinfo or wants_model_hash or wants_item_icon):
             continue
         group = _entry_package_group(entry)
@@ -403,9 +427,11 @@ def _build_archive_item_icon_path_index(icon_entries: Sequence[ArchiveEntry]) ->
         basename = lower_path.rsplit("/", 1)[-1]
         stem = os.path.splitext(basename)[0]
         model_stem = ""
-        if stem.startswith(_ITEM_ICON_PREFAB_PREFIX):
-            model_stem = _normalize_item_icon_model_stem(stem[len(_ITEM_ICON_PREFAB_PREFIX) :])
-        elif "cd_" in stem:
+        for prefix in _ITEM_ICON_STEM_PREFIXES:
+            if stem.startswith(prefix):
+                model_stem = _normalize_item_icon_model_stem(stem[len(prefix) :])
+                break
+        if not model_stem and "cd_" in stem:
             model_stem = _normalize_item_icon_model_stem(stem[stem.find("cd_") :])
         if not model_stem:
             continue
@@ -527,6 +553,14 @@ def _parse_archive_iteminfo_data(
             if not display_name and localized_names:
                 display_name = localized_names[0]
 
+        table_evidence = build_item_table_evidence(
+            item_id=item_id,
+            internal_name=name,
+            display_name=display_name,
+            localized_names=tuple(localized_names),
+            prefab_hashes=tuple(prefab_hashes),
+            model_stems=tuple(model_stems),
+        )
         items.append(
             ArchiveItemRecord(
                 item_id=item_id,
@@ -535,6 +569,7 @@ def _parse_archive_iteminfo_data(
                 localized_names=tuple(localized_names),
                 prefab_hashes=prefab_hashes,
                 model_stems=model_stems,
+                table_evidence=table_evidence,
             )
         )
 
@@ -651,13 +686,14 @@ def _catalog_text_matches_any(text: str, tokens: Sequence[str]) -> bool:
 
 
 def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> Tuple[str, str]:
+    primary_names = (
+        item.internal_name,
+        item.display_name,
+        *item.localized_names,
+    )
     primary_text = " ".join(
         token.lower()
-        for token in (
-            item.internal_name,
-            item.display_name,
-            " ".join(item.localized_names),
-        )
+        for token in primary_names
         if token
     )
     relation_text = " ".join(
@@ -670,6 +706,21 @@ def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> T
         if token
     )
     text = " ".join(part for part in (primary_text, relation_text) if part)
+    compact_internal_name = re.sub(r"[^a-z0-9]+", "", str(item.internal_name or "").lower())
+    if _catalog_text_matches_any(primary_text, ("oblivion of the past", "artisan's hand", "artisans hand")):
+        return "Weapon", "Axe / Mace / Hammer"
+    if _catalog_text_matches_any(primary_text, ("broken visione",)):
+        return "Armor", "Head"
+    if "horsearmor" in compact_internal_name:
+        return "Mount / Pet", "Horse Gear"
+    if any(re.search(r"(?:^|[^a-z0-9])barding\s*$", str(name or ""), flags=re.IGNORECASE) for name in primary_names):
+        return "Mount / Pet", "Horse Gear"
+    if _catalog_text_matches_any(primary_text, ("glove", "gloves")):
+        return "Armor", "Hands"
+    if _catalog_text_matches_any(primary_text, ("boot", "boots")):
+        return "Armor", "Feet"
+    if _catalog_text_matches_any(primary_text, ("lantern",)):
+        return "Tool", "Light / Lantern"
     high_priority_document_tests: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
         ("Key / Permit", ("homekey", "visitorpass", "license", "permit", "permission", " key ", " pass ")),
         ("Clue / Report", ("sighting", "news", "report", "record", "clue", "evidence")),
@@ -714,6 +765,79 @@ def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> T
         return "Consumable", "Potion / Medicine"
     if _catalog_text_matches_any(primary_text, ("food", "drink", "meal", "bread", "meat", "fruit", "carrot", "pear")):
         return "Consumable", "Food / Drink"
+    primary_weapon_type_tests: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+        ("Polearm / Spear", ("onehandspear", "twohandspear", "onehandlance", "lance", "spear", "halberd", "alebard", "pike", "scythe")),
+    )
+    for group, tokens in primary_weapon_type_tests:
+        if _catalog_text_matches_any(primary_text, tokens):
+            return "Weapon", group
+    primary_equipment_type_tests: Tuple[Tuple[str, str, Tuple[str, ...]], ...] = (
+        (
+            "Armor",
+            "Head",
+            ("helmet", "helm", "_hel", "hood", "hat", "cap", "crown", "circlet", "headdress"),
+        ),
+        (
+            "Armor",
+            "Face",
+            ("face", "mask", "veil"),
+        ),
+        (
+            "Armor",
+            "Back / Cloak",
+            ("cloak", "cape", "mantle", "shawl"),
+        ),
+        (
+            "Armor",
+            "Body",
+            (
+                "armor",
+                "armour",
+                "plate",
+                "_ub",
+                "body",
+                "cuirass",
+                "coat",
+                "jacket",
+                "vest",
+                "shirt",
+                "tunic",
+                "robe",
+                "dress",
+                "gown",
+                "mail",
+                "hauberk",
+                "jerkin",
+                "chest",
+                "costume",
+                "outfit",
+                "uniform",
+            ),
+        ),
+        (
+            "Armor",
+            "Hands",
+            ("glove", "gloves", "hand", "gauntlet", "gauntlets", "bracer", "bracers", "vambrace", "wrist", "sleeve"),
+        ),
+        (
+            "Armor",
+            "Legs",
+            ("pants", "trouser", "trousers", "skirt", "leg", "legs", "_lb"),
+        ),
+        (
+            "Armor",
+            "Feet",
+            ("boot", "boots", "foot", "feet", "shoe", "shoes", "sandal", "sabaton", "greave", "greaves", "_sho"),
+        ),
+        (
+            "Tool",
+            "Backpack / Pack",
+            ("backpack", "back pack", "back_pack", "thrusterpack", "pack", "satchel", "pouch"),
+        ),
+    )
+    for category, group, tokens in primary_equipment_type_tests:
+        if _catalog_text_matches_any(primary_text, tokens):
+            return category, group
     category_tests: Tuple[Tuple[str, Tuple[Tuple[str, Tuple[str, ...]], ...]], ...] = (
         (
             "Weapon",
@@ -957,11 +1081,21 @@ def _merge_catalog_entry(existing: ArchiveAssetCatalogEntry, item: ArchiveItemRe
         model_stems=list(model_stems),
         pac_files=list(pac_files),
         icon_paths=list(icon_paths),
+        table_evidence=merge_table_evidence(existing.table_evidence, item.table_evidence),
     )
     evidence_parts = [existing.evidence]
     if item.icon_paths:
         evidence_parts.append("inventory icon path")
+    table_evidence = merge_table_evidence(existing.table_evidence, item.table_evidence)
+    table_summary = summarize_table_evidence(table_evidence)
+    if table_summary:
+        evidence_parts.append(f"table fields: {table_summary}")
     evidence = "; ".join(part for part in evidence_parts if part)
+    compatibility_tags = tuple(
+        dict.fromkeys(
+            (*existing.compatibility_tags, *compatibility_tags_for_catalog_row(existing.category, existing.group, table_evidence))
+        )
+    )
     return ArchiveAssetCatalogEntry(
         item_id=existing.item_id,
         internal_name=existing.internal_name,
@@ -976,6 +1110,8 @@ def _merge_catalog_entry(existing: ArchiveAssetCatalogEntry, item: ArchiveItemRe
         variant_count=variant_count,
         evidence=evidence or existing.evidence,
         scope_filter=_catalog_scope_filter_for_item(scope_item),
+        table_evidence=table_evidence,
+        compatibility_tags=compatibility_tags,
     )
 
 
@@ -1006,6 +1142,10 @@ def _build_archive_asset_catalog_entries(items: Sequence[ArchiveItemRecord]) -> 
             evidence_parts.append("generated friendly name")
         if item.icon_paths:
             evidence_parts.append("inventory icon path")
+        table_summary = summarize_table_evidence(item.table_evidence)
+        if table_summary:
+            evidence_parts.append(f"table fields: {table_summary}")
+        compatibility_tags = compatibility_tags_for_catalog_row(category, catalog_group, item.table_evidence)
         entry = ArchiveAssetCatalogEntry(
             item_id=item.item_id,
             internal_name=item.internal_name,
@@ -1020,6 +1160,8 @@ def _build_archive_asset_catalog_entries(items: Sequence[ArchiveItemRecord]) -> 
             variant_count=1,
             evidence="; ".join(evidence_parts) or "item database record",
             scope_filter=_catalog_scope_filter_for_item(item),
+            table_evidence=tuple(item.table_evidence),
+            compatibility_tags=compatibility_tags,
         )
         if group_key in groups:
             groups[group_key] = _merge_catalog_entry(groups[group_key], item)
@@ -1082,6 +1224,18 @@ def _build_archive_item_search_index_from_records(
                         icon_paths.append(str(icon_path))
         if icon_paths:
             item.icon_paths = icon_paths
+            item.table_evidence = merge_table_evidence(
+                item.table_evidence,
+                build_item_table_evidence(
+                    item_id=item.item_id,
+                    internal_name=item.internal_name,
+                    display_name=item.display_name,
+                    localized_names=item.localized_names,
+                    prefab_hashes=tuple(item.prefab_hashes),
+                    model_stems=tuple(item.model_stems),
+                    icon_paths=tuple(icon_paths),
+                ),
+            )
 
         for resolved, match_kind in (
             *((value, "exact") for value in exact_model_names),

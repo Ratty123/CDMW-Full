@@ -7,8 +7,10 @@ def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> Non
     spanish = UiLocalizer(language_dir=Path("__unused__"), language_code="es")
     german = UiLocalizer(language_dir=Path("__unused__"), language_code="de")
 
-    assert spanish.translate("Apply Texture Plan to Overrides...") == "Aplicar plan de texturas a anulaciones..."
-    assert german.translate("Apply Texture Plan to Overrides...") == "Texturplan auf Overrides anwenden..."
+    assert spanish.translate("Apply Suggested Overrides...") == "Aplicar anulaciones sugeridas..."
+    assert german.translate("Apply Suggested Overrides...") == "Vorgeschlagene Overrides anwenden..."
+    assert spanish.translate("Advanced: Apply Suggested Overrides...") == "Avanzado: aplicar anulaciones sugeridas..."
+    assert german.translate("Advanced: Apply Suggested Overrides...") == "Erweitert: Vorgeschlagene Overrides anwenden..."
     assert spanish.translate("Texture source probe") == "Sonda de origen de textura"
     assert german.translate("Texture source probe") == "Texturquellen-Probe"
     assert spanish.translate("Exact Item Name") == "Nombre exacto de item"
@@ -68,3 +70,20 @@ def test_quick_start_and_documentation_cover_mesh_import_and_swap() -> None:
     assert "Swap With In-Game Mesh" in main_window_source
     assert "Intercambiar con malla del juego" in main_window_source
     assert "Mit Ingame-Mesh tauschen" in main_window_source
+
+
+def test_archive_browser_documentation_covers_current_functionality_in_supported_languages() -> None:
+    main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+
+    assert "active mod/original/shadowed duplicate status" in main_window_source
+    assert "software geometry preview so browsing candidates" in main_window_source
+    assert "Bulk Placement Swap" in main_window_source
+    assert "Item Finder" in main_window_source
+
+    assert "mod activo" in main_window_source
+    assert "vista previa de geometria por software" in main_window_source
+    assert "Intercambio masivo de colocacion" in main_window_source
+
+    assert "Aktiver Mod" in main_window_source
+    assert "Software-Geometrievorschau" in main_window_source
+    assert "HKX-Platzierung" in main_window_source

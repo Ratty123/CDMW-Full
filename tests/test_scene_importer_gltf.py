@@ -108,10 +108,20 @@ class GltfSceneImporterTests(unittest.TestCase):
             bin_chunk, document = _triangle_payload()
             (root / "triangle.bin").write_bytes(bin_chunk)
             (root / "body_base.png").write_bytes(b"png")
+            (root / "body_normal.png").write_bytes(b"png")
+            (root / "body_metallic_roughness.png").write_bytes(b"png")
             document["buffers"][0]["uri"] = "triangle.bin"
-            document["materials"][0]["pbrMetallicRoughness"] = {"baseColorTexture": {"index": 0}}
-            document["textures"] = [{"source": 0}]
-            document["images"] = [{"uri": "body_base.png"}]
+            document["materials"][0]["pbrMetallicRoughness"] = {
+                "baseColorTexture": {"index": 0},
+                "metallicRoughnessTexture": {"index": 1},
+            }
+            document["materials"][0]["normalTexture"] = {"index": 2}
+            document["textures"] = [{"source": 0}, {"source": 1}, {"source": 2}]
+            document["images"] = [
+                {"uri": "body_base.png"},
+                {"uri": "body_metallic_roughness.png"},
+                {"uri": "body_normal.png"},
+            ]
             path = root / "triangle.gltf"
             path.write_text(json.dumps(document), encoding="utf-8")
 
@@ -120,7 +130,12 @@ class GltfSceneImporterTests(unittest.TestCase):
 
             self.assertEqual(result.mesh.format, "gltf")
             self.assertIn((root / "body_base.png").resolve(), result.discovered_texture_files)
+            self.assertIn((root / "body_normal.png").resolve(), result.discovered_texture_files)
+            self.assertIn((root / "body_metallic_roughness.png").resolve(), result.discovered_texture_files)
             self.assertIn((root / "body_base.png").resolve(), discovered)
+            self.assertIn((root / "body_normal.png").resolve(), discovered)
+            self.assertIn((root / "body_metallic_roughness.png").resolve(), discovered)
+            self.assertEqual((root / "body_base.png").resolve().as_posix(), result.mesh.submeshes[0].texture)
 
     def test_gltf_data_uri_buffer_import(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

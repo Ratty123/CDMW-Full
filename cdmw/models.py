@@ -197,9 +197,9 @@ class AppConfig:
     mod_ready_manager_profile: str = "universal"
     mod_ready_package_structure: str = ""
     mod_ready_create_manifest_json: bool = True
-    mod_ready_create_mod_json: bool = True
-    mod_ready_create_modinfo_json: bool = True
-    mod_ready_create_info_json: bool = True
+    mod_ready_create_mod_json: bool = False
+    mod_ready_create_modinfo_json: bool = False
+    mod_ready_create_info_json: bool = False
     mod_ready_create_zip: bool = False
     mod_ready_conflict_mode: str = ""
     mod_ready_target_language: str = ""
@@ -277,6 +277,41 @@ class DdsInfo:
     precision_sensitive: bool = False
     packed_channel_risk: bool = False
     preserve_only_source: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CrimsonDdsFinding:
+    severity: Literal["fatal", "warning", "info"]
+    code: str
+    message: str
+
+
+@dataclass(frozen=True, slots=True)
+class CrimsonDdsInfo:
+    source_path: Optional[Path] = None
+    vpath: str = ""
+    width: int = 0
+    height: int = 0
+    mip_count: int = 0
+    raw_mip_count: int = 0
+    depth: int = 0
+    texconv_format: str = ""
+    is_dx10: bool = False
+    dxgi_format: int = 0
+    fourcc: str = ""
+    block_bytes: Optional[int] = None
+    crimson_last4_header: Optional[int] = None
+    last4_pathc: Optional[int] = None
+    last4_path_class: Optional[int] = None
+    last4_format_derived: Optional[int] = None
+    effective_last4: Optional[int] = None
+    requires_pathc: bool = False
+    reserved1: Tuple[int, ...] = ()
+    findings: Tuple[CrimsonDdsFinding, ...] = ()
+
+    @property
+    def has_fatal_findings(self) -> bool:
+        return any(finding.severity == "fatal" for finding in self.findings)
 
 
 @dataclass(slots=True)
@@ -762,6 +797,8 @@ class AssetRelation:
     sidecar_parameter_name: str = ""
     material_name: str = ""
     package_label: str = ""
+    source_table: str = ""
+    source_field: str = ""
 
 
 @dataclass(slots=True)
@@ -777,6 +814,8 @@ class AssetFamilyMember:
     reason: str = ""
     warning: str = ""
     resolved_entry: Optional["ArchiveEntry"] = None
+    source_table: str = ""
+    source_field: str = ""
 
 
 @dataclass(slots=True)
@@ -874,6 +913,42 @@ class ArchivePreviewResult:
 
 
 @dataclass(slots=True)
+class PreviewMaterialParameterInput:
+    parameter_kind: str = ""
+    parameter_name: str = ""
+    tag_name: str = ""
+    string_item_id: str = ""
+    item_id: str = ""
+    index: int = -1
+    value: str = ""
+    texture_path: str = ""
+    color_value: Tuple[float, float, float] = ()
+    numeric_value: Optional[float] = None
+
+
+@dataclass(slots=True)
+class PreviewMaterialTextureInput:
+    slot_kind: str = ""
+    parameter_name: str = ""
+    source_texture_path: str = ""
+    source_dds_path: str = ""
+    texture_name: str = ""
+    preview_texture_path: str = ""
+    semantic_type: str = ""
+    semantic_subtype: str = ""
+    packed_channels: Tuple[str, ...] = ()
+    material_name: str = ""
+    part_name: str = ""
+    shader_family: str = ""
+    confidence: str = ""
+    visualized: bool = False
+    sidecar_kind: str = ""
+    sidecar_path: str = ""
+    linked_mesh_path: str = ""
+    material_parameters: Tuple[PreviewMaterialParameterInput, ...] = ()
+
+
+@dataclass(slots=True)
 class ModelPreviewMesh:
     material_name: str = ""
     texture_name: str = ""
@@ -882,19 +957,25 @@ class ModelPreviewMesh:
     texture_coordinates: List[Tuple[float, float]] = field(default_factory=list)
     normals: List[Tuple[float, float, float]] = field(default_factory=list)
     indices: List[int] = field(default_factory=list)
+    source_submesh_index: int = -1
+    source_vertex_indices: List[int] = field(default_factory=list)
     preview_texture_path: str = ""
+    preview_texture_dds_path: str = ""
     preview_texture_image: object = None
     preview_normal_texture_path: str = ""
+    preview_normal_texture_dds_path: str = ""
     preview_normal_texture_image: object = None
     preview_normal_texture_name: str = ""
     preview_normal_texture_strength: float = 0.0
     preview_material_texture_path: str = ""
+    preview_material_texture_dds_path: str = ""
     preview_material_texture_image: object = None
     preview_material_texture_name: str = ""
     preview_material_texture_type: str = ""
     preview_material_texture_subtype: str = ""
     preview_material_texture_packed_channels: Tuple[str, ...] = ()
     preview_height_texture_path: str = ""
+    preview_height_texture_dds_path: str = ""
     preview_height_texture_image: object = None
     preview_height_texture_name: str = ""
     preview_base_texture_default_path: str = ""
@@ -918,6 +999,7 @@ class ModelPreviewMesh:
     preview_texture_tint: Tuple[float, float, float] = ()
     preview_texture_uv_scale: Tuple[float, float] = ()
     preview_texture_approximation_note: str = ""
+    preview_material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
     preview_debug_flip_base_v: bool = False
     preview_debug_disable_support_maps: bool = False
 
@@ -1035,6 +1117,8 @@ class ArchiveModelTextureReference:
     relation_group: str = "Textures"
     relation_reason: str = ""
     relation_confidence: str = RelationConfidence.DERIVED_SAME_STEM.value
+    source_table: str = ""
+    source_field: str = ""
 
 
 @dataclass(slots=True)
@@ -1060,9 +1144,13 @@ class PreparedModelPreviewBatch:
     vertex_blob: bytes = b""
     index_count: int = 0
     preview_texture_path: str = ""
+    preview_texture_dds_path: str = ""
     preview_normal_texture_path: str = ""
+    preview_normal_texture_dds_path: str = ""
     preview_material_texture_path: str = ""
+    preview_material_texture_dds_path: str = ""
     preview_height_texture_path: str = ""
+    preview_height_texture_dds_path: str = ""
     preview_texture_flip_vertical: Optional[bool] = None
     preview_base_texture_quality: str = ""
     preview_texture_brightness: float = 1.0
@@ -1072,6 +1160,7 @@ class PreparedModelPreviewBatch:
     preview_material_texture_type: str = ""
     preview_material_texture_subtype: str = ""
     preview_material_texture_packed_channels: Tuple[str, ...] = ()
+    preview_material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
     has_texture_coordinates: bool = False
     texture_wrap_repeat: bool = False
     preview_debug_flip_base_v: bool = False
@@ -1160,6 +1249,10 @@ MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS: Dict[str, str] = {
 MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES: Tuple[str, ...] = (
     "lit",
     "rich_lit",
+    "matcap",
+    "wireframe",
+    "vertex_normals",
+    "uv_checker",
     "white_uniform",
     "shader_marker",
     "fragcoord_checker",
@@ -1188,6 +1281,10 @@ MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES: Tuple[str, ...] = (
 MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS: Dict[str, str] = {
     "lit": "Lit",
     "rich_lit": "Enhanced Relief Preview",
+    "matcap": "Matcap",
+    "wireframe": "Wireframe",
+    "vertex_normals": "Vertex Normals",
+    "uv_checker": "UV Checker",
     "white_uniform": "White Uniform",
     "shader_marker": "Shader Marker",
     "fragcoord_checker": "FragCoord Checker",

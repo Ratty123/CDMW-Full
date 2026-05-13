@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from array import array
-from ctypes import byref, c_int
+from ctypes import byref, c_int, c_uint, string_at
 from dataclasses import dataclass, fields as dataclass_fields
+import hashlib
 import json
 import math
 from pathlib import Path, PurePosixPath
 import re
+from types import SimpleNamespace
+import tempfile
 import time
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -87,8 +90,15 @@ from cdmw.models import (
     ModelPreviewRenderSettings,
     PreparedModelPreviewBatch,
     PreparedModelPreviewData,
+    PreviewMaterialTextureInput,
     RunCancelled,
     clamp_model_preview_render_settings,
+)
+from cdmw.core.dds_native import (
+    DdsNativeInfo,
+    dds_native_report_dict,
+    dds_source_path_from_report,
+    inspect_dds_native_path,
 )
 from cdmw.ui.themes import get_theme
 
@@ -103,10 +113,34 @@ _GL_FALSE = 0
 _GL_TRIANGLES = 0x0004
 _GL_LESS = 0x0201
 _GL_TEXTURE0 = 0x84C0
+_GL_TEXTURE_2D = 0x0DE1
+_GL_TEXTURE_MIN_FILTER = 0x2801
+_GL_TEXTURE_MAG_FILTER = 0x2800
+_GL_TEXTURE_WRAP_S = 0x2802
+_GL_TEXTURE_WRAP_T = 0x2803
+_GL_NEAREST = 0x2600
+_GL_LINEAR = 0x2601
+_GL_LINEAR_MIPMAP_LINEAR = 0x2703
+_GL_REPEAT = 0x2901
+_GL_CLAMP_TO_EDGE = 0x812F
 _GL_MAX_TEXTURE_SIZE = 0x0D33
 _GL_NO_ERROR = 0
+_GL_VENDOR = 0x1F00
+_GL_RENDERER = 0x1F01
+_GL_VERSION = 0x1F02
+_GL_COMPRESSED_RGB_S3TC_DXT1_EXT = 0x83F0
+_GL_COMPRESSED_RGBA_S3TC_DXT1_EXT = 0x83F1
+_GL_COMPRESSED_RGBA_S3TC_DXT3_EXT = 0x83F2
+_GL_COMPRESSED_RGBA_S3TC_DXT5_EXT = 0x83F3
+_GL_COMPRESSED_SRGB_S3TC_DXT1_EXT = 0x8C4C
+_GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT = 0x8C4D
+_GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT = 0x8C4E
+_GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT = 0x8C4F
+_GL_COMPRESSED_RED_RGTC1 = 0x8DBB
+_GL_COMPRESSED_RGBA_BPTC_UNORM = 0x8E8C
+_GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM = 0x8E8D
 
-MODEL_PREVIEW_RENDER_BUILD_ID = "2026-04-29-radical-relief-v7"
+MODEL_PREVIEW_RENDER_BUILD_ID = "2026-05-13-native-dds-v1"
 PERSISTENT_TREE_COLUMN_WIDTHS_PREFIX = "ui/tree_column_widths"
 PERSISTENT_TREE_COLUMN_ORDER_PREFIX = "ui/tree_column_order"
 
@@ -356,6 +390,10 @@ def make_tree_columns_persistent(
 _RENDER_DIAGNOSTIC_MODE_CODES = {
     "lit": 0,
     "rich_lit": 22,
+    "matcap": 25,
+    "wireframe": 26,
+    "vertex_normals": 27,
+    "uv_checker": 28,
     "white_uniform": 1,
     "shader_marker": 2,
     "fragcoord_checker": 3,
@@ -414,14 +452,18 @@ class _ModelPreviewDrawBatch:
     first_vertex: int
     vertex_count: int
     texture_key: str = ""
+    texture_dds_key: str = ""
     normal_texture_key: str = ""
+    normal_texture_dds_key: str = ""
     normal_texture_strength: float = 0.0
     material_texture_key: str = ""
+    material_texture_dds_key: str = ""
     material_texture_type: str = ""
     material_texture_subtype: str = ""
     material_texture_packed_channels: Tuple[str, ...] = ()
     material_decode_mode: int = 0
     height_texture_key: str = ""
+    height_texture_dds_key: str = ""
     support_maps_disabled: bool = False
     has_texture_coordinates: bool = False
     texture_wrap_repeat: bool = False
@@ -466,6 +508,40 @@ class _TextureUploadDiagnostic:
     native_texture_normal_strength: float = 0.0
     native_texture_alpha_coverage: float = 0.0
     native_texture_scalar_range: Tuple[float, float] = ()
+
+
+class _NativeCompressedGLTexture:
+    """Small QOpenGLTexture-compatible wrapper for raw compressed DDS uploads."""
+
+    def __init__(self, functions: QOpenGLFunctions, texture_id: int) -> None:
+        self._functions = functions
+        self._texture_id = int(texture_id)
+
+    def textureId(self) -> int:
+        return int(self._texture_id)
+
+    def isCreated(self) -> bool:
+        return int(self._texture_id) > 0
+
+    def bind(self, unit: int = 0) -> None:
+        if int(self._texture_id) <= 0:
+            return
+        self._functions.glActiveTexture(_GL_TEXTURE0 + int(unit))
+        self._functions.glBindTexture(_GL_TEXTURE_2D, int(self._texture_id))
+
+    def release(self, unit: int = 0) -> None:
+        self._functions.glActiveTexture(_GL_TEXTURE0 + int(unit))
+        self._functions.glBindTexture(_GL_TEXTURE_2D, 0)
+
+    def destroy(self) -> None:
+        texture_id = int(self._texture_id)
+        if texture_id <= 0:
+            return
+        value = c_uint(texture_id)
+        try:
+            self._functions.glDeleteTextures(1, byref(value))
+        finally:
+            self._texture_id = 0
 
 
 @dataclass(slots=True)
@@ -1393,6 +1469,11 @@ class ModelPreviewWidget(QOpenGLWidget):
     alignment_drag_finished = Signal(float, float, float)
     alignment_rotation_changed = Signal(float, float, float)
     alignment_rotation_finished = Signal(float, float, float)
+    mesh_edit_stroke_started = Signal(object)
+    mesh_edit_stroke_previewed = Signal(object)
+    mesh_edit_stroke_finished = Signal(object)
+    mesh_edit_stroke_cancelled = Signal(object)
+    mesh_edit_selection_changed = Signal(object)
 
     _DEFAULT_YAW = -35.0
     _DEFAULT_PITCH = 20.0
@@ -1420,6 +1501,9 @@ class ModelPreviewWidget(QOpenGLWidget):
     _MATERIAL_DECODE_MRA = 10
     _MATERIAL_DECODE_ARM = 11
     _MATERIAL_DECODE_OPACITY_MASK = 12
+    _MATERIAL_DECODE_PBR_COMBINED = 13
+    _SUPPORT_MAP_MIN_UV_FINITE_RATIO = 0.95
+    _SUPPORT_MAP_MIN_TANGENT_FINITE_RATIO = 0.75
 
     def __init__(self, title: str, *, theme_key: str):
         super().__init__()
@@ -1437,6 +1521,11 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._vertex_blob = b""
         self._vertex_count = 0
         self._gl_ready = False
+        self._opengl_renderer_info = ""
+        self._last_model_prepare_ms = 0.0
+        self._last_geometry_upload_ms = 0.0
+        self._last_texture_upload_ms = 0.0
+        self._last_gl_upload_ms = 0.0
         self._program: Optional[QOpenGLShaderProgram] = None
         self._functions: Optional[QOpenGLFunctions] = None
         self._vertex_buffer = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
@@ -1458,6 +1547,7 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._disable_tint_uniform_location = -1
         self._disable_brightness_uniform_location = -1
         self._disable_uv_scale_uniform_location = -1
+        self._texture_flip_v_uniform_location = -1
         self._disable_lighting_uniform_location = -1
         self._render_build_marker_uniform_location = -1
         self._base_texture_tint_uniform_location = -1
@@ -1511,19 +1601,46 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._alignment_drag_axis = ""
         self._alignment_hover_axis = ""
         self._alignment_translation_units_per_pixel = 0.001
+        self._alignment_translation_sensitivity = 1.0
+        self._alignment_translation_adaptive = True
         self._alignment_live_translation = QVector3D(0.0, 0.0, 0.0)
         self._alignment_drag_total = QVector3D(0.0, 0.0, 0.0)
         self._alignment_rotation_degrees_per_pixel = 0.35
         self._alignment_rotation_drag_active = False
         self._alignment_rotation_drag_roll = False
         self._alignment_live_rotation = QVector3D(0.0, 0.0, 0.0)
+        self._alignment_committed_preview_translation = QVector3D(0.0, 0.0, 0.0)
+        self._alignment_committed_preview_rotation = QVector3D(0.0, 0.0, 0.0)
+        self._alignment_committed_preview_scale = QVector3D(1.0, 1.0, 1.0)
+        self._alignment_base_rotation = QVector3D(0.0, 0.0, 0.0)
+        self._alignment_rotation_origin_override: Optional[Tuple[float, float, float]] = None
         self._alignment_rotation_drag_total = QVector3D(0.0, 0.0, 0.0)
         self._alignment_editable_mesh_start = 0
         self._alignment_editable_mesh_count = -1
         self._alignment_editable_mesh_indices: Optional[set[int]] = None
+        self._mesh_editing_enabled = False
+        self._mesh_edit_tool = "grab"
+        self._mesh_edit_target_mode = "brush"
+        self._mesh_edit_radius_pixels = 24.0
+        self._mesh_edit_strength = 0.5
+        self._mesh_edit_falloff = "smooth"
+        self._mesh_edit_show_vertices = False
+        self._mesh_edit_hover_vertex: Tuple[int, int, int, Tuple[float, float, float], QPointF] = ()
+        self._mesh_edit_selected_vertices: set[Tuple[int, int]] = set()
+        self._mesh_edit_drag_active = False
+        self._mesh_edit_stroke_id = 0
+        self._mesh_edit_drag_start_pos = QPointF()
+        self._mesh_edit_drag_current_pos = QPointF()
+        self._mesh_edit_drag_last_emit_pos = QPointF()
+        self._mesh_edit_drag_last_emit_time = 0.0
+        self._mesh_edit_drag_previewed = False
+        self._mesh_edit_drag_candidates: Tuple[Tuple[int, int, int, Tuple[float, float, float]], ...] = ()
+        self._mesh_edit_screen_cache_key: Tuple[object, ...] = ()
+        self._mesh_edit_screen_cache_entries: Tuple[Tuple[int, int, int, Tuple[float, float, float], QPointF], ...] = ()
         self._current_model = None
         self._mesh_batches: List[_ModelPreviewDrawBatch] = []
         self._texture_objects: Dict[Tuple[str, bool, bool], QOpenGLTexture] = {}
+        self._texture_upload_cache_signature: Tuple[object, ...] = ()
         self._texture_upload_diagnostics: Dict[Tuple[str, bool, bool], _TextureUploadDiagnostic] = {}
         self._batch_render_diagnostics: Dict[int, _BatchRenderDiagnostic] = {}
         self._physics_overlay: Optional[HkxPhysicsOverlayData] = None
@@ -1537,6 +1654,7 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._physics_simulation_last_step = time.monotonic()
         self._physics_simulation_last_debug_refresh = 0.0
         self._batch_luma_diagnostics: Dict[int, _TextureVisibilitySample] = {}
+        self._texture_luma_cache: Dict[Tuple[str, bool, bool], _TextureVisibilitySample] = {}
         self._batch_material_luma_diagnostics: Dict[int, _TextureVisibilitySample] = {}
         self._batch_height_luma_diagnostics: Dict[int, _TextureVisibilitySample] = {}
         self._batch_derived_relief_luma_diagnostics: Dict[int, _TextureVisibilitySample] = {}
@@ -1596,8 +1714,17 @@ class ModelPreviewWidget(QOpenGLWidget):
     def set_alignment_translation_units_per_pixel(self, value: float) -> None:
         try:
             self._alignment_translation_units_per_pixel = max(0.00001, abs(float(value)))
+            self._alignment_translation_adaptive = False
         except Exception:
             self._alignment_translation_units_per_pixel = 0.001
+            self._alignment_translation_adaptive = False
+
+    def set_alignment_translation_sensitivity(self, multiplier: float) -> None:
+        try:
+            self._alignment_translation_sensitivity = max(0.05, min(10.0, abs(float(multiplier))))
+        except Exception:
+            self._alignment_translation_sensitivity = 1.0
+        self._alignment_translation_adaptive = True
 
     def set_alignment_rotation_degrees_per_pixel(self, value: float) -> None:
         try:
@@ -1619,6 +1746,170 @@ class ModelPreviewWidget(QOpenGLWidget):
     def clear_alignment_live_rotation(self) -> None:
         self.set_alignment_live_rotation(0.0, 0.0, 0.0)
 
+    def set_alignment_committed_preview_transform(
+        self,
+        *,
+        translation: Sequence[float] = (0.0, 0.0, 0.0),
+        rotation_degrees: Sequence[float] = (0.0, 0.0, 0.0),
+        scale_xyz: Sequence[float] = (1.0, 1.0, 1.0),
+    ) -> None:
+        translation_values = tuple(float(value) for value in tuple(translation)[:3])
+        rotation_values = tuple(float(value) for value in tuple(rotation_degrees)[:3])
+        scale_values = tuple(float(value) for value in tuple(scale_xyz)[:3])
+        while len(translation_values) < 3:
+            translation_values = (*translation_values, 0.0)
+        while len(rotation_values) < 3:
+            rotation_values = (*rotation_values, 0.0)
+        while len(scale_values) < 3:
+            scale_values = (*scale_values, 1.0)
+        self._alignment_committed_preview_translation = QVector3D(*translation_values[:3])
+        self._alignment_committed_preview_rotation = QVector3D(*rotation_values[:3])
+        self._alignment_committed_preview_scale = QVector3D(
+            max(1e-6, float(scale_values[0])),
+            max(1e-6, float(scale_values[1])),
+            max(1e-6, float(scale_values[2])),
+        )
+        self.update()
+
+    def clear_alignment_committed_preview_transform(self) -> None:
+        self.set_alignment_committed_preview_transform()
+
+    def set_alignment_base_rotation_degrees(self, x: float, y: float, z: float) -> None:
+        self._alignment_base_rotation = QVector3D(float(x), float(y), float(z))
+
+    def set_alignment_rotation_origin_override(
+        self,
+        origin: Optional[Sequence[float]],
+    ) -> None:
+        if origin is None:
+            self._alignment_rotation_origin_override = None
+            return
+        values = tuple(float(value) for value in tuple(origin)[:3])
+        if len(values) != 3 or not all(math.isfinite(value) for value in values):
+            self._alignment_rotation_origin_override = None
+            return
+        self._alignment_rotation_origin_override = values  # type: ignore[assignment]
+
+    @staticmethod
+    def _alignment_euler_xyz_matrix(rotation_degrees: Sequence[float]) -> QMatrix4x4:
+        values = tuple(float(value) for value in tuple(rotation_degrees)[:3])
+        while len(values) < 3:
+            values = (*values, 0.0)
+        rx, ry, rz = values[:3]
+        matrix = QMatrix4x4()
+        # QMatrix4x4 appends transforms, so issue them in reverse to match
+        # cdmw.modding.static_mesh_replacer._rotate_xyz: X, then Y, then Z.
+        if abs(rz) > 1e-8:
+            matrix.rotate(float(rz), 0.0, 0.0, 1.0)
+        if abs(ry) > 1e-8:
+            matrix.rotate(float(ry), 0.0, 1.0, 0.0)
+        if abs(rx) > 1e-8:
+            matrix.rotate(float(rx), 1.0, 0.0, 0.0)
+        return matrix
+
+    @classmethod
+    def _alignment_euler_delta_matrix(
+        cls,
+        base_rotation_degrees: Sequence[float],
+        live_rotation_degrees: Sequence[float],
+    ) -> QMatrix4x4:
+        base_values = tuple(float(value) for value in tuple(base_rotation_degrees)[:3])
+        live_values = tuple(float(value) for value in tuple(live_rotation_degrees)[:3])
+        while len(base_values) < 3:
+            base_values = (*base_values, 0.0)
+        while len(live_values) < 3:
+            live_values = (*live_values, 0.0)
+        target_values = tuple(base_values[index] + live_values[index] for index in range(3))
+        base_matrix = cls._alignment_euler_xyz_matrix(base_values)
+        target_matrix = cls._alignment_euler_xyz_matrix(target_values)
+        inverse_base, invertible = base_matrix.inverted()
+        if not invertible:
+            return cls._alignment_euler_xyz_matrix(live_values)
+        return target_matrix * inverse_base
+
+    def _update_alignment_rotation_drag(self, position: QPointF, modifiers: Qt.KeyboardModifiers) -> bool:
+        current_pos = QPointF(position)
+        delta = current_pos - self._last_mouse_pos
+        self._last_mouse_pos = current_pos
+        if abs(float(delta.x())) <= 1e-6 and abs(float(delta.y())) <= 1e-6:
+            return False
+        degrees_per_pixel = float(self._alignment_rotation_degrees_per_pixel)
+        if bool(modifiers & Qt.ControlModifier):
+            degrees_per_pixel *= 4.0
+        elif bool(modifiers & Qt.ShiftModifier) and not self._alignment_rotation_drag_roll:
+            degrees_per_pixel *= 0.25
+        if self._alignment_rotation_drag_roll:
+            rotation_delta = QVector3D(0.0, 0.0, float(delta.x()) * degrees_per_pixel)
+        else:
+            rotation_delta = QVector3D(float(delta.y()) * degrees_per_pixel, float(delta.x()) * degrees_per_pixel, 0.0)
+        if rotation_delta.lengthSquared() <= 1e-12:
+            return False
+        self._alignment_rotation_drag_total = self._alignment_rotation_drag_total + rotation_delta
+        self.set_alignment_live_rotation(
+            float(self._alignment_rotation_drag_total.x()),
+            float(self._alignment_rotation_drag_total.y()),
+            float(self._alignment_rotation_drag_total.z()),
+        )
+        self.alignment_rotation_changed.emit(
+            float(self._alignment_rotation_drag_total.x()),
+            float(self._alignment_rotation_drag_total.y()),
+            float(self._alignment_rotation_drag_total.z()),
+        )
+        return True
+
+    def _update_alignment_axis_drag(self, position: QPointF, modifiers: Qt.KeyboardModifiers) -> bool:
+        if not self._alignment_drag_axis:
+            return False
+        current_pos = QPointF(position)
+        delta = current_pos - self._last_mouse_pos
+        self._last_mouse_pos = current_pos
+        if abs(float(delta.x())) <= 1e-6 and abs(float(delta.y())) <= 1e-6:
+            return False
+        movement_scale = 0.10 if bool(modifiers & Qt.ShiftModifier) else 4.0 if bool(modifiers & Qt.ControlModifier) else 1.0
+        units_per_pixel = float(self._alignment_source_units_per_pixel()) * movement_scale
+        if self._alignment_drag_axis == "screen":
+            _orbit_offset, right, up = self._camera_orbit_basis()
+            dx = (
+                float(right.x()) * float(delta.x()) * units_per_pixel
+                - float(up.x()) * float(delta.y()) * units_per_pixel
+            )
+            dy = (
+                float(right.y()) * float(delta.x()) * units_per_pixel
+                - float(up.y()) * float(delta.y()) * units_per_pixel
+            )
+            dz = (
+                float(right.z()) * float(delta.x()) * units_per_pixel
+                - float(up.z()) * float(delta.y()) * units_per_pixel
+            )
+        else:
+            axis_points = self._alignment_axis_points()
+            start_end = axis_points.get(self._alignment_drag_axis)
+            if start_end is None:
+                return False
+            start, end = start_end
+            axis_dx = float(end.x() - start.x())
+            axis_dy = float(end.y() - start.y())
+            axis_length = max(math.sqrt(axis_dx * axis_dx + axis_dy * axis_dy), 1.0)
+            projected_pixels = ((float(delta.x()) * axis_dx) + (float(delta.y()) * axis_dy)) / axis_length
+            movement = projected_pixels * units_per_pixel
+            dx = movement if self._alignment_drag_axis == "x" else 0.0
+            dy = movement if self._alignment_drag_axis == "y" else 0.0
+            dz = movement if self._alignment_drag_axis == "z" else 0.0
+        if abs(dx) <= 1e-9 and abs(dy) <= 1e-9 and abs(dz) <= 1e-9:
+            return False
+        self._alignment_drag_total = self._alignment_drag_total + QVector3D(float(dx), float(dy), float(dz))
+        self.set_alignment_live_translation(
+            float(self._alignment_drag_total.x()),
+            float(self._alignment_drag_total.y()),
+            float(self._alignment_drag_total.z()),
+        )
+        self.alignment_drag_changed.emit(
+            float(self._alignment_drag_total.x()),
+            float(self._alignment_drag_total.y()),
+            float(self._alignment_drag_total.z()),
+        )
+        return True
+
     def set_alignment_editable_mesh_range(self, start: int = 0, count: int = -1) -> None:
         self._alignment_editable_mesh_start = max(0, int(start))
         self._alignment_editable_mesh_count = int(count)
@@ -1639,6 +1930,77 @@ class ModelPreviewWidget(QOpenGLWidget):
                     editable_indices.add(editable_index)
             self._alignment_editable_mesh_indices = editable_indices
         self.update()
+
+    def set_mesh_editing_enabled(self, enabled: bool) -> None:
+        if not enabled and self._mesh_edit_drag_active:
+            self._mesh_edit_emit_cancelled()
+        self._mesh_editing_enabled = bool(enabled)
+        if self._mesh_editing_enabled:
+            self._alignment_hover_axis = ""
+        else:
+            self._mesh_edit_drag_active = False
+            self._mesh_edit_drag_candidates = ()
+            self._mesh_edit_hover_vertex = ()
+            self._mesh_edit_drag_previewed = False
+        self.update()
+
+    def set_mesh_edit_target_mode(self, mode: str) -> None:
+        mode_key = str(mode or "brush").strip().lower()
+        self._mesh_edit_target_mode = mode_key if mode_key in {"brush", "vertex", "part"} else "brush"
+        self.update()
+
+    def set_mesh_edit_tool(self, tool: str) -> None:
+        tool_key = str(tool or "grab").strip().lower()
+        self._mesh_edit_tool = tool_key if tool_key in {"grab", "inflate", "pinch", "smooth", "vertex"} else "grab"
+        self.update()
+
+    def set_mesh_edit_brush_settings(
+        self,
+        *,
+        radius_pixels: float,
+        strength: float,
+        falloff: str,
+        show_vertices: bool,
+    ) -> None:
+        try:
+            self._mesh_edit_radius_pixels = max(2.0, min(256.0, float(radius_pixels)))
+        except (TypeError, ValueError, OverflowError):
+            self._mesh_edit_radius_pixels = 24.0
+        try:
+            self._mesh_edit_strength = max(0.0, min(1.0, float(strength)))
+        except (TypeError, ValueError, OverflowError):
+            self._mesh_edit_strength = 0.5
+        falloff_key = str(falloff or "smooth").strip().lower()
+        self._mesh_edit_falloff = falloff_key if falloff_key in {"smooth", "linear", "sharp", "constant"} else "smooth"
+        self._mesh_edit_show_vertices = bool(show_vertices)
+        self.update()
+
+    def clear_mesh_edit_vertex_selection(self) -> None:
+        if not self._mesh_edit_selected_vertices:
+            return
+        self._mesh_edit_selected_vertices.clear()
+        self._emit_mesh_edit_selection_changed()
+        self.update()
+
+    def select_mesh_edit_brush_vertices(self) -> None:
+        if not self._mesh_editing_enabled or self._vertex_count <= 0:
+            return
+        point = self._mesh_edit_drag_current_pos if self._mesh_edit_drag_active else self.mapFromGlobal(QCursor.pos())
+        if isinstance(point, QPoint):
+            point = QPointF(point)
+        candidates = self._mesh_edit_candidates_at(
+            point,
+            radius_pixels=float(self._mesh_edit_radius_pixels),
+            nearest_only=False,
+        )
+        if not candidates:
+            return
+        before = len(self._mesh_edit_selected_vertices)
+        for _mesh_index, source_submesh_index, source_vertex_index, _position in candidates:
+            self._mesh_edit_selected_vertices.add((int(source_submesh_index), int(source_vertex_index)))
+        if len(self._mesh_edit_selected_vertices) != before:
+            self._emit_mesh_edit_selection_changed()
+            self.update()
 
     def view_state_snapshot(self) -> Tuple[float, float, bool, float, float, Tuple[float, float, float]]:
         return (
@@ -1666,6 +2028,9 @@ class ModelPreviewWidget(QOpenGLWidget):
             self._pan_offset = QVector3D(float(pan_offset[0]), float(pan_offset[1]), float(pan_offset[2]))
         except Exception:
             return
+        if not self._mesh_edit_drag_active:
+            self._mesh_edit_screen_cache_key = ()
+            self._mesh_edit_screen_cache_entries = ()
         self.view_state_changed.emit(self._zoom_factor, self._fit_to_view)
         self.update()
 
@@ -1685,6 +2050,7 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._vertex_blob = b""
         self._vertex_count = 0
         self._current_model = None
+        self._mesh_edit_selected_vertices.clear()
         self._physics_overlay = None
         self._physics_hover_target = ()
         self._physics_selected_target = ()
@@ -1703,6 +2069,15 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._drag_active = False
         self._pan_drag_active = False
         self._pan_drag_button = Qt.NoButton
+        self._mesh_edit_drag_active = False
+        self._mesh_edit_drag_candidates = ()
+        self._mesh_edit_hover_vertex = ()
+        self._mesh_edit_drag_previewed = False
+        self._mesh_edit_screen_cache_key = ()
+        self._mesh_edit_screen_cache_entries = ()
+        self._alignment_committed_preview_translation = QVector3D(0.0, 0.0, 0.0)
+        self._alignment_committed_preview_rotation = QVector3D(0.0, 0.0, 0.0)
+        self._alignment_committed_preview_scale = QVector3D(1.0, 1.0, 1.0)
         self._pan_poll_timer.stop()
         self._pan_offset = QVector3D(0.0, 0.0, 0.0)
         self.unsetCursor()
@@ -1715,17 +2090,35 @@ class ModelPreviewWidget(QOpenGLWidget):
         self.update()
 
     def set_model(self, model) -> None:
-        cloned_model, prepared_preview = self.prepare_model_preview(model)
-        self.set_prepared_model(cloned_model, prepared_preview)
+        prepare_started = time.perf_counter()
+        cloned_model, prepared_preview = self.prepare_model_preview(model, render_settings=self.render_settings())
+        prepare_elapsed_ms = (time.perf_counter() - prepare_started) * 1000.0
+        self.set_prepared_model(cloned_model, prepared_preview, prepare_elapsed_ms=prepare_elapsed_ms)
+
+    def set_model_preserving_view(self, model, *, preserve_mesh_edit_cache: bool = False) -> None:
+        view_state = self.view_state_snapshot()
+        cached_key = self._mesh_edit_screen_cache_key
+        cached_entries = self._mesh_edit_screen_cache_entries
+        self.set_model(model)
+        self.restore_view_state(view_state)
+        if preserve_mesh_edit_cache and self._mesh_edit_drag_active:
+            self._mesh_edit_screen_cache_key = cached_key
+            self._mesh_edit_screen_cache_entries = cached_entries
 
     def set_prepared_model(
         self,
         model,
         prepared_preview: Optional[PreparedModelPreviewData],
+        *,
+        prepare_elapsed_ms: Optional[float] = None,
     ) -> None:
         cloned_model = self._clone_model_preview(model)
         self._initialize_preview_slot_defaults(cloned_model)
         if isinstance(prepared_preview, PreparedModelPreviewData):
+            try:
+                self._last_model_prepare_ms = max(0.0, float(prepare_elapsed_ms or 0.0))
+            except (TypeError, ValueError):
+                self._last_model_prepare_ms = 0.0
             vertex_blob = b"".join(batch.vertex_blob for batch in prepared_preview.batches)
             vertex_count = sum(int(batch.index_count) for batch in prepared_preview.batches)
             mesh_batches: List[_ModelPreviewDrawBatch] = []
@@ -1740,9 +2133,12 @@ class ModelPreviewWidget(QOpenGLWidget):
                         first_vertex=first_vertex,
                         vertex_count=int(batch.index_count),
                         texture_key=batch.preview_texture_path,
+                        texture_dds_key=batch.preview_texture_dds_path,
                         normal_texture_key=batch.preview_normal_texture_path,
+                        normal_texture_dds_key=batch.preview_normal_texture_dds_path,
                         normal_texture_strength=float(batch.preview_normal_texture_strength or 0.0),
                         material_texture_key=batch.preview_material_texture_path,
+                        material_texture_dds_key=batch.preview_material_texture_dds_path,
                         material_texture_type=batch.preview_material_texture_type,
                         material_texture_subtype=batch.preview_material_texture_subtype,
                         material_texture_packed_channels=material_texture_channels,
@@ -1752,6 +2148,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                             material_texture_channels,
                         ),
                         height_texture_key=batch.preview_height_texture_path,
+                        height_texture_dds_key=batch.preview_height_texture_dds_path,
                         support_maps_disabled=bool(batch.preview_debug_disable_support_maps),
                         has_texture_coordinates=bool(batch.has_texture_coordinates),
                         texture_wrap_repeat=bool(batch.texture_wrap_repeat),
@@ -1770,7 +2167,9 @@ class ModelPreviewWidget(QOpenGLWidget):
                 )
                 first_vertex += int(batch.index_count)
         else:
+            prepare_started = time.perf_counter()
             vertex_blob, vertex_count, mesh_batches = self._build_vertex_blob(cloned_model)
+            self._last_model_prepare_ms = (time.perf_counter() - prepare_started) * 1000.0
         self._current_model = cloned_model
         self._physics_overlay = (
             getattr(cloned_model, "physics_overlay", None)
@@ -1786,6 +2185,9 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._vertex_blob = vertex_blob
         self._vertex_count = vertex_count
         self._mesh_batches = mesh_batches
+        if not self._mesh_edit_drag_active:
+            self._mesh_edit_screen_cache_key = ()
+            self._mesh_edit_screen_cache_entries = ()
         self._yaw = self._DEFAULT_YAW
         self._pitch = self._DEFAULT_PITCH
         self._fit_to_view = True
@@ -1798,6 +2200,9 @@ class ModelPreviewWidget(QOpenGLWidget):
             self._alignment_live_translation = QVector3D(0.0, 0.0, 0.0)
         if not self._alignment_rotation_drag_active:
             self._alignment_live_rotation = QVector3D(0.0, 0.0, 0.0)
+        self._alignment_committed_preview_translation = QVector3D(0.0, 0.0, 0.0)
+        self._alignment_committed_preview_rotation = QVector3D(0.0, 0.0, 0.0)
+        self._alignment_committed_preview_scale = QVector3D(1.0, 1.0, 1.0)
         self._refresh_debug_overlay_lines()
         self._sync_physics_simulation_timer()
         self._refresh_debug_overlay_lines()
@@ -1810,6 +2215,7 @@ class ModelPreviewWidget(QOpenGLWidget):
         cls,
         model,
         *,
+        render_settings: Optional[ModelPreviewRenderSettings] = None,
         stop_event=None,
     ) -> Tuple[object, Optional[PreparedModelPreviewData]]:
         if stop_event is not None and stop_event.is_set():
@@ -1822,9 +2228,14 @@ class ModelPreviewWidget(QOpenGLWidget):
                 raise RunCancelled("Model preview preparation cancelled.")
             if isinstance(mesh, ModelPreviewMesh):
                 cls._initialize_mesh_preview_slot_defaults(mesh)
+        cls._apply_legacy_material_combiner(
+            cloned_model,
+            render_settings=render_settings,
+            stop_event=stop_event,
+        )
         vertex_blob, vertex_count, mesh_batches = cls._build_vertex_blob(cloned_model)
         prepared_batches: List[PreparedModelPreviewBatch] = []
-        floats_per_vertex = 20
+        floats_per_vertex = 23
         bytes_per_vertex = floats_per_vertex * 4
         for mesh, batch in zip(getattr(cloned_model, "meshes", ()) or (), mesh_batches):
             if stop_event is not None and stop_event.is_set():
@@ -1838,10 +2249,20 @@ class ModelPreviewWidget(QOpenGLWidget):
                     vertex_blob=vertex_blob[start:end],
                     index_count=int(batch.vertex_count),
                     preview_texture_path=batch.texture_key,
+                    preview_texture_dds_path=batch.texture_dds_key or cls._dds_source_path_for_preview_path(batch.texture_key),
                     preview_base_texture_quality=batch.base_texture_quality,
                     preview_normal_texture_path=batch.normal_texture_key,
+                    preview_normal_texture_dds_path=(
+                        batch.normal_texture_dds_key or cls._dds_source_path_for_preview_path(batch.normal_texture_key)
+                    ),
                     preview_material_texture_path=batch.material_texture_key,
+                    preview_material_texture_dds_path=(
+                        batch.material_texture_dds_key or cls._dds_source_path_for_preview_path(batch.material_texture_key)
+                    ),
                     preview_height_texture_path=batch.height_texture_key,
+                    preview_height_texture_dds_path=(
+                        batch.height_texture_dds_key or cls._dds_source_path_for_preview_path(batch.height_texture_key)
+                    ),
                     preview_texture_flip_vertical=batch.texture_flip_vertical,
                     preview_texture_brightness=float(batch.texture_brightness or 1.0),
                     preview_texture_tint=tuple(batch.texture_tint or ()),
@@ -1850,6 +2271,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                     preview_material_texture_type=batch.material_texture_type,
                     preview_material_texture_subtype=batch.material_texture_subtype,
                     preview_material_texture_packed_channels=tuple(batch.material_texture_packed_channels or ()),
+                    preview_material_texture_inputs=cls._preview_material_texture_inputs_for_prepared_batch(mesh, batch),
                     has_texture_coordinates=bool(batch.has_texture_coordinates),
                     texture_wrap_repeat=bool(batch.texture_wrap_repeat),
                     preview_debug_flip_base_v=False,
@@ -2260,6 +2682,9 @@ class ModelPreviewWidget(QOpenGLWidget):
 
     def _rebuild_preview_batches(self) -> None:
         self._vertex_blob, self._vertex_count, self._mesh_batches = self._build_vertex_blob(self._current_model)
+        if not self._mesh_edit_drag_active:
+            self._mesh_edit_screen_cache_key = ()
+            self._mesh_edit_screen_cache_entries = ()
         self._refresh_debug_overlay_lines()
         if self._gl_ready and self.context() is not None:
             self._upload_geometry()
@@ -2344,6 +2769,8 @@ class ModelPreviewWidget(QOpenGLWidget):
             return cls._MATERIAL_DECODE_ARM
         if normalized_subtype == "opacity_mask":
             return cls._MATERIAL_DECODE_OPACITY_MASK
+        if normalized_subtype in {"pbr_combined", "legacy_pbr_combined"}:
+            return cls._MATERIAL_DECODE_PBR_COMBINED
         if normalized_channels[:3] == ("ao", "roughness", "metallic"):
             return cls._MATERIAL_DECODE_ORM
         if normalized_channels[:3] == ("roughness", "metallic", "ao"):
@@ -2378,6 +2805,8 @@ class ModelPreviewWidget(QOpenGLWidget):
             "material_response": "Material Response",
             "packed_mask": "Packed Mask",
             "opacity_mask": "Opacity Mask",
+            "pbr_combined": "Generated PBR Response",
+            "legacy_pbr_combined": "Generated PBR Response",
             "orm": "ORM",
             "rma": "RMA",
             "mra": "MRA",
@@ -2663,6 +3092,288 @@ class ModelPreviewWidget(QOpenGLWidget):
         )
 
     @staticmethod
+    def _dds_source_path_for_preview_path(preview_path: str) -> str:
+        normalized_key = str(preview_path or "").strip()
+        if not normalized_key or normalized_key.lower().startswith("in_memory"):
+            return ""
+        try:
+            direct_source = Path(normalized_key).expanduser()
+            if direct_source.suffix.lower() == ".dds" and direct_source.is_file():
+                return str(direct_source)
+        except OSError:
+            pass
+        try:
+            from cdmw.core.texture_native import read_native_texture_report_sidecar
+
+            report = read_native_texture_report_sidecar(Path(normalized_key))
+        except Exception:
+            return ""
+        if not isinstance(report, Mapping):
+            return ""
+        source_path = dds_source_path_from_report(report)
+        if not source_path:
+            return ""
+        try:
+            source = Path(source_path).expanduser()
+        except OSError:
+            return ""
+        return str(source) if source.is_file() else ""
+
+    @staticmethod
+    def _preview_material_texture_inputs_for_prepared_batch(
+        mesh: object,
+        batch: _ModelPreviewDrawBatch,
+    ) -> Tuple[PreviewMaterialTextureInput, ...]:
+        explicit_inputs = tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())
+        if explicit_inputs:
+            enriched_inputs: List[PreviewMaterialTextureInput] = []
+            changed = False
+            for item in explicit_inputs:
+                if not isinstance(item, PreviewMaterialTextureInput):
+                    enriched_inputs.append(item)
+                    continue
+                if str(getattr(item, "source_dds_path", "") or "").strip():
+                    enriched_inputs.append(item)
+                    continue
+                source_dds_path = ModelPreviewWidget._dds_source_path_for_preview_path(
+                    str(getattr(item, "preview_texture_path", "") or "")
+                )
+                if not source_dds_path:
+                    enriched_inputs.append(item)
+                    continue
+                values = {
+                    field_info.name: getattr(item, field_info.name)
+                    for field_info in dataclass_fields(PreviewMaterialTextureInput)
+                }
+                values["source_dds_path"] = source_dds_path
+                enriched_inputs.append(PreviewMaterialTextureInput(**values))
+                changed = True
+            return tuple(enriched_inputs) if changed else explicit_inputs
+        material_name = str(getattr(mesh, "material_name", "") or batch.material_name or "").strip()
+        texture_name = str(getattr(mesh, "texture_name", "") or batch.texture_name or "").strip()
+        inputs: List[PreviewMaterialTextureInput] = []
+        if batch.texture_key:
+            inputs.append(
+                PreviewMaterialTextureInput(
+                    slot_kind="base",
+                    texture_name=texture_name,
+                    preview_texture_path=batch.texture_key,
+                    source_texture_path=texture_name or batch.texture_key,
+                    source_dds_path=batch.texture_dds_key or ModelPreviewWidget._dds_source_path_for_preview_path(batch.texture_key),
+                    semantic_type="color",
+                    semantic_subtype="albedo",
+                    material_name=material_name,
+                    confidence=batch.base_texture_quality or "prepared",
+                    visualized=True,
+                )
+            )
+        if batch.normal_texture_key:
+            normal_name = str(getattr(mesh, "preview_normal_texture_name", "") or batch.normal_texture_key).strip()
+            inputs.append(
+                PreviewMaterialTextureInput(
+                    slot_kind="normal",
+                    texture_name=normal_name,
+                    preview_texture_path=batch.normal_texture_key,
+                    source_texture_path=normal_name,
+                    source_dds_path=batch.normal_texture_dds_key
+                    or ModelPreviewWidget._dds_source_path_for_preview_path(batch.normal_texture_key),
+                    semantic_type="normal",
+                    semantic_subtype="normal",
+                    material_name=material_name,
+                    confidence="prepared",
+                    visualized=True,
+                )
+            )
+        if batch.material_texture_key:
+            material_texture_name = str(getattr(mesh, "preview_material_texture_name", "") or batch.material_texture_key).strip()
+            inputs.append(
+                PreviewMaterialTextureInput(
+                    slot_kind="material",
+                    texture_name=material_texture_name,
+                    preview_texture_path=batch.material_texture_key,
+                    source_texture_path=material_texture_name,
+                    source_dds_path=batch.material_texture_dds_key
+                    or ModelPreviewWidget._dds_source_path_for_preview_path(batch.material_texture_key),
+                    semantic_type=str(batch.material_texture_type or "material").strip().lower(),
+                    semantic_subtype=str(batch.material_texture_subtype or "").strip().lower(),
+                    packed_channels=tuple(batch.material_texture_packed_channels or ()),
+                    material_name=material_name,
+                    confidence="prepared",
+                    visualized=True,
+                )
+            )
+        if batch.height_texture_key:
+            height_name = str(getattr(mesh, "preview_height_texture_name", "") or batch.height_texture_key).strip()
+            inputs.append(
+                PreviewMaterialTextureInput(
+                    slot_kind="height",
+                    texture_name=height_name,
+                    preview_texture_path=batch.height_texture_key,
+                    source_texture_path=height_name,
+                    source_dds_path=batch.height_texture_dds_key
+                    or ModelPreviewWidget._dds_source_path_for_preview_path(batch.height_texture_key),
+                    semantic_type="height",
+                    semantic_subtype="displacement",
+                    material_name=material_name,
+                    confidence="prepared",
+                    visualized=True,
+                )
+            )
+        return tuple(inputs)
+
+    @staticmethod
+    def _local_texture_source_path(source: object) -> str:
+        text = str(source or "").strip()
+        if not text:
+            return ""
+        try:
+            local = QUrl(text).toLocalFile() if text.lower().startswith("file:") else ""
+        except Exception:
+            local = ""
+        return local or text
+
+    @classmethod
+    def _material_combiner_cache_dir(cls, model: ModelPreviewData) -> Path:
+        digest = hashlib.sha1()
+        digest.update(b"legacy-material-combiner-v4")
+        digest.update(str(getattr(model, "path", "") or "").encode("utf-8", errors="replace"))
+        for mesh in tuple(getattr(model, "meshes", ()) or ()):
+            digest.update(str(getattr(mesh, "material_name", "") or "").encode("utf-8", errors="replace"))
+            for item in tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ()):
+                digest.update(str(getattr(item, "slot_kind", "") or "").encode("utf-8", errors="replace"))
+                digest.update(str(getattr(item, "parameter_name", "") or "").encode("utf-8", errors="replace"))
+                digest.update(str(getattr(item, "preview_texture_path", "") or "").encode("utf-8", errors="replace"))
+                digest.update(str(getattr(item, "source_texture_path", "") or "").encode("utf-8", errors="replace"))
+                digest.update(str(getattr(item, "shader_family", "") or "").encode("utf-8", errors="replace"))
+                for parameter in tuple(getattr(item, "material_parameters", ()) or ()):
+                    for field_name in (
+                        "parameter_kind",
+                        "parameter_name",
+                        "tag_name",
+                        "string_item_id",
+                        "item_id",
+                        "index",
+                        "value",
+                        "texture_path",
+                        "color_value",
+                        "numeric_value",
+                    ):
+                        digest.update(str(getattr(parameter, field_name, "") or "").encode("utf-8", errors="replace"))
+                try:
+                    stat = Path(str(getattr(item, "preview_texture_path", "") or "")).stat()
+                    digest.update(str(int(stat.st_size)).encode("ascii"))
+                    digest.update(str(int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000)))).encode("ascii"))
+                except OSError:
+                    pass
+        return Path(tempfile.gettempdir()) / "cdmw_legacy_material_combiner" / digest.hexdigest()[:20]
+
+    @classmethod
+    def _apply_legacy_material_combiner(
+        cls,
+        model: ModelPreviewData,
+        *,
+        render_settings: Optional[ModelPreviewRenderSettings] = None,
+        stop_event=None,
+    ) -> None:
+        meshes = tuple(getattr(model, "meshes", ()) or ())
+        if not meshes:
+            return
+        settings = clamp_model_preview_render_settings(render_settings)
+        if bool(getattr(settings, "disable_all_support_maps", False)) or bool(getattr(settings, "disable_material_map", False)):
+            return
+        try:
+            from cdmw.ui.model_preview_material_combiner import (
+                MaterialPreviewCombinerSettings,
+                combine_preview_material,
+                synthesize_material_texture_inputs,
+            )
+        except Exception:
+            return
+        output_root = cls._material_combiner_cache_dir(model)
+        for mesh_index, mesh in enumerate(meshes):
+            if stop_event is not None and stop_event.is_set():
+                raise RunCancelled("Model preview preparation cancelled.")
+            if not isinstance(mesh, ModelPreviewMesh):
+                continue
+            inputs = synthesize_material_texture_inputs(mesh)
+            if not inputs:
+                continue
+            has_material_input = any(
+                str(getattr(item, "slot_kind", "") or "").strip().lower() in {"material", "material_mask", "detail_mask"}
+                for item in inputs
+            )
+            if not has_material_input:
+                continue
+            has_usable_tangents = bool(
+                len(getattr(mesh, "positions", ()) or ())
+                and len(getattr(mesh, "texture_coordinates", ()) or ()) == len(getattr(mesh, "positions", ()) or ())
+                and len(getattr(mesh, "normals", ()) or ()) == len(getattr(mesh, "positions", ()) or ())
+            )
+            payload = SimpleNamespace(
+                material_name=str(getattr(mesh, "material_name", "") or ""),
+                texture_name=str(getattr(mesh, "texture_name", "") or ""),
+                texture_flip_vertical=False,
+                material_texture_inputs=inputs,
+                tangents_usable=has_usable_tangents,
+                normal_texture_strength=max(0.0, cls._finite_float(getattr(mesh, "preview_normal_texture_strength", 0.0), 0.0)),
+            )
+            mesh_output_dir = output_root / f"mesh_{mesh_index:03d}"
+            cached_legacy_material = mesh_output_dir / f"batch_{mesh_index:03d}_combined_legacy_pbr.png"
+            if cached_legacy_material.is_file():
+                mesh.preview_material_texture_path = str(cached_legacy_material)
+                mesh.preview_material_texture_image = None
+                mesh.preview_material_texture_name = cached_legacy_material.name
+                mesh.preview_material_texture_type = "material"
+                mesh.preview_material_texture_subtype = "pbr_combined"
+                mesh.preview_material_texture_packed_channels = ("ao", "roughness", "metallic", "specular")
+                cached_base = mesh_output_dir / f"batch_{mesh_index:03d}_albedo.png"
+                if not cached_base.is_file():
+                    cached_base = mesh_output_dir / f"batch_{mesh_index:03d}_base.png"
+                if cached_base.is_file():
+                    mesh.preview_texture_path = str(cached_base)
+                    mesh.preview_texture_image = None
+                existing_note = str(getattr(mesh, "preview_texture_approximation_note", "") or "").strip()
+                suffix = "Material combiner: cache hit; legacy PBR response"
+                mesh.preview_texture_approximation_note = f"{existing_note}; {suffix}" if existing_note else suffix
+                continue
+            try:
+                combined = combine_preview_material(
+                    payload,
+                    mesh_output_dir,
+                    mesh_index,
+                    settings=MaterialPreviewCombinerSettings(
+                        normal_strength_floor=max(0.0, cls._finite_float(getattr(settings, "normal_strength_floor", 0.5), 0.5)),
+                        normal_strength_cap=max(0.0, cls._finite_float(getattr(settings, "normal_strength_cap", 1.0), 1.0)),
+                        height_amount=max(0.0, min(0.12, cls._finite_float(getattr(settings, "height_effect_max", 0.35), 0.35) * 0.08)),
+                        support_map_max_dimension=min(192, int(getattr(settings, "low_quality_texture_max_dimension", 192) or 192)),
+                    ),
+                )
+            except Exception:
+                continue
+            legacy_material_source = cls._local_texture_source_path(getattr(combined, "legacy_material_source", ""))
+            if legacy_material_source:
+                mesh.preview_material_texture_path = legacy_material_source
+                mesh.preview_material_texture_image = None
+                mesh.preview_material_texture_name = Path(legacy_material_source).name
+                mesh.preview_material_texture_type = "material"
+                mesh.preview_material_texture_subtype = "pbr_combined"
+                mesh.preview_material_texture_packed_channels = ("ao", "roughness", "metallic", "specular")
+            base_source = cls._local_texture_source_path(getattr(combined, "base_source", ""))
+            if base_source:
+                mesh.preview_texture_path = base_source
+                mesh.preview_texture_image = None
+            height_source = cls._local_texture_source_path(getattr(combined, "height_source", ""))
+            if height_source and not bool(getattr(settings, "disable_height_map", False)):
+                mesh.preview_height_texture_path = height_source
+                mesh.preview_height_texture_image = None
+                mesh.preview_height_texture_name = Path(height_source).name
+            notes = tuple(str(note) for note in tuple(getattr(combined, "notes", ()) or ()) if str(note))
+            if notes:
+                existing_note = str(getattr(mesh, "preview_texture_approximation_note", "") or "").strip()
+                suffix = "Material combiner: " + "; ".join(notes[:6])
+                mesh.preview_texture_approximation_note = f"{existing_note}; {suffix}" if existing_note else suffix
+
+    @staticmethod
     def _derive_relief_image_from_base(texture_image: QImage, *, max_dimension: int = 512) -> Optional[QImage]:
         if texture_image.isNull():
             return None
@@ -2789,7 +3500,16 @@ class ModelPreviewWidget(QOpenGLWidget):
             return "inactive", reason, False, "inactive"
         if render_mode_code == 22:
             return "active", reason, True, source
-        return "inactive", "Relief texture diagnostic is selected.", True, source
+            return "inactive", "Relief texture diagnostic is selected.", True, source
+
+    @classmethod
+    def _support_map_geometry_usable(cls, batch: _ModelPreviewDrawBatch) -> bool:
+        return bool(
+            batch.has_texture_coordinates
+            and float(getattr(batch, "uv_finite_ratio", 0.0) or 0.0) >= cls._SUPPORT_MAP_MIN_UV_FINITE_RATIO
+            and float(getattr(batch, "tangent_finite_ratio", 0.0) or 0.0) >= cls._SUPPORT_MAP_MIN_TANGENT_FINITE_RATIO
+            and float(getattr(batch, "bitangent_finite_ratio", 0.0) or 0.0) >= cls._SUPPORT_MAP_MIN_TANGENT_FINITE_RATIO
+        )
 
     def _diagnostic_for_unpainted_batch(
         self,
@@ -2831,12 +3551,13 @@ class ModelPreviewWidget(QOpenGLWidget):
         )
         render_mode = str(getattr(settings, "render_diagnostic_mode", "lit") or "lit").strip().lower()
         render_mode_code = int(_RENDER_DIAGNOSTIC_MODE_CODES.get(render_mode, 0))
+        support_geometry_usable = self._support_map_geometry_usable(batch)
         enhanced_state, enhanced_reason, enhanced_usable, relief_source = self._enhanced_relief_status(
             render_mode_code=render_mode_code,
-            high_quality_enabled=bool(self._high_quality_textures and batch.has_texture_coordinates),
+            high_quality_enabled=bool(self._high_quality_textures and support_geometry_usable),
             support_maps_enabled=bool(
                 self._high_quality_textures
-                and batch.has_texture_coordinates
+                and support_geometry_usable
                 and not batch.support_maps_disabled
                 and not bool(getattr(settings, "disable_all_support_maps", False))
             ),
@@ -3117,12 +3838,16 @@ class ModelPreviewWidget(QOpenGLWidget):
         relief_sources = sorted({item.relief_source for item in diagnostics if item.relief_source})
         relief_reason_text = relief_reasons[0] if relief_reasons else "All eligible batches have calibrated relief."
         native_decoded = sum(1 for item in diagnostics if item.native_texture_status == "decoded")
+        native_direct = sum(1 for item in diagnostics if item.native_texture_status == "direct_upload")
         native_backend_names = sorted({item.native_texture_backend for item in diagnostics if item.native_texture_backend})
-        native_backend_text = (
-            f"rust decoded {native_decoded:,}/{len(diagnostics):,} batch(es)"
-            if native_decoded
-            else "texconv fallback or non-native cache"
-        )
+        if native_direct:
+            native_backend_text = f"DDS direct upload {native_direct:,}/{len(diagnostics):,} batch(es)"
+            if native_decoded:
+                native_backend_text += f"; decoded fallback {native_decoded:,}"
+        elif native_decoded:
+            native_backend_text = f"native decoded {native_decoded:,}/{len(diagnostics):,} batch(es)"
+        else:
+            native_backend_text = "texconv fallback or non-native cache"
         if native_backend_names:
             native_backend_text = f"{native_backend_text}; backend={','.join(native_backend_names[:3])}"
         framebuffer = self._framebuffer_visibility_diagnostic
@@ -3323,6 +4048,7 @@ class ModelPreviewWidget(QOpenGLWidget):
         base_sources: List[str] = []
         base_qualities: List[str] = []
         sidecar_approximation_count = 0
+        material_combiner_notes: List[str] = []
         for mesh in meshes:
             base_names.append(
                 self._texture_display_name(
@@ -3354,8 +4080,11 @@ class ModelPreviewWidget(QOpenGLWidget):
             base_quality = str(getattr(mesh, "preview_base_texture_quality", "") or "").strip()
             if base_quality:
                 base_qualities.append(base_quality.replace("_", " ").title())
-            if str(getattr(mesh, "preview_texture_approximation_note", "") or "").strip():
+            approximation_note = str(getattr(mesh, "preview_texture_approximation_note", "") or "").strip()
+            if approximation_note:
                 sidecar_approximation_count += 1
+                if "material combiner:" in approximation_note.lower():
+                    material_combiner_notes.append(approximation_note)
             if str(getattr(mesh, "preview_material_texture_path", "") or "").strip() or getattr(
                 mesh,
                 "preview_material_texture_image",
@@ -3387,6 +4116,12 @@ class ModelPreviewWidget(QOpenGLWidget):
         support_gate_reasons: List[str] = []
         if sum(support_available_counts.values()) <= 0:
             support_gate_reasons.append("no support maps resolved")
+        elif any(
+            (batch.normal_texture_key or batch.material_texture_key or batch.height_texture_key)
+            and not self._support_map_geometry_usable(batch)
+            for batch in self._mesh_batches
+        ):
+            support_gate_reasons.append("missing UVs or valid tangent frames")
         if not self._high_quality_textures:
             support_gate_reasons.append("support-map preview shading off")
         if bool(getattr(settings, "disable_all_support_maps", False)) or self.support_maps_disabled():
@@ -3498,7 +4233,19 @@ class ModelPreviewWidget(QOpenGLWidget):
                 if sidecar_approximation_count
                 else "Preview Approximation: None"
             ),
+            (
+                "Material Combiner: " + self._summarize_overlay_values(material_combiner_notes)
+                if material_combiner_notes
+                else "Material Combiner: inactive"
+            ),
             f"Overrides: {', '.join(override_labels) if override_labels else 'None'}",
+            (
+                "Renderer: "
+                f"{self._opengl_renderer_info or 'OpenGL renderer pending'}; "
+                f"prepare={self._last_model_prepare_ms:.1f} ms; "
+                f"upload={self._last_gl_upload_ms:.1f} ms "
+                f"(geometry={self._last_geometry_upload_ms:.1f}, textures={self._last_texture_upload_ms:.1f})"
+            ),
             *render_diagnostic_lines,
         )
         details_text = "\n".join(self._debug_detail_lines)
@@ -3546,6 +4293,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             or previous.low_quality_texture_max_dimension != clamped.low_quality_texture_max_dimension
             or previous.max_anisotropy != clamped.max_anisotropy
             or previous.force_nearest_no_mipmaps != clamped.force_nearest_no_mipmaps
+            or previous.disable_all_support_maps != clamped.disable_all_support_maps
             or derived_relief_need_changed
         )
         if render_response_changed:
@@ -3609,6 +4357,21 @@ class ModelPreviewWidget(QOpenGLWidget):
         viewport_height = max(1, self.height())
         visible_height = 2.0 * max(self._distance, 0.1) * math.tan(math.radians(self._VERTICAL_FOV_DEGREES) * 0.5)
         return visible_height / float(viewport_height)
+
+    def _alignment_source_units_per_pixel(self) -> float:
+        if not bool(self._alignment_translation_adaptive):
+            return float(self._alignment_translation_units_per_pixel)
+        normalization_scale = 1.0
+        try:
+            normalization_scale = float(getattr(self._current_model, "normalization_scale", 1.0) or 1.0)
+        except Exception:
+            normalization_scale = 1.0
+        normalization_scale = max(abs(normalization_scale), 1e-8)
+        return max(
+            0.000001,
+            (self._world_units_per_pixel() / normalization_scale)
+            * float(self._alignment_translation_sensitivity),
+        )
 
     def _camera_orbit_basis(self) -> Tuple[QVector3D, QVector3D, QVector3D]:
         yaw_radians = math.radians(float(self._yaw))
@@ -3692,15 +4455,40 @@ class ModelPreviewWidget(QOpenGLWidget):
         rotation_origin: tuple[float, float, float],
     ) -> QMatrix4x4:
         matrix = QMatrix4x4(base_model)
-        if live_translation.lengthSquared() > 1e-12:
-            matrix.translate(live_translation)
-        if live_rotation.lengthSquared() > 1e-12:
+        committed_translation = QVector3D(self._alignment_committed_preview_translation)
+        committed_rotation = QVector3D(self._alignment_committed_preview_rotation)
+        committed_scale = QVector3D(self._alignment_committed_preview_scale)
+        total_translation = committed_translation + live_translation
+        total_rotation = committed_rotation + live_rotation
+        has_scale = (
+            abs(float(committed_scale.x()) - 1.0) > 1e-8
+            or abs(float(committed_scale.y()) - 1.0) > 1e-8
+            or abs(float(committed_scale.z()) - 1.0) > 1e-8
+        )
+        if total_translation.lengthSquared() > 1e-12:
+            matrix.translate(total_translation)
+        if has_scale:
             matrix.translate(float(rotation_origin[0]), float(rotation_origin[1]), float(rotation_origin[2]))
-            matrix.rotate(float(live_rotation.x()), 1.0, 0.0, 0.0)
-            matrix.rotate(float(live_rotation.y()), 0.0, 1.0, 0.0)
-            matrix.rotate(float(live_rotation.z()), 0.0, 0.0, 1.0)
+            matrix.scale(float(committed_scale.x()), float(committed_scale.y()), float(committed_scale.z()))
+            matrix.translate(-float(rotation_origin[0]), -float(rotation_origin[1]), -float(rotation_origin[2]))
+        if total_rotation.lengthSquared() > 1e-12:
+            rotation_delta = self._alignment_euler_delta_matrix(
+                (
+                    float(self._alignment_base_rotation.x()),
+                    float(self._alignment_base_rotation.y()),
+                    float(self._alignment_base_rotation.z()),
+                ),
+                (float(total_rotation.x()), float(total_rotation.y()), float(total_rotation.z())),
+            )
+            matrix.translate(float(rotation_origin[0]), float(rotation_origin[1]), float(rotation_origin[2]))
+            matrix = matrix * rotation_delta
             matrix.translate(-float(rotation_origin[0]), -float(rotation_origin[1]), -float(rotation_origin[2]))
         return matrix
+
+    def _alignment_rotation_origin(self) -> tuple[float, float, float]:
+        if self._alignment_rotation_origin_override is not None:
+            return self._alignment_rotation_origin_override
+        return self._alignment_handle_origin(include_live_translation=False)
 
     def _alignment_batch_is_editable(self, batch_index: int) -> bool:
         if self._alignment_editable_mesh_indices is not None:
@@ -3712,18 +4500,133 @@ class ModelPreviewWidget(QOpenGLWidget):
             and batch_index < self._alignment_editable_mesh_start + self._alignment_editable_mesh_count
         )
 
+    def _alignment_selected_batch_indices(self) -> Tuple[int, ...]:
+        if not self._alignment_editing_enabled or self._alignment_editable_mesh_indices is None:
+            return ()
+        meshes = getattr(self._current_model, "meshes", None) or ()
+        mesh_count = len(meshes)
+        if mesh_count <= 0:
+            return ()
+        selected = tuple(
+            sorted(
+                int(index)
+                for index in self._alignment_editable_mesh_indices
+                if 0 <= int(index) < mesh_count
+            )
+        )
+        if not selected or len(selected) >= mesh_count:
+            return ()
+        return selected
+
+    def _alignment_batch_mvp_matrix(self, batch_index: int) -> QMatrix4x4:
+        width = max(1, self.width())
+        height = max(1, self.height())
+        projection = QMatrix4x4()
+        projection.perspective(self._VERTICAL_FOV_DEGREES, width / float(height), 0.1, 100.0)
+        view = QMatrix4x4()
+        view.translate(0.0, 0.0, -self._distance)
+        base_model = self._preview_base_model_matrix()
+        live_translation = self._alignment_translation_display_vector()
+        live_rotation = QVector3D(self._alignment_live_rotation)
+        committed_translation = QVector3D(self._alignment_committed_preview_translation)
+        committed_rotation = QVector3D(self._alignment_committed_preview_rotation)
+        committed_scale = QVector3D(self._alignment_committed_preview_scale)
+        has_committed_scale = (
+            abs(float(committed_scale.x()) - 1.0) > 1e-8
+            or abs(float(committed_scale.y()) - 1.0) > 1e-8
+            or abs(float(committed_scale.z()) - 1.0) > 1e-8
+        )
+        if (
+            self._alignment_batch_is_editable(batch_index)
+            and (
+                live_translation.lengthSquared() > 1e-12
+                or live_rotation.lengthSquared() > 1e-12
+                or committed_translation.lengthSquared() > 1e-12
+                or committed_rotation.lengthSquared() > 1e-12
+                or has_committed_scale
+            )
+        ):
+            rotation_origin = self._alignment_rotation_origin()
+            base_model = self._apply_alignment_live_transform(base_model, live_translation, live_rotation, rotation_origin)
+        return projection * view * base_model
+
+    @staticmethod
+    def _alignment_mesh_bounds(mesh: object) -> Optional[Tuple[Tuple[float, float, float], Tuple[float, float, float]]]:
+        positions = getattr(mesh, "positions", None) or ()
+        xs: List[float] = []
+        ys: List[float] = []
+        zs: List[float] = []
+        for position in positions:
+            if not isinstance(position, (list, tuple)) or len(position) < 3:
+                continue
+            try:
+                xs.append(float(position[0]))
+                ys.append(float(position[1]))
+                zs.append(float(position[2]))
+            except (TypeError, ValueError):
+                continue
+        if not xs:
+            return None
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        min_z, max_z = min(zs), max(zs)
+        span = max(max_x - min_x, max_y - min_y, max_z - min_z, 1.0)
+        pad = span * 0.012
+        if max_x - min_x <= 1e-8:
+            min_x -= pad
+            max_x += pad
+        if max_y - min_y <= 1e-8:
+            min_y -= pad
+            max_y += pad
+        if max_z - min_z <= 1e-8:
+            min_z -= pad
+            max_z += pad
+        return (min_x, min_y, min_z), (max_x, max_y, max_z)
+
     def _preview_base_model_matrix(self) -> QMatrix4x4:
         model = QMatrix4x4()
         model.translate(self._pan_offset)
         model.rotate(self._pitch, 1.0, 0.0, 0.0)
         model.rotate(self._yaw, 0.0, 1.0, 0.0)
         return model
+
+    def _read_opengl_renderer_info(self) -> str:
+        functions = self._functions
+        if functions is None or not hasattr(functions, "glGetString"):
+            return ""
+
+        def _read_string(name: int) -> str:
+            try:
+                raw = functions.glGetString(name)
+            except Exception:
+                return ""
+            if raw is None:
+                return ""
+            if isinstance(raw, bytes):
+                return raw.decode("utf-8", errors="replace")
+            if isinstance(raw, int):
+                if raw <= 0:
+                    return ""
+                try:
+                    return string_at(raw).decode("utf-8", errors="replace")
+                except Exception:
+                    return ""
+            try:
+                return bytes(raw).decode("utf-8", errors="replace")
+            except Exception:
+                return str(raw)
+
+        vendor = _read_string(_GL_VENDOR)
+        renderer = _read_string(_GL_RENDERER)
+        version = _read_string(_GL_VERSION)
+        return " | ".join(part for part in (vendor, renderer, version) if part)
             
 
     def initializeGL(self) -> None:  # type: ignore[override]
         self._functions = self.context().functions() if self.context() is not None else None
         if self._functions is None:
             return
+        self._opengl_renderer_info = self._read_opengl_renderer_info()
         self._functions.glEnable(_GL_DEPTH_TEST)
         self._functions.glDisable(_GL_CULL_FACE)
 
@@ -3739,6 +4642,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             attribute vec3 tangent;
             attribute vec3 bitangent;
             attribute vec3 smooth_normal;
+            attribute vec3 barycentric;
             uniform mat4 mvp_matrix;
             uniform mat4 model_matrix;
             uniform float cloth_preview_strength;
@@ -3753,6 +4657,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             varying vec2 frag_texcoord;
             varying vec3 frag_tangent;
             varying vec3 frag_bitangent;
+            varying vec3 frag_barycentric;
             vec3 safe_normalize(vec3 value, vec3 fallback) {
                 float len_sq = dot(value, value);
                 if (len_sq <= 0.00000001) {
@@ -3788,6 +4693,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                 frag_bitangent = safe_normalize((model_matrix * vec4(bitangent, 0.0)).xyz, vec3(0.0, 1.0, 0.0));
                 frag_color = color;
                 frag_texcoord = texcoord;
+                frag_barycentric = barycentric;
                 gl_Position = mvp_matrix * vec4(preview_position, 1.0);
             }
             """,
@@ -3805,6 +4711,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             varying vec2 frag_texcoord;
             varying vec3 frag_tangent;
             varying vec3 frag_bitangent;
+            varying vec3 frag_barycentric;
             uniform vec3 camera_position;
             uniform vec3 light_direction;
             uniform float ambient_strength;
@@ -3815,6 +4722,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             uniform int disable_tint;
             uniform int disable_brightness;
             uniform int disable_uv_scale;
+            uniform int texture_flip_v;
             uniform int disable_lighting;
             uniform float render_build_marker;
             uniform vec3 base_texture_tint;
@@ -3896,6 +4804,41 @@ class ModelPreviewWidget(QOpenGLWidget):
                 vec3 hue = clamp(hint / hint_luma, vec3(0.35), vec3(1.85));
                 vec3 colored = clamp(max(base * 0.72, hue * max(base_luma, 0.10)), 0.0, 1.35);
                 return mix(base, colored, clamp(amount, 0.0, 1.0));
+            }
+            vec3 procedural_matcap(vec3 surface_normal, vec3 view_dir) {
+                vec3 n = safe_normalize(surface_normal, vec3(0.0, 0.0, 1.0));
+                vec3 v = safe_normalize(view_dir, vec3(0.0, 0.0, 1.0));
+                vec3 key_dir = safe_normalize(vec3(-0.35, 0.48, 0.80), vec3(0.0, 0.0, 1.0));
+                vec3 fill_dir = safe_normalize(vec3(0.55, -0.25, 0.55), vec3(0.0, 0.0, 1.0));
+                float key = clamp(dot(n, key_dir) * 0.5 + 0.5, 0.0, 1.0);
+                float fill = clamp(dot(n, fill_dir) * 0.5 + 0.5, 0.0, 1.0);
+                float facing = clamp(dot(n, v), 0.0, 1.0);
+                float rim = pow(1.0 - facing, 2.4);
+                vec3 reflected = reflect(-v, n);
+                float highlight = pow(clamp(dot(reflected, key_dir), 0.0, 1.0), 22.0);
+                vec3 shade = mix(vec3(0.18, 0.21, 0.22), vec3(0.70, 0.75, 0.75), key);
+                shade += fill * vec3(0.06, 0.08, 0.10);
+                shade += rim * vec3(0.20, 0.24, 0.27);
+                shade += highlight * vec3(0.55, 0.58, 0.54);
+                return clamp(shade, 0.0, 1.0);
+            }
+            float wireframe_edge_factor(vec3 barycentric_value) {
+                float nearest_edge = min(min(barycentric_value.x, barycentric_value.y), barycentric_value.z);
+                return smoothstep(0.006, 0.036, nearest_edge);
+            }
+            vec3 uv_checker_color(vec2 uv) {
+                vec2 scaled = uv * 10.0;
+                vec2 cell = floor(scaled);
+                vec2 local = fract(scaled);
+                float checker = mod(cell.x + cell.y, 2.0);
+                float grid = 1.0 - step(0.030, min(min(local.x, local.y), min(1.0 - local.x, 1.0 - local.y)));
+                vec3 a = vec3(0.08, 0.10, 0.12);
+                vec3 b = vec3(0.82, 0.84, 0.78);
+                vec3 color = mix(a, b, checker);
+                color = mix(color, vec3(0.12, 0.48, 0.95), grid);
+                color.r += step(0.985, local.x) * 0.25;
+                color.g += step(0.985, local.y) * 0.25;
+                return clamp(color, 0.0, 1.0);
             }
             float calibrated_height_value(float raw_height) {
                 float range = max(height_sample_max - height_sample_min, 0.001);
@@ -4004,6 +4947,12 @@ class ModelPreviewWidget(QOpenGLWidget):
                     metallic_value = 0.0;
                     specular_value = 0.10;
                     cavity_value = 1.0;
+                } else if (decode_mode == 13) {
+                    ao_value = clamp(sample.r, 0.45, 1.0);
+                    roughness_value = clamp(sample.g, 0.04, 0.98);
+                    metallic_value = clamp(sample.b, 0.0, 1.0);
+                    specular_value = clamp(sample.a, 0.0, 1.0);
+                    cavity_value = ao_value;
                 } else {
                     ao_value = clamp(1.0 - (sample.r * 0.16), 0.78, 1.0);
                     roughness_value = clamp(0.22 + (sample.g * 0.54), 0.10, 0.96);
@@ -4059,6 +5008,9 @@ class ModelPreviewWidget(QOpenGLWidget):
                 }
                 vec4 base_color = vec4(fallback_vertex_color, 1.0);
                 vec2 sample_uv = disable_uv_scale != 0 ? frag_texcoord : frag_texcoord * base_texture_uv_scale;
+                if (texture_flip_v != 0) {
+                    sample_uv.y = 1.0 - sample_uv.y;
+                }
                 float relief_self_shadow = 0.0;
                 float relief_parallax_amount = 0.0;
                 float sampled_base_luma = dot(base_color.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -4078,6 +5030,24 @@ class ModelPreviewWidget(QOpenGLWidget):
                 if (render_diagnostic_mode == 5) {
                     vec3 geometry_normal = safe_normalize(frag_object_normal, vec3(0.0, 0.0, 1.0));
                     gl_FragColor = vec4(clamp((geometry_normal * 0.5) + vec3(0.5), 0.0, 1.0), 1.0);
+                    return;
+                }
+                if (render_diagnostic_mode == 25) {
+                    vec3 view_dir = safe_normalize(camera_position - frag_position, vec3(0.0, 0.0, 1.0));
+                    vec3 matcap_normal = safe_normalize(mix(surface_normal, frag_smooth_normal, 0.42), surface_normal);
+                    gl_FragColor = vec4(procedural_matcap(matcap_normal, view_dir), 1.0);
+                    return;
+                }
+                if (render_diagnostic_mode == 26) {
+                    float inside_triangle = wireframe_edge_factor(frag_barycentric);
+                    vec3 wire_color = vec3(0.86, 0.93, 0.96);
+                    vec3 fill_color = vec3(0.010, 0.014, 0.018);
+                    gl_FragColor = vec4(mix(wire_color, fill_color, inside_triangle), 1.0);
+                    return;
+                }
+                if (render_diagnostic_mode == 27) {
+                    vec3 normal_preview_base = procedural_matcap(surface_normal, safe_normalize(camera_position - frag_position, vec3(0.0, 0.0, 1.0)));
+                    gl_FragColor = vec4(mix(vec3(0.30, 0.32, 0.34), normal_preview_base, 0.48), 1.0);
                     return;
                 }
                 vec3 preview_tangent = safe_normalize(frag_tangent, vec3(1.0, 0.0, 0.0));
@@ -4129,6 +5099,10 @@ class ModelPreviewWidget(QOpenGLWidget):
                 }
                 if (render_diagnostic_mode == 6) {
                     gl_FragColor = vec4(fract(abs(sample_uv.x)), fract(abs(sample_uv.y)), 0.35, 1.0);
+                    return;
+                }
+                if (render_diagnostic_mode == 28) {
+                    gl_FragColor = vec4(uv_checker_color(sample_uv), 1.0);
                     return;
                 }
                 if (render_diagnostic_mode == 7) {
@@ -4801,6 +5775,7 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._disable_tint_uniform_location = program.uniformLocation("disable_tint")
         self._disable_brightness_uniform_location = program.uniformLocation("disable_brightness")
         self._disable_uv_scale_uniform_location = program.uniformLocation("disable_uv_scale")
+        self._texture_flip_v_uniform_location = program.uniformLocation("texture_flip_v")
         self._disable_lighting_uniform_location = program.uniformLocation("disable_lighting")
         self._render_build_marker_uniform_location = program.uniformLocation("render_build_marker")
         self._base_texture_tint_uniform_location = program.uniformLocation("base_texture_tint")
@@ -4910,7 +5885,20 @@ class ModelPreviewWidget(QOpenGLWidget):
         has_live_translation = live_translation.lengthSquared() > 1e-12
         live_rotation = QVector3D(self._alignment_live_rotation)
         has_live_rotation = live_rotation.lengthSquared() > 1e-12
-        rotation_origin = self._alignment_handle_origin(include_live_translation=False) if has_live_rotation else (0.0, 0.0, 0.0)
+        committed_translation = QVector3D(self._alignment_committed_preview_translation)
+        committed_rotation = QVector3D(self._alignment_committed_preview_rotation)
+        committed_scale = QVector3D(self._alignment_committed_preview_scale)
+        has_committed_scale = (
+            abs(float(committed_scale.x()) - 1.0) > 1e-8
+            or abs(float(committed_scale.y()) - 1.0) > 1e-8
+            or abs(float(committed_scale.z()) - 1.0) > 1e-8
+        )
+        has_committed_transform = (
+            committed_translation.lengthSquared() > 1e-12
+            or committed_rotation.lengthSquared() > 1e-12
+            or has_committed_scale
+        )
+        rotation_origin = self._alignment_rotation_origin() if (has_live_rotation or has_committed_transform) else (0.0, 0.0, 0.0)
 
         self._program.bind()
         self._program.setUniformValue(self._camera_uniform_location, QVector3D(0.0, 0.0, self._distance))
@@ -4949,7 +5937,10 @@ class ModelPreviewWidget(QOpenGLWidget):
         for batch_index, batch in enumerate(self._mesh_batches):
             if solo_batch_index >= 0 and batch_index != solo_batch_index:
                 continue
-            transformed_batch = bool((has_live_translation or has_live_rotation) and self._alignment_batch_is_editable(batch_index))
+            transformed_batch = bool(
+                (has_live_translation or has_live_rotation or has_committed_transform)
+                and self._alignment_batch_is_editable(batch_index)
+            )
             if transformed_batch:
                 batch_model = self._apply_alignment_live_transform(base_model, live_translation, live_rotation, rotation_origin)
             else:
@@ -4994,9 +5985,10 @@ class ModelPreviewWidget(QOpenGLWidget):
                     and self._texture_id(diffuse_draw_texture) > 0
                 )
             )
+            support_geometry_usable = self._support_map_geometry_usable(batch)
             use_high_quality_maps = bool(
                 self._high_quality_textures
-                and batch.has_texture_coordinates
+                and support_geometry_usable
             )
             support_maps_enabled = bool(
                 use_high_quality_maps
@@ -5066,7 +6058,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             use_high_quality_shading = int(
                 bool(
                     self._high_quality_textures
-                    and batch.has_texture_coordinates
+                    and support_geometry_usable
                     and (use_texture or use_normal_texture or use_material_texture or use_height_texture or use_relief_texture)
                 )
             )
@@ -5248,6 +6240,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             self._program.setUniformValue(self._base_texture_average_color_uniform_location, source_average_color)
             self._program.setUniformValue(self._base_texture_average_luma_uniform_location, source_average_luma)
             self._program.setUniformValue(self._base_texture_quality_uniform_location, base_texture_quality_code)
+            self._program.setUniformValue(self._texture_flip_v_uniform_location, int(bool(batch.texture_flip_vertical)))
             self._program.setUniformValue(self._texture_sampler_uniform_location, int(diffuse_unit))
             self._program.setUniformValue(self._use_high_quality_uniform_location, use_high_quality_shading)
             self._program.setUniformValue(self._use_normal_texture_uniform_location, use_normal_texture)
@@ -6884,7 +7877,11 @@ class ModelPreviewWidget(QOpenGLWidget):
             positions.extend(getattr(mesh, "positions", None) or [])
         if not positions:
             return (0.0, 0.0, 0.0)
-        live_translation = self._alignment_translation_display_vector() if include_live_translation else QVector3D(0.0, 0.0, 0.0)
+        live_translation = (
+            self._alignment_translation_display_vector() + QVector3D(self._alignment_committed_preview_translation)
+            if include_live_translation
+            else QVector3D(0.0, 0.0, 0.0)
+        )
         min_x = min(float(position[0]) for position in positions)
         min_y = min(float(position[1]) for position in positions)
         min_z = min(float(position[2]) for position in positions)
@@ -6936,8 +7933,15 @@ class ModelPreviewWidget(QOpenGLWidget):
         return math.sqrt(dx * dx + dy * dy)
 
     def _alignment_axis_at(self, point: QPointF) -> str:
+        mvp = self._preview_mvp_matrix()
+        origin = self._project_preview_point(mvp, self._alignment_handle_origin())
+        if origin is not None:
+            dx = float(point.x() - origin.x())
+            dy = float(point.y() - origin.y())
+            if math.sqrt(dx * dx + dy * dy) <= 18.0:
+                return "screen"
         best_axis = ""
-        best_distance = 14.0
+        best_distance = 20.0
         for axis_name, (start, end) in self._alignment_axis_points().items():
             distance = self._distance_to_segment(point, start, end)
             if distance < best_distance:
@@ -6957,8 +7961,10 @@ class ModelPreviewWidget(QOpenGLWidget):
             "z": QColor(34, 197, 94, 220),
         }
         labels = {"x": "X", "y": "Y", "z": "Z"}
+        origin_point = None
         for axis_name, (start, end) in axis_points.items():
             active = axis_name == self._alignment_drag_axis or axis_name == self._alignment_hover_axis
+            origin_point = start
             color = colors[axis_name]
             width = 3.2 if active else 2.0
             painter.setPen(QPen(color, width))
@@ -6967,6 +7973,583 @@ class ModelPreviewWidget(QOpenGLWidget):
             painter.drawEllipse(end, 7.0 if active else 5.5, 7.0 if active else 5.5)
             label_point = self._clamped_overlay_point(end, margin=18.0)
             painter.drawText(QRect(int(label_point.x()) + 8, int(label_point.y()) - 9, 18, 18), Qt.AlignLeft | Qt.AlignVCenter, labels[axis_name])
+        if origin_point is not None:
+            active = self._alignment_drag_axis == "screen" or self._alignment_hover_axis == "screen"
+            painter.setPen(QPen(QColor(255, 255, 255, 230), 2.0 if active else 1.2))
+            painter.setBrush(QBrush(QColor(15, 23, 42, 210 if active else 170)))
+            radius = 9.0 if active else 7.0
+            painter.drawEllipse(origin_point, radius, radius)
+            painter.setPen(QPen(QColor(255, 214, 92, 230), 1.2))
+            painter.drawLine(QPointF(origin_point.x() - radius + 3.0, origin_point.y()), QPointF(origin_point.x() + radius - 3.0, origin_point.y()))
+            painter.drawLine(QPointF(origin_point.x(), origin_point.y() - radius + 3.0), QPointF(origin_point.x(), origin_point.y() + radius - 3.0))
+
+    def _draw_alignment_selected_mesh_outlines(self, painter: QPainter) -> None:
+        if self._vertex_count <= 0:
+            return
+        selected_indices = self._alignment_selected_batch_indices()
+        if not selected_indices:
+            return
+        meshes = getattr(self._current_model, "meshes", None) or ()
+        edges = (
+            (0, 1),
+            (1, 3),
+            (3, 2),
+            (2, 0),
+            (4, 5),
+            (5, 7),
+            (7, 6),
+            (6, 4),
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7),
+        )
+        outline_color = QColor(255, 214, 92, 240)
+        shadow_color = QColor(0, 0, 0, 220)
+        screen_points: List[QPointF] = []
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        for mesh_index in selected_indices[:48]:
+            if mesh_index < 0 or mesh_index >= len(meshes):
+                continue
+            bounds = self._alignment_mesh_bounds(meshes[mesh_index])
+            if bounds is None:
+                continue
+            (min_x, min_y, min_z), (max_x, max_y, max_z) = bounds
+            corners = (
+                (min_x, min_y, min_z),
+                (max_x, min_y, min_z),
+                (min_x, max_y, min_z),
+                (max_x, max_y, min_z),
+                (min_x, min_y, max_z),
+                (max_x, min_y, max_z),
+                (min_x, max_y, max_z),
+                (max_x, max_y, max_z),
+            )
+            mvp = self._alignment_batch_mvp_matrix(mesh_index)
+            for start_index, end_index in edges:
+                start = corners[start_index]
+                end = corners[end_index]
+                self._draw_preview_line(painter, mvp, start, end, shadow_color, width=5.2)
+                self._draw_preview_line(painter, mvp, start, end, outline_color, width=2.4)
+            for corner in corners:
+                point = self._project_preview_point(mvp, corner)
+                if point is not None:
+                    screen_points.append(point)
+        if screen_points:
+            min_x = int(max(0.0, min(point.x() for point in screen_points) - 5.0))
+            min_y = int(max(0.0, min(point.y() for point in screen_points) - 5.0))
+            max_x = int(min(float(self.width()), max(point.x() for point in screen_points) + 5.0))
+            max_y = int(min(float(self.height()), max(point.y() for point in screen_points) + 5.0))
+            if max_x > min_x and max_y > min_y:
+                painter.setPen(QPen(QColor(255, 214, 92, 130), 1.2, Qt.DashLine))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRect(QRect(min_x, min_y, max(1, max_x - min_x), max(1, max_y - min_y)))
+        text = f"Selected part outline: {len(selected_indices):,} part(s)"
+        metrics = painter.fontMetrics()
+        max_label_width = max(48, self.width() - 24)
+        text_width = min(max_label_width, max(120, metrics.horizontalAdvance(text) + 18))
+        label_y = 58 if self._debug_overlay_lines else 34
+        label_rect = QRect(12, label_y, int(text_width), 22)
+        painter.setPen(QPen(QColor(255, 214, 92, 190), 1))
+        painter.setBrush(QBrush(QColor(15, 23, 42, 160)))
+        painter.drawRoundedRect(label_rect, 5, 5)
+        painter.setPen(QColor(255, 244, 179, 235))
+        painter.drawText(
+            label_rect.adjusted(8, 0, -8, 0),
+            Qt.AlignLeft | Qt.AlignVCenter,
+            metrics.elidedText(text, Qt.ElideRight, max(48, label_rect.width() - 16)),
+        )
+        painter.restore()
+
+    def _draw_vertex_normals_overlay(self, painter: QPainter) -> None:
+        if self._vertex_count <= 0:
+            return
+        settings = self.render_settings()
+        if str(getattr(settings, "render_diagnostic_mode", "") or "").strip().lower() != "vertex_normals":
+            return
+        meshes = getattr(self._current_model, "meshes", None) or ()
+        if not meshes:
+            return
+        solo_batch_index = int(getattr(settings, "solo_batch_index", -1) or -1)
+        candidate_meshes: List[Tuple[int, object]] = []
+        total_positions = 0
+        for mesh_index, mesh in enumerate(meshes):
+            if solo_batch_index >= 0 and mesh_index != solo_batch_index:
+                continue
+            positions = getattr(mesh, "positions", None) or ()
+            normals = getattr(mesh, "normals", None) or ()
+            if len(positions) <= 0 or len(normals) != len(positions):
+                continue
+            candidate_meshes.append((mesh_index, mesh))
+            total_positions += len(positions)
+        if not candidate_meshes or total_positions <= 0:
+            return
+        sample_stride = max(1, int(math.ceil(total_positions / 2400.0)))
+        normal_color = QColor(255, 48, 48, 210)
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, False)
+        for mesh_index, mesh in candidate_meshes:
+            positions = list(getattr(mesh, "positions", None) or ())
+            normals = list(getattr(mesh, "normals", None) or ())
+            bounds = self._alignment_mesh_bounds(mesh)
+            if bounds is None:
+                continue
+            (min_x, min_y, min_z), (max_x, max_y, max_z) = bounds
+            span = max(max_x - min_x, max_y - min_y, max_z - min_z, 0.25)
+            normal_length = max(0.012, min(0.18, span * 0.035))
+            mvp = self._alignment_batch_mvp_matrix(mesh_index)
+            for vertex_index in range(0, len(positions), sample_stride):
+                try:
+                    px, py, pz = positions[vertex_index][:3]
+                    nx, ny, nz = normals[vertex_index][:3]
+                    normal_magnitude = math.sqrt(
+                        (float(nx) * float(nx))
+                        + (float(ny) * float(ny))
+                        + (float(nz) * float(nz))
+                    )
+                    if normal_magnitude <= 1e-8 or not math.isfinite(normal_magnitude):
+                        continue
+                    start = (float(px), float(py), float(pz))
+                    end = (
+                        float(px) + (float(nx) / normal_magnitude) * normal_length,
+                        float(py) + (float(ny) / normal_magnitude) * normal_length,
+                        float(pz) + (float(nz) / normal_magnitude) * normal_length,
+                    )
+                except Exception:
+                    continue
+                self._draw_preview_line(painter, mvp, start, end, normal_color, width=0.85)
+        painter.restore()
+
+    def _mesh_edit_source_vertex_indices(self, mesh: object) -> List[int]:
+        raw_indices = getattr(mesh, "source_vertex_indices", None) or []
+        positions = getattr(mesh, "positions", None) or []
+        if len(raw_indices) == len(positions):
+            result: List[int] = []
+            for value in raw_indices:
+                try:
+                    result.append(int(value))
+                except (TypeError, ValueError):
+                    result.append(-1)
+            return result
+        return list(range(len(positions)))
+
+    def _mesh_edit_screen_cache_current_key(self) -> Tuple[object, ...]:
+        editable_indices = (
+            tuple(sorted(self._alignment_editable_mesh_indices))
+            if self._alignment_editable_mesh_indices is not None
+            else (int(self._alignment_editable_mesh_start), int(self._alignment_editable_mesh_count))
+        )
+        return (
+            id(self._current_model),
+            int(self.width()),
+            int(self.height()),
+            round(float(self._yaw), 4),
+            round(float(self._pitch), 4),
+            bool(self._fit_to_view),
+            round(float(self._zoom_factor), 4),
+            round(float(self._distance), 4),
+            round(float(self._pan_offset.x()), 4),
+            round(float(self._pan_offset.y()), 4),
+            round(float(self._pan_offset.z()), 4),
+            editable_indices,
+        )
+
+    def _mesh_edit_screen_cache_entries_at(
+        self,
+    ) -> Tuple[Tuple[int, int, int, Tuple[float, float, float], QPointF], ...]:
+        cache_key = self._mesh_edit_screen_cache_current_key()
+        if cache_key == self._mesh_edit_screen_cache_key and self._mesh_edit_screen_cache_entries:
+            return self._mesh_edit_screen_cache_entries
+        entries: List[Tuple[int, int, int, Tuple[float, float, float], QPointF]] = []
+        meshes = getattr(self._current_model, "meshes", None) or ()
+        for mesh_index, mesh in enumerate(meshes):
+            if not self._alignment_batch_is_editable(mesh_index):
+                continue
+            try:
+                source_submesh_index = int(getattr(mesh, "source_submesh_index", -1))
+            except (TypeError, ValueError):
+                source_submesh_index = -1
+            if source_submesh_index < 0:
+                continue
+            positions = list(getattr(mesh, "positions", None) or [])
+            source_vertex_indices = self._mesh_edit_source_vertex_indices(mesh)
+            if not positions:
+                continue
+            mvp = self._alignment_batch_mvp_matrix(mesh_index)
+            for vertex_index, raw_position in enumerate(positions):
+                if vertex_index >= len(source_vertex_indices):
+                    continue
+                source_vertex_index = int(source_vertex_indices[vertex_index])
+                if source_vertex_index < 0:
+                    continue
+                if not isinstance(raw_position, (tuple, list)) or len(raw_position) < 3:
+                    continue
+                try:
+                    position = (float(raw_position[0]), float(raw_position[1]), float(raw_position[2]))
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                projected = self._project_preview_point(mvp, position)
+                if projected is None:
+                    continue
+                entries.append((mesh_index, source_submesh_index, source_vertex_index, position, projected))
+        self._mesh_edit_screen_cache_key = cache_key
+        self._mesh_edit_screen_cache_entries = tuple(entries)
+        return self._mesh_edit_screen_cache_entries
+
+    def _mesh_edit_candidates_at(
+        self,
+        point: QPointF,
+        *,
+        radius_pixels: float,
+        nearest_only: bool,
+    ) -> Tuple[Tuple[int, int, int, Tuple[float, float, float]], ...]:
+        if not self._mesh_editing_enabled or self._vertex_count <= 0:
+            return ()
+        candidates: List[Tuple[float, int, int, int, Tuple[float, float, float]]] = []
+        for mesh_index, source_submesh_index, source_vertex_index, position, projected in self._mesh_edit_screen_cache_entries_at():
+            distance = math.hypot(float(point.x() - projected.x()), float(point.y() - projected.y()))
+            if distance <= radius_pixels:
+                candidates.append((distance, mesh_index, source_submesh_index, source_vertex_index, position))
+        if not candidates:
+            return ()
+        candidates.sort(key=lambda item: item[0])
+        if nearest_only:
+            candidates = candidates[:1]
+        return tuple((mesh_index, source_submesh_index, source_vertex_index, position) for _distance, mesh_index, source_submesh_index, source_vertex_index, position in candidates)
+
+    def _mesh_edit_selected_candidates(self) -> Tuple[Tuple[int, int, int, Tuple[float, float, float]], ...]:
+        if not self._mesh_edit_selected_vertices:
+            return ()
+        selected = set(self._mesh_edit_selected_vertices)
+        candidates: List[Tuple[int, int, int, Tuple[float, float, float]]] = []
+        seen: set[Tuple[int, int]] = set()
+        for mesh_index, source_submesh_index, source_vertex_index, position, _projected in self._mesh_edit_screen_cache_entries_at():
+            key = (int(source_submesh_index), int(source_vertex_index))
+            if key not in selected or key in seen:
+                continue
+            seen.add(key)
+            candidates.append((int(mesh_index), int(source_submesh_index), int(source_vertex_index), position))
+        return tuple(candidates)
+
+    def _mesh_edit_toggle_vertex_selection(
+        self,
+        candidates: Sequence[Tuple[int, int, int, Tuple[float, float, float]]],
+        *,
+        additive: bool,
+    ) -> bool:
+        if not candidates:
+            return False
+        _mesh_index, source_submesh_index, source_vertex_index, _position = candidates[0]
+        key = (int(source_submesh_index), int(source_vertex_index))
+        if additive:
+            if key in self._mesh_edit_selected_vertices:
+                self._mesh_edit_selected_vertices.remove(key)
+            else:
+                self._mesh_edit_selected_vertices.add(key)
+        else:
+            self._mesh_edit_selected_vertices = {key}
+        self._emit_mesh_edit_selection_changed()
+        self.update()
+        return True
+
+    def _emit_mesh_edit_selection_changed(self) -> None:
+        grouped: Dict[int, List[int]] = {}
+        for source_submesh_index, source_vertex_index in sorted(self._mesh_edit_selected_vertices):
+            grouped.setdefault(int(source_submesh_index), []).append(int(source_vertex_index))
+        self.mesh_edit_selection_changed.emit(
+            {
+                "selected_vertex_count": len(self._mesh_edit_selected_vertices),
+                "groups": tuple(
+                    {
+                        "source_submesh_index": int(source_submesh_index),
+                        "source_vertex_indices": tuple(indices),
+                    }
+                    for source_submesh_index, indices in grouped.items()
+                ),
+            }
+        )
+
+    def _mesh_edit_drag_delta(self, start: QPointF, end: QPointF) -> QVector3D:
+        delta = end - start
+        _orbit_offset, right, up = self._camera_orbit_basis()
+        units_per_pixel = self._world_units_per_pixel()
+        horizontal = float(delta.x()) * units_per_pixel
+        vertical = float(delta.y()) * units_per_pixel
+        return QVector3D(
+            right.x() * horizontal - up.x() * vertical,
+            right.y() * horizontal - up.y() * vertical,
+            right.z() * horizontal - up.z() * vertical,
+        )
+
+    @staticmethod
+    def _mesh_edit_average_position(
+        candidates: Sequence[Tuple[int, int, int, Tuple[float, float, float]]],
+    ) -> Tuple[float, float, float]:
+        if not candidates:
+            return (0.0, 0.0, 0.0)
+        return (
+            sum(float(candidate[3][0]) for candidate in candidates) / float(len(candidates)),
+            sum(float(candidate[3][1]) for candidate in candidates) / float(len(candidates)),
+            sum(float(candidate[3][2]) for candidate in candidates) / float(len(candidates)),
+        )
+
+    @staticmethod
+    def _mesh_edit_screen_falloff_weight(distance_pixels: float, radius_pixels: float, falloff: str) -> float:
+        try:
+            normalized = max(0.0, min(1.0, float(distance_pixels) / max(float(radius_pixels), 1e-8)))
+        except (TypeError, ValueError, OverflowError):
+            return 0.0
+        if normalized >= 1.0:
+            return 0.0
+        mode = str(falloff or "smooth").strip().lower()
+        if mode == "linear":
+            return 1.0 - normalized
+        if mode == "sharp":
+            return (1.0 - normalized) ** 2
+        if mode == "constant":
+            return 1.0
+        return 1.0 - (normalized * normalized * (3.0 - 2.0 * normalized))
+
+    def _mesh_edit_candidate_screen_weight(
+        self,
+        candidate: Tuple[int, int, int, Tuple[float, float, float]],
+        *,
+        point: QPointF,
+        radius_pixels: float,
+        falloff: str,
+    ) -> float:
+        mesh_index, _source_submesh_index, _source_vertex_index, position = candidate
+        projected = self._project_preview_point(self._alignment_batch_mvp_matrix(mesh_index), position)
+        if projected is None:
+            return 0.0
+        distance = math.hypot(float(point.x() - projected.x()), float(point.y() - projected.y()))
+        return self._mesh_edit_screen_falloff_weight(distance, radius_pixels, falloff)
+
+    def _mesh_edit_group_payload(
+        self,
+        candidates: Sequence[Tuple[int, int, int, Tuple[float, float, float]]],
+        *,
+        weight_point: Optional[QPointF] = None,
+        force_full_weight: bool = False,
+    ) -> Tuple[Dict[str, object], ...]:
+        grouped: Dict[int, Dict[int, float]] = {}
+        for candidate in candidates:
+            _mesh_index, source_submesh_index, source_vertex_index, _position = candidate
+            if force_full_weight or weight_point is None:
+                weight = 1.0
+            else:
+                weight = self._mesh_edit_candidate_screen_weight(
+                    candidate,
+                    point=weight_point,
+                    radius_pixels=float(self._mesh_edit_radius_pixels),
+                    falloff=str(self._mesh_edit_falloff or "smooth"),
+                )
+            if weight <= 0.0:
+                continue
+            submesh_index = int(source_submesh_index)
+            vertex_index = int(source_vertex_index)
+            bucket = grouped.setdefault(submesh_index, {})
+            bucket[vertex_index] = max(float(weight), float(bucket.get(vertex_index, 0.0)))
+        payload: List[Dict[str, object]] = []
+        for source_submesh_index, weights in grouped.items():
+            ordered_indices = tuple(sorted(weights))
+            payload.append(
+                {
+                    "source_submesh_index": int(source_submesh_index),
+                    "source_vertex_indices": ordered_indices,
+                    "source_vertex_weights": tuple((int(index), float(weights[index])) for index in ordered_indices),
+                }
+            )
+        return tuple(payload)
+
+    def _mesh_edit_payload(
+        self,
+        *,
+        phase: str,
+        point: QPointF,
+        candidates: Sequence[Tuple[int, int, int, Tuple[float, float, float]]],
+        delta_start: Optional[QVector3D] = None,
+        delta_step: Optional[QVector3D] = None,
+        invert: bool = False,
+    ) -> Dict[str, object]:
+        radius_world = float(self._mesh_edit_radius_pixels) * self._world_units_per_pixel()
+        tool = str(self._mesh_edit_tool or "grab")
+        target_mode = str(self._mesh_edit_target_mode or "brush")
+        mode = "drag" if tool in {"grab", "vertex"} else "brush"
+        amount_world = radius_world * 0.08
+        if mode == "drag":
+            amount_world = -float(point.y() - self._mesh_edit_drag_start_pos.y()) * self._world_units_per_pixel()
+        delta_vec = delta_start if delta_start is not None else self._mesh_edit_drag_delta(self._mesh_edit_drag_start_pos, point)
+        step_vec = delta_step if delta_step is not None else self._mesh_edit_drag_delta(self._mesh_edit_drag_last_emit_pos, point)
+        selection_drag = target_mode == "vertex" or tool == "vertex"
+        weight_point = self._mesh_edit_drag_start_pos if mode == "drag" else point
+        payload = {
+            "stroke_id": int(self._mesh_edit_stroke_id),
+            "phase": str(phase),
+            "mode": mode,
+            "tool": tool,
+            "target_mode": target_mode,
+            "selected_vertex_count": len(self._mesh_edit_selected_vertices),
+            "center": self._mesh_edit_average_position(candidates),
+            "delta": (float(delta_vec.x()), float(delta_vec.y()), float(delta_vec.z())),
+            "step_delta": (float(step_vec.x()), float(step_vec.y()), float(step_vec.z())),
+            "amount": amount_world,
+            "radius": radius_world,
+            "strength": float(self._mesh_edit_strength),
+            "falloff": str(self._mesh_edit_falloff or "smooth"),
+            "invert": bool(invert),
+            "groups": self._mesh_edit_group_payload(
+                candidates,
+                weight_point=weight_point,
+                force_full_weight=selection_drag,
+            ),
+        }
+        return payload
+
+    def _mesh_edit_emit_started(
+        self,
+        start_pos: QPointF,
+        candidates: Sequence[Tuple[int, int, int, Tuple[float, float, float]]],
+    ) -> None:
+        self._mesh_edit_stroke_id += 1
+        self._mesh_edit_drag_last_emit_pos = QPointF(start_pos)
+        self._mesh_edit_drag_last_emit_time = 0.0
+        self._mesh_edit_drag_previewed = False
+        payload = self._mesh_edit_payload(
+            phase="start",
+            point=start_pos,
+            candidates=candidates,
+            delta_start=QVector3D(0.0, 0.0, 0.0),
+            delta_step=QVector3D(0.0, 0.0, 0.0),
+        )
+        self.mesh_edit_stroke_started.emit(payload)
+
+    def _mesh_edit_emit_preview(self, point: QPointF, *, force: bool = False, modifiers: Qt.KeyboardModifiers = Qt.NoModifier) -> bool:
+        if not self._mesh_edit_drag_active:
+            return False
+        now = time.monotonic()
+        distance_from_last = math.hypot(
+            float(point.x() - self._mesh_edit_drag_last_emit_pos.x()),
+            float(point.y() - self._mesh_edit_drag_last_emit_pos.y()),
+        )
+        if not force and now - float(self._mesh_edit_drag_last_emit_time or 0.0) < 1.0 / 45.0 and distance_from_last < 2.0:
+            return False
+        tool = str(self._mesh_edit_tool or "grab")
+        if tool in {"grab", "vertex"}:
+            candidates = tuple(self._mesh_edit_drag_candidates or ())
+            delta_start = self._mesh_edit_drag_delta(self._mesh_edit_drag_start_pos, point)
+            delta_step = self._mesh_edit_drag_delta(self._mesh_edit_drag_last_emit_pos, point)
+        else:
+            candidates = self._mesh_edit_candidates_at(
+                point,
+                radius_pixels=float(self._mesh_edit_radius_pixels),
+                nearest_only=False,
+            )
+            delta_start = self._mesh_edit_drag_delta(self._mesh_edit_drag_start_pos, point)
+            delta_step = self._mesh_edit_drag_delta(self._mesh_edit_drag_last_emit_pos, point)
+        if not candidates:
+            return False
+        payload = self._mesh_edit_payload(
+            phase="preview",
+            point=point,
+            candidates=candidates,
+            delta_start=delta_start,
+            delta_step=delta_step,
+            invert=bool(modifiers & Qt.ControlModifier),
+        )
+        self._mesh_edit_drag_last_emit_pos = QPointF(point)
+        self._mesh_edit_drag_last_emit_time = now
+        self._mesh_edit_drag_previewed = True
+        self.mesh_edit_stroke_previewed.emit(payload)
+        return True
+
+    def _mesh_edit_emit_finished(self, release_pos: QPointF) -> None:
+        payload = {
+            "stroke_id": int(self._mesh_edit_stroke_id),
+            "phase": "finish",
+            "tool": str(self._mesh_edit_tool or "grab"),
+            "previewed": bool(self._mesh_edit_drag_previewed),
+        }
+        self.mesh_edit_stroke_finished.emit(payload)
+
+    def _mesh_edit_emit_cancelled(self) -> None:
+        payload = {
+            "stroke_id": int(self._mesh_edit_stroke_id),
+            "phase": "cancel",
+            "tool": str(self._mesh_edit_tool or "grab"),
+        }
+        self.mesh_edit_stroke_cancelled.emit(payload)
+
+    def _update_mesh_edit_hover(self, point: QPointF) -> None:
+        if not self._mesh_editing_enabled or self._mesh_edit_drag_active:
+            if self._mesh_edit_hover_vertex:
+                self._mesh_edit_hover_vertex = ()
+                self.update()
+            return
+        candidates = self._mesh_edit_candidates_at(point, radius_pixels=12.0, nearest_only=True)
+        hover = ()
+        if candidates:
+            mesh_index, source_submesh_index, source_vertex_index, position = candidates[0]
+            projected = self._project_preview_point(self._alignment_batch_mvp_matrix(mesh_index), position)
+            if projected is not None:
+                hover = (mesh_index, source_submesh_index, source_vertex_index, position, projected)
+        if hover != self._mesh_edit_hover_vertex:
+            self._mesh_edit_hover_vertex = hover
+            self.setCursor(Qt.CrossCursor if hover or self._mesh_edit_tool != "vertex" else Qt.ArrowCursor)
+            self.update()
+
+    def _draw_mesh_edit_overlay(self, painter: QPainter) -> None:
+        if not self._mesh_editing_enabled or self._vertex_count <= 0:
+            return
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        entries = self._mesh_edit_screen_cache_entries_at()
+        if self._mesh_edit_show_vertices:
+            painter.setPen(QPen(QColor(125, 211, 252, 180), 1.0))
+            painter.setBrush(QBrush(QColor(15, 23, 42, 120)))
+            for _mesh_index, _source_submesh_index, _source_vertex_index, _position, projected in entries[:6000]:
+                painter.drawEllipse(projected, 2.2, 2.2)
+        if self._mesh_edit_selected_vertices:
+            painter.setPen(QPen(QColor(16, 185, 129, 240), 1.4))
+            painter.setBrush(QBrush(QColor(16, 185, 129, 105)))
+            selected = set(self._mesh_edit_selected_vertices)
+            for _mesh_index, source_submesh_index, source_vertex_index, _position, projected in entries:
+                if (int(source_submesh_index), int(source_vertex_index)) in selected:
+                    painter.drawEllipse(projected, 4.6, 4.6)
+        if self._mesh_edit_drag_active:
+            center = self._mesh_edit_drag_current_pos
+        else:
+            center = self.mapFromGlobal(QCursor.pos())
+        if isinstance(center, QPoint):
+            center = QPointF(center)
+        radius = float(self._mesh_edit_radius_pixels)
+        painter.setPen(QPen(QColor(251, 191, 36, 220), 1.2, Qt.DashLine))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawEllipse(center, radius, radius)
+        painter.setPen(QPen(QColor(251, 191, 36, 120), 1.0, Qt.DotLine))
+        painter.drawEllipse(center, radius * 0.5, radius * 0.5)
+        if self._mesh_edit_hover_vertex:
+            _mesh_index, _source_submesh_index, source_vertex_index, _position, projected = self._mesh_edit_hover_vertex
+            painter.setPen(QPen(QColor(255, 244, 179, 240), 1.6))
+            painter.setBrush(QBrush(QColor(251, 191, 36, 85)))
+            painter.drawEllipse(projected, 5.0, 5.0)
+            painter.drawText(
+                QRect(int(projected.x()) + 8, int(projected.y()) - 18, 150, 18),
+                Qt.AlignLeft | Qt.AlignVCenter,
+                f"v{source_vertex_index}",
+            )
+        if self._mesh_edit_selected_vertices:
+            text = f"Selected vertices: {len(self._mesh_edit_selected_vertices):,}"
+            metrics = painter.fontMetrics()
+            width = min(max(132, metrics.horizontalAdvance(text) + 18), max(132, self.width() - 24))
+            label_rect = QRect(12, 58 if self._debug_overlay_lines else 34, int(width), 22)
+            painter.setPen(QPen(QColor(16, 185, 129, 190), 1))
+            painter.setBrush(QBrush(QColor(15, 23, 42, 165)))
+            painter.drawRoundedRect(label_rect, 5, 5)
+            painter.setPen(QColor(188, 245, 218, 235))
+            painter.drawText(label_rect.adjusted(8, 0, -8, 0), Qt.AlignLeft | Qt.AlignVCenter, text)
+        painter.restore()
 
     def _draw_texture_debug_strip(self, painter: QPainter) -> None:
         settings = self.render_settings()
@@ -7002,8 +8585,11 @@ class ModelPreviewWidget(QOpenGLWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
         self._draw_alignment_guides(painter)
+        self._draw_vertex_normals_overlay(painter)
         self._draw_physics_overlay(painter)
+        self._draw_alignment_selected_mesh_outlines(painter)
         self._draw_alignment_edit_handles(painter)
+        self._draw_mesh_edit_overlay(painter)
         self._draw_texture_debug_strip(painter)
         painter.setPen(self._overlay_text_color)
         if self._vertex_count <= 0:
@@ -7017,7 +8603,9 @@ class ModelPreviewWidget(QOpenGLWidget):
             ):
                 help_text = "Click/Ctrl-click overlay: show linked HKX rows | Drag: orbit | Shift/Middle/Right-drag: pan | Wheel: zoom"
             if self._alignment_editing_enabled:
-                help_text = "Drag axes: move (Shift fine/Ctrl coarse) | Alt+Drag: rotate X/Y | Alt+Shift: roll | Wheel: zoom"
+                help_text = "Drag axes/center: move (Shift fine/Ctrl coarse) | Alt+Drag: rotate X/Y | Alt+Shift: roll | Wheel: zoom"
+            if self._mesh_editing_enabled:
+                help_text = "Mesh edit: Brush drags all vertices in radius | Vertex Select uses selection | Ctrl: invert | Wheel: zoom"
             painter.drawText(
                 QRect(12, 10, max(120, self.width() - 24), 22),
                 Qt.AlignLeft | Qt.AlignVCenter,
@@ -7043,11 +8631,48 @@ class ModelPreviewWidget(QOpenGLWidget):
             self._vertex_count > 0
             and event.button() == Qt.LeftButton
             and bool(event.modifiers() & Qt.ControlModifier)
+            and not self._mesh_editing_enabled
         ):
             target = self._physics_overlay_target_at(event.position())
             if target:
                 self._pending_physics_click_target = ()
                 self._set_physics_overlay_selected_target(target, notify=True)
+                event.accept()
+                return
+        if (
+            self._mesh_editing_enabled
+            and self._vertex_count > 0
+            and event.button() == Qt.LeftButton
+            and not bool(event.modifiers() & Qt.AltModifier)
+        ):
+            target_mode = str(self._mesh_edit_target_mode or "brush")
+            tool_key = str(self._mesh_edit_tool or "")
+            vertex_selection_mode = target_mode == "vertex" or tool_key == "vertex"
+            nearest_only = vertex_selection_mode
+            candidates = self._mesh_edit_candidates_at(
+                event.position(),
+                radius_pixels=12.0 if nearest_only else float(self._mesh_edit_radius_pixels),
+                nearest_only=nearest_only,
+            )
+            if vertex_selection_mode and bool(event.modifiers() & Qt.ShiftModifier):
+                if self._mesh_edit_toggle_vertex_selection(candidates, additive=True):
+                    event.accept()
+                    return
+            if vertex_selection_mode and candidates:
+                self._mesh_edit_toggle_vertex_selection(candidates, additive=False)
+            selected_candidates = self._mesh_edit_selected_candidates()
+            if vertex_selection_mode and selected_candidates:
+                candidates = selected_candidates
+            if candidates:
+                self._mesh_edit_drag_active = True
+                self._mesh_edit_drag_start_pos = QPointF(event.position())
+                self._mesh_edit_drag_current_pos = QPointF(event.position())
+                self._mesh_edit_drag_candidates = candidates
+                self._mesh_edit_hover_vertex = ()
+                self._mesh_edit_emit_started(QPointF(event.position()), candidates)
+                self.setCursor(Qt.CrossCursor)
+                self.grabMouse()
+                self.update()
                 event.accept()
                 return
         if (
@@ -7112,74 +8737,37 @@ class ModelPreviewWidget(QOpenGLWidget):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:  # type: ignore[override]
+        if self._mesh_edit_drag_active:
+            self._mesh_edit_drag_current_pos = QPointF(event.position())
+            self._mesh_edit_emit_preview(
+                self._mesh_edit_drag_current_pos,
+                modifiers=event.modifiers(),
+            )
+            self.update()
+            event.accept()
+            return
         if self._alignment_rotation_drag_active:
-            current_pos = event.position()
-            delta = current_pos - self._last_mouse_pos
-            self._last_mouse_pos = current_pos
-            degrees_per_pixel = float(self._alignment_rotation_degrees_per_pixel)
-            if bool(event.modifiers() & Qt.ControlModifier):
-                degrees_per_pixel *= 4.0
-            elif bool(event.modifiers() & Qt.ShiftModifier) and not self._alignment_rotation_drag_roll:
-                degrees_per_pixel *= 0.25
-            if self._alignment_rotation_drag_roll:
-                rotation_delta = QVector3D(0.0, 0.0, float(delta.x()) * degrees_per_pixel)
-            else:
-                rotation_delta = QVector3D(float(delta.y()) * degrees_per_pixel, float(delta.x()) * degrees_per_pixel, 0.0)
-            if rotation_delta.lengthSquared() > 1e-12:
-                self._alignment_rotation_drag_total = self._alignment_rotation_drag_total + rotation_delta
-                self.set_alignment_live_rotation(
-                    float(self._alignment_rotation_drag_total.x()),
-                    float(self._alignment_rotation_drag_total.y()),
-                    float(self._alignment_rotation_drag_total.z()),
-                )
-                self.alignment_rotation_changed.emit(
-                    float(self._alignment_rotation_drag_total.x()),
-                    float(self._alignment_rotation_drag_total.y()),
-                    float(self._alignment_rotation_drag_total.z()),
-                )
+            self._update_alignment_rotation_drag(event.position(), event.modifiers())
             event.accept()
             return
         if self._alignment_drag_axis:
-            current_pos = event.position()
-            delta = current_pos - self._last_mouse_pos
-            self._last_mouse_pos = current_pos
-            axis_points = self._alignment_axis_points()
-            start_end = axis_points.get(self._alignment_drag_axis)
-            if start_end is not None:
-                start, end = start_end
-                axis_dx = float(end.x() - start.x())
-                axis_dy = float(end.y() - start.y())
-                axis_length = max(math.sqrt(axis_dx * axis_dx + axis_dy * axis_dy), 1.0)
-                projected_pixels = ((float(delta.x()) * axis_dx) + (float(delta.y()) * axis_dy)) / axis_length
-                movement = projected_pixels * float(self._alignment_translation_units_per_pixel)
-                if bool(event.modifiers() & Qt.ShiftModifier):
-                    movement *= 0.10
-                elif bool(event.modifiers() & Qt.ControlModifier):
-                    movement *= 4.0
-                dx = movement if self._alignment_drag_axis == "x" else 0.0
-                dy = movement if self._alignment_drag_axis == "y" else 0.0
-                dz = movement if self._alignment_drag_axis == "z" else 0.0
-                if abs(dx) > 1e-9 or abs(dy) > 1e-9 or abs(dz) > 1e-9:
-                    self._alignment_drag_total = self._alignment_drag_total + QVector3D(float(dx), float(dy), float(dz))
-                    self.set_alignment_live_translation(
-                        float(self._alignment_drag_total.x()),
-                        float(self._alignment_drag_total.y()),
-                        float(self._alignment_drag_total.z()),
-                    )
-                    self.alignment_drag_changed.emit(
-                        float(self._alignment_drag_total.x()),
-                        float(self._alignment_drag_total.y()),
-                        float(self._alignment_drag_total.z()),
-                    )
+            self._update_alignment_axis_drag(event.position(), event.modifiers())
             event.accept()
             return
-        if self._alignment_editing_enabled and self._vertex_count > 0:
+        if self._alignment_editing_enabled and self._vertex_count > 0 and not self._mesh_editing_enabled:
             axis = self._alignment_axis_at(event.position())
             if axis != self._alignment_hover_axis:
                 self._alignment_hover_axis = axis
                 self.setCursor(Qt.SizeAllCursor if axis else Qt.ArrowCursor)
                 self.update()
-        if not self._alignment_hover_axis and not self._drag_active and not self._pan_drag_active:
+        if self._mesh_editing_enabled and self._vertex_count > 0 and not self._alignment_hover_axis:
+            self._update_mesh_edit_hover(event.position())
+        if (
+            not self._mesh_editing_enabled
+            and not self._alignment_hover_axis
+            and not self._drag_active
+            and not self._pan_drag_active
+        ):
             self._update_physics_hover_target(event.position())
         if self._drag_active:
             current_pos = event.position()
@@ -7211,25 +8799,43 @@ class ModelPreviewWidget(QOpenGLWidget):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # type: ignore[override]
+        if self._mesh_edit_drag_active and event.button() == Qt.LeftButton:
+            self._mesh_edit_drag_current_pos = QPointF(event.position())
+            self._mesh_edit_emit_preview(
+                self._mesh_edit_drag_current_pos,
+                force=True,
+                modifiers=event.modifiers(),
+            )
+            self._mesh_edit_emit_finished(event.position())
+            self._mesh_edit_drag_active = False
+            self._mesh_edit_drag_candidates = ()
+            self._mesh_edit_drag_previewed = False
+            self.releaseMouse()
+            self.unsetCursor()
+            self.update()
+            event.accept()
+            return
         if self._alignment_rotation_drag_active and event.button() == Qt.LeftButton:
+            self._update_alignment_rotation_drag(event.position(), event.modifiers())
             total = QVector3D(self._alignment_rotation_drag_total)
+            self.alignment_rotation_finished.emit(float(total.x()), float(total.y()), float(total.z()))
             self._alignment_rotation_drag_active = False
             self._alignment_rotation_drag_roll = False
             self._alignment_rotation_drag_total = QVector3D(0.0, 0.0, 0.0)
             self.releaseMouse()
             self.unsetCursor()
-            self.alignment_rotation_finished.emit(float(total.x()), float(total.y()), float(total.z()))
             self.clear_alignment_live_rotation()
             self.update()
             event.accept()
             return
         if self._alignment_drag_axis and event.button() == Qt.LeftButton:
+            self._update_alignment_axis_drag(event.position(), event.modifiers())
             total = QVector3D(self._alignment_drag_total)
+            self.alignment_drag_finished.emit(float(total.x()), float(total.y()), float(total.z()))
             self._alignment_drag_axis = ""
             self._alignment_drag_total = QVector3D(0.0, 0.0, 0.0)
             self.releaseMouse()
             self.unsetCursor()
-            self.alignment_drag_finished.emit(float(total.x()), float(total.y()), float(total.z()))
             self.clear_alignment_live_translation()
             self.update()
             event.accept()
@@ -7258,9 +8864,25 @@ class ModelPreviewWidget(QOpenGLWidget):
             return
         super().mouseReleaseEvent(event)
 
+    def keyPressEvent(self, event) -> None:  # type: ignore[override]
+        if self._mesh_edit_drag_active and event.key() == Qt.Key_Escape:
+            self._mesh_edit_emit_cancelled()
+            self._mesh_edit_drag_active = False
+            self._mesh_edit_drag_candidates = ()
+            self._mesh_edit_drag_previewed = False
+            self.releaseMouse()
+            self.unsetCursor()
+            self.update()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def leaveEvent(self, event) -> None:  # type: ignore[override]
         if self._physics_hover_target:
             self._physics_hover_target = ()
+            self.update()
+        if self._mesh_edit_hover_vertex and not self._mesh_edit_drag_active:
+            self._mesh_edit_hover_vertex = ()
             self.update()
         super().leaveEvent(event)
 
@@ -7305,13 +8927,17 @@ class ModelPreviewWidget(QOpenGLWidget):
     def _upload_geometry(self) -> None:
         if not self._gl_ready or self.context() is None or self._program is None:
             return
+        upload_started = time.perf_counter()
         self.makeCurrent()
-        self._clear_gl_textures()
+        texture_cache_signature = self._current_texture_upload_cache_signature()
+        if texture_cache_signature != self._texture_upload_cache_signature:
+            self._clear_gl_textures()
+            self._texture_upload_cache_signature = texture_cache_signature
         self._program.bind()
         self._vertex_array.bind()
         self._vertex_buffer.bind()
         self._vertex_buffer.allocate(self._vertex_blob, len(self._vertex_blob))
-        stride = 20 * 4
+        stride = 23 * 4
         self._program.enableAttributeArray(0)
         self._program.setAttributeBuffer(0, _GL_FLOAT, 0, 3, stride)
         self._program.enableAttributeArray(1)
@@ -7326,11 +8952,31 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._program.setAttributeBuffer(5, _GL_FLOAT, 14 * 4, 3, stride)
         self._program.enableAttributeArray(6)
         self._program.setAttributeBuffer(6, _GL_FLOAT, 17 * 4, 3, stride)
+        self._program.enableAttributeArray(7)
+        self._program.setAttributeBuffer(7, _GL_FLOAT, 20 * 4, 3, stride)
         self._vertex_buffer.release()
         self._vertex_array.release()
         self._program.release()
+        texture_started = time.perf_counter()
         self._rebuild_gl_textures()
+        self._last_texture_upload_ms = (time.perf_counter() - texture_started) * 1000.0
+        self._last_gl_upload_ms = (time.perf_counter() - upload_started) * 1000.0
+        self._last_geometry_upload_ms = max(0.0, self._last_gl_upload_ms - self._last_texture_upload_ms)
+        self._refresh_debug_overlay_lines()
         self.doneCurrent()
+
+    def _current_texture_upload_cache_signature(self) -> Tuple[object, ...]:
+        settings = self.render_settings()
+        return (
+            bool(self._use_textures),
+            bool(self._high_quality_textures),
+            int(settings.preview_texture_max_dimension),
+            int(settings.low_quality_texture_max_dimension),
+            int(settings.max_anisotropy),
+            bool(settings.force_nearest_no_mipmaps),
+            bool(getattr(settings, "disable_all_support_maps", False)),
+            bool(self._render_mode_uses_derived_relief(settings)),
+        )
 
     @staticmethod
     def _finite_float(value: object, fallback: float = 0.0) -> float:
@@ -7426,7 +9072,12 @@ class ModelPreviewWidget(QOpenGLWidget):
         texture_coordinates: Sequence[Tuple[float, float]],
         normals: Sequence[Tuple[float, float, float]],
         indices: Sequence[int],
-    ) -> Tuple[List[Tuple[float, float, float]], List[Tuple[float, float, float]]]:
+    ) -> Tuple[
+        List[Tuple[float, float, float]],
+        List[Tuple[float, float, float]],
+        List[bool],
+        List[bool],
+    ]:
         vertex_count = len(positions)
         if (
             vertex_count <= 0
@@ -7439,10 +9090,12 @@ class ModelPreviewWidget(QOpenGLWidget):
                 tangent, bitangent = cls._orthogonal_tangent_frame(normal)
                 tangents.append(tangent)
                 bitangents.append(bitangent)
-            return tangents[:vertex_count], bitangents[:vertex_count]
+            return tangents[:vertex_count], bitangents[:vertex_count], [False] * vertex_count, [False] * vertex_count
 
         tangent_accum = [[0.0, 0.0, 0.0] for _ in range(vertex_count)]
         bitangent_accum = [[0.0, 0.0, 0.0] for _ in range(vertex_count)]
+        tangent_valid = [False] * vertex_count
+        bitangent_valid = [False] * vertex_count
         for triangle_index in range(0, len(indices) - 2, 3):
             a = indices[triangle_index]
             b = indices[triangle_index + 1]
@@ -7480,6 +9133,17 @@ class ModelPreviewWidget(QOpenGLWidget):
                 reciprocal * ((-delta_uv2[0] * edge1[1]) + (delta_uv1[0] * edge2[1])),
                 reciprocal * ((-delta_uv2[0] * edge1[2]) + (delta_uv1[0] * edge2[2])),
             )
+            tangent_length = math.sqrt((tangent[0] * tangent[0]) + (tangent[1] * tangent[1]) + (tangent[2] * tangent[2]))
+            bitangent_length = math.sqrt(
+                (bitangent[0] * bitangent[0]) + (bitangent[1] * bitangent[1]) + (bitangent[2] * bitangent[2])
+            )
+            if (
+                tangent_length <= 1e-8
+                or bitangent_length <= 1e-8
+                or not math.isfinite(tangent_length)
+                or not math.isfinite(bitangent_length)
+            ):
+                continue
             for vertex_index in (a, b, c):
                 tangent_accum[vertex_index][0] += tangent[0]
                 tangent_accum[vertex_index][1] += tangent[1]
@@ -7487,6 +9151,8 @@ class ModelPreviewWidget(QOpenGLWidget):
                 bitangent_accum[vertex_index][0] += bitangent[0]
                 bitangent_accum[vertex_index][1] += bitangent[1]
                 bitangent_accum[vertex_index][2] += bitangent[2]
+                tangent_valid[vertex_index] = True
+                bitangent_valid[vertex_index] = True
 
         tangents = []
         bitangents = []
@@ -7494,10 +9160,12 @@ class ModelPreviewWidget(QOpenGLWidget):
             nx, ny, nz = normals[vertex_index]
             tx, ty, tz = tangent_accum[vertex_index]
             tangent_length = (tx * tx + ty * ty + tz * tz) ** 0.5
-            if tangent_length <= 1e-6:
+            if tangent_length <= 1e-6 or not math.isfinite(tangent_length):
                 tangent, bitangent = cls._orthogonal_tangent_frame(normals[vertex_index])
                 tangents.append(tangent)
                 bitangents.append(bitangent)
+                tangent_valid[vertex_index] = False
+                bitangent_valid[vertex_index] = False
                 continue
             tx /= tangent_length
             ty /= tangent_length
@@ -7506,7 +9174,14 @@ class ModelPreviewWidget(QOpenGLWidget):
             tx -= nx * normal_dot_tangent
             ty -= ny * normal_dot_tangent
             tz -= nz * normal_dot_tangent
-            tangent_length = max((tx * tx + ty * ty + tz * tz) ** 0.5, 1e-6)
+            tangent_length = (tx * tx + ty * ty + tz * tz) ** 0.5
+            if tangent_length <= 1e-6 or not math.isfinite(tangent_length):
+                tangent, bitangent = cls._orthogonal_tangent_frame(normals[vertex_index])
+                tangents.append(tangent)
+                bitangents.append(bitangent)
+                tangent_valid[vertex_index] = False
+                bitangent_valid[vertex_index] = False
+                continue
             tx /= tangent_length
             ty /= tangent_length
             tz /= tangent_length
@@ -7515,13 +9190,20 @@ class ModelPreviewWidget(QOpenGLWidget):
                 bx = (ny * tz) - (nz * ty)
                 by = (nz * tx) - (nx * tz)
                 bz = (nx * ty) - (ny * tx)
-            bitangent_length = max((bx * bx + by * by + bz * bz) ** 0.5, 1e-6)
+                bitangent_valid[vertex_index] = False
+            bitangent_length = (bx * bx + by * by + bz * bz) ** 0.5
+            if bitangent_length <= 1e-6 or not math.isfinite(bitangent_length):
+                tangent, bitangent = cls._orthogonal_tangent_frame(normals[vertex_index])
+                tangents.append(tangent)
+                bitangents.append(bitangent)
+                bitangent_valid[vertex_index] = False
+                continue
             bx /= bitangent_length
             by /= bitangent_length
             bz /= bitangent_length
             tangents.append((tx, ty, tz))
             bitangents.append((bx, by, bz))
-        return tangents, bitangents
+        return tangents, bitangents, tangent_valid, bitangent_valid
 
     @staticmethod
     def _smooth_normal_position_key(position: Tuple[float, float, float]) -> Tuple[int, int, int]:
@@ -7650,7 +9332,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                     if repaired:
                         uv_repair_count += 1
             has_texture_coordinates = len(texture_coordinates) == len(positions)
-            tangents, bitangents = cls._build_tangent_frames(
+            tangents, bitangents, tangent_valid, bitangent_valid = cls._build_tangent_frames(
                 positions,
                 texture_coordinates,
                 normals,
@@ -7676,9 +9358,9 @@ class ModelPreviewWidget(QOpenGLWidget):
                 )
                 sanitized_tangents.append(tangent)
                 sanitized_bitangents.append(bitangent)
-                if tangent_repaired:
+                if tangent_repaired or not (vertex_index < len(tangent_valid) and tangent_valid[vertex_index]):
                     tangent_repair_count += 1
-                if bitangent_repaired:
+                if bitangent_repaired or not (vertex_index < len(bitangent_valid) and bitangent_valid[vertex_index]):
                     bitangent_repair_count += 1
             tangents = sanitized_tangents
             bitangents = sanitized_bitangents
@@ -7711,7 +9393,11 @@ class ModelPreviewWidget(QOpenGLWidget):
                     or c >= len(positions)
                 ):
                     continue
-                for vertex_index in (a, b, c):
+                for vertex_index, barycentric in (
+                    (a, (1.0, 0.0, 0.0)),
+                    (b, (0.0, 1.0, 0.0)),
+                    (c, (0.0, 0.0, 1.0)),
+                ):
                     px, py, pz = positions[vertex_index]
                     nx, ny, nz = normals[vertex_index]
                     if has_texture_coordinates:
@@ -7725,6 +9411,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                         if vertex_index < len(smoothed_normals)
                         else (nx, ny, nz)
                     )
+                    ba, bb, bc = barycentric
                     vertex_data.extend(
                         (
                             px,
@@ -7747,6 +9434,9 @@ class ModelPreviewWidget(QOpenGLWidget):
                             sx,
                             sy,
                             sz,
+                            ba,
+                            bb,
+                            bc,
                         )
                     )
                 vertex_count += 3
@@ -7802,9 +9492,15 @@ class ModelPreviewWidget(QOpenGLWidget):
                     first_vertex=batch_first_vertex,
                     vertex_count=batch_vertex_count,
                     texture_key=texture_key,
+                    texture_dds_key=str(getattr(mesh, "preview_texture_dds_path", "") or "").strip()
+                    or cls._dds_source_path_for_preview_path(texture_key),
                     normal_texture_key=normal_texture_key,
+                    normal_texture_dds_key=str(getattr(mesh, "preview_normal_texture_dds_path", "") or "").strip()
+                    or cls._dds_source_path_for_preview_path(normal_texture_key),
                     normal_texture_strength=float(getattr(mesh, "preview_normal_texture_strength", 0.0) or 0.0),
                     material_texture_key=material_texture_key,
+                    material_texture_dds_key=str(getattr(mesh, "preview_material_texture_dds_path", "") or "").strip()
+                    or cls._dds_source_path_for_preview_path(material_texture_key),
                     material_texture_type=material_texture_type,
                     material_texture_subtype=material_texture_subtype,
                     material_texture_packed_channels=material_texture_packed_channels,
@@ -7814,6 +9510,8 @@ class ModelPreviewWidget(QOpenGLWidget):
                         material_texture_packed_channels,
                     ),
                     height_texture_key=height_texture_key,
+                    height_texture_dds_key=str(getattr(mesh, "preview_height_texture_dds_path", "") or "").strip()
+                    or cls._dds_source_path_for_preview_path(height_texture_key),
                     support_maps_disabled=bool(getattr(mesh, "preview_debug_disable_support_maps", False)),
                     has_texture_coordinates=has_texture_coordinates,
                     texture_wrap_repeat=texture_wrap_repeat,
@@ -7935,6 +9633,8 @@ class ModelPreviewWidget(QOpenGLWidget):
             except Exception:
                 continue
         self._texture_objects.clear()
+        self._texture_luma_cache.clear()
+        self._texture_upload_cache_signature = ()
 
     def _prepare_gl_texture_image(self, texture_image: QImage) -> QImage:
         prepared = texture_image.convertToFormat(QImage.Format_RGBA8888)
@@ -8021,6 +9721,188 @@ class ModelPreviewWidget(QOpenGLWidget):
             except (TypeError, ValueError, OverflowError):
                 diagnostic.native_texture_scalar_range = ()
 
+    @staticmethod
+    def _direct_dds_key_for_texture(batch: _ModelPreviewDrawBatch, texture_key: str) -> str:
+        normalized_key = str(texture_key or "").strip()
+        if not normalized_key or normalized_key.startswith("derived_relief:"):
+            return ""
+        if normalized_key == str(batch.texture_key or "").strip():
+            return str(batch.texture_dds_key or "").strip()
+        if normalized_key == str(batch.normal_texture_key or "").strip():
+            return str(batch.normal_texture_dds_key or "").strip()
+        if normalized_key == str(batch.material_texture_key or "").strip():
+            return str(batch.material_texture_dds_key or "").strip()
+        if normalized_key == str(batch.height_texture_key or "").strip():
+            return str(batch.height_texture_dds_key or "").strip()
+        return ""
+
+    @staticmethod
+    def _native_dds_gl_internal_format(info: DdsNativeInfo, slot_name: str) -> Tuple[int, str]:
+        family = str(getattr(info, "compressed_family", "") or "").strip().lower()
+        format_name = str(getattr(info, "format_name", "") or "").strip().upper()
+        srgb = bool(getattr(info, "srgb", False))
+        has_alpha = bool(getattr(info, "has_alpha", False))
+        slot = str(slot_name or "").strip().lower()
+        if family == "bc1":
+            if srgb:
+                return (
+                    _GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT if has_alpha else _GL_COMPRESSED_SRGB_S3TC_DXT1_EXT,
+                    "BC1/DXT1",
+                )
+            return (
+                _GL_COMPRESSED_RGBA_S3TC_DXT1_EXT if has_alpha else _GL_COMPRESSED_RGB_S3TC_DXT1_EXT,
+                "BC1/DXT1",
+            )
+        if family == "bc2":
+            return (
+                _GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT if srgb else _GL_COMPRESSED_RGBA_S3TC_DXT3_EXT,
+                "BC2/DXT3",
+            )
+        if family == "bc3":
+            return (
+                _GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT if srgb else _GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
+                "BC3/DXT5",
+            )
+        if family == "bc4" and slot in {"height", "material", "roughness", "metalness", "specular"}:
+            return (_GL_COMPRESSED_RED_RGTC1, "BC4/RGTC1")
+        if family == "bc7":
+            return (
+                _GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM if srgb else _GL_COMPRESSED_RGBA_BPTC_UNORM,
+                "BC7/BPTC",
+            )
+        if family == "bc5":
+            return (0, "BC5 two-channel normal/material maps need decode or shader reconstruction")
+        if family == "bc6h":
+            return (0, "BC6H HDR maps are not preview-uploaded in the legacy renderer")
+        return (0, f"unsupported compressed DDS format: {format_name or family or 'unknown'}")
+
+    def _upload_native_dds_texture(
+        self,
+        dds_key: str,
+        *,
+        texture_key: str,
+        slot_name: str,
+        wrap_repeat: bool,
+        upload_diagnostic: _TextureUploadDiagnostic,
+    ) -> Optional[_NativeCompressedGLTexture]:
+        functions = self._functions
+        if functions is None:
+            upload_diagnostic.failure_reason = "OpenGL functions unavailable for native DDS upload."
+            return None
+        if not hasattr(functions, "glCompressedTexImage2D"):
+            upload_diagnostic.failure_reason = "OpenGL compressed texture upload API is unavailable."
+            return None
+        try:
+            dds_path = Path(str(dds_key or "")).expanduser()
+        except OSError:
+            upload_diagnostic.failure_reason = "Native DDS source path is invalid."
+            return None
+        if not dds_path.is_file():
+            upload_diagnostic.failure_reason = f"Native DDS source missing: {dds_path}"
+            return None
+        try:
+            info = inspect_dds_native_path(dds_path)
+        except Exception as exc:
+            upload_diagnostic.failure_reason = f"Native DDS header parse failed: {exc}"
+            return None
+        self._apply_native_texture_report(
+            upload_diagnostic,
+            dds_native_report_dict(dds_path, info, backend="dds_native_header"),
+        )
+        if not bool(info.supported_compressed):
+            upload_diagnostic.failure_reason = info.reason or "DDS format is not a supported compressed texture."
+            return None
+        internal_format, format_label = self._native_dds_gl_internal_format(info, slot_name)
+        if int(internal_format) == 0:
+            upload_diagnostic.failure_reason = format_label
+            return None
+        gl_max_texture_size = upload_diagnostic.gl_max_texture_size or self._read_gl_max_texture_size()
+        if gl_max_texture_size > 0 and (int(info.width) > gl_max_texture_size or int(info.height) > gl_max_texture_size):
+            upload_diagnostic.failure_reason = (
+                f"DDS {info.width}x{info.height} exceeds GL max texture size {gl_max_texture_size}."
+            )
+            return None
+        try:
+            payload = dds_path.read_bytes()
+        except OSError as exc:
+            upload_diagnostic.failure_reason = f"Native DDS read failed: {exc}"
+            return None
+        texture_id_value = c_uint(0)
+        try:
+            functions.glGenTextures(1, byref(texture_id_value))
+            texture_id = int(texture_id_value.value)
+            if texture_id <= 0:
+                upload_diagnostic.failure_reason = "OpenGL returned texture id 0 for native DDS upload."
+                return None
+            functions.glBindTexture(_GL_TEXTURE_2D, texture_id)
+            use_mipmaps = bool(
+                len(info.mip_levels) > 1
+                and self._high_quality_textures
+                and not self.render_settings().force_nearest_no_mipmaps
+            )
+            min_filter = _GL_LINEAR_MIPMAP_LINEAR if use_mipmaps else (
+                _GL_NEAREST if self.render_settings().force_nearest_no_mipmaps else _GL_LINEAR
+            )
+            mag_filter = _GL_NEAREST if self.render_settings().force_nearest_no_mipmaps else _GL_LINEAR
+            functions.glTexParameteri(_GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, int(min_filter))
+            functions.glTexParameteri(_GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, int(mag_filter))
+            functions.glTexParameteri(_GL_TEXTURE_2D, _GL_TEXTURE_WRAP_S, _GL_REPEAT if wrap_repeat else _GL_CLAMP_TO_EDGE)
+            functions.glTexParameteri(_GL_TEXTURE_2D, _GL_TEXTURE_WRAP_T, _GL_REPEAT if wrap_repeat else _GL_CLAMP_TO_EDGE)
+            for level in info.mip_levels:
+                chunk = payload[int(level.offset) : int(level.offset) + int(level.byte_count)]
+                if len(chunk) != int(level.byte_count):
+                    raise RuntimeError(f"mip {level.level} payload is truncated")
+                functions.glCompressedTexImage2D(
+                    _GL_TEXTURE_2D,
+                    int(level.level),
+                    int(internal_format),
+                    int(level.width),
+                    int(level.height),
+                    0,
+                    int(level.byte_count),
+                    bytes(chunk),
+                )
+            functions.glBindTexture(_GL_TEXTURE_2D, 0)
+        except Exception as exc:
+            texture_id = int(texture_id_value.value)
+            if texture_id > 0:
+                try:
+                    functions.glDeleteTextures(1, byref(c_uint(texture_id)))
+                except Exception:
+                    pass
+            upload_diagnostic.failure_reason = f"Native DDS GL upload failed: {exc}"
+            return None
+        error_text = self._gl_error_text()
+        if error_text:
+            texture_id = int(texture_id_value.value)
+            if texture_id > 0:
+                try:
+                    functions.glDeleteTextures(1, byref(c_uint(texture_id)))
+                except Exception:
+                    pass
+            upload_diagnostic.gl_error = ",".join(part for part in (upload_diagnostic.gl_error, error_text) if part)
+            upload_diagnostic.failure_reason = f"Native DDS GL upload returned GL error {error_text}."
+            return None
+        texture = _NativeCompressedGLTexture(functions, int(texture_id_value.value))
+        upload_diagnostic.image_loaded = True
+        upload_diagnostic.upload_attempted = True
+        upload_diagnostic.upload_success = True
+        upload_diagnostic.texture_created = True
+        upload_diagnostic.texture_id = int(texture.textureId())
+        upload_diagnostic.image_width = int(info.width)
+        upload_diagnostic.image_height = int(info.height)
+        upload_diagnostic.prepared_width = int(info.width)
+        upload_diagnostic.prepared_height = int(info.height)
+        upload_diagnostic.gl_max_texture_size = gl_max_texture_size
+        upload_diagnostic.mipmaps_generated = bool(len(info.mip_levels) > 1)
+        upload_diagnostic.native_texture_backend = "dds_native_gl_compressed"
+        upload_diagnostic.native_texture_status = "direct_upload"
+        upload_diagnostic.native_texture_format = format_label
+        if not upload_diagnostic.native_texture_slot:
+            upload_diagnostic.native_texture_slot = str(slot_name or "")
+        upload_diagnostic.failure_reason = ""
+        return texture
+
     def _rebuild_gl_textures(self) -> None:
         if not self._gl_ready:
             return
@@ -8036,20 +9918,31 @@ class ModelPreviewWidget(QOpenGLWidget):
             self._render_mode_uses_derived_relief(settings)
             and self._use_textures
             and self._high_quality_textures
+            and not bool(getattr(settings, "disable_all_support_maps", False))
+        )
+        upload_support_maps = bool(
+            self._high_quality_textures
+            and not bool(getattr(settings, "disable_all_support_maps", False))
         )
         for batch in self._mesh_batches:
             batch.source_average_color = ()
             batch.source_average_luma = 0.0
+        if not self._use_textures:
+            self._refresh_debug_overlay_lines()
+            return
         source_images: Dict[str, QImage] = {}
         current_meshes = getattr(getattr(self, "_current_model", None), "meshes", None)
         if current_meshes:
             for mesh_index, mesh in enumerate(current_meshes):
-                texture_slots = (
-                    ("preview_texture_path", "preview_texture_image", f"in_memory:{mesh_index}"),
-                    ("preview_normal_texture_path", "preview_normal_texture_image", f"in_memory_normal:{mesh_index}"),
-                    ("preview_material_texture_path", "preview_material_texture_image", f"in_memory_material:{mesh_index}"),
-                    ("preview_height_texture_path", "preview_height_texture_image", f"in_memory_height:{mesh_index}"),
-                )
+                texture_slots = [("preview_texture_path", "preview_texture_image", f"in_memory:{mesh_index}")]
+                if upload_support_maps:
+                    texture_slots.extend(
+                        (
+                            ("preview_normal_texture_path", "preview_normal_texture_image", f"in_memory_normal:{mesh_index}"),
+                            ("preview_material_texture_path", "preview_material_texture_image", f"in_memory_material:{mesh_index}"),
+                            ("preview_height_texture_path", "preview_height_texture_image", f"in_memory_height:{mesh_index}"),
+                        )
+                    )
                 for path_attr, image_attr, fallback_key in texture_slots:
                     texture_key = str(getattr(mesh, path_attr, "") or "").strip()
                     texture_image = getattr(mesh, image_attr, None)
@@ -8068,21 +9961,57 @@ class ModelPreviewWidget(QOpenGLWidget):
             )
             if derived_relief_key:
                 self._batch_derived_relief_keys[batch_index] = derived_relief_key
-            batch_texture_keys = (
-                batch.texture_key,
-                batch.normal_texture_key,
-                batch.material_texture_key,
-                batch.height_texture_key,
-                derived_relief_key,
-            )
+            batch_texture_keys = [batch.texture_key]
+            if upload_support_maps:
+                batch_texture_keys.extend(
+                    (
+                        batch.normal_texture_key,
+                        batch.material_texture_key,
+                        batch.height_texture_key,
+                        derived_relief_key,
+                    )
+                )
             for texture_key in batch_texture_keys:
                 if not texture_key:
                     continue
                 cache_key = (texture_key, bool(batch.texture_wrap_repeat), bool(batch.texture_flip_vertical))
+                slot_name = (
+                    "base"
+                    if texture_key == batch.texture_key
+                    else "normal"
+                    if texture_key == batch.normal_texture_key
+                    else "material"
+                    if texture_key == batch.material_texture_key
+                    else "height"
+                    if texture_key == batch.height_texture_key
+                    else "relief"
+                )
+                direct_dds_key = self._direct_dds_key_for_texture(batch, texture_key)
                 upload_diagnostic = self._texture_upload_diagnostics.get(cache_key)
                 if upload_diagnostic is None:
                     upload_diagnostic = _TextureUploadDiagnostic(texture_key=texture_key)
                     self._texture_upload_diagnostics[cache_key] = upload_diagnostic
+                existing_texture = self._texture_objects.get(cache_key)
+                if existing_texture is not None:
+                    if self._texture_created(existing_texture) and self._texture_id(existing_texture) > 0:
+                        upload_diagnostic.upload_attempted = True
+                        upload_diagnostic.upload_success = True
+                        upload_diagnostic.texture_created = True
+                        upload_diagnostic.texture_id = self._texture_id(existing_texture)
+                        upload_diagnostic.gl_error = self._gl_error_text()
+                        upload_diagnostic.failure_reason = ""
+                        if texture_key == batch.texture_key:
+                            cached_luma = self._texture_luma_cache.get(cache_key)
+                            if cached_luma is not None:
+                                self._batch_luma_diagnostics[batch_index] = cached_luma
+                                batch.source_average_color = cached_luma.average_color
+                                batch.source_average_luma = float(cached_luma.average_luma)
+                        continue
+                    try:
+                        existing_texture.destroy()
+                    except Exception:
+                        pass
+                    self._texture_objects.pop(cache_key, None)
                 texture_image = source_images.get(texture_key)
                 if texture_image is None:
                     texture_image = self._load_gl_texture_image(texture_key)
@@ -8099,8 +10028,22 @@ class ModelPreviewWidget(QOpenGLWidget):
                         if texture_image is not None:
                             source_images[texture_key] = texture_image
                 if texture_image is None:
+                    if direct_dds_key:
+                        direct_texture = self._upload_native_dds_texture(
+                            direct_dds_key,
+                            texture_key=texture_key,
+                            slot_name=slot_name,
+                            wrap_repeat=bool(batch.texture_wrap_repeat),
+                            upload_diagnostic=upload_diagnostic,
+                        )
+                        if direct_texture is not None:
+                            self._texture_objects[cache_key] = direct_texture
+                            continue
                     upload_diagnostic.image_loaded = False
-                    upload_diagnostic.failure_reason = f"DDS preview PNG missing or unreadable: {texture_key}"
+                    upload_diagnostic.failure_reason = (
+                        upload_diagnostic.failure_reason
+                        or f"DDS preview PNG missing or unreadable: {texture_key}"
+                    )
                     continue
                 upload_diagnostic.image_loaded = True
                 self._apply_native_texture_report(
@@ -8119,6 +10062,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                     )
                     if luma is not None:
                         self._batch_luma_diagnostics[batch_index] = luma
+                        self._texture_luma_cache[cache_key] = luma
                         batch.source_average_color = luma.average_color
                         batch.source_average_luma = float(luma.average_luma)
                 if current_meshes and 0 <= batch.mesh_index < len(current_meshes):
@@ -8155,14 +10099,18 @@ class ModelPreviewWidget(QOpenGLWidget):
                         )
                         if normal_strength is not None:
                             self._batch_normal_strength_diagnostics[batch_index] = float(normal_strength)
-                if cache_key in self._texture_objects:
-                    upload_diagnostic.upload_attempted = True
-                    upload_diagnostic.upload_success = True
-                    upload_diagnostic.failure_reason = ""
-                    continue
+                if direct_dds_key:
+                    direct_texture = self._upload_native_dds_texture(
+                        direct_dds_key,
+                        texture_key=texture_key,
+                        slot_name=slot_name,
+                        wrap_repeat=bool(batch.texture_wrap_repeat),
+                        upload_diagnostic=upload_diagnostic,
+                    )
+                    if direct_texture is not None:
+                        self._texture_objects[cache_key] = direct_texture
+                        continue
                 prepared_image = self._prepare_gl_texture_image(texture_image)
-                if batch.texture_flip_vertical:
-                    prepared_image = prepared_image.mirrored(False, True)
                 if prepared_image.isNull():
                     upload_diagnostic.upload_attempted = True
                     upload_diagnostic.upload_success = False
@@ -8506,6 +10454,27 @@ class PreviewSyntaxHighlighter(QSyntaxHighlighter):
     INI_TEXT_EXTENSIONS = {".ini", ".cfg"}
     PALOC_TEXT_EXTENSIONS = {".paloc"}
     LUA_TEXT_EXTENSIONS = {".lua"}
+    PLAIN_SECTION_RE = re.compile(
+        r"^\s*(?:[A-Z][A-Za-z0-9 /()_.-]+:|[A-Z][^\r\n:]{0,96}\bpreview for\b.+)\s*$"
+    )
+    PLAIN_LABEL_RE = re.compile(r"^\s*(?:[-*]\s*)?([A-Za-z][A-Za-z0-9 /()_.-]{0,72}:)")
+    PLAIN_KEY_VALUE_RE = re.compile(r"\b([A-Za-z_][\w.-]*)(=)([^\s,;)]+)")
+    PLAIN_WINDOWS_PATH_RE = re.compile(r"[A-Za-z]:\\[^\r\n<>|\"*?]+")
+    PLAIN_RELATIVE_PATH_RE = re.compile(r"(?<![\w.-])(?:[\w.-]+[\\/]){1,}[\w./\\-]+")
+    PLAIN_ASSET_FILE_RE = re.compile(
+        r"(?<![\w./\\-])[\w.-]+\.(?:cfg|dds|fbx|hkt|hkx|ini|jpg|jpeg|json|lua|material|obj|pac|pam|pamlod|pamt|png|shader|tga|xml|yaml|yml)\b",
+        re.IGNORECASE,
+    )
+    PLAIN_HEX_VALUE_RE = re.compile(r"\b0x[0-9A-Fa-f]+\b")
+    PLAIN_NUMBER_RE = re.compile(r"(?<![\w./\\-])-?\b\d[\d,]*(?:\.\d+)?(?:[eE][+-]?\d+)?\b")
+    PLAIN_HAVOK_TYPE_RE = re.compile(r"\bhk[A-Za-z0-9_:<>.-]+\b")
+    PLAIN_CONSTANT_RE = re.compile(r"\b[A-Z][A-Z0-9_]{2,}\b")
+    PLAIN_WARNING_RE = re.compile(
+        r"\b(warning|warn|missing|failed|failure|unsupported|truncated|unavailable|fallback|skipped|review|likely grey)\b",
+        re.IGNORECASE,
+    )
+    PLAIN_ERROR_RE = re.compile(r"\b(error|exception|traceback|invalid|corrupt|crash)\b", re.IGNORECASE)
+    PLAIN_SUCCESS_RE = re.compile(r"\b(ready|success|successful|complete|completed|detected|matches|editable)\b", re.IGNORECASE)
 
     LUA_KEYWORDS = {
         "and", "break", "do", "else", "elseif", "end", "false", "for", "function", "if", "in",
@@ -8527,6 +10496,10 @@ class PreviewSyntaxHighlighter(QSyntaxHighlighter):
         self.key_format = QTextCharFormat()
         self.entity_format = QTextCharFormat()
         self.bracket_format = QTextCharFormat()
+        self.path_format = QTextCharFormat()
+        self.success_format = QTextCharFormat()
+        self.warning_format = QTextCharFormat()
+        self.error_format = QTextCharFormat()
         self.set_theme(theme_key)
 
     def set_theme(self, theme_key: str) -> None:
@@ -8543,6 +10516,7 @@ class PreviewSyntaxHighlighter(QSyntaxHighlighter):
             fmt.setFontItalic(italic)
             return fmt
 
+        scheme = None
         if self.highlight_style == "plain":
             base_color = theme["text"]
             self.comment_format = make(base_color)
@@ -8603,6 +10577,17 @@ class PreviewSyntaxHighlighter(QSyntaxHighlighter):
             self.key_format = make("#9cdcfe")
             self.entity_format = make("#d7ba7d")
             self.bracket_format = make("#d4d4d4")
+        if self.highlight_style == "plain":
+            self.path_format = make(theme["text"])
+            self.success_format = make(theme["text"])
+            self.warning_format = make(theme["text"])
+            self.error_format = make(theme["text"])
+        else:
+            active_scheme = scheme or {}
+            self.path_format = make(theme["text_strong"], bold=True)
+            self.success_format = make(active_scheme.get("success", "#098658" if light else "#6a9955"), bold=True)
+            self.warning_format = make(active_scheme.get("warning", theme["warning_text"]), bold=True)
+            self.error_format = make(active_scheme.get("error", theme["error"]), bold=True)
         self.rehighlight()
 
     def set_highlight_style(self, style: str) -> None:
@@ -8648,6 +10633,54 @@ class PreviewSyntaxHighlighter(QSyntaxHighlighter):
             self._highlight_ini(text)
         elif self.language == "lua":
             self._highlight_lua(text)
+        else:
+            self._highlight_plain_preview(text)
+
+    def _highlight_plain_preview(self, text: str) -> None:
+        if not text.strip():
+            return
+
+        section_match = self.PLAIN_SECTION_RE.match(text)
+        if section_match:
+            self.setFormat(0, len(text), self.section_format)
+
+        label_match = self.PLAIN_LABEL_RE.match(text)
+        if label_match:
+            start, end = label_match.span(1)
+            self.setFormat(start, end - start, self.key_format)
+
+        for match in re.finditer(r"\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'", text):
+            self.setFormat(match.start(), match.end() - match.start(), self.string_format)
+
+        for match in self.PLAIN_KEY_VALUE_RE.finditer(text):
+            key_start, key_end = match.span(1)
+            equals_start, equals_end = match.span(2)
+            value_start, value_end = match.span(3)
+            self.setFormat(key_start, key_end - key_start, self.key_format)
+            self.setFormat(equals_start, equals_end - equals_start, self.bracket_format)
+            self.setFormat(value_start, value_end - value_start, self.string_format)
+
+        for match in self.PLAIN_CONSTANT_RE.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.tag_format)
+        for match in self.PLAIN_HAVOK_TYPE_RE.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.entity_format)
+        for match in self.PLAIN_HEX_VALUE_RE.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.number_format)
+        for match in self.PLAIN_NUMBER_RE.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.number_format)
+        for match in self.PLAIN_WINDOWS_PATH_RE.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.path_format)
+        for match in self.PLAIN_RELATIVE_PATH_RE.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.path_format)
+        for match in self.PLAIN_ASSET_FILE_RE.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.path_format)
+
+        for match in self.PLAIN_SUCCESS_RE.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.success_format)
+        for match in self.PLAIN_WARNING_RE.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.warning_format)
+        for match in self.PLAIN_ERROR_RE.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.error_format)
 
     def _highlight_xml(self, text: str) -> None:
         self.setCurrentBlockState(0)
@@ -9569,7 +11602,7 @@ class QuickStartDialog(QDialog):
               <li><b>Mesh Actions</b>: export OBJ/FBX, test <b>Import Mesh Preview</b>, preview texture overrides with <b>Import DDS Preview</b>, run <b>Import Mesh</b>, align static replacements, and use <b>Swap With In-Game Mesh</b> when another loaded archive mesh should become the source.</li>
               <li><b>Texture Workflow</b>: scan loose DDS files, convert DDS to PNG when needed, optionally upscale, rebuild DDS, compare results, and export loose mod output.</li>
               <li><b>Texture Editor</b>: open images directly for layered visible-texture editing and send flattened output back into the rebuild flow.</li>
-              <li><b>Replace Assistant</b>: take edited PNG/DDS files, match them to the original game DDS, rebuild corrected output, and prepare mod-ready folders.</li>
+              <li><b>Texture Replacer</b>: take edited PNG/DDS files, match them to the original game DDS, rebuild corrected output, and prepare mod-ready folders.</li>
               <li><b>Research</b>: inspect grouped texture families, unknown classifications, references, DDS analysis, reports, and local notes.</li>
               <li><b>Text Search</b>: search archive or loose text-like files such as <b>.xml</b>, <b>.json</b>, <b>.cfg</b>, and <b>.lua</b>.</li>
               <li><b>Settings</b>: store theme, density, cache behavior, remembered layout state, confirmations, and startup preferences beside the EXE.</li>
@@ -9587,8 +11620,8 @@ class QuickStartDialog(QDialog):
               <li>Use <b>Preview Policy</b> before <b>Start</b> if you want to inspect the planned per-texture action.</li>
               <li>Click <b>Scan</b> in the Texture Workflow tab.</li>
               <li>Run a small subset first, then review the output in <b>Compare</b> before trying a larger batch.</li>
-              <li>If you already edited a texture outside the app, use <b>Replace Assistant</b> instead of the batch workflow.</li>
-              <li>If you want to edit visible textures inside the app, open them in <b>Texture Editor</b> and then send the flattened result back into <b>Replace Assistant</b> or <b>Texture Workflow</b>.</li>
+              <li>If you already edited a texture outside the app, use <b>Texture Replacer</b> instead of the batch workflow.</li>
+              <li>If you want to edit visible textures inside the app, open them in <b>Texture Editor</b> and then send the flattened result back into <b>Texture Replacer</b> or <b>Texture Workflow</b>.</li>
               <li>For mesh work, start in <b>Archive Browser</b>: select a <b>.pam</b>, <b>.pamlod</b>, or <b>.pac</b>, use <b>Import Mesh Preview</b> to test without writing, and use <b>Import Mesh</b> only after alignment and texture choices look correct.</li>
             </ol>
             <h3>Mesh Quick Guide</h3>
@@ -9605,7 +11638,7 @@ class QuickStartDialog(QDialog):
               <li><b>I want to look inside the game files</b>: open <b>Archive Browser</b>, choose a package root, scan, filter, preview, and extract selected files.</li>
               <li><b>I want to replace a model</b>: use <b>Archive Browser</b> mesh actions, start with <b>Import Mesh Preview</b>, then continue to <b>Import Mesh</b> or <b>Swap With In-Game Mesh</b> after checking alignment.</li>
               <li><b>I want to batch-process loose DDS files</b>: use <b>Texture Workflow</b> with a small folder first, then review in <b>Compare</b>.</li>
-              <li><b>I already edited one texture</b>: use <b>Replace Assistant</b> so the original DDS controls format, dimensions, mips, and output path.</li>
+              <li><b>I already edited one texture</b>: use <b>Texture Replacer</b> so the original DDS controls format, dimensions, mips, and output path.</li>
               <li><b>I want to edit inside the app</b>: use <b>Texture Editor</b>, save a project if you need layers later, then export or send the flattened PNG onward.</li>
               <li><b>I need to understand what a texture family is</b>: use <b>Research</b> for grouped sets, classifications, references, analysis, and notes.</li>
               <li><b>I am searching for XML, JSON, Lua, or config strings</b>: use <b>Text Search</b> against archives or loose folders.</li>
@@ -9621,7 +11654,7 @@ class QuickStartDialog(QDialog):
               <li>Open Documentation for detailed field references, recipes, troubleshooting, and FAQs.</li>
             </ul>
             <h3>Where Details Live</h3>
-            <p>The <b>Documentation</b> menu is topic-based and searchable. Use it for mesh import/swap steps, archive guides, Texture Workflow profiles and rules, Texture Editor tools, Replace Assistant packaging, Research, Text Search, settings, troubleshooting, and FAQs.</p>
+            <p>The <b>Documentation</b> menu is topic-based and searchable. Use it for mesh import/swap steps, archive guides, Texture Workflow profiles and rules, Texture Editor tools, Texture Replacer packaging, Research, Text Search, settings, troubleshooting, and FAQs.</p>
             """
         )
         self.browser.setFont(self.font())

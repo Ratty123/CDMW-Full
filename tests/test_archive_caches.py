@@ -21,6 +21,7 @@ from cdmw.core.archive import (
     save_archive_scan_cache,
     save_archive_texture_sidecar_cache,
 )
+from cdmw.core.table_catalog import table_catalog_cache_metadata
 from cdmw.models import ArchiveEntry
 
 
@@ -56,6 +57,31 @@ def _sidecar_text(texture_path: str, *, extra: str = "") -> bytes:
 
 
 class ArchiveCacheTests(unittest.TestCase):
+    def test_basename_index_orders_nested_real_paths_before_shortcut_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            data = b"payload"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [
+                _entry("character/cd_phm_00_hel_00_0363.pac", pamt, paz, data),
+                _entry(
+                    "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0363.pac",
+                    pamt,
+                    paz,
+                    data,
+                ),
+                _entry("character/model/cd_phm_00_hel_00_0363.pac", pamt, paz, data),
+            ]
+
+            index = build_archive_entry_basename_index(entries)
+            matches = index["cd_phm_00_hel_00_0363.pac"]
+
+        self.assertEqual(
+            matches[0].path,
+            "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0363.pac",
+        )
+        self.assertEqual(matches[-1].path, "character/cd_phm_00_hel_00_0363.pac")
+
     def test_sidecar_cache_exact_metadata_match_loads_without_rebuild(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -207,6 +233,7 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertEqual(payload.get("item_exact_display_names"), {"a": "Test Item"})
             self.assertEqual(payload.get("item_related_display_names"), {"b": "Related Item"})
             self.assertEqual(payload.get("item_asset_catalog"), [{"display_name": "Test Item", "scope_filter": "test item"}])
+            self.assertIn("table_catalog", payload)
             self.assertNotIn("path_index", payload)
             self.assertNotIn("basename_index", payload)
             self.assertNotIn("extension_index", payload)
@@ -239,11 +266,137 @@ class ArchiveCacheTests(unittest.TestCase):
                 resolve_archive_derived_index_cache_path(root, cache_root)
             )
 
-            self.assertEqual(raw_payload.get("version"), 5)
+            self.assertEqual(raw_payload.get("version"), 10)
+            self.assertEqual(
+                raw_payload.get("table_catalog"),
+                table_catalog_cache_metadata(row_counts={"item_asset_catalog": 1}),
+            )
             self.assertNotIn("path_rows", raw_payload)
             self.assertNotIn("basename_rows", raw_payload)
             self.assertNotIn("extension_rows", raw_payload)
             self.assertNotIn("entry_signatures", raw_payload)
+
+    def test_derived_index_cache_v8_is_rejected_after_table_catalog_metadata_added(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            cache_root.mkdir(parents=True, exist_ok=True)
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            _base, sources = _collect_archive_scan_sources_from_entries(root, entries)
+            _write_raw_pickle_cache_payload_to_path(
+                resolve_archive_derived_index_cache_path(root, cache_root),
+                magic=_ARCHIVE_DERIVED_INDEX_CACHE_MAGIC,
+                payload={
+                    "version": 8,
+                    "created_at": 1.0,
+                    "sources": sources,
+                    "entry_count": len(entries),
+                    "item_search_aliases": {"a": "old"},
+                    "item_asset_catalog": [{"display_name": "Old Row"}],
+                },
+            )
+
+            logs: list[str] = []
+            self.assertIsNone(load_archive_derived_index_cache(root, cache_root, entries, on_log=logs.append))
+            self.assertTrue(any("rebuilding lightweight cache" in line for line in logs))
+
+    def test_derived_index_cache_v5_is_rejected_after_item_catalog_category_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            cache_root.mkdir(parents=True, exist_ok=True)
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/lantern.pac", pamt, paz, data)]
+            _base, sources = _collect_archive_scan_sources_from_entries(root, entries)
+            _write_raw_pickle_cache_payload_to_path(
+                resolve_archive_derived_index_cache_path(root, cache_root),
+                magic=_ARCHIVE_DERIVED_INDEX_CACHE_MAGIC,
+                payload={
+                    "version": 5,
+                    "created_at": 1.0,
+                    "sources": sources,
+                    "entry_count": len(entries),
+                    "item_search_aliases": {},
+                    "item_asset_catalog": [
+                        {
+                            "display_name": "Wooden Lantern",
+                            "category": "Material",
+                            "group": "Wood / Stone",
+                        }
+                    ],
+                },
+            )
+
+            logs: list[str] = []
+            self.assertIsNone(load_archive_derived_index_cache(root, cache_root, entries, on_log=logs.append))
+            self.assertTrue(any("rebuilding lightweight cache" in line for line in logs))
+
+    def test_derived_index_cache_v6_is_rejected_after_weapon_category_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            cache_root.mkdir(parents=True, exist_ok=True)
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/dagger_tipped_spear.pac", pamt, paz, data)]
+            _base, sources = _collect_archive_scan_sources_from_entries(root, entries)
+            _write_raw_pickle_cache_payload_to_path(
+                resolve_archive_derived_index_cache_path(root, cache_root),
+                magic=_ARCHIVE_DERIVED_INDEX_CACHE_MAGIC,
+                payload={
+                    "version": 6,
+                    "created_at": 1.0,
+                    "sources": sources,
+                    "entry_count": len(entries),
+                    "item_search_aliases": {},
+                    "item_asset_catalog": [
+                        {
+                            "display_name": "Tommaso Guard's Dagger-Tipped Spear",
+                            "category": "Weapon",
+                            "group": "Dagger / Rapier",
+                        }
+                    ],
+                },
+            )
+
+            logs: list[str] = []
+            self.assertIsNone(load_archive_derived_index_cache(root, cache_root, entries, on_log=logs.append))
+            self.assertTrue(any("rebuilding lightweight cache" in line for line in logs))
+
+    def test_derived_index_cache_v7_is_rejected_after_horse_gear_category_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            cache_root.mkdir(parents=True, exist_ok=True)
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/horsearmor_royal_plate.pac", pamt, paz, data)]
+            _base, sources = _collect_archive_scan_sources_from_entries(root, entries)
+            _write_raw_pickle_cache_payload_to_path(
+                resolve_archive_derived_index_cache_path(root, cache_root),
+                magic=_ARCHIVE_DERIVED_INDEX_CACHE_MAGIC,
+                payload={
+                    "version": 7,
+                    "created_at": 1.0,
+                    "sources": sources,
+                    "entry_count": len(entries),
+                    "item_search_aliases": {},
+                    "item_asset_catalog": [
+                        {
+                            "display_name": "Royal Plate Armor",
+                            "category": "Armor",
+                            "group": "Body",
+                        }
+                    ],
+                },
+            )
+
+            logs: list[str] = []
+            self.assertIsNone(load_archive_derived_index_cache(root, cache_root, entries, on_log=logs.append))
+            self.assertTrue(any("rebuilding lightweight cache" in line for line in logs))
 
     def test_derived_index_cache_rejects_source_mismatch_and_invalid_cache(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

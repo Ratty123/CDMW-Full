@@ -262,6 +262,76 @@ class MaterialSidecarEditorTests(unittest.TestCase):
         self.assertEqual("_emissiveColor", material.color_parameters[0].parameter_name)
         self.assertAlmostEqual(1.25, material.float_parameters[0].numeric_value)
 
+    def test_material_profile_reads_material_definition_technique_and_parameters(self) -> None:
+        text = """
+        <Technique Name="Standard"/>
+        <Parameter Name="_rgbTexture" Type="Texture" sRGB="False" DefaultValue="Texture/NoneTexture0x7f0000.dds"/>
+        <Parameter Name="_colorTextureG" Type="Texture" sRGB="True" DefaultValue="Texture/NoneTexture0x00000000.dds"/>
+        <Parameter Name="_heightIntensityG" DefaultValue="0.75" MinValue="0.0" MaxValue="1.0"/>
+        <Parameter Name="_tintColorG" DefaultValue="0x80ff40ff" Type="Color"/>
+        <Parameter Name="_materialFlags" Type="BitFlag32">
+          <Element Name="UseMultiTextured" BitFlagIndex="0" DefaultValue="True"/>
+        </Parameter>
+        """
+        profile = parse_material_sidecar_profile(text, sidecar_path="material/dist/abyssmultitextured3.material")
+
+        self.assertEqual("material", profile.sidecar_kind)
+        self.assertEqual(("Standard",), profile.shader_families)
+        self.assertEqual(1, len(profile.materials))
+        material = profile.materials[0]
+        self.assertEqual("abyssmultitextured3", material.material_name)
+        self.assertEqual(2, len(material.texture_parameters))
+        self.assertEqual({"_rgbTexture", "_colorTextureG"}, {parameter.parameter_name for parameter in material.texture_parameters})
+        self.assertEqual("_heightIntensityG", material.float_parameters[0].parameter_name)
+        self.assertAlmostEqual(0.75, material.float_parameters[0].numeric_value)
+        self.assertEqual("_tintColorG", material.color_parameters[0].parameter_name)
+        self.assertEqual("_materialFlags", material.flag_parameters[0].parameter_name)
+
+    def test_material_profile_preserves_static_material_parameter_variants(self) -> None:
+        text = """
+        <StaticMesh Path="object/building/example.pam"/>
+        <Material PrimitiveName="Wall">
+          <Common MaterialName="MultiTextured"/>
+          <Parameters>
+            <MaterialParameterUint Name="_materialInfo" Value="13"/>
+            <MaterialParameterInt Name="_placementId" Value="91"/>
+            <MaterialParameterClothCategory Name="_clothCategory" Value="Velvet"/>
+            <MaterialParameterFloat3 Name="_windDirection" Value="1.0 0.0 0.5"/>
+            <MaterialParameterHalf2 Name="_layerOffset" Value="0.25 0.75"/>
+          </Parameters>
+        </Material>
+        """
+        profile = parse_material_sidecar_profile(text, sidecar_path="object/building/example.pami")
+
+        self.assertEqual("pami", profile.sidecar_kind)
+        self.assertEqual(1, len(profile.materials))
+        material = profile.materials[0]
+        flag_names = {parameter.parameter_name for parameter in material.flag_parameters}
+        float_names = {parameter.parameter_name for parameter in material.float_parameters}
+        self.assertIn("_materialInfo", flag_names)
+        self.assertIn("_placementId", flag_names)
+        self.assertIn("_clothCategory", flag_names)
+        self.assertIn("_windDirection", float_names)
+        self.assertIn("_layerOffset", float_names)
+        self.assertEqual("13", material.parameter_value("_materialInfo"))
+
+    def test_material_profile_reads_technique_definition_parameters(self) -> None:
+        text = """
+        <Technique Name="CharacterCustomRender" Abstract="True"/>
+        <Technique Name="SkinnedMeshStandard" InputLayout="CharacterVertex"/>
+        <Parameter Name="_baseColorTexture" Type="Texture" sRGB="True" DefaultValue="Texture/NoneTexture0x00000000.dds"/>
+        <Parameter Name="_normalTexture" Type="Texture" sRGB="False" DefaultValue="Texture/NoneTexture0xff7f7f00.dds"/>
+        <Parameter Name="_screenSpaceDisplacementScale" DefaultValue="0.0" MinValue="0.0" MaxValue="1.0"/>
+        """
+        profile = parse_material_sidecar_profile(text, sidecar_path="technique/character.technique")
+
+        self.assertEqual("technique", profile.sidecar_kind)
+        self.assertEqual(("SkinnedMeshStandard",), profile.shader_families)
+        self.assertEqual(1, len(profile.materials))
+        material = profile.materials[0]
+        self.assertEqual(2, len(material.texture_parameters))
+        self.assertEqual("_screenSpaceDisplacementScale", material.float_parameters[0].parameter_name)
+
     def test_preview_overrides_for_edits_ignore_unedited_dark_sidecar_colors(self) -> None:
         text = """
         <SkinnedMeshMaterialWrapper _subMeshName="cloak">

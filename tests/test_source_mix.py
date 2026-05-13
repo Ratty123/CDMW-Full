@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import struct
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from cdmw.core.archive_modding import ArchivePatchRequest, export_archive_payloads_to_mod_ready_loose
+from cdmw.core.archive_modding import (
+    ArchivePatchRequest,
+    MeshImportSupplementalFileSpec,
+    export_archive_payloads_to_mod_ready_loose,
+)
 from cdmw.core.mod_package import ModPackageExportOptions
 from cdmw.core.source_mix import (
     SourceMixSelection,
@@ -97,15 +102,18 @@ class SourceMixTests(unittest.TestCase):
             archive_root = root / "archive"
             model_entry = _entry("character/model/1_pc/1_phm/weapon/cd_phm_02_sword_0014.pac", archive_root)
             hkx_entry = _entry("character/bin__/meshphysics/1_pc/1_phm/weapon/cd_phm_02_sword_0014.hkx", archive_root)
+            hkt_entry = _entry("character/bin__/meshphysics/1_pc/1_phm/weapon/cd_phm_02_sword_0014.hkt", archive_root)
             target_map = {
                 normalize_source_mix_virtual_path(model_entry.path): model_entry,
                 normalize_source_mix_virtual_path(hkx_entry.path): hkx_entry,
+                normalize_source_mix_virtual_path(hkt_entry.path): hkt_entry,
             }
             loose_root = root / "2hto1hsword" / "files"
             files = {
                 "character/model/1_pc/1_phm/weapon/cd_phm_02_sword_0014.pac": b"model",
                 "character/modelproperty/1_pc/1_phm/weapon/cd_phm_02_sword_0014.pac_xml": b"mat",
                 "character/bin__/meshphysics/1_pc/1_phm/weapon/cd_phm_02_sword_0014.hkx": b"hkx",
+                "character/bin__/meshphysics/1_pc/1_phm/weapon/cd_phm_02_sword_0014.hkt": b"hkt",
                 "character/descriptors/prefab/cd_phm_02_sword_0014.prefab": b"prefab",
                 "character/animation/cd_phm_02_sword_0014.paa": b"paa",
                 "character/descriptors/socketbonedata/phm_01.pab.sockets.xml": b"socket",
@@ -122,12 +130,54 @@ class SourceMixTests(unittest.TestCase):
             self.assertEqual("exact", by_path[normalize_source_mix_virtual_path(model_entry.path)].match_status)
             self.assertEqual("replace", by_path[normalize_source_mix_virtual_path(model_entry.path)].default_action)
             self.assertEqual("Physics HKX", by_path[normalize_source_mix_virtual_path(hkx_entry.path)].role)
+            self.assertEqual("Physics HKX", by_path[normalize_source_mix_virtual_path(hkt_entry.path)].role)
             self.assertEqual("Material", source_mix_role_for_virtual_path("x/cd_phm_02_sword_0014.pac_xml"))
             self.assertEqual("Socket XML", source_mix_role_for_virtual_path("x/phm_01.pab.sockets.xml"))
             grouped = group_source_mix_candidates_by_family(candidates)
             model_family = by_path[normalize_source_mix_virtual_path(model_entry.path)].family_id
             self.assertIn(model_family, grouped)
             self.assertGreaterEqual(len(grouped[model_family]), 2)
+
+    def test_loose_folder_scan_matches_compact_working_mod_paths_by_basename(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive_root = root / "archive"
+            model_entry = _entry(
+                "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0042.pac",
+                archive_root,
+            )
+            sidecar_entry = _entry(
+                "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0042.pac_xml",
+                archive_root,
+            )
+            target_map = {
+                normalize_source_mix_virtual_path(model_entry.path): model_entry,
+                normalize_source_mix_virtual_path(sidecar_entry.path): sidecar_entry,
+            }
+            loose_root = root / "CrimsonForgeMod"
+            files = {
+                "files/character/cd_phm_02_sword_0042.pac": b"model",
+                "files/character/cd_phm_02_sword_0042.pac_xml": b"mat",
+                "manifest.json": b"{}",
+                "modinfo.json": b"{}",
+                "README.txt": b"readme",
+            }
+            for relative, payload in files.items():
+                path = loose_root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(payload)
+
+            candidates = scan_loose_folder_source(loose_root, target_entries_by_virtual_path=target_map)
+
+            self.assertEqual(2, len(candidates))
+            by_source_path = {candidate.normalized_virtual_path: candidate for candidate in candidates}
+            compact_model = by_source_path["character/cd_phm_02_sword_0042.pac"]
+            compact_sidecar = by_source_path["character/cd_phm_02_sword_0042.pac_xml"]
+            self.assertIs(compact_model.target_archive_entry, model_entry)
+            self.assertIs(compact_sidecar.target_archive_entry, sidecar_entry)
+            self.assertEqual("basename", compact_model.match_status)
+            self.assertEqual("replace", compact_model.default_action)
+            self.assertIn("filename", compact_model.confidence)
 
     def test_loose_folder_scan_marks_duplicate_conflicts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -211,6 +261,71 @@ class SourceMixTests(unittest.TestCase):
             self.assertTrue((result.package_root / "gamedata" / "binary__" / "client" / "bin" / "iteminfo.pabgb").exists())
             self.assertTrue((result.package_root / "gamedata" / "binary__" / "client" / "bin" / "iteminfo.pabgh").exists())
             self.assertTrue((result.package_root / "manifest.json").exists())
+
+    def test_source_mix_export_can_include_sidecar_referenced_extra_payloads(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            target = _entry("character/modelproperty/weapon/target_weapon.pac_xml", root)
+            extra_dds = root / "source" / "files" / "character" / "texture" / "source_custom.dds"
+            extra_dds.parent.mkdir(parents=True)
+            extra_dds.write_bytes(b"DDS custom")
+
+            result = export_archive_payloads_to_mod_ready_loose(
+                [
+                    ArchivePatchRequest(
+                        entry=target,
+                        payload_data=(
+                            b'<SkinnedMeshMaterialWrapper _subMeshName="weapon">'
+                            b'<MaterialParameterTexture _name="_baseColorTexture">'
+                            b'<ResourceReferencePath_ITexture Name="_value" _path="character/texture/source_custom.dds"/>'
+                            b"</MaterialParameterTexture>"
+                            b"</SkinnedMeshMaterialWrapper>"
+                        ),
+                    )
+                ],
+                parent_root=root / "exports",
+                package_info=ModPackageInfo(title="Sidecar Extra"),
+                export_options=ModPackageExportOptions(create_zip=False),
+                extra_payloads_to_include=(
+                    MeshImportSupplementalFileSpec(
+                        source_path=extra_dds,
+                        target_path="character/texture/source_custom.dds",
+                        kind="texture",
+                        target_entry=None,
+                    ),
+                ),
+            )
+
+            self.assertTrue((result.package_root / "character" / "modelproperty" / "weapon" / "target_weapon.pac_xml").exists())
+            self.assertTrue((result.package_root / "character" / "texture" / "source_custom.dds").exists())
+
+    def test_existing_target_icon_extra_payload_is_not_declared_as_new_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            target = _entry("character/model/weapon/target_weapon.pac", root)
+            icon_entry = _entry("ui/itemicon/itemicon_prefab_cd_phm_01_sword_0166.dds", root)
+            icon_payload = root / "generated_icon.dds"
+            icon_payload.write_bytes(b"DDS generated icon")
+
+            result = export_archive_payloads_to_mod_ready_loose(
+                [ArchivePatchRequest(entry=target, payload_data=b"model")],
+                parent_root=root / "exports",
+                package_info=ModPackageInfo(title="Icon Override"),
+                export_options=ModPackageExportOptions(create_zip=False),
+                extra_payloads_to_include=(
+                    MeshImportSupplementalFileSpec(
+                        source_path=icon_payload,
+                        target_path=icon_entry.path,
+                        kind="item_icon_generated",
+                        target_entry=icon_entry,
+                        payload_data=icon_payload.read_bytes(),
+                    ),
+                ),
+            )
+
+            manifest = json.loads((result.package_root / "manifest.json").read_text(encoding="utf-8"))
+            self.assertTrue((result.package_root / "ui" / "itemicon" / "itemicon_prefab_cd_phm_01_sword_0166.dds").exists())
+            self.assertNotIn("new_paths", manifest)
 
 
 if __name__ == "__main__":

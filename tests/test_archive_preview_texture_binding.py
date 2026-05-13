@@ -14,6 +14,7 @@ from cdmw.core.archive import (
     _iter_model_sidecar_binding_submesh_keys,
     normalize_texture_reference_for_sidecar_lookup,
 )
+from cdmw.core.upscale_profiles import parse_texture_sidecar_bindings
 from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh
 
 
@@ -41,6 +42,68 @@ def _texture_maps(*paths: str):
 
 
 class ArchivePreviewTextureBindingTests(unittest.TestCase):
+    def test_sidecar_binding_resolves_common_texture_folder_variant(self) -> None:
+        source_entry = _entry("character/model/body_a.pac")
+        by_normalized, by_basename = _texture_maps("character/body_a.dds")
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Body", texture_name="Body")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path="character/texture/body_a.dds",
+                parameter_name="_baseColorTexture",
+                submesh_name="Body",
+                sidecar_kind="pac_xml",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_sidecar_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual("character/body_a.dds", model.meshes[0].texture_name)
+        self.assertEqual("preview://character/body_a.dds", model.meshes[0].preview_texture_path)
+
+    def test_pac_xml_parser_uses_first_model_property_material_group(self) -> None:
+        sidecar_text = (
+            "<Root>"
+            "<ModelProperty>"
+            '<SkinnedMeshMaterialWrapper _subMeshName="Body_A">'
+            '<MaterialParameterTexture _name="_baseColorTexture">'
+            '<ResourceReferencePath_ITexture value="character/texture/body_a.dds"/>'
+            "</MaterialParameterTexture>"
+            "</SkinnedMeshMaterialWrapper>"
+            "</ModelProperty>"
+            "<ModelProperty>"
+            '<SkinnedMeshMaterialWrapper _subMeshName="Body_B">'
+            '<MaterialParameterTexture _name="_baseColorTexture">'
+            '<ResourceReferencePath_ITexture value="character/texture/body_b.dds"/>'
+            "</MaterialParameterTexture>"
+            "</SkinnedMeshMaterialWrapper>"
+            "</ModelProperty>"
+            "</Root>"
+        )
+
+        bindings = parse_texture_sidecar_bindings(
+            sidecar_text,
+            sidecar_path="character/modelproperty/body_a.pac_xml",
+        )
+
+        self.assertEqual(1, len(bindings))
+        self.assertEqual("Body_A", bindings[0].submesh_name)
+        self.assertEqual("character/texture/body_a.dds", bindings[0].texture_path)
+
     def test_cross_family_sidecar_texture_notice_is_explicit_but_nonfatal(self) -> None:
         notice = _archive_texture_family_mismatch_summary(
             "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0054_16.pac",
@@ -123,6 +186,56 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         self.assertEqual("character/texture/part_a.dds", model.meshes[0].texture_name)
         self.assertEqual("character/texture/part_b.dds", model.meshes[1].texture_name)
         self.assertIn("ordered sidecar material wrapper", "\n".join(lines))
+
+    def test_named_unresolved_mesh_does_not_promote_unrelated_sidecar_base(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        by_normalized, by_basename = _texture_maps(
+            "character/texture/part_a.dds",
+            "character/texture/part_b_n.dds",
+        )
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[
+                ModelPreviewMesh(material_name="CD_Test_Part_A", texture_name="CD_Test_Part_A"),
+                ModelPreviewMesh(material_name="CD_Test_Part_B", texture_name="CD_Test_Part_B"),
+            ],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path="character/texture/part_a.dds",
+                parameter_name="_diffuseTextureR",
+                submesh_name="CD_Test_Part_A",
+                sidecar_kind="pac_xml",
+                tint_color=(0.8, 0.1, 0.1),
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                texture_path="character/texture/part_b_n.dds",
+                parameter_name="_normalTexture",
+                submesh_name="CD_Test_Part_B",
+                sidecar_kind="pac_xml",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            lines = _attach_model_sidecar_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                visible_texture_mode="layer_aware_visible",
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual("character/texture/part_a.dds", model.meshes[0].texture_name)
+        self.assertEqual("preview://character/texture/part_a.dds", model.meshes[0].preview_texture_path)
+        self.assertEqual("CD_Test_Part_B", model.meshes[1].texture_name)
+        self.assertEqual("", model.meshes[1].preview_texture_path)
+        self.assertNotIn("Used a sidecar texture fallback", "\n".join(lines))
 
     def test_sidecar_overlay_base_promotes_material_tint_to_preview_color(self) -> None:
         source_entry = _entry("character/model/cd_test_model.pac")
@@ -444,6 +557,39 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
             model.meshes[0].preview_texture_path,
         )
 
+    def test_placeholder_none_texture_is_not_applied_as_support_map(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        by_normalized, by_basename = _texture_maps("texture/nonetexture0x00000000.dds")
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="CD_Test_Handle", texture_name="CD_Test_Handle")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path="texture/nonetexture0x00000000.dds",
+                parameter_name="_normalTexture",
+                submesh_name="CD_Test_Handle",
+                sidecar_kind="pac_xml",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            lines = _attach_model_support_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual("", model.meshes[0].preview_normal_texture_path)
+        self.assertNotIn("Exact sidecar normal-map bindings", "\n".join(lines))
+
     def test_sidecar_material_color_survives_missing_visible_dds(self) -> None:
         source_entry = _entry("character/model/cd_test_model.pac")
         by_normalized, by_basename = _texture_maps()
@@ -572,6 +718,97 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         self.assertEqual("character/texture/part_a_ma.dds", model.meshes[0].preview_material_texture_name)
         self.assertEqual("character/texture/part_b_disp.dds", model.meshes[1].preview_height_texture_name)
         self.assertIn("anonymous support-map", "\n".join(lines))
+
+    def test_exact_sidecar_support_preserves_multiple_material_inputs_for_preview(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        texture_paths = (
+            "character/texture/part_a_ma.dds",
+            "character/texture/part_a_sp.dds",
+        )
+        by_normalized, by_basename = _texture_maps(*texture_paths)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Part_A", texture_name="Part_A")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding("character/texture/part_a_ma.dds", "_materialTexture", "Part_A"),
+            _ArchiveModelSidecarTextureBinding("character/texture/part_a_sp.dds", "_specularTexture", "Part_A"),
+        )
+
+        with patch(
+            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            lines = _attach_model_support_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        material_inputs = [
+            item
+            for item in model.meshes[0].preview_material_texture_inputs
+            if item.slot_kind == "material"
+        ]
+        self.assertEqual(
+            {
+                "character/texture/part_a_ma.dds",
+                "character/texture/part_a_sp.dds",
+            },
+            {item.source_texture_path for item in material_inputs},
+        )
+        self.assertIn("material diagnostics and preview", "\n".join(lines))
+
+    def test_exact_sidecar_material_inputs_are_capped_before_preview_conversion(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        texture_paths = tuple(
+            f"character/texture/part_a_layer_{index:02d}_ma.dds"
+            for index in range(8)
+        )
+        by_normalized, by_basename = _texture_maps(*texture_paths)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Part_A", texture_name="Part_A")],
+        )
+        bindings = tuple(
+            _ArchiveModelSidecarTextureBinding(path, f"_materialTexture{index}", "Part_A")
+            for index, path in enumerate(texture_paths)
+        )
+        converted_paths: list[str] = []
+
+        def _preview_path(_texconv, texture_entry, **_kwargs):
+            converted_paths.append(texture_entry.path)
+            return f"preview://{texture_entry.path}"
+
+        with patch(
+            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            side_effect=_preview_path,
+        ):
+            lines = _attach_model_support_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        material_inputs = [
+            item
+            for item in model.meshes[0].preview_material_texture_inputs
+            if item.slot_kind == "material"
+        ]
+        # One input is the active material slot itself; rich sidecar inputs are
+        # capped before conversion so high-layer sidecars do not spawn dozens
+        # of texconv jobs on the cold preview path.
+        self.assertLessEqual(len(material_inputs), 6)
+        self.assertLessEqual(len(set(converted_paths)), 5)
+        self.assertIn("lower-priority sidecar material texture input", "\n".join(lines))
 
 
 if __name__ == "__main__":

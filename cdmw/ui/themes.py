@@ -616,8 +616,50 @@ def build_app_stylesheet(
         background: {theme["accent_soft"]};
         color: {theme["text_strong"]};
     }}
+    QMenu::item:disabled {{
+        color: {theme["button_disabled_text"]};
+        background: transparent;
+    }}
+    QMenu::item:!enabled {{
+        color: {theme["button_disabled_text"]};
+        background: transparent;
+    }}
+    QMenu::item:selected:disabled {{
+        color: {theme["button_disabled_text"]};
+        background: {theme["surface_alt"]};
+    }}
+    QMenu::item:disabled:selected {{
+        color: {theme["button_disabled_text"]};
+        background: {theme["surface_alt"]};
+    }}
+    QMenu::item:selected:!enabled {{
+        color: {theme["button_disabled_text"]};
+        background: {theme["surface_alt"]};
+    }}
+    QMenu::item:!enabled:selected {{
+        color: {theme["button_disabled_text"]};
+        background: {theme["surface_alt"]};
+    }}
     QLabel, QCheckBox, QToolButton {{
         background: transparent;
+    }}
+    QToolButton#ArchiveActionMenuButton {{
+        background: {theme["button"]};
+        color: {theme["text"]};
+        border: 1px solid {theme["button_border"]};
+        border-radius: 4px;
+        padding: {metrics["button_pad_y"]}px {metrics["button_pad_x"]}px;
+    }}
+    QToolButton#ArchiveActionMenuButton:hover {{
+        background: {theme["button_hover"]};
+    }}
+    QToolButton#ArchiveActionMenuButton:pressed {{
+        background: {theme["button_pressed"]};
+    }}
+    QToolButton#ArchiveActionMenuButton:disabled {{
+        color: {theme["button_disabled_text"]};
+        background: {theme["button_disabled"]};
+        border-color: {theme["border"]};
     }}
     QWidget#FlatSectionPanel {{
         background: {theme["surface"]};
