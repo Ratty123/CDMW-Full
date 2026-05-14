@@ -64,7 +64,7 @@ class _FakeServiceProcess:
 
 
 class NativePreviewCoreTests(unittest.TestCase):
-    def test_build_job_carries_archive_entry_and_schema_v4(self) -> None:
+    def test_build_job_carries_archive_entry_and_schema_v5(self) -> None:
         job = build_native_preview_core_job(
             _entry(),
             cache_root=Path("C:/cache/native"),
@@ -73,10 +73,11 @@ class NativePreviewCoreTests(unittest.TestCase):
             package_root=Path("C:/game"),
         )
 
-        self.assertEqual(4, job["schema_version"])
+        self.assertEqual(5, job["schema_version"])
         self.assertEqual("d3d11", job["renderer_backend"])
         self.assertEqual("character/model/example/cd_example.pac", job["entry"]["path"])
         self.assertEqual("C:\\game\\0009\\1.paz", job["entry"]["paz_file"])
+        self.assertEqual("mesh_base_first", job["render_settings"]["visible_texture_mode"])
         self.assertTrue(job["capabilities"]["direct_dds"])
         self.assertTrue(job["capabilities"]["python_fallback_allowed"])
 
@@ -335,14 +336,30 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("native_base_quality", source)
         self.assertIn("selected_texture_examples", source)
         self.assertIn("job_allows_texture_role", source)
+        self.assertIn("visible_texture_mode", source)
+        self.assertIn("best_base_binding_for_mode", source)
+        self.assertIn("visible_class_for_binding", source)
+        self.assertIn("technical_for_visible_base", source)
+        self.assertIn("native_asset_family_json", source)
+        self.assertIn("asset_family_reference_count", source)
+        self.assertIn("std::max(5, job.schema_version)", source)
         self.assertIn("_native_preview_core_reference_metadata", python_source)
-        self.assertIn("Native metadata preserved", python_source)
-        self.assertIn("Native metadata resolved", python_source)
-        self.assertIn("visible texture mode", python_source)
-        self.assertIn("requires Python material resolver", python_source)
+        self.assertIn("_native_preview_core_manifest_metadata", python_source)
+        self.assertIn("Native Asset Family: schema=v", python_source)
+        self.assertIn("compatibility fallback used", python_source)
+        self.assertNotIn("requires Python material resolver", python_source)
         self.assertIn("_native_preview_core_quality_fallback_reason", python_source)
         self.assertIn("Native Preview Core: material quality fallback", python_source)
         self.assertIn("D3D11 package source: native-core", python_source)
+
+    def test_d3d11_host_does_not_use_rich_material_inputs_as_base_override(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        parse_start = source.index("static std::vector<PreviewBatch> parse_manifest_batches")
+        parse_end = source.index("static ViewSettings parse_view_settings", parse_start)
+        parse_source = source[parse_start:parse_end]
+
+        self.assertIn('batch.base_dds = dds_slot_source(object, "base");', parse_source)
+        self.assertNotIn('best_material_dds_for_role(object, "base")', parse_source)
 
 
 if __name__ == "__main__":

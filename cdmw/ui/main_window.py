@@ -3249,15 +3249,6 @@ def run_gui() -> int:
                 return None
             if str(getattr(self.entry, "extension", "") or "").strip().lower() not in ARCHIVE_MODEL_EXTENSIONS:
                 return None
-            visible_mode = _normalize_model_visible_texture_mode(self.visible_texture_mode)
-            if visible_mode != "mesh_base_first":
-                return NativePreviewCoreAttempt(
-                    status="fallback",
-                    fallback_reason=(
-                        "native preview-core bypassed: "
-                        f"visible texture mode {visible_mode} requires Python material resolver"
-                    ),
-                )
             cache_root = self.native_preview_core_cache_root
             if cache_root is None:
                 return None
@@ -3342,6 +3333,150 @@ def run_gui() -> int:
                 )
             return references, graph, tuple(lines)
 
+        def _archive_entry_for_native_asset_path(self, path: str) -> Optional[ArchiveEntry]:
+            normalized = str(path or "").replace("\\", "/").strip().lower()
+            if not normalized:
+                return None
+            for candidate in tuple(self.texture_entries_by_normalized_path.get(normalized, ()) or ()):
+                if str(getattr(candidate, "path", "") or "").replace("\\", "/").strip().lower() == normalized:
+                    return candidate
+            basename = PurePosixPath(normalized).name
+            for candidate in tuple(self.texture_entries_by_basename.get(basename, ()) or ()):
+                if str(getattr(candidate, "path", "") or "").replace("\\", "/").strip().lower() == normalized:
+                    return candidate
+            candidates = tuple(self.texture_entries_by_basename.get(basename, ()) or ())
+            return candidates[0] if candidates else None
+
+        def _native_preview_core_manifest_metadata(
+            self,
+            package_path: str,
+        ) -> Tuple[Tuple[ArchiveModelTextureReference, ...], Optional[AssetFamilyGraph], Tuple[str, ...], int]:
+            lines: List[str] = []
+            package_dir = Path(str(package_path or ""))
+            manifest_path = package_dir / "manifest.json"
+            if not manifest_path.is_file():
+                return (), None, ("Native manifest metadata missing; Python compatibility metadata fallback is allowed.",), 0
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                return (), None, (f"Native manifest metadata read failed: {exc}",), 0
+            schema_version = int(manifest.get("schema_version") or 0)
+            asset_payload = manifest.get("asset_family")
+            if not isinstance(asset_payload, dict):
+                return (), None, ("Native manifest has no asset_family payload; Python compatibility metadata fallback is allowed.",), schema_version
+
+            source_entry = self.entry
+            root_path = str(asset_payload.get("root_path") or getattr(source_entry, "path", "") or "").replace("\\", "/")
+            family_key = str(asset_payload.get("family_key") or PurePosixPath(root_path).stem)
+            summary = str(asset_payload.get("summary") or "").strip()
+
+            references: List[ArchiveModelTextureReference] = []
+            for item in list(asset_payload.get("references") or ()):
+                if not isinstance(item, dict):
+                    continue
+                resolved_path = str(item.get("resolved_archive_path") or item.get("path") or "").replace("\\", "/").strip()
+                reference_name = str(item.get("reference_name") or PurePosixPath(resolved_path).name or "").strip()
+                if not resolved_path and not reference_name:
+                    continue
+                resolved_entry = self._archive_entry_for_native_asset_path(resolved_path)
+                references.append(
+                    ArchiveModelTextureReference(
+                        reference_name=reference_name or resolved_path,
+                        material_name=str(item.get("material_name") or ""),
+                        semantic_label=str(item.get("semantic_label") or ""),
+                        semantic_hint=str(item.get("semantic_hint") or ""),
+                        sidecar_parameter_name=str(item.get("sidecar_parameter_name") or ""),
+                        sidecar_kind=str(item.get("sidecar_kind") or ""),
+                        shader_family=str(item.get("shader_family") or ""),
+                        texture_role=str(item.get("texture_role") or ""),
+                        resolution_status=str(item.get("resolution_status") or ("resolved" if resolved_entry is not None else "missing")),
+                        resolved_archive_path=resolved_path,
+                        resolved_package_label=str(item.get("resolved_package_label") or getattr(resolved_entry, "package_label", "") or ""),
+                        resolved_entry=resolved_entry,
+                        usage_count=1,
+                        reference_kind=str(item.get("reference_kind") or "metadata"),
+                        relation_group=str(item.get("relation_group") or "Metadata / Other"),
+                        relation_reason=str(item.get("relation_reason") or "Recovered by native preview-core."),
+                        relation_confidence=str(item.get("relation_confidence") or RelationConfidence.DERIVED_SAME_STEM.value),
+                        source_table=str(item.get("source_table") or ""),
+                        source_field=str(item.get("source_field") or ""),
+                    )
+                )
+
+            member_rows: List[AssetFamilyMember] = []
+            grouped_paths: Dict[str, List[str]] = defaultdict(list)
+            members: List[str] = []
+            seen_members: set[str] = set()
+            for item in list(asset_payload.get("member_rows") or ()):
+                if not isinstance(item, dict):
+                    continue
+                path = str(item.get("path") or "").replace("\\", "/").strip()
+                display_name = str(item.get("display_name") or PurePosixPath(path).name or "").strip()
+                if not path and not display_name:
+                    continue
+                resolved_entry = self._archive_entry_for_native_asset_path(path)
+                row = AssetFamilyMember(
+                    group=str(item.get("group") or "Other"),
+                    role=str(item.get("role") or "Related File"),
+                    display_name=display_name,
+                    path=path,
+                    status=str(item.get("status") or "Resolved"),
+                    confidence=str(item.get("confidence") or item.get("evidence") or "Hint"),
+                    source_evidence=str(item.get("evidence") or item.get("confidence") or "Hint"),
+                    include_policy=str(item.get("include_policy") or "manual"),
+                    reason=str(item.get("reason") or "Recovered by native preview-core."),
+                    warning=str(item.get("warning") or ""),
+                    resolved_entry=resolved_entry,
+                    source_table=str(item.get("source_table") or ""),
+                    source_field=str(item.get("source_field") or ""),
+                )
+                member_rows.append(row)
+                if path and path.casefold() not in seen_members:
+                    seen_members.add(path.casefold())
+                    members.append(path)
+                if path:
+                    grouped_paths[row.group].append(path)
+
+            relations: List[AssetRelation] = []
+            for reference in references:
+                relations.append(
+                    AssetRelation(
+                        source_path=root_path,
+                        target_path=reference.resolved_archive_path or reference.reference_name,
+                        relation_kind=reference.reference_kind,
+                        confidence=reference.relation_confidence,
+                        role_label=reference.semantic_label,
+                        status=reference.resolution_status,
+                        source_evidence=reference.relation_reason,
+                        include_policy="required" if reference.resolution_status == "resolved" else "manual",
+                        reason=reference.relation_reason,
+                        source_entry=source_entry,
+                        target_entry=reference.resolved_entry,
+                        semantic_label=reference.semantic_label,
+                        semantic_hint=reference.semantic_hint,
+                        sidecar_parameter_name=reference.sidecar_parameter_name,
+                        material_name=reference.material_name,
+                        package_label=reference.resolved_package_label,
+                        source_table=reference.source_table,
+                        source_field=reference.source_field,
+                    )
+                )
+
+            graph = AssetFamilyGraph(
+                root_path=root_path,
+                family_key=family_key,
+                members=tuple(members),
+                member_rows=tuple(member_rows),
+                relations=tuple(relations),
+                attachment_evidence=(),
+                grouped_paths={key: tuple(value) for key, value in grouped_paths.items()},
+                summary=summary,
+            )
+            lines.append(
+                f"Native Asset Family: schema=v{schema_version}; rows={len(member_rows):,}; references={len(references):,}; source=native-core."
+            )
+            return tuple(references), graph, tuple(lines), schema_version
+
         def _native_preview_core_result(
             self,
             native_attempt: NativePreviewCoreAttempt,
@@ -3349,7 +3484,17 @@ def run_gui() -> int:
         ) -> ArchivePreviewResult:
             entry = self.entry
             metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
-            model_texture_references, asset_family_graph, metadata_lines = self._native_preview_core_reference_metadata()
+            model_texture_references, asset_family_graph, metadata_lines, native_schema_version = (
+                self._native_preview_core_manifest_metadata(native_attempt.package_path)
+            )
+            if native_schema_version < 5 or asset_family_graph is None:
+                fallback_references, fallback_graph, fallback_lines = self._native_preview_core_reference_metadata()
+                if fallback_references or fallback_graph is not None:
+                    model_texture_references = fallback_references
+                    asset_family_graph = fallback_graph
+                    metadata_lines = tuple(metadata_lines) + (
+                        "Native Asset Family: compatibility fallback used because native schema-v5 metadata was unavailable.",
+                    ) + tuple(fallback_lines)
             diagnostics = dict(native_attempt.diagnostics)
             notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
             base_quality_notes = tuple(

@@ -709,8 +709,6 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         parse_base_color(object, batch.base_color);
         batch.vertex_file = absolute_from_manifest_path(package_dir, json_string_field(object, "vertex_file"));
         batch.base_dds = dds_slot_source(object, "base");
-        std::wstring rich_base_dds = best_material_dds_for_role(object, "base");
-        if (batch.base_dds.empty() && !rich_base_dds.empty()) batch.base_dds = rich_base_dds;
         batch.normal_dds = dds_slot_source(object, "normal");
         batch.material_dds = dds_slot_source(object, "material");
         if (batch.material_dds.empty()) batch.material_dds = best_material_dds_for_role(object, "material");

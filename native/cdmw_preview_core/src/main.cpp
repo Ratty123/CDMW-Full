@@ -218,6 +218,8 @@ std::string lower_copy(std::string value) {
     return value;
 }
 
+static std::string normalize_visible_texture_mode(const std::string& mode);
+
 std::string basename_extension(const std::string& path) {
     const size_t slash = path.find_last_of("/\\");
     const size_t dot = path.find_last_of('.');
@@ -315,6 +317,7 @@ struct EntryJob {
     bool invert_orbit_y = false;
     bool invert_pan_x = false;
     bool invert_pan_y = false;
+    std::string visible_texture_mode = "mesh_base_first";
 };
 
 ArchiveEntryRef parse_archive_entry_ref(const std::string& object) {
@@ -391,9 +394,36 @@ struct TextureBinding {
     std::string material_output_quality = "inferred";
     std::string srgb_mode = "auto";
     std::string parameter_declared_by;
+    std::string visible_class = "visible_generic";
+    std::string source_authority = "sidecar";
+    std::string relation_confidence = "derived_same_stem";
+    std::string relation_reason = "Recovered by native material index.";
     int dds_width = 0;
     int dds_height = 0;
     std::string dds_format = "";
+};
+
+struct NativeAssetFamilyRow {
+    std::string group;
+    std::string role;
+    std::string display_name;
+    std::string path;
+    std::string status = "Resolved";
+    std::string evidence = "Hint";
+    std::string confidence = "derived_same_stem";
+    std::string include_policy = "manual";
+    std::string reason;
+    std::string relation_kind = "metadata";
+    std::string semantic_label;
+    std::string semantic_hint;
+    std::string sidecar_parameter_name;
+    std::string material_name;
+    std::string package_label;
+    std::string sidecar_kind;
+    std::string shader_family;
+    std::string texture_role;
+    std::string source_table;
+    std::string source_field;
 };
 
 struct NativePackage {
@@ -416,6 +446,8 @@ struct NativePackage {
     int base_technical_count = 0;
     std::vector<std::string> base_quality_notes;
     std::vector<std::string> selected_texture_examples;
+    std::vector<NativeAssetFamilyRow> asset_family_rows;
+    int asset_family_reference_count = 0;
 };
 
 static std::uint16_t read_u16(const std::vector<char>& data, size_t offset) {
@@ -516,6 +548,8 @@ EntryJob parse_job(const fs::path& job_path) {
     job.flags = job.entry.flags;
     const std::string render_settings = find_object_value(text, "render_settings");
     if (!render_settings.empty()) {
+        const std::string native_visible_mode = find_string_value(render_settings, "visible_texture_mode");
+        if (!native_visible_mode.empty()) job.visible_texture_mode = normalize_visible_texture_mode(native_visible_mode);
         job.use_textures = find_bool_value(render_settings, "use_textures_by_default", job.use_textures);
         job.high_quality_textures = find_bool_value(render_settings, "high_quality_by_default", job.high_quality_textures);
         job.disable_all_support_maps = find_bool_value(render_settings, "disable_all_support_maps", job.disable_all_support_maps);
@@ -2256,6 +2290,97 @@ static bool role_is_technical_for_base(const std::string& role) {
     return role == "normal" || role == "height" || role == "material" || role == "detail" || role == "specular";
 }
 
+static std::string normalize_visible_texture_mode(const std::string& mode) {
+    const std::string lower = lower_copy(mode);
+    if (lower == "mesh_base_first" || lower == "layer_aware_visible" || lower == "sidecar_visible_first") {
+        return lower;
+    }
+    return "mesh_base_first";
+}
+
+static bool path_has_suffix_stem(const std::string& raw_path, const std::string& suffix) {
+    const std::string stem = lower_copy(stem_from_path(raw_path));
+    return stem.size() >= suffix.size() && stem.compare(stem.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+static bool low_authority_base_path(const std::string& raw_path) {
+    const std::string stem = lower_copy(stem_from_path(raw_path));
+    if (stem.empty()) return false;
+    if (stem.find("nonetexture") != std::string::npos || stem.find("nulltexture") != std::string::npos || stem.find("dummytexture") != std::string::npos) return true;
+    if (stem.find("common_default") != std::string::npos && stem.find("overlay") != std::string::npos) return true;
+    if (stem == "cd_common_default_overlay" || stem == "cd_common_default_overlay_old") return true;
+    if (path_has_suffix_stem(raw_path, "_o") || stem.find("_overlay") != std::string::npos) return true;
+    return false;
+}
+
+static bool technical_for_visible_base(const std::string& parameter_name, const std::string& raw_path, const std::string& role) {
+    const std::string hint = lower_copy(parameter_name);
+    const std::string compact_hint = std::regex_replace(hint, std::regex("[^a-z0-9]+"), "");
+    if (role_is_technical_for_base(role)) return true;
+    if (compact_hint.find("normal") != std::string::npos || compact_hint.find("height") != std::string::npos) return true;
+    if (compact_hint.find("displacement") != std::string::npos || compact_hint.find("material") != std::string::npos) return true;
+    if (compact_hint.find("roughness") != std::string::npos || compact_hint.find("metallic") != std::string::npos) return true;
+    if (compact_hint.find("occlusion") != std::string::npos || compact_hint.find("opacity") != std::string::npos) return true;
+    if (compact_hint.find("specular") != std::string::npos || compact_hint.find("orm") != std::string::npos) return true;
+    if (compact_hint == "colorblendingmasktexture" || compact_hint == "detailmasktexture") return true;
+    if (compact_hint.find("mask") != std::string::npos && compact_hint.find("diffuse") == std::string::npos && compact_hint.find("albedo") == std::string::npos && compact_hint.find("color") == std::string::npos) return true;
+    if (path_has_suffix_stem(raw_path, "_n") || path_has_suffix_stem(raw_path, "_disp") || path_has_suffix_stem(raw_path, "_ma")) return true;
+    if (path_has_suffix_stem(raw_path, "_mg") || path_has_suffix_stem(raw_path, "_sp") || path_has_suffix_stem(raw_path, "_m")) return true;
+    if (path_has_suffix_stem(raw_path, "_orm") || path_has_suffix_stem(raw_path, "_rma") || path_has_suffix_stem(raw_path, "_mra")) return true;
+    return false;
+}
+
+static std::string visible_class_for_binding(const std::string& parameter_name, const std::string& raw_path, const std::string& role) {
+    if (technical_for_visible_base(parameter_name, raw_path, role)) return "technical";
+    const std::string hint = std::regex_replace(lower_copy(parameter_name), std::regex("[^a-z0-9]+"), "");
+    if (hint.find("grime") != std::string::npos || hint.find("detail") != std::string::npos || hint.find("layer") != std::string::npos || hint.find("blend") != std::string::npos || hint.find("decal") != std::string::npos) {
+        return "layer_visible";
+    }
+    if (hint.find("basecolor") != std::string::npos || hint.find("basecolour") != std::string::npos || hint.find("albedo") != std::string::npos || hint.find("diffuse") != std::string::npos || hint.find("colortexture") != std::string::npos || hint.find("overlaycolor") != std::string::npos || hint.find("base") != std::string::npos) {
+        return "primary_visible";
+    }
+    if (hint.find("color") != std::string::npos || hint.find("colour") != std::string::npos || hint.find("overlay") != std::string::npos || hint.find("tint") != std::string::npos || hint.find("emissive") != std::string::npos) {
+        return "visible_generic";
+    }
+    return "visible_generic";
+}
+
+static bool visible_class_allowed_for_mode(const std::string& mode, const std::string& visible_class) {
+    if (visible_class == "technical") return false;
+    const std::string normalized = normalize_visible_texture_mode(mode);
+    if (normalized == "mesh_base_first") return visible_class == "primary_visible";
+    return visible_class == "primary_visible" || visible_class == "visible_generic" || visible_class == "layer_visible";
+}
+
+static int visible_class_priority(const std::string& visible_class) {
+    if (visible_class == "primary_visible") return 3;
+    if (visible_class == "layer_visible") return 2;
+    if (visible_class == "visible_generic") return 1;
+    return 0;
+}
+
+static std::string package_label_for_ref(const ArchiveEntryRef& ref) {
+    if (ref.pamt_path.empty()) return "";
+    std::string parent = ref.pamt_path.parent_path().filename().string();
+    std::string name = ref.pamt_path.filename().string();
+    return parent.empty() ? name : (parent + "/" + name);
+}
+
+static void add_asset_family_row(NativePackage& package, NativeAssetFamilyRow row) {
+    if (row.path.empty() && row.display_name.empty()) return;
+    if (row.display_name.empty()) row.display_name = basename_from_path(row.path);
+    if (row.reason.empty()) row.reason = "Recovered by native preview-core.";
+    if (row.package_label.empty()) {
+        row.package_label = "";
+    }
+    const std::string key = lower_copy(row.group + "|" + row.role + "|" + row.path + "|" + row.display_name + "|" + row.semantic_hint);
+    for (const NativeAssetFamilyRow& existing : package.asset_family_rows) {
+        const std::string existing_key = lower_copy(existing.group + "|" + existing.role + "|" + existing.path + "|" + existing.display_name + "|" + existing.semantic_hint);
+        if (existing_key == key) return;
+    }
+    package.asset_family_rows.push_back(std::move(row));
+}
+
 static std::string semantic_subtype_for_role(const std::string& role) {
     if (role == "normal") return "normal";
     if (role == "height") return "height";
@@ -2749,6 +2874,51 @@ static const TextureBinding* best_binding_for_role(
     return best;
 }
 
+static const TextureBinding* best_base_binding_for_mode(
+    const std::vector<TextureBinding>& bindings,
+    const NativeSubmesh& mesh,
+    const EntryJob& job,
+    int* selected_score = nullptr
+) {
+    const std::string mode = normalize_visible_texture_mode(job.visible_texture_mode);
+    const TextureBinding* best = nullptr;
+    int best_score = 40;
+    for (const TextureBinding& binding : bindings) {
+        if (binding.source_path.empty() || binding.role != "base") continue;
+        if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
+        const bool embedded = binding.source_authority == "embedded_mesh";
+        const bool low_authority = low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name);
+        if (!embedded && !visible_class_allowed_for_mode(mode, binding.visible_class)) {
+            if (!(mode == "mesh_base_first" && (binding.visible_class == "layer_visible" || binding.visible_class == "visible_generic"))) {
+                continue;
+            }
+        }
+        int score = material_match_score(binding, mesh, "base");
+        score += visible_class_priority(binding.visible_class) * 18;
+        if (embedded) score += mode == "sidecar_visible_first" ? 20 : 120;
+        if (binding.source_authority == "exact_sidecar") score += mode == "sidecar_visible_first" ? 95 : 55;
+        if (mode == "mesh_base_first") {
+            if (!embedded && binding.visible_class == "primary_visible") score += 75;
+            if (!embedded && binding.visible_class == "layer_visible") score -= 12;
+            if (!embedded && binding.visible_class == "visible_generic") score -= 26;
+            if (low_authority) score -= 90;
+        } else if (mode == "layer_aware_visible") {
+            if (binding.visible_class == "layer_visible") score += 35;
+            if (low_authority) score -= 45;
+        } else if (mode == "sidecar_visible_first") {
+            if (!embedded) score += 65;
+            if (binding.visible_class == "layer_visible") score += 22;
+            if (low_authority) score -= 35;
+        }
+        if (score > best_score) {
+            best_score = score;
+            best = &binding;
+        }
+    }
+    if (selected_score != nullptr) *selected_score = best == nullptr ? 0 : best_score;
+    return best;
+}
+
 static std::string shader_rule_for_family(const std::string& family) {
     const std::string lower = lower_copy(family);
     if (lower.find("skinnedmeshskin") != std::string::npos) return "skin";
@@ -2890,6 +3060,39 @@ static void add_sidecar_basename_candidates(
     for (const auto& item : scored) add_sidecar_candidate(out, seen, item.second);
 }
 
+static std::vector<ArchiveEntryRef> lookup_basename_candidates_across_package(
+    const EntryJob& job,
+    const PamtIndex& primary_index,
+    const std::string& basename,
+    size_t max_count = 64
+) {
+    std::vector<ArchiveEntryRef> result;
+    std::set<std::string> seen;
+    auto add_from_index = [&](const PamtIndex& index) {
+        auto found = index.by_basename.find(lower_copy(basename));
+        if (found == index.by_basename.end()) return;
+        for (const ArchiveEntryRef& ref : found->second) {
+            const std::string key = lower_copy(ref.pamt_path.string() + "|" + ref.path);
+            if (seen.insert(key).second) result.push_back(ref);
+            if (result.size() >= max_count) return;
+        }
+    };
+    add_from_index(primary_index);
+    if (result.size() >= max_count || job.package_root.empty()) return result;
+    std::set<std::string> seen_pamts;
+    seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
+    for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
+        if (result.size() >= max_count) break;
+        const std::string pamt_key = fs::absolute(pamt_path).string();
+        if (!seen_pamts.insert(pamt_key).second) continue;
+        try {
+            add_from_index(cached_pamt_index(pamt_path));
+        } catch (...) {
+        }
+    }
+    return result;
+}
+
 static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
     const EntryJob& job,
     const PamtIndex& index
@@ -2911,6 +3114,9 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
     }
     for (const std::string& base : basenames) {
         add_sidecar_basename_candidates(candidates, seen, index, base, model_dir);
+        for (const ArchiveEntryRef& ref : lookup_basename_candidates_across_package(job, index, base, 24)) {
+            add_sidecar_candidate(candidates, seen, ref);
+        }
     }
     if ((job.extension == ".pam" || job.extension == ".pamlod") && !candidates.empty()) {
         return candidates;
@@ -2977,6 +3183,28 @@ static std::vector<TextureBinding> build_material_bindings(
     std::set<std::string> sidecar_kinds;
     std::set<std::string> shader_rules;
     for (const ArchiveEntryRef& sidecar : sidecars) {
+        add_asset_family_row(package, NativeAssetFamilyRow{
+            "Material",
+            sidecar.extension == ".pami" ? "Material Index" : "Material Sidecar",
+            sidecar.basename.empty() ? basename_from_path(sidecar.path) : sidecar.basename,
+            sidecar.path,
+            "Resolved",
+            "Sidecar",
+            "authoritative",
+            "required",
+            "Native preview-core selected this material sidecar for the current model.",
+            "metadata",
+            "Material sidecar",
+            "",
+            "",
+            "",
+            package_label_for_ref(sidecar),
+            sidecar.extension,
+            "",
+            "",
+            "",
+            ""
+        });
         std::vector<char> sidecar_bytes;
         try {
             sidecar_bytes = read_archive_ref_decoded_bytes(sidecar);
@@ -3011,14 +3239,14 @@ static std::vector<TextureBinding> build_material_bindings(
         package.dds_candidates += static_cast<int>(refs.size());
         for (const SidecarTextureRef& texture_ref : refs) {
             const std::string base = lower_copy(basename_from_path(texture_ref.path));
-            auto it = index.by_basename.find(base);
-            if (it == index.by_basename.end()) {
+            std::vector<ArchiveEntryRef> texture_candidates = lookup_basename_candidates_across_package(job, index, base, 96);
+            if (texture_candidates.empty()) {
                 continue;
             }
             const ArchiveEntryRef* selected = nullptr;
             int best_score = -100000;
             const std::string sidecar_dir = lower_copy(dirname_from_path(sidecar.path));
-            for (const ArchiveEntryRef& ref : it->second) {
+            for (const ArchiveEntryRef& ref : texture_candidates) {
                 int score = 10;
                 const std::string ref_path = lower_copy(ref.path);
                 const std::string ref_dir = lower_copy(dirname_from_path(ref.path));
@@ -3026,12 +3254,13 @@ static std::vector<TextureBinding> build_material_bindings(
                 if (!sidecar_dir.empty() && ref_dir == sidecar_dir) score += 50;
                 if (ref_path.find("/texture/") != std::string::npos) score += 20;
                 if (ref_path.find("/modelproperty/") != std::string::npos) score += 5;
+                if (ref.pamt_path == sidecar.pamt_path) score += 8;
                 if (score > best_score) {
                     best_score = score;
                     selected = &ref;
                 }
             }
-            if (selected == nullptr && !it->second.empty()) selected = &it->second.front();
+            if (selected == nullptr && !texture_candidates.empty()) selected = &texture_candidates.front();
             if (selected == nullptr) continue;
             const std::string extracted = extracted_dds_path_for_entry(*selected, job.cache_root, notes);
             if (extracted.empty()) continue;
@@ -3064,6 +3293,12 @@ static std::vector<TextureBinding> build_material_bindings(
             binding.packed_channels = packed_channels_for_role(binding.role, base, parameter_lower);
             binding.srgb_mode = srgb_mode_for_role(binding.role, technique_parameter);
             binding.parameter_declared_by = technique_parameter != nullptr ? "technique" : "";
+            binding.visible_class = visible_class_for_binding(binding.parameter_name, binding.archive_path, binding.role);
+            binding.source_authority = "sidecar";
+            binding.relation_confidence = (!texture_ref.parameter_name.empty() && !texture_ref.material_name.empty()) ? "authoritative" : "derived_same_stem";
+            binding.relation_reason = texture_ref.parameter_name.empty()
+                ? "Resolved by native texture basename/family lookup."
+                : "Resolved from native material sidecar texture parameter.";
             if (binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))) {
                 binding.material_output_quality = "approximate";
             } else if (technique_parameter != nullptr && !texture_ref.parameter_name.empty() && !texture_ref.material_name.empty()) {
@@ -3073,9 +3308,32 @@ static std::vector<TextureBinding> build_material_bindings(
             } else {
                 binding.material_output_quality = "inferred";
             }
+            if (binding.material_output_quality == "exact") binding.source_authority = "exact_sidecar";
             const std::string binding_key = lower_copy(binding.role + "|" + binding.archive_path + "|" + binding.parameter_name + "|" + binding.material_name);
             if (seen_bindings.insert(binding_key).second) {
                 bindings.push_back(binding);
+                add_asset_family_row(package, NativeAssetFamilyRow{
+                    "Textures",
+                    "Texture",
+                    selected->basename.empty() ? basename_from_path(selected->path) : selected->basename,
+                    selected->path,
+                    "Resolved",
+                    (!texture_ref.parameter_name.empty() ? "Sidecar" : "Family"),
+                    binding.relation_confidence,
+                    "required",
+                    binding.relation_reason,
+                    "texture",
+                    binding.semantic_type.empty() ? binding.role : binding.semantic_type,
+                    binding.parameter_name,
+                    binding.parameter_name,
+                    binding.material_name,
+                    package_label_for_ref(*selected),
+                    sidecar.extension,
+                    binding.shader_family,
+                    binding.role,
+                    "",
+                    ""
+                });
             }
         }
     }
@@ -3119,6 +3377,106 @@ static std::vector<TextureBinding> build_material_bindings(
         package.notes.push_back(note);
     }
     return bindings;
+}
+
+static void append_mesh_reference_bindings(
+    const EntryJob& job,
+    const PamtIndex& index,
+    const std::vector<NativeSubmesh>& meshes,
+    std::vector<TextureBinding>& bindings,
+    NativePackage& package
+) {
+    std::set<std::string> seen;
+    for (const TextureBinding& binding : bindings) {
+        seen.insert(lower_copy(binding.role + "|" + binding.archive_path + "|" + binding.parameter_name + "|" + binding.material_name));
+    }
+    std::vector<std::string> notes;
+    for (const NativeSubmesh& mesh : meshes) {
+        std::vector<std::string> raw_names = {mesh.material, mesh.name};
+        for (const std::string& raw_name : raw_names) {
+            std::string stem = stem_from_path(raw_name);
+            if (stem.empty()) stem = raw_name;
+            if (stem.empty()) continue;
+            const std::string basename = lower_copy(stem) + ".dds";
+            std::vector<ArchiveEntryRef> candidates = lookup_basename_candidates_across_package(job, index, basename, 32);
+            if (candidates.empty()) continue;
+            const ArchiveEntryRef* selected = nullptr;
+            int best_score = -100000;
+            const std::string model_dir = lower_copy(dirname_from_path(job.path));
+            for (const ArchiveEntryRef& ref : candidates) {
+                int score = 20;
+                const std::string ref_path = lower_copy(ref.path);
+                const std::string ref_dir = lower_copy(dirname_from_path(ref.path));
+                if (ref.extension == ".dds") score += 40;
+                if (!model_dir.empty() && ref_dir == model_dir) score += 30;
+                if (ref_path.find("/texture/") != std::string::npos) score += 18;
+                if (lower_copy(stem_from_path(ref.path)) == lower_copy(stem)) score += 60;
+                if (score > best_score) {
+                    best_score = score;
+                    selected = &ref;
+                }
+            }
+            if (selected == nullptr || selected->extension != ".dds") continue;
+            const std::string extracted = extracted_dds_path_for_entry(*selected, job.cache_root, notes);
+            if (extracted.empty()) continue;
+            TextureBinding binding;
+            binding.role = texture_role_from_name(selected->basename);
+            binding.source_path = extracted;
+            binding.archive_path = selected->path;
+            binding.texture_name = selected->basename;
+            binding.parameter_name = "embedded_mesh_reference";
+            binding.semantic_type = semantic_type_for_role(binding.role);
+            binding.semantic_subtype = semantic_subtype_for_role(binding.role);
+            binding.shader_family = "";
+            binding.shader_rule = "embedded_mesh";
+            binding.material_name = mesh.material.empty() ? mesh.name : mesh.material;
+            binding.sidecar_path = "";
+            binding.sidecar_kind = "embedded_mesh";
+            binding.linked_mesh_path = job.path;
+            binding.packed_channels = packed_channels_for_role(binding.role, binding.texture_name, binding.parameter_name);
+            binding.srgb_mode = srgb_mode_for_role(binding.role, nullptr);
+            binding.parameter_declared_by = "mesh";
+            binding.visible_class = visible_class_for_binding(binding.parameter_name, binding.archive_path, binding.role);
+            binding.source_authority = "embedded_mesh";
+            binding.relation_confidence = role_is_technical_for_base(binding.role) ? "derived_same_stem" : "exact_path";
+            binding.relation_reason = role_is_technical_for_base(binding.role)
+                ? "Embedded mesh reference resolved to a technical/support texture."
+                : "Embedded mesh material/base name resolved directly to DDS.";
+            const DdsHeaderInfo dds_info = inspect_dds_header_file(extracted);
+            binding.dds_width = dds_info.width;
+            binding.dds_height = dds_info.height;
+            binding.dds_format = dds_info.format;
+            binding.material_output_quality = role_is_technical_for_base(binding.role) ? "inferred" : "exact";
+            const std::string key = lower_copy(binding.role + "|" + binding.archive_path + "|" + binding.parameter_name + "|" + binding.material_name);
+            if (!seen.insert(key).second) continue;
+            bindings.push_back(binding);
+            add_asset_family_row(package, NativeAssetFamilyRow{
+                "Textures",
+                "Texture",
+                selected->basename.empty() ? basename_from_path(selected->path) : selected->basename,
+                selected->path,
+                "Resolved",
+                "Embedded Mesh",
+                binding.relation_confidence,
+                role_is_technical_for_base(binding.role) ? "manual" : "required",
+                binding.relation_reason,
+                "texture",
+                binding.semantic_type,
+                binding.parameter_name,
+                binding.parameter_name,
+                binding.material_name,
+                package_label_for_ref(*selected),
+                "embedded_mesh",
+                binding.shader_family,
+                binding.role,
+                "",
+                ""
+            });
+        }
+    }
+    for (const std::string& note : notes) {
+        package.notes.push_back(note);
+    }
 }
 
 static std::array<float, 3> color_for_batch(int index) {
@@ -3372,6 +3730,99 @@ static bool job_allows_texture_role(const EntryJob& job, const std::string& role
     return true;
 }
 
+static std::string native_asset_family_summary(const std::vector<NativeAssetFamilyRow>& rows) {
+    int materials = 0;
+    int textures = 0;
+    int physics = 0;
+    int meshinfo = 0;
+    int prefab = 0;
+    int skeleton = 0;
+    for (const NativeAssetFamilyRow& row : rows) {
+        if (row.group == "Material") ++materials;
+        else if (row.group == "Textures") ++textures;
+        else if (row.group == "Physics / HKX") ++physics;
+        else if (row.group == "MeshInfo") ++meshinfo;
+        else if (row.group == "Prefab / Metadata") ++prefab;
+        else if (row.group == "Skeleton / Rig") ++skeleton;
+    }
+    std::ostringstream out;
+    out << "Model OK";
+    if (materials) out << " | " << materials << " material";
+    if (textures) out << " | " << textures << " textures";
+    if (physics) out << " | HKX hint";
+    if (meshinfo) out << " | meshinfo hint";
+    if (prefab) out << " | prefab hint";
+    if (skeleton) out << " | skeletons hint";
+    return out.str();
+}
+
+static std::string native_asset_family_json(const NativePackage& package, const EntryJob& job) {
+    std::ostringstream out;
+    out << "\"asset_family\":{"
+        << "\"source\":\"native-core\","
+        << "\"schema_version\":5,"
+        << "\"root_path\":\"" << json_escape(job.path) << "\","
+        << "\"family_key\":\"" << json_escape(stem_from_path(job.path)) << "\","
+        << "\"summary\":\"" << json_escape(native_asset_family_summary(package.asset_family_rows)) << "\","
+        << "\"reference_count\":" << package.asset_family_reference_count << ","
+        << "\"member_rows\":[";
+    for (size_t i = 0; i < package.asset_family_rows.size(); ++i) {
+        const NativeAssetFamilyRow& row = package.asset_family_rows[i];
+        if (i) out << ",";
+        out << "{"
+            << "\"group\":\"" << json_escape(row.group) << "\","
+            << "\"role\":\"" << json_escape(row.role) << "\","
+            << "\"display_name\":\"" << json_escape(row.display_name) << "\","
+            << "\"path\":\"" << json_escape(row.path) << "\","
+            << "\"status\":\"" << json_escape(row.status) << "\","
+            << "\"evidence\":\"" << json_escape(row.evidence) << "\","
+            << "\"confidence\":\"" << json_escape(row.confidence) << "\","
+            << "\"include_policy\":\"" << json_escape(row.include_policy) << "\","
+            << "\"reason\":\"" << json_escape(row.reason) << "\","
+            << "\"relation_kind\":\"" << json_escape(row.relation_kind) << "\","
+            << "\"semantic_label\":\"" << json_escape(row.semantic_label) << "\","
+            << "\"semantic_hint\":\"" << json_escape(row.semantic_hint) << "\","
+            << "\"sidecar_parameter_name\":\"" << json_escape(row.sidecar_parameter_name) << "\","
+            << "\"material_name\":\"" << json_escape(row.material_name) << "\","
+            << "\"package_label\":\"" << json_escape(row.package_label) << "\","
+            << "\"sidecar_kind\":\"" << json_escape(row.sidecar_kind) << "\","
+            << "\"shader_family\":\"" << json_escape(row.shader_family) << "\","
+            << "\"texture_role\":\"" << json_escape(row.texture_role) << "\","
+            << "\"source_table\":\"" << json_escape(row.source_table) << "\","
+            << "\"source_field\":\"" << json_escape(row.source_field) << "\""
+            << "}";
+    }
+    out << "],\"references\":[";
+    bool first = true;
+    for (const NativeAssetFamilyRow& row : package.asset_family_rows) {
+        if (row.group == "Selected Model") continue;
+        if (row.path.empty()) continue;
+        if (!first) out << ",";
+        first = false;
+        out << "{"
+            << "\"reference_name\":\"" << json_escape(row.display_name.empty() ? basename_from_path(row.path) : row.display_name) << "\","
+            << "\"material_name\":\"" << json_escape(row.material_name) << "\","
+            << "\"semantic_label\":\"" << json_escape(row.semantic_label) << "\","
+            << "\"semantic_hint\":\"" << json_escape(row.semantic_hint) << "\","
+            << "\"sidecar_parameter_name\":\"" << json_escape(row.sidecar_parameter_name) << "\","
+            << "\"sidecar_kind\":\"" << json_escape(row.sidecar_kind) << "\","
+            << "\"shader_family\":\"" << json_escape(row.shader_family) << "\","
+            << "\"texture_role\":\"" << json_escape(row.texture_role) << "\","
+            << "\"resolution_status\":\"" << json_escape(lower_copy(row.status) == "resolved" ? "resolved" : "missing") << "\","
+            << "\"resolved_archive_path\":\"" << json_escape(row.path) << "\","
+            << "\"resolved_package_label\":\"" << json_escape(row.package_label) << "\","
+            << "\"reference_kind\":\"" << json_escape(row.relation_kind.empty() ? "metadata" : row.relation_kind) << "\","
+            << "\"relation_group\":\"" << json_escape(row.group) << "\","
+            << "\"relation_reason\":\"" << json_escape(row.reason) << "\","
+            << "\"relation_confidence\":\"" << json_escape(row.confidence) << "\","
+            << "\"source_table\":\"" << json_escape(row.source_table) << "\","
+            << "\"source_field\":\"" << json_escape(row.source_field) << "\""
+            << "}";
+    }
+    out << "]}";
+    return out.str();
+}
+
 static NativePackage write_d3d11_package(
     const EntryJob& job,
     const std::vector<NativeSubmesh>& submeshes,
@@ -3412,7 +3863,7 @@ static NativePackage write_d3d11_package(
         const int vertex_count = static_cast<int>(mesh.indices.size());
         emitted_vertex_count += vertex_count;
         int base_score = 0;
-        const TextureBinding* base = job_allows_texture_role(job, "base") ? best_binding_for_role(bindings, mesh, "base", &base_score) : nullptr;
+        const TextureBinding* base = job_allows_texture_role(job, "base") ? best_base_binding_for_mode(bindings, mesh, job, &base_score) : nullptr;
         const TextureBinding* normal = job_allows_texture_role(job, "normal") ? best_binding_for_role(bindings, mesh, "normal") : nullptr;
         const TextureBinding* material = job_allows_texture_role(job, "material") ? best_binding_for_role(bindings, mesh, "material") : nullptr;
         const TextureBinding* height = job_allows_texture_role(job, "height") ? best_binding_for_role(bindings, mesh, "height") : nullptr;
@@ -3420,8 +3871,9 @@ static NativePackage write_d3d11_package(
         const TextureBinding* detail = job_allows_texture_role(job, "detail") ? best_binding_for_role(bindings, mesh, "detail") : nullptr;
         const int base_identity_score = base == nullptr ? 0 : material_identity_match_score(*base, mesh);
         const int base_largest_dimension = base == nullptr ? 0 : std::max(base->dds_width, base->dds_height);
-        const bool base_technical = base != nullptr && role_is_technical_for_base(texture_role_from_name(base->texture_name));
-        const bool base_low_res = base != nullptr && base_largest_dimension > 0 && base_largest_dimension < 512;
+        const bool base_technical = base != nullptr && technical_for_visible_base(base->parameter_name, base->archive_path, base->role);
+        const bool base_low_authority = base != nullptr && (low_authority_base_path(base->archive_path) || low_authority_base_path(base->texture_name));
+        const bool base_low_res = base != nullptr && base_largest_dimension > 0 && base_largest_dimension < 512 && !base_low_authority;
         const bool base_low_confidence = base != nullptr && base_score < 120 && base_identity_score < 72;
         if (job.use_textures && base == nullptr) {
             ++package.base_missing_count;
@@ -3435,6 +3887,8 @@ static NativePackage write_d3d11_package(
             ++package.base_low_res_count;
             package.material_quality_safe = false;
             package.base_quality_notes.push_back("batch " + std::to_string(batch_index) + " " + mesh.material + ": low-resolution base " + base->texture_name + " " + std::to_string(base->dds_width) + "x" + std::to_string(base->dds_height));
+        } else if (job.use_textures && base_low_authority) {
+            package.base_quality_notes.push_back("batch " + std::to_string(batch_index) + " " + mesh.material + ": low-authority base fallback " + base->texture_name);
         } else if (job.use_textures && base_low_confidence) {
             ++package.base_low_confidence_count;
             package.material_quality_safe = false;
@@ -3520,6 +3974,10 @@ static NativePackage write_d3d11_package(
                     << "\"srgb_mode\":\"" << json_escape(binding.srgb_mode) << "\","
                     << "\"parameter_declared_by\":\"" << json_escape(binding.parameter_declared_by) << "\","
                     << "\"material_output_quality\":\"" << json_escape(binding.material_output_quality) << "\","
+                    << "\"visible_class\":\"" << json_escape(binding.visible_class) << "\","
+                    << "\"source_authority\":\"" << json_escape(binding.source_authority) << "\","
+                    << "\"relation_confidence\":\"" << json_escape(binding.relation_confidence) << "\","
+                    << "\"relation_reason\":\"" << json_escape(binding.relation_reason) << "\","
                     << "\"width\":" << binding.dds_width << ","
                     << "\"height\":" << binding.dds_height << ","
                     << "\"format\":\"" << json_escape(binding.dds_format) << "\","
@@ -3537,8 +3995,11 @@ static NativePackage write_d3d11_package(
             << ",\"score\":" << base_score
             << ",\"identity_score\":" << base_identity_score
             << ",\"low_res\":" << (base_low_res ? "true" : "false")
+            << ",\"low_authority\":" << (base_low_authority ? "true" : "false")
             << ",\"technical\":" << (base_technical ? "true" : "false")
             << ",\"missing\":" << (base == nullptr ? "true" : "false")
+            << ",\"visible_class\":\"" << json_escape(base == nullptr ? "" : base->visible_class) << "\""
+            << ",\"source_authority\":\"" << json_escape(base == nullptr ? "" : base->source_authority) << "\""
             << ",\"source\":\"" << json_escape(base == nullptr ? "" : base->source_path) << "\""
             << ",\"archive_path\":\"" << json_escape(base == nullptr ? "" : base->archive_path) << "\""
             << ",\"texture_name\":\"" << json_escape(base == nullptr ? "" : base->texture_name) << "\""
@@ -3562,16 +4023,99 @@ static NativePackage write_d3d11_package(
     package.batch_count = emitted_batch_count;
     package.vertex_count = emitted_vertex_count;
     package.face_count = face_total;
+    add_asset_family_row(package, NativeAssetFamilyRow{
+        "Selected Model",
+        "Model",
+        job.entry.basename.empty() ? basename_from_path(job.path) : job.entry.basename,
+        job.path,
+        "Model OK",
+        "Selected",
+        "exact_path",
+        "required",
+        "The file currently selected in Archive Browser.",
+        "model",
+        "Selected model",
+        "",
+        "",
+        "",
+        package_label_for_ref(job.entry),
+        "",
+        "",
+        "",
+        "",
+        ""
+    });
+    const PamtIndex& package_index_for_family = cached_pamt_index(job.entry.pamt_path);
+    const std::string model_stem = stem_from_path(job.path);
+    const std::vector<std::pair<std::string, std::pair<std::string, std::string>>> related_exact_basenames = {
+        {model_stem + ".meshinfo", {"MeshInfo", "Meshinfo"}},
+        {model_stem + ".hkx", {"Physics / HKX", "HKX / Physics"}},
+        {model_stem + ".prefab", {"Prefab / Metadata", "Prefab"}},
+        {model_stem + ".prefabdata_xml", {"Prefab / Metadata", "Prefab Data"}},
+        {model_stem + ".pab", {"Skeleton / Rig", "Skeleton"}},
+    };
+    for (const auto& related : related_exact_basenames) {
+        for (const ArchiveEntryRef& ref : lookup_basename_candidates_across_package(job, package_index_for_family, related.first, 8)) {
+            add_asset_family_row(package, NativeAssetFamilyRow{
+                related.second.first,
+                related.second.second,
+                ref.basename.empty() ? basename_from_path(ref.path) : ref.basename,
+                ref.path,
+                "Resolved",
+                "Same stem",
+                "derived_same_stem",
+                "manual",
+                "Native preview-core found a same-stem related archive entry.",
+                "metadata",
+                related.second.second,
+                "",
+                "",
+                "",
+                package_label_for_ref(ref),
+                ref.extension,
+                "",
+                "",
+                "",
+                ""
+            });
+        }
+    }
+    for (const ArchiveEntryRef& ref : lookup_basename_candidates_across_package(job, package_index_for_family, "identityskeleton.pab", 4)) {
+        add_asset_family_row(package, NativeAssetFamilyRow{
+            "Skeleton / Rig",
+            "Skeleton",
+            ref.basename.empty() ? basename_from_path(ref.path) : ref.basename,
+            ref.path,
+            "Resolved",
+            "Name hint",
+            "derived_family_heuristic",
+            "manual",
+            "Native preview-core found the common identity skeleton companion.",
+            "skeleton",
+            "Skeleton",
+            "",
+            "",
+            "",
+            package_label_for_ref(ref),
+            ref.extension,
+            "",
+            "",
+            "",
+            ""
+        });
+    }
+    package.asset_family_reference_count = std::max(0, static_cast<int>(package.asset_family_rows.size()) - 1);
     const std::string format = job.extension.size() > 1 && job.extension.front() == '.'
         ? job.extension.substr(1)
         : job.extension;
     std::ostringstream manifest;
     manifest << "{"
-        << "\"schema_version\":" << std::max(4, job.schema_version) << ","
+        << "\"schema_version\":" << std::max(5, job.schema_version) << ","
         << "\"backend\":\"d3d11\","
         << "\"source_path\":\"" << json_escape(job.path) << "\","
         << "\"format\":\"" << json_escape(format) << "\","
         << "\"summary\":\"Native preview-core " << json_escape(format) << " package\","
+        << "\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\","
         << "\"mesh_count\":" << emitted_batch_count << ","
         << "\"source_vertex_count\":" << source_vertex_total << ","
         << "\"vertex_count\":" << emitted_vertex_count << ","
@@ -3593,7 +4137,8 @@ static NativePackage write_d3d11_package(
         << "\"shininess_max\":" << job.shininess_max << ","
         << "\"use_textures\":" << (job.use_textures ? "true" : "false") << ","
         << "\"high_quality_textures\":" << (job.high_quality_textures ? "true" : "false") << ","
-        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << package.base_missing_count << ",\"base_low_res_count\":" << package.base_low_res_count << ",\"base_low_confidence_count\":" << package.base_low_confidence_count << ",\"base_technical_count\":" << package.base_technical_count << ",\"lod_count\":" << package.lod_count << "},"
+        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << package.base_missing_count << ",\"base_low_res_count\":" << package.base_low_res_count << ",\"base_low_confidence_count\":" << package.base_low_confidence_count << ",\"base_technical_count\":" << package.base_technical_count << ",\"asset_family_reference_count\":" << package.asset_family_reference_count << ",\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\",\"lod_count\":" << package.lod_count << "},"
+        << native_asset_family_json(package, job) << ","
         << "\"batches\":[" << batches_json.str() << "]"
         << "}";
     write_text(package_dir / "manifest.json", manifest.str());
@@ -3620,6 +4165,7 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     package.lod_count = parsed.lod_count;
     const PamtIndex& index = cached_pamt_index(job.entry.pamt_path);
     std::vector<TextureBinding> bindings = build_material_bindings(job, index, package);
+    append_mesh_reference_bindings(job, index, parsed.meshes, bindings, package);
     if (bindings.empty()) {
         if (package.material_index.empty()) package.material_index = "none";
         package.texture_resolution = "none";
@@ -3695,7 +4241,8 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"base_low_res_count\":" << package.base_low_res_count << ","
         << "\"base_low_confidence_count\":" << package.base_low_confidence_count << ","
         << "\"base_technical_count\":" << package.base_technical_count << ","
-        << "\"schema_version\":" << job.schema_version << ","
+        << "\"schema_version\":" << std::max(5, job.schema_version) << ","
+        << "\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\","
         << "\"entry_path\":\"" << json_escape(job.path) << "\","
         << "\"extension\":\"" << json_escape(job.extension) << "\","
         << "\"format_fourcc\":\"" << json_escape(format_fourcc) << "\","
@@ -3707,6 +4254,7 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"lod_count\":" << package.lod_count << ","
         << "\"dds_candidates\":" << package.dds_candidates << ","
         << "\"dds_extracted\":" << package.dds_extracted << ","
+        << "\"asset_family_reference_count\":" << package.asset_family_reference_count << ","
         << "\"decoded_cache_entries\":" << decoded_entry_cache_entries() << ","
         << "\"decoded_cache_bytes\":" << decoded_entry_cache_bytes() << ","
         << "\"decoded_cache_hits\":" << decoded_entry_cache_hits() << ","
