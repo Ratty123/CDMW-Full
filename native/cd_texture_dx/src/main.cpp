@@ -418,15 +418,41 @@ static std::string decode_preview(const PreviewJob& job) {
             json_escape(wide_to_utf8(job.input)) + "\",\"message\":\"DDS has no first image\"}";
     }
 
-    DirectX::ScratchImage rgba;
-    hr = DirectX::Convert(*first, DXGI_FORMAT_R8G8B8A8_UNORM, DirectX::TEX_FILTER_DEFAULT, DirectX::TEX_THRESHOLD_DEFAULT, rgba);
-    if (FAILED(hr)) {
+    DirectX::ScratchImage decompressed;
+    const DirectX::Image* convert_source = first;
+    if (DirectX::IsCompressed(first->format)) {
+        hr = DirectX::Decompress(*first, DXGI_FORMAT_R8G8B8A8_UNORM, decompressed);
+        if (FAILED(hr)) {
+            return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+                json_escape(wide_to_utf8(job.input)) + "\",\"message\":\"Decompress BC failed: 0x" +
+                std::to_string(static_cast<unsigned int>(hr)) + "\"}";
+        }
+        convert_source = decompressed.GetImage(0, 0, 0);
+    }
+    if (!convert_source) {
         return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
-            json_escape(wide_to_utf8(job.input)) + "\",\"message\":\"Convert RGBA8 failed: 0x" +
-            std::to_string(static_cast<unsigned int>(hr)) + "\"}";
+            json_escape(wide_to_utf8(job.input)) + "\",\"message\":\"DDS conversion source is empty\"}";
     }
 
+    DirectX::ScratchImage rgba;
     DirectX::ScratchImage* output_image = &rgba;
+    if (convert_source->format == DXGI_FORMAT_R8G8B8A8_UNORM) {
+        hr = rgba.InitializeFromImage(*convert_source);
+        if (FAILED(hr)) {
+            return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+                json_escape(wide_to_utf8(job.input)) + "\",\"message\":\"Initialize RGBA8 failed: 0x" +
+                std::to_string(static_cast<unsigned int>(hr)) + "\"}";
+        }
+    } else {
+        hr = DirectX::Convert(*convert_source, DXGI_FORMAT_R8G8B8A8_UNORM, DirectX::TEX_FILTER_DEFAULT, DirectX::TEX_THRESHOLD_DEFAULT, rgba);
+        if (FAILED(hr)) {
+            return "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\"" +
+                json_escape(wide_to_utf8(job.input)) + "\",\"message\":\"Convert RGBA8 failed: 0x" +
+                std::to_string(static_cast<unsigned int>(hr)) + "; source_format=" +
+                std::to_string(static_cast<unsigned int>(convert_source->format)) + "\"}";
+        }
+    }
+
     DirectX::ScratchImage resized;
     const DirectX::Image* rgba_image = rgba.GetImage(0, 0, 0);
     size_t target_width = rgba_image ? rgba_image->width : 0;

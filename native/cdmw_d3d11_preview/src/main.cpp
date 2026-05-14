@@ -98,6 +98,9 @@ struct PreviewBatch {
     int vertex_count = 0;
     bool flip_v = false;
     bool invert_normal_y = true;
+    bool alpha_cutout = false;
+    bool two_sided = false;
+    float alpha_threshold = 0.0f;
     float base_color[3] = {0.78f, 0.48f, 0.34f};
     std::wstring vertex_file;
     std::wstring base_dds;
@@ -289,6 +292,7 @@ struct ViewSettings {
 
 struct RenderTuning {
     int max_anisotropy = 16;
+    int diagnostic_mode = 0;
     float ambient_strength = 0.55f;
     float diffuse_light_scale = 0.65f;
     float specular_base = 0.05f;
@@ -296,6 +300,19 @@ struct RenderTuning {
     float shininess_min = 28.0f;
     float shininess_max = 72.0f;
 };
+
+static int diagnostic_mode_code(const std::string& value) {
+    std::string mode = value;
+    std::transform(mode.begin(), mode.end(), mode.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    if (mode == "base" || mode == "base_texture" || mode == "texture" || mode == "albedo") return 1;
+    if (mode == "uv" || mode == "uv_checker" || mode == "checker") return 2;
+    if (mode == "alpha" || mode == "opacity") return 3;
+    if (mode == "material_slot" || mode == "material_slot_id" || mode == "slot" || mode == "part_id") return 4;
+    if (mode == "normal" || mode == "normals") return 5;
+    if (mode == "support" || mode == "support_maps" || mode == "pbr") return 6;
+    if (mode == "layer_mask" || mode == "layer_masks" || mode == "mask") return 7;
+    return 0;
+}
 
 static std::string wide_to_utf8(const std::wstring& text) {
     if (text.empty()) return "";
@@ -922,6 +939,9 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.index = json_int_field(object, "index", static_cast<int>(batches.size()));
         batch.vertex_count = json_int_field(object, "vertex_count", 0);
         batch.flip_v = json_bool_field(object, "texture_flip_vertical", false);
+        batch.alpha_cutout = lower_copy(json_string_field(object, "alpha_mode")).find("cutout") != std::string::npos;
+        batch.two_sided = json_bool_field(object, "two_sided", false);
+        batch.alpha_threshold = std::clamp(json_float_field(object, "alpha_threshold", batch.alpha_cutout ? 0.12f : 0.0f), 0.0f, 0.95f);
         const std::string normal_y_policy = lower_copy(json_string_field(object, "normal_y_policy"));
         batch.invert_normal_y = normal_y_policy.empty()
             || normal_y_policy.find("invert") != std::string::npos
@@ -1004,6 +1024,7 @@ static ViewSettings parse_view_settings(const std::string& manifest) {
 
 static RenderTuning parse_render_tuning(const std::string& manifest) {
     RenderTuning tuning;
+    tuning.diagnostic_mode = diagnostic_mode_code(json_string_field(manifest, "render_diagnostic_mode"));
     tuning.max_anisotropy = std::clamp(json_int_field(manifest, "max_anisotropy", tuning.max_anisotropy), 1, 16);
     tuning.ambient_strength = std::clamp(json_float_field(manifest, "ambient_strength", tuning.ambient_strength), 0.05f, 1.20f);
     tuning.diffuse_light_scale = std::clamp(json_float_field(manifest, "diffuse_light_scale", tuning.diffuse_light_scale), 0.05f, 1.50f);
@@ -1225,8 +1246,30 @@ float4 ps_main(VSOut input) : SV_TARGET {
         uv.y = 1.0 - uv.y;
     }
     float3 albedo = srgb_to_linear(max(input.color, base_color_flip.rgb));
+    float base_alpha = 1.0;
     if (flags.x > 0.5) {
-        albedo = base_tex.Sample(preview_sampler, uv).rgb;
+        float4 base_sample = base_tex.Sample(preview_sampler, uv);
+        albedo = base_sample.rgb;
+        base_alpha = base_sample.a;
+    }
+    if (flags3.z > 0.5 && base_alpha < max(flags3.w, 0.001)) {
+        discard;
+    }
+    float debug_mode = flags4.y;
+    if (debug_mode > 1.5 && debug_mode < 2.5) {
+        float2 checker_uv = frac(uv * 16.0);
+        float checker = abs((checker_uv.x > 0.5 ? 1.0 : 0.0) - (checker_uv.y > 0.5 ? 1.0 : 0.0));
+        return float4(lerp(float3(0.04, 0.05, 0.06), float3(0.78, 0.88, 1.0), checker), 1.0);
+    }
+    if (debug_mode > 0.5 && debug_mode < 1.5) {
+        return float4(linear_to_srgb(saturate(albedo)), 1.0);
+    }
+    if (debug_mode > 2.5 && debug_mode < 3.5) {
+        return float4(base_alpha.xxx, 1.0);
+    }
+    if (debug_mode > 3.5 && debug_mode < 4.5) {
+        float seed = frac(flags4.z * 0.6180339 + 0.17);
+        return float4(frac(seed + 0.23), frac(seed * 2.31 + 0.47), frac(seed * 3.73 + 0.71), 1.0);
     }
     float layer_alpha[4] = {0.0, 0.0, 0.0, 0.0};
 #define APPLY_ALBEDO_LAYER(ID, DIFFUSE_TEX, MASK_TEX) \
@@ -1245,6 +1288,9 @@ float4 ps_main(VSOut input) : SV_TARGET {
     APPLY_ALBEDO_LAYER(2, layer2_diffuse_tex, layer2_mask_tex)
     APPLY_ALBEDO_LAYER(3, layer3_diffuse_tex, layer3_mask_tex)
 #undef APPLY_ALBEDO_LAYER
+    if (debug_mode > 6.5 && debug_mode < 7.5) {
+        return float4(layer_alpha[0], layer_alpha[1], layer_alpha[2], 1.0);
+    }
     float3 n = normalize(input.normal);
     float3 t = input.tangent;
     float3 b = input.bitangent;
@@ -1278,6 +1324,9 @@ float4 ps_main(VSOut input) : SV_TARGET {
     APPLY_NORMAL_LAYER(2, layer2_normal_tex)
     APPLY_NORMAL_LAYER(3, layer3_normal_tex)
 #undef APPLY_NORMAL_LAYER
+    if (debug_mode > 4.5 && debug_mode < 5.5) {
+        return float4(n * 0.5 + 0.5, 1.0);
+    }
     float ao = 1.0;
     float roughness = 0.55;
     float specular = 0.15;
@@ -1336,6 +1385,9 @@ float4 ps_main(VSOut input) : SV_TARGET {
     APPLY_MATERIAL_LAYER(2, layer2_material_tex)
     APPLY_MATERIAL_LAYER(3, layer3_material_tex)
 #undef APPLY_MATERIAL_LAYER
+    if (debug_mode > 5.5 && debug_mode < 6.5) {
+        return float4(saturate(ao), saturate(roughness), saturate(specular), 1.0);
+    }
     specular = min(specular, max(render_tuning.w, render_tuning.z));
     float height_value = 0.5;
     if (flags.w > 0.5) {
@@ -1473,6 +1525,8 @@ public:
 
     bool load_package(const fs::path& package_dir, const fs::path& status_file, bool reset_view_state) {
         if (package_dir.empty() || !fs::is_directory(package_dir)) {
+            release_model_resources("load-missing-package");
+            if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
             write_status(status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"preview package directory is missing\"}");
             cdmw_native_diag::event("package_load_error", {{"reason", "package directory missing"}, {"package_dir", cdmw_native_diag::path_to_utf8(package_dir)}});
             return false;
@@ -1485,11 +1539,63 @@ public:
         write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"manifest\",\"message\":\"Loading native D3D11 preview package...\"}");
         auto start = std::chrono::steady_clock::now();
         release_model_resources("reload");
-        std::string manifest = read_text(args_.preview_package / L"manifest.json");
+        std::string manifest;
         RendererStats next_stats;
-        std::vector<PreviewBatch> next_batches = parse_manifest_batches(args_.preview_package, manifest, next_stats);
-        ViewSettings next_view_settings = parse_view_settings(manifest);
-        RenderTuning next_render_tuning = parse_render_tuning(manifest);
+        std::vector<PreviewBatch> next_batches;
+        ViewSettings next_view_settings;
+        RenderTuning next_render_tuning;
+        try {
+            manifest = read_text(args_.preview_package / L"manifest.json");
+            next_batches = parse_manifest_batches(args_.preview_package, manifest, next_stats);
+            next_view_settings = parse_view_settings(manifest);
+            next_render_tuning = parse_render_tuning(manifest);
+        } catch (const std::exception& exc) {
+            if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
+            write_status(args_.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"native D3D11 manifest read/parse failed\"}");
+            cdmw_native_diag::event("package_load_error", {{"reason", std::string("manifest read/parse failed: ") + exc.what()}, {"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)}});
+            return false;
+        }
+        std::vector<std::string> missing_paths;
+        auto require_path = [&](const std::wstring& path, const char* label) {
+            if (path.empty()) return;
+            if (!fs::is_regular_file(fs::path(path)) && missing_paths.size() < 12) {
+                missing_paths.push_back(std::string(label) + ":" + wide_to_utf8(path));
+            }
+        };
+        for (const PreviewBatch& batch : next_batches) {
+            require_path(batch.vertex_file, "vertex");
+            require_path(batch.base_dds, "base_dds");
+            require_path(batch.normal_dds, "normal_dds");
+            require_path(batch.material_dds, "material_dds");
+            require_path(batch.specular_dds, "specular_dds");
+            require_path(batch.detail_dds, "detail_dds");
+            require_path(batch.height_dds, "height_dds");
+            require_path(batch.base_png, "base_png");
+            require_path(batch.height_png, "height_png");
+            for (int layer_index = 0; layer_index < batch.material_layer_count; ++layer_index) {
+                const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
+                require_path(layer.diffuse_dds, "layer_diffuse");
+                require_path(layer.mask_dds, "layer_mask");
+                require_path(layer.material_dds, "layer_material");
+                require_path(layer.normal_dds, "layer_normal");
+                require_path(layer.height_dds, "layer_height");
+            }
+        }
+        if (next_batches.empty() || !missing_paths.empty()) {
+            if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
+            std::ostringstream message;
+            message << (next_batches.empty() ? "native D3D11 manifest had no renderable batches" : "native D3D11 manifest referenced missing files");
+            write_status(args_.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"native D3D11 package validation failed\"}");
+            cdmw_native_diag::event(
+                "package_load_error",
+                {
+                    {"reason", message.str()},
+                    {"missing_count", std::to_string(missing_paths.size())},
+                    {"missing_examples", missing_paths.empty() ? "" : missing_paths.front()},
+                    {"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)}
+                });
+            return false;
+        }
         next_stats.manifest_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
         batches_ = std::move(next_batches);
         stats_ = next_stats;
@@ -1725,8 +1831,8 @@ public:
             constants.flags3 = DirectX::XMFLOAT4(
                 batch.detail_srv ? 1.0f : 0.0f,
                 batch.invert_normal_y ? 1.0f : 0.0f,
-                0.0f,
-                0.0f);
+                batch.alpha_cutout ? 1.0f : 0.0f,
+                batch.alpha_threshold);
             constants.render_tuning = DirectX::XMFLOAT4(
                 render_tuning_.ambient_strength,
                 render_tuning_.diffuse_light_scale,
@@ -1744,8 +1850,8 @@ public:
                 std::clamp(batch.highlight_strength, 0.0f, 0.42f));
             constants.flags4 = DirectX::XMFLOAT4(
                 batch.material_layer_count > 0 ? 1.0f : 0.0f,
-                0.0f,
-                0.0f,
+                static_cast<float>(render_tuning_.diagnostic_mode),
+                static_cast<float>(std::max(0, batch.source_submesh_index + 1)),
                 0.0f);
             for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
                 const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
@@ -2629,6 +2735,7 @@ private:
                 "command_set_render_tuning",
                 {
                     {"max_anisotropy", std::to_string(render_tuning_.max_anisotropy)},
+                    {"diagnostic_mode", std::to_string(render_tuning_.diagnostic_mode)},
                     {"ambient_strength", std::to_string(render_tuning_.ambient_strength)},
                     {"diffuse_light_scale", std::to_string(render_tuning_.diffuse_light_scale)},
                     {"specular_max", std::to_string(render_tuning_.specular_max)},
@@ -2637,6 +2744,7 @@ private:
             std::ostringstream event;
             event << "{\"event\":\"render_tuning\",\"ok\":" << (sampler_ok ? "true" : "false")
                   << ",\"max_anisotropy\":" << render_tuning_.max_anisotropy
+                  << ",\"diagnostic_mode\":" << render_tuning_.diagnostic_mode
                   << ",\"ambient_strength\":" << render_tuning_.ambient_strength
                   << ",\"diffuse_light_scale\":" << render_tuning_.diffuse_light_scale
                   << ",\"specular_max\":" << render_tuning_.specular_max
@@ -2933,6 +3041,7 @@ private:
 
     bool upload_batches() {
         auto geometry_start = std::chrono::steady_clock::now();
+        bool uploaded_any_geometry = false;
         for (PreviewBatch& batch : batches_) {
             std::vector<uint8_t> data = read_binary(batch.vertex_file);
             const size_t expected = static_cast<size_t>(batch.vertex_count) * kVertexStrideBytes;
@@ -2973,6 +3082,8 @@ private:
             HRESULT hr = device_->CreateBuffer(&desc, &init, batch.vertex_buffer.GetAddressOf());
             if (FAILED(hr)) {
                 stats_.skipped.push_back("vertex buffer upload failed:" + std::to_string(batch.index));
+            } else {
+                uploaded_any_geometry = true;
             }
         }
         stats_.geometry_ms = std::chrono::duration<double, std::milli>(
@@ -3018,7 +3129,7 @@ private:
                 {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)},
                 {"skipped", std::to_string(stats_.skipped.size())}
             });
-        return true;
+        return uploaded_any_geometry;
     }
 
     void load_batch_texture(

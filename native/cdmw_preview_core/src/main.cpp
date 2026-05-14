@@ -323,6 +323,7 @@ struct EntryJob {
     bool invert_pan_x = false;
     bool invert_pan_y = false;
     std::string visible_texture_mode = "mesh_base_first";
+    std::string render_diagnostic_mode = "lit";
 };
 
 ArchiveEntryRef parse_archive_entry_ref(const std::string& object) {
@@ -379,6 +380,20 @@ struct NativeSubmesh {
     std::vector<std::uint32_t> indices;
     std::vector<std::int32_t> source_vertex_indices;
     int source_submesh_index = -1;
+    std::string vertex_layout_name;
+    int vertex_stride = 40;
+    int uv_offset = 8;
+    int normal_offset = 16;
+    float uv_finite_ratio = 0.0f;
+    float uv_span_u = 0.0f;
+    float uv_span_v = 0.0f;
+    float uv_abs_max = 0.0f;
+    float degenerate_triangle_ratio = 0.0f;
+    float edge_outlier_ratio = 0.0f;
+    float normal_valid_ratio = 0.0f;
+    float geometry_quality_score = 0.0f;
+    bool geometry_safe = true;
+    std::string geometry_quality_note;
 };
 
 struct TextureBinding {
@@ -608,6 +623,8 @@ EntryJob parse_job(const fs::path& job_path) {
     if (!render_settings.empty()) {
         const std::string native_visible_mode = find_string_value(render_settings, "visible_texture_mode");
         if (!native_visible_mode.empty()) job.visible_texture_mode = normalize_visible_texture_mode(native_visible_mode);
+        const std::string diagnostic_mode = lower_copy(find_string_value(render_settings, "render_diagnostic_mode"));
+        if (!diagnostic_mode.empty()) job.render_diagnostic_mode = diagnostic_mode;
         job.use_textures = find_bool_value(render_settings, "use_textures_by_default", job.use_textures);
         job.high_quality_textures = find_bool_value(render_settings, "high_quality_by_default", job.high_quality_textures);
         job.disable_all_support_maps = find_bool_value(render_settings, "disable_all_support_maps", job.disable_all_support_maps);
@@ -1496,9 +1513,9 @@ static float decode_pac_position(std::uint16_t value, float min_value, float ext
     return min_value + (static_cast<float>(value) / 32767.0f) * extent;
 }
 
-static Vec3 decode_pac_normal(const std::vector<char>& data, size_t rec_off) {
-    if (rec_off + 20 > data.size()) return Vec3{0.0f, 1.0f, 0.0f};
-    const std::uint32_t packed = read_u32(data, rec_off + 16);
+static Vec3 decode_pac_normal(const std::vector<char>& data, size_t rec_off, int normal_offset = 16) {
+    if (normal_offset < 0 || rec_off + static_cast<size_t>(normal_offset) + 4 > data.size()) return Vec3{0.0f, 1.0f, 0.0f};
+    const std::uint32_t packed = read_u32(data, rec_off + static_cast<size_t>(normal_offset));
     const std::uint32_t nx_raw = (packed >> 0) & 0x3FFu;
     const std::uint32_t ny_raw = (packed >> 10) & 0x3FFu;
     const std::uint32_t nz_raw = (packed >> 20) & 0x3FFu;
@@ -1507,6 +1524,122 @@ static Vec3 decode_pac_normal(const std::vector<char>& data, size_t rec_off) {
         static_cast<float>(nz_raw) / 511.5f - 1.0f,
         static_cast<float>(nx_raw) / 511.5f - 1.0f,
     });
+}
+
+struct PacVertexLayout {
+    std::string name;
+    int stride = 40;
+    int uv_offset = 8;
+    int normal_offset = 16;
+};
+
+static float triangle_area_estimate(const Vec3& a, const Vec3& b, const Vec3& c) {
+    const Vec3 ab = vec_sub(b, a);
+    const Vec3 ac = vec_sub(c, a);
+    return std::sqrt(std::max(0.0f, vec_dot(vec_cross(ab, ac), vec_cross(ab, ac)))) * 0.5f;
+}
+
+static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
+    const size_t vertex_count = mesh.positions.size();
+    if (vertex_count == 0 || mesh.indices.size() < 3) {
+        mesh.geometry_safe = false;
+        mesh.geometry_quality_note = "empty geometry";
+        mesh.geometry_quality_score = -1000.0f;
+        return;
+    }
+
+    float min_u = std::numeric_limits<float>::max();
+    float min_v = std::numeric_limits<float>::max();
+    float max_u = -std::numeric_limits<float>::max();
+    float max_v = -std::numeric_limits<float>::max();
+    float abs_max = 0.0f;
+    size_t finite_uvs = 0;
+    for (const Vec2& uv : mesh.uvs) {
+        if (!std::isfinite(uv.x) || !std::isfinite(uv.y)) continue;
+        ++finite_uvs;
+        min_u = std::min(min_u, uv.x);
+        min_v = std::min(min_v, uv.y);
+        max_u = std::max(max_u, uv.x);
+        max_v = std::max(max_v, uv.y);
+        abs_max = std::max(abs_max, std::max(std::abs(uv.x), std::abs(uv.y)));
+    }
+    mesh.uv_finite_ratio = vertex_count > 0 ? static_cast<float>(finite_uvs) / static_cast<float>(vertex_count) : 0.0f;
+    if (finite_uvs > 0) {
+        mesh.uv_span_u = max_u - min_u;
+        mesh.uv_span_v = max_v - min_v;
+        mesh.uv_abs_max = abs_max;
+    }
+
+    Vec3 min_p{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+    Vec3 max_p{-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max()};
+    for (const Vec3& p : mesh.positions) {
+        min_p.x = std::min(min_p.x, p.x); min_p.y = std::min(min_p.y, p.y); min_p.z = std::min(min_p.z, p.z);
+        max_p.x = std::max(max_p.x, p.x); max_p.y = std::max(max_p.y, p.y); max_p.z = std::max(max_p.z, p.z);
+    }
+    const Vec3 diag_v = vec_sub(max_p, min_p);
+    const float diag = std::max(1.0e-6f, std::sqrt(std::max(0.0f, vec_dot(diag_v, diag_v))));
+
+    size_t degenerate = 0;
+    size_t outlier_edges = 0;
+    size_t triangles = 0;
+    for (size_t i = 0; i + 2 < mesh.indices.size(); i += 3) {
+        const std::uint32_t ia = mesh.indices[i];
+        const std::uint32_t ib = mesh.indices[i + 1];
+        const std::uint32_t ic = mesh.indices[i + 2];
+        if (ia >= vertex_count || ib >= vertex_count || ic >= vertex_count) continue;
+        ++triangles;
+        const Vec3& a = mesh.positions[ia];
+        const Vec3& b = mesh.positions[ib];
+        const Vec3& c = mesh.positions[ic];
+        if (triangle_area_estimate(a, b, c) <= diag * diag * 1.0e-10f) ++degenerate;
+        const float ab = std::sqrt(std::max(0.0f, vec_dot(vec_sub(a, b), vec_sub(a, b))));
+        const float bc = std::sqrt(std::max(0.0f, vec_dot(vec_sub(b, c), vec_sub(b, c))));
+        const float ca = std::sqrt(std::max(0.0f, vec_dot(vec_sub(c, a), vec_sub(c, a))));
+        if (std::max({ab, bc, ca}) > diag * 0.62f) ++outlier_edges;
+    }
+    mesh.degenerate_triangle_ratio = triangles > 0 ? static_cast<float>(degenerate) / static_cast<float>(triangles) : 1.0f;
+    mesh.edge_outlier_ratio = triangles > 0 ? static_cast<float>(outlier_edges) / static_cast<float>(triangles) : 1.0f;
+
+    size_t valid_normals = 0;
+    for (const Vec3& n : mesh.normals) {
+        const float len_sq = vec_dot(n, n);
+        if (std::isfinite(n.x) && std::isfinite(n.y) && std::isfinite(n.z) && len_sq > 0.25f && len_sq < 1.75f) {
+            ++valid_normals;
+        }
+    }
+    mesh.normal_valid_ratio = vertex_count > 0 ? static_cast<float>(valid_normals) / static_cast<float>(vertex_count) : 0.0f;
+
+    const float uv_span = std::max(mesh.uv_span_u, mesh.uv_span_v);
+    float score = 0.0f;
+    score += std::min<float>(static_cast<float>(triangles), 250000.0f) * 0.002f;
+    score += mesh.uv_finite_ratio * 140.0f;
+    score += mesh.normal_valid_ratio * 60.0f;
+    score -= std::max(0.0f, uv_span - 24.0f) * 9.0f;
+    score -= std::max(0.0f, mesh.uv_abs_max - 48.0f) * 4.0f;
+    score -= mesh.degenerate_triangle_ratio * 220.0f;
+    score -= mesh.edge_outlier_ratio * 260.0f;
+    mesh.geometry_quality_score = score;
+
+    std::ostringstream note;
+    note << "layout=" << mesh.vertex_layout_name
+         << " stride=" << mesh.vertex_stride
+         << " uv_offset=" << mesh.uv_offset
+         << " normal_offset=" << mesh.normal_offset
+         << " uv_finite=" << mesh.uv_finite_ratio
+         << " uv_span=" << mesh.uv_span_u << "x" << mesh.uv_span_v
+         << " uv_abs_max=" << mesh.uv_abs_max
+         << " degenerate=" << mesh.degenerate_triangle_ratio
+         << " edge_outlier=" << mesh.edge_outlier_ratio
+         << " normal_valid=" << mesh.normal_valid_ratio
+         << " score=" << mesh.geometry_quality_score;
+    mesh.geometry_quality_note = note.str();
+    mesh.geometry_safe =
+        mesh.uv_finite_ratio >= 0.92f
+        && mesh.uv_abs_max <= 96.0f
+        && std::max(mesh.uv_span_u, mesh.uv_span_v) <= 64.0f
+        && mesh.degenerate_triangle_ratio <= 0.28f
+        && mesh.edge_outlier_ratio <= 0.22f
+        && mesh.normal_valid_ratio >= 0.70f;
 }
 
 static int find_pac_section_index_start(
@@ -1541,24 +1674,25 @@ static std::pair<int, int> find_pac_section_layout(
     const ParSection& geom_sec,
     const std::vector<PacDescriptor>& descriptors,
     int lod,
-    int total_indices
+    int total_indices,
+    int vertex_stride
 ) {
     std::uint32_t total_verts = 0;
     for (const PacDescriptor& desc : descriptors) {
         total_verts += desc.vertex_counts[static_cast<size_t>(lod)];
     }
-    const int primary_bytes = static_cast<int>(total_verts) * 40;
+    const int primary_bytes = static_cast<int>(total_verts) * vertex_stride;
     const int index_bytes = total_indices * 2;
     if (primary_bytes + index_bytes >= static_cast<int>(geom_sec.size)) {
         return {0, primary_bytes};
     }
     const int gap = static_cast<int>(geom_sec.size) - primary_bytes - index_bytes;
     if (gap <= 0) return {0, primary_bytes};
-    const int secondary_bytes = (gap / 40) * 40;
+    const int secondary_bytes = (gap / vertex_stride) * vertex_stride;
     int best_v_start = 0;
     int best_i_start = primary_bytes + secondary_bytes;
-    for (int n_secondary = 0; n_secondary <= gap / 40; ++n_secondary) {
-        const int v_start = n_secondary * 40;
+    for (int n_secondary = 0; n_secondary <= gap / vertex_stride; ++n_secondary) {
+        const int v_start = n_secondary * vertex_stride;
         const int all_verts_end = v_start + primary_bytes;
         if (all_verts_end >= static_cast<int>(geom_sec.size)) break;
         const int idx_start = find_pac_section_index_start(data, geom_sec, descriptors, lod, all_verts_end);
@@ -1595,18 +1729,23 @@ static NativeSubmesh decode_pac_submesh_vertices(
     int vertex_start,
     std::uint32_t vertex_count,
     const std::vector<std::uint32_t>& indices,
-    int source_submesh_index
+    int source_submesh_index,
+    const PacVertexLayout& layout
 ) {
     NativeSubmesh mesh;
     mesh.name = desc.name;
     mesh.material = desc.material.empty() ? desc.name : desc.material;
     mesh.source_submesh_index = source_submesh_index;
+    mesh.vertex_layout_name = layout.name;
+    mesh.vertex_stride = layout.stride;
+    mesh.uv_offset = layout.uv_offset;
+    mesh.normal_offset = layout.normal_offset;
     mesh.positions.reserve(vertex_count);
     mesh.uvs.reserve(vertex_count);
     mesh.normals.reserve(vertex_count);
     for (std::uint32_t vi = 0; vi < vertex_count; ++vi) {
-        const size_t rec_off = static_cast<size_t>(geom_sec.offset) + static_cast<size_t>(vertex_start) + static_cast<size_t>(vi) * 40u;
-        if (rec_off + 40 > data.size()) break;
+        const size_t rec_off = static_cast<size_t>(geom_sec.offset) + static_cast<size_t>(vertex_start) + static_cast<size_t>(vi) * static_cast<size_t>(layout.stride);
+        if (rec_off + static_cast<size_t>(layout.stride) > data.size()) break;
         const std::uint16_t xu = read_u16(data, rec_off);
         const std::uint16_t yu = read_u16(data, rec_off + 2);
         const std::uint16_t zu = read_u16(data, rec_off + 4);
@@ -1616,10 +1755,14 @@ static NativeSubmesh decode_pac_submesh_vertices(
             decode_pac_position(zu, desc.bbox_min.z, desc.bbox_extent.z),
         });
         mesh.source_vertex_indices.push_back(static_cast<std::int32_t>(vi));
-        const float u = half_to_float(read_u16(data, rec_off + 8));
-        const float v = half_to_float(read_u16(data, rec_off + 10));
+        float u = 0.0f;
+        float v = 0.0f;
+        if (layout.uv_offset >= 0 && rec_off + static_cast<size_t>(layout.uv_offset) + 4 <= data.size()) {
+            u = half_to_float(read_u16(data, rec_off + static_cast<size_t>(layout.uv_offset)));
+            v = half_to_float(read_u16(data, rec_off + static_cast<size_t>(layout.uv_offset + 2)));
+        }
         mesh.uvs.push_back(Vec2{std::isfinite(u) ? u : 0.0f, std::isfinite(v) ? v : 0.0f});
-        mesh.normals.push_back(decode_pac_normal(data, rec_off));
+        mesh.normals.push_back(decode_pac_normal(data, rec_off, layout.normal_offset));
     }
     for (size_t i = 0; i + 2 < indices.size(); i += 3) {
         const std::uint32_t a = indices[i];
@@ -1631,6 +1774,7 @@ static NativeSubmesh decode_pac_submesh_vertices(
             mesh.indices.push_back(c);
         }
     }
+    evaluate_native_submesh_quality(mesh);
     return mesh;
 }
 
@@ -1638,7 +1782,8 @@ static std::vector<NativeSubmesh> parse_pac_geometry_section(
     const std::vector<char>& data,
     const std::vector<PacDescriptor>& descriptors,
     const ParSection& geom_sec,
-    int lod
+    int lod,
+    const PacVertexLayout& layout
 ) {
     std::vector<NativeSubmesh> output;
     if (lod < 0 || lod >= 10) return output;
@@ -1646,16 +1791,16 @@ static std::vector<NativeSubmesh> parse_pac_geometry_section(
     for (const PacDescriptor& desc : descriptors) {
         total_indices += static_cast<int>(desc.index_counts[static_cast<size_t>(lod)]);
     }
-    const auto layout = find_pac_section_layout(data, geom_sec, descriptors, lod, total_indices);
-    const int vert_base = layout.first;
-    int idx_byte_offset = layout.second;
+    const auto section_layout = find_pac_section_layout(data, geom_sec, descriptors, lod, total_indices, layout.stride);
+    const int vert_base = section_layout.first;
+    int idx_byte_offset = section_layout.second;
     const int index_region_start = idx_byte_offset;
     std::vector<int> desc_vert_offsets;
     desc_vert_offsets.reserve(descriptors.size());
     int cursor = vert_base;
     for (const PacDescriptor& desc : descriptors) {
         desc_vert_offsets.push_back(cursor);
-        cursor += static_cast<int>(desc.vertex_counts[static_cast<size_t>(lod)]) * 40;
+        cursor += static_cast<int>(desc.vertex_counts[static_cast<size_t>(lod)]) * layout.stride;
     }
 
     for (size_t di = 0; di < descriptors.size(); ++di) {
@@ -1678,7 +1823,7 @@ static std::vector<NativeSubmesh> parse_pac_geometry_section(
                 }
             }
             if (owner_idx == static_cast<int>(di)) {
-                const int available_vc = std::max(0, (index_region_start - desc_vert_offsets[di]) / 40);
+                const int available_vc = std::max(0, (index_region_start - desc_vert_offsets[di]) / layout.stride);
                 if (max_index < static_cast<std::uint32_t>(available_vc)) owner_vc = max_index + 1u;
             }
         }
@@ -1689,7 +1834,8 @@ static std::vector<NativeSubmesh> parse_pac_geometry_section(
             desc_vert_offsets[static_cast<size_t>(owner_idx)],
             owner_vc,
             indices,
-            static_cast<int>(di)
+            static_cast<int>(di),
+            layout
         );
         mesh.name = desc.name;
         mesh.material = desc.material.empty() ? desc.name : desc.material;
@@ -1722,32 +1868,79 @@ static std::vector<NativeSubmesh> parse_pac_submeshes(const std::vector<char>& d
         int vertices = 0;
         int submeshes = 0;
         int geom_section_idx = 0;
+        float quality_score = 0.0f;
+        int unsafe_meshes = 0;
+        std::string layout_name;
+        std::string diagnostic;
         std::vector<NativeSubmesh> meshes;
     };
     std::vector<Candidate> candidates;
+    const std::vector<PacVertexLayout> vertex_layouts = {
+        {"pac40_uv8_n16", 40, 8, 16},
+        {"pac40_uv12_n16", 40, 12, 16},
+        {"pac40_uv20_n16", 40, 20, 16},
+        {"pac40_uv24_n16", 40, 24, 16},
+        {"pac40_uv28_n16", 40, 28, 16},
+        {"pac40_uv32_n16", 40, 32, 16},
+    };
     for (int geom_section_idx : {4, 3, 2, 1}) {
         auto it = by_index.find(geom_section_idx);
         if (it == by_index.end()) continue;
         const int lod = 4 - geom_section_idx;
         if (lod < 0 || lod >= n_lods) continue;
-        std::vector<NativeSubmesh> meshes = parse_pac_geometry_section(data, descriptors, it->second, lod);
-        int faces = 0;
-        int vertices = 0;
-        for (const NativeSubmesh& mesh : meshes) {
-            faces += static_cast<int>(mesh.indices.size() / 3u);
-            vertices += static_cast<int>(mesh.positions.size());
-        }
-        if (!meshes.empty() && faces > 0) {
-            candidates.push_back(Candidate{faces, vertices, static_cast<int>(meshes.size()), geom_section_idx, std::move(meshes)});
+        for (const PacVertexLayout& layout : vertex_layouts) {
+            std::vector<NativeSubmesh> meshes = parse_pac_geometry_section(data, descriptors, it->second, lod, layout);
+            int faces = 0;
+            int vertices = 0;
+            float quality = 0.0f;
+            int unsafe = 0;
+            std::ostringstream diag;
+            for (const NativeSubmesh& mesh : meshes) {
+                faces += static_cast<int>(mesh.indices.size() / 3u);
+                vertices += static_cast<int>(mesh.positions.size());
+                quality += mesh.geometry_quality_score;
+                if (!mesh.geometry_safe) ++unsafe;
+                if (diag.tellp() < 600) {
+                    if (diag.tellp() > 0) diag << "; ";
+                    diag << mesh.material << ": " << mesh.geometry_quality_note;
+                }
+            }
+            if (!meshes.empty() && faces > 0) {
+                candidates.push_back(Candidate{
+                    faces,
+                    vertices,
+                    static_cast<int>(meshes.size()),
+                    geom_section_idx,
+                    quality,
+                    unsafe,
+                    layout.name,
+                    diag.str(),
+                    std::move(meshes)
+                });
+            }
         }
     }
     if (candidates.empty()) throw std::runtime_error("native PAC parser found no renderable geometry sections");
     std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) {
+        const bool a_safe = a.unsafe_meshes == 0;
+        const bool b_safe = b.unsafe_meshes == 0;
+        if (a_safe != b_safe) return a_safe;
+        if (std::abs(a.quality_score - b.quality_score) > 1.0f) return a.quality_score > b.quality_score;
         if (a.faces != b.faces) return a.faces > b.faces;
         if (a.vertices != b.vertices) return a.vertices > b.vertices;
         if (a.submeshes != b.submeshes) return a.submeshes > b.submeshes;
         return a.geom_section_idx > b.geom_section_idx;
     });
+    const Candidate& best = candidates.front();
+    if (best.unsafe_meshes > 0 || best.quality_score < 60.0f) {
+        std::ostringstream reason;
+        reason << "native geometry unsafe: section=" << best.geom_section_idx
+               << " layout=" << best.layout_name
+               << " unsafe_meshes=" << best.unsafe_meshes
+               << " quality=" << best.quality_score
+               << " diagnostics=" << best.diagnostic;
+        throw std::runtime_error(reason.str());
+    }
     return std::move(candidates.front().meshes);
 }
 
@@ -2352,7 +2545,7 @@ static std::string texture_role_from_name(const std::string& raw_name) {
 }
 
 static bool role_is_technical_for_base(const std::string& role) {
-    return role == "normal" || role == "height" || role == "material" || role == "detail" || role == "specular";
+    return role == "normal" || role == "height" || role == "material" || role == "detail" || role == "specular" || role == "flow";
 }
 
 static std::string normalize_visible_texture_mode(const std::string& mode) {
@@ -2455,6 +2648,7 @@ static std::string semantic_subtype_for_role(const std::string& role) {
     if (role == "specular") return "specular";
     if (role == "detail") return "detail_mask";
     if (role == "material") return "material_mask";
+    if (role == "flow") return "flow";
     return "base_color";
 }
 
@@ -3144,18 +3338,7 @@ static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(const std::st
     std::vector<SidecarTextureRef> refs;
     std::set<std::string> seen;
 
-    std::map<std::string, std::pair<int, std::string>> best_wrapper_by_material;
     for (const std::string& block : collect_xml_tag_blocks(text, "SkinnedMeshMaterialWrapper")) {
-        const std::string material_name = xml_attr_value(block, {"_subMeshName", "PrimitiveName", "Name"});
-        const std::string key = normalized_key(material_name.empty() ? "default" : material_name);
-        const int score = score_material_wrapper_block_for_preview(block, material_name);
-        auto found = best_wrapper_by_material.find(key);
-        if (found == best_wrapper_by_material.end() || score > found->second.first) {
-            best_wrapper_by_material[key] = std::make_pair(score, block);
-        }
-    }
-    for (const auto& item : best_wrapper_by_material) {
-        const std::string& block = item.second.second;
         std::string material_name = xml_attr_value(block, {"_subMeshName", "PrimitiveName", "Name"});
         std::replace(material_name.begin(), material_name.end(), '\\', '/');
         const std::string shader_family = extract_shader_family_hint(block);
@@ -3320,20 +3503,41 @@ static std::string normalized_material_key(const std::string& text) {
     return key;
 }
 
+static std::string normalized_texture_family_key(const std::string& text) {
+    std::string key = normalized_material_key(text);
+    for (const std::string& suffix : {"_disp", "_ma", "_mg", "_sp", "_m", "_n", "_o"}) {
+        if (key.size() > suffix.size() && key.ends_with(suffix)) {
+            key.resize(key.size() - suffix.size());
+            break;
+        }
+    }
+    return key;
+}
+
+static bool material_keys_overlap(const std::string& a, const std::string& b) {
+    if (a.empty() || b.empty()) return false;
+    return a == b || a.find(b) != std::string::npos || b.find(a) != std::string::npos;
+}
+
 static int material_identity_match_score(const TextureBinding& binding, const NativeSubmesh& mesh) {
     const std::string mesh_text = lower_copy(mesh.material + " " + mesh.name);
     const std::string binding_text = lower_copy(binding.material_name + " " + binding.texture_name + " " + binding.archive_path);
     const std::string mesh_key_a = normalized_material_key(mesh.material);
     const std::string mesh_key_b = normalized_material_key(mesh.name);
     const std::string binding_key = normalized_material_key(binding.material_name);
+    const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
     int score = 0;
     if (!binding_key.empty() && (!mesh_key_a.empty() || !mesh_key_b.empty())) {
         if (binding_key == mesh_key_a || binding_key == mesh_key_b) score += 160;
-        if (!mesh_key_a.empty() && binding_key.find(mesh_key_a) != std::string::npos) score += 72;
-        if (!mesh_key_b.empty() && binding_key.find(mesh_key_b) != std::string::npos) score += 72;
-        if (!mesh_key_a.empty() && mesh_key_a.find(binding_key) != std::string::npos) score += 54;
-        if (!mesh_key_b.empty() && mesh_key_b.find(binding_key) != std::string::npos) score += 54;
+        if (material_keys_overlap(binding_key, mesh_key_a)) score += 72;
+        if (material_keys_overlap(binding_key, mesh_key_b)) score += 72;
+        if (material_keys_overlap(texture_family_key, mesh_key_a)) score += 132;
+        if (material_keys_overlap(texture_family_key, mesh_key_b)) score += 132;
         if (score == 0) return 0;
+    }
+    if (!texture_family_key.empty()) {
+        if (material_keys_overlap(texture_family_key, mesh_key_a)) score += 80;
+        if (material_keys_overlap(texture_family_key, mesh_key_b)) score += 80;
     }
     std::string current;
     std::vector<std::string> mesh_tokens;
@@ -3490,6 +3694,7 @@ static std::string shader_rule_for_family(const std::string& family) {
     if (lower.find("skinnedmeshstandard_ver2") != std::string::npos) return "standard_v2";
     if (lower.find("skinnedmeshstandard") != std::string::npos) return "standard";
     if (lower.find("skinnedmeshhair") != std::string::npos || lower.find("skinnedmeshfur") != std::string::npos || lower.find("animalhair") != std::string::npos) return "hair";
+    if (lower.find("emissive") != std::string::npos) return "emissive";
     if (lower.find("multitextured") != std::string::npos) return "static_multitextured";
     if (lower.find("standard") != std::string::npos) return "static_standard";
     return "generic";
@@ -3694,11 +3899,14 @@ static std::string role_from_parameter_shader_and_name(
 ) {
     const std::string p = lower_copy(parameter_name);
     const std::string t = lower_copy(texture_name);
+    if (p.find("flow") != std::string::npos) return "flow";
+    if (shader_rule == "hair" && (p == "_flowtexture" || p.find("flowtexture") != std::string::npos)) return "flow";
     if (technique_parameter != nullptr && technique_parameter->declared) {
         const std::string declared_type = lower_copy(technique_parameter->type);
         const std::string declared_default = lower_copy(technique_parameter->default_value);
         const bool declared_texture = declared_type.find("texture") != std::string::npos || p.find("texture") != std::string::npos;
         if (declared_texture) {
+            if (p.find("flow") != std::string::npos) return "flow";
             if (p.find("normal") != std::string::npos || declared_default.find("0xff7f7f00") != std::string::npos) return "normal";
             if (p.find("height") != std::string::npos || p.find("displacement") != std::string::npos || p.find("disp") != std::string::npos) return "height";
             if (p.find("specular") != std::string::npos || p.find("gloss") != std::string::npos || p.find("smoothness") != std::string::npos) return "specular";
@@ -3728,6 +3936,7 @@ static std::string semantic_type_for_role(const std::string& role) {
     if (role == "height") return "height";
     if (role == "specular") return "specular";
     if (role == "detail") return "detail_mask";
+    if (role == "flow") return "flow";
     return "packed_material";
 }
 
@@ -3951,20 +4160,27 @@ static std::vector<TextureBinding> build_material_bindings(
         );
         const std::vector<SidecarTextureRef>& refs = parsed_sidecar->refs;
         int refs_considered = 0;
+        const std::string model_family_key = normalized_material_key(stem_from_path(job.path));
         for (const SidecarTextureRef& texture_ref : refs) {
             const std::string ref_material_key = normalized_material_key(texture_ref.material_name);
+            const std::string texture_family_key = normalized_texture_family_key(texture_ref.path);
             if (!ref_material_key.empty() && !meshes.empty()) {
                 bool matched_mesh = false;
                 for (const NativeSubmesh& mesh : meshes) {
                     const std::string mesh_material_key = normalized_material_key(mesh.material);
                     const std::string mesh_name_key = normalized_material_key(mesh.name);
                     if (
-                        (!mesh_material_key.empty() && (ref_material_key == mesh_material_key || ref_material_key.find(mesh_material_key) != std::string::npos || mesh_material_key.find(ref_material_key) != std::string::npos))
-                        || (!mesh_name_key.empty() && (ref_material_key == mesh_name_key || ref_material_key.find(mesh_name_key) != std::string::npos || mesh_name_key.find(ref_material_key) != std::string::npos))
+                        material_keys_overlap(ref_material_key, mesh_material_key)
+                        || material_keys_overlap(ref_material_key, mesh_name_key)
+                        || material_keys_overlap(texture_family_key, mesh_material_key)
+                        || material_keys_overlap(texture_family_key, mesh_name_key)
                     ) {
                         matched_mesh = true;
                         break;
                     }
+                }
+                if (!matched_mesh && material_keys_overlap(ref_material_key, model_family_key)) {
+                    matched_mesh = true;
                 }
                 if (!matched_mesh) {
                     if (package.rejected_texture_examples.size() < 16) {
@@ -3977,6 +4193,24 @@ static std::vector<TextureBinding> build_material_bindings(
                     }
                     continue;
                 }
+            }
+            std::string pre_shader_family = texture_ref.shader_family.empty() ? sidecar_shader_family : texture_ref.shader_family;
+            if (pre_shader_family.empty() && sidecar.extension == ".pami") pre_shader_family = "StaticMaterial";
+            const std::string pre_shader_rule = shader_rule_for_family(pre_shader_family);
+            const TechniqueParameterInfo* pre_technique_parameter = technique_parameter_for_name(technique_index, texture_ref.parameter_name);
+            const std::string pre_role = role_from_parameter_shader_and_name(
+                texture_ref.parameter_name,
+                pre_shader_rule,
+                lower_copy(basename_from_path(texture_ref.path)),
+                pre_technique_parameter);
+            const std::string mode = normalize_visible_texture_mode(job.visible_texture_mode);
+            const std::string parameter_key = normalized_key(texture_ref.parameter_name);
+            if (
+                mode == "mesh_base_first"
+                && (parameter_key.find("detail") != std::string::npos || parameter_key.find("grime") != std::string::npos || parameter_key.find("dye") != std::string::npos)
+                && pre_role != "base"
+            ) {
+                continue;
             }
             ++refs_considered;
             const std::string base = lower_copy(basename_from_path(texture_ref.path));
@@ -4005,12 +4239,11 @@ static std::vector<TextureBinding> build_material_bindings(
             if (selected == nullptr) continue;
             const std::string extracted = extracted_dds_path_for_entry(*selected, job.cache_root, notes);
             if (extracted.empty()) continue;
-            std::string shader_family = texture_ref.shader_family.empty() ? sidecar_shader_family : texture_ref.shader_family;
-            if (shader_family.empty() && sidecar.extension == ".pami") shader_family = "StaticMaterial";
-            const std::string shader_rule = shader_rule_for_family(shader_family);
-            const TechniqueParameterInfo* technique_parameter = technique_parameter_for_name(technique_index, texture_ref.parameter_name);
+            std::string shader_family = pre_shader_family;
+            const std::string shader_rule = pre_shader_rule;
+            const TechniqueParameterInfo* technique_parameter = pre_technique_parameter;
             TextureBinding binding;
-            binding.role = role_from_parameter_shader_and_name(texture_ref.parameter_name, shader_rule, base, technique_parameter);
+            binding.role = pre_role;
             binding.source_path = extracted;
             binding.archive_path = selected->path;
             binding.texture_name = selected->basename;
@@ -4028,6 +4261,14 @@ static std::vector<TextureBinding> build_material_bindings(
             binding.shader_family = shader_family;
             binding.shader_rule = shader_rule;
             binding.material_name = texture_ref.material_name.empty() ? stem_from_path(sidecar.path) : texture_ref.material_name;
+            for (const NativeSubmesh& mesh : meshes) {
+                const std::string mesh_material_key = normalized_material_key(mesh.material);
+                const std::string mesh_name_key = normalized_material_key(mesh.name);
+                if (material_keys_overlap(texture_family_key, mesh_material_key) || material_keys_overlap(texture_family_key, mesh_name_key)) {
+                    binding.material_name = stem_from_path(texture_ref.path);
+                    break;
+                }
+            }
             binding.sidecar_path = sidecar.path;
             binding.sidecar_kind = sidecar.extension;
             binding.linked_mesh_path = parameter_summary.linked_mesh_path;
@@ -4588,15 +4829,24 @@ static std::vector<MaterialLayer> compile_material_layers(
     const TextureBinding* material,
     const TextureBinding* height,
     const TextureBinding* specular,
-    const NativeMaterialHints& hints
+    const NativeMaterialHints& hints,
+    const std::string& visible_texture_mode
 ) {
     std::vector<MaterialLayer> layers;
     layers.push_back(make_base_material_layer(base, normal, material, height, specular, hints));
+    const std::string mode = normalize_visible_texture_mode(visible_texture_mode);
+    if (mode == "mesh_base_first") {
+        return layers;
+    }
     if (shader_rule_holds_layer_albedo(bindings)) {
         return layers;
     }
     for (const TextureBinding* binding : bindings) {
         if (binding == nullptr || !binding_is_layer_diffuse(*binding, base)) continue;
+        const std::string shader_rule = lower_copy(binding->shader_rule + " " + binding->shader_family);
+        if (shader_rule.find("generic") != std::string::npos || shader_rule.find("hair") != std::string::npos || shader_rule.find("skin") != std::string::npos) {
+            continue;
+        }
         MaterialLayer layer;
         layer.layer_role = binding->layer_role.empty() || binding->layer_role == "base" ? "layer" : binding->layer_role;
         layer.layer_channel = binding->layer_channel.empty() ? "r" : binding->layer_channel;
@@ -4872,6 +5122,14 @@ static NativePackage write_d3d11_package(
             mesh,
             {base, normal, material, height, specular, detail}
         );
+        bool batch_is_hair = false;
+        bool batch_has_alpha_test = false;
+        for (const TextureBinding* binding_ptr : batch_bindings) {
+            if (binding_ptr == nullptr) continue;
+            const std::string rule = lower_copy(binding_ptr->shader_rule + " " + binding_ptr->shader_family + " " + binding_ptr->material_parameter_names);
+            if (rule.find("hair") != std::string::npos || rule.find("fur") != std::string::npos) batch_is_hair = true;
+            if (rule.find("alphatest") != std::string::npos) batch_has_alpha_test = true;
+        }
         const NativeMaterialHints material_hints = material_hints_for_bindings(batch_bindings);
         if (base == nullptr) {
             for (const TextureBinding* binding_ptr : batch_bindings) {
@@ -4893,7 +5151,8 @@ static NativePackage write_d3d11_package(
             material,
             height,
             specular,
-            material_hints
+            material_hints,
+            job.visible_texture_mode
         );
         const MaterialLayer* primary_layer = nullptr;
         for (const MaterialLayer& layer : material_layers) {
@@ -5032,6 +5291,23 @@ static NativePackage write_d3d11_package(
             << "\"texture_flip_vertical\":false,"
             << "\"uv_flip_policy\":\"legacy_no_flip\","
             << "\"normal_y_policy\":\"shader_invert_legacy_compat\","
+            << "\"alpha_mode\":\"" << (batch_is_hair || batch_has_alpha_test ? "alpha_cutout" : "opaque") << "\","
+            << "\"alpha_threshold\":" << (batch_is_hair ? 0.18f : (batch_has_alpha_test ? 0.08f : 0.0f)) << ","
+            << "\"two_sided\":" << (batch_is_hair ? "true" : "false") << ","
+            << "\"geometry_quality\":{"
+            << "\"safe\":" << (mesh.geometry_safe ? "true" : "false") << ","
+            << "\"layout\":\"" << json_escape(mesh.vertex_layout_name) << "\","
+            << "\"stride\":" << mesh.vertex_stride << ","
+            << "\"uv_offset\":" << mesh.uv_offset << ","
+            << "\"normal_offset\":" << mesh.normal_offset << ","
+            << "\"uv_finite_ratio\":" << mesh.uv_finite_ratio << ","
+            << "\"uv_span\":[" << mesh.uv_span_u << "," << mesh.uv_span_v << "],"
+            << "\"uv_abs_max\":" << mesh.uv_abs_max << ","
+            << "\"degenerate_triangle_ratio\":" << mesh.degenerate_triangle_ratio << ","
+            << "\"edge_outlier_ratio\":" << mesh.edge_outlier_ratio << ","
+            << "\"normal_valid_ratio\":" << mesh.normal_valid_ratio << ","
+            << "\"score\":" << mesh.geometry_quality_score << ","
+            << "\"note\":\"" << json_escape(mesh.geometry_quality_note) << "\"},"
             << "\"selected_texture_slots\":{"
             << "\"base\":{\"match_score\":" << base_score << ",\"identity_score\":" << base_identity_score << ",\"archive_path\":\"" << json_escape(base == nullptr ? "" : base->archive_path) << "\"},"
             << "\"normal\":{\"match_score\":" << normal_score << ",\"identity_score\":" << (normal == nullptr ? 0 : material_identity_match_score(*normal, mesh)) << ",\"archive_path\":\"" << json_escape(normal == nullptr ? "" : normal->archive_path) << "\"},"
@@ -5222,6 +5498,7 @@ static NativePackage write_d3d11_package(
         << "\"format\":\"" << json_escape(format) << "\","
         << "\"summary\":\"Native preview-core " << json_escape(format) << " package\","
         << "\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\","
+        << "\"render_diagnostic_mode\":\"" << json_escape(job.render_diagnostic_mode) << "\","
         << "\"mesh_count\":" << emitted_batch_count << ","
         << "\"source_vertex_count\":" << source_vertex_total << ","
         << "\"vertex_count\":" << emitted_vertex_count << ","

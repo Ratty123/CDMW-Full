@@ -569,6 +569,9 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("direct_upload_candidate", source)
         self.assertIn("compressed_family", source)
         self.assertIn("normal_green_inverted", source)
+        self.assertIn("DirectX::Decompress(*first, DXGI_FORMAT_R8G8B8A8_UNORM", source)
+        self.assertIn("rgba.InitializeFromImage(*convert_source)", source)
+        self.assertIn("source_format=", source)
 
     def test_native_d3d11_is_archive_renderer_backend_and_qtquick_is_not_used(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
@@ -671,6 +674,25 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("process_private_bytes", source)
         self.assertIn("GetProcessMemoryInfo", diagnostics_source)
         self.assertIn("current_process_memory", diagnostics_source)
+
+    def test_native_d3d11_host_rejects_stale_or_invalid_packages_and_exposes_debug_modes(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn('release_model_resources("load-missing-package")', source)
+        self.assertIn("native D3D11 package validation failed", source)
+        self.assertIn("native D3D11 manifest read/parse failed", source)
+        self.assertIn("next_batches.empty() || !missing_paths.empty()", source)
+        self.assertIn("diagnostic_mode_code", source)
+        self.assertIn("render_diagnostic_mode", source)
+        self.assertIn("uv_checker", source)
+        self.assertIn("material_slot_id", source)
+        self.assertIn("layer_masks", source)
+        self.assertIn("flags4.y", source)
+        self.assertIn("flags4.z", source)
+        self.assertIn("base_alpha < max(flags3.w", source)
+        self.assertIn("discard;", source)
+        self.assertIn("batch.two_sided", source)
+        self.assertIn("batch.alpha_threshold", source)
 
     def test_pyinstaller_includes_host_modules(self) -> None:
         source = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")

@@ -344,6 +344,7 @@ def render_settings_to_native_preview_core_dict(settings: Optional[ModelPreviewR
     result: Dict[str, Any] = {}
     for attr in (
         "visible_texture_mode",
+        "render_diagnostic_mode",
         "preview_texture_max_dimension",
         "low_quality_texture_max_dimension",
         "high_quality_by_default",

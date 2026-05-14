@@ -78,6 +78,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertEqual("character/model/example/cd_example.pac", job["entry"]["path"])
         self.assertEqual("C:\\game\\0009\\1.paz", job["entry"]["paz_file"])
         self.assertEqual("mesh_base_first", job["render_settings"]["visible_texture_mode"])
+        self.assertEqual("lit", job["render_settings"]["render_diagnostic_mode"])
         self.assertTrue(job["capabilities"]["direct_dds"])
         self.assertTrue(job["capabilities"]["material_graph"])
         self.assertEqual(3, job["capabilities"]["material_graph_version"])
@@ -447,11 +448,49 @@ class NativePreviewCoreTests(unittest.TestCase):
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
 
         self.assertIn("score_material_wrapper_block_for_preview", source)
-        self.assertIn("best_wrapper_by_material", source)
+        self.assertIn('collect_xml_tag_blocks(text, "SkinnedMeshMaterialWrapper")', source)
+        self.assertIn("material_keys_overlap", source)
+        self.assertIn("normalized_texture_family_key", source)
         self.assertIn("build_material_bindings(job, index, parsed.meshes, package)", source)
         self.assertIn("refs_considered", source)
         self.assertIn("sidecar skipped unrelated material wrapper", source)
         self.assertIn("SkinnedMesh(?:Skin(?:Wrinkle)?|Standard(?:_Ver[0-9]+)?|Cloth(?:_Ver[0-9]+)?|Hair|Fur", source)
+        self.assertNotIn("best_wrapper_by_material", source)
+
+    def test_native_core_scores_pac_layouts_and_rejects_unsafe_geometry(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("struct PacVertexLayout", source)
+        self.assertIn("evaluate_native_submesh_quality", source)
+        self.assertIn("pac40_uv8_n16", source)
+        self.assertIn("pac40_uv32_n16", source)
+        self.assertIn("degenerate_triangle_ratio", source)
+        self.assertIn("edge_outlier_ratio", source)
+        self.assertIn("uv_finite_ratio", source)
+        self.assertIn("normal_valid_ratio", source)
+        self.assertIn("native geometry unsafe", source)
+        self.assertIn('\\"geometry_quality\\":{', source)
+        self.assertIn('\\"layout\\":\\"', source)
+
+    def test_native_core_hair_flow_and_layer_modes_are_conservative(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        role_start = source.index("static std::string role_from_parameter_shader_and_name")
+        role_end = source.index("static std::string semantic_type_for_role", role_start)
+        role_source = source[role_start:role_end]
+        layer_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
+        layer_end = source.index("static std::string material_layer_json", layer_start)
+        layer_source = source[layer_start:layer_end]
+
+        self.assertLess(role_source.index('p.find("flow")'), role_source.index('t.find("_n.dds")'))
+        self.assertIn('return "flow";', role_source)
+        self.assertIn('if (mode == "mesh_base_first")', layer_source)
+        self.assertIn('shader_rule.find("hair")', layer_source)
+        self.assertIn('shader_rule.find("skin")', layer_source)
+        self.assertIn('\\"alpha_mode', source)
+        self.assertIn('\\"two_sided', source)
+        self.assertIn('\\"uv_flip_policy\\":\\"legacy_no_flip', source)
+        self.assertIn('\\"normal_y_policy\\":\\"shader_invert_legacy_compat', source)
 
 
 if __name__ == "__main__":
