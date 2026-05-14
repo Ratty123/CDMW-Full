@@ -614,6 +614,30 @@ def _filter_dds_textures_for_preview_settings(
             elif role == "material" and not bool(getattr(render_settings, "disable_material_map", False)):
                 filtered_inputs.append(dict(raw_entry))
         if filtered_inputs:
+            for promoted_role, manifest_slot in (
+                ("base", "base"),
+                ("normal", "normal"),
+                ("height", "height"),
+                ("material", "material"),
+            ):
+                if manifest_slot in output:
+                    continue
+                if promoted_role != "base" and not support_enabled:
+                    continue
+                if promoted_role == "normal" and bool(getattr(render_settings, "disable_normal_map", False)):
+                    continue
+                if promoted_role == "height" and bool(getattr(render_settings, "disable_height_map", False)):
+                    continue
+                if promoted_role == "material" and bool(getattr(render_settings, "disable_material_map", False)):
+                    continue
+                for entry in filtered_inputs:
+                    if input_role(entry) != promoted_role:
+                        continue
+                    promoted = dict(entry)
+                    promoted["slot"] = manifest_slot
+                    promoted["promoted_from_material_input"] = True
+                    output[manifest_slot] = promoted
+                    break
             output["material_inputs"] = filtered_inputs
     return output
 

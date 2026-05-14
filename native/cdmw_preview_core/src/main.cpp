@@ -425,6 +425,9 @@ struct TextureBinding {
     std::string evidence_grade = "corpus_inferred";
     std::string blend_flags;
     std::string material_parameter_names;
+    int material_wrapper_index = -1;
+    int material_wrapper_count = 0;
+    bool material_wrapper_order_authoritative = false;
     float layer_weight = 0.0f;
     float roughness_hint = 0.0f;
     float metalness_hint = 0.0f;
@@ -2602,6 +2605,7 @@ static NativeMeshParseResult parse_pamlod_submeshes(const std::vector<char>& dat
 static std::string texture_role_from_name(const std::string& raw_name) {
     const std::string name = lower_copy(raw_name);
     if (name.find("_flow") != std::string::npos || name.find("flow") != std::string::npos) return "flow";
+    if (name.find("_f.dds") != std::string::npos || name.find("_flowmap.dds") != std::string::npos) return "flow";
     if (name.find("_n.dds") != std::string::npos || name.find("normal") != std::string::npos) return "normal";
     if (name.find("_disp.dds") != std::string::npos || name.find("height") != std::string::npos || name.find("displacement") != std::string::npos) return "height";
     if (name.find("_sp.dds") != std::string::npos || name.find("specular") != std::string::npos) return "specular";
@@ -2612,7 +2616,7 @@ static std::string texture_role_from_name(const std::string& raw_name) {
 }
 
 static bool role_is_technical_for_base(const std::string& role) {
-    return role == "normal" || role == "height" || role == "material" || role == "detail" || role == "specular" || role == "flow";
+    return role == "normal" || role == "height" || role == "material" || role == "detail" || role == "specular" || role == "flow" || role == "opacity";
 }
 
 static std::string normalize_visible_texture_mode(const std::string& mode) {
@@ -2716,6 +2720,7 @@ static std::string semantic_subtype_for_role(const std::string& role) {
     if (role == "detail") return "detail_mask";
     if (role == "material") return "material_mask";
     if (role == "flow") return "flow";
+    if (role == "opacity") return "opacity";
     return "base_color";
 }
 
@@ -2741,6 +2746,7 @@ struct SidecarTextureRef {
     std::string parameter_name;
     std::string material_name;
     std::string shader_family;
+    int material_wrapper_index = -1;
     std::vector<MaterialParameterRecord> material_parameters;
 };
 
@@ -3277,6 +3283,7 @@ static void add_sidecar_texture_ref(
     std::string parameter,
     const std::string& material_name,
     const std::string& shader_family,
+    int material_wrapper_index,
     const std::vector<MaterialParameterRecord>& material_parameters = {}
 ) {
     std::replace(path.begin(), path.end(), '\\', '/');
@@ -3287,7 +3294,7 @@ static void add_sidecar_texture_ref(
     // native packages smaller without losing the slot ownership evidence.
     const std::string key = lower_copy(path + "|" + material_name + "|" + shader_family);
     if (seen.insert(key).second) {
-        refs.push_back(SidecarTextureRef{path, parameter, material_name, shader_family, material_parameters});
+        refs.push_back(SidecarTextureRef{path, parameter, material_name, shader_family, material_wrapper_index, material_parameters});
     }
 }
 
@@ -3316,6 +3323,7 @@ static void add_layer_family_sibling_refs(
     const std::string& parameter,
     const std::string& material_name,
     const std::string& shader_family,
+    int material_wrapper_index,
     const std::vector<MaterialParameterRecord>& material_parameters
 ) {
     if (!shader_rule_allows_visible_layer_family(shader_family)) return;
@@ -3338,16 +3346,17 @@ static void add_layer_family_sibling_refs(
     const std::string material_parameter = key.find("grime") != std::string::npos ? ("_grimeMaterialTexture" + suffix) : ("_detailMaterialMask" + suffix);
     const std::string height_parameter = "_detailHeightMask" + suffix;
     const std::string stem = diffuse_path.substr(0, diffuse_path.size() - 4);
-    add_sidecar_texture_ref(refs, seen, diffuse_path, diffuse_parameter, material_name, shader_family, material_parameters);
-    add_sidecar_texture_ref(refs, seen, stem + "_n.dds", normal_parameter, material_name, shader_family, material_parameters);
-    add_sidecar_texture_ref(refs, seen, stem + "_sp.dds", material_parameter, material_name, shader_family, material_parameters);
-    add_sidecar_texture_ref(refs, seen, stem + "_disp.dds", height_parameter, material_name, shader_family, material_parameters);
+    add_sidecar_texture_ref(refs, seen, diffuse_path, diffuse_parameter, material_name, shader_family, material_wrapper_index, material_parameters);
+    add_sidecar_texture_ref(refs, seen, stem + "_n.dds", normal_parameter, material_name, shader_family, material_wrapper_index, material_parameters);
+    add_sidecar_texture_ref(refs, seen, stem + "_sp.dds", material_parameter, material_name, shader_family, material_wrapper_index, material_parameters);
+    add_sidecar_texture_ref(refs, seen, stem + "_disp.dds", height_parameter, material_name, shader_family, material_wrapper_index, material_parameters);
 }
 
 static void extract_texture_refs_from_scope(
     const std::string& scope_text,
     const std::string& material_name,
     const std::string& shader_family,
+    int material_wrapper_index,
     std::vector<SidecarTextureRef>& refs,
     std::set<std::string>& seen
 ) {
@@ -3363,8 +3372,8 @@ static void extract_texture_refs_from_scope(
                 if (!path.empty()) break;
             }
         }
-        add_sidecar_texture_ref(refs, seen, path, parameter, material_name, shader_family, material_parameters);
-        add_layer_family_sibling_refs(refs, seen, path, parameter, material_name, shader_family, material_parameters);
+        add_sidecar_texture_ref(refs, seen, path, parameter, material_name, shader_family, material_wrapper_index, material_parameters);
+        add_layer_family_sibling_refs(refs, seen, path, parameter, material_name, shader_family, material_wrapper_index, material_parameters);
     }
 }
 
@@ -3405,30 +3414,32 @@ static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(const std::st
     std::vector<SidecarTextureRef> refs;
     std::set<std::string> seen;
 
+    int wrapper_index = 0;
     for (const std::string& block : collect_xml_tag_blocks(text, "SkinnedMeshMaterialWrapper")) {
         std::string material_name = xml_attr_value(block, {"_subMeshName", "PrimitiveName", "Name"});
         std::replace(material_name.begin(), material_name.end(), '\\', '/');
         const std::string shader_family = extract_shader_family_hint(block);
-        extract_texture_refs_from_scope(block, material_name, shader_family, refs, seen);
+        extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_index++, refs, seen);
     }
 
     if (refs.empty()) {
+        wrapper_index = 0;
         for (const std::string& block : collect_xml_tag_blocks(text, "Material")) {
             std::string material_name = xml_attr_value(block, {"PrimitiveName", "_subMeshName", "Name"});
             std::replace(material_name.begin(), material_name.end(), '\\', '/');
             std::string shader_family = extract_shader_family_hint(block);
             if (shader_family.empty()) shader_family = xml_attr_value(block, {"MaterialName", "_materialName"});
-            extract_texture_refs_from_scope(block, material_name, shader_family, refs, seen);
+            extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_index++, refs, seen);
         }
     }
 
     if (refs.empty()) {
-        extract_texture_refs_from_scope(text, "", "", refs, seen);
+        extract_texture_refs_from_scope(text, "", "", -1, refs, seen);
     }
 
     if (!refs.empty()) return refs;
     for (const std::string& token : extract_dds_tokens(text)) {
-        add_sidecar_texture_ref(refs, seen, token, basename_from_path(token), "", "");
+        add_sidecar_texture_ref(refs, seen, token, basename_from_path(token), "", "", -1);
     }
     return refs;
 }
@@ -3587,6 +3598,12 @@ static bool material_keys_overlap(const std::string& a, const std::string& b) {
 }
 
 static int material_identity_match_score(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    if (binding.material_wrapper_order_authoritative && binding.material_wrapper_index >= 0 && mesh.source_submesh_index >= 0) {
+        if (binding.material_wrapper_index == mesh.source_submesh_index) {
+            return 360;
+        }
+        return 0;
+    }
     const std::string mesh_text = lower_copy(mesh.material + " " + mesh.name);
     const std::string binding_text = lower_copy(binding.material_name + " " + binding.texture_name + " " + binding.archive_path);
     const std::string mesh_key_a = normalized_material_key(mesh.material);
@@ -3710,9 +3727,22 @@ static const TextureBinding* best_base_binding_for_mode(
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty() || binding.role != "base") continue;
         if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
+        const int identity_score = material_identity_match_score(binding, mesh);
+        if (binding.material_wrapper_order_authoritative && identity_score <= 0) {
+            continue;
+        }
+        const std::string binding_layer_role = lower_copy(binding.layer_role);
+        const bool layer_diffuse_candidate =
+            binding_layer_role == "detail"
+            || binding_layer_role == "grime"
+            || binding_layer_role == "damage"
+            || binding_layer_role == "layer";
         const bool embedded = binding.source_authority == "embedded_mesh";
         const bool low_authority = low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name);
         if (low_authority && has_non_low_authority_visible_base) {
+            continue;
+        }
+        if (mode == "mesh_base_first" && layer_diffuse_candidate && has_non_low_authority_visible_base && !embedded) {
             continue;
         }
         if (!embedded && !visible_class_allowed_for_mode(mode, binding.visible_class)) {
@@ -3801,6 +3831,7 @@ struct ParsedMaterialSidecar {
     std::string shader_rule;
     SidecarParameterSummary parameter_summary;
     std::vector<SidecarTextureRef> refs;
+    int material_wrapper_count = 0;
 };
 
 static std::uint64_t g_sidecar_parse_cache_hits = 0;
@@ -3833,10 +3864,16 @@ static const ParsedMaterialSidecar& cached_parsed_material_sidecar(const Archive
     parsed.shader_rule = shader_rule_for_family(parsed.shader_family);
     parsed.parameter_summary = summarize_sidecar_parameters(sidecar_text);
     parsed.refs = extract_sidecar_texture_refs(sidecar_text);
+    parsed.material_wrapper_count = 0;
+    for (const SidecarTextureRef& ref : parsed.refs) {
+        if (ref.material_wrapper_index >= 0) {
+            parsed.material_wrapper_count = std::max(parsed.material_wrapper_count, ref.material_wrapper_index + 1);
+        }
+    }
     if (parsed.refs.empty()) {
         const std::vector<MaterialParameterRecord> material_parameters = extract_material_parameters(sidecar_text);
         for (const std::string& token : extract_dds_tokens(sidecar_text)) {
-            parsed.refs.push_back(SidecarTextureRef{token, "", "", parsed.shader_family, material_parameters});
+            parsed.refs.push_back(SidecarTextureRef{token, "", "", parsed.shader_family, -1, material_parameters});
         }
     }
     return cache.emplace(key, std::move(parsed)).first->second;
@@ -3967,7 +4004,8 @@ static std::string role_from_parameter_shader_and_name(
     const std::string p = lower_copy(parameter_name);
     const std::string t = lower_copy(texture_name);
     if (p.find("flow") != std::string::npos) return "flow";
-    if (shader_rule == "hair" && (p == "_flowtexture" || p.find("flowtexture") != std::string::npos)) return "flow";
+    if (shader_rule == "hair" && (p == "_flowtexture" || p.find("flowtexture") != std::string::npos || t.find("_f.dds") != std::string::npos)) return "flow";
+    if ((p.find("alpha") != std::string::npos || p.find("opacity") != std::string::npos) && p.find("base") == std::string::npos) return "opacity";
     if (technique_parameter != nullptr && technique_parameter->declared) {
         const std::string declared_type = lower_copy(technique_parameter->type);
         const std::string declared_default = lower_copy(technique_parameter->default_value);
@@ -3977,6 +4015,7 @@ static std::string role_from_parameter_shader_and_name(
             if (p.find("normal") != std::string::npos || declared_default.find("0xff7f7f00") != std::string::npos) return "normal";
             if (p.find("height") != std::string::npos || p.find("displacement") != std::string::npos || p.find("disp") != std::string::npos) return "height";
             if (p.find("specular") != std::string::npos || p.find("gloss") != std::string::npos || p.find("smoothness") != std::string::npos) return "specular";
+            if ((p.find("diffuse") != std::string::npos || p.find("basecolor") != std::string::npos || p.find("albedo") != std::string::npos) && p.find("mask") == std::string::npos) return "base";
             if (p.find("basecolor") != std::string::npos || p.find("diffuse") != std::string::npos || p.find("albedo") != std::string::npos) return "base";
             if (p.find("overlaycolor") != std::string::npos || p.find("layerbasecolor") != std::string::npos || p.find("layercolor") != std::string::npos) return "base";
             if (p.find("mask") != std::string::npos && (p.find("detail") != std::string::npos || p.find("blend") != std::string::npos || p.find("layer") != std::string::npos)) return "detail";
@@ -3986,6 +4025,7 @@ static std::string role_from_parameter_shader_and_name(
     if (p.find("normal") != std::string::npos || p == "n" || t.find("_n.dds") != std::string::npos) return "normal";
     if (p.find("height") != std::string::npos || p.find("displacement") != std::string::npos || p.find("disp") != std::string::npos || t.find("_disp.dds") != std::string::npos) return "height";
     if (p.find("specular") != std::string::npos || p.find("_sp") != std::string::npos || t.find("_sp.dds") != std::string::npos) return "specular";
+    if ((p.find("diffuse") != std::string::npos || p.find("basecolor") != std::string::npos || p.find("albedo") != std::string::npos) && p.find("mask") == std::string::npos) return "base";
     if (p.find("material") != std::string::npos || p.find("colorblendingmask") != std::string::npos || p.find("blending") != std::string::npos || t.find("_ma.dds") != std::string::npos || t.find("_m.dds") != std::string::npos) return "material";
     if (p.find("detail") != std::string::npos || p.find("grime") != std::string::npos || p.find("dye") != std::string::npos || p.find("mask") != std::string::npos || t.find("_mg.dds") != std::string::npos) {
         if (p.find("diffuse") != std::string::npos || p.find("albedo") != std::string::npos || p.find("color") != std::string::npos) return "base";
@@ -4004,6 +4044,7 @@ static std::string semantic_type_for_role(const std::string& role) {
     if (role == "specular") return "specular";
     if (role == "detail") return "detail_mask";
     if (role == "flow") return "flow";
+    if (role == "opacity") return "opacity";
     return "packed_material";
 }
 
@@ -4226,6 +4267,9 @@ static std::vector<TextureBinding> build_material_bindings(
             "; flags=" + std::to_string(parameter_summary.bit_flags)
         );
         const std::vector<SidecarTextureRef>& refs = parsed_sidecar->refs;
+        const bool wrapper_order_authoritative =
+            parsed_sidecar->material_wrapper_count > 1
+            && parsed_sidecar->material_wrapper_count == static_cast<int>(meshes.size());
         int refs_considered = 0;
         const std::string model_family_key = normalized_material_key(stem_from_path(job.path));
         for (const SidecarTextureRef& texture_ref : refs) {
@@ -4328,6 +4372,9 @@ static std::vector<TextureBinding> build_material_bindings(
             binding.shader_family = shader_family;
             binding.shader_rule = shader_rule;
             binding.material_name = texture_ref.material_name.empty() ? stem_from_path(sidecar.path) : texture_ref.material_name;
+            binding.material_wrapper_index = texture_ref.material_wrapper_index;
+            binding.material_wrapper_count = parsed_sidecar->material_wrapper_count;
+            binding.material_wrapper_order_authoritative = wrapper_order_authoritative;
             for (const NativeSubmesh& mesh : meshes) {
                 const std::string mesh_material_key = normalized_material_key(mesh.material);
                 const std::string mesh_name_key = normalized_material_key(mesh.name);

@@ -266,6 +266,59 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertIn("specular PNG fallback skipped", notes)
             self.assertIn("legacy PBR PNG split skipped", notes)
 
+    def test_direct_base_material_input_promotes_to_authoritative_base_slot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base_png = temp_path / "batch_base.png"
+            base_dds = temp_path / "resolved_base.dds"
+            base_png.write_bytes(b"preview")
+            base_dds.write_bytes(_minimal_bc_dds(b"DXT1"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="head.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="head",
+                        texture_name="head",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base_png),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="base",
+                                texture_name="resolved_base",
+                                source_dds_path=str(base_dds),
+                                preview_texture_path=str(base_png),
+                                parameter_name="_baseColorTexture",
+                                semantic_type="albedo",
+                                semantic_subtype="base_color",
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                ModelPreviewData(path="head.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                enable_material_combiner=False,
+                prefer_direct_dds=True,
+            )
+            batch = read_isolated_qtquick3d_preview_manifest(package_dir)["batches"][0]
+
+            self.assertEqual("", batch["textures"]["base"])
+            self.assertEqual(str(base_dds), batch["dds_textures"]["base"]["source_path"])
+            self.assertTrue(batch["dds_textures"]["base"]["promoted_from_material_input"])
+            self.assertIn("base PNG fallback skipped", " ".join(batch["notes"]))
+
     def test_d3d11_manifest_honors_support_map_and_camera_settings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)

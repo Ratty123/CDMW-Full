@@ -502,6 +502,29 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('\\"uv_flip_policy\\":\\"legacy_no_flip', source)
         self.assertIn('\\"normal_y_policy\\":\\"shader_invert_legacy_compat', source)
 
+    def test_native_core_material_wrappers_are_slot_authoritative_when_order_matches(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("int material_wrapper_index = -1", source)
+        self.assertIn("int material_wrapper_count = 0", source)
+        self.assertIn("material_wrapper_order_authoritative", source)
+        self.assertIn("parsed_sidecar->material_wrapper_count == static_cast<int>(meshes.size())", source)
+        self.assertIn("binding.material_wrapper_index == mesh.source_submesh_index", source)
+        self.assertIn("binding.material_wrapper_order_authoritative && identity_score <= 0", source)
+        self.assertIn("extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_index++", source)
+
+    def test_native_core_diffuse_damage_and_opacity_do_not_become_support_albedo(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        role_start = source.index("static std::string role_from_parameter_shader_and_name")
+        role_end = source.index("static std::string semantic_type_for_role", role_start)
+        role_source = source[role_start:role_end]
+
+        self.assertLess(role_source.index('p.find("diffuse")'), role_source.index('p.find("blending")'))
+        self.assertIn('return "opacity";', role_source)
+        self.assertIn('role == "opacity"', source)
+        self.assertIn('t.find("_f.dds")', role_source)
+        self.assertIn('binding_layer_role == "damage"', source)
+
 
 if __name__ == "__main__":
     unittest.main()
