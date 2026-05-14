@@ -570,6 +570,36 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("submesh_specific_match && text_score >= 120", source)
         self.assertIn("extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_index++", source)
 
+    def test_native_material_identity_allows_variant_token_bridge_before_rejecting(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        start = source.index("static int material_identity_text_match_score")
+        end = source.index("static int material_identity_match_score", start)
+        identity_source = source[start:end]
+
+        self.assertIn("token_bridge_score", identity_source)
+        self.assertIn("material_key_token_cover_score(binding_key, mesh_key_a)", identity_source)
+        self.assertIn("material_key_token_cover_score(texture_family_key, mesh_key_b)", identity_source)
+        self.assertIn("if (token_bridge_score < 100) return 0;", identity_source)
+        self.assertIn("score += token_bridge_score;", identity_source)
+
+    def test_native_material_identity_rejects_cross_part_support_slots(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        selector_start = source.index("static const TextureBinding* best_binding_for_role")
+        selector_end = source.index("static const TextureBinding* best_base_binding_for_mode", selector_start)
+        support_selector = source[selector_start:selector_end]
+        base_start = source.index("static const TextureBinding* best_base_binding_for_mode")
+        base_end = source.index("static std::string shader_rule_for_family", base_start)
+        base_selector = source[base_start:base_end]
+
+        self.assertIn("material_identity_specific_part_tokens", source)
+        self.assertIn('"hand", "head", "foot"', source)
+        self.assertIn('"blade", "guard", "handle", "acc"', source)
+        self.assertIn("material_identity_has_conflicting_specific_part", source)
+        self.assertIn("conflicting_specific_part", support_selector)
+        self.assertIn("rejected cross-part candidate", support_selector)
+        self.assertNotIn("!embedded && material_identity_has_conflicting_specific_part", base_selector)
+        self.assertIn("material_identity_has_conflicting_specific_part", base_selector)
+
     def test_native_core_mesh_base_first_keeps_exact_embedded_base_over_layers(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
         start = source.index("static const TextureBinding* best_base_binding_for_mode")

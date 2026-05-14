@@ -4034,13 +4034,32 @@ static int material_key_token_cover_score(const std::string& texture_family_key,
     return 0;
 }
 
+static const std::vector<std::string>& material_identity_specific_part_tokens() {
+    static const std::vector<std::string> tokens = {
+        "hand", "head", "foot", "eye", "eyecover", "hair", "beard", "fur", "arm", "leg", "lb", "ub",
+        "blade", "guard", "handle", "acc", "belt", "cloak", "sho"
+    };
+    return tokens;
+}
+
+static bool material_identity_has_conflicting_specific_part(
+    const std::string& texture_family_key,
+    const std::string& mesh_key_a,
+    const std::string& mesh_key_b
+) {
+    if (texture_family_key.empty()) return false;
+    for (const std::string& token : material_identity_specific_part_tokens()) {
+        if (!material_key_has_token(texture_family_key, token)) continue;
+        if (material_key_has_token(mesh_key_a, token) || material_key_has_token(mesh_key_b, token)) continue;
+        return true;
+    }
+    return false;
+}
+
 static int material_identity_extra_part_penalty(const std::string& texture_family_key, const std::string& mesh_key_a, const std::string& mesh_key_b) {
     if (texture_family_key.empty()) return 0;
     int penalty = 0;
-    static const std::vector<std::string> specific_tokens = {
-        "hand", "head", "foot", "eye", "eyecover", "hair", "beard", "fur", "arm", "leg", "lb", "ub"
-    };
-    for (const std::string& token : specific_tokens) {
+    for (const std::string& token : material_identity_specific_part_tokens()) {
         if (!material_key_has_token(texture_family_key, token)) continue;
         if (material_key_has_token(mesh_key_a, token) || material_key_has_token(mesh_key_b, token)) continue;
         penalty += 96;
@@ -4069,7 +4088,15 @@ static int material_identity_text_match_score(const TextureBinding& binding, con
         if (material_keys_overlap(binding_key, mesh_key_b)) score += 72;
         if (material_keys_overlap(texture_family_key, mesh_key_a)) score += 132;
         if (material_keys_overlap(texture_family_key, mesh_key_b)) score += 132;
-        if (score == 0) return 0;
+        if (score == 0) {
+            const int token_bridge_score =
+                material_key_token_cover_score(binding_key, mesh_key_a)
+                + material_key_token_cover_score(binding_key, mesh_key_b)
+                + material_key_token_cover_score(texture_family_key, mesh_key_a)
+                + material_key_token_cover_score(texture_family_key, mesh_key_b);
+            if (token_bridge_score < 100) return 0;
+            score += token_bridge_score;
+        }
     }
     if (!texture_family_key.empty()) {
         if (material_keys_overlap(texture_family_key, mesh_key_a)) score += 80;
@@ -4177,14 +4204,21 @@ static const TextureBinding* best_binding_for_role(
         const int identity_threshold = support_role_requires_material_scope(desired_role)
             ? support_role_identity_threshold(desired_role)
             : 0;
+        const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
+        const bool conflicting_specific_part = support_role_requires_material_scope(desired_role)
+            && material_identity_has_conflicting_specific_part(
+                texture_family_key,
+                normalized_material_key(mesh.material),
+                normalized_material_key(mesh.name));
         if (
             (material_identity_requires_exact_path_match(binding, mesh) && identity_score < 120)
             || (identity_threshold > 0 && identity_score > 0 && identity_score < identity_threshold)
             || (identity_threshold > 0 && !normalized_material_key(binding.material_name).empty() && identity_score <= 0)
+            || conflicting_specific_part
         ) {
             if (rejected_examples != nullptr && rejected_examples->size() < 16) {
                 rejected_examples->push_back(
-                    desired_role + " rejected cross-slot candidate "
+                    desired_role + (conflicting_specific_part ? " rejected cross-part candidate " : " rejected cross-slot candidate ")
                     + (binding.texture_name.empty() ? basename_from_path(binding.archive_path) : binding.texture_name)
                     + " for " + mesh.material
                     + " identity=" + std::to_string(identity_score)
@@ -4249,6 +4283,13 @@ static const TextureBinding* best_base_binding_for_mode(
         if (binding.source_path.empty() || binding.role != "base") continue;
         if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
         const int identity_score = material_identity_match_score(binding, mesh);
+        const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
+        if (material_identity_has_conflicting_specific_part(
+            texture_family_key,
+            normalized_material_key(mesh.material),
+            normalized_material_key(mesh.name))) {
+            continue;
+        }
         const bool authoritative_visible_base =
             parameter_is_authoritative_visible_base(binding.parameter_name)
             || binding.visible_class == "primary_visible";
@@ -4285,6 +4326,14 @@ static const TextureBinding* best_base_binding_for_mode(
         if (binding.source_path.empty() || binding.role != "base") continue;
         if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
         const int identity_score = material_identity_match_score(binding, mesh);
+        const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
+        const bool embedded = binding.source_authority == "embedded_mesh";
+        if (material_identity_has_conflicting_specific_part(
+            texture_family_key,
+            normalized_material_key(mesh.material),
+            normalized_material_key(mesh.name))) {
+            continue;
+        }
         if (
             binding.material_wrapper_order_authoritative
             && binding.material_wrapper_index >= 0
@@ -4306,7 +4355,6 @@ static const TextureBinding* best_base_binding_for_mode(
                 || binding_layer_role == "damage"
                 || binding_layer_role == "layer"
             );
-        const bool embedded = binding.source_authority == "embedded_mesh";
         const bool low_authority = low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name);
         if (!embedded && !normalized_material_key(binding.material_name).empty() && identity_score <= 0) {
             continue;
