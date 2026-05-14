@@ -1100,6 +1100,35 @@ public:
         return true;
     }
 
+    bool clear_preview(const fs::path& status_file) {
+        if (!status_file.empty()) {
+            args_.status_file = status_file;
+        }
+        batches_.clear();
+        stats_ = RendererStats{};
+        pending_package_dir_.clear();
+        pending_status_file_.clear();
+        pending_reset_view_ = false;
+        first_frame_started_ = true;
+        first_frame_reported_ = true;
+        mesh_edit_.drag_active = false;
+        mesh_edit_.drag_candidates.clear();
+        mesh_edit_.selected_vertices.clear();
+        alignment_.drag_active = false;
+        alignment_.rotation_drag_active = false;
+        alignment_.hover_axis.clear();
+        alignment_.drag_axis.clear();
+        alignment_.selected_source_submeshes.clear();
+        source_part_.hovered_source_submesh = -1;
+        source_part_.click_pending = false;
+        source_part_.click_source_submesh = -1;
+        if (hwnd_) {
+            InvalidateRect(hwnd_, nullptr, FALSE);
+        }
+        write_status(args_.status_file, "{\"event\":\"cleared\",\"backend\":\"D3D11\",\"message\":\"Native D3D11 preview cleared\"}");
+        return true;
+    }
+
     bool handle_window_message(UINT msg, WPARAM wparam, LPARAM lparam, LRESULT& result) {
         switch (msg) {
         case WM_COPYDATA:
@@ -2073,6 +2102,12 @@ private:
             pending_status_file_ = utf8_to_wide(json_string_field(payload, "status_file"));
             pending_reset_view_ = json_bool_field(payload, "reset_view", false);
             send_json_event("{\"event\":\"command_result\",\"command\":\"load_package\",\"ok\":true,\"queued\":true}");
+            return true;
+        }
+        if (command == "clear_preview") {
+            fs::path status_file = utf8_to_wide(json_string_field(payload, "status_file"));
+            clear_preview(status_file);
+            send_json_event("{\"event\":\"command_result\",\"command\":\"clear_preview\",\"ok\":true}");
             return true;
         }
         if (command == "set_highlights") {

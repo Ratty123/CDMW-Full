@@ -598,6 +598,12 @@ def run_gui() -> int:
                 }
             )
 
+        def clear_preview(self, status_file: Optional[Path] = None) -> bool:
+            payload: Dict[str, object] = {"command": "clear_preview"}
+            if status_file is not None:
+                payload["status_file"] = str(Path(status_file))
+            return self._send_host_json_command(payload)
+
         def set_highlighted_source_submeshes(self, source_submesh_indices: Sequence[int]) -> bool:
             ordered = sorted({int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0})
             return self._send_host_json_command(
@@ -17833,6 +17839,8 @@ def run_gui() -> int:
             self.archive_preview_tabs.setCurrentIndex(0)
             self.archive_preview_label.clear_preview("Select a file to preview it here.")
             self.archive_media_preview.clear_media("Select a file to preview it here.")
+            if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
+                self._clear_archive_isolated_renderer_surface_for_request()
             self._update_archive_model_action_controls(None)
             self._set_archive_preview_image_controls_enabled(False)
 
@@ -18232,6 +18240,8 @@ def run_gui() -> int:
             self.archive_preview_stack.setCurrentWidget(self.archive_preview_info_edit)
             self.archive_preview_tabs.setCurrentIndex(0)
             self._set_archive_preview_image_controls_enabled(False)
+            if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
+                self._clear_archive_isolated_renderer_surface_for_request()
             self._start_archive_preview_loading_indicator(entry)
             self.pending_archive_preview_request = None
             self.scheduled_archive_preview_request = (request_id, entry, include_loose_preview_assets)
@@ -18925,6 +18935,17 @@ def run_gui() -> int:
             except RuntimeError:
                 pass
 
+        def _clear_archive_isolated_renderer_surface_for_request(self) -> None:
+            if not self._archive_isolated_renderer_process_running():
+                self.archive_d3d11_preview_status_label.setText("Preparing native D3D11 preview package...")
+                return
+            cleared = self.archive_d3d11_preview_host.clear_preview()
+            self.archive_d3d11_preview_status_label.setText("Preparing native D3D11 preview package...")
+            if cleared:
+                self._set_archive_isolated_renderer_debug(
+                    "Native D3D11 Preview: cleared the previous model while the next archive preview is prepared."
+                )
+
         def _start_archive_isolated_preview_package_worker(self, result: ArchivePreviewResult) -> None:
             preview_model = getattr(result, "preview_model", None)
             prepared_preview = getattr(result, "prepared_preview_model", None)
@@ -19035,6 +19056,26 @@ def run_gui() -> int:
                 pass
             self.archive_isolated_renderer_status_file = status_file
             self.archive_isolated_renderer_status_mtime = 0.0
+            if self._archive_isolated_renderer_process_running():
+                self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
+                self.archive_d3d11_preview_status_label.setText("Reloading native D3D11 preview...")
+                self._set_archive_isolated_renderer_debug(
+                    "Native D3D11 Preview: reloading the embedded renderer with the latest preview package."
+                )
+                self.archive_isolated_renderer_status_timer.start()
+                if self.archive_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
+                    QTimer.singleShot(
+                        10000,
+                        lambda expected_status=status_file: self._check_archive_isolated_renderer_start_timeout(expected_status),
+                    )
+                    return
+                process = getattr(self, "archive_isolated_renderer_process", None)
+                if process is not None:
+                    try:
+                        process.finished.connect(process.deleteLater)
+                    except (RuntimeError, TypeError):
+                        pass
+                    self._kill_archive_isolated_renderer_process_if_running(process)
             process = QProcess(self)
             try:
                 program, arguments = self._archive_isolated_renderer_command(package_dir, status_file)

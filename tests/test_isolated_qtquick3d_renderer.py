@@ -576,6 +576,7 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("_WM_SET_ZOOM", source)
         self.assertIn("_WM_COPYDATA_COMMAND", source)
         self.assertIn("load_package(self, package_dir", source)
+        self.assertIn("clear_preview(self, status_file", source)
         self.assertIn("set_highlighted_source_submeshes", source)
         self.assertIn("Reloading native D3D11 alignment preview without restarting", source)
         self.assertIn("base_srgb", source)
@@ -599,6 +600,9 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("_launch_archive_isolated_preview_result", source)
         self.assertIn("_poll_archive_isolated_renderer_status", source)
         self.assertIn("archive_isolated_renderer_status_timer", source)
+        self.assertIn("_clear_archive_isolated_renderer_surface_for_request", source)
+        self.assertIn("self.archive_d3d11_preview_host.clear_preview()", source)
+        self.assertIn("self.archive_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False)", source)
         self.assertIn("process.terminate()", source)
         self.assertIn("readyReadStandardError.connect(self._handle_archive_isolated_renderer_stderr)", source)
         self.assertIn("finished.connect(self._handle_archive_isolated_renderer_finished)", source)
@@ -611,6 +615,14 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn("readyReadStandardOutput.connect(self._handle_archive_isolated_renderer_stdout)", source)
         self.assertNotIn('"command": "load"', source)
         self.assertNotIn('"command": "shutdown"', source)
+
+    def test_native_d3d11_host_supports_clear_command_for_stale_previews(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("bool clear_preview", source)
+        self.assertIn('command == "clear_preview"', source)
+        self.assertIn("batches_.clear()", source)
+        self.assertIn("Native D3D11 preview cleared", source)
 
     def test_pyinstaller_includes_host_modules(self) -> None:
         source = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
