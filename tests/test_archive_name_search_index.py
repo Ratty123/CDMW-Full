@@ -143,7 +143,7 @@ class ArchiveNameSearchIndexTests(unittest.TestCase):
         self.assertEqual(result, ["object/tools/cd_t0000_pickaxe_0001.pac"])
         self.assertLess(call_count, len(entries) // 10)
 
-    def test_derived_cache_does_not_persist_name_search_index(self) -> None:
+    def test_derived_cache_persists_name_search_index(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             cache_root = root / "cache"
@@ -164,6 +164,7 @@ class ArchiveNameSearchIndexTests(unittest.TestCase):
                     paz_index=0,
                 )
             ]
+            name_index = archive_core.build_archive_name_search_index(entries)
             archive_core.save_archive_derived_index_cache(
                 root,
                 cache_root,
@@ -176,14 +177,18 @@ class ArchiveNameSearchIndexTests(unittest.TestCase):
                 path_index=archive_core.build_archive_entry_path_index(entries),
                 basename_index=archive_core.build_archive_entry_basename_index(entries),
                 extension_index=archive_core.build_archive_entry_extension_index(entries),
+                archive_name_search_index=name_index,
             )
 
             payload = archive_core._deserialize_archive_derived_index_cache_payload_from_path(
                 archive_core.resolve_archive_derived_index_cache_path(root, cache_root)
             )
+            loaded = archive_core.load_archive_derived_index_cache(root, cache_root, entries)
 
-        self.assertNotIn("name_search_index", payload)
+        self.assertIn("name_search_index", payload)
         self.assertNotIn("token_rows", payload)
+        self.assertIsInstance(loaded, dict)
+        self.assertIsInstance(loaded.get("name_search_index"), archive_core.ArchiveNameSearchIndex)
 
     def test_native_name_search_path_is_guarded_for_large_indexes(self) -> None:
         source_text = Path("cdmw/core/archive.py").read_text(encoding="utf-8")
@@ -192,6 +197,8 @@ class ArchiveNameSearchIndexTests(unittest.TestCase):
         self.assertIn("_try_build_archive_name_search_index_native", source_text)
         self.assertIn("CDMW_DISABLE_NATIVE_NAME_SEARCH", source_text)
         self.assertIn("CDMW_NATIVE_NAME_SEARCH_MIN_ENTRIES", source_text)
+        self.assertIn("resolve_archive_name_search_index_cache_path", source_text)
+        self.assertIn("_write_native_name_search_index_binary", source_text)
         self.assertIn("name-index-job", native_text)
         self.assertIn("'C', 'D', 'N', 'I', 'D', 'X', '1'", native_text)
 

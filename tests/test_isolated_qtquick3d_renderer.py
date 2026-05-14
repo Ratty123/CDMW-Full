@@ -653,9 +653,10 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         diagnostics_source = Path("native/common/native_diagnostics.h").read_text(encoding="utf-8")
 
         self.assertIn("void release_model_resources", source)
-        self.assertIn("PSSetShaderResources(0, 14, null_srvs)", source)
+        self.assertIn("PSSetShaderResources(0, kTotalSrvCount, null_srvs)", source)
         self.assertIn("context_->Flush()", source)
         self.assertIn("batches_.clear()", source)
+        self.assertIn('reason_text == "shutdown" || reason_text == "destructor"', source)
         self.assertIn("srv_cache_.clear()", source)
         self.assertIn("texture_info_cache_.clear()", source)
         self.assertIn('release_model_resources("reload")', source)

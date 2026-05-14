@@ -763,6 +763,27 @@ def _load_native_name_search_index_binary(
     )
 
 
+def _write_native_name_search_index_binary(
+    binary_path: Path,
+    index: ArchiveNameSearchIndex,
+    entry_count: int,
+) -> None:
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    with binary_path.open("wb") as handle:
+        handle.write(b"CDNIDX1\0")
+        handle.write(struct.pack("<III", 1, int(entry_count), len(index.token_rows)))
+        for token in sorted(index.token_rows):
+            token_bytes = str(token).encode("utf-8", errors="replace")
+            if len(token_bytes) > 0xFFFF:
+                continue
+            rows = tuple(int(row) for row in index.token_rows.get(token, ()) if 0 <= int(row) < int(entry_count))
+            handle.write(struct.pack("<H", len(token_bytes)))
+            handle.write(token_bytes)
+            handle.write(struct.pack("<I", len(rows)))
+            if rows:
+                handle.write(struct.pack(f"<{len(rows)}I", *rows))
+
+
 def _try_build_archive_name_search_index_native(
     entries: Sequence[ArchiveEntry],
     *,
@@ -1548,6 +1569,15 @@ def resolve_archive_derived_index_cache_path(package_root: Path, cache_root: Pat
         resolved_root = package_root.expanduser()
     digest = hashlib.sha256(str(resolved_root).lower().encode("utf-8", errors="replace")).hexdigest()[:24]
     return cache_root / f"archive_derived_indexes_{digest}.bin"
+
+
+def resolve_archive_name_search_index_cache_path(package_root: Path, cache_root: Path) -> Path:
+    try:
+        resolved_root = package_root.expanduser().resolve()
+    except OSError:
+        resolved_root = package_root.expanduser()
+    digest = hashlib.sha256(str(resolved_root).lower().encode("utf-8", errors="replace")).hexdigest()[:24]
+    return cache_root / f"archive_name_search_{digest}.bin"
 
 
 def resolve_crimson_desert_executable(package_root: Path) -> Optional[Path]:
@@ -4008,6 +4038,7 @@ def save_archive_derived_index_cache(
     path_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     basename_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     extension_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    archive_name_search_index: Optional[ArchiveNameSearchIndex] = None,
     on_log: Optional[Callable[[str], None]] = None,
     timings: Optional[Dict[str, float]] = None,
 ) -> Path:
@@ -4028,6 +4059,20 @@ def save_archive_derived_index_cache(
         "item_asset_catalog": catalog_rows,
         "table_catalog": table_catalog_cache_metadata(row_counts={"item_asset_catalog": len(catalog_rows)}),
     }
+    if archive_name_search_index is not None:
+        name_index_path = resolve_archive_name_search_index_cache_path(package_root, cache_root)
+        try:
+            _write_native_name_search_index_binary(name_index_path, archive_name_search_index, len(entries))
+            payload["name_search_index"] = {
+                "format": "CDNIDX1",
+                "version": 1,
+                "entry_count": len(entries),
+                "token_count": len(archive_name_search_index.token_rows),
+                "path": str(name_index_path),
+            }
+        except Exception as exc:
+            if on_log is not None:
+                on_log(f"Archive name-search index cache could not be written: {exc}")
     _write_raw_pickle_cache_payload_to_path(
         cache_path,
         magic=_ARCHIVE_DERIVED_INDEX_CACHE_MAGIC,
@@ -4128,6 +4173,21 @@ def load_archive_derived_index_cache(
             "table_catalog": dict(data.get("table_catalog", {}) or {}),
             "cache_path": str(cache_path),
         }
+        name_index_payload = data.get("name_search_index")
+        if isinstance(name_index_payload, Mapping):
+            name_index_path = Path(str(name_index_payload.get("path") or ""))
+            if not name_index_path.is_absolute():
+                name_index_path = resolve_archive_name_search_index_cache_path(package_root, cache_root)
+            try:
+                if (
+                    str(name_index_payload.get("format") or "") == "CDNIDX1"
+                    and int(name_index_payload.get("entry_count") or -1) == len(entries)
+                    and name_index_path.is_file()
+                ):
+                    payload["name_search_index"] = _load_native_name_search_index_binary(name_index_path, entries)
+            except Exception as exc:
+                if on_log is not None:
+                    on_log(f"Archive name-search index cache could not be used; rebuilding name search index: {exc}")
         _record_timing(timings, "derived_cache_load_s", load_started_at)
         if on_log is not None:
             on_log("Loaded archive derived indexes from cache.")

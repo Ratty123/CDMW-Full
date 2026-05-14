@@ -2200,6 +2200,11 @@ def run_gui() -> int:
                         for row in (derived_cache.get("item_asset_catalog", []) or [])
                         if isinstance(row, Mapping)
                     ]
+                    cached_name_search_index = derived_cache.get("name_search_index")
+                    if isinstance(cached_name_search_index, ArchiveNameSearchIndex):
+                        name_search_index = cached_name_search_index
+                    else:
+                        derived_cache_needs_write = bool(entries)
                     timings.setdefault("item_search_index_s", 0.0)
                 else:
                     derived_cache_needs_write = bool(entries)
@@ -2241,16 +2246,20 @@ def run_gui() -> int:
                 extension_index_started_at = time.perf_counter()
                 extension_index = build_archive_entry_extension_index(entries)
                 timings["entry_extension_index_s"] = max(0.0, float(time.perf_counter() - extension_index_started_at))
-                self.log_message.emit("Building archive name search index...")
-                self.progress_changed.emit(0, 0, "Building archive name search index...")
-                name_search_index_started_at = time.perf_counter()
-                name_search_index = build_archive_name_search_index(
-                    entries,
-                    item_search_aliases=item_search_aliases,
-                    on_progress=self.progress_changed.emit,
-                    stop_event=self.stop_event,
-                )
-                timings["entry_name_search_index_s"] = max(0.0, float(time.perf_counter() - name_search_index_started_at))
+                if name_search_index is None:
+                    self.log_message.emit("Building archive name search index...")
+                    self.progress_changed.emit(0, 0, "Building archive name search index...")
+                    name_search_index_started_at = time.perf_counter()
+                    name_search_index = build_archive_name_search_index(
+                        entries,
+                        item_search_aliases=item_search_aliases,
+                        on_progress=self.progress_changed.emit,
+                        stop_event=self.stop_event,
+                    )
+                    timings["entry_name_search_index_s"] = max(0.0, float(time.perf_counter() - name_search_index_started_at))
+                else:
+                    self.log_message.emit("Loaded archive name search index from derived cache.")
+                    timings["entry_name_search_index_s"] = 0.0
                 self.log_message.emit("Preparing archive browser state from loaded entries...")
                 self.progress_changed.emit(0, 0, "Preparing archive browser state from loaded entries...")
                 browser_state_started_at = time.perf_counter()
@@ -2362,6 +2371,7 @@ def run_gui() -> int:
             item_exact_display_names: Optional[Mapping[str, str]] = None,
             item_related_display_names: Optional[Mapping[str, str]] = None,
             item_asset_catalog: Optional[Sequence[Mapping[str, object]]] = None,
+            archive_name_search_index: Optional[ArchiveNameSearchIndex] = None,
         ):
             super().__init__()
             self.package_root = package_root
@@ -2372,6 +2382,7 @@ def run_gui() -> int:
             self.item_exact_display_names = dict(item_exact_display_names or {})
             self.item_related_display_names = dict(item_related_display_names or {})
             self.item_asset_catalog = [dict(row) for row in (item_asset_catalog or []) if isinstance(row, Mapping)]
+            self.archive_name_search_index = archive_name_search_index
             self.stop_event = threading.Event()
 
         def stop(self) -> None:
@@ -2396,6 +2407,7 @@ def run_gui() -> int:
                     item_exact_display_names=self.item_exact_display_names,
                     item_related_display_names=self.item_related_display_names,
                     item_asset_catalog=self.item_asset_catalog,
+                    archive_name_search_index=self.archive_name_search_index,
                     on_log=self.log_message.emit,
                     timings=timings,
                 )
@@ -13973,6 +13985,7 @@ def run_gui() -> int:
                 item_exact_display_names=self.archive_item_exact_display_names,
                 item_related_display_names=self.archive_item_related_display_names,
                 item_asset_catalog=self.archive_item_asset_catalog,
+                archive_name_search_index=self.archive_name_search_index,
             )
             thread = QThread(self)
             worker.moveToThread(thread)

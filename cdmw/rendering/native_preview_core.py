@@ -79,6 +79,7 @@ class NativePreviewCoreAttempt:
             cache_hits = self.diagnostics.get("decoded_cache_job_hits")
             cache_misses = self.diagnostics.get("decoded_cache_job_misses")
             mesh_parser = str(self.diagnostics.get("native_mesh_parser") or "").strip()
+            graph_cache_hit = self.diagnostics.get("native_material_graph_cache_hit")
             metrics = []
             if isinstance(batch_count, int):
                 metrics.append(f"batches={batch_count:,}")
@@ -90,6 +91,8 @@ class NativePreviewCoreAttempt:
                 metrics.append(f"cache={cache_hits:,}/{cache_misses:,}")
             if mesh_parser:
                 metrics.append(f"parser={mesh_parser}")
+            if isinstance(graph_cache_hit, bool):
+                metrics.append(f"graph_cache={'hit' if graph_cache_hit else 'miss'}")
             suffix = f"; {'; '.join(metrics)}" if metrics else ""
             return f"Native Preview Core: active; package={self.package_path}; time={timing}{suffix}."
         return f"Native Preview Core: unavailable; reason={reason or self.status}; time={timing}."
@@ -404,7 +407,7 @@ def build_native_preview_core_job(
     companion_entry: Optional[ArchiveEntry] = None,
     package_root: Optional[Path] = None,
     renderer_backend: str = "d3d11",
-    schema_version: int = 7,
+    schema_version: int = 8,
 ) -> Dict[str, Any]:
     return {
         "version": 1,
@@ -422,6 +425,8 @@ def build_native_preview_core_job(
             "direct_dds": True,
             "d3d11_package": True,
             "material_index": True,
+            "material_graph": True,
+            "material_graph_version": 3,
             "python_fallback_allowed": False,
             "native_material_runtime": True,
         },

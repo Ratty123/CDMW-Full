@@ -64,7 +64,7 @@ class _FakeServiceProcess:
 
 
 class NativePreviewCoreTests(unittest.TestCase):
-    def test_build_job_carries_archive_entry_and_schema_v7(self) -> None:
+    def test_build_job_carries_archive_entry_and_schema_v8(self) -> None:
         job = build_native_preview_core_job(
             _entry(),
             cache_root=Path("C:/cache/native"),
@@ -73,12 +73,14 @@ class NativePreviewCoreTests(unittest.TestCase):
             package_root=Path("C:/game"),
         )
 
-        self.assertEqual(7, job["schema_version"])
+        self.assertEqual(8, job["schema_version"])
         self.assertEqual("d3d11", job["renderer_backend"])
         self.assertEqual("character/model/example/cd_example.pac", job["entry"]["path"])
         self.assertEqual("C:\\game\\0009\\1.paz", job["entry"]["paz_file"])
         self.assertEqual("mesh_base_first", job["render_settings"]["visible_texture_mode"])
         self.assertTrue(job["capabilities"]["direct_dds"])
+        self.assertTrue(job["capabilities"]["material_graph"])
+        self.assertEqual(3, job["capabilities"]["material_graph_version"])
         self.assertFalse(job["capabilities"]["python_fallback_allowed"])
         self.assertTrue(job["capabilities"]["native_material_runtime"])
 
@@ -357,9 +359,12 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("technical_for_visible_base", source)
         self.assertIn("native_asset_family_json", source)
         self.assertIn("asset_family_reference_count", source)
-        self.assertIn("std::max(7, job.schema_version)", source)
+        self.assertIn("kNativePackageSchemaVersion", source)
+        self.assertIn("kNativeMaterialGraphVersion", source)
+        self.assertIn("NativeMaterialGraph", source)
+        self.assertIn("native material graph: version=", source)
         self.assertIn("material_semantics_version", source)
-        self.assertIn('<< "\\"schema_version\\":7,"', source)
+        self.assertIn("material_graph_version", source)
         self.assertIn("material_slots_json", source)
         self.assertIn("selection_decisions_json", source)
         self.assertIn('\\"dds_upload_policy\\"', source)
@@ -393,22 +398,26 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('batch.base_dds = dds_slot_source(object, "base");', parse_source)
         self.assertNotIn('best_material_dds_for_role(object, "base")', parse_source)
 
-    def test_d3d11_host_consumes_schema_v7_material_layer_stack(self) -> None:
+    def test_d3d11_host_consumes_schema_v8_material_layer_stack(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
 
+        self.assertIn("kMaxMaterialLayers = 4", source)
+        self.assertIn("parse_material_layers", source)
+        self.assertIn("json_object_array_field", source)
         self.assertIn("parse_primary_material_layer", source)
-        self.assertIn("Texture2D layer_diffuse_tex : register(t9)", source)
-        self.assertIn("Texture2D layer_mask_tex : register(t10)", source)
-        self.assertIn("Texture2D layer_material_tex : register(t11)", source)
-        self.assertIn("Texture2D layer_normal_tex : register(t12)", source)
-        self.assertIn("Texture2D layer_height_tex : register(t13)", source)
+        self.assertIn("Texture2D layer_diffuse_tex[4] : register(t9)", source)
+        self.assertIn("Texture2D layer_mask_tex[4] : register(t13)", source)
+        self.assertIn("Texture2D layer_material_tex[4] : register(t17)", source)
+        self.assertIn("Texture2D layer_normal_tex[4] : register(t21)", source)
+        self.assertIn("Texture2D layer_height_tex[4] : register(t25)", source)
         self.assertIn("constants.flags4 = DirectX::XMFLOAT4", source)
         self.assertIn("normal_y_policy", source)
         self.assertIn("invert_normal_y", source)
         self.assertIn("flags3.y", source)
-        self.assertIn("constants.layer_params = DirectX::XMFLOAT4", source)
-        self.assertIn("ID3D11ShaderResourceView* srvs[14]", source)
-        self.assertIn("context_->PSSetShaderResources(0, 14, srvs)", source)
+        self.assertIn("constants.layer_params[layer_index] = DirectX::XMFLOAT4", source)
+        self.assertIn("ID3D11ShaderResourceView* srvs[kTotalSrvCount]", source)
+        self.assertIn("context_->PSSetShaderResources(0, kTotalSrvCount, srvs)", source)
+        self.assertIn("CREATETEX_FORCE_SRGB", source)
 
 
 if __name__ == "__main__":

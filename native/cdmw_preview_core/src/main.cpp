@@ -28,6 +28,10 @@ namespace fs = std::filesystem;
 
 namespace {
 
+constexpr int kNativePackageSchemaVersion = 8;
+constexpr int kNativeMaterialGraphVersion = 3;
+constexpr int kNativeMaterialSemanticsVersion = 3;
+
 std::string json_escape(const std::string& value) {
     std::string out;
     out.reserve(value.size() + 8);
@@ -484,6 +488,9 @@ struct NativePackage {
     int dds_extracted = 0;
     std::string mesh_parse = "unsupported";
     std::string material_index = "none";
+    std::string material_graph_status = "not_started";
+    std::string material_graph_cache_path;
+    bool material_graph_cache_hit = false;
     std::string texture_resolution = "none";
     std::string material_output_quality = "approximate";
     std::vector<std::string> notes;
@@ -1255,7 +1262,9 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
             ref.extension == ".pamlod_xml" ||
             ref.extension == ".material" ||
             ref.extension == ".technique" ||
-            ref.extension == ".prefab"
+            ref.extension == ".prefab" ||
+            ref.extension == ".prefabdata_xml" ||
+            ref.extension == ".meshinfo"
         ) {
             index.material_sidecars.push_back(ref);
         }
@@ -2861,6 +2870,85 @@ static const TechniqueIndex& cached_package_technique_index(
     return cache.emplace(key, std::move(combined)).first->second;
 }
 
+struct NativeMaterialGraph {
+    int version = kNativeMaterialGraphVersion;
+    std::string key;
+    fs::path cache_path;
+    bool persistent_cache_hit = false;
+    int pamt_count = 0;
+    size_t entry_count = 0;
+    size_t material_sidecar_count = 0;
+    size_t texture_candidate_count = 0;
+    TechniqueIndex technique_index;
+};
+
+static size_t count_dds_basenames(const PamtIndex& index) {
+    size_t count = 0;
+    for (const auto& [basename, _refs] : index.by_basename) {
+        if (lower_copy(basename).ends_with(".dds")) ++count;
+    }
+    return count;
+}
+
+static const NativeMaterialGraph& cached_native_material_graph(
+    const EntryJob& job,
+    const PamtIndex& primary_index
+) {
+    static std::map<std::string, NativeMaterialGraph> cache;
+    const std::string root_key = job.package_root.empty()
+        ? fs::absolute(primary_index.pamt_path).string()
+        : fs::absolute(job.package_root).string();
+    const std::string key = root_key + "|material_graph_v" + std::to_string(kNativeMaterialGraphVersion);
+    auto found = cache.find(key);
+    if (found != cache.end()) return found->second;
+
+    NativeMaterialGraph graph;
+    graph.key = hex64(fnv1a64(key));
+    graph.cache_path = job.cache_root / "native_material_graph" / (graph.key + ".json");
+    graph.persistent_cache_hit = fs::is_regular_file(graph.cache_path);
+    graph.technique_index = cached_package_technique_index(job, primary_index);
+    graph.pamt_count = 1;
+    graph.entry_count = primary_index.entry_count;
+    graph.material_sidecar_count = primary_index.material_sidecars.size();
+    graph.texture_candidate_count = count_dds_basenames(primary_index);
+    if (!job.package_root.empty()) {
+        std::set<std::string> seen_pamts;
+        seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
+        for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
+            const std::string pamt_key = fs::absolute(pamt_path).string();
+            if (!seen_pamts.insert(pamt_key).second) continue;
+            try {
+                const PamtIndex& index = cached_pamt_index(pamt_path);
+                ++graph.pamt_count;
+                graph.entry_count += index.entry_count;
+                graph.material_sidecar_count += index.material_sidecars.size();
+                graph.texture_candidate_count += count_dds_basenames(index);
+            } catch (...) {
+            }
+        }
+    }
+    if (!graph.persistent_cache_hit) {
+        std::ostringstream summary;
+        summary << "{"
+            << "\"version\":" << graph.version << ","
+            << "\"key\":\"" << json_escape(graph.key) << "\","
+            << "\"root\":\"" << json_escape(root_key) << "\","
+            << "\"pamt_count\":" << graph.pamt_count << ","
+            << "\"entry_count\":" << graph.entry_count << ","
+            << "\"material_sidecar_count\":" << graph.material_sidecar_count << ","
+            << "\"texture_candidate_count\":" << graph.texture_candidate_count << ","
+            << "\"technique_files\":" << graph.technique_index.files_scanned << ","
+            << "\"techniques\":" << graph.technique_index.technique_names.size() << ","
+            << "\"texture_parameters\":" << graph.technique_index.texture_parameters
+            << "}";
+        try {
+            write_text(graph.cache_path, summary.str());
+        } catch (...) {
+        }
+    }
+    return cache.emplace(key, std::move(graph)).first->second;
+}
+
 static const TechniqueParameterInfo* technique_parameter_for_name(
     const TechniqueIndex& index,
     const std::string& parameter_name
@@ -3616,11 +3704,11 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
     const std::string model_dir = dirname_from_path(job.path);
     std::vector<std::string> basenames;
     if (job.extension == ".pac") {
-        basenames = {model_stem + ".pac_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab"};
+        basenames = {model_stem + ".pac_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab", model_stem + ".prefabdata_xml", model_stem + ".meshinfo"};
     } else if (job.extension == ".pam") {
-        basenames = {model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab"};
+        basenames = {model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab", model_stem + ".prefabdata_xml", model_stem + ".meshinfo"};
     } else if (job.extension == ".pamlod") {
-        basenames = {model_stem + ".pamlod_xml", model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab"};
+        basenames = {model_stem + ".pamlod_xml", model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab", model_stem + ".prefabdata_xml", model_stem + ".meshinfo"};
     }
     for (const std::string& base : basenames) {
         add_sidecar_basename_candidates(candidates, seen, index, base, model_dir);
@@ -3673,6 +3761,18 @@ static std::vector<TextureBinding> build_material_bindings(
     NativePackage& package
 ) {
     std::vector<TextureBinding> bindings;
+    const NativeMaterialGraph& material_graph = cached_native_material_graph(job, index);
+    package.material_graph_status = "active";
+    package.material_graph_cache_path = material_graph.cache_path.string();
+    package.material_graph_cache_hit = material_graph.persistent_cache_hit;
+    package.notes.push_back(
+        "native material graph: version=" + std::to_string(material_graph.version) +
+        "; cache=" + std::string(material_graph.persistent_cache_hit ? "hit" : "write") +
+        "; pamts=" + std::to_string(material_graph.pamt_count) +
+        "; entries=" + std::to_string(material_graph.entry_count) +
+        "; sidecars=" + std::to_string(material_graph.material_sidecar_count) +
+        "; dds_basenames=" + std::to_string(material_graph.texture_candidate_count)
+    );
     const std::vector<ArchiveEntryRef> sidecars = material_sidecar_candidates_for_job(job, index);
     if (sidecars.empty()) {
         package.material_index = "native_index_no_sidecar";
@@ -3680,7 +3780,7 @@ static std::vector<TextureBinding> build_material_bindings(
         package.notes.push_back("native material index: no matching .pac_xml/.pam_xml/.pamlod_xml/.pami/.material/.technique/.prefab sidecar");
         return bindings;
     }
-    const TechniqueIndex& technique_index = cached_package_technique_index(job, index);
+    const TechniqueIndex& technique_index = material_graph.technique_index;
     if (technique_index.files_scanned > 0) {
         package.notes.push_back(
             "native technique index: files=" + std::to_string(technique_index.files_scanned) +
@@ -4483,7 +4583,7 @@ static std::string native_asset_family_json(const NativePackage& package, const 
     std::ostringstream out;
     out << "\"asset_family\":{"
         << "\"source\":\"native-core\","
-        << "\"schema_version\":7,"
+        << "\"schema_version\":" << kNativePackageSchemaVersion << ","
         << "\"root_path\":\"" << json_escape(job.path) << "\","
         << "\"family_key\":\"" << json_escape(stem_from_path(job.path)) << "\","
         << "\"summary\":\"" << json_escape(native_asset_family_summary(package.asset_family_rows)) << "\","
@@ -4802,6 +4902,7 @@ static NativePackage write_d3d11_package(
             << "\"shader_family\":\"" << json_escape(batch_bindings.empty() ? "" : batch_bindings.front()->shader_family) << "\","
             << "\"shader_rule\":\"" << json_escape(batch_bindings.empty() ? "generic" : batch_bindings.front()->shader_rule) << "\","
             << "\"evidence_grade\":\"" << json_escape(material_layers.empty() ? "approximate" : material_layers.front().evidence_grade) << "\","
+            << "\"material_layer_count\":" << (material_layers.size() > 0 ? std::max<int>(0, static_cast<int>(material_layers.size()) - 1) : 0) << ","
             << "\"material_layers\":[";
         for (size_t layer_index = 0; layer_index < material_layers.size(); ++layer_index) {
             if (layer_index) batches_json << ",";
@@ -4970,8 +5071,9 @@ static NativePackage write_d3d11_package(
         : job.extension;
     std::ostringstream manifest;
     manifest << "{"
-        << "\"schema_version\":" << std::max(7, job.schema_version) << ","
-        << "\"material_semantics_version\":2,"
+        << "\"schema_version\":" << std::max(kNativePackageSchemaVersion, job.schema_version) << ","
+        << "\"material_semantics_version\":" << kNativeMaterialSemanticsVersion << ","
+        << "\"material_graph_version\":" << kNativeMaterialGraphVersion << ","
         << "\"backend\":\"d3d11\","
         << "\"source_path\":\"" << json_escape(job.path) << "\","
         << "\"format\":\"" << json_escape(format) << "\","
@@ -4998,7 +5100,7 @@ static NativePackage write_d3d11_package(
         << "\"shininess_max\":" << job.shininess_max << ","
         << "\"use_textures\":" << (job.use_textures ? "true" : "false") << ","
         << "\"high_quality_textures\":" << (job.high_quality_textures ? "true" : "false") << ","
-        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"material_semantics_version\":2,\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << package.base_missing_count << ",\"base_low_res_count\":" << package.base_low_res_count << ",\"base_low_confidence_count\":" << package.base_low_confidence_count << ",\"base_technical_count\":" << package.base_technical_count << ",\"asset_family_reference_count\":" << package.asset_family_reference_count << ",\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\",\"lod_count\":" << package.lod_count << "},"
+        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"material_graph_status\":\"" << json_escape(package.material_graph_status) << "\",\"material_graph_version\":" << kNativeMaterialGraphVersion << ",\"material_graph_cache_hit\":" << (package.material_graph_cache_hit ? "true" : "false") << ",\"material_graph_cache_path\":\"" << json_escape(package.material_graph_cache_path) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"material_semantics_version\":" << kNativeMaterialSemanticsVersion << ",\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << package.base_missing_count << ",\"base_low_res_count\":" << package.base_low_res_count << ",\"base_low_confidence_count\":" << package.base_low_confidence_count << ",\"base_technical_count\":" << package.base_technical_count << ",\"asset_family_reference_count\":" << package.asset_family_reference_count << ",\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\",\"lod_count\":" << package.lod_count << "},"
         << native_asset_family_json(package, job) << ","
         << "\"material_slots\":[" << material_slots_json.str() << "],"
         << "\"selection_decisions\":[" << selection_decisions_json.str() << "],"
@@ -5106,6 +5208,9 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"native_archive_io\":\"" << (raw_read_ok ? "ok" : "failed") << "\","
         << "\"native_mesh_parser\":\"" << json_escape(package.mesh_parse.empty() ? "pending" : package.mesh_parse) << "\","
         << "\"native_material_index\":\"" << json_escape(package.material_index.empty() ? "pending" : package.material_index) << "\","
+        << "\"native_material_graph_status\":\"" << json_escape(package.material_graph_status) << "\","
+        << "\"native_material_graph_cache_hit\":" << (package.material_graph_cache_hit ? "true" : "false") << ","
+        << "\"native_material_graph_cache_path\":\"" << json_escape(package.material_graph_cache_path) << "\","
         << "\"native_texture_resolution\":\"" << json_escape(package.texture_resolution.empty() ? "pending" : package.texture_resolution) << "\","
         << "\"native_material_output_quality\":\"" << json_escape(package.material_output_quality.empty() ? "pending" : package.material_output_quality) << "\","
         << "\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ","
@@ -5113,8 +5218,9 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"base_low_res_count\":" << package.base_low_res_count << ","
         << "\"base_low_confidence_count\":" << package.base_low_confidence_count << ","
         << "\"base_technical_count\":" << package.base_technical_count << ","
-        << "\"schema_version\":" << std::max(7, job.schema_version) << ","
-        << "\"material_semantics_version\":2,"
+        << "\"schema_version\":" << std::max(kNativePackageSchemaVersion, job.schema_version) << ","
+        << "\"material_semantics_version\":" << kNativeMaterialSemanticsVersion << ","
+        << "\"material_graph_version\":" << kNativeMaterialGraphVersion << ","
         << "\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\","
         << "\"entry_path\":\"" << json_escape(job.path) << "\","
         << "\"extension\":\"" << json_escape(job.extension) << "\","
