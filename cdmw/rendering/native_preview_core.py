@@ -17,9 +17,9 @@ from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, RunCancelled
 
 NATIVE_PREVIEW_CORE_BINARY_NAME = "cdmw-preview-core.exe" if os.name == "nt" else "cdmw-preview-core"
 NATIVE_PREVIEW_CORE_BACKEND_ID = "cdmw_preview_core_0.1"
-NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS = 8
-NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES = 96 * 1024 * 1024
-NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES = 384 * 1024 * 1024
+NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS = 32
+NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES = 192 * 1024 * 1024
+NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES = 768 * 1024 * 1024
 
 
 def _repo_root() -> Path:
@@ -69,7 +69,7 @@ class NativePreviewCoreAttempt:
 
     def diagnostic_line(self) -> str:
         if self.status == "missing":
-            return "Native Preview Core: unavailable; using Python preview fallback."
+            return "Native Preview Core: unavailable; D3D11 native package generation is disabled for this entry."
         reason = self.fallback_reason or str(self.diagnostics.get("message") or "").strip()
         timing = f"{self.elapsed_ms:.1f} ms" if self.elapsed_ms > 0.0 else "n/a"
         if self.succeeded:
@@ -92,7 +92,7 @@ class NativePreviewCoreAttempt:
                 metrics.append(f"parser={mesh_parser}")
             suffix = f"; {'; '.join(metrics)}" if metrics else ""
             return f"Native Preview Core: active; package={self.package_path}; time={timing}{suffix}."
-        return f"Native Preview Core: fallback; reason={reason or self.status}; time={timing}."
+        return f"Native Preview Core: unavailable; reason={reason or self.status}; time={timing}."
 
 
 def _native_diagnostic_args(*, crash_dir: Optional[Path] = None, diagnostic_log: Optional[Path] = None) -> list[str]:
@@ -404,7 +404,7 @@ def build_native_preview_core_job(
     companion_entry: Optional[ArchiveEntry] = None,
     package_root: Optional[Path] = None,
     renderer_backend: str = "d3d11",
-    schema_version: int = 6,
+    schema_version: int = 7,
 ) -> Dict[str, Any]:
     return {
         "version": 1,
@@ -422,7 +422,8 @@ def build_native_preview_core_job(
             "direct_dds": True,
             "d3d11_package": True,
             "material_index": True,
-            "python_fallback_allowed": True,
+            "python_fallback_allowed": False,
+            "native_material_runtime": True,
         },
     }
 

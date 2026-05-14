@@ -64,7 +64,7 @@ class _FakeServiceProcess:
 
 
 class NativePreviewCoreTests(unittest.TestCase):
-    def test_build_job_carries_archive_entry_and_schema_v6(self) -> None:
+    def test_build_job_carries_archive_entry_and_schema_v7(self) -> None:
         job = build_native_preview_core_job(
             _entry(),
             cache_root=Path("C:/cache/native"),
@@ -73,13 +73,14 @@ class NativePreviewCoreTests(unittest.TestCase):
             package_root=Path("C:/game"),
         )
 
-        self.assertEqual(6, job["schema_version"])
+        self.assertEqual(7, job["schema_version"])
         self.assertEqual("d3d11", job["renderer_backend"])
         self.assertEqual("character/model/example/cd_example.pac", job["entry"]["path"])
         self.assertEqual("C:\\game\\0009\\1.paz", job["entry"]["paz_file"])
         self.assertEqual("mesh_base_first", job["render_settings"]["visible_texture_mode"])
         self.assertTrue(job["capabilities"]["direct_dds"])
-        self.assertTrue(job["capabilities"]["python_fallback_allowed"])
+        self.assertFalse(job["capabilities"]["python_fallback_allowed"])
+        self.assertTrue(job["capabilities"]["native_material_runtime"])
 
     def test_missing_binary_returns_fallback_attempt(self) -> None:
         with patch.object(native_preview_core, "find_native_preview_core_binary", return_value=None):
@@ -171,12 +172,12 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("material_output_quality", source_text)
         self.assertIn("decoded_cache_job_hits", source_text)
         self.assertIn("prune_decoded_entry_cache", source_text)
-        self.assertIn("kDecodedEntryCacheMaxEntries = 256", source_text)
-        self.assertIn("kDecodedEntryCacheMaxBytes = 128ull * 1024ull * 1024ull", source_text)
-        self.assertIn("kDecodedEntryCacheMaxSingleBytes = 32ull * 1024ull * 1024ull", source_text)
-        self.assertIn("kDecodedEntryCacheRecycleBytes = 96ull * 1024ull * 1024ull", source_text)
-        self.assertIn("kServiceMaxJobs = 8", source_text)
-        self.assertIn("kServicePrivateRecycleBytes = 384ull * 1024ull * 1024ull", source_text)
+        self.assertIn("kDecodedEntryCacheMaxEntries = 512", source_text)
+        self.assertIn("kDecodedEntryCacheMaxBytes = 256ull * 1024ull * 1024ull", source_text)
+        self.assertIn("kDecodedEntryCacheMaxSingleBytes = 64ull * 1024ull * 1024ull", source_text)
+        self.assertIn("kDecodedEntryCacheRecycleBytes = 192ull * 1024ull * 1024ull", source_text)
+        self.assertIn("kServiceMaxJobs = 32", source_text)
+        self.assertIn("kServicePrivateRecycleBytes = 768ull * 1024ull * 1024ull", source_text)
         self.assertIn("process_private_bytes", source_text)
         self.assertIn("service_recycle_reason", source_text)
         self.assertIn("_get_native_preview_core_service", Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8"))
@@ -315,8 +316,9 @@ class NativePreviewCoreTests(unittest.TestCase):
     def test_native_material_index_preserves_pami_roles_and_scopes_inputs(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
 
-        self.assertIn('xml_attr_value(tag, {"_name", "StringItemID", "Name"})', source)
-        self.assertIn('xml_attr_value(tag, {"Value", "_path"})', source)
+        self.assertIn('xml_attr_value_from_map(attrs, {"_name", "StringItemID", "Name"})', source)
+        self.assertIn('xml_attr_value_from_map(attrs, {"Value", "_path"})', source)
+        self.assertIn("collect_xml_tag_blocks(scope_text, \"MaterialParameterTexture\")", source)
         self.assertIn('"PrimitiveName"', source)
         self.assertIn("relevant_bindings_for_mesh", source)
         self.assertIn("material_identity_requires_exact_path_match", source)
@@ -355,21 +357,31 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("technical_for_visible_base", source)
         self.assertIn("native_asset_family_json", source)
         self.assertIn("asset_family_reference_count", source)
-        self.assertIn("std::max(6, job.schema_version)", source)
+        self.assertIn("std::max(7, job.schema_version)", source)
         self.assertIn("material_semantics_version", source)
+        self.assertIn('<< "\\"schema_version\\":7,"', source)
+        self.assertIn("material_slots_json", source)
+        self.assertIn("selection_decisions_json", source)
+        self.assertIn('\\"dds_upload_policy\\"', source)
+        self.assertIn("collect_xml_tag_blocks", source)
+        self.assertIn("add_layer_family_sibling_refs", source)
+        self.assertIn("cached_parsed_material_sidecar", source)
+        self.assertIn("sidecar_parse_cache_job_hits", source)
         self.assertIn("extract_material_parameters", source)
         self.assertIn("compile_material_layers", source)
         self.assertIn("material_layers", source)
         self.assertIn("primary_material_layer", source)
         self.assertIn("layer_role", source)
         self.assertIn("evidence_grade", source)
-        self.assertIn("_native_preview_core_reference_metadata", python_source)
         self.assertIn("_native_preview_core_manifest_metadata", python_source)
         self.assertIn("Native Asset Family: schema=v", python_source)
-        self.assertIn("compatibility fallback used", python_source)
+        self.assertIn("D3D11 runtime is native-only", python_source)
+        self.assertIn("_native_preview_core_failure_result", python_source)
+        self.assertNotIn("_native_preview_core_reference_metadata", python_source)
+        self.assertNotIn("compatibility fallback used", python_source)
         self.assertNotIn("requires Python material resolver", python_source)
-        self.assertIn("_native_preview_core_quality_fallback_reason", python_source)
-        self.assertIn("Native Preview Core: material quality fallback", python_source)
+        self.assertNotIn("_native_preview_core_quality_fallback_reason", python_source)
+        self.assertNotIn("Native Preview Core: material quality fallback", python_source)
         self.assertIn("D3D11 package source: native-core", python_source)
 
     def test_d3d11_host_does_not_use_rich_material_inputs_as_base_override(self) -> None:
@@ -381,7 +393,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('batch.base_dds = dds_slot_source(object, "base");', parse_source)
         self.assertNotIn('best_material_dds_for_role(object, "base")', parse_source)
 
-    def test_d3d11_host_consumes_schema_v6_material_layer_stack(self) -> None:
+    def test_d3d11_host_consumes_schema_v7_material_layer_stack(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
 
         self.assertIn("parse_primary_material_layer", source)
@@ -391,6 +403,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("Texture2D layer_normal_tex : register(t12)", source)
         self.assertIn("Texture2D layer_height_tex : register(t13)", source)
         self.assertIn("constants.flags4 = DirectX::XMFLOAT4", source)
+        self.assertIn("normal_y_policy", source)
+        self.assertIn("invert_normal_y", source)
+        self.assertIn("flags3.y", source)
         self.assertIn("constants.layer_params = DirectX::XMFLOAT4", source)
         self.assertIn("ID3D11ShaderResourceView* srvs[14]", source)
         self.assertIn("context_->PSSetShaderResources(0, 14, srvs)", source)

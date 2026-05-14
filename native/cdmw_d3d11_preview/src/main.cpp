@@ -69,6 +69,7 @@ struct PreviewBatch {
     int index = 0;
     int vertex_count = 0;
     bool flip_v = false;
+    bool invert_normal_y = true;
     float base_color[3] = {0.78f, 0.48f, 0.34f};
     std::wstring vertex_file;
     std::wstring base_dds;
@@ -780,6 +781,10 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.index = json_int_field(object, "index", static_cast<int>(batches.size()));
         batch.vertex_count = json_int_field(object, "vertex_count", 0);
         batch.flip_v = json_bool_field(object, "texture_flip_vertical", false);
+        const std::string normal_y_policy = lower_copy(json_string_field(object, "normal_y_policy"));
+        batch.invert_normal_y = normal_y_policy.empty()
+            || normal_y_policy.find("invert") != std::string::npos
+            || normal_y_policy.find("legacy") != std::string::npos;
         parse_base_color(object, batch.base_color);
         batch.vertex_file = absolute_from_manifest_path(package_dir, json_string_field(object, "vertex_file"));
         batch.base_dds = dds_slot_source(object, "base");
@@ -1076,7 +1081,9 @@ float4 ps_main(VSOut input) : SV_TARGET {
     if (flags.y > 0.5) {
         float3 sampled = normal_tex.Sample(preview_sampler, uv).xyz;
         float2 xy = sampled.xy * 2.0 - 1.0;
-        xy.y = -xy.y;
+        if (flags3.y > 0.5) {
+            xy.y = -xy.y;
+        }
         float z = sqrt(saturate(1.0 - dot(xy, xy)));
         float3 mapped = normalize(float3(xy, z));
         float3 normal_mapped = normalize(t * mapped.x + b * mapped.y + n * mapped.z);
@@ -1085,7 +1092,9 @@ float4 ps_main(VSOut input) : SV_TARGET {
     if (flags4.w > 0.5 && layer_alpha > 0.001) {
         float3 sampled = layer_normal_tex.Sample(preview_sampler, uv).xyz;
         float2 xy = sampled.xy * 2.0 - 1.0;
-        xy.y = -xy.y;
+        if (flags3.y > 0.5) {
+            xy.y = -xy.y;
+        }
         float z = sqrt(saturate(1.0 - dot(xy, xy)));
         float3 mapped = normalize(float3(xy, z));
         float3 normal_mapped = normalize(t * mapped.x + b * mapped.y + n * mapped.z);
@@ -1522,7 +1531,7 @@ public:
                 batch.height_scale_hint);
             constants.flags3 = DirectX::XMFLOAT4(
                 batch.detail_srv ? 1.0f : 0.0f,
-                0.0f,
+                batch.invert_normal_y ? 1.0f : 0.0f,
                 0.0f,
                 0.0f);
             constants.render_tuning = DirectX::XMFLOAT4(

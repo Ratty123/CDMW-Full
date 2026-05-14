@@ -3106,21 +3106,15 @@ def run_gui() -> int:
                 if native_attempt is not None:
                     timings["native_preview_core_s"] = max(0.0, float(native_attempt.elapsed_ms) / 1000.0)
                     if native_attempt.succeeded:
-                        native_quality_reason = self._native_preview_core_quality_fallback_reason(native_attempt)
-                        if not native_quality_reason:
-                            payload = self._native_preview_core_result(native_attempt, timings)
-                            if not self.stop_event.is_set():
-                                self.completed.emit(self.request_id, payload)
-                            return
-                        native_attempt = NativePreviewCoreAttempt(
-                            status="fallback",
-                            package_path=native_attempt.package_path,
-                            fallback_reason=f"Native Preview Core: material quality fallback: {native_quality_reason}",
-                            diagnostics=dict(native_attempt.diagnostics),
-                            elapsed_ms=native_attempt.elapsed_ms,
-                            report_path=native_attempt.report_path,
-                            backend=native_attempt.backend,
-                        )
+                        payload = self._native_preview_core_result(native_attempt, timings)
+                        if not self.stop_event.is_set():
+                            self.completed.emit(self.request_id, payload)
+                        return
+                    if self.native_preview_core_enabled:
+                        payload = self._native_preview_core_failure_result(native_attempt, timings)
+                        if not self.stop_event.is_set():
+                            self.completed.emit(self.request_id, payload)
+                        return
                 worker_build_started_at = time.perf_counter()
                 payload = build_archive_preview_result(
                     self.texconv_path,
@@ -3267,71 +3261,8 @@ def run_gui() -> int:
             except Exception as exc:
                 return NativePreviewCoreAttempt(
                     status="error",
-                    fallback_reason=f"native preview-core failed before fallback: {exc}",
+                    fallback_reason=f"native preview-core failed before package generation: {exc}",
                 )
-
-        def _native_preview_core_reference_metadata(
-            self,
-        ) -> Tuple[Tuple[ArchiveModelTextureReference, ...], Optional[AssetFamilyGraph], Tuple[str, ...]]:
-            entry = self.entry
-            if entry is None or str(getattr(entry, "extension", "") or "").strip().lower() not in ARCHIVE_MODEL_EXTENSIONS:
-                return (), None, ()
-            lines: List[str] = []
-            sidecar_texture_references: Tuple[object, ...] = ()
-            sidecar_reference_paths: Tuple[str, ...] = ()
-            sidecar_texts_by_normalized_path: Dict[str, Tuple[str, ...]] = {}
-            sidecar_texts_by_basename: Dict[str, Tuple[str, ...]] = {}
-            try:
-                (
-                    sidecar_texture_references,
-                    sidecar_reference_paths,
-                    sidecar_texts_by_normalized_path,
-                    sidecar_texts_by_basename,
-                ) = _extract_archive_model_sidecar_texture_references(
-                    entry,
-                    archive_entries_by_basename=self.texture_entries_by_basename,
-                    stop_event=self.stop_event,
-                )
-            except RunCancelled:
-                raise
-            except Exception as exc:
-                lines.append(f"Native metadata sidecar scan failed: {exc}")
-            if sidecar_texture_references:
-                sidecar_suffix = f" from {', '.join(sidecar_reference_paths[:2])}" if sidecar_reference_paths else ""
-                if len(sidecar_reference_paths) > 2:
-                    sidecar_suffix += " ..."
-                lines.append(
-                    f"Native metadata preserved {len(sidecar_texture_references):,} sidecar texture binding(s){sidecar_suffix}."
-                )
-            try:
-                references = tuple(
-                    build_archive_model_texture_references(
-                        entry,
-                        None,
-                        sidecar_texture_references=sidecar_texture_references,
-                        texture_entries_by_normalized_path=self.texture_entries_by_normalized_path,
-                        texture_entries_by_basename=self.texture_entries_by_basename,
-                        sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
-                        sidecar_texts_by_basename=sidecar_texts_by_basename,
-                    )
-                )
-                graph_references = build_archive_relationship_references(
-                    entry,
-                    archive_entries_by_normalized_path=self.texture_entries_by_normalized_path,
-                    archive_entries_by_basename=self.texture_entries_by_basename,
-                )
-                references = tuple(merge_archive_reference_rows(references, graph_references))
-                graph = build_archive_asset_family_graph(entry, references)
-            except RunCancelled:
-                raise
-            except Exception as exc:
-                lines.append(f"Native metadata relationship scan failed: {exc}")
-                return (), None, tuple(lines)
-            if references:
-                lines.append(
-                    f"Native metadata resolved {len(references):,} Asset Family reference row(s) without Python mesh preparation."
-                )
-            return references, graph, tuple(lines)
 
         def _archive_entry_for_native_asset_path(self, path: str) -> Optional[ArchiveEntry]:
             normalized = str(path or "").replace("\\", "/").strip().lower()
@@ -3355,7 +3286,7 @@ def run_gui() -> int:
             package_dir = Path(str(package_path or ""))
             manifest_path = package_dir / "manifest.json"
             if not manifest_path.is_file():
-                return (), None, ("Native manifest metadata missing; Python compatibility metadata fallback is allowed.",), 0
+                return (), None, ("Native manifest metadata missing; D3D11 package remains native-only.",), 0
             try:
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             except Exception as exc:
@@ -3363,7 +3294,7 @@ def run_gui() -> int:
             schema_version = int(manifest.get("schema_version") or 0)
             asset_payload = manifest.get("asset_family")
             if not isinstance(asset_payload, dict):
-                return (), None, ("Native manifest has no asset_family payload; Python compatibility metadata fallback is allowed.",), schema_version
+                return (), None, ("Native manifest has no asset_family payload; D3D11 package remains native-only.",), schema_version
 
             source_entry = self.entry
             root_path = str(asset_payload.get("root_path") or getattr(source_entry, "path", "") or "").replace("\\", "/")
@@ -3487,14 +3418,6 @@ def run_gui() -> int:
             model_texture_references, asset_family_graph, metadata_lines, native_schema_version = (
                 self._native_preview_core_manifest_metadata(native_attempt.package_path)
             )
-            if native_schema_version < 6 or asset_family_graph is None:
-                fallback_references, fallback_graph, fallback_lines = self._native_preview_core_reference_metadata()
-                if fallback_references or fallback_graph is not None:
-                    model_texture_references = fallback_references
-                    asset_family_graph = fallback_graph
-                    metadata_lines = tuple(metadata_lines) + (
-                        "Native Asset Family: compatibility fallback used because native schema-v6 metadata was unavailable.",
-                    ) + tuple(fallback_lines)
             diagnostics = dict(native_attempt.diagnostics)
             notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
             base_quality_notes = tuple(
@@ -3555,21 +3478,37 @@ def run_gui() -> int:
                 sidecar_generation=self.sidecar_generation,
             )
 
-        @staticmethod
-        def _native_preview_core_quality_fallback_reason(native_attempt: NativePreviewCoreAttempt) -> str:
+        def _native_preview_core_failure_result(
+            self,
+            native_attempt: NativePreviewCoreAttempt,
+            timings: Mapping[str, float],
+        ) -> ArchivePreviewResult:
+            entry = self.entry
+            metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
+            reason = str(getattr(native_attempt, "fallback_reason", "") or "native preview-core did not produce a D3D11 package")
+            detail_text = "\n".join(
+                part
+                for part in (
+                    "Native Preview Core did not generate a D3D11 package.",
+                    "D3D11 runtime is native-only; open Legacy OpenGL from 3D Settings for troubleshooting.",
+                    native_attempt.diagnostic_line(),
+                    f"Native failure reason: {reason}",
+                )
+                if part
+            )
             diagnostics = dict(getattr(native_attempt, "diagnostics", {}) or {})
-            if diagnostics.get("material_quality_safe") is not True:
-                if "material_quality_safe" not in diagnostics:
-                    return "native package did not report material quality"
-                counts = {
-                    "missing_base": int(diagnostics.get("base_missing_count", 0) or 0),
-                    "low_res_base": int(diagnostics.get("base_low_res_count", 0) or 0),
-                    "low_confidence_base": int(diagnostics.get("base_low_confidence_count", 0) or 0),
-                    "technical_base": int(diagnostics.get("base_technical_count", 0) or 0),
-                }
-                active = [f"{name}={count}" for name, count in counts.items() if count > 0]
-                return ", ".join(active) if active else "native package reported unsafe material quality"
-            return ""
+            diagnostics.setdefault("fallback_reason", reason)
+            return ArchivePreviewResult(
+                status="error",
+                title=entry.basename if entry is not None else "Native Preview",
+                metadata_summary=metadata_summary,
+                detail_text=detail_text,
+                timings=dict(timings),
+                preview_model=None,
+                native_preview_diagnostics=diagnostics,
+                preferred_view="details",
+                sidecar_generation=self.sidecar_generation,
+            )
 
         @staticmethod
         def _attach_native_preview_core_note(

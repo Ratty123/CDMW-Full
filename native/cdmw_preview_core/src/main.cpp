@@ -822,12 +822,12 @@ static std::uint64_t g_decoded_entry_cache_hits = 0;
 static std::uint64_t g_decoded_entry_cache_misses = 0;
 static std::uint64_t g_decoded_entry_cache_evictions = 0;
 static std::uint64_t g_service_job_count = 0;
-static constexpr size_t kDecodedEntryCacheMaxEntries = 256;
-static constexpr size_t kDecodedEntryCacheMaxBytes = 128ull * 1024ull * 1024ull;
-static constexpr size_t kDecodedEntryCacheMaxSingleBytes = 32ull * 1024ull * 1024ull;
-static constexpr size_t kDecodedEntryCacheRecycleBytes = 96ull * 1024ull * 1024ull;
-static constexpr std::uint64_t kServiceMaxJobs = 8;
-static constexpr unsigned long long kServicePrivateRecycleBytes = 384ull * 1024ull * 1024ull;
+static constexpr size_t kDecodedEntryCacheMaxEntries = 512;
+static constexpr size_t kDecodedEntryCacheMaxBytes = 256ull * 1024ull * 1024ull;
+static constexpr size_t kDecodedEntryCacheMaxSingleBytes = 64ull * 1024ull * 1024ull;
+static constexpr size_t kDecodedEntryCacheRecycleBytes = 192ull * 1024ull * 1024ull;
+static constexpr std::uint64_t kServiceMaxJobs = 32;
+static constexpr unsigned long long kServicePrivateRecycleBytes = 768ull * 1024ull * 1024ull;
 
 static size_t decoded_entry_cache_entries() {
     return g_decoded_entry_cache.size();
@@ -1326,7 +1326,7 @@ static std::vector<ParSection> parse_par_sections(const std::vector<char>& data)
         if (offset + stored_size > data.size()) return {};
         if (comp_size > 0 && comp_size < decomp_size) {
             // A compressed PAR section needs LZ4 reconstruction. Keep this
-            // path conservative so the Python fallback handles partial PARs.
+            // path conservative and report unsupported until native recovery is proven.
             return {};
         }
         sections.push_back(ParSection{i, offset, decomp_size});
@@ -2466,6 +2466,10 @@ struct SidecarTextureRef {
 };
 
 static std::string xml_attr_value(const std::string& text, std::initializer_list<const char*> names);
+static std::map<std::string, std::string> xml_attribute_map(const std::string& tag_text);
+static std::string xml_attr_value_from_map(const std::map<std::string, std::string>& attrs, std::initializer_list<const char*> names);
+static std::vector<std::string> collect_xml_tag_blocks(const std::string& text, const std::string& tag_name);
+static std::string shader_rule_for_family(const std::string& family);
 
 static std::string normalized_key(std::string value) {
     std::string out;
@@ -2524,28 +2528,25 @@ static std::array<float, 4> color_parameter_value(const std::string& raw_value) 
 
 static std::vector<MaterialParameterRecord> extract_material_parameters(const std::string& scope_text) {
     std::vector<MaterialParameterRecord> records;
-    const std::regex parameter_tag_pattern(
-        "<MaterialParameter(?:Float|Color|Byte4|BitFlag32)\\b[^>]*(?:/>|>[\\s\\S]*?</MaterialParameter(?:Float|Color|Byte4|BitFlag32)\\s*>)",
-        std::regex_constants::icase
-    );
-    auto begin = std::sregex_iterator(scope_text.begin(), scope_text.end(), parameter_tag_pattern);
-    auto end = std::sregex_iterator();
-    for (auto it = begin; it != end; ++it) {
-        const std::string tag = it->str();
-        MaterialParameterRecord record;
-        const std::string tag_lower = lower_copy(tag);
-        if (tag_lower.find("materialparameterfloat") != std::string::npos) record.kind = "float";
-        else if (tag_lower.find("materialparametercolor") != std::string::npos) record.kind = "color";
-        else if (tag_lower.find("materialparameterbyte4") != std::string::npos) record.kind = "byte4";
-        else if (tag_lower.find("materialparameterbitflag32") != std::string::npos) record.kind = "bitflag32";
-        else record.kind = "unknown";
-        record.name = xml_attr_value(tag, {"_name", "StringItemID", "Name"});
-        record.value = xml_attr_value(tag, {"_value", "Value", "DefaultValue"});
-        if (record.name.empty()) continue;
-        bool has_numeric = false;
-        record.numeric_value = numeric_parameter_value(record.value, &has_numeric);
-        record.has_numeric = has_numeric;
-        records.push_back(record);
+    const std::vector<std::pair<std::string, std::string>> parameter_tags = {
+        {"MaterialParameterFloat", "float"},
+        {"MaterialParameterColor", "color"},
+        {"MaterialParameterByte4", "byte4"},
+        {"MaterialParameterBitFlag32", "bitflag32"},
+    };
+    for (const auto& [tag_name, kind] : parameter_tags) {
+        for (const std::string& tag : collect_xml_tag_blocks(scope_text, tag_name)) {
+            const auto attrs = xml_attribute_map(tag);
+            MaterialParameterRecord record;
+            record.kind = kind;
+            record.name = xml_attr_value_from_map(attrs, {"_name", "StringItemID", "Name"});
+            record.value = xml_attr_value_from_map(attrs, {"_value", "Value", "DefaultValue"});
+            if (record.name.empty()) continue;
+            bool has_numeric = false;
+            record.numeric_value = numeric_parameter_value(record.value, &has_numeric);
+            record.has_numeric = has_numeric;
+            records.push_back(record);
+        }
     }
     return records;
 }
@@ -2618,6 +2619,102 @@ static std::string xml_attr_value(const std::string& text, std::initializer_list
     return "";
 }
 
+static size_t xml_open_tag_end(const std::string& text, size_t start) {
+    bool in_quote = false;
+    for (size_t index = start; index < text.size(); ++index) {
+        const char ch = text[index];
+        if (ch == '"') in_quote = !in_quote;
+        if (ch == '>' && !in_quote) return index;
+    }
+    return std::string::npos;
+}
+
+static bool xml_tag_name_boundary(char ch) {
+    return std::isspace(static_cast<unsigned char>(ch)) || ch == '>' || ch == '/';
+}
+
+static std::map<std::string, std::string> xml_attribute_map(const std::string& tag_text) {
+    std::map<std::string, std::string> attrs;
+    const size_t open = tag_text.find('<');
+    const size_t end = xml_open_tag_end(tag_text, open == std::string::npos ? 0 : open);
+    if (open == std::string::npos || end == std::string::npos || end <= open) return attrs;
+    size_t index = open + 1;
+    while (index < end && !std::isspace(static_cast<unsigned char>(tag_text[index])) && tag_text[index] != '>' && tag_text[index] != '/') {
+        ++index;
+    }
+    while (index < end) {
+        while (index < end && std::isspace(static_cast<unsigned char>(tag_text[index]))) ++index;
+        if (index >= end || tag_text[index] == '/') break;
+        const size_t key_start = index;
+        while (index < end && tag_text[index] != '=' && !std::isspace(static_cast<unsigned char>(tag_text[index]))) ++index;
+        std::string key = tag_text.substr(key_start, index - key_start);
+        while (index < end && std::isspace(static_cast<unsigned char>(tag_text[index]))) ++index;
+        if (index >= end || tag_text[index] != '=') {
+            attrs[lower_copy(key)] = "";
+            continue;
+        }
+        ++index;
+        while (index < end && std::isspace(static_cast<unsigned char>(tag_text[index]))) ++index;
+        std::string value;
+        if (index < end && tag_text[index] == '"') {
+            ++index;
+            const size_t value_start = index;
+            while (index < end && tag_text[index] != '"') ++index;
+            value = tag_text.substr(value_start, index - value_start);
+            if (index < end && tag_text[index] == '"') ++index;
+        } else {
+            const size_t value_start = index;
+            while (index < end && !std::isspace(static_cast<unsigned char>(tag_text[index])) && tag_text[index] != '>') ++index;
+            value = tag_text.substr(value_start, index - value_start);
+        }
+        if (!key.empty()) attrs[lower_copy(key)] = value;
+    }
+    return attrs;
+}
+
+static std::string xml_attr_value_from_map(const std::map<std::string, std::string>& attrs, std::initializer_list<const char*> names) {
+    for (const char* raw_name : names) {
+        auto found = attrs.find(lower_copy(raw_name));
+        if (found != attrs.end()) return found->second;
+    }
+    return "";
+}
+
+static std::vector<std::string> collect_xml_tag_blocks(const std::string& text, const std::string& tag_name) {
+    std::vector<std::string> blocks;
+    if (text.empty() || tag_name.empty()) return blocks;
+    const std::string lowered = lower_copy(text);
+    const std::string open_token = "<" + lower_copy(tag_name);
+    const std::string close_token = "</" + lower_copy(tag_name) + ">";
+    size_t search = 0;
+    while (true) {
+        const size_t open = lowered.find(open_token, search);
+        if (open == std::string::npos) break;
+        const size_t name_end = open + open_token.size();
+        if (name_end < lowered.size() && !xml_tag_name_boundary(lowered[name_end])) {
+            search = name_end;
+            continue;
+        }
+        const size_t open_end = xml_open_tag_end(text, open);
+        if (open_end == std::string::npos) break;
+        size_t block_end = open_end + 1;
+        size_t cursor = open_end;
+        while (cursor > open && std::isspace(static_cast<unsigned char>(text[cursor - 1]))) --cursor;
+        const bool self_closing = cursor > open && text[cursor - 1] == '/';
+        if (!self_closing) {
+            const size_t close = lowered.find(close_token, open_end + 1);
+            if (close == std::string::npos) {
+                search = open_end + 1;
+                continue;
+            }
+            block_end = close + close_token.size();
+        }
+        blocks.push_back(text.substr(open, block_end - open));
+        search = block_end;
+    }
+    return blocks;
+}
+
 struct TechniqueParameterInfo {
     std::string name;
     std::string type;
@@ -2635,12 +2732,13 @@ struct TechniqueIndex {
 };
 
 static void add_technique_parameter(TechniqueIndex& index, const std::string& tag) {
+    const auto attrs = xml_attribute_map(tag);
     TechniqueParameterInfo info;
-    info.name = xml_attr_value(tag, {"Name", "_name"});
+    info.name = xml_attr_value_from_map(attrs, {"Name", "_name"});
     if (info.name.empty()) return;
-    info.type = xml_attr_value(tag, {"Type", "_type"});
-    info.srgb = xml_attr_value(tag, {"sRGB", "SRGB", "Srgb"});
-    info.default_value = xml_attr_value(tag, {"DefaultValue", "Value", "_defaultValue"});
+    info.type = xml_attr_value_from_map(attrs, {"Type", "_type"});
+    info.srgb = xml_attr_value_from_map(attrs, {"sRGB", "SRGB", "Srgb"});
+    info.default_value = xml_attr_value_from_map(attrs, {"DefaultValue", "Value", "_defaultValue"});
     info.declared = true;
     ++index.parameters;
     const std::string key = lower_copy(info.name);
@@ -2660,8 +2758,6 @@ static void add_technique_parameter(TechniqueIndex& index, const std::string& ta
 
 static TechniqueIndex build_technique_index_for_pamt(const PamtIndex& pamt_index) {
     TechniqueIndex index;
-    const std::regex technique_tag_pattern("<Technique\\b[^>]*>", std::regex_constants::icase);
-    const std::regex parameter_tag_pattern("<Parameter\\b[^>]*(?:/>|>[\\s\\S]*?</Parameter\\s*>)", std::regex_constants::icase);
     for (const ArchiveEntryRef& ref : pamt_index.material_sidecars) {
         if (ref.extension != ".technique" && ref.extension != ".material") continue;
         std::vector<char> bytes;
@@ -2672,16 +2768,12 @@ static TechniqueIndex build_technique_index_for_pamt(const PamtIndex& pamt_index
         }
         ++index.files_scanned;
         const std::string text(bytes.begin(), bytes.end());
-        auto technique_begin = std::sregex_iterator(text.begin(), text.end(), technique_tag_pattern);
-        auto technique_end = std::sregex_iterator();
-        for (auto it = technique_begin; it != technique_end; ++it) {
-            const std::string name = xml_attr_value(it->str(), {"Name"});
+        for (const std::string& tag : collect_xml_tag_blocks(text, "Technique")) {
+            const std::string name = xml_attr_value_from_map(xml_attribute_map(tag), {"Name"});
             if (!name.empty()) index.technique_names.insert(name);
         }
-        auto parameter_begin = std::sregex_iterator(text.begin(), text.end(), parameter_tag_pattern);
-        auto parameter_end = std::sregex_iterator();
-        for (auto it = parameter_begin; it != parameter_end; ++it) {
-            add_technique_parameter(index, it->str());
+        for (const std::string& tag : collect_xml_tag_blocks(text, "Parameter")) {
+            add_technique_parameter(index, tag);
         }
     }
     return index;
@@ -2809,6 +2901,59 @@ static void add_sidecar_texture_ref(
     }
 }
 
+static std::string texture_path_without_known_suffix(const std::string& raw_path) {
+    std::string path = raw_path;
+    const std::string lower = lower_copy(path);
+    for (const std::string& suffix : {"_sp.dds", "_ma.dds", "_mg.dds", "_m.dds", "_n.dds", "_disp.dds"}) {
+        if (lower.ends_with(suffix) && path.size() > suffix.size()) {
+            path.resize(path.size() - suffix.size());
+            path += ".dds";
+            return path;
+        }
+    }
+    return "";
+}
+
+static bool shader_rule_allows_visible_layer_family(const std::string& shader_family) {
+    const std::string rule = shader_rule_for_family(shader_family);
+    return rule == "standard" || rule == "standard_v2" || rule == "cloth" || rule == "cloth_v2" || rule == "static_standard" || rule == "static_multitextured";
+}
+
+static void add_layer_family_sibling_refs(
+    std::vector<SidecarTextureRef>& refs,
+    std::set<std::string>& seen,
+    const std::string& path,
+    const std::string& parameter,
+    const std::string& material_name,
+    const std::string& shader_family,
+    const std::vector<MaterialParameterRecord>& material_parameters
+) {
+    if (!shader_rule_allows_visible_layer_family(shader_family)) return;
+    const std::string key = normalized_key(parameter);
+    const bool layer_parameter =
+        key.find("detail") != std::string::npos
+        || key.find("grime") != std::string::npos
+        || key.find("dye") != std::string::npos;
+    if (!layer_parameter) return;
+    const std::string diffuse_path = texture_path_without_known_suffix(path);
+    if (diffuse_path.empty() || lower_copy(diffuse_path) == lower_copy(path)) return;
+    std::string channel;
+    if (!parameter.empty()) {
+        const char last = static_cast<char>(std::tolower(static_cast<unsigned char>(parameter.back())));
+        if (last == 'r' || last == 'g' || last == 'b' || last == 'a') channel.push_back(last);
+    }
+    const std::string suffix = channel.empty() ? "" : std::string(1, static_cast<char>(std::toupper(static_cast<unsigned char>(channel.front()))));
+    const std::string diffuse_parameter = key.find("grime") != std::string::npos ? ("_grimeDiffuseTexture" + suffix) : ("_detailDiffuseMask" + suffix);
+    const std::string normal_parameter = key.find("grime") != std::string::npos ? ("_grimeNormalTexture" + suffix) : ("_detailNormalMask" + suffix);
+    const std::string material_parameter = key.find("grime") != std::string::npos ? ("_grimeMaterialTexture" + suffix) : ("_detailMaterialMask" + suffix);
+    const std::string height_parameter = "_detailHeightMask" + suffix;
+    const std::string stem = diffuse_path.substr(0, diffuse_path.size() - 4);
+    add_sidecar_texture_ref(refs, seen, diffuse_path, diffuse_parameter, material_name, shader_family, material_parameters);
+    add_sidecar_texture_ref(refs, seen, stem + "_n.dds", normal_parameter, material_name, shader_family, material_parameters);
+    add_sidecar_texture_ref(refs, seen, stem + "_sp.dds", material_parameter, material_name, shader_family, material_parameters);
+    add_sidecar_texture_ref(refs, seen, stem + "_disp.dds", height_parameter, material_name, shader_family, material_parameters);
+}
+
 static void extract_texture_refs_from_scope(
     const std::string& scope_text,
     const std::string& material_name,
@@ -2817,22 +2962,19 @@ static void extract_texture_refs_from_scope(
     std::set<std::string>& seen
 ) {
     const std::vector<MaterialParameterRecord> material_parameters = extract_material_parameters(scope_text);
-    const std::regex texture_tag_pattern(
-        "<MaterialParameterTexture[^>]*(?:/>|>[\\s\\S]*?</MaterialParameterTexture\\s*>)",
-        std::regex_constants::icase
-    );
-    auto begin = std::sregex_iterator(scope_text.begin(), scope_text.end(), texture_tag_pattern);
-    auto end = std::sregex_iterator();
-    for (auto it = begin; it != end; ++it) {
-        const std::string tag = it->str();
-        const std::string parameter = xml_attr_value(tag, {"_name", "StringItemID", "Name"});
-        std::string path = xml_attr_value(tag, {"Value", "_path"});
+    for (const std::string& tag : collect_xml_tag_blocks(scope_text, "MaterialParameterTexture")) {
+        const auto attrs = xml_attribute_map(tag);
+        const std::string parameter = xml_attr_value_from_map(attrs, {"_name", "StringItemID", "Name"});
+        std::string path = xml_attr_value_from_map(attrs, {"Value", "_path"});
         if (path.empty()) {
-            const std::regex resource_pattern("ResourceReferencePath_ITexture[^>]*_path=\"([^\"]+\\.dds)\"", std::regex_constants::icase);
-            std::smatch match;
-            if (std::regex_search(tag, match, resource_pattern)) path = match[1].str();
+            for (const std::string& resource_tag : collect_xml_tag_blocks(tag, "ResourceReferencePath_ITexture")) {
+                const auto resource_attrs = xml_attribute_map(resource_tag);
+                path = xml_attr_value_from_map(resource_attrs, {"_path", "Value"});
+                if (!path.empty()) break;
+            }
         }
         add_sidecar_texture_ref(refs, seen, path, parameter, material_name, shader_family, material_parameters);
+        add_layer_family_sibling_refs(refs, seen, path, parameter, material_name, shader_family, material_parameters);
     }
 }
 
@@ -2840,33 +2982,18 @@ static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(const std::st
     std::vector<SidecarTextureRef> refs;
     std::set<std::string> seen;
 
-    const std::regex skinned_wrapper_pattern(
-        "<SkinnedMeshMaterialWrapper[^>]*>[\\s\\S]*?</SkinnedMeshMaterialWrapper\\s*>",
-        std::regex_constants::icase
-    );
-    auto wrapper_begin = std::sregex_iterator(text.begin(), text.end(), skinned_wrapper_pattern);
-    auto wrapper_end = std::sregex_iterator();
-    for (auto it = wrapper_begin; it != wrapper_end; ++it) {
-        const std::string block = it->str();
+    for (const std::string& block : collect_xml_tag_blocks(text, "SkinnedMeshMaterialWrapper")) {
         const std::string material_name = xml_attr_value(block, {"_subMeshName", "PrimitiveName", "Name"});
         const std::string shader_family = extract_shader_family_hint(block);
         extract_texture_refs_from_scope(block, material_name, shader_family, refs, seen);
     }
 
-    const std::string lowered_text = lower_copy(text);
-    size_t material_search = 0;
-    while (true) {
-        const size_t material_pos = lowered_text.find("<material ", material_search);
-        if (material_pos == std::string::npos) break;
-        const size_t material_end = lowered_text.find("</material>", material_pos);
-        if (material_end == std::string::npos) break;
-        const std::string block = text.substr(material_pos, material_end + std::string("</Material>").size() - material_pos);
+    for (const std::string& block : collect_xml_tag_blocks(text, "Material")) {
         std::string material_name = xml_attr_value(block, {"PrimitiveName", "_subMeshName", "Name"});
         std::replace(material_name.begin(), material_name.end(), '\\', '/');
         std::string shader_family = extract_shader_family_hint(block);
         if (shader_family.empty()) shader_family = xml_attr_value(block, {"MaterialName", "_materialName"});
         extract_texture_refs_from_scope(block, material_name, shader_family, refs, seen);
-        material_search = material_end + std::string("</material>").size();
     }
 
     if (refs.empty()) {
@@ -2890,6 +3017,22 @@ static std::string extracted_dds_path_for_entry(
         // Sparse DDS often has the header and first payload bytes stored. Padding
         // is acceptable for preview, but fully compressed entries stay on Python.
     }
+    const std::string identity = ref.pamt_path.string() + "|" + ref.path + "|" + std::to_string(ref.offset) + "|" + std::to_string(ref.comp_size) + "|" + std::to_string(ref.orig_size);
+    const fs::path out_path = cache_root / "dds" / (hex64(fnv1a64(identity)) + "_" + safe_filename(ref.basename));
+    const std::uint64_t expected_size = ref.orig_size > 0 ? ref.orig_size : ref.comp_size;
+    if (expected_size > 0) {
+        try {
+            if (fs::is_regular_file(out_path) && fs::file_size(out_path) == expected_size) {
+                std::ifstream cached(out_path, std::ios::binary);
+                char magic[4] = {};
+                cached.read(magic, sizeof(magic));
+                if (cached.gcount() == 4 && std::string(magic, magic + 4) == "DDS ") {
+                    return fs::absolute(out_path).string();
+                }
+            }
+        } catch (...) {
+        }
+    }
     std::vector<char> data;
     try {
         data = read_archive_ref_decoded_bytes(ref);
@@ -2905,8 +3048,6 @@ static std::string extracted_dds_path_for_entry(
         data.resize(static_cast<size_t>(ref.orig_size), 0);
         notes.push_back("DDS sparse padded:" + ref.basename);
     }
-    const std::string identity = ref.pamt_path.string() + "|" + ref.path + "|" + std::to_string(ref.offset) + "|" + std::to_string(ref.comp_size) + "|" + std::to_string(ref.orig_size);
-    const fs::path out_path = cache_root / "dds" / (hex64(fnv1a64(identity)) + "_" + safe_filename(ref.basename));
     try {
         if (!fs::is_regular_file(out_path) || fs::file_size(out_path) != data.size()) {
             write_binary(out_path, data);
@@ -2931,6 +3072,9 @@ static std::uint32_t read_u32_le_raw(const std::vector<char>& data, size_t offse
 }
 
 static DdsHeaderInfo inspect_dds_header_file(const std::string& path) {
+    static std::map<std::string, DdsHeaderInfo> cache;
+    auto cached = cache.find(path);
+    if (cached != cache.end()) return cached->second;
     DdsHeaderInfo info;
     std::ifstream in(fs::path(path), std::ios::binary);
     if (!in) return info;
@@ -2948,6 +3092,9 @@ static DdsHeaderInfo inspect_dds_header_file(const std::string& path) {
         } else {
             info.format = fourcc;
         }
+    }
+    if (!path.empty() && cache.size() < 4096) {
+        cache.emplace(path, info);
     }
     return info;
 }
@@ -3179,6 +3326,52 @@ static SidecarParameterSummary summarize_sidecar_parameters(const std::string& t
         std::replace(summary.linked_mesh_path.begin(), summary.linked_mesh_path.end(), '\\', '/');
     }
     return summary;
+}
+
+struct ParsedMaterialSidecar {
+    std::string shader_family;
+    std::string shader_rule;
+    SidecarParameterSummary parameter_summary;
+    std::vector<SidecarTextureRef> refs;
+};
+
+static std::uint64_t g_sidecar_parse_cache_hits = 0;
+static std::uint64_t g_sidecar_parse_cache_misses = 0;
+
+static std::uint64_t sidecar_parse_cache_hits() {
+    return g_sidecar_parse_cache_hits;
+}
+
+static std::uint64_t sidecar_parse_cache_misses() {
+    return g_sidecar_parse_cache_misses;
+}
+
+static const ParsedMaterialSidecar& cached_parsed_material_sidecar(const ArchiveEntryRef& sidecar) {
+    static std::map<std::string, ParsedMaterialSidecar> cache;
+    const std::string key = archive_ref_identity(sidecar);
+    auto found = cache.find(key);
+    if (found != cache.end()) {
+        ++g_sidecar_parse_cache_hits;
+        return found->second;
+    }
+    ++g_sidecar_parse_cache_misses;
+    std::vector<char> sidecar_bytes = read_archive_ref_decoded_bytes(sidecar);
+    std::string sidecar_text(sidecar_bytes.begin(), sidecar_bytes.end());
+    ParsedMaterialSidecar parsed;
+    parsed.shader_family = extract_shader_family_hint(sidecar_text);
+    if (parsed.shader_family.empty()) {
+        parsed.shader_family = sidecar.extension == ".pami" ? "StaticMaterial" : "";
+    }
+    parsed.shader_rule = shader_rule_for_family(parsed.shader_family);
+    parsed.parameter_summary = summarize_sidecar_parameters(sidecar_text);
+    parsed.refs = extract_sidecar_texture_refs(sidecar_text);
+    if (parsed.refs.empty()) {
+        const std::vector<MaterialParameterRecord> material_parameters = extract_material_parameters(sidecar_text);
+        for (const std::string& token : extract_dds_tokens(sidecar_text)) {
+            parsed.refs.push_back(SidecarTextureRef{token, "", "", parsed.shader_family, material_parameters});
+        }
+    }
+    return cache.emplace(key, std::move(parsed)).first->second;
 }
 
 static std::string packed_channels_for_role(const std::string& role, const std::string& name, const std::string& parameter_name) {
@@ -3522,20 +3715,17 @@ static std::vector<TextureBinding> build_material_bindings(
             "",
             ""
         });
-        std::vector<char> sidecar_bytes;
+        const ParsedMaterialSidecar* parsed_sidecar = nullptr;
         try {
-            sidecar_bytes = read_archive_ref_decoded_bytes(sidecar);
+            parsed_sidecar = &cached_parsed_material_sidecar(sidecar);
         } catch (const std::exception& exc) {
             package.notes.push_back(std::string("native material sidecar read failed:") + sidecar.path + ": " + exc.what());
             continue;
         }
-        std::string sidecar_text(sidecar_bytes.begin(), sidecar_bytes.end());
-        std::string sidecar_shader_family = extract_shader_family_hint(sidecar_text);
-        if (sidecar_shader_family.empty()) {
-            sidecar_shader_family = sidecar.extension == ".pami" ? "StaticMaterial" : "";
-        }
-        const std::string sidecar_shader_rule = shader_rule_for_family(sidecar_shader_family);
-        const SidecarParameterSummary parameter_summary = summarize_sidecar_parameters(sidecar_text);
+        if (parsed_sidecar == nullptr) continue;
+        const std::string& sidecar_shader_family = parsed_sidecar->shader_family;
+        const std::string& sidecar_shader_rule = parsed_sidecar->shader_rule;
+        const SidecarParameterSummary& parameter_summary = parsed_sidecar->parameter_summary;
         shader_rules.insert(sidecar_shader_rule);
         sidecar_kinds.insert(sidecar.extension.empty() ? "unknown" : sidecar.extension);
         package.notes.push_back(
@@ -3547,12 +3737,7 @@ static std::vector<TextureBinding> build_material_bindings(
             "; byte4_params=" + std::to_string(parameter_summary.byte4_params) +
             "; flags=" + std::to_string(parameter_summary.bit_flags)
         );
-        std::vector<SidecarTextureRef> refs = extract_sidecar_texture_refs(sidecar_text);
-        if (refs.empty()) {
-            for (const std::string& token : extract_dds_tokens(sidecar_text)) {
-                refs.push_back(SidecarTextureRef{token, "", "", sidecar_shader_family, extract_material_parameters(sidecar_text)});
-            }
-        }
+        const std::vector<SidecarTextureRef>& refs = parsed_sidecar->refs;
         package.dds_candidates += static_cast<int>(refs.size());
         for (const SidecarTextureRef& texture_ref : refs) {
             const std::string base = lower_copy(basename_from_path(texture_ref.path));
@@ -4298,7 +4483,7 @@ static std::string native_asset_family_json(const NativePackage& package, const 
     std::ostringstream out;
     out << "\"asset_family\":{"
         << "\"source\":\"native-core\","
-        << "\"schema_version\":6,"
+        << "\"schema_version\":7,"
         << "\"root_path\":\"" << json_escape(job.path) << "\","
         << "\"family_key\":\"" << json_escape(stem_from_path(job.path)) << "\","
         << "\"summary\":\"" << json_escape(native_asset_family_summary(package.asset_family_rows)) << "\","
@@ -4388,6 +4573,8 @@ static NativePackage write_d3d11_package(
     const float scale = 2.0f / max_dim;
 
     std::ostringstream batches_json;
+    std::ostringstream material_slots_json;
+    std::ostringstream selection_decisions_json;
     int emitted_batch_count = 0;
     int emitted_vertex_count = 0;
     for (size_t batch_index = 0; batch_index < submeshes.size(); ++batch_index) {
@@ -4396,7 +4583,7 @@ static NativePackage write_d3d11_package(
         const std::string stem = batch_stem(batch_index);
         const fs::path geometry_path = geometry_dir / (stem + ".bin");
         const fs::path identity_path = geometry_dir / (stem + "_identity.bin");
-        const auto color = color_for_batch(static_cast<int>(batch_index));
+        auto color = color_for_batch(static_cast<int>(batch_index));
         write_geometry_blob(geometry_path, identity_path, mesh, center, scale, color);
         const int vertex_count = static_cast<int>(mesh.indices.size());
         emitted_vertex_count += vertex_count;
@@ -4443,6 +4630,18 @@ static NativePackage write_d3d11_package(
             {base, normal, material, height, specular, detail}
         );
         const NativeMaterialHints material_hints = material_hints_for_bindings(batch_bindings);
+        if (base == nullptr) {
+            for (const TextureBinding* binding_ptr : batch_bindings) {
+                if (binding_ptr == nullptr) continue;
+                const auto tint = binding_ptr->tint_color;
+                const bool has_tint = std::abs(tint[0] - 1.0f) > 0.02f || std::abs(tint[1] - 1.0f) > 0.02f || std::abs(tint[2] - 1.0f) > 0.02f;
+                if (has_tint) {
+                    color = {std::clamp(tint[0], 0.05f, 1.0f), std::clamp(tint[1], 0.05f, 1.0f), std::clamp(tint[2], 0.05f, 1.0f)};
+                    package.base_quality_notes.push_back("batch " + std::to_string(batch_index) + " " + mesh.material + ": native material tint fallback used because no true base DDS was selected");
+                    break;
+                }
+            }
+        }
         const bool held_layer_albedo = shader_rule_holds_layer_albedo(batch_bindings);
         const std::vector<MaterialLayer> material_layers = compile_material_layers(
             batch_bindings,
@@ -4483,6 +4682,37 @@ static NativePackage write_d3d11_package(
                 + ", normal_y_policy=shader_invert_legacy_compat"
             );
         }
+        if (emitted_batch_count > 0) {
+            material_slots_json << ",";
+            selection_decisions_json << ",";
+        }
+        material_slots_json << "{"
+            << "\"batch_index\":" << batch_index << ","
+            << "\"material_name\":\"" << json_escape(mesh.material) << "\","
+            << "\"submesh_name\":\"" << json_escape(mesh.name) << "\","
+            << "\"shader_family\":\"" << json_escape(batch_bindings.empty() ? "" : batch_bindings.front()->shader_family) << "\","
+            << "\"shader_rule\":\"" << json_escape(batch_bindings.empty() ? "generic" : batch_bindings.front()->shader_rule) << "\","
+            << "\"base\":\"" << json_escape(base == nullptr ? "" : base->archive_path) << "\","
+            << "\"normal\":\"" << json_escape(normal == nullptr ? "" : normal->archive_path) << "\","
+            << "\"material\":\"" << json_escape(material == nullptr ? "" : material->archive_path) << "\","
+            << "\"specular\":\"" << json_escape(specular == nullptr ? "" : specular->archive_path) << "\","
+            << "\"height\":\"" << json_escape(height == nullptr ? "" : height->archive_path) << "\","
+            << "\"detail\":\"" << json_escape(detail == nullptr ? "" : detail->archive_path) << "\""
+            << "}";
+        selection_decisions_json << "{"
+            << "\"batch_index\":" << batch_index << ","
+            << "\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\","
+            << "\"base_selected\":\"" << json_escape(base == nullptr ? "" : base->archive_path) << "\","
+            << "\"base_score\":" << base_score << ","
+            << "\"base_identity_score\":" << base_identity_score << ","
+            << "\"base_missing\":" << (base == nullptr ? "true" : "false") << ","
+            << "\"base_technical\":" << (base_technical ? "true" : "false") << ","
+            << "\"base_low_res\":" << (base_low_res ? "true" : "false") << ","
+            << "\"base_low_confidence\":" << (base_low_confidence ? "true" : "false") << ","
+            << "\"uv_flip_policy\":\"legacy_no_flip\","
+            << "\"normal_y_policy\":\"shader_invert_legacy_compat\","
+            << "\"evidence_grade\":\"" << json_escape(material_layers.empty() ? "approximate" : material_layers.front().evidence_grade) << "\""
+            << "}";
         if (emitted_batch_count++) batches_json << ",";
         batches_json << "{"
             << "\"index\":" << batch_index << ","
@@ -4740,8 +4970,8 @@ static NativePackage write_d3d11_package(
         : job.extension;
     std::ostringstream manifest;
     manifest << "{"
-        << "\"schema_version\":" << std::max(6, job.schema_version) << ","
-        << "\"material_semantics_version\":1,"
+        << "\"schema_version\":" << std::max(7, job.schema_version) << ","
+        << "\"material_semantics_version\":2,"
         << "\"backend\":\"d3d11\","
         << "\"source_path\":\"" << json_escape(job.path) << "\","
         << "\"format\":\"" << json_escape(format) << "\","
@@ -4768,8 +4998,17 @@ static NativePackage write_d3d11_package(
         << "\"shininess_max\":" << job.shininess_max << ","
         << "\"use_textures\":" << (job.use_textures ? "true" : "false") << ","
         << "\"high_quality_textures\":" << (job.high_quality_textures ? "true" : "false") << ","
-        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"material_semantics_version\":1,\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << package.base_missing_count << ",\"base_low_res_count\":" << package.base_low_res_count << ",\"base_low_confidence_count\":" << package.base_low_confidence_count << ",\"base_technical_count\":" << package.base_technical_count << ",\"asset_family_reference_count\":" << package.asset_family_reference_count << ",\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\",\"lod_count\":" << package.lod_count << "},"
+        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"material_semantics_version\":2,\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << package.base_missing_count << ",\"base_low_res_count\":" << package.base_low_res_count << ",\"base_low_confidence_count\":" << package.base_low_confidence_count << ",\"base_technical_count\":" << package.base_technical_count << ",\"asset_family_reference_count\":" << package.asset_family_reference_count << ",\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\",\"lod_count\":" << package.lod_count << "},"
         << native_asset_family_json(package, job) << ","
+        << "\"material_slots\":[" << material_slots_json.str() << "],"
+        << "\"selection_decisions\":[" << selection_decisions_json.str() << "],"
+        << "\"rejected_candidates\":[";
+    for (size_t rejected_index = 0; rejected_index < package.rejected_texture_examples.size(); ++rejected_index) {
+        if (rejected_index) manifest << ",";
+        manifest << "\"" << json_escape(package.rejected_texture_examples[rejected_index]) << "\"";
+    }
+    manifest << "],"
+        << "\"dds_upload_policy\":{\"default\":\"direct_dds\",\"png_fallback\":\"generated_or_non_dds_only\",\"base_srgb\":\"from_technique_or_role\",\"data_maps\":\"linear\",\"normal_y_policy\":\"per_batch\"},"
         << "\"batches\":[" << batches_json.str() << "]"
         << "}";
     write_text(package_dir / "manifest.json", manifest.str());
@@ -4819,6 +5058,8 @@ std::string preview_report_for_job(const fs::path& job_path) {
     const std::uint64_t cache_hits_before = decoded_entry_cache_hits();
     const std::uint64_t cache_misses_before = decoded_entry_cache_misses();
     const std::uint64_t cache_evictions_before = decoded_entry_cache_evictions();
+    const std::uint64_t sidecar_cache_hits_before = sidecar_parse_cache_hits();
+    const std::uint64_t sidecar_cache_misses_before = sidecar_parse_cache_misses();
     try {
         fs::create_directories(job.output_root);
         fs::create_directories(job.cache_root);
@@ -4847,7 +5088,7 @@ std::string preview_report_for_job(const fs::path& job_path) {
         if (message.empty()) {
             message = status == "ok"
                 ? "native preview-core generated a D3D11 package"
-                : "native archive IO completed; Python preview fallback remains active";
+                : "native preview-core did not generate a D3D11 package";
         }
     } catch (const std::exception& exc) {
         status = "error";
@@ -4872,8 +5113,8 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"base_low_res_count\":" << package.base_low_res_count << ","
         << "\"base_low_confidence_count\":" << package.base_low_confidence_count << ","
         << "\"base_technical_count\":" << package.base_technical_count << ","
-        << "\"schema_version\":" << std::max(6, job.schema_version) << ","
-        << "\"material_semantics_version\":1,"
+        << "\"schema_version\":" << std::max(7, job.schema_version) << ","
+        << "\"material_semantics_version\":2,"
         << "\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\","
         << "\"entry_path\":\"" << json_escape(job.path) << "\","
         << "\"extension\":\"" << json_escape(job.extension) << "\","
@@ -4895,6 +5136,10 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"decoded_cache_job_hits\":" << (decoded_entry_cache_hits() - cache_hits_before) << ","
         << "\"decoded_cache_job_misses\":" << (decoded_entry_cache_misses() - cache_misses_before) << ","
         << "\"decoded_cache_job_evictions\":" << (decoded_entry_cache_evictions() - cache_evictions_before) << ","
+        << "\"sidecar_parse_cache_hits\":" << sidecar_parse_cache_hits() << ","
+        << "\"sidecar_parse_cache_misses\":" << sidecar_parse_cache_misses() << ","
+        << "\"sidecar_parse_cache_job_hits\":" << (sidecar_parse_cache_hits() - sidecar_cache_hits_before) << ","
+        << "\"sidecar_parse_cache_job_misses\":" << (sidecar_parse_cache_misses() - sidecar_cache_misses_before) << ","
         << "\"process_working_set_bytes\":" << (memory.ok ? memory.working_set_bytes : 0ull) << ","
         << "\"process_private_bytes\":" << (memory.ok ? memory.private_bytes : 0ull) << ","
         << "\"service_job_count\":" << g_service_job_count << ","
