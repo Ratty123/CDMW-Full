@@ -247,7 +247,7 @@ def build_chainner_override_payload(config: NormalizedConfig) -> Optional[Dict[s
         "original_dds_root": str(config.original_dds_root),
         "png_root": str(config.png_root),
         "output_root": str(config.output_root),
-        "texconv_path": str(config.texconv_path),
+        "texconv_path": str(config.texconv_path or ""),
         "staging_png_root": str(config.dds_staging_root) if config.dds_staging_root is not None else "",
     }
     return substitute_chainner_tokens(payload, token_map)  # type: ignore[return-value]

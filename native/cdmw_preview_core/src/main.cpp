@@ -633,9 +633,13 @@ static size_t g_decoded_entry_cache_clock = 0;
 static std::uint64_t g_decoded_entry_cache_hits = 0;
 static std::uint64_t g_decoded_entry_cache_misses = 0;
 static std::uint64_t g_decoded_entry_cache_evictions = 0;
-static constexpr size_t kDecodedEntryCacheMaxEntries = 1024;
-static constexpr size_t kDecodedEntryCacheMaxBytes = 512ull * 1024ull * 1024ull;
-static constexpr size_t kDecodedEntryCacheMaxSingleBytes = 64ull * 1024ull * 1024ull;
+static std::uint64_t g_service_job_count = 0;
+static constexpr size_t kDecodedEntryCacheMaxEntries = 256;
+static constexpr size_t kDecodedEntryCacheMaxBytes = 128ull * 1024ull * 1024ull;
+static constexpr size_t kDecodedEntryCacheMaxSingleBytes = 32ull * 1024ull * 1024ull;
+static constexpr size_t kDecodedEntryCacheRecycleBytes = 96ull * 1024ull * 1024ull;
+static constexpr std::uint64_t kServiceMaxJobs = 8;
+static constexpr unsigned long long kServicePrivateRecycleBytes = 384ull * 1024ull * 1024ull;
 
 static size_t decoded_entry_cache_entries() {
     return g_decoded_entry_cache.size();
@@ -655,6 +659,19 @@ static std::uint64_t decoded_entry_cache_misses() {
 
 static std::uint64_t decoded_entry_cache_evictions() {
     return g_decoded_entry_cache_evictions;
+}
+
+static std::string service_recycle_reason(const cdmw_native_diag::ProcessMemorySnapshot& memory) {
+    if (g_service_job_count >= kServiceMaxJobs) {
+        return "job_count";
+    }
+    if (decoded_entry_cache_bytes() > kDecodedEntryCacheRecycleBytes) {
+        return "decoded_cache_bytes";
+    }
+    if (memory.ok && memory.private_bytes > kServicePrivateRecycleBytes) {
+        return "process_private_bytes";
+    }
+    return "";
 }
 
 static void prune_decoded_entry_cache() {
@@ -3428,6 +3445,8 @@ std::string preview_report_for_job(const fs::path& job_path) {
     }
     const double elapsed_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
+    const cdmw_native_diag::ProcessMemorySnapshot memory = cdmw_native_diag::current_process_memory();
+    const std::string recycle_reason = service_recycle_reason(memory);
     std::ostringstream out;
     out << "{"
         << "\"status\":\"" << json_escape(status) << "\","
@@ -3457,6 +3476,10 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"decoded_cache_job_hits\":" << (decoded_entry_cache_hits() - cache_hits_before) << ","
         << "\"decoded_cache_job_misses\":" << (decoded_entry_cache_misses() - cache_misses_before) << ","
         << "\"decoded_cache_job_evictions\":" << (decoded_entry_cache_evictions() - cache_evictions_before) << ","
+        << "\"process_working_set_bytes\":" << (memory.ok ? memory.working_set_bytes : 0ull) << ","
+        << "\"process_private_bytes\":" << (memory.ok ? memory.private_bytes : 0ull) << ","
+        << "\"service_job_count\":" << g_service_job_count << ","
+        << "\"service_recycle_reason\":\"" << json_escape(recycle_reason) << "\","
         << "\"elapsed_ms\":" << elapsed_ms << ","
         << "\"package_path\":\"" << json_escape(status == "ok" ? package.path.string() : "") << "\","
         << "\"fallback_reason\":\"" << json_escape(fallback_reason) << "\","
@@ -3492,9 +3515,28 @@ CommonArgs parse_common_args(int argc, char** argv) {
 
 int run_preview_job(const fs::path& job_path, const fs::path& report_path) {
     try {
-        cdmw_native_diag::event("preview_job_start", {{"job_path", cdmw_native_diag::path_to_utf8(job_path)}, {"report_path", cdmw_native_diag::path_to_utf8(report_path)}});
+        cdmw_native_diag::event(
+            "preview_job_start",
+            {
+                {"job_path", cdmw_native_diag::path_to_utf8(job_path)},
+                {"report_path", cdmw_native_diag::path_to_utf8(report_path)},
+                {"service_job_count", std::to_string(g_service_job_count)}
+            });
         write_text(report_path, preview_report_for_job(job_path));
-        cdmw_native_diag::event("preview_job_complete", {{"job_path", cdmw_native_diag::path_to_utf8(job_path)}, {"report_path", cdmw_native_diag::path_to_utf8(report_path)}});
+        const cdmw_native_diag::ProcessMemorySnapshot memory = cdmw_native_diag::current_process_memory();
+        cdmw_native_diag::event(
+            "preview_job_complete",
+            {
+                {"job_path", cdmw_native_diag::path_to_utf8(job_path)},
+                {"report_path", cdmw_native_diag::path_to_utf8(report_path)},
+                {"decoded_cache_entries", std::to_string(decoded_entry_cache_entries())},
+                {"decoded_cache_bytes", std::to_string(decoded_entry_cache_bytes())},
+                {"decoded_cache_hits", std::to_string(decoded_entry_cache_hits())},
+                {"decoded_cache_misses", std::to_string(decoded_entry_cache_misses())},
+                {"decoded_cache_evictions", std::to_string(decoded_entry_cache_evictions())},
+                {"service_job_count", std::to_string(g_service_job_count)},
+                {"service_recycle_reason", service_recycle_reason(memory)}
+            });
         return 0;
     } catch (const std::exception& exc) {
         std::ostringstream out;
@@ -3535,6 +3577,14 @@ int run_service() {
         const std::string job_path = extract_line_path(line, "job_path");
         const std::string report_path = extract_line_path(line, "report_path");
         if (!job_path.empty() && !report_path.empty()) {
+            ++g_service_job_count;
+            cdmw_native_diag::event(
+                "service_job_dispatch",
+                {
+                    {"job_path", job_path},
+                    {"report_path", report_path},
+                    {"service_job_count", std::to_string(g_service_job_count)}
+                });
             run_preview_job(fs::path(job_path), fs::path(report_path));
             try {
                 std::cout << read_text(fs::path(report_path)) << std::endl;

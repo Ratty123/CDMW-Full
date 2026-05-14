@@ -204,6 +204,11 @@ struct RendererStats {
     double geometry_ms = 0.0;
     double texture_ms = 0.0;
     double first_frame_ms = 0.0;
+    int texture_cache_entries = 0;
+    int texture_cache_releases = 0;
+    std::uint64_t estimated_texture_bytes = 0;
+    std::uint64_t process_working_set_bytes = 0;
+    std::uint64_t process_private_bytes = 0;
     std::vector<std::string> skipped;
 };
 
@@ -211,6 +216,7 @@ struct TextureLoadInfo {
     std::string format_name;
     size_t width = 0;
     size_t height = 0;
+    size_t bytes = 0;
 };
 
 struct ViewSettings {
@@ -831,9 +837,29 @@ static std::string loaded_payload(const RendererStats& stats) {
            << "\"texture_bind_ms\":" << stats.texture_ms << ","
            << "\"geometry_upload_ms\":" << stats.geometry_ms << ","
            << "\"first_frame_ms\":" << stats.first_frame_ms << ","
+           << "\"texture_cache_entries\":" << stats.texture_cache_entries << ","
+           << "\"texture_cache_releases\":" << stats.texture_cache_releases << ","
+           << "\"estimated_texture_bytes\":" << stats.estimated_texture_bytes << ","
+           << "\"process_working_set_bytes\":" << stats.process_working_set_bytes << ","
+           << "\"process_private_bytes\":" << stats.process_private_bytes << ","
            << "\"skipped\":" << skipped_json(stats.skipped)
            << "}";
     return loaded.str();
+}
+
+static std::string cleared_payload(const RendererStats& stats) {
+    std::ostringstream out;
+    out << "{"
+        << "\"event\":\"cleared\","
+        << "\"backend\":\"D3D11\","
+        << "\"message\":\"Native D3D11 preview cleared\","
+        << "\"texture_cache_entries\":" << stats.texture_cache_entries << ","
+        << "\"texture_cache_releases\":" << stats.texture_cache_releases << ","
+        << "\"estimated_texture_bytes\":" << stats.estimated_texture_bytes << ","
+        << "\"process_working_set_bytes\":" << stats.process_working_set_bytes << ","
+        << "\"process_private_bytes\":" << stats.process_private_bytes
+        << "}";
+    return out.str();
 }
 
 static HRESULT compile_shader(const char* source, const char* entry, const char* target, ID3DBlob** blob, std::string& error_text) {
@@ -1022,6 +1048,12 @@ public:
     Renderer(HWND hwnd, const Args& args, std::vector<PreviewBatch> batches, RendererStats& stats, ViewSettings view_settings, RenderTuning render_tuning)
         : hwnd_(hwnd), args_(args), batches_(std::move(batches)), stats_(stats), view_settings_(view_settings), render_tuning_(render_tuning) {}
 
+    ~Renderer() {
+        if (!batches_.empty() || !srv_cache_.empty() || !texture_info_cache_.empty() || estimated_texture_bytes_ > 0) {
+            release_model_resources("destructor");
+        }
+    }
+
     bool initialize() {
         RECT rect{};
         GetClientRect(hwnd_, &rect);
@@ -1060,6 +1092,43 @@ public:
         return create_render_targets() && create_pipeline() && upload_batches();
     }
 
+    void release_model_resources(const char* reason) {
+        const std::string reason_text = reason && reason[0] ? reason : "release";
+        const size_t released_batches = batches_.size();
+        const size_t released_srv_entries = srv_cache_.size();
+        const size_t released_texture_info_entries = texture_info_cache_.size();
+        const std::uint64_t released_texture_bytes = estimated_texture_bytes_;
+
+        if (context_) {
+            ID3D11ShaderResourceView* null_srvs[9] = {};
+            context_->PSSetShaderResources(0, 9, null_srvs);
+            ID3D11Buffer* null_vertex_buffer = nullptr;
+            UINT stride = 0;
+            UINT offset = 0;
+            context_->IASetVertexBuffers(0, 1, &null_vertex_buffer, &stride, &offset);
+            context_->Flush();
+        }
+        batches_.clear();
+        srv_cache_.clear();
+        texture_info_cache_.clear();
+        estimated_texture_bytes_ = 0;
+        if (released_batches || released_srv_entries || released_texture_info_entries || released_texture_bytes) {
+            ++texture_cache_releases_;
+        }
+        stats_ = RendererStats{};
+        update_runtime_stats();
+        cdmw_native_diag::event(
+            "model_resources_released",
+            {
+                {"reason", reason_text},
+                {"released_batches", std::to_string(released_batches)},
+                {"released_texture_cache_entries", std::to_string(released_srv_entries)},
+                {"released_texture_info_entries", std::to_string(released_texture_info_entries)},
+                {"released_estimated_texture_bytes", std::to_string(released_texture_bytes)},
+                {"texture_cache_releases", std::to_string(texture_cache_releases_)}
+            });
+    }
+
     bool load_package(const fs::path& package_dir, const fs::path& status_file, bool reset_view_state) {
         if (package_dir.empty() || !fs::is_directory(package_dir)) {
             write_status(status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"preview package directory is missing\"}");
@@ -1079,6 +1148,7 @@ public:
         ViewSettings next_view_settings = parse_view_settings(manifest);
         RenderTuning next_render_tuning = parse_render_tuning(manifest);
         next_stats.manifest_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+        release_model_resources("reload");
         batches_ = std::move(next_batches);
         stats_ = next_stats;
         view_settings_ = next_view_settings;
@@ -1105,6 +1175,7 @@ public:
             cdmw_native_diag::event("package_load_error", {{"reason", "upload failed"}, {"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)}});
             return false;
         }
+        update_runtime_stats();
         write_status(args_.status_file, loaded_payload(stats_));
         cdmw_native_diag::event(
             "package_loaded",
@@ -1113,7 +1184,9 @@ public:
                 {"batches", std::to_string(stats_.batch_count)},
                 {"vertices", std::to_string(stats_.vertex_count)},
                 {"dds_uploaded_base", std::to_string(stats_.dds_uploaded.base)},
-                {"png_fallback", std::to_string(stats_.png_fallback)}
+                {"png_fallback", std::to_string(stats_.png_fallback)},
+                {"texture_cache_entries", std::to_string(stats_.texture_cache_entries)},
+                {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)}
             });
         return true;
     }
@@ -1122,8 +1195,7 @@ public:
         if (!status_file.empty()) {
             args_.status_file = status_file;
         }
-        batches_.clear();
-        stats_ = RendererStats{};
+        release_model_resources("clear");
         pending_package_dir_.clear();
         pending_status_file_.clear();
         pending_reset_view_ = false;
@@ -1143,8 +1215,15 @@ public:
         if (hwnd_) {
             InvalidateRect(hwnd_, nullptr, FALSE);
         }
-        write_status(args_.status_file, "{\"event\":\"cleared\",\"backend\":\"D3D11\",\"message\":\"Native D3D11 preview cleared\"}");
-        cdmw_native_diag::event("preview_cleared", {{"status_file", cdmw_native_diag::path_to_utf8(args_.status_file)}});
+        update_runtime_stats();
+        write_status(args_.status_file, cleared_payload(stats_));
+        cdmw_native_diag::event(
+            "preview_cleared",
+            {
+                {"status_file", cdmw_native_diag::path_to_utf8(args_.status_file)},
+                {"texture_cache_entries", std::to_string(stats_.texture_cache_entries)},
+                {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)}
+            });
         return true;
     }
 
@@ -1345,6 +1424,7 @@ public:
         if (!first_frame_reported_) {
             stats_.first_frame_ms = std::chrono::duration<double, std::milli>(
                 std::chrono::steady_clock::now() - first_frame_timer_).count();
+            update_runtime_stats();
             write_status(args_.status_file, loaded_payload(stats_));
             first_frame_reported_ = true;
             cdmw_native_diag::event(
@@ -1352,7 +1432,9 @@ public:
                 {
                     {"first_frame_ms", std::to_string(stats_.first_frame_ms)},
                     {"batches", std::to_string(stats_.batch_count)},
-                    {"vertices", std::to_string(stats_.vertex_count)}
+                    {"vertices", std::to_string(stats_.vertex_count)},
+                    {"texture_cache_entries", std::to_string(stats_.texture_cache_entries)},
+                    {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)}
                 });
         }
     }
@@ -1369,6 +1451,17 @@ public:
     }
 
 private:
+    void update_runtime_stats() {
+        stats_.texture_cache_entries = static_cast<int>(srv_cache_.size());
+        stats_.texture_cache_releases = texture_cache_releases_;
+        stats_.estimated_texture_bytes = estimated_texture_bytes_;
+        const cdmw_native_diag::ProcessMemorySnapshot memory = cdmw_native_diag::current_process_memory();
+        if (memory.ok) {
+            stats_.process_working_set_bytes = memory.working_set_bytes;
+            stats_.process_private_bytes = memory.private_bytes;
+        }
+    }
+
     static float current_display_scale(float distance) {
         return std::max(0.1f, kFitDistance / std::max(distance, 0.01f));
     }
@@ -2138,6 +2231,18 @@ private:
             send_json_event("{\"event\":\"command_result\",\"command\":\"clear_preview\",\"ok\":true}");
             return true;
         }
+        if (command == "set_display_mode") {
+            std::string mode = lower_copy(json_string_field(payload, "mode", display_mode_));
+            if (mode != "side_by_side" && mode != "overlay" && mode != "replacement_only") {
+                mode = "replacement_only";
+            }
+            display_mode_ = mode;
+            cdmw_native_diag::event("command_set_display_mode", {{"mode", display_mode_}});
+            std::ostringstream event;
+            event << "{\"event\":\"display_mode\",\"mode\":\"" << json_escape(display_mode_) << "\"}";
+            send_json_event(event.str());
+            return true;
+        }
         if (command == "set_highlights") {
             std::set<int> highlighted;
             for (int value : json_int_array_field(payload, "source_submesh_indices")) {
@@ -2475,6 +2580,7 @@ private:
         }
         stats_.texture_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - texture_start).count();
+        update_runtime_stats();
         cdmw_native_diag::event(
             "upload_batches",
             {
@@ -2487,6 +2593,9 @@ private:
                 {"dds_material", std::to_string(stats_.dds_uploaded.material)},
                 {"dds_height", std::to_string(stats_.dds_uploaded.height)},
                 {"png_fallback", std::to_string(stats_.png_fallback)},
+                {"texture_cache_entries", std::to_string(stats_.texture_cache_entries)},
+                {"texture_cache_releases", std::to_string(stats_.texture_cache_releases)},
+                {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)},
                 {"skipped", std::to_string(stats_.skipped.size())}
             });
         return true;
@@ -2573,8 +2682,10 @@ private:
             loaded_info.format_name = dxgi_format_name(metadata.format);
             loaded_info.width = metadata.width;
             loaded_info.height = metadata.height;
+            loaded_info.bytes = image.GetPixelsSize();
             srv_cache_[cache_key] = target;
             texture_info_cache_[cache_key] = loaded_info;
+            estimated_texture_bytes_ += static_cast<std::uint64_t>(loaded_info.bytes);
             if (info) {
                 *info = loaded_info;
             }
@@ -2598,6 +2709,7 @@ private:
     float pan_x_ = 0.0f;
     float pan_y_ = 0.0f;
     float pan_z_ = 0.0f;
+    std::string display_mode_ = "replacement_only";
     AlignmentState alignment_;
     SourcePartInteractionState source_part_;
     MeshEditState mesh_edit_;
@@ -2624,6 +2736,8 @@ private:
     ComPtr<ID3D11DepthStencilState> depth_state_;
     std::map<std::wstring, ComPtr<ID3D11ShaderResourceView>> srv_cache_;
     std::map<std::wstring, TextureLoadInfo> texture_info_cache_;
+    int texture_cache_releases_ = 0;
+    std::uint64_t estimated_texture_bytes_ = 0;
     fs::path pending_package_dir_;
     fs::path pending_status_file_;
     bool pending_reset_view_ = false;
@@ -2748,6 +2862,7 @@ static int run_host(const Args& args) {
             renderer.render();
         }
     }
+    renderer.release_model_resources("shutdown");
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
     write_status(args.status_file, "{\"event\":\"closed\",\"backend\":\"D3D11\"}");
     cdmw_native_diag::event("clean_shutdown");

@@ -3435,7 +3435,7 @@ def _collect_texture_preview_sample(image_path: Path) -> Optional[TexturePreview
     )
 
 
-def _preview_sample_for_unknown_dds(texconv_path: Path, dds_path: Path, texture_type: str) -> Optional[TexturePreviewSample]:
+def _preview_sample_for_unknown_dds(texconv_path: Optional[Path], dds_path: Path, texture_type: str) -> Optional[TexturePreviewSample]:
     if texture_type != "unknown":
         return None
     try:
@@ -4122,11 +4122,29 @@ def build_staging_png_command(
 
 
 def ensure_dds_preview_png(
-    texconv_path: Path,
+    texconv_path: Optional[Path],
     dds_path: Path,
     *,
     stop_event: Optional[threading.Event] = None,
 ) -> Path:
+    try:
+        from cdmw.core.texture_native import ensure_native_dds_preview_png
+
+        native_preview = ensure_native_dds_preview_png(
+            dds_path.resolve(),
+            max_dimension=4096,
+            slot_kind="base",
+            normal_space="auto",
+        )
+        if native_preview is not None:
+            return native_preview
+    except Exception:
+        native_preview = None
+
+    if texconv_path is None:
+        raise ValueError(
+            f"DirectXTex native DDS preview is unavailable and no optional texconv fallback was provided for {dds_path.name}."
+        )
     stat = dds_path.stat()
     texconv_stat = texconv_path.stat()
     cache_key = hashlib.sha256(
@@ -4213,7 +4231,7 @@ def _preview_resize_dimensions(
 
 
 def ensure_dds_display_preview_png(
-    texconv_path: Path,
+    texconv_path: Optional[Path],
     dds_path: Path,
     *,
     dds_info: Optional[DdsInfo] = None,
@@ -4245,6 +4263,10 @@ def ensure_dds_display_preview_png(
             return native_preview
     except Exception:
         native_preview = None
+    if texconv_path is None:
+        raise ValueError(
+            f"DirectXTex native DDS display preview is unavailable and no optional texconv fallback was provided for {dds_path.name}."
+        )
     if resolved_info is None:
         preview_path = ensure_dds_preview_png(texconv_path, dds_path, stop_event=stop_event)
         try:
@@ -4397,7 +4419,6 @@ def stage_dds_to_pngs(
                 on_phase_progress(index, total, f"{index} / {total} DDS staging files")
             continue
 
-        cmd = build_staging_png_command(config.texconv_path, dds_path, target_dir, entry)
         if config.dry_run:
             if on_log:
                 on_log(
@@ -4406,22 +4427,34 @@ def stage_dds_to_pngs(
                 )
         else:
             try:
-                return_code, stdout, stderr, elapsed_seconds = _run_texture_workflow_texconv(
-                    cmd,
-                    detail_label=f"[{index}/{total}] STAGE {rel_display}",
-                    on_log=on_log,
+                stage_started = time.perf_counter()
+                dds_info = None
+                try:
+                    dds_info = parse_dds(dds_path)
+                except Exception:
+                    dds_info = None
+                preview_path = ensure_dds_display_preview_png(
+                    config.texconv_path,
+                    dds_path,
+                    dds_info=dds_info,
+                    max_dimension=0,
                     stop_event=stop_event,
                 )
-            except ProcessTimeoutExpired as exc:
+                if Path(preview_path).resolve() != target_png.resolve():
+                    shutil.copy2(preview_path, target_png)
+                elapsed_seconds = time.perf_counter() - stage_started
+                backend = "directxtex_decode"
+                try:
+                    from cdmw.core.texture_native import read_native_texture_report_sidecar
+
+                    report = read_native_texture_report_sidecar(Path(preview_path))
+                    backend = str(report.get("backend") or backend)
+                except Exception:
+                    pass
+            except RunCancelled:
+                raise
+            except Exception as exc:
                 detail = str(exc)
-                failures[rel_display] = detail
-                if on_log:
-                    on_log(f"[{index}/{total}] STAGE FAIL {rel_display} -> {detail}")
-                if on_phase_progress:
-                    on_phase_progress(index, total, f"{index} / {total} DDS staging files")
-                continue
-            if return_code != 0:
-                detail = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
                 failures[rel_display] = detail
                 if on_log:
                     on_log(f"[{index}/{total}] STAGE FAIL {rel_display} -> {detail}")
@@ -4433,7 +4466,7 @@ def stage_dds_to_pngs(
             except OSError:
                 produced_size = 0
             if produced_size <= 0:
-                detail = f"texconv reported success but did not produce expected staging PNG: {target_png}"
+                detail = f"DDS preview backend did not produce expected staging PNG: {target_png}"
                 failures[rel_display] = detail
                 if on_log:
                     on_log(f"[{index}/{total}] STAGE FAIL {rel_display} -> {detail}")
@@ -4449,7 +4482,7 @@ def stage_dds_to_pngs(
             if on_log:
                 on_log(
                     f"[{index}/{total}] STAGE {rel_display} -> "
-                    f"{_staging_png_format_for_plan(entry)} staging PNG in {elapsed_seconds:.1f}s "
+                    f"{_staging_png_format_for_plan(entry)} staging PNG with {backend} in {elapsed_seconds:.1f}s "
                     f"({produced_size:,} bytes)"
                 )
         if on_phase_progress:
@@ -4466,9 +4499,6 @@ def build_compare_preview_pane_result(
     *,
     stop_event: Optional[threading.Event] = None,
 ) -> ComparePreviewPaneResult:
-    if texconv_path is None:
-        return ComparePreviewPaneResult(status="missing", message="Set texconv.exe to enable DDS previews.")
-
     if dds_path is None or not dds_path.exists():
         return ComparePreviewPaneResult(status="missing", message=missing_message)
 
@@ -4483,7 +4513,7 @@ def build_compare_preview_pane_result(
         if planner_summary.strip():
             metadata_summary = f"{metadata_summary} | {planner_summary.strip()}"
         preview_png = ensure_dds_display_preview_png(
-            texconv_path.resolve(),
+            texconv_path.resolve() if texconv_path is not None and texconv_path.is_file() else None,
             dds_path.resolve(),
             dds_info=dds_info,
             stop_event=stop_event,
@@ -4543,7 +4573,7 @@ def normalize_config_for_planning(config: AppConfig) -> NormalizedConfig:
     texture_editor_png_root = normalize_optional_path(getattr(config, "texture_editor_png_root", ""))
     output_root = normalize_required_path(config.output_root, "Output root")
     dds_staging_root = normalize_optional_path(config.dds_staging_root)
-    texconv_path = normalize_optional_path(config.texconv_path) or Path(str(config.texconv_path).strip() or ".").expanduser().resolve()
+    texconv_path = normalize_optional_path(config.texconv_path)
     csv_log_path = normalize_optional_path(config.csv_log_path) if config.csv_log_enabled else None
     chainner_exe_path = normalize_optional_path(config.chainner_exe_path)
     chainner_chain_path = normalize_optional_path(config.chainner_chain_path)
@@ -4633,10 +4663,7 @@ def normalize_config(config: AppConfig, *, validate_backend_runtime: bool = True
     ):
         ensure_existing_dir(png_root, "PNG root")
     output_root = normalize_required_path(config.output_root, "Output root")
-    texconv_path = ensure_existing_file(
-        normalize_required_path(config.texconv_path, "texconv.exe path"),
-        "texconv.exe path",
-    )
+    texconv_path = normalize_optional_path(config.texconv_path)
 
     csv_log_path: Optional[Path] = None
     if config.csv_log_enabled:
@@ -4895,10 +4922,7 @@ def convert_dds_to_pngs(
         "Original DDS root",
     )
     png_root = normalize_required_path(config.png_root, "PNG root")
-    texconv_path = ensure_existing_file(
-        normalize_required_path(config.texconv_path, "texconv.exe path"),
-        "texconv.exe path",
-    )
+    texconv_path = normalize_optional_path(config.texconv_path)
     include_filters = parse_filter_patterns(config.include_filters)
     csv_log_path = normalize_optional_path(config.csv_log_path) if config.csv_log_enabled else None
     if config.csv_log_enabled and csv_log_path is None:
@@ -5001,7 +5025,6 @@ def convert_dds_to_pngs(
                 emit_phase_progress(index, total, f"{index} / {total} DDS files")
                 continue
 
-            cmd = build_preview_png_command(texconv_path, dds_path, target_dir)
             action = "DRYRUN" if config.dry_run else "CONVERT"
             emit_log(f"[{index}/{total}] {action} {rel_display} -> {target_png.relative_to(png_root).as_posix()}")
 
@@ -5011,29 +5034,37 @@ def convert_dds_to_pngs(
                     status = "dry-run"
                     note = "planned DDS to PNG conversion"
                 else:
-                    return_code, stdout, stderr, elapsed_seconds = _run_texture_workflow_texconv(
-                        cmd,
-                        detail_label=f"[{index}/{total}] CONVERT {rel_display}",
-                        on_log=on_log,
+                    preview_started = time.perf_counter()
+                    preview_path = ensure_dds_display_preview_png(
+                        texconv_path,
+                        dds_path,
+                        dds_info=dds_info,
+                        max_dimension=0,
                         stop_event=stop_event,
                     )
-                    if return_code != 0:
+                    if Path(preview_path).resolve() != target_png.resolve():
+                        shutil.copy2(preview_path, target_png)
+                    try:
+                        produced_size = target_png.stat().st_size
+                    except OSError:
+                        produced_size = 0
+                    if produced_size <= 0:
                         failed += 1
                         status = "failed"
-                        note = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
+                        note = f"DDS preview backend did not produce expected PNG: {target_png}"
                     else:
+                        converted += 1
+                        status = "converted"
+                        report = {}
                         try:
-                            produced_size = target_png.stat().st_size
-                        except OSError:
-                            produced_size = 0
-                        if produced_size <= 0:
-                            failed += 1
-                            status = "failed"
-                            note = f"texconv reported success but did not produce expected PNG: {target_png}"
-                        else:
-                            converted += 1
-                            status = "converted"
-                            note = f"DDS converted to PNG in {elapsed_seconds:.1f}s ({produced_size:,} bytes)"
+                            from cdmw.core.texture_native import read_native_texture_report_sidecar
+
+                            report = read_native_texture_report_sidecar(Path(preview_path))
+                        except Exception:
+                            report = {}
+                        backend = str(report.get("backend") or "directxtex_decode")
+                        elapsed_seconds = time.perf_counter() - preview_started
+                        note = f"DDS converted to PNG with {backend} in {elapsed_seconds:.1f}s ({produced_size:,} bytes)"
 
                 results.append(
                     JobResult(
@@ -5882,18 +5913,6 @@ def rebuild_dds_files(
                     continue
 
                 target_dir.mkdir(parents=True, exist_ok=True)
-                cmd = build_texconv_command(
-                    texconv_path=normalized.texconv_path,
-                    png_path=png_path,
-                    output_dir=target_dir,
-                    fmt=output_settings.texconv_format,
-                    mips=output_settings.mip_count,
-                    resize_width=output_settings.width if output_settings.resize_to_dimensions else None,
-                    resize_height=output_settings.height if output_settings.resize_to_dimensions else None,
-                    overwrite_existing_dds=normalized.overwrite_existing_dds,
-                    color_args=output_settings.texconv_color_args,
-                    extra_args=output_settings.texconv_extra_args,
-                )
 
                 action = "DRYRUN" if normalized.dry_run else "BUILD"
                 emit_log(
@@ -5929,6 +5948,45 @@ def rebuild_dds_files(
                             )
                             save_incremental_manifest(manifest_path, manifest_entries)
                     else:
+                        if normalized.texconv_path is None:
+                            failed += 1
+                            status = "failed"
+                            detail = (
+                                "DirectXTex native batch encode did not produce this DDS and no optional "
+                                "legacy texconv fallback is configured."
+                            )
+                            notes.append(detail)
+                            note = "; ".join(notes)
+                            emit_log(f"[{index}/{total}] FAIL {rel_display} -> {detail}")
+                            results.append(
+                                JobResult(
+                                    original_dds=str(dds_path),
+                                    png=str(png_path),
+                                    output_dir=str(target_dir),
+                                    width=output_settings.width,
+                                    height=output_settings.height,
+                                    original_mips=dds_info.mip_count,
+                                    used_mips=output_settings.mip_count,
+                                    texconv_format=output_settings.texconv_format,
+                                    status=status,
+                                    note=note,
+                                )
+                            )
+                            emit_progress(index, total, converted, skipped, failed)
+                            emit_phase_progress(index, total, f"{index} / {total} DDS files")
+                            continue
+                        cmd = build_texconv_command(
+                            texconv_path=normalized.texconv_path,
+                            png_path=png_path,
+                            output_dir=target_dir,
+                            fmt=output_settings.texconv_format,
+                            mips=output_settings.mip_count,
+                            resize_width=output_settings.width if output_settings.resize_to_dimensions else None,
+                            resize_height=output_settings.height if output_settings.resize_to_dimensions else None,
+                            overwrite_existing_dds=normalized.overwrite_existing_dds,
+                            color_args=output_settings.texconv_color_args,
+                            extra_args=output_settings.texconv_extra_args,
+                        )
                         return_code, stdout, stderr, elapsed_seconds = _run_texture_workflow_texconv(
                             cmd,
                             detail_label=f"[{index}/{total}] BUILD {rel_display}",

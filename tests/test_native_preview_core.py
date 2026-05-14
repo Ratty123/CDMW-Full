@@ -9,6 +9,10 @@ from unittest.mock import patch
 from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings
 from cdmw.rendering import native_preview_core
 from cdmw.rendering.native_preview_core import (
+    NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES,
+    NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS,
+    NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES,
+    NativePreviewCoreServiceClient,
     build_native_preview_core_job,
     run_native_preview_core_preview_job,
 )
@@ -25,6 +29,38 @@ def _entry() -> ArchiveEntry:
         flags=0,
         paz_index=1,
     )
+
+
+class _FakeServiceStdin:
+    def __init__(self) -> None:
+        self.writes: list[str] = []
+
+    def write(self, value: str) -> int:
+        self.writes.append(value)
+        return len(value)
+
+    def flush(self) -> None:
+        return
+
+
+class _FakeServiceProcess:
+    def __init__(self) -> None:
+        self.stdin = _FakeServiceStdin()
+        self.stdout = object()
+        self.alive = True
+        self.killed = False
+
+    def poll(self) -> object:
+        return None if self.alive else 0
+
+    def wait(self, timeout: float | None = None) -> int:
+        del timeout
+        self.alive = False
+        return 0
+
+    def kill(self) -> None:
+        self.killed = True
+        self.alive = False
 
 
 class NativePreviewCoreTests(unittest.TestCase):
@@ -123,7 +159,112 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("material_output_quality", source_text)
         self.assertIn("decoded_cache_job_hits", source_text)
         self.assertIn("prune_decoded_entry_cache", source_text)
+        self.assertIn("kDecodedEntryCacheMaxEntries = 256", source_text)
+        self.assertIn("kDecodedEntryCacheMaxBytes = 128ull * 1024ull * 1024ull", source_text)
+        self.assertIn("kDecodedEntryCacheMaxSingleBytes = 32ull * 1024ull * 1024ull", source_text)
+        self.assertIn("kDecodedEntryCacheRecycleBytes = 96ull * 1024ull * 1024ull", source_text)
+        self.assertIn("kServiceMaxJobs = 8", source_text)
+        self.assertIn("kServicePrivateRecycleBytes = 384ull * 1024ull * 1024ull", source_text)
+        self.assertIn("process_private_bytes", source_text)
+        self.assertIn("service_recycle_reason", source_text)
         self.assertIn("_get_native_preview_core_service", Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8"))
+
+    def test_preview_core_service_recycles_after_job_count_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            client = NativePreviewCoreServiceClient(temp_path / "cdmw-preview-core.exe")
+            fake_process = _FakeServiceProcess()
+            active_report = [temp_path / "report.json"]
+
+            def fake_start(*_args, **_kwargs) -> None:
+                client._process = fake_process
+
+            def fake_read(*_args, **_kwargs) -> str:
+                active_report[0].write_text(
+                    json.dumps({"status": "ok", "decoded_cache_bytes": 0, "process_private_bytes": 0}),
+                    encoding="utf-8",
+                )
+                return '{"status":"ok"}'
+
+            with (
+                patch.object(client, "_start_locked", side_effect=fake_start),
+                patch.object(client, "_read_stdout_line_locked", side_effect=fake_read),
+            ):
+                for index in range(NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS):
+                    active_report[0] = temp_path / f"report_{index}.json"
+                    client.preview_job(temp_path / "job.json", active_report[0], timeout_seconds=0.5)
+
+            report = json.loads(active_report[0].read_text(encoding="utf-8"))
+            self.assertIsNone(client._process)
+            self.assertEqual("job_count", report["service_recycle_reason"])
+            self.assertEqual(NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS, report["service_job_count"])
+            self.assertTrue(any('"shutdown"' in write for write in fake_process.stdin.writes))
+
+    def test_preview_core_service_recycles_after_decoded_cache_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            client = NativePreviewCoreServiceClient(temp_path / "cdmw-preview-core.exe")
+            fake_process = _FakeServiceProcess()
+            report_path = temp_path / "report.json"
+
+            def fake_start(*_args, **_kwargs) -> None:
+                client._process = fake_process
+
+            def fake_read(*_args, **_kwargs) -> str:
+                report_path.write_text(
+                    json.dumps(
+                        {
+                            "status": "ok",
+                            "decoded_cache_bytes": NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES + 1,
+                            "process_private_bytes": 0,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return '{"status":"ok"}'
+
+            with (
+                patch.object(client, "_start_locked", side_effect=fake_start),
+                patch.object(client, "_read_stdout_line_locked", side_effect=fake_read),
+            ):
+                client.preview_job(temp_path / "job.json", report_path, timeout_seconds=0.5)
+
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertIsNone(client._process)
+            self.assertEqual("decoded_cache_bytes", report["service_recycle_reason"])
+
+    def test_preview_core_service_recycles_after_private_memory_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            client = NativePreviewCoreServiceClient(temp_path / "cdmw-preview-core.exe")
+            fake_process = _FakeServiceProcess()
+            report_path = temp_path / "report.json"
+
+            def fake_start(*_args, **_kwargs) -> None:
+                client._process = fake_process
+
+            def fake_read(*_args, **_kwargs) -> str:
+                report_path.write_text(
+                    json.dumps(
+                        {
+                            "status": "ok",
+                            "decoded_cache_bytes": 0,
+                            "process_private_bytes": NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES + 1,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return '{"status":"ok"}'
+
+            with (
+                patch.object(client, "_start_locked", side_effect=fake_start),
+                patch.object(client, "_read_stdout_line_locked", side_effect=fake_read),
+            ):
+                client.preview_job(temp_path / "job.json", report_path, timeout_seconds=0.5)
+
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertIsNone(client._process)
+            self.assertEqual("process_private_bytes", report["service_recycle_reason"])
 
     def test_archive_preview_worker_owns_native_preview_core_helpers(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")

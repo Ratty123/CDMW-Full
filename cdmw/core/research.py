@@ -2961,7 +2961,7 @@ def build_mip_analysis_detail(
         "",
         "What this result means:",
         "- This row compares one DDS file found in both Original DDS root and Output root.",
-        "- It checks header-level DDS settings first, then uses texconv previews when available for a safer visual check.",
+        "- It checks header-level DDS settings first, then uses DirectXTex/native previews when available for a safer visual check.",
         "",
         f"Texture semantic hint: {texture_type} ({confidence}% confidence, {reason})",
         f"Planner profile: {row.planner_profile or 'unavailable'}",
@@ -2979,36 +2979,27 @@ def build_mip_analysis_detail(
     size_summary, size_warnings = _compare_file_sizes(original_path, rebuilt_path)
     compare_warnings: List[str] = []
     detail_lines.extend(["", size_summary])
-    if texconv_path is not None and texconv_path.exists():
-        try:
-            original_preview = _collect_preview_stats(ensure_dds_preview_png(texconv_path, original_path))
-        except Exception as exc:
-            original_preview = None
-            detail_lines.append(f"Original preview: unavailable ({exc})")
-        else:
-            detail_lines.extend(["", *_format_preview_pair_section("Original preview", original_preview)])
-        try:
-            rebuilt_preview = _collect_preview_stats(ensure_dds_preview_png(texconv_path, rebuilt_path))
-        except Exception as exc:
-            rebuilt_preview = None
-            detail_lines.append(f"Rebuilt preview: unavailable ({exc})")
-        else:
-            detail_lines.extend(["", *_format_preview_pair_section("Rebuilt preview", rebuilt_preview)])
-        detail_lines.append("")
-        detail_lines.append("Preview comparison:")
-        compare_warnings = _compare_preview_stats(original_preview, rebuilt_preview)
-        if compare_warnings:
-            detail_lines.extend(f"- {warning}" for warning in compare_warnings)
-        else:
-            detail_lines.append("- No obvious preview drift detected.")
+    try:
+        original_preview = _collect_preview_stats(ensure_dds_preview_png(texconv_path if texconv_path is not None and texconv_path.exists() else None, original_path))
+    except Exception as exc:
+        original_preview = None
+        detail_lines.append(f"Original preview: unavailable ({exc})")
     else:
-        detail_lines.extend(
-            [
-                "",
-                "Preview comparison:",
-                "- texconv.exe is not available, so preview-based brightness/alpha/channel checks are disabled.",
-            ]
-        )
+        detail_lines.extend(["", *_format_preview_pair_section("Original preview", original_preview)])
+    try:
+        rebuilt_preview = _collect_preview_stats(ensure_dds_preview_png(texconv_path if texconv_path is not None and texconv_path.exists() else None, rebuilt_path))
+    except Exception as exc:
+        rebuilt_preview = None
+        detail_lines.append(f"Rebuilt preview: unavailable ({exc})")
+    else:
+        detail_lines.extend(["", *_format_preview_pair_section("Rebuilt preview", rebuilt_preview)])
+    detail_lines.append("")
+    detail_lines.append("Preview comparison:")
+    compare_warnings = _compare_preview_stats(original_preview, rebuilt_preview)
+    if compare_warnings:
+        detail_lines.extend(f"- {warning}" for warning in compare_warnings)
+    else:
+        detail_lines.append("- No obvious preview drift detected.")
 
     if original_path.exists() and rebuilt_path.exists():
         try:
@@ -3074,9 +3065,9 @@ def build_normal_validation_detail(
     if row.planner_preserve_reason:
         detail_lines.append(f"Planner preserve reason: {row.planner_preserve_reason}")
 
-    if texconv_path is not None and texconv_path.exists() and source_path.exists():
+    if source_path.exists():
         try:
-            preview_stats = _collect_preview_stats(ensure_dds_preview_png(texconv_path, source_path))
+            preview_stats = _collect_preview_stats(ensure_dds_preview_png(texconv_path if texconv_path is not None and texconv_path.exists() else None, source_path))
         except Exception as exc:
             preview_stats = None
             detail_lines.extend(["", f"Preview statistics: unavailable ({exc})"])
@@ -3103,7 +3094,7 @@ def build_normal_validation_detail(
             [
                 "",
                 "Preview statistics: unavailable.",
-                "- texconv.exe is not available or the source file is missing, so image-based normal checks are disabled.",
+                "- DirectXTex/native preview statistics are unavailable or the source file is missing, so image-based normal checks are disabled.",
             ]
         )
 
@@ -3238,32 +3229,32 @@ def analyze_mip_behavior(
                 warnings.append("Source format is precision-sensitive; the high-precision path reduces generic PNG loss risk, but careful review is still required.")
             else:
                 warnings.append("Source format is precision-sensitive; PNG intermediates can hide detail loss.")
-        if texconv_path is not None and texconv_path.exists():
-            original_preview: Optional[TexturePreviewStats]
-            rebuilt_preview: Optional[TexturePreviewStats]
-            try:
-                original_preview = _collect_preview_stats(ensure_dds_preview_png(texconv_path, original_path, stop_event=stop_event))
-            except Exception:
-                original_preview = None
-            try:
-                rebuilt_preview = _collect_preview_stats(ensure_dds_preview_png(texconv_path, rebuilt_path, stop_event=stop_event))
-            except Exception:
-                rebuilt_preview = None
-            warnings.extend(
-                warning
-                for warning in _compare_preview_stats(original_preview, rebuilt_preview)
-                if "preview could not be decoded for statistics" not in warning.lower()
-                and "preview statistics are unavailable for both files" not in warning.lower()
+        original_preview: Optional[TexturePreviewStats]
+        rebuilt_preview: Optional[TexturePreviewStats]
+        resolved_texconv = texconv_path if texconv_path is not None and texconv_path.exists() else None
+        try:
+            original_preview = _collect_preview_stats(ensure_dds_preview_png(resolved_texconv, original_path, stop_event=stop_event))
+        except Exception:
+            original_preview = None
+        try:
+            rebuilt_preview = _collect_preview_stats(ensure_dds_preview_png(resolved_texconv, rebuilt_path, stop_event=stop_event))
+        except Exception:
+            rebuilt_preview = None
+        warnings.extend(
+            warning
+            for warning in _compare_preview_stats(original_preview, rebuilt_preview)
+            if "preview could not be decoded for statistics" not in warning.lower()
+            and "preview statistics are unavailable for both files" not in warning.lower()
+        )
+        warnings.extend(
+            _texture_specific_preview_warnings(
+                relative_path_text,
+                original_preview,
+                rebuilt_preview,
+                family_members=family_members,
+                sidecar_texts=sidecar_texts,
             )
-            warnings.extend(
-                _texture_specific_preview_warnings(
-                    relative_path_text,
-                    original_preview,
-                    rebuilt_preview,
-                    family_members=family_members,
-                    sidecar_texts=sidecar_texts,
-                )
-            )
+        )
         warnings = _dedupe_preserve_order(warnings)
 
         rows.append(
@@ -3445,9 +3436,9 @@ def validate_normal_maps(
             except Exception:
                 pass
 
-        if texconv_path is not None and texconv_path.exists() and preview_stats_used < preview_stats_budget:
+        if preview_stats_used < preview_stats_budget:
             try:
-                preview_path = ensure_dds_preview_png(texconv_path, dds_path)
+                preview_path = ensure_dds_preview_png(texconv_path if texconv_path is not None and texconv_path.exists() else None, dds_path)
                 stats = _collect_preview_stats(preview_path)
                 if stats is not None:
                     preview_stats_used += 1
@@ -3555,9 +3546,9 @@ def detect_texture_atlases(
             score += 1
             signals.append("Dimensions align well to repeated tile cells.")
 
-        if texconv_path is not None and texconv_path.exists() and preview_grid_used < preview_grid_budget:
+        if preview_grid_used < preview_grid_budget:
             try:
-                preview_path = ensure_dds_preview_png(texconv_path, dds_path)
+                preview_path = ensure_dds_preview_png(texconv_path if texconv_path is not None and texconv_path.exists() else None, dds_path)
                 grid_signal = _estimate_grid_signal(preview_path)
                 preview_grid_used += 1
                 if grid_signal >= 8:

@@ -638,6 +638,28 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("first_frame", source)
         self.assertIn("native_unhandled_exception", Path("native/common/native_diagnostics.h").read_text(encoding="utf-8"))
 
+    def test_native_d3d11_host_releases_model_texture_caches(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        diagnostics_source = Path("native/common/native_diagnostics.h").read_text(encoding="utf-8")
+
+        self.assertIn("void release_model_resources", source)
+        self.assertIn("PSSetShaderResources(0, 9, null_srvs)", source)
+        self.assertIn("context_->Flush()", source)
+        self.assertIn("batches_.clear()", source)
+        self.assertIn("srv_cache_.clear()", source)
+        self.assertIn("texture_info_cache_.clear()", source)
+        self.assertIn('release_model_resources("reload")', source)
+        self.assertIn('release_model_resources("clear")', source)
+        self.assertIn('release_model_resources("shutdown")', source)
+        self.assertIn("model_resources_released", source)
+        self.assertIn("texture_cache_entries", source)
+        self.assertIn("texture_cache_releases", source)
+        self.assertIn("estimated_texture_bytes", source)
+        self.assertIn("process_working_set_bytes", source)
+        self.assertIn("process_private_bytes", source)
+        self.assertIn("GetProcessMemoryInfo", diagnostics_source)
+        self.assertIn("current_process_memory", diagnostics_source)
+
     def test_pyinstaller_includes_host_modules(self) -> None:
         source = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
 

@@ -22,6 +22,7 @@ dist/
 *.bak
 archive_cache/
 crash_reports/
+item_icon_library/
 
 .tmp_*/
 tmp_*/

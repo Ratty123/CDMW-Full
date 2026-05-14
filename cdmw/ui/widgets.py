@@ -11489,7 +11489,7 @@ _QUICK_START_HTML_ES = """
   <li>Crea una carpeta dedicada para la app y coloca alli el <b>.exe</b> portable para mantener juntos configuracion, cache, herramientas y workspace.</li>
   <li>Abre <b>Configuracion &gt; Ubicaciones de archivo</b> y define la ruta del juego/paquete de Crimson Desert. Usa deteccion automatica si aplica.</li>
   <li>Abre <b>Configuracion &gt; Setup</b> y haz clic en <b>Inicializar espacio</b>.</li>
-  <li>Descarga <b>texconv</b>, coloca <b>texconv.exe</b> bajo la carpeta tools del workspace y configura la ruta de texconv.</li>
+  <li>Usa las herramientas DirectXTex/native incluidas para DDS; <b>texconv.exe</b> queda como fallback legacy opcional.</li>
   <li>Define <b>Raiz DDS original</b>, <b>Raiz PNG</b> y <b>Raiz de salida</b>. Activa staging DDS solo si quieres una carpeta PNG previa al escalado.</li>
   <li>Elige un backend de escalado: desactivado, <b>Real-ESRGAN NCNN</b> directo o <b>chaiNNer</b>.</li>
   <li>Empieza con una politica de texturas segura y deja las reglas automaticas activadas para preservar mapas tecnicos riesgosos.</li>
@@ -11549,7 +11549,7 @@ _QUICK_START_HTML_DE = """
   <li>Erstelle einen eigenen Ordner fuer die App und lege die portable <b>.exe</b> dort ab, damit Konfiguration, Cache, Tools und Workspace zusammen bleiben.</li>
   <li>Oeffne <b>Einstellungen &gt; Archiv-Orte</b> und setze den Crimson-Desert-Spiel-/Paketpfad. Nutze Auto-Erkennung, wenn moeglich.</li>
   <li>Oeffne <b>Einstellungen &gt; Einrichtung</b> und klicke auf <b>Arbeitsbereich einrichten</b>.</li>
-  <li>Lade <b>texconv</b> herunter, lege <b>texconv.exe</b> im tools-Ordner des Workspace ab und konfiguriere den texconv-Pfad.</li>
+  <li>Nutze die gebuendelten DirectXTex/native-DDS-Tools; <b>texconv.exe</b> bleibt nur optionaler Legacy-Fallback.</li>
   <li>Setze <b>Original-DDS-Stamm</b>, <b>PNG-Stamm</b> und <b>Ausgabe-Stamm</b>. Aktiviere DDS-Staging nur fuer einen separaten PNG-Staging-Ordner.</li>
   <li>Waehle ein Upscaling-Backend: deaktiviert, direktes <b>Real-ESRGAN NCNN</b> oder <b>chaiNNer</b>.</li>
   <li>Starte mit einer sicheren Textur-Richtlinie und lasse automatische Regeln aktiv, damit riskante technische Maps erhalten bleiben.</li>
@@ -11610,7 +11610,7 @@ class QuickStartDialog(QDialog):
         layout.addWidget(title_label)
 
         intro_label = QLabel(
-            "Start by putting the portable EXE in its own app folder, setting the Crimson Desert game/package path in Settings > Archive Locations, then clicking Init Workspace. Configure texconv before judging DDS preview or rebuild failures."
+            "Start by putting the portable EXE in its own app folder, setting the Crimson Desert game/package path in Settings > Archive Locations, then clicking Init Workspace. DDS preview and rebuild use DirectXTex/native helpers first; texconv is optional legacy fallback."
         )
         intro_label.setObjectName("HintLabel")
         intro_label.setWordWrap(True)
@@ -11638,7 +11638,7 @@ class QuickStartDialog(QDialog):
               <li>Create or choose a dedicated folder for the app, then place the portable <b>.exe</b> there so config, cache, tools, and workspace folders stay together.</li>
               <li>Open <b>Settings &gt; Archive Locations</b> and set the Crimson Desert game/package path. Use <b>Auto-detect</b> if the game is in a common install location.</li>
               <li>Open <b>Settings &gt; Setup</b> and click <b>Init Workspace</b>.</li>
-              <li>Download <b>texconv</b> from the DirectXTex releases page, place <b>texconv.exe</b> under the workspace tools folder, then set <b>texconv.exe path</b>.</li>
+              <li>Use the bundled DirectXTex/native DDS tools. <b>texconv.exe</b> is optional legacy fallback only.</li>
               <li>Confirm <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. Enable DDS staging only if you want a separate pre-upscale PNG staging folder.</li>
               <li>Choose an upscaling backend in <b>Upscaling</b>: disabled, direct <b>Real-ESRGAN NCNN</b>, or <b>chaiNNer</b>.</li>
               <li>Keep a safer <b>Texture Policy</b> preset first and leave automatic rules enabled so risky technical DDS files are preserved instead of pushed through the visible PNG path.</li>

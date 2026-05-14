@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 #include <DbgHelp.h>
+#include <Psapi.h>
 
 #include <chrono>
 #include <filesystem>
@@ -12,6 +13,7 @@
 #include <utility>
 
 #pragma comment(lib, "Dbghelp.lib")
+#pragma comment(lib, "Psapi.lib")
 
 namespace cdmw_native_diag {
 namespace fs = std::filesystem;
@@ -21,6 +23,12 @@ inline fs::path g_diagnostic_log;
 inline std::string g_tool = "native";
 inline constexpr uintmax_t kMaxJsonlBytes = 5u * 1024u * 1024u;
 inline constexpr int kRotationCount = 3;
+
+struct ProcessMemorySnapshot {
+    bool ok = false;
+    unsigned long long working_set_bytes = 0;
+    unsigned long long private_bytes = 0;
+};
 
 inline std::string wide_to_utf8_diag(const std::wstring& text) {
     if (text.empty()) return "";
@@ -102,13 +110,34 @@ inline void append_jsonl(const fs::path& path, const std::string& line) {
     stream << line << "\n";
 }
 
+inline ProcessMemorySnapshot current_process_memory() {
+    PROCESS_MEMORY_COUNTERS_EX counters{};
+    counters.cb = sizeof(counters);
+    if (!GetProcessMemoryInfo(
+            GetCurrentProcess(),
+            reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters),
+            sizeof(counters))) {
+        return {};
+    }
+    ProcessMemorySnapshot snapshot;
+    snapshot.ok = true;
+    snapshot.working_set_bytes = static_cast<unsigned long long>(counters.WorkingSetSize);
+    snapshot.private_bytes = static_cast<unsigned long long>(counters.PrivateUsage);
+    return snapshot;
+}
+
 inline void event(const std::string& name, std::initializer_list<std::pair<std::string, std::string>> fields = {}) {
     if (g_diagnostic_log.empty()) return;
+    const ProcessMemorySnapshot memory = current_process_memory();
     std::ostringstream out;
     out << "{\"timestamp_ms\":" << epoch_ms()
         << ",\"pid\":" << static_cast<unsigned long>(GetCurrentProcessId())
         << ",\"tool\":\"" << json_escape_diag(g_tool) << "\""
         << ",\"event\":\"" << json_escape_diag(name) << "\"";
+    if (memory.ok) {
+        out << ",\"process_working_set_bytes\":" << memory.working_set_bytes
+            << ",\"process_private_bytes\":" << memory.private_bytes;
+    }
     for (const auto& field : fields) {
         out << ",\"" << json_escape_diag(field.first) << "\":\"" << json_escape_diag(field.second) << "\"";
     }

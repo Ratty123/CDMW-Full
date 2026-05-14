@@ -14,8 +14,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from cdmw.core.common import run_process_with_cancellation
-from cdmw.core.pipeline import build_preview_png_command, parse_dds
+from cdmw.core.pipeline import ensure_dds_display_preview_png, parse_dds
 from cdmw.core.upscale_profiles import infer_texture_semantics, is_technical_texture_type
 from cdmw.models import (
     DdsInfo,
@@ -101,19 +100,19 @@ def normalize_texture_editor_source_to_png(
     stem = output_stem.strip() or resolved.stem
     output_path = output_dir / f"{stem}.png"
     if suffix == ".dds":
-        if texconv_path is None or not texconv_path.exists():
-            raise ValueError("texconv.exe is required to open DDS files in Texture Editor.")
-        cmd = build_preview_png_command(texconv_path, resolved, output_dir)
-        return_code, stdout, stderr = run_process_with_cancellation(cmd, stop_event=None)
-        if return_code != 0:
-            detail = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
-            raise ValueError(f"Could not normalize DDS for Texture Editor: {detail}")
-        if output_path.exists():
-            return output_path
-        png_candidates = sorted(output_dir.glob("*.png"))
-        if not png_candidates:
-            raise ValueError(f"texconv did not create a PNG for {resolved.name}")
-        return png_candidates[0]
+        resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.exists() else None
+        preview_path = ensure_dds_display_preview_png(
+            resolved_texconv,
+            resolved,
+            dds_info=parse_dds(resolved),
+            max_dimension=0,
+        )
+        if Path(preview_path).expanduser().resolve() != output_path.expanduser().resolve():
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            import shutil
+
+            shutil.copy2(preview_path, output_path)
+        return output_path
     if suffix not in {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tga"}:
         raise ValueError(f"Unsupported texture source for Texture Editor: {resolved.suffix}")
     with Image.open(resolved) as image:

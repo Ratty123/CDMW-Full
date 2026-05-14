@@ -4217,7 +4217,7 @@ class ResearchTab(QWidget):
             f"- Output root: {output_root if output_root_text else '(not set)'}"
             + (" (available)" if output_exists else " (missing or not set)")
             + "\n"
-            f"- Mip Analysis rows: {mip_count:,} matching DDS file pair(s). Requires the same relative DDS path to exist in both roots. Uses texconv previews when available for alpha, brightness, range, and channel-drift checks.\n"
+            f"- Mip Analysis rows: {mip_count:,} matching DDS file pair(s). Requires the same relative DDS path to exist in both roots. Uses DirectXTex/native previews when available for alpha, brightness, range, and channel-drift checks.\n"
             f"- Planner path summary: {planner_path_summary}.\n"
             f"- Planner profile summary: {planner_profile_summary}.\n"
             f"- Bulk Normal Validator rows: {normal_count:,} normal-like DDS file(s). Current roots represented: {normal_root_summary}.\n"

@@ -127,7 +127,7 @@ class ModelPreviewSettingsDialog(QDialog):
         *,
         settings: Optional[ModelPreviewRenderSettings] = None,
         archive_performance_settings: Optional[ArchivePerformanceSettings] = None,
-        archive_renderer_backend: str = ARCHIVE_RENDERER_LEGACY_OPENGL,
+        archive_renderer_backend: str = ARCHIVE_RENDERER_D3D11,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)

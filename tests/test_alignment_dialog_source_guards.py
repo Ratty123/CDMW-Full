@@ -111,7 +111,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("ModelPreviewWidget.prepare_model_preview(", source)
         self.assertIn("def _alignment_d3d11_display_model", source)
         self.assertIn("def _side_by_side_alignment_preview_model", source)
-        self.assertIn("Native D3D11 accurate preview. Mesh edit brush/vertex strokes and alignment handles run in D3D11", source)
+        self.assertIn('legacy_preview_fallback_checkbox = QCheckBox("Legacy fallback")', source)
+        self.assertIn("Native D3D11 accurate preview. Movement, rotation, part hover/selection, brush/vertex strokes, and view modes run through D3D11.", source)
+        self.assertIn("alignment_d3d11_preview_host.set_display_mode(", source)
         self.assertIn("alignment_d3d11_preview_host.set_mesh_edit_state(", source)
         self.assertIn("alignment_d3d11_preview_host.set_alignment_state(", source)
         self.assertIn("alignment_d3d11_preview_host.alignment_drag_finished.connect(_commit_alignment_preview_translation)", source)
@@ -130,6 +132,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("std::vector<EditorCandidate> mesh_edit_candidates_at", native_source)
         self.assertIn("send_mesh_edit_event(\"mesh_edit_stroke_started\"", native_source)
         self.assertIn("send_mesh_edit_event(\"mesh_edit_stroke_previewed\"", native_source)
+        self.assertIn("command == \"set_display_mode\"", native_source)
         self.assertIn("source_vertex_weights", native_source)
         self.assertIn("identity_file", native_source)
 

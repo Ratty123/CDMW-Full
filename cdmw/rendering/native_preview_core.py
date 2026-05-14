@@ -17,6 +17,9 @@ from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, RunCancelled
 
 NATIVE_PREVIEW_CORE_BINARY_NAME = "cdmw-preview-core.exe" if os.name == "nt" else "cdmw-preview-core"
 NATIVE_PREVIEW_CORE_BACKEND_ID = "cdmw_preview_core_0.1"
+NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS = 8
+NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES = 96 * 1024 * 1024
+NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES = 384 * 1024 * 1024
 
 
 def _repo_root() -> Path:
@@ -124,11 +127,13 @@ class NativePreviewCoreServiceClient:
         self.diagnostic_log = Path(diagnostic_log) if diagnostic_log else None
         self._lock = threading.RLock()
         self._process: Optional[subprocess.Popen[str]] = None
+        self._jobs_completed = 0
 
     def shutdown(self) -> None:
         with self._lock:
             process = self._process
             self._process = None
+            self._jobs_completed = 0
             if process is None:
                 return
             try:
@@ -148,6 +153,7 @@ class NativePreviewCoreServiceClient:
     def _kill_locked(self) -> None:
         process = self._process
         self._process = None
+        self._jobs_completed = 0
         if process is None:
             return
         try:
@@ -189,6 +195,7 @@ class NativePreviewCoreServiceClient:
         process = self._process
         if process is not None and process.poll() is None:
             return
+        self._jobs_completed = 0
         command = [str(self.binary), "--service"]
         command.extend(_native_diagnostic_args(crash_dir=self.crash_dir, diagnostic_log=self.diagnostic_log))
         self._process = subprocess.Popen(
@@ -210,6 +217,46 @@ class NativePreviewCoreServiceClient:
         if str(ready.get("event") or "").strip().lower() != "ready":
             self._kill_locked()
             raise RuntimeError(f"native preview-core service did not become ready: {ready_line}")
+
+    @staticmethod
+    def _int_report_value(report: Mapping[str, Any], key: str) -> int:
+        try:
+            return int(report.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _read_report_for_recycle(self, report_path: Path) -> Dict[str, Any]:
+        try:
+            payload = json.loads(Path(report_path).read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        return dict(payload) if isinstance(payload, Mapping) else {}
+
+    def _recycle_reason_for_report(self, report: Mapping[str, Any]) -> str:
+        native_reason = str(report.get("service_recycle_reason") or "").strip()
+        if native_reason:
+            return native_reason
+        if self._jobs_completed >= NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS:
+            return "job_count"
+        if self._int_report_value(report, "decoded_cache_bytes") > NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES:
+            return "decoded_cache_bytes"
+        if self._int_report_value(report, "process_private_bytes") > NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES:
+            return "process_private_bytes"
+        return ""
+
+    def _mark_report_recycle_reason(self, report_path: Path, report: Mapping[str, Any], reason: str) -> None:
+        if not reason:
+            return
+        updated = dict(report)
+        updated["service_recycle_reason"] = reason
+        updated["service_job_count"] = max(
+            self._int_report_value(updated, "service_job_count"),
+            int(self._jobs_completed),
+        )
+        try:
+            Path(report_path).write_text(json.dumps(updated, separators=(",", ":")), encoding="utf-8")
+        except OSError:
+            pass
 
     def preview_job(
         self,
@@ -244,6 +291,12 @@ class NativePreviewCoreServiceClient:
             if response_status == "error" and not report_path.is_file():
                 message = str(response.get("message") or "native preview-core service returned an error")
                 raise RuntimeError(message)
+            self._jobs_completed += 1
+            report = self._read_report_for_recycle(report_path)
+            recycle_reason = self._recycle_reason_for_report(report)
+            if recycle_reason:
+                self._mark_report_recycle_reason(report_path, report, recycle_reason)
+                self.shutdown()
 
 
 _native_preview_core_service_lock = threading.RLock()
@@ -459,6 +512,9 @@ def run_native_preview_core_preview_job(
 __all__ = [
     "NATIVE_PREVIEW_CORE_BACKEND_ID",
     "NATIVE_PREVIEW_CORE_BINARY_NAME",
+    "NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES",
+    "NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS",
+    "NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES",
     "NativePreviewCoreAttempt",
     "archive_entry_to_native_preview_core_dict",
     "build_native_preview_core_job",

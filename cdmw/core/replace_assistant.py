@@ -24,12 +24,13 @@ from cdmw.core.mod_package import (
 from cdmw.core.pipeline import (
     _build_loose_sidecar_index,
     _collect_loose_sidecar_texts,
-    build_preview_png_command,
     build_texconv_command,
+    ensure_dds_display_preview_png,
     max_mips_for_size,
     parse_dds,
     read_png_dimensions,
 )
+from cdmw.core.texture_native import encode_dds_with_directxtex
 from cdmw.core.realesrgan_ncnn import (
     build_realesrgan_ncnn_command,
     parse_realesrgan_ncnn_extra_args,
@@ -485,7 +486,7 @@ def build_replace_assistant_preview_assets(
 
 
 def _normalize_edited_dds_to_png(
-    texconv_path: Path,
+    texconv_path: Optional[Path],
     source_path: Path,
     scratch_root: Path,
     *,
@@ -494,13 +495,21 @@ def _normalize_edited_dds_to_png(
 ) -> Path:
     output_dir = scratch_root / "dds_source_png"
     output_dir.mkdir(parents=True, exist_ok=True)
-    cmd = build_preview_png_command(texconv_path, source_path, output_dir)
     if on_log:
-        on_log(f"Normalizing edited DDS to PNG: {source_path}")
-    run_process_with_cancellation(cmd, stop_event=stop_event)
+        on_log(f"Normalizing edited DDS to PNG with DirectXTex/native path: {source_path}")
+    resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
+    preview_path = ensure_dds_display_preview_png(
+        resolved_texconv,
+        source_path,
+        dds_info=parse_dds(source_path),
+        max_dimension=0,
+        stop_event=stop_event,
+    )
     candidate = output_dir / f"{source_path.stem}.png"
+    if Path(preview_path).expanduser().resolve() != candidate.expanduser().resolve():
+        shutil.copy2(preview_path, candidate)
     if not candidate.exists():
-        raise ValueError(f"texconv did not create a normalized PNG for {source_path}")
+        raise ValueError(f"DDS preview backend did not create a normalized PNG for {source_path}")
     return candidate
 
 
@@ -508,7 +517,7 @@ def _prepare_processing_png(
     source_path: Path,
     *,
     source_kind: str,
-    texconv_path: Path,
+    texconv_path: Optional[Path],
     scratch_root: Path,
     target_stem: str,
     stop_event: Optional[threading.Event] = None,
@@ -754,25 +763,43 @@ def build_replace_assistant_package(
                     resize_height = None
                     resize_to_dimensions = False
                 mip_count = max_mips_for_size(output_width, output_height)
-                texconv_cmd = build_texconv_command(
-                    options.texconv_path,
-                    processed_png,
-                    output_dir,
-                    dds_info.texconv_format,
-                    mip_count,
-                    resize_width,
-                    resize_height,
-                    overwrite_existing_dds=True,
-                )
                 if on_log:
                     mode = "UPSCALE+REBUILD" if options.build_mode == "upscale_then_rebuild" else "REBUILD"
                     on_log(
                         f"[{index}/{total_items}] {mode} {original_rel.as_posix()} -> format={dds_info.texconv_format} "
                         f"mips={mip_count} output={output_width}x{output_height}"
                     )
-                run_process_with_cancellation(texconv_cmd, stop_event=stop_event)
-                built_items += 1
                 built_output_path = output_dir / f"{target_stem}.dds"
+                native_report = encode_dds_with_directxtex(
+                    processed_png,
+                    built_output_path,
+                    dds_format=dds_info.texconv_format,
+                    width=resize_width or 0,
+                    height=resize_height or 0,
+                    mip_count=mip_count,
+                    stop_event=stop_event,
+                )
+                if native_report and built_output_path.exists() and built_output_path.stat().st_size > 0:
+                    built_items += 1
+                    if on_log:
+                        on_log(f"[{index}/{total_items}] BUILT {original_rel.as_posix()} with DirectXTex native DDS encode")
+                else:
+                    if options.texconv_path is None:
+                        raise RuntimeError(
+                            "DirectXTex native DDS encode failed and no optional legacy texconv fallback is configured."
+                        )
+                    texconv_cmd = build_texconv_command(
+                        options.texconv_path,
+                        processed_png,
+                        output_dir,
+                        dds_info.texconv_format,
+                        mip_count,
+                        resize_width,
+                        resize_height,
+                        overwrite_existing_dds=True,
+                    )
+                    run_process_with_cancellation(texconv_cmd, stop_event=stop_event)
+                    built_items += 1
                 if built_output_path.exists():
                     review_items.append(
                         ReplaceAssistantReviewItem(

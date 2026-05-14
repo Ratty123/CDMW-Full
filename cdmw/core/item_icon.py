@@ -12,11 +12,12 @@ from PIL import Image
 
 from cdmw.core.common import run_process_with_cancellation
 from cdmw.core.pipeline import (
-    build_preview_png_command,
     build_texconv_command,
+    ensure_dds_display_preview_png,
     max_mips_for_size,
     parse_dds,
 )
+from cdmw.core.texture_native import encode_dds_with_directxtex
 
 
 ITEM_ICON_SOURCE_EXTENSIONS = {
@@ -214,19 +215,23 @@ def prepare_fit_pad_icon_png(source_path: Path, output_path: Path, width: int, h
     return source_width, source_height
 
 
-def _convert_dds_to_png(texconv_path: Path, dds_path: Path, output_dir: Path) -> Path:
-    cmd = build_preview_png_command(texconv_path, dds_path, output_dir)
-    return_code, stdout, stderr = run_process_with_cancellation(cmd)
-    if return_code != 0:
-        detail = stderr.strip() or stdout.strip() or f"texconv exited with code {return_code}"
-        raise RuntimeError(f"texconv failed while decoding {dds_path.name}: {detail}")
+def _copy_preview_to_output(preview_path: Path, output_path: Path) -> Path:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if preview_path.expanduser().resolve() != output_path.expanduser().resolve():
+        shutil.copy2(preview_path, output_path)
+    return output_path
+
+
+def _convert_dds_to_png(texconv_path: Optional[Path], dds_path: Path, output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    preview_path = ensure_dds_display_preview_png(
+        texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None,
+        dds_path,
+        dds_info=parse_dds(dds_path),
+        max_dimension=0,
+    )
     expected = output_dir / f"{dds_path.stem}.png"
-    if expected.is_file():
-        return expected
-    candidates = sorted(path for path in output_dir.glob("*.png") if path.is_file())
-    if candidates:
-        return candidates[0]
-    raise FileNotFoundError(f"texconv did not produce a PNG for {dds_path.name}")
+    return _copy_preview_to_output(Path(preview_path), expected)
 
 
 def _image_dimensions(path: Path) -> tuple[int, int]:
@@ -474,9 +479,8 @@ def build_item_icon_source_preview_png(
     source = source_path.expanduser().resolve()
     if source.suffix.lower() != ".dds":
         return source
-    if texconv_path is None or not texconv_path.expanduser().is_file():
-        raise FileNotFoundError("texconv.exe is required to preview a DDS item icon source.")
-    return _convert_dds_to_png(texconv_path.expanduser().resolve(), source, output_dir.expanduser())
+    resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
+    return _convert_dds_to_png(resolved_texconv, source, output_dir.expanduser())
 
 
 def build_item_icon_fit_pad_preview(
@@ -493,9 +497,8 @@ def build_item_icon_fit_pad_preview(
     with tempfile.TemporaryDirectory(prefix="cdmw_item_icon_preview_") as temp_text:
         temp_dir = Path(temp_text)
         if source.suffix.lower() == ".dds":
-            if texconv_path is None or not texconv_path.expanduser().is_file():
-                raise FileNotFoundError("texconv.exe is required to preview a DDS item icon source.")
-            working_source = _convert_dds_to_png(texconv_path.expanduser().resolve(), source, temp_dir / "decoded")
+            resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
+            working_source = _convert_dds_to_png(resolved_texconv, source, temp_dir / "decoded")
         source_dimensions = prepare_fit_pad_icon_png(working_source, output_path, target_info.width, target_info.height)
     return output_path, target_info, source_dimensions
 
@@ -566,10 +569,9 @@ def build_item_icon_payload(
                         target_mip_count=target_mip_count,
                         warnings=(),
                     )
-            if texconv_path is None or not texconv_path.expanduser().is_file():
-                raise FileNotFoundError("texconv.exe is required to convert a DDS custom icon source.")
-            working_source = _convert_dds_to_png(texconv_path.expanduser().resolve(), source_path, temp_dir / "decoded")
-            warnings.append(f"Decoded DDS custom icon source before fitting: {source_path.name}")
+            resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
+            working_source = _convert_dds_to_png(resolved_texconv, source_path, temp_dir / "decoded")
+            warnings.append(f"Decoded DDS custom icon source with DirectXTex/native path before fitting: {source_path.name}")
 
         prepared_png = temp_dir / f"{target_stem}.png"
         source_width, source_height = prepare_fit_pad_icon_png(
@@ -594,31 +596,44 @@ def build_item_icon_payload(
                 warnings=tuple(warnings),
             )
 
-        if texconv_path is None or not texconv_path.expanduser().is_file():
-            raise FileNotFoundError("texconv.exe is required to generate a DDS custom item icon.")
         output_dir = temp_dir / "dds"
         output_dir.mkdir(parents=True, exist_ok=True)
-        cmd = build_texconv_command(
-            texconv_path.expanduser().resolve(),
-            prepared_png,
-            output_dir,
-            target_format,
-            target_mip_count,
-            target_width,
-            target_height,
-            overwrite_existing_dds=True,
-        )
         _log(
             on_log,
             f"Generating custom item icon {source_path.name} -> {target_path} ({target_format}, {target_width}x{target_height}, {target_mip_count} mip(s)).",
         )
-        return_code, stdout, stderr = run_process_with_cancellation(cmd)
-        if return_code != 0:
-            detail = stderr.strip() or stdout.strip() or f"texconv exited with code {return_code}"
-            raise RuntimeError(f"texconv failed while generating custom item icon: {detail}")
         produced = output_dir / f"{prepared_png.stem}.dds"
+        native_report = encode_dds_with_directxtex(
+            prepared_png,
+            produced,
+            dds_format=target_format,
+            width=target_width,
+            height=target_height,
+            mip_count=target_mip_count,
+        )
+        if native_report and produced.is_file() and produced.stat().st_size > 0:
+            _log(on_log, "Generated custom item icon with DirectXTex native DDS encode.")
+        else:
+            if texconv_path is None or not texconv_path.expanduser().is_file():
+                raise FileNotFoundError(
+                    "DirectXTex native DDS encode failed and no optional legacy texconv fallback is configured."
+                )
+            cmd = build_texconv_command(
+                texconv_path.expanduser().resolve(),
+                prepared_png,
+                output_dir,
+                target_format,
+                target_mip_count,
+                target_width,
+                target_height,
+                overwrite_existing_dds=True,
+            )
+            return_code, stdout, stderr = run_process_with_cancellation(cmd)
+            if return_code != 0:
+                detail = stderr.strip() or stdout.strip() or f"texconv exited with code {return_code}"
+                raise RuntimeError(f"texconv fallback failed while generating custom item icon: {detail}")
         if not produced.is_file():
-            raise FileNotFoundError(f"texconv did not produce {produced.name}")
+            raise FileNotFoundError(f"DDS encoder did not produce {produced.name}")
         produced_info = parse_dds(produced)
         if (int(produced_info.width), int(produced_info.height)) != (target_width, target_height):
             warnings.append(

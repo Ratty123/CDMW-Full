@@ -29,6 +29,10 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("native_events_current.jsonl", source)
         self.assertIn("_runtime_event_ring = deque(maxlen=500)", source)
         self.assertIn("def _record_runtime_event", source)
+        self.assertIn("def _windows_process_memory_snapshot", source)
+        self.assertIn("process_memory", source)
+        self.assertIn("child_process_memory", source)
+        self.assertIn("preview_core_process_private_bytes", source)
         self.assertIn("def _rotate_runtime_event_logs", source)
         self.assertIn("def _set_last_active_operation", source)
         self.assertIn("def _check_previous_unclean_exit", source)
@@ -67,6 +71,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("last_active_operation", source)
         self.assertIn("d3d11_status_payload", source)
         self.assertIn("d3d11_process_state", source)
+        self.assertIn("d3d11_process_memory", source)
         self.assertIn("archive_isolated_package_worker_active", source)
 
     def test_close_waits_for_workers_asynchronously(self) -> None:

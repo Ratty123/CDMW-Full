@@ -4444,6 +4444,7 @@ def _build_texture_payload(
     texture_output_size_mode: str = "source",
 ) -> bytes:
     from cdmw.core.pipeline import build_texconv_command, max_mips_for_size, parse_dds, read_png_dimensions
+    from cdmw.core.texture_native import encode_dds_with_directxtex
     from cdmw.core.common import run_process_with_cancellation
 
     def _source_image_dimensions(path: Path) -> tuple[int, int]:
@@ -4473,12 +4474,9 @@ def _build_texture_payload(
                 f"DDS replacement {source_slot.source_path.name} differs from target template: {', '.join(mismatch_parts)}."
             )
         return source_slot.source_path.read_bytes()
-    if texconv_path is None or not texconv_path.expanduser().is_file():
-        raise FileNotFoundError("texconv.exe is required to convert image replacement textures to DDS.")
-
     original_source = original_texture_source_path(target_entry)
     original_info = parse_dds(original_source)
-    resolved_texconv = texconv_path.expanduser().resolve()
+    resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     with tempfile.TemporaryDirectory(prefix="cdmw_static_texture_") as temp_text:
         temp_dir = Path(temp_text)
         source_png = source_slot.source_path
@@ -4516,24 +4514,40 @@ def _build_texture_payload(
                     f"{source_png.name}: normal map output uses BC5_UNORM instead of template format {output_format}.",
                 )
                 output_format = "BC5_UNORM"
-        cmd = build_texconv_command(
-            resolved_texconv,
-            prepared_png,
-            out_dir,
-            output_format,
-            mip_count,
-            output_width,
-            output_height,
-            overwrite_existing_dds=True,
-        )
         if on_log:
             on_log(f"Converting {source_png.name} -> {getattr(target_entry, 'path', 'texture')} ({output_format})")
-        return_code, stdout, stderr = run_process_with_cancellation(cmd)
-        if return_code != 0:
-            raise RuntimeError(stderr.strip() or stdout.strip() or f"texconv exited with code {return_code}")
         produced = out_dir / f"{prepared_png.stem}.dds"
+        native_report = encode_dds_with_directxtex(
+            prepared_png,
+            produced,
+            dds_format=output_format,
+            width=output_width,
+            height=output_height,
+            mip_count=mip_count,
+        )
+        if native_report and produced.is_file() and produced.stat().st_size > 0:
+            if on_log:
+                on_log(f"Encoded {source_png.name} with DirectXTex native DDS encode.")
+        else:
+            if resolved_texconv is None:
+                raise FileNotFoundError(
+                    "DirectXTex native DDS encode failed and no optional legacy texconv fallback is configured."
+                )
+            cmd = build_texconv_command(
+                resolved_texconv,
+                prepared_png,
+                out_dir,
+                output_format,
+                mip_count,
+                output_width,
+                output_height,
+                overwrite_existing_dds=True,
+            )
+            return_code, stdout, stderr = run_process_with_cancellation(cmd)
+            if return_code != 0:
+                raise RuntimeError(stderr.strip() or stdout.strip() or f"texconv exited with code {return_code}")
         if not produced.is_file():
-            raise FileNotFoundError(f"texconv did not produce {produced.name}")
+            raise FileNotFoundError(f"DDS encoder did not produce {produced.name}")
         target_vpath = str(getattr(target_entry, "path", "") or "").replace("\\", "/").strip()
         _append_crimson_dds_validation_warnings(produced, vpath=target_vpath, report=report)
         return produced.read_bytes()

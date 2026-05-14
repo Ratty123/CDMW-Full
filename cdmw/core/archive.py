@@ -7747,7 +7747,9 @@ def _archive_entry_pathc_identity_signature(entry: ArchiveEntry) -> Tuple[object
         return ("missing_pathc",)
 
 
-def _texconv_identity_signature(texconv_path: Path) -> Tuple[object, ...]:
+def _texconv_identity_signature(texconv_path: Optional[Path]) -> Tuple[object, ...]:
+    if texconv_path is None:
+        return ("native_directxtex",)
     try:
         resolved_path = texconv_path.expanduser().resolve()
     except OSError:
@@ -8724,7 +8726,7 @@ def _resolve_model_texture_archive_entry(
 
 
 def _ensure_archive_model_texture_preview_path(
-    resolved_texconv_path: Path,
+    resolved_texconv_path: Optional[Path],
     texture_entry: ArchiveEntry,
     *,
     max_dimension: Optional[int] = None,
@@ -8782,7 +8784,7 @@ def _ensure_archive_model_texture_preview_path(
 
 
 def _prefetch_archive_model_texture_preview_paths(
-    resolved_texconv_path: Path,
+    resolved_texconv_path: Optional[Path],
     requests: Sequence[Tuple[ArchiveEntry, str, int]],
     preview_cache: Dict[str, str],
     *,
@@ -9107,11 +9109,11 @@ def _attach_model_sidecar_texture_preview_paths(
     fallback_only: bool = False,
     stop_event: Optional[threading.Event] = None,
 ) -> List[str]:
-    if texconv_path is None or model_preview is None or not model_preview.meshes or not sidecar_texture_bindings:
+    if model_preview is None or not model_preview.meshes or not sidecar_texture_bindings:
         return []
 
     parsed_submeshes = _iter_parsed_model_submeshes(parsed_mesh)
-    resolved_texconv_path = texconv_path.expanduser().resolve()
+    resolved_texconv_path = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     normalized_visible_texture_mode = _normalize_model_visible_texture_mode(visible_texture_mode)
     allowed_visible_classes = set(_allowed_model_sidecar_visible_classes(normalized_visible_texture_mode))
     resolved_by_submesh: Dict[str, Tuple[Tuple[int, int, int, int, int], ArchiveEntry, str, str, _ArchiveModelSidecarTextureBinding]] = {}
@@ -9610,10 +9612,10 @@ def _attach_model_texture_preview_paths(
     prefer_material_name_for_base: bool = False,
     stop_event: Optional[threading.Event] = None,
 ) -> List[str]:
-    if texconv_path is None or model_preview is None or not model_preview.meshes:
+    if model_preview is None or not model_preview.meshes:
         return []
 
-    resolved_texconv_path = texconv_path.expanduser().resolve()
+    resolved_texconv_path = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     preview_cache: Dict[str, str] = {}
     resolved_count = 0
     unresolved_lookup_count = 0
@@ -9778,11 +9780,11 @@ def _attach_model_support_texture_preview_paths(
     support_slots: Sequence[str] = ("normal", "material", "height"),
     stop_event: Optional[threading.Event] = None,
 ) -> List[str]:
-    if texconv_path is None or model_preview is None or not model_preview.meshes:
+    if model_preview is None or not model_preview.meshes:
         return []
 
     parsed_submeshes = _iter_parsed_model_submeshes(parsed_mesh)
-    resolved_texconv_path = texconv_path.expanduser().resolve()
+    resolved_texconv_path = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     preview_cache: Dict[str, str] = {}
     requested_support_slots = {
         str(slot or "").strip().lower()
@@ -10840,11 +10842,8 @@ def build_loose_archive_preview_assets(
         except Exception as exc:
             parse_error = exc
             metadata_summary = f"Loose DDS | {resolved_path.name}"
-        if texconv_path is None:
-            extra = f"\nDDS metadata unavailable: {parse_error}" if parse_error is not None else ""
-            return "", metadata_summary, detail + extra + "\nSet texconv.exe to enable DDS loose-file previews."
         preview_png = ensure_dds_display_preview_png(
-            texconv_path.resolve(),
+            texconv_path.resolve() if texconv_path is not None and texconv_path.is_file() else None,
             resolved_path,
             dds_info=dds_info,
             stop_event=stop_event,
@@ -17563,37 +17562,8 @@ def build_archive_preview_result(
             pathc_lookup_detail = build_archive_pathc_lookup_detail_for_entry(entry)
             if pathc_lookup_detail:
                 extra_detail_parts.append(pathc_lookup_detail)
-            if texconv_path is None:
-                return ArchivePreviewResult(
-                    status="missing",
-                    title=entry.basename,
-                    metadata_summary=metadata_summary,
-                    detail_text=build_archive_entry_detail_text(
-                        entry,
-                        "\n".join(
-                            part
-                            for part in [
-                                "Set texconv.exe under Settings > Paths to enable DDS image previews.",
-                                *extra_detail_parts,
-                            ]
-                            if part
-                        ),
-                    ),
-                    preferred_view="info",
-                    warning_badge=warning_badge,
-                    warning_text=warning_text,
-                    model_texture_references=related_references,
-                    asset_family_graph=build_archive_asset_family_graph(entry, related_references),
-                    loose_file_path=loose_file_path,
-                    loose_preview_image_path=loose_preview_image_path,
-                    loose_preview_media_path=loose_preview_media_path,
-                    loose_preview_media_kind=loose_preview_media_kind,
-                    loose_preview_title=loose_preview_title,
-                    loose_preview_metadata_summary=loose_preview_metadata_summary,
-                    loose_preview_detail_text=loose_preview_detail_text,
-                )
             preview_png = ensure_dds_display_preview_png(
-                texconv_path.resolve(),
+                texconv_path.resolve() if texconv_path is not None and texconv_path.is_file() else None,
                 source_path.resolve(),
                 dds_info=dds_info,
                 stop_event=stop_event,
@@ -18184,15 +18154,7 @@ def build_archive_preview_result(
             except Exception:
                 parsed_mesh_for_references = None
         if model_preview is not None:
-            if texconv_path is None:
-                if any(
-                    str(getattr(mesh, "texture_name", "") or "").strip().lower().endswith(".dds")
-                    for mesh in model_preview.meshes
-                ):
-                    info_extra_parts.append(
-                        "Set texconv.exe under Settings > Paths to enable textured model shading and PNG-backed model export."
-                    )
-            else:
+            if model_preview.meshes:
                 if normalized_visible_texture_mode == "mesh_base_first":
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(

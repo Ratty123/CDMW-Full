@@ -224,7 +224,7 @@ class NormalizedConfig:
     texture_editor_png_root: Optional[Path]
     output_root: Path
     dds_staging_root: Optional[Path]
-    texconv_path: Path
+    texconv_path: Optional[Path]
     dds_format_mode: str
     dds_custom_format: str
     dds_size_mode: str
@@ -540,7 +540,7 @@ class ReplaceAssistantBuildOptions:
     create_no_encrypt_file: bool
     build_mode: str
     size_mode: str
-    texconv_path: Path
+    texconv_path: Optional[Path]
     ncnn_exe_path: Optional[Path]
     ncnn_model_dir: Optional[Path]
     ncnn_model_name: str

@@ -432,6 +432,69 @@ def mesh_import_mode_availability(
     )
 
 
+class _ProcessMemoryCountersEx(ctypes.Structure):
+    _fields_ = [
+        ("cb", ctypes.c_ulong),
+        ("PageFaultCount", ctypes.c_ulong),
+        ("PeakWorkingSetSize", ctypes.c_size_t),
+        ("WorkingSetSize", ctypes.c_size_t),
+        ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+        ("QuotaPagedPoolUsage", ctypes.c_size_t),
+        ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+        ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+        ("PagefileUsage", ctypes.c_size_t),
+        ("PeakPagefileUsage", ctypes.c_size_t),
+        ("PrivateUsage", ctypes.c_size_t),
+    ]
+
+
+def _windows_process_memory_snapshot(pid: int) -> Dict[str, int]:
+    if platform.system().lower() != "windows":
+        return {}
+    try:
+        process_id = int(pid)
+    except (TypeError, ValueError):
+        return {}
+    if process_id <= 0:
+        return {}
+    try:
+        kernel32 = ctypes.windll.kernel32
+        psapi = ctypes.windll.psapi
+        process_query_limited_information = 0x1000
+        process_vm_read = 0x0010
+        kernel32.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        kernel32.CloseHandle.restype = ctypes.c_int
+        psapi.GetProcessMemoryInfo.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(_ProcessMemoryCountersEx),
+            ctypes.c_ulong,
+        ]
+        psapi.GetProcessMemoryInfo.restype = ctypes.c_int
+        handle = kernel32.OpenProcess(
+            process_query_limited_information | process_vm_read,
+            False,
+            process_id,
+        )
+        if not handle:
+            return {}
+        try:
+            counters = _ProcessMemoryCountersEx()
+            counters.cb = ctypes.sizeof(counters)
+            if not psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
+                return {}
+            return {
+                "pid": process_id,
+                "working_set_bytes": int(counters.WorkingSetSize),
+                "private_bytes": int(counters.PrivateUsage),
+            }
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:
+        return {}
+
+
 def run_gui() -> int:
     try:
         from PySide6.QtCore import QModelIndex, QEvent, QProcess, QRectF, QSettings, QSize, Qt, QThread, QTimer, QUrl, QObject, Signal, Slot
@@ -603,6 +666,17 @@ def run_gui() -> int:
             if status_file is not None:
                 payload["status_file"] = str(Path(status_file))
             return self._send_host_json_command(payload)
+
+        def set_display_mode(self, mode: str) -> bool:
+            normalized = str(mode or "replacement_only").strip().lower()
+            if normalized not in {"side_by_side", "overlay", "replacement_only"}:
+                normalized = "replacement_only"
+            return self._send_host_json_command(
+                {
+                    "command": "set_display_mode",
+                    "mode": normalized,
+                }
+            )
 
         def set_highlighted_source_submeshes(self, source_submesh_indices: Sequence[int]) -> bool:
             ordered = sorted({int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0})
@@ -1006,6 +1080,25 @@ def run_gui() -> int:
         except Exception:
             pass
 
+    def _runtime_event_child_memory(fields: Mapping[str, object]) -> Dict[str, Dict[str, int]]:
+        snapshots: Dict[str, Dict[str, int]] = {}
+        for key in (
+            "process_pid",
+            "d3d11_process_pid",
+            "preview_core_process_pid",
+            "native_preview_core_process_pid",
+        ):
+            try:
+                pid = int(fields.get(key, 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if pid <= 0 or pid == os.getpid():
+                continue
+            snapshot = _windows_process_memory_snapshot(pid)
+            if snapshot:
+                snapshots[str(pid)] = snapshot
+        return snapshots
+
     def _record_runtime_event(event: str, **fields: object) -> Dict[str, object]:
         payload: Dict[str, object] = {
             "timestamp": time.time(),
@@ -1014,6 +1107,12 @@ def run_gui() -> int:
             "session_id": _session_id,
             "event": str(event or "event"),
         }
+        process_memory = _windows_process_memory_snapshot(os.getpid())
+        if process_memory:
+            payload["process_memory"] = process_memory
+        child_memory = _runtime_event_child_memory(fields)
+        if child_memory:
+            payload["child_process_memory"] = child_memory
         for key, value in fields.items():
             payload[str(key)] = _sanitize_runtime_event_value(value)
         _runtime_event_ring.append(payload)
@@ -1142,6 +1241,9 @@ def run_gui() -> int:
             return context
         if window is None:
             return context
+        process_memory = _windows_process_memory_snapshot(os.getpid())
+        if process_memory:
+            context["process_memory"] = process_memory
         try:
             current_tab_index = window.main_tabs.currentIndex()
             if current_tab_index >= 0:
@@ -1199,6 +1301,9 @@ def run_gui() -> int:
                     context["d3d11_process_pid"] = int(process.processId())
                 except RuntimeError:
                     context["d3d11_process_pid"] = "deleted"
+                d3d11_process_memory = _windows_process_memory_snapshot(context.get("d3d11_process_pid", 0))
+                if d3d11_process_memory:
+                    context["d3d11_process_memory"] = d3d11_process_memory
                 try:
                     context["d3d11_process_state"] = str(process.state())
                 except RuntimeError:
@@ -4178,7 +4283,7 @@ def run_gui() -> int:
                 self._browse_dds_staging_root,
             )
             self._add_path_row(paths_layout, 4, "Output root", self.output_root_edit, self._browse_output_root)
-            self._add_path_row(paths_layout, 5, "texconv.exe path", self.texconv_path_edit, self._browse_texconv_path)
+            self._add_path_row(paths_layout, 5, "Optional legacy texconv.exe fallback", self.texconv_path_edit, self._browse_texconv_path)
 
             self.paths_section.body_layout.addWidget(paths_group)
 
@@ -4213,8 +4318,8 @@ def run_gui() -> int:
             setup_tools_layout.setVerticalSpacing(8)
             self.download_chainner_button = QPushButton("Open chaiNNer Download Page")
             self.download_chainner_button.setToolTip("Open the official chaiNNer download page in your default browser.")
-            self.download_texconv_button = QPushButton("Open texconv Download Page")
-            self.download_texconv_button.setToolTip("Open the official DirectXTex releases page in your default browser.")
+            self.download_texconv_button = QPushButton("Open DirectXTex / texconv Page")
+            self.download_texconv_button.setToolTip("Open the official DirectXTex releases page. texconv is optional legacy fallback only.")
             self.download_ncnn_button = QPushButton("Open Real-ESRGAN NCNN Download Page")
             self.download_ncnn_button.setToolTip("Open the official Real-ESRGAN NCNN releases page in your default browser.")
             self.import_ncnn_models_button = QPushButton("Import NCNN Models")
@@ -4244,8 +4349,8 @@ def run_gui() -> int:
             setup_note_layout.setSpacing(8)
             setup_hint = QLabel(
                 "Recommended first run: put the portable EXE in its own folder, set the game/package path under "
-                "Archive Locations, click Init Workspace, then download texconv and place texconv.exe under the "
-                "workspace tools folder. Direct backends can be prepared here; download buttons open official pages "
+                "Archive Locations, click Init Workspace, then use the bundled DirectXTex/native DDS tools. "
+                "texconv.exe is optional legacy fallback only; download buttons open official pages "
                 "in your browser instead of downloading files inside the app."
             )
             setup_hint.setObjectName("HintLabel")
@@ -4302,7 +4407,7 @@ def run_gui() -> int:
             self.enable_dds_staging_checkbox = QCheckBox("Create source PNGs from DDS before processing")
             self.enable_dds_staging_checkbox.setToolTip("")
             self.dds_output_mode_hint = QLabel(
-                "Uses texconv to create source PNG files first. If no upscaling backend is selected, Start stops after PNG conversion."
+                "Uses DirectXTex/native DDS decoding to create source PNG files first. If no upscaling backend is selected, Start stops after PNG conversion."
             )
             self.dds_output_mode_hint.setObjectName("HintLabel")
             self.dds_output_mode_hint.setWordWrap(True)
@@ -7377,7 +7482,7 @@ def run_gui() -> int:
                       <li><b>Understand a texture family</b>: use <a href="topic:research">Research</a> for grouped sets, classification, references, analysis, and notes.</li>
                       <li><b>Find text, XML, JSON, Lua, or config strings</b>: use <a href="topic:text_search">Text Search</a>.</li>
                     </ul>
-                    <p>For a first session, configure <b>texconv.exe</b>, scan a small source set, avoid technical-map upscaling, and compare output before exporting anything larger.</p>
+                    <p>For a first session, use the bundled DirectXTex/native DDS tools, scan a small source set, avoid technical-map upscaling, and compare output before exporting anything larger. <b>texconv.exe</b> is optional legacy fallback only.</p>
                     """,
                 },
                 {
@@ -7388,7 +7493,7 @@ def run_gui() -> int:
                     "html": """
                     <ol>
                       <li>Open <b>Settings</b> and run <b>Init Workspace</b> if you want the app to create the usual working folders.</li>
-                      <li>Set <b>texconv.exe path</b>. This is required for DDS preview, DDS-to-PNG conversion, Compare previews, and DDS rebuild.</li>
+                      <li><b>texconv.exe path</b> is optional legacy fallback. Normal DDS preview, DDS-to-PNG conversion, Compare previews, and DDS rebuild use DirectXTex/native helpers.</li>
                       <li>Set <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. Use a tiny test folder first.</li>
                       <li>Choose an upscaling backend: <b>Disabled</b> for rebuild testing, direct <b>Real-ESRGAN NCNN</b> for in-app upscale, or <b>chaiNNer</b> for an already-tested chain.</li>
                       <li>Keep a safer <b>Texture Policy</b> preset and automatic rules enabled.</li>
@@ -7585,7 +7690,7 @@ def run_gui() -> int:
                     "html": """
                     <h4>Rebuild DDS without upscaling</h4>
                     <ol>
-                      <li>Set <b>Original DDS root</b>, <b>PNG root</b>, <b>Output root</b>, and <b>texconv.exe</b>.</li>
+                      <li>Set <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. The <b>texconv.exe</b> path is optional fallback.</li>
                       <li>Set backend to <b>Disabled</b>.</li>
                       <li>Place edited PNG files under <b>PNG root</b> using matching relative paths.</li>
                       <li>Use <b>Scan</b>, then <b>Preview Policy</b>, then <b>Start</b>.</li>
@@ -7869,7 +7974,7 @@ def run_gui() -> int:
                     </ul>
                     <h4>External requirements</h4>
                     <ul>
-                      <li><b>texconv</b> is required for DDS preview, DDS-to-PNG conversion, compare preview, and DDS rebuild.</li>
+                      <li><b>texconv</b> is optional fallback. DDS preview, DDS-to-PNG conversion, compare preview, and DDS rebuild use DirectXTex/native helpers first.</li>
                       <li><b>Real-ESRGAN NCNN</b> and <b>chaiNNer</b> are optional backends.</li>
                     </ul>
                     <h4>References</h4>
@@ -7888,7 +7993,7 @@ def run_gui() -> int:
                     "summary": "Short answers to common setup, workflow, and output questions.",
                     "keywords": "faq questions answers texconv ncnn chainner replace assistant texture workflow archive patch settings cache brightness technical maps",
                     "html": """
-                    <p><b>Do I need texconv?</b><br/>Yes. DDS preview, DDS-to-PNG conversion, Compare previews, and DDS rebuild depend on <b>texconv.exe</b>.</p>
+                    <p><b>Do I need texconv?</b><br/>No for normal preview/rebuild workflows. DirectXTex/native helpers are used first; <b>texconv.exe</b> is kept only as optional legacy fallback.</p>
                     <p><b>Should I upscale every texture?</b><br/>No. Start with visible color, UI, or emissive textures. Normals, packed masks, vectors, height maps, and displacement maps should usually stay preserve-first unless you know the family.</p>
                     <p><b>When should I use Texture Replacer?</b><br/>Use it for one-off edited PNG/DDS replacements. Use Texture Workflow for batch rebuild or batch upscale of a loose DDS tree.</p>
                     <p><b>What is the safest first backend?</b><br/>Use <b>Disabled</b> first to prove paths and DDS rebuild behavior. Then test direct <b>Real-ESRGAN NCNN</b> or a known-good <b>chaiNNer</b> chain on a small subset.</p>
@@ -7905,7 +8010,7 @@ def run_gui() -> int:
                     "keywords": "troubleshooting limits texconv ncnn chainner png output brightness drift preview archive cache",
                     "html": """
                     <ul>
-                      <li><b>Missing texconv</b>: DDS preview, DDS-to-PNG conversion, compare preview, and DDS rebuild all depend on it.</li>
+                      <li><b>Missing texconv</b>: normal DDS preview/rebuild should still work through DirectXTex/native helpers. If both native helpers and optional fallback fail, check native tool packaging.</li>
                       <li><b>Missing NCNN models</b>: direct NCNN requires a valid executable and matching <code>.param</code> / <code>.bin</code> models.</li>
                       <li><b>No matching PNG outputs</b>: if the selected backend produces no usable PNG output, DDS rebuild has nothing to convert.</li>
                       <li><b>Wrong chaiNNer paths</b>: hardcoded chain paths can make the chain read from or write to the wrong directory.</li>
@@ -8320,7 +8425,7 @@ def run_gui() -> int:
                             "summary": "Respuestas cortas a preguntas frecuentes.",
                             "keywords": "faq texconv sidecar ncnn chainner brillo archivo",
                             "html": """
-                            <p><b>Necesito texconv?</b><br/>Si, para vista DDS, conversion DDS-PNG, comparacion y reconstruccion.</p>
+                            <p><b>Necesito texconv?</b><br/>No para los flujos normales. DirectXTex/native se usa primero; texconv queda como fallback legacy opcional.</p>
                             <p><b>Debo escalar todas las texturas?</b><br/>No. Empieza con color/UI/emisivo; conserva primero normales, mascaras y mapas tecnicos.</p>
                             <p><b>Por que tarda el cache de sidecars?</b><br/>Lee muchos sidecars para crear conexiones globales. Es caro, pero util para referencias relacionadas.</p>
                             <p><b>Cuando usar Asistente de reemplazo?</b><br/>Para una textura editada individual. Usa Flujo de texturas para lotes.</p>
@@ -8588,7 +8693,7 @@ def run_gui() -> int:
                         <ul>
                           <li><b>Konfigurationsdatei</b>: <code>{settings_text}</code></li>
                           <li><b>Archiv-Cache</b>: <code>{cache_text}</code></li>
-                          <li><b>texconv</b>: noetig fuer DDS-Vorschau, DDS-zu-PNG, Vergleich und DDS-Neuaufbau.</li>
+                          <li><b>texconv</b>: optionaler Legacy-Fallback. DDS-Vorschau, DDS-zu-PNG, Vergleich und DDS-Neuaufbau nutzen zuerst DirectXTex/native.</li>
                           <li><b>Real-ESRGAN NCNN</b> und <b>chaiNNer</b>: optionale Upscaling-Backends.</li>
                           <li><b>Sprachen</b>: Sprachdatei exportieren, Werte bearbeiten und wieder importieren.</li>
                         </ul>
@@ -8731,7 +8836,7 @@ def run_gui() -> int:
                             "summary": "Kurze Antworten auf haeufige Fragen.",
                             "keywords": "faq texconv sidecar ncnn chainner helligkeit archiv",
                             "html": """
-                            <p><b>Brauche ich texconv?</b><br/>Ja, fuer DDS-Vorschau, DDS-PNG-Konvertierung, Vergleich und DDS-Neuaufbau.</p>
+                            <p><b>Brauche ich texconv?</b><br/>Nein fuer normale Workflows. DirectXTex/native wird zuerst genutzt; texconv bleibt optionaler Legacy-Fallback.</p>
                             <p><b>Sollte ich alle Texturen hochskalieren?</b><br/>Nein. Mit Farbe/UI/Emissive starten; Normalen, Masken und technische Maps zuerst erhalten.</p>
                             <p><b>Warum dauert der Sidecar-Cache lange?</b><br/>Er liest viele Sidecars fuer globale Verbindungen. Teuer, aber nuetzlich fuer verwandte Dateien.</p>
                             <p><b>Wann nutze ich den Ersetzungsassistenten?</b><br/>Fuer eine einzelne bearbeitete Textur. Fuer Stapel den Textur-Workflow nutzen.</p>
@@ -15817,12 +15922,9 @@ def run_gui() -> int:
                 preview_path = source_path
                 if entry.extension == ".dds":
                     texconv_text = self.texconv_path_edit.text().strip()
-                    if not texconv_text:
-                        label = "generated thumbnails" if generated else "catalog thumbnails"
-                        return None, f"Recovered DDS found. Configure texconv.exe to show {label}."
-                    texconv_path = Path(texconv_text).expanduser()
-                    if not texconv_path.exists():
-                        return None, "Recovered DDS found, but texconv.exe was not found at the configured path."
+                    texconv_path = Path(texconv_text).expanduser() if texconv_text else None
+                    if texconv_path is not None and not texconv_path.exists():
+                        texconv_path = None
                     try:
                         preview_path = ensure_dds_display_preview_png(
                             texconv_path,
@@ -15905,11 +16007,9 @@ def run_gui() -> int:
                     preview_path = source_path
                     if entry.extension == ".dds":
                         texconv_text = self.texconv_path_edit.text().strip()
-                        if not texconv_text:
-                            return None, "Recovered icon DDS found. Configure texconv.exe to show item-list thumbnails."
-                        texconv_path = Path(texconv_text).expanduser()
-                        if not texconv_path.exists():
-                            return None, "Recovered icon DDS found, but texconv.exe was not found at the configured path."
+                        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
+                        if texconv_path is not None and not texconv_path.exists():
+                            texconv_path = None
                         try:
                             preview_path = ensure_dds_display_preview_png(
                                 texconv_path,
@@ -18659,12 +18759,22 @@ def run_gui() -> int:
             request_started_at = self.archive_preview_request_started_at.pop(request_id, None)
             request_phase_timings = self.archive_preview_request_phase_timings.pop(request_id, {})
             source = self.archive_preview_request_sources.pop(request_id, "worker")
+            native_preview_diagnostics = (
+                dict(getattr(payload, "native_preview_diagnostics", {}) or {})
+                if isinstance(payload, ArchivePreviewResult)
+                else {}
+            )
             _record_runtime_event(
                 "archive_preview_ready",
                 request_id=request_id,
                 source=source,
                 current_request_id=self.archive_preview_request_id,
                 stale=bool(request_id != self.archive_preview_request_id),
+                preview_core_process_working_set_bytes=native_preview_diagnostics.get("process_working_set_bytes", 0),
+                preview_core_process_private_bytes=native_preview_diagnostics.get("process_private_bytes", 0),
+                preview_core_decoded_cache_bytes=native_preview_diagnostics.get("decoded_cache_bytes", 0),
+                preview_core_service_job_count=native_preview_diagnostics.get("service_job_count", 0),
+                preview_core_service_recycle_reason=native_preview_diagnostics.get("service_recycle_reason", ""),
             )
             if self._shutting_down or request_id != self.archive_preview_request_id:
                 return
@@ -19135,6 +19245,9 @@ def run_gui() -> int:
             skipped = tuple(str(item) for item in tuple(payload.get("skipped", ()) or ()) if str(item))
             skipped_text = "; ".join(skipped[:8]) if skipped else "none"
             cache_hits = int(payload.get("texture_cache_hits", 0) or 0)
+            cache_entries = int(payload.get("texture_cache_entries", 0) or 0)
+            texture_bytes = int(payload.get("estimated_texture_bytes", 0) or 0)
+            private_bytes = int(payload.get("process_private_bytes", 0) or 0)
             low_res_base_count = int(payload.get("low_resolution_base_textures", 0) or 0)
             srgb_color_uploads = int(payload.get("srgb_color_uploads", 0) or 0)
             linear_data_uploads = int(payload.get("linear_data_uploads", 0) or 0)
@@ -19165,7 +19278,10 @@ def run_gui() -> int:
                 f"textures={float(payload.get('texture_bind_ms', 0.0) or 0.0):.1f} ms; "
                 f"geometry={float(payload.get('geometry_upload_ms', 0.0) or 0.0):.1f} ms; "
                 f"first_frame={float(payload.get('first_frame_ms', 0.0) or 0.0):.1f} ms; "
-                f"cache_hits={cache_hits:,}; low_res_base={low_res_base_count:,}\n"
+                f"cache_hits={cache_hits:,}; cache_entries={cache_entries:,}; low_res_base={low_res_base_count:,}\n"
+                "Native D3D11 Memory: "
+                f"texture_est={texture_bytes / (1024 * 1024):.1f} MiB; "
+                f"private={private_bytes / (1024 * 1024):.1f} MiB\n"
                 "Native D3D11 Texture Space: "
                 f"base_srgb={srgb_color_uploads:,}; data_linear={linear_data_uploads:,}\n"
                 "Native D3D11 Material Combiner: "
@@ -19528,6 +19644,12 @@ def run_gui() -> int:
                 message=payload.get("message", ""),
                 batch_count=payload.get("batch_count", 0),
                 vertex_count=payload.get("vertex_count", 0),
+                texture_cache_entries=payload.get("texture_cache_entries", 0),
+                texture_cache_releases=payload.get("texture_cache_releases", 0),
+                estimated_texture_bytes=payload.get("estimated_texture_bytes", 0),
+                d3d11_process_working_set_bytes=payload.get("process_working_set_bytes", 0),
+                d3d11_process_private_bytes=payload.get("process_private_bytes", 0),
+                process_pid=self._archive_qprocess_pid(getattr(self, "archive_isolated_renderer_process", None)),
             )
             if event == "loaded":
                 self._cleanup_archive_isolated_renderer_packages(include_active=False)
@@ -29254,11 +29376,7 @@ def run_gui() -> int:
                     texconv_path = None
                 companion_entry = self._find_archive_preview_companion_entry(preview_model_entry)
                 preview_settings = _material_value_preview_render_settings(material_effects_active=material_effects_active)
-                preview_status_label.setText(
-                    "Building approximate material preview..."
-                    if texconv_path is not None
-                    else "Building approximate material preview; texconv is not set, so DDS texture shading may be unavailable."
-                )
+                preview_status_label.setText("Building approximate material preview with DirectXTex/native DDS support...")
 
                 def _task(log: Callable[[str], None]) -> object:
                     log(f"Building material preview for {preview_model_entry.path} from {entry.path}...")
@@ -29280,7 +29398,7 @@ def run_gui() -> int:
                             preview_sidecar_text,
                             sidecar_path=entry.path,
                         )
-                        if parsed_bindings and texconv_path is not None:
+                        if parsed_bindings:
                             sidecar_texts_by_path: Dict[str, Tuple[str, ...]] = {}
                             sidecar_texts_by_basename: Dict[str, Tuple[str, ...]] = {}
                             for binding in parsed_bindings:
@@ -29312,8 +29430,6 @@ def run_gui() -> int:
                             )
                         )
                     warnings = list(self._material_sidecar_texture_resolution_warnings(preview_sidecar_text)) if include_texture_edits else []
-                    if texconv_path is None:
-                        warnings.append("texconv.exe is not configured, so texture-backed preview paths cannot be refreshed.")
                     return (
                         generation,
                         dataclasses.replace(result, preview_model=preview_model),
@@ -29470,14 +29586,14 @@ def run_gui() -> int:
             if resolved_texconv_path is None:
                 texconv_text = self.texconv_path_edit.text().strip()
                 resolved_texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-            if resolved_texconv_path is None or not resolved_texconv_path.is_file():
-                raise FileNotFoundError("Set a valid texconv.exe path before previewing an imported DDS.")
+            if resolved_texconv_path is not None and not resolved_texconv_path.is_file():
+                resolved_texconv_path = None
             resolved_source = source_path.expanduser().resolve()
             if not resolved_source.is_file():
                 raise FileNotFoundError(f"Imported DDS was not found: {resolved_source}")
             dds_info = parse_dds(resolved_source)
             preview_path = ensure_dds_display_preview_png(
-                resolved_texconv_path.resolve(),
+                resolved_texconv_path.resolve() if resolved_texconv_path is not None else None,
                 resolved_source,
                 dds_info=dds_info,
             )
@@ -36375,14 +36491,24 @@ def run_gui() -> int:
             if not alignment_d3d11_available:
                 preview_renderer_combo.setCurrentIndex(max(0, preview_renderer_combo.findData("legacy")))
             preview_renderer_combo.setToolTip(
-                "Native D3D11 shows the most accurate material preview in this dialog. "
-                "Legacy OpenGL remains available for viewport drag handles and mesh-edit strokes."
+                "Native D3D11 is the normal editor preview path. "
+                "Legacy OpenGL is an advanced troubleshooting fallback."
             )
             preview_renderer_combo.setMinimumWidth(0)
             preview_renderer_combo.setMinimumContentsLength(16)
             preview_renderer_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-            preview_header.addWidget(QLabel("Renderer"))
+            preview_renderer_label = QLabel("Renderer")
+            preview_header.addWidget(preview_renderer_label)
             preview_header.addWidget(preview_renderer_combo)
+            legacy_preview_fallback_checkbox = QCheckBox("Legacy fallback")
+            legacy_preview_fallback_checkbox.setToolTip(
+                "Show the emergency OpenGL preview fallback selector. Normal editing uses D3D11."
+            )
+            legacy_preview_fallback_checkbox.setVisible(bool(alignment_d3d11_available))
+            preview_header.addWidget(legacy_preview_fallback_checkbox)
+            if alignment_d3d11_available:
+                preview_renderer_label.setVisible(False)
+                preview_renderer_combo.setVisible(False)
             preview_mode_combo = QComboBox()
             preview_mode_combo.addItem("Side by side", "side_by_side")
             preview_mode_combo.addItem("Overlay", "overlay")
@@ -38163,6 +38289,7 @@ def run_gui() -> int:
                     alignment_d3d11_state["status_file"] = status_file
                     alignment_d3d11_state["status_mtime"] = 0.0
                     if alignment_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
+                        alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
                         _cleanup_alignment_d3d11_package(previous_package, delay_ms=5000)
                         preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                         alignment_d3d11_preview_status_label.setText("Reloading native D3D11 alignment preview without restarting the renderer...")
@@ -38282,6 +38409,7 @@ def run_gui() -> int:
                     return
                 event = str(payload.get("event", "") or "").strip().lower()
                 if event == "loaded":
+                    alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
                     textures = payload.get("textures", {})
                     texture_text = "none"
                     if isinstance(textures, Mapping):
@@ -38321,7 +38449,7 @@ def run_gui() -> int:
                 if _alignment_d3d11_preview_active():
                     preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                     preview_help.setText(
-                        "Native D3D11 accurate preview. Mesh edit brush/vertex strokes and alignment handles run in D3D11; Legacy OpenGL edit remains as fallback."
+                        "Native D3D11 accurate preview. Movement, rotation, part hover/selection, brush/vertex strokes, and view modes run through D3D11."
                     )
                     alignment_preview_settings_button.setToolTip(
                         "Open 3D preview settings supported by the native D3D11 renderer, including lighting, support maps, depth, shine, and resolution."
@@ -38361,6 +38489,7 @@ def run_gui() -> int:
             def _set_preview_mode() -> None:
                 mode = str(preview_mode_combo.currentData() or "side_by_side")
                 if _alignment_d3d11_preview_active():
+                    alignment_d3d11_preview_host.set_display_mode(mode)
                     preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                 else:
                     preview_stack.setCurrentIndex({"side_by_side": 0, "overlay": 1, "replacement_only": 2}.get(mode, 0))
@@ -38370,12 +38499,23 @@ def run_gui() -> int:
                 overlay_original_locked_checkbox.setEnabled(False)
                 _queue_static_preview_refresh()
 
+            def _toggle_legacy_preview_fallback(checked: bool) -> None:
+                show_selector = bool(checked) or not bool(alignment_d3d11_available)
+                preview_renderer_label.setVisible(show_selector)
+                preview_renderer_combo.setVisible(show_selector)
+                if alignment_d3d11_available and not checked:
+                    preview_renderer_combo.blockSignals(True)
+                    preview_renderer_combo.setCurrentIndex(max(0, preview_renderer_combo.findData("d3d11")))
+                    preview_renderer_combo.blockSignals(False)
+                _set_preview_renderer()
+
             def _set_preview_detail() -> None:
                 static_preview_geometry_cache.clear()
                 static_preview_prepared_cache.clear()
                 _queue_static_preview_refresh()
 
             preview_renderer_combo.currentIndexChanged.connect(lambda _index: _set_preview_renderer())
+            legacy_preview_fallback_checkbox.toggled.connect(_toggle_legacy_preview_fallback)
             preview_mode_combo.currentIndexChanged.connect(_set_preview_mode)
             preview_detail_combo.currentIndexChanged.connect(_set_preview_detail)
             overlay_original_locked_checkbox.toggled.connect(_queue_static_preview_refresh)
@@ -48861,8 +49001,6 @@ def run_gui() -> int:
                         suffix_parts.append(f"{warning_count:,} warning(s)")
                     if missing_count:
                         suffix_parts.append(f"{missing_count:,} missing texture path(s)")
-                    if texconv_path is None:
-                        suffix_parts.append("texconv not configured")
                     suffix = f" ({'; '.join(suffix_parts)})" if suffix_parts else ""
                     contract_line = next(
                         (

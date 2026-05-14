@@ -1146,7 +1146,7 @@ def _apply_mesh_import_local_sidecar_texture_overrides(
     *,
     texconv_path: Optional[Path],
 ) -> List[str]:
-    if texconv_path is None or not getattr(preview_model, "meshes", None) or not sidecar_texture_bindings:
+    if not getattr(preview_model, "meshes", None) or not sidecar_texture_bindings:
         return []
 
     from cdmw.core.archive import (
@@ -1162,7 +1162,7 @@ def _apply_mesh_import_local_sidecar_texture_overrides(
     from cdmw.core.pipeline import ensure_dds_display_preview_png, parse_dds
     from cdmw.core.upscale_profiles import normalize_texture_reference_for_sidecar_lookup
 
-    resolved_texconv_path = texconv_path.expanduser().resolve()
+    resolved_texconv_path = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     parsed_submeshes = _iter_parsed_model_submeshes(parsed_mesh)
     preview_cache: Dict[str, str] = {}
     resolved_by_submesh: Dict[str, Tuple[Tuple[int, int, int, int], Path, str, str, str]] = {}
@@ -1367,7 +1367,7 @@ def _apply_mesh_import_local_support_texture_overrides(
     *,
     texconv_path: Optional[Path],
 ) -> List[str]:
-    if texconv_path is None or not getattr(preview_model, "meshes", None) or not sidecar_texture_bindings:
+    if not getattr(preview_model, "meshes", None) or not sidecar_texture_bindings:
         return []
 
     from collections import defaultdict
@@ -1386,7 +1386,7 @@ def _apply_mesh_import_local_support_texture_overrides(
     from cdmw.core.pipeline import ensure_dds_display_preview_png, parse_dds
     from cdmw.core.upscale_profiles import normalize_texture_reference_for_sidecar_lookup
 
-    resolved_texconv_path = texconv_path.expanduser().resolve()
+    resolved_texconv_path = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     parsed_submeshes = _iter_parsed_model_submeshes(parsed_mesh)
     preview_cache: Dict[str, str] = {}
     support_slots = ("normal", "material", "height")
@@ -1584,12 +1584,12 @@ def _apply_mesh_import_local_texture_overrides(
     *,
     texconv_path: Optional[Path],
 ) -> List[str]:
-    if texconv_path is None or not getattr(preview_model, "meshes", None):
+    if not getattr(preview_model, "meshes", None):
         return []
 
     from cdmw.core.pipeline import ensure_dds_display_preview_png, parse_dds
 
-    resolved_texconv_path = texconv_path.expanduser().resolve()
+    resolved_texconv_path = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     preview_cache: Dict[str, str] = {}
     override_count = 0
     unresolved_names: List[str] = []
@@ -3623,7 +3623,7 @@ def _apply_generated_static_texture_previews(
     texture_replacement_report: object,
     texconv_path: Optional[Path],
 ) -> int:
-    if texconv_path is None or not getattr(preview_model, "meshes", None):
+    if not getattr(preview_model, "meshes", None):
         return 0
     texture_payloads_by_target = {
         str(payload.target_path or "").replace("\\", "/").strip().lower(): payload
@@ -3636,7 +3636,7 @@ def _apply_generated_static_texture_previews(
     from cdmw.core.archive import _resolve_model_texture_semantic_details
     from cdmw.core.pipeline import ensure_dds_display_preview_png, parse_dds
 
-    resolved_texconv_path = texconv_path.expanduser().resolve()
+    resolved_texconv_path = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     preview_cache: Dict[str, str] = {}
 
     def _preview_path_for_payload(payload: TextureReplacementPayload) -> str:
@@ -4221,7 +4221,7 @@ def build_mesh_import_preview(
                     )
                 elif texconv_path is None:
                     summary_lines.append(
-                        "Generated static texture payloads were not shown in preview because texconv.exe is not configured."
+                        "Generated static texture payloads were not shown in preview because the DirectXTex/native preview backend did not produce usable previews."
                     )
                 generated_specs = _texture_replacement_payloads_to_specs(
                     generated_payloads,
