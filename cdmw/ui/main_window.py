@@ -4295,6 +4295,13 @@ def run_gui() -> int:
             self.archive_isolated_renderer_status_timer = QTimer(self)
             self.archive_isolated_renderer_status_timer.setInterval(250)
             self.archive_isolated_renderer_status_timer.timeout.connect(self._poll_archive_isolated_renderer_status)
+            self.archive_memory_audit_timer = QTimer(self)
+            self.archive_memory_audit_timer.setInterval(30000)
+            self.archive_memory_audit_timer.timeout.connect(
+                lambda: self._record_archive_memory_audit("periodic_idle")
+            )
+            self.archive_memory_audit_timer.start()
+            self.archive_memory_audit_last_log_at = 0.0
             self.archive_isolated_renderer_debug_text = ""
             self.archive_isolated_renderer_package_source = ""
             self.archive_isolated_package_thread: Optional[QThread] = None
@@ -18626,6 +18633,121 @@ def run_gui() -> int:
             if warning_text:
                 self.append_archive_log(f"WARNING: {warning_text}")
 
+        @staticmethod
+        def _memory_mib(value: object) -> float:
+            try:
+                return max(0.0, float(int(value or 0)) / (1024.0 * 1024.0))
+            except (TypeError, ValueError):
+                return 0.0
+
+        def _archive_memory_audit_payload(
+            self,
+            reason: str,
+            *,
+            d3d11_payload: Optional[Mapping[str, object]] = None,
+        ) -> Dict[str, object]:
+            entry = self._current_archive_entry()
+            result = getattr(self, "current_archive_preview_result", None)
+            native_preview_diagnostics: Dict[str, object] = {}
+            if isinstance(result, ArchivePreviewResult):
+                native_preview_diagnostics = dict(getattr(result, "native_preview_diagnostics", {}) or {})
+            d3d11_payload = dict(d3d11_payload or {})
+            main_memory = _windows_process_memory_snapshot(os.getpid())
+
+            d3d11_pid = 0
+            try:
+                d3d11_pid = int(self._archive_qprocess_pid(getattr(self, "archive_isolated_renderer_process", None)) or 0)
+            except (TypeError, ValueError):
+                d3d11_pid = 0
+            d3d11_memory = _windows_process_memory_snapshot(d3d11_pid)
+
+            preview_core_pid = 0
+            for key in ("native_preview_core_process_pid", "preview_core_process_pid"):
+                try:
+                    preview_core_pid = int(native_preview_diagnostics.get(key, 0) or 0)
+                except (TypeError, ValueError):
+                    preview_core_pid = 0
+                if preview_core_pid > 0:
+                    break
+            preview_core_memory = _windows_process_memory_snapshot(preview_core_pid)
+
+            def _snapshot_value(snapshot: Mapping[str, object], key: str, fallback: object = 0) -> int:
+                try:
+                    return int(snapshot.get(key, fallback) or 0)
+                except (TypeError, ValueError):
+                    return 0
+
+            payload: Dict[str, object] = {
+                "reason": str(reason or "audit"),
+                "selected_archive_path": str(getattr(entry, "path", "") or ""),
+                "archive_entry_count": len(getattr(self, "archive_entries", []) or []),
+                "archive_preview_cache_entries": len(getattr(self, "archive_preview_cache", {}) or {}),
+                "archive_item_icon_cache_entries": len(getattr(self, "archive_item_icon_pixmap_cache", {}) or {}),
+                "asset_family_row_count": len(getattr(self, "current_archive_family_member_rows", []) or []),
+                "archive_name_search_loaded": getattr(self, "archive_name_search_index", None) is not None,
+                "main_process_private_bytes": _snapshot_value(main_memory, "private_bytes"),
+                "main_process_working_set_bytes": _snapshot_value(main_memory, "working_set_bytes"),
+                "preview_core_process_pid": preview_core_pid,
+                "preview_core_process_private_bytes": _snapshot_value(
+                    preview_core_memory,
+                    "private_bytes",
+                    native_preview_diagnostics.get("process_private_bytes", 0),
+                ),
+                "preview_core_process_working_set_bytes": _snapshot_value(
+                    preview_core_memory,
+                    "working_set_bytes",
+                    native_preview_diagnostics.get("process_working_set_bytes", 0),
+                ),
+                "preview_core_decoded_cache_bytes": int(native_preview_diagnostics.get("decoded_cache_bytes", 0) or 0),
+                "preview_core_decoded_cache_entries": int(native_preview_diagnostics.get("decoded_cache_entries", 0) or 0),
+                "preview_core_service_job_count": int(native_preview_diagnostics.get("service_job_count", 0) or 0),
+                "preview_core_service_recycle_reason": str(native_preview_diagnostics.get("service_recycle_reason", "") or ""),
+                "d3d11_process_pid": d3d11_pid,
+                "d3d11_process_private_bytes": _snapshot_value(
+                    d3d11_memory,
+                    "private_bytes",
+                    d3d11_payload.get("process_private_bytes", 0),
+                ),
+                "d3d11_process_working_set_bytes": _snapshot_value(
+                    d3d11_memory,
+                    "working_set_bytes",
+                    d3d11_payload.get("process_working_set_bytes", 0),
+                ),
+                "d3d11_texture_cache_entries": int(d3d11_payload.get("texture_cache_entries", 0) or 0),
+                "d3d11_texture_cache_releases": int(d3d11_payload.get("texture_cache_releases", 0) or 0),
+                "d3d11_estimated_texture_bytes": int(d3d11_payload.get("estimated_texture_bytes", 0) or 0),
+            }
+            return payload
+
+        def _record_archive_memory_audit(
+            self,
+            reason: str,
+            *,
+            d3d11_payload: Optional[Mapping[str, object]] = None,
+            log_if_high: bool = False,
+        ) -> Dict[str, object]:
+            payload = self._archive_memory_audit_payload(reason, d3d11_payload=d3d11_payload)
+            _record_runtime_event("archive_memory_audit", **payload)
+            main_private = self._memory_mib(payload.get("main_process_private_bytes", 0))
+            preview_core_private = self._memory_mib(payload.get("preview_core_process_private_bytes", 0))
+            d3d11_private = self._memory_mib(payload.get("d3d11_process_private_bytes", 0))
+            should_log = bool(log_if_high) and (
+                main_private >= 1536.0 or preview_core_private >= 512.0 or d3d11_private >= 512.0
+            )
+            now = time.monotonic()
+            if should_log and now - float(getattr(self, "archive_memory_audit_last_log_at", 0.0) or 0.0) >= 30.0:
+                self.archive_memory_audit_last_log_at = now
+                self.append_archive_log(
+                    "Memory audit | "
+                    f"main_private={main_private:.1f} MiB; "
+                    f"preview_core_private={preview_core_private:.1f} MiB; "
+                    f"d3d11_private={d3d11_private:.1f} MiB; "
+                    f"preview_core_decoded_cache={self._memory_mib(payload.get('preview_core_decoded_cache_bytes', 0)):.1f} MiB; "
+                    f"d3d11_texture_est={self._memory_mib(payload.get('d3d11_estimated_texture_bytes', 0)):.1f} MiB; "
+                    f"preview_cache_entries={int(payload.get('archive_preview_cache_entries', 0) or 0):,}"
+                )
+            return payload
+
         def _clear_archive_preview_cache(self) -> None:
             self.archive_preview_cache.clear()
             self.archive_preview_cache_keys.clear()
@@ -19134,6 +19256,7 @@ def run_gui() -> int:
                 stale=bool(request_id != self.archive_preview_request_id),
                 preview_core_process_working_set_bytes=native_preview_diagnostics.get("process_working_set_bytes", 0),
                 preview_core_process_private_bytes=native_preview_diagnostics.get("process_private_bytes", 0),
+                native_preview_core_process_pid=native_preview_diagnostics.get("native_preview_core_process_pid", 0),
                 preview_core_decoded_cache_bytes=native_preview_diagnostics.get("decoded_cache_bytes", 0),
                 preview_core_service_job_count=native_preview_diagnostics.get("service_job_count", 0),
                 preview_core_service_recycle_reason=native_preview_diagnostics.get("service_recycle_reason", ""),
@@ -19160,6 +19283,7 @@ def run_gui() -> int:
                         request_started_at=request_started_at,
                     )
                     self._stop_archive_preview_loading_indicator(success=True)
+                    self._record_archive_memory_audit("archive_preview_ready", log_if_high=True)
             except Exception as exc:
                 _write_crash_report(
                     "archive_preview_ready_error",
@@ -20073,6 +20197,7 @@ def run_gui() -> int:
                 self._set_archive_isolated_renderer_debug(self._format_archive_isolated_renderer_debug(payload))
                 self.archive_d3d11_preview_status_label.setText("")
                 self.set_status_message("Isolated D3D11 preview loaded.")
+                self._record_archive_memory_audit("d3d11_loaded", d3d11_payload=payload, log_if_high=True)
             elif event == "loading":
                 stage = str(payload.get("stage", "") or "loading")
                 message = str(payload.get("message", "") or "Loading isolated D3D11 preview...")

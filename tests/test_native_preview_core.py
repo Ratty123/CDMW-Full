@@ -183,7 +183,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("kServicePrivateRecycleBytes = 768ull * 1024ull * 1024ull", source_text)
         self.assertIn("process_private_bytes", source_text)
         self.assertIn("service_recycle_reason", source_text)
-        self.assertIn("_get_native_preview_core_service", Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8"))
+        python_source = Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8")
+        self.assertIn("_get_native_preview_core_service", python_source)
+        self.assertIn("def process_id", python_source)
+        self.assertIn("native_preview_core_process_pid", python_source)
         self.assertIn("sampler_max_anisotropy", d3d11_text)
         self.assertIn("sampler_recreate_count", d3d11_text)
 

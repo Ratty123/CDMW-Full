@@ -132,6 +132,17 @@ class NativePreviewCoreServiceClient:
         self._process: Optional[subprocess.Popen[str]] = None
         self._jobs_completed = 0
 
+    @property
+    def process_id(self) -> int:
+        with self._lock:
+            process = self._process
+            if process is None or process.poll() is not None:
+                return 0
+            try:
+                return int(getattr(process, "pid", 0) or 0)
+            except (AttributeError, TypeError, ValueError):
+                return 0
+
     def shutdown(self) -> None:
         with self._lock:
             process = self._process
@@ -470,6 +481,7 @@ def run_native_preview_core_preview_job(
     job_path.write_text(json.dumps(job, separators=(",", ":")), encoding="utf-8")
     started = time.perf_counter()
     try:
+        service_pid = 0
         if use_service:
             service = _get_native_preview_core_service(binary, crash_dir=crash_dir, diagnostic_log=diagnostic_log)
             service.preview_job(
@@ -478,6 +490,7 @@ def run_native_preview_core_preview_job(
                 timeout_seconds=max(0.5, float(timeout_seconds)),
                 stop_event=stop_event,
             )
+            service_pid = service.process_id
             returncode, stdout_text, stderr_text = 0, "", ""
         else:
             command = [str(binary), "preview-job", str(job_path), str(report_path)]
@@ -516,6 +529,10 @@ def run_native_preview_core_preview_job(
         )
     if not isinstance(report, Mapping):
         report = {"status": "error", "message": "native preview-core report was not an object"}
+    else:
+        report = dict(report)
+    if use_service and service_pid > 0:
+        report.setdefault("native_preview_core_process_pid", service_pid)
     status = str(report.get("status") or "error").strip().lower()
     package_path = str(report.get("package_path") or "").strip()
     fallback_reason = str(report.get("fallback_reason") or report.get("message") or "").strip()
