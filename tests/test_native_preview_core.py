@@ -330,6 +330,17 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('p.find("colorblendingmask")', source)
         self.assertIn('material_output_quality = "exact"', source)
 
+    def test_native_material_index_trusts_exact_wrapper_order_for_single_and_unknown_batches(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("parsed_sidecar->material_wrapper_count > 0", source)
+        self.assertIn("parsed_sidecar->material_wrapper_count == static_cast<int>(meshes.size())", source)
+        self.assertIn("texture_ref.material_wrapper_index < static_cast<int>(meshes.size())", source)
+        self.assertIn("matched_mesh = true;", source)
+        self.assertIn("rejected cross-wrapper candidate", source)
+        self.assertIn('desired_role == "normal"', source)
+        self.assertIn('parameter_key.find("normaltexture")', source)
+
     def test_native_material_index_reads_technique_parameter_declarations(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
 

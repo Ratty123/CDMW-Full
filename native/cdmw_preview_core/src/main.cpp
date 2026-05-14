@@ -4139,6 +4139,21 @@ static const TextureBinding* best_binding_for_role(
             const bool compatible_material_response = desired_role == "material" && (binding.role == "detail" || binding.role == "specular");
             if (!compatible_material_response) continue;
         }
+        if (
+            binding.material_wrapper_order_authoritative
+            && binding.material_wrapper_index >= 0
+            && mesh.source_submesh_index >= 0
+            && binding.material_wrapper_index != mesh.source_submesh_index
+        ) {
+            if (rejected_examples != nullptr && rejected_examples->size() < 16) {
+                rejected_examples->push_back(
+                    desired_role + " rejected cross-wrapper candidate "
+                    + (binding.texture_name.empty() ? basename_from_path(binding.archive_path) : binding.texture_name)
+                    + " for " + mesh.material
+                );
+            }
+            continue;
+        }
         const int identity_score = material_identity_match_score(binding, mesh);
         const int identity_threshold = support_role_requires_material_scope(desired_role)
             ? support_role_identity_threshold(desired_role)
@@ -4162,6 +4177,14 @@ static const TextureBinding* best_binding_for_role(
         score += identity_score / 2;
         const std::string parameter_key = normalized_key(binding.parameter_name);
         const std::string layer_role = lower_copy(binding.layer_role);
+        if (desired_role == "normal") {
+            if (parameter_key.find("normaltexture") != std::string::npos && layer_role != "damage" && layer_role != "detail" && layer_role != "grime") {
+                score += 140;
+            }
+            if (layer_role == "damage" || layer_role == "detail" || layer_role == "grime") {
+                score -= 170;
+            }
+        }
         if (desired_role == "material" || desired_role == "specular") {
             if (parameter_key.find("materialtexture") != std::string::npos && layer_role != "damage" && layer_role != "detail" && layer_role != "grime") {
                 score += 140;
@@ -4231,6 +4254,14 @@ static const TextureBinding* best_base_binding_for_mode(
         if (binding.source_path.empty() || binding.role != "base") continue;
         if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
         const int identity_score = material_identity_match_score(binding, mesh);
+        if (
+            binding.material_wrapper_order_authoritative
+            && binding.material_wrapper_index >= 0
+            && mesh.source_submesh_index >= 0
+            && binding.material_wrapper_index != mesh.source_submesh_index
+        ) {
+            continue;
+        }
         if (binding.material_wrapper_order_authoritative && identity_score < 120) {
             continue;
         }
@@ -4786,7 +4817,7 @@ static std::vector<TextureBinding> build_material_bindings(
         );
         const std::vector<SidecarTextureRef>& refs = parsed_sidecar->refs;
         const bool wrapper_order_authoritative =
-            parsed_sidecar->material_wrapper_count > 1
+            parsed_sidecar->material_wrapper_count > 0
             && parsed_sidecar->material_wrapper_count == static_cast<int>(meshes.size());
         int refs_considered = 0;
         const std::string model_family_key = normalized_material_key(stem_from_path(job.path));
@@ -4795,6 +4826,13 @@ static std::vector<TextureBinding> build_material_bindings(
             const std::string texture_family_key = normalized_texture_family_key(texture_ref.path);
             if (!ref_material_key.empty() && !meshes.empty()) {
                 bool matched_mesh = false;
+                if (
+                    wrapper_order_authoritative
+                    && texture_ref.material_wrapper_index >= 0
+                    && texture_ref.material_wrapper_index < static_cast<int>(meshes.size())
+                ) {
+                    matched_mesh = true;
+                }
                 for (const NativeSubmesh& mesh : meshes) {
                     const std::string mesh_material_key = normalized_material_key(mesh.material);
                     const std::string mesh_name_key = normalized_material_key(mesh.name);
