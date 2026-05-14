@@ -1629,6 +1629,8 @@ public:
         alignment_.hover_axis.clear();
         alignment_.drag_axis.clear();
         alignment_.selected_source_submeshes.clear();
+        alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         source_part_.hovered_source_submesh = -1;
         source_part_.click_pending = false;
         source_part_.click_source_submesh = -1;
@@ -1675,6 +1677,8 @@ public:
         alignment_.hover_axis.clear();
         alignment_.drag_axis.clear();
         alignment_.selected_source_submeshes.clear();
+        alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         source_part_.hovered_source_submesh = -1;
         source_part_.click_pending = false;
         source_part_.click_source_submesh = -1;
@@ -1922,6 +1926,78 @@ private:
         return view * projection;
     }
 
+    bool alignment_preview_transform_active() const {
+        constexpr float kEpsilon = 1.0e-6f;
+        return std::abs(alignment_.translation_total.x) > kEpsilon
+            || std::abs(alignment_.translation_total.y) > kEpsilon
+            || std::abs(alignment_.translation_total.z) > kEpsilon
+            || std::abs(alignment_.rotation_total.x) > kEpsilon
+            || std::abs(alignment_.rotation_total.y) > kEpsilon
+            || std::abs(alignment_.rotation_total.z) > kEpsilon;
+    }
+
+    bool alignment_handle_origin_base(DirectX::XMFLOAT3& origin) const {
+        bool found = false;
+        float min_x = 0.0f;
+        float min_y = 0.0f;
+        float min_z = 0.0f;
+        float max_x = 0.0f;
+        float max_y = 0.0f;
+        float max_z = 0.0f;
+        for (const PreviewBatch& batch : batches_) {
+            if (!alignment_batch_active(batch)) continue;
+            for (const DirectX::XMFLOAT3& position : batch.cpu_positions) {
+                if (!found) {
+                    min_x = max_x = position.x;
+                    min_y = max_y = position.y;
+                    min_z = max_z = position.z;
+                    found = true;
+                    continue;
+                }
+                min_x = std::min(min_x, position.x);
+                min_y = std::min(min_y, position.y);
+                min_z = std::min(min_z, position.z);
+                max_x = std::max(max_x, position.x);
+                max_y = std::max(max_y, position.y);
+                max_z = std::max(max_z, position.z);
+            }
+        }
+        if (!found) return false;
+        origin = DirectX::XMFLOAT3(
+            (min_x + max_x) * 0.5f,
+            (min_y + max_y) * 0.5f,
+            (min_z + max_z) * 0.5f);
+        return true;
+    }
+
+    DirectX::XMMATRIX alignment_preview_transform_for_batch(const PreviewBatch& batch) const {
+        if (!alignment_preview_transform_active() || !alignment_batch_active(batch)) {
+            return DirectX::XMMatrixIdentity();
+        }
+        DirectX::XMFLOAT3 origin{};
+        if (!alignment_handle_origin_base(origin)) {
+            origin = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        }
+        return DirectX::XMMatrixTranslation(-origin.x, -origin.y, -origin.z)
+            * DirectX::XMMatrixRotationRollPitchYaw(
+                DirectX::XMConvertToRadians(alignment_.rotation_total.x),
+                DirectX::XMConvertToRadians(alignment_.rotation_total.y),
+                DirectX::XMConvertToRadians(alignment_.rotation_total.z))
+            * DirectX::XMMatrixTranslation(origin.x, origin.y, origin.z)
+            * DirectX::XMMatrixTranslation(
+                alignment_.translation_total.x,
+                alignment_.translation_total.y,
+                alignment_.translation_total.z);
+    }
+
+    DirectX::XMFLOAT3 transformed_batch_position(const PreviewBatch& batch, const DirectX::XMFLOAT3& position) const {
+        DirectX::XMVECTOR source = DirectX::XMLoadFloat3(&position);
+        DirectX::XMVECTOR transformed = DirectX::XMVector3TransformCoord(source, alignment_preview_transform_for_batch(batch));
+        DirectX::XMFLOAT3 output{};
+        DirectX::XMStoreFloat3(&output, transformed);
+        return output;
+    }
+
     void draw_preview_batch(PreviewBatch& batch, const DirectX::XMMATRIX& mvp, const DirectX::XMFLOAT4& editor_tint) {
         if (!batch.vertex_buffer || batch.vertex_count <= 0) return;
         UINT stride = kVertexStrideBytes;
@@ -2027,7 +2103,7 @@ private:
         context_->RSSetViewports(1, &view.viewport);
         context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : rasterizer_.Get());
         context_->OMSetDepthStencilState(view.no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
-        const DirectX::XMMATRIX mvp = current_world_matrix() * view_projection_matrix_for_viewport(view.viewport);
+        const DirectX::XMMATRIX world_view_projection = current_world_matrix() * view_projection_matrix_for_viewport(view.viewport);
         for (PreviewBatch& batch : batches_) {
             if (!batch_visible_in_view(batch, view.role)) continue;
             const bool reference = batch_is_reference(batch);
@@ -2043,7 +2119,7 @@ private:
                     1.0f,
                     std::max(view.reference_tint_alpha, std::clamp(batch.highlight_strength, 0.0f, 0.42f)));
             }
-            draw_preview_batch(batch, mvp, tint);
+            draw_preview_batch(batch, alignment_preview_transform_for_batch(batch) * world_view_projection, tint);
         }
     }
 
@@ -2098,42 +2174,32 @@ private:
         return std::isfinite(screen_x) && std::isfinite(screen_y);
     }
 
+    bool project_batch_position(const PreviewBatch& batch, const DirectX::XMFLOAT3& position, float& screen_x, float& screen_y) const {
+        DirectX::XMVECTOR source = DirectX::XMLoadFloat3(&position);
+        DirectX::XMVECTOR projected = DirectX::XMVector3TransformCoord(
+            source,
+            alignment_preview_transform_for_batch(batch) * current_mvp_matrix());
+        DirectX::XMFLOAT3 clip{};
+        DirectX::XMStoreFloat3(&clip, projected);
+        if (!std::isfinite(clip.x) || !std::isfinite(clip.y) || !std::isfinite(clip.z)) return false;
+        if (clip.z < 0.0f || clip.z > 1.0f) return false;
+        D3D11_VIEWPORT viewport = replacement_editor_viewport();
+        screen_x = viewport.TopLeftX + (clip.x * 0.5f + 0.5f) * viewport.Width;
+        screen_y = viewport.TopLeftY + (0.5f - clip.y * 0.5f) * viewport.Height;
+        return std::isfinite(screen_x) && std::isfinite(screen_y);
+    }
+
     bool alignment_batch_active(const PreviewBatch& batch) const {
+        if (batch_is_reference(batch) || !batch.editor_editable) return false;
         return alignment_.selected_source_submeshes.empty()
             || alignment_.selected_source_submeshes.find(batch.source_submesh_index) != alignment_.selected_source_submeshes.end();
     }
 
     bool alignment_handle_origin(DirectX::XMFLOAT3& origin) const {
-        bool found = false;
-        float min_x = 0.0f;
-        float min_y = 0.0f;
-        float min_z = 0.0f;
-        float max_x = 0.0f;
-        float max_y = 0.0f;
-        float max_z = 0.0f;
-        for (const PreviewBatch& batch : batches_) {
-            if (!alignment_batch_active(batch)) continue;
-            for (const DirectX::XMFLOAT3& position : batch.cpu_positions) {
-                if (!found) {
-                    min_x = max_x = position.x;
-                    min_y = max_y = position.y;
-                    min_z = max_z = position.z;
-                    found = true;
-                    continue;
-                }
-                min_x = std::min(min_x, position.x);
-                min_y = std::min(min_y, position.y);
-                min_z = std::min(min_z, position.z);
-                max_x = std::max(max_x, position.x);
-                max_y = std::max(max_y, position.y);
-                max_z = std::max(max_z, position.z);
-            }
-        }
-        if (!found) return false;
-        origin = DirectX::XMFLOAT3(
-            (min_x + max_x) * 0.5f + alignment_.translation_total.x,
-            (min_y + max_y) * 0.5f + alignment_.translation_total.y,
-            (min_z + max_z) * 0.5f + alignment_.translation_total.z);
+        if (!alignment_handle_origin_base(origin)) return false;
+        origin.x += alignment_.translation_total.x;
+        origin.y += alignment_.translation_total.y;
+        origin.z += alignment_.translation_total.z;
         return true;
     }
 
@@ -2339,7 +2405,6 @@ private:
             send_alignment_vector_event("alignment_rotation_finished", alignment_.rotation_total);
             alignment_.rotation_drag_active = false;
             alignment_.rotation_drag_roll = false;
-            alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
             if (GetCapture() == hwnd_) ReleaseCapture();
             return true;
         }
@@ -2348,7 +2413,6 @@ private:
             send_alignment_vector_event("alignment_drag_finished", alignment_.translation_total);
             alignment_.drag_active = false;
             alignment_.drag_axis.clear();
-            alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
             if (GetCapture() == hwnd_) ReleaseCapture();
             return true;
         }
@@ -2426,7 +2490,7 @@ private:
             for (const DirectX::XMFLOAT3& position : batch.cpu_positions) {
                 float screen_x = 0.0f;
                 float screen_y = 0.0f;
-                if (!project_position(position, screen_x, screen_y)) continue;
+                if (!project_batch_position(batch, position, screen_x, screen_y)) continue;
                 float distance = std::hypot(static_cast<float>(x) - screen_x, static_cast<float>(y) - screen_y);
                 if (distance < best_distance) {
                     best_distance = distance;
@@ -2507,14 +2571,14 @@ private:
                 if (source_submesh < 0 || source_vertex < 0) continue;
                 float screen_x = 0.0f;
                 float screen_y = 0.0f;
-                if (!project_position(batch.cpu_positions[vertex_index], screen_x, screen_y)) continue;
+                if (!project_batch_position(batch, batch.cpu_positions[vertex_index], screen_x, screen_y)) continue;
                 float distance = std::hypot(static_cast<float>(x) - screen_x, static_cast<float>(y) - screen_y);
                 if (distance > radius_pixels) continue;
                 EditorCandidate candidate;
                 candidate.batch_index = batch.index;
                 candidate.source_submesh_index = source_submesh;
                 candidate.source_vertex_index = source_vertex;
-                candidate.position = batch.cpu_positions[vertex_index];
+                candidate.position = transformed_batch_position(batch, batch.cpu_positions[vertex_index]);
                 candidate.screen_x = screen_x;
                 candidate.screen_y = screen_y;
                 candidate.distance = distance;
@@ -2556,7 +2620,7 @@ private:
                 candidate.batch_index = batch.index;
                 candidate.source_submesh_index = source_submesh;
                 candidate.source_vertex_index = source_vertex;
-                candidate.position = batch.cpu_positions[vertex_index];
+                candidate.position = transformed_batch_position(batch, batch.cpu_positions[vertex_index]);
                 candidate.weight = 1.0f;
                 candidates.push_back(candidate);
             }

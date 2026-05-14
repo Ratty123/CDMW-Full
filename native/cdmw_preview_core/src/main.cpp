@@ -388,6 +388,8 @@ struct NativeSubmesh {
     float uv_span_u = 0.0f;
     float uv_span_v = 0.0f;
     float uv_abs_max = 0.0f;
+    float uv_edge_outlier_ratio = 0.0f;
+    float uv_degenerate_triangle_ratio = 0.0f;
     float degenerate_triangle_ratio = 0.0f;
     float edge_outlier_ratio = 0.0f;
     float normal_valid_ratio = 0.0f;
@@ -1579,8 +1581,13 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
     const Vec3 diag_v = vec_sub(max_p, min_p);
     const float diag = std::max(1.0e-6f, std::sqrt(std::max(0.0f, vec_dot(diag_v, diag_v))));
 
+    const float uv_span = std::max(mesh.uv_span_u, mesh.uv_span_v);
+    const float uv_edge_limit = std::max(2.0f, std::min(16.0f, std::max(uv_span, 1.0f) * 0.65f));
     size_t degenerate = 0;
     size_t outlier_edges = 0;
+    size_t uv_edge_outliers = 0;
+    size_t uv_degenerate = 0;
+    size_t uv_triangles = 0;
     size_t triangles = 0;
     for (size_t i = 0; i + 2 < mesh.indices.size(); i += 3) {
         const std::uint32_t ia = mesh.indices[i];
@@ -1596,9 +1603,29 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
         const float bc = std::sqrt(std::max(0.0f, vec_dot(vec_sub(b, c), vec_sub(b, c))));
         const float ca = std::sqrt(std::max(0.0f, vec_dot(vec_sub(c, a), vec_sub(c, a))));
         if (std::max({ab, bc, ca}) > diag * 0.62f) ++outlier_edges;
+        if (ia < mesh.uvs.size() && ib < mesh.uvs.size() && ic < mesh.uvs.size()) {
+            const Vec2& uva = mesh.uvs[ia];
+            const Vec2& uvb = mesh.uvs[ib];
+            const Vec2& uvc = mesh.uvs[ic];
+            if (
+                std::isfinite(uva.x) && std::isfinite(uva.y) &&
+                std::isfinite(uvb.x) && std::isfinite(uvb.y) &&
+                std::isfinite(uvc.x) && std::isfinite(uvc.y)
+            ) {
+                ++uv_triangles;
+                const float uab = std::hypot(uva.x - uvb.x, uva.y - uvb.y);
+                const float ubc = std::hypot(uvb.x - uvc.x, uvb.y - uvc.y);
+                const float uca = std::hypot(uvc.x - uva.x, uvc.y - uva.y);
+                if (std::max({uab, ubc, uca}) > uv_edge_limit) ++uv_edge_outliers;
+                const float uv_area = std::abs((uvb.x - uva.x) * (uvc.y - uva.y) - (uvc.x - uva.x) * (uvb.y - uva.y)) * 0.5f;
+                if (uv_area <= 1.0e-10f) ++uv_degenerate;
+            }
+        }
     }
     mesh.degenerate_triangle_ratio = triangles > 0 ? static_cast<float>(degenerate) / static_cast<float>(triangles) : 1.0f;
     mesh.edge_outlier_ratio = triangles > 0 ? static_cast<float>(outlier_edges) / static_cast<float>(triangles) : 1.0f;
+    mesh.uv_edge_outlier_ratio = uv_triangles > 0 ? static_cast<float>(uv_edge_outliers) / static_cast<float>(uv_triangles) : 1.0f;
+    mesh.uv_degenerate_triangle_ratio = uv_triangles > 0 ? static_cast<float>(uv_degenerate) / static_cast<float>(uv_triangles) : 1.0f;
 
     size_t valid_normals = 0;
     for (const Vec3& n : mesh.normals) {
@@ -1609,7 +1636,6 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
     }
     mesh.normal_valid_ratio = vertex_count > 0 ? static_cast<float>(valid_normals) / static_cast<float>(vertex_count) : 0.0f;
 
-    const float uv_span = std::max(mesh.uv_span_u, mesh.uv_span_v);
     float score = 0.0f;
     score += std::min<float>(static_cast<float>(triangles), 250000.0f) * 0.002f;
     score += mesh.uv_finite_ratio * 140.0f;
@@ -1618,6 +1644,8 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
     score -= std::max(0.0f, mesh.uv_abs_max - 48.0f) * 4.0f;
     score -= mesh.degenerate_triangle_ratio * 220.0f;
     score -= mesh.edge_outlier_ratio * 260.0f;
+    score -= mesh.uv_edge_outlier_ratio * 320.0f;
+    score -= std::max(0.0f, mesh.uv_degenerate_triangle_ratio - 0.55f) * 120.0f;
     mesh.geometry_quality_score = score;
 
     std::ostringstream note;
@@ -1628,6 +1656,8 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
          << " uv_finite=" << mesh.uv_finite_ratio
          << " uv_span=" << mesh.uv_span_u << "x" << mesh.uv_span_v
          << " uv_abs_max=" << mesh.uv_abs_max
+         << " uv_edge_outlier=" << mesh.uv_edge_outlier_ratio
+         << " uv_degenerate=" << mesh.uv_degenerate_triangle_ratio
          << " degenerate=" << mesh.degenerate_triangle_ratio
          << " edge_outlier=" << mesh.edge_outlier_ratio
          << " normal_valid=" << mesh.normal_valid_ratio
@@ -1637,6 +1667,7 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
         mesh.uv_finite_ratio >= 0.92f
         && mesh.uv_abs_max <= 96.0f
         && std::max(mesh.uv_span_u, mesh.uv_span_v) <= 64.0f
+        && mesh.uv_edge_outlier_ratio <= 0.42f
         && mesh.degenerate_triangle_ratio <= 0.28f
         && mesh.edge_outlier_ratio <= 0.22f
         && mesh.normal_valid_ratio >= 0.70f;
@@ -1875,7 +1906,7 @@ static std::vector<NativeSubmesh> parse_pac_submeshes(const std::vector<char>& d
         std::vector<NativeSubmesh> meshes;
     };
     std::vector<Candidate> candidates;
-    const std::vector<PacVertexLayout> vertex_layouts = {
+    const std::vector<PacVertexLayout> primary_vertex_layouts = {
         {"pac40_uv8_n16", 40, 8, 16},
         {"pac40_uv12_n16", 40, 12, 16},
         {"pac40_uv20_n16", 40, 20, 16},
@@ -1883,42 +1914,77 @@ static std::vector<NativeSubmesh> parse_pac_submeshes(const std::vector<char>& d
         {"pac40_uv28_n16", 40, 28, 16},
         {"pac40_uv32_n16", 40, 32, 16},
     };
-    for (int geom_section_idx : {4, 3, 2, 1}) {
-        auto it = by_index.find(geom_section_idx);
-        if (it == by_index.end()) continue;
-        const int lod = 4 - geom_section_idx;
-        if (lod < 0 || lod >= n_lods) continue;
-        for (const PacVertexLayout& layout : vertex_layouts) {
-            std::vector<NativeSubmesh> meshes = parse_pac_geometry_section(data, descriptors, it->second, lod, layout);
-            int faces = 0;
-            int vertices = 0;
-            float quality = 0.0f;
-            int unsafe = 0;
-            std::ostringstream diag;
-            for (const NativeSubmesh& mesh : meshes) {
-                faces += static_cast<int>(mesh.indices.size() / 3u);
-                vertices += static_cast<int>(mesh.positions.size());
-                quality += mesh.geometry_quality_score;
-                if (!mesh.geometry_safe) ++unsafe;
-                if (diag.tellp() < 600) {
-                    if (diag.tellp() > 0) diag << "; ";
-                    diag << mesh.material << ": " << mesh.geometry_quality_note;
+    const std::vector<PacVertexLayout> alternate_vertex_layouts = {
+        {"pac32_uv8_n16", 32, 8, 16},
+        {"pac32_uv12_n16", 32, 12, 16},
+        {"pac32_uv20_n16", 32, 20, 16},
+        {"pac32_uv24_n16", 32, 24, 16},
+        {"pac36_uv8_n16", 36, 8, 16},
+        {"pac36_uv12_n16", 36, 12, 16},
+        {"pac36_uv20_n16", 36, 20, 16},
+        {"pac36_uv24_n16", 36, 24, 16},
+        {"pac36_uv28_n16", 36, 28, 16},
+        {"pac44_uv8_n16", 44, 8, 16},
+        {"pac44_uv12_n16", 44, 12, 16},
+        {"pac44_uv20_n16", 44, 20, 16},
+        {"pac44_uv24_n16", 44, 24, 16},
+        {"pac44_uv28_n16", 44, 28, 16},
+        {"pac44_uv32_n16", 44, 32, 16},
+        {"pac44_uv36_n16", 44, 36, 16},
+        {"pac48_uv8_n16", 48, 8, 16},
+        {"pac48_uv12_n16", 48, 12, 16},
+        {"pac48_uv20_n16", 48, 20, 16},
+        {"pac48_uv24_n16", 48, 24, 16},
+        {"pac48_uv28_n16", 48, 28, 16},
+        {"pac48_uv32_n16", 48, 32, 16},
+        {"pac48_uv36_n16", 48, 36, 16},
+        {"pac48_uv40_n16", 48, 40, 16},
+    };
+    auto collect_candidates_for_layouts = [&](const std::vector<PacVertexLayout>& layouts) {
+        for (int geom_section_idx : {4, 3, 2, 1}) {
+            auto it = by_index.find(geom_section_idx);
+            if (it == by_index.end()) continue;
+            const int lod = 4 - geom_section_idx;
+            if (lod < 0 || lod >= n_lods) continue;
+            for (const PacVertexLayout& layout : layouts) {
+                std::vector<NativeSubmesh> meshes = parse_pac_geometry_section(data, descriptors, it->second, lod, layout);
+                int faces = 0;
+                int vertices = 0;
+                float quality = 0.0f;
+                int unsafe = 0;
+                std::ostringstream diag;
+                for (const NativeSubmesh& mesh : meshes) {
+                    faces += static_cast<int>(mesh.indices.size() / 3u);
+                    vertices += static_cast<int>(mesh.positions.size());
+                    quality += mesh.geometry_quality_score;
+                    if (!mesh.geometry_safe) ++unsafe;
+                    if (diag.tellp() < 600) {
+                        if (diag.tellp() > 0) diag << "; ";
+                        diag << mesh.material << ": " << mesh.geometry_quality_note;
+                    }
+                }
+                if (!meshes.empty() && faces > 0) {
+                    candidates.push_back(Candidate{
+                        faces,
+                        vertices,
+                        static_cast<int>(meshes.size()),
+                        geom_section_idx,
+                        quality,
+                        unsafe,
+                        layout.name,
+                        diag.str(),
+                        std::move(meshes)
+                    });
                 }
             }
-            if (!meshes.empty() && faces > 0) {
-                candidates.push_back(Candidate{
-                    faces,
-                    vertices,
-                    static_cast<int>(meshes.size()),
-                    geom_section_idx,
-                    quality,
-                    unsafe,
-                    layout.name,
-                    diag.str(),
-                    std::move(meshes)
-                });
-            }
         }
+    };
+    collect_candidates_for_layouts(primary_vertex_layouts);
+    const bool has_confident_primary = std::any_of(candidates.begin(), candidates.end(), [](const Candidate& candidate) {
+        return candidate.unsafe_meshes == 0 && candidate.quality_score >= 140.0f;
+    });
+    if (!has_confident_primary) {
+        collect_candidates_for_layouts(alternate_vertex_layouts);
     }
     if (candidates.empty()) throw std::runtime_error("native PAC parser found no renderable geometry sections");
     std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) {
@@ -2535,6 +2601,7 @@ static NativeMeshParseResult parse_pamlod_submeshes(const std::vector<char>& dat
 
 static std::string texture_role_from_name(const std::string& raw_name) {
     const std::string name = lower_copy(raw_name);
+    if (name.find("_flow") != std::string::npos || name.find("flow") != std::string::npos) return "flow";
     if (name.find("_n.dds") != std::string::npos || name.find("normal") != std::string::npos) return "normal";
     if (name.find("_disp.dds") != std::string::npos || name.find("height") != std::string::npos || name.find("displacement") != std::string::npos) return "height";
     if (name.find("_sp.dds") != std::string::npos || name.find("specular") != std::string::npos) return "specular";
@@ -4854,7 +4921,6 @@ static std::vector<MaterialLayer> compile_material_layers(
         layer.shader_rule = binding->shader_rule;
         layer.evidence_grade = binding->evidence_grade;
         layer.weight = std::clamp(binding->layer_weight, 0.0f, 1.0f);
-        if (layer.weight <= 0.001f) layer.weight = 0.28f;
         layer.tint = binding->tint_color;
         layer.diffuse_source = binding->source_path;
         layer.diffuse_archive_path = binding->archive_path;
@@ -4864,13 +4930,13 @@ static std::vector<MaterialLayer> compile_material_layers(
         const TextureBinding* layer_normal = find_layer_aux_binding(bindings, "normal", layer.layer_role, layer.layer_channel);
         const TextureBinding* layer_material = find_layer_aux_binding(bindings, "material", layer.layer_role, layer.layer_channel);
         const TextureBinding* layer_height = find_layer_aux_binding(bindings, "height", layer.layer_role, layer.layer_channel);
-        if (mask != nullptr) {
-            layer.mask_source = mask->source_path;
-            layer.mask_archive_path = mask->archive_path;
-            layer.mask_parameter = mask->parameter_name;
-        } else {
-            layer.evidence_grade = "approximate";
+        if (mask == nullptr) {
+            continue;
         }
+        layer.mask_source = mask->source_path;
+        layer.mask_archive_path = mask->archive_path;
+        layer.mask_parameter = mask->parameter_name;
+        layer.weight = std::clamp(layer.weight <= 0.001f ? 0.14f : layer.weight, 0.0f, 0.22f);
         if (layer_normal != nullptr) {
             layer.normal_source = layer_normal->source_path;
             layer.normal_archive_path = layer_normal->archive_path;
@@ -5303,6 +5369,8 @@ static NativePackage write_d3d11_package(
             << "\"uv_finite_ratio\":" << mesh.uv_finite_ratio << ","
             << "\"uv_span\":[" << mesh.uv_span_u << "," << mesh.uv_span_v << "],"
             << "\"uv_abs_max\":" << mesh.uv_abs_max << ","
+            << "\"uv_edge_outlier_ratio\":" << mesh.uv_edge_outlier_ratio << ","
+            << "\"uv_degenerate_triangle_ratio\":" << mesh.uv_degenerate_triangle_ratio << ","
             << "\"degenerate_triangle_ratio\":" << mesh.degenerate_triangle_ratio << ","
             << "\"edge_outlier_ratio\":" << mesh.edge_outlier_ratio << ","
             << "\"normal_valid_ratio\":" << mesh.normal_valid_ratio << ","
