@@ -74,6 +74,14 @@ class TableCatalogTests(unittest.TestCase):
             recognized_table_for_path("gamedata/binary__/client/bin/uimaptextureinfo.pabgb").source_table,
             "UIMapTextureInfo",
         )
+        self.assertEqual(
+            recognized_table_for_path("gamedata/binary__/client/bin/partprefabdyeslotinfo.pabgb").source_table,
+            "PartPrefabDyeSlotInfo",
+        )
+        self.assertEqual(
+            recognized_table_for_path("gamedata/binary__/client/bin/materialmatchinfo.pabgb").source_table,
+            "MaterialMatchInfo",
+        )
 
         weapon_tags = compatibility_tags_for_catalog_row("Weapon", "Sword")
         armor_tags = compatibility_tags_for_catalog_row("Armor", "Head")

@@ -36,6 +36,7 @@ class ArchiveItemRecord:
     model_stems: List[str] = field(default_factory=list)
     pac_files: List[str] = field(default_factory=list)
     icon_paths: List[str] = field(default_factory=list)
+    material_tags: List[str] = field(default_factory=list)
     table_evidence: tuple[TableEvidenceRecord, ...] = ()
 
 
@@ -51,6 +52,8 @@ class ArchiveAssetCatalogEntry:
     model_stems: tuple[str, ...] = ()
     icon_paths: tuple[str, ...] = ()
     localized_names: tuple[str, ...] = ()
+    material_tags: tuple[str, ...] = ()
+    material_evidence: tuple[str, ...] = ()
     variant_count: int = 1
     evidence: str = ""
     scope_filter: str = ""
@@ -69,6 +72,8 @@ class ArchiveAssetCatalogEntry:
             "model_stems": list(self.model_stems),
             "icon_paths": list(self.icon_paths),
             "localized_names": list(self.localized_names),
+            "material_tags": list(self.material_tags),
+            "material_evidence": list(self.material_evidence),
             "variant_count": int(self.variant_count),
             "evidence": self.evidence,
             "scope_filter": self.scope_filter,
@@ -93,6 +98,8 @@ class _ArchiveItemIndexSources:
     localization_entries: Dict[str, ArchiveEntry] = field(default_factory=dict)
     iteminfo_entry: Optional[ArchiveEntry] = None
     stringinfo_entry: Optional[ArchiveEntry] = None
+    part_prefab_dye_slot_entry: Optional[ArchiveEntry] = None
+    material_match_entry: Optional[ArchiveEntry] = None
     model_entries: List[ArchiveEntry] = field(default_factory=list)
     icon_entries: List[ArchiveEntry] = field(default_factory=list)
 
@@ -168,6 +175,32 @@ _ITEM_ICON_MODEL_COMPATIBILITY_TOKENS: Tuple[Tuple[str, str], ...] = (
     ("boots", "foot"),
     ("saddle", "horse_ub"),
 )
+_MATERIAL_TAG_ALIASES: Mapping[str, Tuple[str, ...]] = {
+    "cloth": ("cloth", "cloths", "fabric", "textile", "wool"),
+    "leather": ("leather", "hide"),
+    "metal": ("metal", "metalthick", "metalthin", "iron", "steel", "bronze", "copper", "silver", "gold"),
+    "wood": ("wood", "timber", "branch", "bark"),
+    "stone": ("stone", "rock", "marble", "granite", "slate", "gravel"),
+    "fur": ("fur",),
+    "hair": ("hair",),
+    "skin": ("skin",),
+    "bone": ("bone", "horn", "tooth", "claw"),
+    "glass": ("glass",),
+    "rope": ("rope", "string", "cord"),
+    "crystal": ("crystal", "gem", "jewel"),
+    "water": ("water", "puddle"),
+    "dirt": ("dirt", "mud", "sand", "soil"),
+    "grass": ("grass", "leaf", "leaves", "moss"),
+}
+_MATERIAL_TAG_BY_ALIAS = {
+    alias.lower(): tag
+    for tag, aliases in _MATERIAL_TAG_ALIASES.items()
+    for alias in aliases
+}
+_MATERIAL_TAG_SCAN_RE = re.compile(
+    r"(cloths?|fabric|textile|wool|leather|hide|metal(?:thick|thin)?|iron|steel|bronze|copper|silver|gold|wood|timber|branch|bark|stone|rock|marble|granite|slate|gravel|fur|hair|skin|bone|horn|tooth|claw|glass|rope|string|cord|crystal|gem|jewel|water|puddle|dirt|mud|sand|soil|grass|leaf|leaves|moss)",
+    re.IGNORECASE,
+)
 
 
 def _strip_archive_model_variant_suffix(stem: str) -> str:
@@ -241,17 +274,27 @@ def _collect_archive_item_index_sources(
         if index % 4096 == 0:
             raise_if_cancelled(stop_event)
         lower_path = entry.path.lower()
-        wants_localization = "localizationstring_" in lower_path
-        wants_iteminfo = "iteminfo.pabgb" in lower_path
-        wants_stringinfo = os.path.basename(lower_path) == "stringinfo.pabgb"
-        wants_model_hash = lower_path.endswith((".prefab", ".pac", ".pact"))
         basename = os.path.basename(lower_path)
         stem = os.path.splitext(basename)[0]
+        wants_localization = "localizationstring_" in lower_path
+        wants_iteminfo = "iteminfo.pabgb" in lower_path
+        wants_stringinfo = basename == "stringinfo.pabgb"
+        wants_part_prefab_dye_slot = basename == "partprefabdyeslotinfo.pabgb"
+        wants_material_match = basename == "materialmatchinfo.pabgb"
+        wants_model_hash = lower_path.endswith((".prefab", ".pac", ".pact"))
         wants_item_icon = lower_path.endswith(".dds") and (
             "itemicon" in lower_path
             or any(stem.startswith(prefix) for prefix in _ITEM_ICON_STEM_PREFIXES)
         )
-        if not (wants_localization or wants_iteminfo or wants_stringinfo or wants_model_hash or wants_item_icon):
+        if not (
+            wants_localization
+            or wants_iteminfo
+            or wants_stringinfo
+            or wants_part_prefab_dye_slot
+            or wants_material_match
+            or wants_model_hash
+            or wants_item_icon
+        ):
             continue
         group = _entry_package_group(entry)
         if wants_localization and group == "0020":
@@ -263,6 +306,10 @@ def _collect_archive_item_index_sources(
             sources.iteminfo_entry = entry
         elif wants_stringinfo and group == "0008" and sources.stringinfo_entry is None:
             sources.stringinfo_entry = entry
+        elif wants_part_prefab_dye_slot and group == "0008" and sources.part_prefab_dye_slot_entry is None:
+            sources.part_prefab_dye_slot_entry = entry
+        elif wants_material_match and group == "0008" and sources.material_match_entry is None:
+            sources.material_match_entry = entry
         elif wants_model_hash and group == "0009":
             sources.model_entries.append(entry)
         elif wants_item_icon:
@@ -442,6 +489,157 @@ def _build_archive_item_icon_path_index(icon_entries: Sequence[ArchiveEntry]) ->
             for alias_stem in iter_archive_equipment_model_alias_stems(key):
                 _add_icon_path(index, alias_stem, entry.path)
     return index
+
+
+def _canonical_material_tag(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "", str(value or "").strip().lower())
+    if not normalized:
+        return ""
+    if normalized in _MATERIAL_TAG_BY_ALIAS:
+        return _MATERIAL_TAG_BY_ALIAS[normalized]
+    for match in _MATERIAL_TAG_SCAN_RE.finditer(normalized):
+        alias = re.sub(r"[^a-z0-9]+", "", match.group(0).lower())
+        tag = _MATERIAL_TAG_BY_ALIAS.get(alias)
+        if tag:
+            return tag
+    return ""
+
+
+def _iter_length_prefixed_ascii_strings(data: bytes) -> Tuple[Tuple[int, str], ...]:
+    strings: List[Tuple[int, str]] = []
+    pos = 0
+    while pos + 8 <= len(data):
+        slen = struct.unpack_from("<I", data, pos)[0]
+        if 3 <= slen <= 260 and pos + 4 + slen <= len(data):
+            raw = data[pos + 4 : pos + 4 + slen].rstrip(b"\x00")
+            if raw and all(value in (9, 10, 13) or 0x20 <= value <= 0x7E for value in raw):
+                try:
+                    text = raw.decode("ascii").strip()
+                except UnicodeDecodeError:
+                    text = ""
+                if text and any(char.isalpha() for char in text):
+                    strings.append((pos, text))
+                    pos += 4 + slen
+                    continue
+        pos += 1
+    return tuple(strings)
+
+
+def _add_material_index_value(index: Dict[str, List[str]], key: str, tags: Sequence[str]) -> None:
+    normalized_key = str(key or "").replace("\\", "/").strip().lower()
+    if not normalized_key:
+        return
+    values = index.setdefault(normalized_key, [])
+    for tag in tags:
+        normalized_tag = _canonical_material_tag(tag) or str(tag or "").strip().lower()
+        if normalized_tag and normalized_tag not in values:
+            values.append(normalized_tag)
+
+
+def _parse_part_prefab_dye_slot_material_index_data(data: bytes) -> Dict[str, Tuple[str, ...]]:
+    strings = _iter_length_prefixed_ascii_strings(data)
+    index: Dict[str, List[str]] = {}
+    record_values: List[str] = []
+
+    def model_asset_path(value: str) -> str:
+        normalized = str(value or "").replace("\\", "/").strip()
+        lower = normalized.lower()
+        for suffix in (".pamlod", ".prefab", ".pac", ".pam"):
+            marker = lower.find(suffix)
+            if marker >= 0 and "/" in lower[: marker + len(suffix)]:
+                return normalized[: marker + len(suffix)]
+        return ""
+
+    def flush_for_path(path: str) -> None:
+        normalized_path = model_asset_path(path)
+        if not normalized_path:
+            return
+        tags: List[str] = []
+        for value in (*record_values, normalized_path):
+            tag = _canonical_material_tag(value)
+            if tag and tag not in tags:
+                tags.append(tag)
+        if not tags:
+            return
+        basename = os.path.basename(normalized_path).lower()
+        stem = os.path.splitext(basename)[0]
+        for key in (normalized_path, basename, stem):
+            _add_material_index_value(index, key, tags)
+        for alias_stem in iter_archive_character_equipment_root_alias_stems(stem):
+            _add_material_index_value(index, alias_stem, tags)
+            _add_material_index_value(index, alias_stem + ".pac", tags)
+        for alias_stem in iter_archive_equipment_model_alias_stems(stem):
+            _add_material_index_value(index, alias_stem, tags)
+            _add_material_index_value(index, alias_stem + ".pac", tags)
+
+    for _offset, text in strings:
+        normalized = text.replace("\\", "/").strip()
+        asset_path = model_asset_path(normalized)
+        if asset_path:
+            flush_for_path(asset_path)
+            record_values = []
+            continue
+        if len(record_values) < 48:
+            record_values.append(normalized)
+        else:
+            record_values = record_values[-32:] + [normalized]
+    return {key: tuple(values) for key, values in index.items() if values}
+
+
+def _parse_archive_part_prefab_dye_slot_material_index(
+    entry: Optional[ArchiveEntry],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> Dict[str, Tuple[str, ...]]:
+    if entry is None:
+        return {}
+    data, _decompressed, _note = read_archive_entry_data(entry, stop_event=stop_event)
+    return _parse_part_prefab_dye_slot_material_index_data(data)
+
+
+def _material_tags_for_model_names(
+    model_names: Sequence[str],
+    material_tag_index: Mapping[str, Sequence[str]],
+) -> Tuple[str, ...]:
+    tags: List[str] = []
+    seen: set[str] = set()
+    for raw_name in model_names:
+        normalized = str(raw_name or "").replace("\\", "/").strip().lower()
+        if not normalized:
+            continue
+        basename = os.path.basename(normalized)
+        stem = os.path.splitext(basename)[0]
+        candidates = [normalized, basename, stem]
+        candidates.extend(iter_archive_character_equipment_root_alias_stems(stem))
+        candidates.extend(iter_archive_equipment_model_alias_stems(stem))
+        for candidate in candidates:
+            for tag in material_tag_index.get(candidate, ()):
+                canonical = _canonical_material_tag(tag) or str(tag or "").strip().lower()
+                if canonical and canonical not in seen:
+                    seen.add(canonical)
+                    tags.append(canonical)
+    return tuple(tags)
+
+
+def _material_evidence_for_item(
+    item: ArchiveItemRecord,
+    material_tags: Sequence[str],
+) -> Tuple[TableEvidenceRecord, ...]:
+    if not material_tags:
+        return ()
+    target_models = tuple(dict.fromkeys((*item.pac_files, *item.model_stems)))[:4]
+    target_suffix = f" via {', '.join(target_models)}" if target_models else ""
+    return tuple(
+        TableEvidenceRecord(
+            "PartPrefabDyeSlotInfo",
+            "_subMeshList",
+            f"{tag}{target_suffix}",
+            "material_slot_tag",
+            confidence="part_prefab_dye_slot_material_hint",
+            note="Recovered from model/submesh dye-slot material labels.",
+        )
+        for tag in material_tags[:8]
+    )
 
 
 def _item_icon_model_reference_is_compatible(internal_name: str, model_stem: str) -> bool:
@@ -1048,6 +1246,8 @@ def _catalog_scope_filter_for_item(item: ArchiveItemRecord) -> str:
     for value in item.icon_paths[:6]:
         base = os.path.splitext(str(value or "").replace("\\", "/").rsplit("/", 1)[-1])[0]
         add(base, wildcard=True)
+    for value in item.material_tags[:8]:
+        add(value)
     return "; ".join(patterns[:18])
 
 
@@ -1072,6 +1272,11 @@ def _merge_catalog_entry(existing: ArchiveAssetCatalogEntry, item: ArchiveItemRe
     model_stems = merged_tuple(existing.model_stems, item.model_stems)
     icon_paths = merged_tuple(existing.icon_paths, item.icon_paths)
     localized_names = merged_tuple(existing.localized_names, item.localized_names)
+    material_tags = merged_tuple(existing.material_tags, item.material_tags)
+    material_evidence = merged_tuple(
+        existing.material_evidence,
+        tuple(f"{tag}: PartPrefabDyeSlotInfo" for tag in item.material_tags),
+    )
     variant_count = existing.variant_count + 1
     scope_item = ArchiveItemRecord(
         item_id=existing.item_id,
@@ -1081,11 +1286,14 @@ def _merge_catalog_entry(existing: ArchiveAssetCatalogEntry, item: ArchiveItemRe
         model_stems=list(model_stems),
         pac_files=list(pac_files),
         icon_paths=list(icon_paths),
+        material_tags=list(material_tags),
         table_evidence=merge_table_evidence(existing.table_evidence, item.table_evidence),
     )
     evidence_parts = [existing.evidence]
     if item.icon_paths:
         evidence_parts.append("inventory icon path")
+    if item.material_tags:
+        evidence_parts.append("material slot tags: " + ", ".join(material_tags[:8]))
     table_evidence = merge_table_evidence(existing.table_evidence, item.table_evidence)
     table_summary = summarize_table_evidence(table_evidence)
     if table_summary:
@@ -1107,6 +1315,8 @@ def _merge_catalog_entry(existing: ArchiveAssetCatalogEntry, item: ArchiveItemRe
         model_stems=model_stems,
         icon_paths=icon_paths,
         localized_names=localized_names,
+        material_tags=material_tags,
+        material_evidence=material_evidence,
         variant_count=variant_count,
         evidence=evidence or existing.evidence,
         scope_filter=_catalog_scope_filter_for_item(scope_item),
@@ -1142,6 +1352,8 @@ def _build_archive_asset_catalog_entries(items: Sequence[ArchiveItemRecord]) -> 
             evidence_parts.append("generated friendly name")
         if item.icon_paths:
             evidence_parts.append("inventory icon path")
+        if item.material_tags:
+            evidence_parts.append("material slot tags: " + ", ".join(item.material_tags[:8]))
         table_summary = summarize_table_evidence(item.table_evidence)
         if table_summary:
             evidence_parts.append(f"table fields: {table_summary}")
@@ -1157,6 +1369,8 @@ def _build_archive_asset_catalog_entries(items: Sequence[ArchiveItemRecord]) -> 
             model_stems=tuple(item.model_stems),
             icon_paths=tuple(item.icon_paths),
             localized_names=tuple(item.localized_names),
+            material_tags=tuple(item.material_tags),
+            material_evidence=tuple(f"{tag}: PartPrefabDyeSlotInfo" for tag in item.material_tags),
             variant_count=1,
             evidence="; ".join(evidence_parts) or "item database record",
             scope_filter=_catalog_scope_filter_for_item(item),
@@ -1184,6 +1398,7 @@ def _build_archive_item_search_index_from_records(
     model_entries: Sequence[ArchiveEntry],
     *,
     icon_path_index: Optional[Mapping[str, Sequence[str]]] = None,
+    material_tag_index: Optional[Mapping[str, Sequence[str]]] = None,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> ArchiveItemSearchIndex:
     hash_table = _build_archive_model_hash_table_from_entries(model_entries)
@@ -1197,6 +1412,7 @@ def _build_archive_item_search_index_from_records(
     model_base_related_display_names: Dict[str, str] = {}
     items_with_models: List[ArchiveItemRecord] = []
     icon_index = {str(key).strip().lower(): tuple(value) for key, value in (icon_path_index or {}).items()}
+    material_index = {str(key).replace("\\", "/").strip().lower(): tuple(value) for key, value in (material_tag_index or {}).items()}
 
     for item in items:
         exact_model_names: List[str] = []
@@ -1277,6 +1493,26 @@ def _build_archive_item_search_index_from_records(
                 else:
                     _add_display_name(model_base_related_display_names, base, item.display_name)
         if item.pac_files:
+            material_tags = _material_tags_for_model_names(
+                (*item.pac_files, *item.model_stems, *exact_model_names, *related_model_names),
+                material_index,
+            )
+            if material_tags:
+                item.material_tags = list(material_tags)
+                item.table_evidence = merge_table_evidence(
+                    item.table_evidence,
+                    _material_evidence_for_item(item, material_tags),
+                )
+                material_terms = " ".join(material_tags)
+                for model_name in (*item.pac_files, *item.model_stems, *exact_model_names, *related_model_names):
+                    base = _strip_archive_model_variant_suffix(model_name)
+                    if not base:
+                        continue
+                    existing = model_base_aliases.get(base, "")
+                    model_base_aliases[base] = f"{existing} {material_terms}".strip() if existing else material_terms
+                    for root_alias in iter_archive_character_equipment_root_alias_stems(base):
+                        existing = model_base_aliases.get(root_alias, "")
+                        model_base_aliases[root_alias] = f"{existing} {material_terms}".strip() if existing else material_terms
             items_with_models.append(item)
 
     if on_log is not None:
@@ -1339,6 +1575,15 @@ def build_archive_item_search_index(
                 icon_model_hashes=icon_model_hashes,
                 stop_event=stop_event,
             )
+            material_tag_index = _parse_archive_part_prefab_dye_slot_material_index(
+                sources.part_prefab_dye_slot_entry,
+                stop_event=stop_event,
+            )
+            if on_log is not None and material_tag_index:
+                on_log(
+                    "Item-name search: indexed "
+                    f"{len(material_tag_index):,} model material tag evidence link(s) from PartPrefabDyeSlotInfo."
+                )
         if on_log is not None:
             on_log(f"Item-name search: parsed {len(items):,} item database record(s).")
     except RunCancelled:
@@ -1348,5 +1593,6 @@ def build_archive_item_search_index(
         items,
         sources.model_entries,
         icon_path_index=icon_path_index if "icon_path_index" in locals() else {},
+        material_tag_index=material_tag_index if "material_tag_index" in locals() else {},
         on_log=on_log,
     )

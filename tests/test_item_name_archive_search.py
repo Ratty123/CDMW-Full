@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tempfile
+import struct
 import unittest
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from cdmw.core.item_index import (
     _build_archive_model_hash_table_from_entries,
     _collect_archive_item_index_sources,
     _parse_archive_iteminfo_data,
+    _parse_part_prefab_dye_slot_material_index_data,
     _parse_stringinfo_model_icon_hashes_from_data,
     _strip_archive_model_variant_suffix,
 )
@@ -847,6 +849,47 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         cache_row = catalog_row.to_cache_dict()
         self.assertTrue(any(row.get("label") == "ItemInfo._itemIconList" for row in cache_row["table_evidence"]))
         self.assertIn("equip_slot:sword", cache_row["compatibility_tags"])
+
+    def test_part_prefab_dye_slot_material_tags_enrich_asset_catalog(self) -> None:
+        def lp(value: str) -> bytes:
+            data = value.encode("ascii")
+            return struct.pack("<I", len(data)) + data
+
+        material_index = _parse_part_prefab_dye_slot_material_index_data(
+            b"\x00\x01\x02"
+            + lp("cd_demo_armor_0001")
+            + b"\x02\x00\x01"
+            + lp("cloth")
+            + lp("leather")
+            + lp("metal")
+            + b"\x01\x00\x00"
+            + lp("character/model/1_pc/1_phm/armor/9_upperbody/cd_demo_armor_0001.pac")
+        )
+        index = _build_archive_item_search_index_from_records(
+            [
+                ArchiveItemRecord(
+                    item_id=901,
+                    internal_name="Item_Demo_Armor",
+                    display_name="Demo Armor",
+                    model_stems=["cd_demo_armor_0001"],
+                )
+            ],
+            [],
+            material_tag_index=material_index,
+        )
+
+        row = index.asset_catalog[0]
+        self.assertEqual(row.material_tags, ("cloth", "leather", "metal"))
+        self.assertIn("material slot tags: cloth, leather, metal", row.evidence)
+        cache_row = row.to_cache_dict()
+        self.assertEqual(cache_row["material_tags"], ["cloth", "leather", "metal"])
+        self.assertTrue(
+            any(
+                evidence.get("label") == "PartPrefabDyeSlotInfo._subMeshList"
+                for evidence in cache_row["table_evidence"]
+            )
+        )
+        self.assertIn("cloth", index.model_base_aliases["cd_demo_armor_0001"])
 
     def test_item_icon_path_index_accepts_icon_prefab_and_icon_prefixes(self) -> None:
         sources = _collect_archive_item_index_sources(

@@ -8,7 +8,7 @@ from pathlib import PurePosixPath
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 
-TABLE_CATALOG_VERSION = "449-curated-v1"
+TABLE_CATALOG_VERSION = "450-material-evidence-v1"
 TABLE_CATALOG_SOURCE = "449table.txt"
 TABLE_CATALOG_PARSER_COVERAGE = "curated_schema_only"
 
@@ -156,6 +156,7 @@ TABLE_SPECS: Tuple[TableSpec, ...] = (
         parser_status="T0",
         fields=(
             _field("_subMeshList", "submesh_dye_slot_list", "submesh"),
+            _field("_materialType", "material_slot_tag", "material", note="Recovered from dye-slot material strings such as cloth, leather, metal, fur, wood, and stone."),
             _field("_meshFileName", "mesh_file_name", "mesh"),
         ),
     ),
@@ -165,6 +166,39 @@ TABLE_SPECS: Tuple[TableSpec, ...] = (
         fields=(
             _field("_iconPath", "dye_icon_path", "texture", texture_role="ui_icon"),
             _field("_baseColorTexturePath", "dye_base_color_texture", "texture", texture_role="base_color"),
+        ),
+    ),
+    TableSpec(
+        "PartPrefabDyeTexturePalleteInfo",
+        parser_status="T0",
+        fields=(
+            _field("_materialType", "material_palette_tag", "material"),
+            _field("_iconPath", "dye_palette_icon", "texture", texture_role="ui_icon"),
+            _field("_baseColorTexturePath", "dye_palette_base_color", "texture", texture_role="base_color"),
+        ),
+    ),
+    TableSpec(
+        "MaterialMatchInfo",
+        parser_status="T0",
+        fields=(
+            _field("_materialName", "surface_material_name", "material"),
+            _field("_matchMaterialName", "surface_material_alias", "material"),
+        ),
+    ),
+    TableSpec(
+        "MaterialRelationInfo",
+        parser_status="T0",
+        fields=(
+            _field("_sourceMaterial", "surface_material_source", "material"),
+            _field("_targetMaterial", "surface_material_relation", "material"),
+        ),
+    ),
+    TableSpec(
+        "ElementalMaterialInfo",
+        parser_status="T0",
+        fields=(
+            _field("_materialName", "elemental_material_name", "material"),
+            _field("_effectName", "elemental_material_effect", "effect"),
         ),
     ),
     TableSpec(
