@@ -2116,30 +2116,9 @@ static std::vector<std::string> extract_dds_tokens(const std::string& text) {
 struct SidecarTextureRef {
     std::string path;
     std::string parameter_name;
+    std::string material_name;
+    std::string shader_family;
 };
-
-static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(const std::string& text) {
-    std::vector<SidecarTextureRef> refs;
-    std::set<std::string> seen;
-    const std::regex param_pattern(
-        "<MaterialParameterTexture[^>]*(?:_name|StringItemID)=\"([^\"]*)\"[^>]*>[\\s\\S]*?<ResourceReferencePath_ITexture[^>]*_path=\"([^\"]+\\.dds)\"",
-        std::regex_constants::icase
-    );
-    auto begin = std::sregex_iterator(text.begin(), text.end(), param_pattern);
-    auto end = std::sregex_iterator();
-    for (auto it = begin; it != end; ++it) {
-        std::string parameter = (*it)[1].str();
-        std::string path = (*it)[2].str();
-        std::replace(path.begin(), path.end(), '\\', '/');
-        const std::string key = lower_copy(path + "|" + parameter);
-        if (seen.insert(key).second) refs.push_back(SidecarTextureRef{path, parameter});
-    }
-    if (!refs.empty()) return refs;
-    for (const std::string& token : extract_dds_tokens(text)) {
-        refs.push_back(SidecarTextureRef{token, basename_from_path(token)});
-    }
-    return refs;
-}
 
 static std::string extract_shader_family_hint(const std::string& text) {
     const std::regex material_name_pattern("_materialName=\"([^\"]+)\"", std::regex_constants::icase);
@@ -2148,6 +2127,103 @@ static std::string extract_shader_family_hint(const std::string& text) {
     const std::regex pattern("(SkinnedMesh(?:Skin|Standard(?:_Ver2)?|Cloth(?:_Ver2)?|Hair)|MultiTextured|Standard)", std::regex_constants::icase);
     if (std::regex_search(text, match, pattern)) return match[1].str();
     return "";
+}
+
+static std::string xml_attr_value(const std::string& text, std::initializer_list<const char*> names) {
+    for (const char* raw_name : names) {
+        const std::string name(raw_name);
+        const std::regex pattern("(?:^|\\s)" + name + "=\"([^\"]*)\"", std::regex_constants::icase);
+        std::smatch match;
+        if (std::regex_search(text, match, pattern)) return match[1].str();
+    }
+    return "";
+}
+
+static void add_sidecar_texture_ref(
+    std::vector<SidecarTextureRef>& refs,
+    std::set<std::string>& seen,
+    std::string path,
+    std::string parameter,
+    const std::string& material_name,
+    const std::string& shader_family
+) {
+    std::replace(path.begin(), path.end(), '\\', '/');
+    if (lower_copy(path).find(".dds") == std::string::npos) return;
+    if (parameter.empty()) parameter = basename_from_path(path);
+    const std::string key = lower_copy(path + "|" + parameter + "|" + material_name + "|" + shader_family);
+    if (seen.insert(key).second) {
+        refs.push_back(SidecarTextureRef{path, parameter, material_name, shader_family});
+    }
+}
+
+static void extract_texture_refs_from_scope(
+    const std::string& scope_text,
+    const std::string& material_name,
+    const std::string& shader_family,
+    std::vector<SidecarTextureRef>& refs,
+    std::set<std::string>& seen
+) {
+    const std::regex texture_tag_pattern(
+        "<MaterialParameterTexture[^>]*(?:/>|>[\\s\\S]*?</MaterialParameterTexture\\s*>)",
+        std::regex_constants::icase
+    );
+    auto begin = std::sregex_iterator(scope_text.begin(), scope_text.end(), texture_tag_pattern);
+    auto end = std::sregex_iterator();
+    for (auto it = begin; it != end; ++it) {
+        const std::string tag = it->str();
+        const std::string parameter = xml_attr_value(tag, {"_name", "StringItemID", "Name"});
+        std::string path = xml_attr_value(tag, {"Value", "_path"});
+        if (path.empty()) {
+            const std::regex resource_pattern("ResourceReferencePath_ITexture[^>]*_path=\"([^\"]+\\.dds)\"", std::regex_constants::icase);
+            std::smatch match;
+            if (std::regex_search(tag, match, resource_pattern)) path = match[1].str();
+        }
+        add_sidecar_texture_ref(refs, seen, path, parameter, material_name, shader_family);
+    }
+}
+
+static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(const std::string& text) {
+    std::vector<SidecarTextureRef> refs;
+    std::set<std::string> seen;
+
+    const std::regex skinned_wrapper_pattern(
+        "<SkinnedMeshMaterialWrapper[^>]*>[\\s\\S]*?</SkinnedMeshMaterialWrapper\\s*>",
+        std::regex_constants::icase
+    );
+    auto wrapper_begin = std::sregex_iterator(text.begin(), text.end(), skinned_wrapper_pattern);
+    auto wrapper_end = std::sregex_iterator();
+    for (auto it = wrapper_begin; it != wrapper_end; ++it) {
+        const std::string block = it->str();
+        const std::string material_name = xml_attr_value(block, {"_subMeshName", "PrimitiveName", "Name"});
+        const std::string shader_family = extract_shader_family_hint(block);
+        extract_texture_refs_from_scope(block, material_name, shader_family, refs, seen);
+    }
+
+    const std::string lowered_text = lower_copy(text);
+    size_t material_search = 0;
+    while (true) {
+        const size_t material_pos = lowered_text.find("<material ", material_search);
+        if (material_pos == std::string::npos) break;
+        const size_t material_end = lowered_text.find("</material>", material_pos);
+        if (material_end == std::string::npos) break;
+        const std::string block = text.substr(material_pos, material_end + std::string("</Material>").size() - material_pos);
+        std::string material_name = xml_attr_value(block, {"PrimitiveName", "_subMeshName", "Name"});
+        std::replace(material_name.begin(), material_name.end(), '\\', '/');
+        std::string shader_family = extract_shader_family_hint(block);
+        if (shader_family.empty()) shader_family = xml_attr_value(block, {"MaterialName", "_materialName"});
+        extract_texture_refs_from_scope(block, material_name, shader_family, refs, seen);
+        material_search = material_end + std::string("</material>").size();
+    }
+
+    if (refs.empty()) {
+        extract_texture_refs_from_scope(text, "", "", refs, seen);
+    }
+
+    if (!refs.empty()) return refs;
+    for (const std::string& token : extract_dds_tokens(text)) {
+        add_sidecar_texture_ref(refs, seen, token, basename_from_path(token), "", "");
+    }
+    return refs;
 }
 
 static std::string extracted_dds_path_for_entry(
@@ -2194,7 +2270,12 @@ static int material_match_score(const TextureBinding& binding, const NativeSubme
     if (desired_role == "material" && (binding.role == "detail" || binding.role == "specular")) score += 16;
     if (desired_role == "base" && role_is_technical_for_base(binding.role)) score -= 200;
     const std::string material = lower_copy(mesh.material + " " + mesh.name);
-    const std::string texture = lower_copy(binding.texture_name + " " + binding.archive_path);
+    const std::string texture = lower_copy(
+        binding.texture_name + " " +
+        binding.archive_path + " " +
+        binding.material_name + " " +
+        binding.parameter_name
+    );
     std::vector<std::string> material_tokens;
     std::string current;
     for (char ch : material) {
@@ -2208,8 +2289,54 @@ static int material_match_score(const TextureBinding& binding, const NativeSubme
     for (const std::string& token : material_tokens) {
         if (token.size() >= 3 && texture.find(token) != std::string::npos) score += 12;
     }
+    const std::string binding_material = lower_copy(binding.material_name);
+    if (!binding_material.empty() && material.find(binding_material) != std::string::npos) score += 70;
+    if (!binding_material.empty() && texture.find(material) != std::string::npos) score += 20;
     if (texture.find(material) != std::string::npos && !material.empty()) score += 40;
     return score;
+}
+
+static std::string normalized_material_key(const std::string& text) {
+    std::string key = lower_copy(basename_from_path(text));
+    if (key.ends_with(".dds")) key = key.substr(0, key.size() - 4);
+    return key;
+}
+
+static int material_identity_match_score(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    const std::string mesh_text = lower_copy(mesh.material + " " + mesh.name);
+    const std::string binding_text = lower_copy(binding.material_name + " " + binding.texture_name + " " + binding.archive_path);
+    const std::string mesh_key_a = normalized_material_key(mesh.material);
+    const std::string mesh_key_b = normalized_material_key(mesh.name);
+    const std::string binding_key = normalized_material_key(binding.material_name);
+    int score = 0;
+    if (!binding_key.empty() && (!mesh_key_a.empty() || !mesh_key_b.empty())) {
+        if (binding_key == mesh_key_a || binding_key == mesh_key_b) score += 160;
+        if (!mesh_key_a.empty() && binding_key.find(mesh_key_a) != std::string::npos) score += 72;
+        if (!mesh_key_b.empty() && binding_key.find(mesh_key_b) != std::string::npos) score += 72;
+        if (!mesh_key_a.empty() && mesh_key_a.find(binding_key) != std::string::npos) score += 54;
+        if (!mesh_key_b.empty() && mesh_key_b.find(binding_key) != std::string::npos) score += 54;
+        if (score == 0) return 0;
+    }
+    std::string current;
+    std::vector<std::string> mesh_tokens;
+    for (char ch : mesh_text) {
+        if (std::isalnum(static_cast<unsigned char>(ch))) current.push_back(ch);
+        else if (!current.empty()) {
+            mesh_tokens.push_back(current);
+            current.clear();
+        }
+    }
+    if (!current.empty()) mesh_tokens.push_back(current);
+    for (const std::string& token : mesh_tokens) {
+        if (token.size() >= 4 && binding_text.find(token) != std::string::npos) score += 14;
+    }
+    return score;
+}
+
+static bool material_identity_requires_exact_path_match(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    const std::string binding_material = lower_copy(binding.material_name);
+    const std::string mesh_material = lower_copy(mesh.material + " " + mesh.name);
+    return binding_material.find(".dds") != std::string::npos && mesh_material.find(".dds") != std::string::npos;
 }
 
 static const TextureBinding* best_binding_for_role(
@@ -2221,6 +2348,13 @@ static const TextureBinding* best_binding_for_role(
     int best_score = desired_role == "base" ? 40 : 20;
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty()) continue;
+        if (binding.role != desired_role) {
+            const bool compatible_material_response = desired_role == "material" && (binding.role == "detail" || binding.role == "specular");
+            if (!compatible_material_response) continue;
+        }
+        if (material_identity_requires_exact_path_match(binding, mesh) && material_identity_match_score(binding, mesh) < 120) {
+            continue;
+        }
         const int score = material_match_score(binding, mesh, desired_role);
         if (score > best_score) {
             best_score = score;
@@ -2301,15 +2435,24 @@ static std::string role_from_parameter_shader_and_name(
     if (p.find("normal") != std::string::npos || p == "n" || t.find("_n.dds") != std::string::npos) return "normal";
     if (p.find("height") != std::string::npos || p.find("displacement") != std::string::npos || p.find("disp") != std::string::npos || t.find("_disp.dds") != std::string::npos) return "height";
     if (p.find("specular") != std::string::npos || p.find("_sp") != std::string::npos || t.find("_sp.dds") != std::string::npos) return "specular";
+    if (p.find("material") != std::string::npos || p.find("colorblendingmask") != std::string::npos || p.find("blending") != std::string::npos || t.find("_ma.dds") != std::string::npos || t.find("_m.dds") != std::string::npos) return "material";
     if (p.find("detail") != std::string::npos || p.find("grime") != std::string::npos || p.find("dye") != std::string::npos || p.find("mask") != std::string::npos || t.find("_mg.dds") != std::string::npos) {
         if (p.find("diffuse") != std::string::npos || p.find("albedo") != std::string::npos || p.find("color") != std::string::npos) return "base";
         return "detail";
     }
-    if (p.find("material") != std::string::npos || p.find("blending") != std::string::npos || t.find("_ma.dds") != std::string::npos || t.find("_m.dds") != std::string::npos) return "material";
     if (p.find("overlaycolor") != std::string::npos || p.find("layercolor") != std::string::npos) return "base";
     if (p.find("basecolor") != std::string::npos || p.find("diffuse") != std::string::npos || p.find("albedo") != std::string::npos) return "base";
     if (shader_rule == "skin" && t.find("_sp.dds") != std::string::npos) return "specular";
     return texture_role_from_name(texture_name);
+}
+
+static std::string semantic_type_for_role(const std::string& role) {
+    if (role == "base") return "albedo";
+    if (role == "normal") return "normal";
+    if (role == "height") return "height";
+    if (role == "specular") return "specular";
+    if (role == "detail") return "detail_mask";
+    return "packed_material";
 }
 
 static void add_sidecar_candidate(
@@ -2434,17 +2577,17 @@ static std::vector<TextureBinding> build_material_bindings(
             continue;
         }
         std::string sidecar_text(sidecar_bytes.begin(), sidecar_bytes.end());
-        std::string shader_family = extract_shader_family_hint(sidecar_text);
-        if (shader_family.empty()) {
-            shader_family = sidecar.extension == ".pami" ? "StaticMaterial" : "";
+        std::string sidecar_shader_family = extract_shader_family_hint(sidecar_text);
+        if (sidecar_shader_family.empty()) {
+            sidecar_shader_family = sidecar.extension == ".pami" ? "StaticMaterial" : "";
         }
-        const std::string shader_rule = shader_rule_for_family(shader_family);
+        const std::string sidecar_shader_rule = shader_rule_for_family(sidecar_shader_family);
         const SidecarParameterSummary parameter_summary = summarize_sidecar_parameters(sidecar_text);
-        shader_rules.insert(shader_rule);
+        shader_rules.insert(sidecar_shader_rule);
         sidecar_kinds.insert(sidecar.extension.empty() ? "unknown" : sidecar.extension);
         package.notes.push_back(
             "native material sidecar: " + sidecar.path +
-            "; rule=" + shader_rule +
+            "; rule=" + sidecar_shader_rule +
             "; texture_params=" + std::to_string(parameter_summary.texture_params) +
             "; float_params=" + std::to_string(parameter_summary.float_params) +
             "; color_params=" + std::to_string(parameter_summary.color_params) +
@@ -2484,6 +2627,9 @@ static std::vector<TextureBinding> build_material_bindings(
             if (selected == nullptr) continue;
             const std::string extracted = extracted_dds_path_for_entry(*selected, job.cache_root, notes);
             if (extracted.empty()) continue;
+            std::string shader_family = texture_ref.shader_family.empty() ? sidecar_shader_family : texture_ref.shader_family;
+            if (shader_family.empty() && sidecar.extension == ".pami") shader_family = "StaticMaterial";
+            const std::string shader_rule = shader_rule_for_family(shader_family);
             TextureBinding binding;
             binding.role = role_from_parameter_shader_and_name(texture_ref.parameter_name, shader_rule, base);
             binding.source_path = extracted;
@@ -2494,25 +2640,37 @@ static std::vector<TextureBinding> build_material_bindings(
             if (binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))) {
                 binding.role = texture_role_from_name(base);
             }
-            binding.semantic_type = binding.role == "base" ? "albedo" : "material";
+            binding.semantic_type = semantic_type_for_role(binding.role);
             binding.semantic_subtype = semantic_subtype_for_role(binding.role);
             binding.shader_family = shader_family;
             binding.shader_rule = shader_rule;
-            binding.material_name = stem_from_path(sidecar.path);
+            binding.material_name = texture_ref.material_name.empty() ? stem_from_path(sidecar.path) : texture_ref.material_name;
             binding.sidecar_path = sidecar.path;
             binding.sidecar_kind = sidecar.extension;
             binding.linked_mesh_path = parameter_summary.linked_mesh_path;
             binding.packed_channels = packed_channels_for_role(binding.role, base, parameter_lower);
-            binding.material_output_quality = binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))
-                ? "approximate"
-                : "inferred";
-            const std::string binding_key = lower_copy(binding.role + "|" + binding.archive_path + "|" + binding.parameter_name);
+            if (binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))) {
+                binding.material_output_quality = "approximate";
+            } else if (!texture_ref.parameter_name.empty() && !texture_ref.material_name.empty()) {
+                binding.material_output_quality = "exact";
+            } else {
+                binding.material_output_quality = "inferred";
+            }
+            const std::string binding_key = lower_copy(binding.role + "|" + binding.archive_path + "|" + binding.parameter_name + "|" + binding.material_name);
             if (seen_bindings.insert(binding_key).second) {
                 bindings.push_back(binding);
             }
         }
     }
     package.dds_extracted = static_cast<int>(bindings.size());
+    int exact_bindings = 0;
+    int inferred_bindings = 0;
+    int approximate_bindings = 0;
+    for (const TextureBinding& binding : bindings) {
+        if (binding.material_output_quality == "exact") ++exact_bindings;
+        else if (binding.material_output_quality == "approximate") ++approximate_bindings;
+        else ++inferred_bindings;
+    }
     std::ostringstream kind_summary;
     bool first_kind = true;
     for (const std::string& kind : sidecar_kinds) {
@@ -2529,10 +2687,16 @@ static std::vector<TextureBinding> build_material_bindings(
     }
     package.material_index = bindings.empty() ? "native_sidecars_no_resolved_dds" : ("native_sidecar_index:" + kind_summary.str());
     package.texture_resolution = bindings.empty() ? "none" : "same_pamt_basename";
-    package.material_output_quality = bindings.empty() ? "approximate" : "inferred";
+    package.material_output_quality = bindings.empty()
+        ? "approximate"
+        : (exact_bindings > 0 ? "exact_inputs_inferred_shader" : "inferred");
     package.notes.push_back(
-        std::string("native material accuracy: inferred; sidecars=") + std::to_string(sidecars.size()) +
-        "; shader_rules=" + (rule_summary.str().empty() ? "generic" : rule_summary.str())
+        std::string("native material accuracy: ") + package.material_output_quality +
+        "; sidecars=" + std::to_string(sidecars.size()) +
+        "; shader_rules=" + (rule_summary.str().empty() ? "generic" : rule_summary.str()) +
+        "; bindings exact=" + std::to_string(exact_bindings) +
+        " inferred=" + std::to_string(inferred_bindings) +
+        " approximate=" + std::to_string(approximate_bindings)
     );
     for (const std::string& note : notes) {
         package.notes.push_back(note);
@@ -2678,6 +2842,95 @@ static std::string batch_stem(size_t batch_index) {
     return out.str();
 }
 
+static std::vector<const TextureBinding*> relevant_bindings_for_mesh(
+    const std::vector<TextureBinding>& bindings,
+    const NativeSubmesh& mesh,
+    const std::vector<const TextureBinding*>& selected_slots
+) {
+    std::vector<const TextureBinding*> result;
+    std::set<const TextureBinding*> seen;
+    auto add = [&](const TextureBinding* binding) {
+        if (binding != nullptr && seen.insert(binding).second) result.push_back(binding);
+    };
+    for (const TextureBinding* binding : selected_slots) add(binding);
+    if (bindings.size() <= 8) {
+        std::set<std::string> scoped_materials;
+        for (const TextureBinding& binding : bindings) {
+            const std::string key = normalized_material_key(binding.material_name);
+            if (!key.empty()) scoped_materials.insert(key);
+        }
+        if (scoped_materials.size() <= 1) {
+            for (const TextureBinding& binding : bindings) add(&binding);
+            return result;
+        }
+        for (const TextureBinding& binding : bindings) {
+            if (material_identity_match_score(binding, mesh) >= 120) add(&binding);
+        }
+        return result;
+    }
+    for (const TextureBinding& binding : bindings) {
+        if (binding.source_path.empty()) continue;
+        const int score = material_identity_match_score(binding, mesh);
+        const int threshold = normalized_material_key(binding.material_name).empty() ? 42 : 120;
+        if (score >= threshold) add(&binding);
+    }
+    return result;
+}
+
+struct NativeMaterialHints {
+    float roughness = 0.45f;
+    float metalness = 0.0f;
+    float specular = 0.45f;
+    float height_scale = 0.35f;
+};
+
+static NativeMaterialHints material_hints_for_bindings(const std::vector<const TextureBinding*>& bindings) {
+    NativeMaterialHints hints;
+    bool has_skin = false;
+    bool has_hair = false;
+    bool has_standard_v2 = false;
+    bool has_static_multi = false;
+    bool has_specular = false;
+    bool has_material_mask = false;
+    bool has_height = false;
+    bool has_metal = false;
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr) continue;
+        const std::string rule = lower_copy(binding->shader_rule);
+        const std::string packed = lower_copy(binding->packed_channels + " " + binding->parameter_name);
+        has_skin = has_skin || rule == "skin";
+        has_hair = has_hair || rule == "hair";
+        has_standard_v2 = has_standard_v2 || rule == "standard_v2";
+        has_static_multi = has_static_multi || rule == "static_multitextured";
+        has_specular = has_specular || binding->role == "specular";
+        has_material_mask = has_material_mask || binding->role == "material" || binding->role == "detail";
+        has_height = has_height || binding->role == "height";
+        has_metal = has_metal || packed.find("metal") != std::string::npos;
+    }
+    if (has_skin) {
+        hints.roughness = 0.56f;
+        hints.specular = 0.28f;
+        hints.height_scale = 0.18f;
+    } else if (has_hair) {
+        hints.roughness = 0.38f;
+        hints.specular = 0.58f;
+        hints.height_scale = 0.14f;
+    } else if (has_standard_v2) {
+        hints.roughness = has_material_mask ? 0.42f : 0.50f;
+        hints.specular = has_specular ? 0.56f : 0.38f;
+        hints.metalness = has_metal ? 0.10f : 0.0f;
+        hints.height_scale = has_height ? 0.34f : 0.0f;
+    } else if (has_static_multi) {
+        hints.roughness = 0.58f;
+        hints.specular = has_specular ? 0.30f : 0.18f;
+        hints.height_scale = has_height ? 0.24f : 0.0f;
+    } else {
+        hints.specular = has_specular ? 0.42f : 0.20f;
+        hints.height_scale = has_height ? 0.28f : 0.0f;
+    }
+    return hints;
+}
+
 static NativePackage write_d3d11_package(
     const EntryJob& job,
     const std::vector<NativeSubmesh>& submeshes,
@@ -2721,6 +2974,14 @@ static NativePackage write_d3d11_package(
         const TextureBinding* normal = best_binding_for_role(bindings, mesh, "normal");
         const TextureBinding* material = best_binding_for_role(bindings, mesh, "material");
         const TextureBinding* height = best_binding_for_role(bindings, mesh, "height");
+        const TextureBinding* specular = best_binding_for_role(bindings, mesh, "specular");
+        const TextureBinding* detail = best_binding_for_role(bindings, mesh, "detail");
+        const std::vector<const TextureBinding*> batch_bindings = relevant_bindings_for_mesh(
+            bindings,
+            mesh,
+            {base, normal, material, height, specular, detail}
+        );
+        const NativeMaterialHints material_hints = material_hints_for_bindings(batch_bindings);
         if (emitted_batch_count++) batches_json << ",";
         batches_json << "{"
             << "\"index\":" << batch_index << ","
@@ -2746,12 +3007,13 @@ static NativePackage write_d3d11_package(
             batches_json << slot_json;
             wrote_slot = true;
         }
-        if (!bindings.empty()) {
+        if (!batch_bindings.empty()) {
             if (wrote_slot) batches_json << ",";
             batches_json << "\"material_inputs\":[";
             bool first_input = true;
-            for (const TextureBinding& binding : bindings) {
-                if (binding.source_path.empty()) continue;
+            for (const TextureBinding* binding_ptr : batch_bindings) {
+                if (binding_ptr == nullptr || binding_ptr->source_path.empty()) continue;
+                const TextureBinding& binding = *binding_ptr;
                 if (!first_input) batches_json << ",";
                 first_input = false;
                 batches_json << "{"
@@ -2761,7 +3023,7 @@ static NativePackage write_d3d11_package(
                     << "\"parameter_name\":\"" << json_escape(binding.parameter_name) << "\","
                     << "\"semantic_type\":\"" << json_escape(binding.semantic_type) << "\","
                     << "\"semantic_subtype\":\"" << json_escape(binding.semantic_subtype) << "\","
-                    << "\"material_name\":\"" << json_escape(mesh.material) << "\","
+                    << "\"material_name\":\"" << json_escape(binding.material_name) << "\","
                     << "\"shader_family\":\"" << json_escape(binding.shader_family) << "\","
                     << "\"shader_rule\":\"" << json_escape(binding.shader_rule) << "\","
                     << "\"sidecar_path\":\"" << json_escape(binding.sidecar_path) << "\","
@@ -2781,12 +3043,12 @@ static NativePackage write_d3d11_package(
             << "\"tangents_usable\":true,"
             << "\"normal_strength\":1.0,"
             << "\"height_amount\":0.04,"
-            << "\"roughness\":0.45,"
-            << "\"metalness\":0.0,"
-            << "\"specular\":0.45,"
-            << "\"height_scale\":0.35,"
-            << "\"native_material_hints\":{\"shader_family\":\"" << json_escape(bindings.empty() ? "" : bindings.front().shader_family) << "\",\"roughness\":0.45,\"specular\":0.45,\"height_scale\":0.35},"
-            << "\"notes\":[\"generated by cdmw-preview-core " << json_escape(package.mesh_parse) << " path\"],"
+            << "\"roughness\":" << material_hints.roughness << ","
+            << "\"metalness\":" << material_hints.metalness << ","
+            << "\"specular\":" << material_hints.specular << ","
+            << "\"height_scale\":" << material_hints.height_scale << ","
+            << "\"native_material_hints\":{\"shader_family\":\"" << json_escape(batch_bindings.empty() ? "" : batch_bindings.front()->shader_family) << "\",\"roughness\":" << material_hints.roughness << ",\"metalness\":" << material_hints.metalness << ",\"specular\":" << material_hints.specular << ",\"height_scale\":" << material_hints.height_scale << "},"
+            << "\"notes\":[\"generated by cdmw-preview-core " << json_escape(package.mesh_parse) << " path\",\"native material inputs scoped to this batch: " << batch_bindings.size() << "\"],"
             << "\"material_combiner_active\":false,"
             << "\"material_combiner_outputs\":[],"
             << "\"material_combiner_decode_modes\":[\"direct_dds_sidecar\"]"

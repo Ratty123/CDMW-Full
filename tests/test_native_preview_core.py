@@ -146,6 +146,19 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("!candidates.empty()", source)
         self.assertIn("return candidates;", source)
 
+    def test_native_material_index_preserves_pami_roles_and_scopes_inputs(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn('xml_attr_value(tag, {"_name", "StringItemID", "Name"})', source)
+        self.assertIn('xml_attr_value(tag, {"Value", "_path"})', source)
+        self.assertIn('"PrimitiveName"', source)
+        self.assertIn("relevant_bindings_for_mesh", source)
+        self.assertIn("material_identity_requires_exact_path_match", source)
+        self.assertIn("scoped_materials.size() <= 1", source)
+        self.assertIn("native material inputs scoped to this batch", source)
+        self.assertIn('p.find("colorblendingmask")', source)
+        self.assertIn('material_output_quality = "exact"', source)
+
 
 if __name__ == "__main__":
     unittest.main()
