@@ -4822,6 +4822,61 @@ static std::vector<std::string> extract_prefab_model_paths(const std::vector<cha
     return paths;
 }
 
+static std::vector<std::string> prefab_candidate_basenames_for_model_stem(const std::string& model_stem) {
+    std::vector<std::string> stems;
+    std::set<std::string> seen_stems;
+    auto add_stem = [&](const std::string& stem) {
+        if (stem.empty()) return;
+        if (seen_stems.insert(lower_copy(stem)).second) {
+            stems.push_back(stem);
+        }
+    };
+    add_stem(model_stem);
+
+    std::smatch match;
+    const std::regex submesh_suffix_pattern(R"(^(.+)_sub[0-9]+$)", std::regex_constants::icase);
+    if (std::regex_match(model_stem, match, submesh_suffix_pattern) && match.size() >= 2) {
+        add_stem(match[1].str());
+    }
+
+    const std::string part_token =
+        R"(body|head|hair|chain|cloth|acc|belt|sho|shoulder|ub|lb|hel|hand|foot|blade|guard|handle|core|tail|wing|horn|fur)";
+    const std::regex part_before_number_pattern(
+        "^(.+)_(" + part_token + ")_([0-9].*)$",
+        std::regex_constants::icase);
+    if (std::regex_match(model_stem, match, part_before_number_pattern) && match.size() >= 4) {
+        add_stem(match[1].str() + "_" + match[3].str());
+    }
+
+    const std::regex part_after_number_pattern(
+        "^(.+_[0-9].*)_(" + part_token + ")$",
+        std::regex_constants::icase);
+    if (std::regex_match(model_stem, match, part_after_number_pattern) && match.size() >= 2) {
+        add_stem(match[1].str());
+    }
+
+    const std::regex compound_part_pattern(
+        R"(^(.+)_(ub|lb|sho|hel|hand|foot|cloak)_(acc|belt|hair|cloth)_([0-9].*)$)",
+        std::regex_constants::icase);
+    if (std::regex_match(model_stem, match, compound_part_pattern) && match.size() >= 5) {
+        add_stem(match[1].str() + "_" + match[2].str() + "_" + match[4].str());
+        add_stem(match[1].str() + "_" + match[4].str());
+    }
+
+    std::vector<std::string> basenames;
+    std::set<std::string> seen_basenames;
+    auto add_basename = [&](const std::string& basename) {
+        if (seen_basenames.insert(lower_copy(basename)).second) {
+            basenames.push_back(basename);
+        }
+    };
+    for (const std::string& stem : stems) {
+        add_basename(stem + "_s.prefab");
+        add_basename(stem + ".prefab");
+    }
+    return basenames;
+}
+
 static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
     const EntryJob& job,
     const PamtIndex& index,
@@ -4834,7 +4889,7 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
 
     std::vector<ArchiveEntryRef> prefab_candidates;
     std::set<std::string> seen_prefabs;
-    for (const std::string& basename : {model_stem + "_s.prefab", model_stem + ".prefab"}) {
+    for (const std::string& basename : prefab_candidate_basenames_for_model_stem(model_stem)) {
         std::vector<ArchiveEntryRef> candidates = lookup_basename_candidates_across_package(job, index, basename, 8);
         std::sort(candidates.begin(), candidates.end(), [](const ArchiveEntryRef& a, const ArchiveEntryRef& b) {
             const std::string ap = lower_copy(a.path);

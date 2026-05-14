@@ -604,8 +604,12 @@ class NativePreviewCoreTests(unittest.TestCase):
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
 
         self.assertIn("extract_prefab_model_paths", source)
+        self.assertIn("prefab_candidate_basenames_for_model_stem", source)
         self.assertIn("prefab_model_component_refs_for_job", source)
-        self.assertIn('model_stem + "_s.prefab"', source)
+        self.assertIn('stem + "_s.prefab"', source)
+        self.assertIn("_sub[0-9]+", source)
+        self.assertIn("body|head|hair|chain|cloth|acc|belt", source)
+        self.assertIn("compound_part_pattern", source)
         self.assertIn("resolve_archive_path_across_package", source)
         self.assertIn('ref.extension == ".pac"', source)
         self.assertIn('"Prefab / Components"', source)
