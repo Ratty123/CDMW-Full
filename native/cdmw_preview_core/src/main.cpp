@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <optional>
@@ -1616,6 +1617,9 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
             ref.extension == ".meshinfo";
         const bool lookup_relevant =
             ref.extension == ".dds" ||
+            ref.extension == ".pac" ||
+            ref.extension == ".pam" ||
+            ref.extension == ".pamlod" ||
             ref.extension == ".hkx" ||
             ref.extension == ".pab" ||
             material_sidecar;
@@ -4746,6 +4750,136 @@ static std::vector<ArchiveEntryRef> lookup_basename_candidates_across_package(
     return result;
 }
 
+static std::optional<ArchiveEntryRef> resolve_archive_path_across_package(
+    const EntryJob& job,
+    const PamtIndex& primary_index,
+    std::string archive_path
+) {
+    std::replace(archive_path.begin(), archive_path.end(), '\\', '/');
+    const std::string wanted = lower_copy(archive_path);
+    if (wanted.empty()) return std::nullopt;
+    std::vector<ArchiveEntryRef> candidates;
+    std::set<std::string> seen;
+    const std::string wanted_basename = lower_copy(basename_from_path(archive_path));
+    auto add_from_index = [&](const PamtIndex& pamt_index) {
+        auto found = pamt_index.by_basename.find(wanted_basename);
+        if (found == pamt_index.by_basename.end()) return;
+        for (const ArchiveEntryRef& ref : found->second) {
+            const std::string key = lower_copy(ref.pamt_path.string() + "|" + ref.path);
+            if (seen.insert(key).second) candidates.push_back(ref);
+        }
+    };
+    add_from_index(primary_index);
+    if (!job.package_root.empty()) {
+        std::set<std::string> seen_pamts;
+        seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
+        for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
+            const std::string pamt_key = fs::absolute(pamt_path).string();
+            if (!seen_pamts.insert(pamt_key).second) continue;
+            try {
+                add_from_index(cached_pamt_index(pamt_path));
+            } catch (...) {
+            }
+        }
+    }
+    const ArchiveEntryRef* best = nullptr;
+    int best_score = -100000;
+    for (const ArchiveEntryRef& candidate : candidates) {
+        int score = 0;
+        const std::string candidate_path = lower_copy(candidate.path);
+        if (candidate_path == wanted) score += 10000;
+        if (candidate_path.find(wanted) != std::string::npos || wanted.find(candidate_path) != std::string::npos) score += 600;
+        if (candidate.extension == extension_from_path(archive_path)) score += 50;
+        if (candidate.pamt_path == job.entry.pamt_path) score += 12;
+        if (score > best_score) {
+            best_score = score;
+            best = &candidate;
+        }
+    }
+    if (best == nullptr || best_score < 500) return std::nullopt;
+    return *best;
+}
+
+static std::vector<std::string> extract_prefab_model_paths(const std::vector<char>& bytes) {
+    std::vector<std::string> paths;
+    std::set<std::string> seen;
+    if (bytes.empty()) return paths;
+    const std::string text(bytes.begin(), bytes.end());
+    const std::regex model_path_pattern(
+        "((?:character|object|vehicle|environment|effect)/[A-Za-z0-9_./\\\\-]+\\.(?:pac|pam|pamlod))",
+        std::regex_constants::icase);
+    auto begin = std::sregex_iterator(text.begin(), text.end(), model_path_pattern);
+    auto end = std::sregex_iterator();
+    for (auto it = begin; it != end; ++it) {
+        std::string path = (*it)[1].str();
+        std::replace(path.begin(), path.end(), '\\', '/');
+        const std::string key = lower_copy(path);
+        if (seen.insert(key).second) {
+            paths.push_back(path);
+            if (paths.size() >= 32) break;
+        }
+    }
+    return paths;
+}
+
+static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
+    const EntryJob& job,
+    const PamtIndex& index,
+    size_t max_components = 8
+) {
+    std::vector<ArchiveEntryRef> components;
+    if (job.extension != ".pac" || job.path.empty()) return components;
+    const std::string model_stem = stem_from_path(job.path);
+    if (model_stem.empty()) return components;
+
+    std::vector<ArchiveEntryRef> prefab_candidates;
+    std::set<std::string> seen_prefabs;
+    for (const std::string& basename : {model_stem + "_s.prefab", model_stem + ".prefab"}) {
+        std::vector<ArchiveEntryRef> candidates = lookup_basename_candidates_across_package(job, index, basename, 8);
+        std::sort(candidates.begin(), candidates.end(), [](const ArchiveEntryRef& a, const ArchiveEntryRef& b) {
+            const std::string ap = lower_copy(a.path);
+            const std::string bp = lower_copy(b.path);
+            const int as = (ap.find("/bin__/prefab/") != std::string::npos ? 30 : 0) + (ap.find("/prefab/") != std::string::npos ? 20 : 0);
+            const int bs = (bp.find("/bin__/prefab/") != std::string::npos ? 30 : 0) + (bp.find("/prefab/") != std::string::npos ? 20 : 0);
+            if (as != bs) return as > bs;
+            return ap < bp;
+        });
+        for (const ArchiveEntryRef& candidate : candidates) {
+            const std::string key = lower_copy(candidate.pamt_path.string() + "|" + candidate.path);
+            if (seen_prefabs.insert(key).second) prefab_candidates.push_back(candidate);
+        }
+    }
+
+    std::set<std::string> seen_components;
+    for (const ArchiveEntryRef& prefab : prefab_candidates) {
+        std::vector<char> prefab_bytes;
+        try {
+            prefab_bytes = read_archive_ref_decoded_bytes(prefab);
+        } catch (...) {
+            continue;
+        }
+        const std::vector<std::string> model_paths = extract_prefab_model_paths(prefab_bytes);
+        std::vector<ArchiveEntryRef> resolved_for_prefab;
+        bool references_selected_model = false;
+        for (const std::string& model_path : model_paths) {
+            std::optional<ArchiveEntryRef> resolved = resolve_archive_path_across_package(job, index, model_path);
+            if (!resolved.has_value()) continue;
+            const std::string resolved_key = lower_copy(resolved->path);
+            if (resolved_key == lower_copy(job.path)) references_selected_model = true;
+            resolved_for_prefab.push_back(*resolved);
+        }
+        if (!references_selected_model || resolved_for_prefab.size() <= 1) continue;
+        for (const ArchiveEntryRef& resolved : resolved_for_prefab) {
+            if (resolved.extension != ".pac" && resolved.extension != ".pam" && resolved.extension != ".pamlod") continue;
+            const std::string key = lower_copy(resolved.pamt_path.string() + "|" + resolved.path);
+            if (!seen_components.insert(key).second) continue;
+            components.push_back(resolved);
+            if (components.size() >= max_components) return components;
+        }
+    }
+    return components;
+}
+
 static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
     const EntryJob& job,
     const PamtIndex& index
@@ -4771,6 +4905,29 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
         if (candidates.size() == before_primary) {
             for (const ArchiveEntryRef& ref : lookup_basename_candidates_across_package(job, index, base, 24)) {
                 add_sidecar_candidate(candidates, seen, ref);
+            }
+        }
+    }
+    if (job.extension == ".pac") {
+        for (const ArchiveEntryRef& component : prefab_model_component_refs_for_job(job, index, 12)) {
+            if (lower_copy(component.path) == lower_copy(job.path)) continue;
+            const std::string component_stem = stem_from_path(component.path);
+            const std::string component_dir = dirname_from_path(component.path);
+            for (const std::string& base : {
+                component_stem + ".pac_xml",
+                component_stem + ".material",
+                component_stem + ".technique",
+                component_stem + ".prefab",
+                component_stem + ".prefabdata_xml",
+                component_stem + ".meshinfo",
+            }) {
+                const size_t before_component = candidates.size();
+                add_sidecar_basename_candidates(candidates, seen, index, base, component_dir);
+                if (candidates.size() == before_component) {
+                    for (const ArchiveEntryRef& ref : lookup_basename_candidates_across_package(job, index, base, 24)) {
+                        add_sidecar_candidate(candidates, seen, ref);
+                    }
+                }
             }
         }
     }
@@ -6350,9 +6507,66 @@ static NativePackage write_d3d11_package(
 static NativePackage try_generate_native_package(const EntryJob& job, const std::vector<char>& data) {
     NativePackage package;
     NativeMeshParseResult parsed;
+    const PamtIndex& index = cached_pamt_index(job.entry.pamt_path);
     if (job.extension == ".pac") {
         parsed.meshes = parse_pac_submeshes(data);
         parsed.parser = "native_pac_par_sections";
+        int component_models_added = 0;
+        int component_batches_added = 0;
+        for (const ArchiveEntryRef& component : prefab_model_component_refs_for_job(job, index, 8)) {
+            if (lower_copy(component.path) == lower_copy(job.path)) continue;
+            try {
+                const std::vector<char> component_data = read_archive_ref_decoded_bytes(component);
+                NativeMeshParseResult component_parse;
+                if (component.extension == ".pac") {
+                    component_parse.meshes = parse_pac_submeshes(component_data);
+                    component_parse.parser = "native_pac_par_sections";
+                } else if (component.extension == ".pam") {
+                    component_parse = parse_pam_submeshes(component_data);
+                } else if (component.extension == ".pamlod") {
+                    component_parse = parse_pamlod_submeshes(component_data);
+                }
+                if (component_parse.meshes.empty()) continue;
+                component_batches_added += static_cast<int>(component_parse.meshes.size());
+                parsed.meshes.insert(
+                    parsed.meshes.end(),
+                    std::make_move_iterator(component_parse.meshes.begin()),
+                    std::make_move_iterator(component_parse.meshes.end()));
+                ++component_models_added;
+                add_asset_family_row(package, NativeAssetFamilyRow{
+                    "Prefab / Components",
+                    "Model Component",
+                    component.basename.empty() ? basename_from_path(component.path) : component.basename,
+                    component.path,
+                    "Resolved",
+                    "Prefab",
+                    "authoritative",
+                    "required",
+                    "Native preview-core expanded a same-stem item prefab component into the D3D11 package.",
+                    "model",
+                    "Prefab model component",
+                    "",
+                    "",
+                    "",
+                    package_label_for_ref(component),
+                    component.extension,
+                    "",
+                    "",
+                    "",
+                    ""
+                });
+            } catch (const std::exception& exc) {
+                package.notes.push_back("native prefab composite component skipped:" + component.path + ":" + exc.what());
+            }
+        }
+        if (component_models_added > 0) {
+            parsed.parser += "+prefab_composite";
+            package.notes.push_back(
+                "native prefab composite: added " + std::to_string(component_models_added) +
+                " referenced model component(s), " + std::to_string(component_batches_added) +
+                " batch(es), from same-stem item prefab"
+            );
+        }
     } else if (job.extension == ".pam") {
         parsed = parse_pam_submeshes(data);
     } else if (job.extension == ".pamlod") {
@@ -6365,7 +6579,6 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     }
     package.mesh_parse = parsed.parser;
     package.lod_count = parsed.lod_count;
-    const PamtIndex& index = cached_pamt_index(job.entry.pamt_path);
     std::vector<TextureBinding> bindings = build_material_bindings(job, index, parsed.meshes, package);
     append_mesh_reference_bindings(job, index, parsed.meshes, bindings, package);
     if (bindings.empty()) {

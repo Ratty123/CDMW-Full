@@ -600,6 +600,20 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertNotIn("!embedded && material_identity_has_conflicting_specific_part", base_selector)
         self.assertIn("material_identity_has_conflicting_specific_part", base_selector)
 
+    def test_native_core_expands_same_stem_prefab_components_for_item_previews(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("extract_prefab_model_paths", source)
+        self.assertIn("prefab_model_component_refs_for_job", source)
+        self.assertIn('model_stem + "_s.prefab"', source)
+        self.assertIn("resolve_archive_path_across_package", source)
+        self.assertIn('ref.extension == ".pac"', source)
+        self.assertIn('"Prefab / Components"', source)
+        self.assertIn('"Model Component"', source)
+        self.assertIn("native prefab composite: added", source)
+        self.assertIn('parsed.parser += "+prefab_composite"', source)
+        self.assertIn('component_stem + ".pac_xml"', source)
+
     def test_native_core_mesh_base_first_keeps_exact_embedded_base_over_layers(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
         start = source.index("static const TextureBinding* best_base_binding_for_mode")
