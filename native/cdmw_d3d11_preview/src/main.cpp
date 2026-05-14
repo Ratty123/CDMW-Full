@@ -24,6 +24,8 @@
 #include <string>
 #include <vector>
 
+#include "../../common/native_diagnostics.h"
+
 using Microsoft::WRL::ComPtr;
 namespace fs = std::filesystem;
 
@@ -47,6 +49,8 @@ struct Args {
     std::string theme_text = "#c5ced8";
     uintptr_t parent_hwnd = 0;
     bool self_test = false;
+    fs::path crash_dir;
+    fs::path diagnostic_log;
 };
 
 struct SlotCounts {
@@ -327,6 +331,8 @@ static Args parse_args(int argc, wchar_t** argv) {
         else if (key == L"--status-file") args.status_file = next();
         else if (key == L"--theme-background") args.theme_background = wide_to_utf8(next());
         else if (key == L"--theme-text") args.theme_text = wide_to_utf8(next());
+        else if (key == L"--crash-dir") args.crash_dir = next();
+        else if (key == L"--diagnostic-log") args.diagnostic_log = next();
         else if (key == L"--parent-hwnd") {
             std::wstring value = next();
             wchar_t* end = nullptr;
@@ -1057,12 +1063,14 @@ public:
     bool load_package(const fs::path& package_dir, const fs::path& status_file, bool reset_view_state) {
         if (package_dir.empty() || !fs::is_directory(package_dir)) {
             write_status(status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"preview package directory is missing\"}");
+            cdmw_native_diag::event("package_load_error", {{"reason", "package directory missing"}, {"package_dir", cdmw_native_diag::path_to_utf8(package_dir)}});
             return false;
         }
         args_.preview_package = package_dir;
         if (!status_file.empty()) {
             args_.status_file = status_file;
         }
+        cdmw_native_diag::event("package_load_start", {{"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)}, {"status_file", cdmw_native_diag::path_to_utf8(args_.status_file)}});
         write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"manifest\",\"message\":\"Loading native D3D11 preview package...\"}");
         auto start = std::chrono::steady_clock::now();
         std::string manifest = read_text(args_.preview_package / L"manifest.json");
@@ -1094,9 +1102,19 @@ public:
         write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
         if (!upload_batches()) {
             write_status(args_.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"native D3D11 package reload failed\"}");
+            cdmw_native_diag::event("package_load_error", {{"reason", "upload failed"}, {"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)}});
             return false;
         }
         write_status(args_.status_file, loaded_payload(stats_));
+        cdmw_native_diag::event(
+            "package_loaded",
+            {
+                {"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)},
+                {"batches", std::to_string(stats_.batch_count)},
+                {"vertices", std::to_string(stats_.vertex_count)},
+                {"dds_uploaded_base", std::to_string(stats_.dds_uploaded.base)},
+                {"png_fallback", std::to_string(stats_.png_fallback)}
+            });
         return true;
     }
 
@@ -1126,6 +1144,7 @@ public:
             InvalidateRect(hwnd_, nullptr, FALSE);
         }
         write_status(args_.status_file, "{\"event\":\"cleared\",\"backend\":\"D3D11\",\"message\":\"Native D3D11 preview cleared\"}");
+        cdmw_native_diag::event("preview_cleared", {{"status_file", cdmw_native_diag::path_to_utf8(args_.status_file)}});
         return true;
     }
 
@@ -1328,6 +1347,13 @@ public:
                 std::chrono::steady_clock::now() - first_frame_timer_).count();
             write_status(args_.status_file, loaded_payload(stats_));
             first_frame_reported_ = true;
+            cdmw_native_diag::event(
+                "first_frame",
+                {
+                    {"first_frame_ms", std::to_string(stats_.first_frame_ms)},
+                    {"batches", std::to_string(stats_.batch_count)},
+                    {"vertices", std::to_string(stats_.vertex_count)}
+                });
         }
     }
 
@@ -2101,11 +2127,13 @@ private:
             pending_package_dir_ = utf8_to_wide(json_string_field(payload, "package_dir"));
             pending_status_file_ = utf8_to_wide(json_string_field(payload, "status_file"));
             pending_reset_view_ = json_bool_field(payload, "reset_view", false);
+            cdmw_native_diag::event("command_load_package", {{"package_dir", cdmw_native_diag::path_to_utf8(fs::path(pending_package_dir_))}, {"status_file", cdmw_native_diag::path_to_utf8(fs::path(pending_status_file_))}});
             send_json_event("{\"event\":\"command_result\",\"command\":\"load_package\",\"ok\":true,\"queued\":true}");
             return true;
         }
         if (command == "clear_preview") {
             fs::path status_file = utf8_to_wide(json_string_field(payload, "status_file"));
+            cdmw_native_diag::event("command_clear_preview", {{"status_file", cdmw_native_diag::path_to_utf8(status_file)}});
             clear_preview(status_file);
             send_json_event("{\"event\":\"command_result\",\"command\":\"clear_preview\",\"ok\":true}");
             return true;
@@ -2447,6 +2475,20 @@ private:
         }
         stats_.texture_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - texture_start).count();
+        cdmw_native_diag::event(
+            "upload_batches",
+            {
+                {"batches", std::to_string(stats_.batch_count)},
+                {"vertices", std::to_string(stats_.vertex_count)},
+                {"geometry_ms", std::to_string(stats_.geometry_ms)},
+                {"texture_ms", std::to_string(stats_.texture_ms)},
+                {"dds_base", std::to_string(stats_.dds_uploaded.base)},
+                {"dds_normal", std::to_string(stats_.dds_uploaded.normal)},
+                {"dds_material", std::to_string(stats_.dds_uploaded.material)},
+                {"dds_height", std::to_string(stats_.dds_uploaded.height)},
+                {"png_fallback", std::to_string(stats_.png_fallback)},
+                {"skipped", std::to_string(stats_.skipped.size())}
+            });
         return true;
     }
 
@@ -2474,6 +2516,7 @@ private:
                 return;
             }
             stats_.skipped.push_back(slot_name + " DDS upload failed:" + wide_to_utf8(dds_path));
+            cdmw_native_diag::event("dds_upload_failed", {{"slot", slot_name}, {"path", wide_to_utf8(dds_path)}});
         }
         if (!png_fallback.empty() && fs::is_regular_file(fs::path(png_fallback))) {
             if (load_srv_from_file(png_fallback, false, target, nullptr, create_flags)) {
@@ -2485,6 +2528,7 @@ private:
                 return;
             }
             stats_.skipped.push_back(slot_name + " PNG fallback failed:" + wide_to_utf8(png_fallback));
+            cdmw_native_diag::event("png_fallback_failed", {{"slot", slot_name}, {"path", wide_to_utf8(png_fallback)}});
         }
     }
 
@@ -2602,8 +2646,10 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM l
 
 static int run_host(const Args& args) {
     auto start = std::chrono::steady_clock::now();
+    cdmw_native_diag::event("startup", {{"backend", "D3D11"}, {"package_dir", cdmw_native_diag::path_to_utf8(args.preview_package)}, {"status_file", cdmw_native_diag::path_to_utf8(args.status_file)}});
     if (args.preview_package.empty() || !fs::is_directory(args.preview_package)) {
         write_status(args.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"preview package directory is missing\"}");
+        cdmw_native_diag::event("startup_error", {{"reason", "preview package directory is missing"}});
         return 2;
     }
     write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"manifest\",\"message\":\"Loading native D3D11 preview package...\"}");
@@ -2655,6 +2701,7 @@ static int run_host(const Args& args) {
         nullptr);
     if (!hwnd) {
         write_status(args.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"failed to create preview window\"}");
+        cdmw_native_diag::event("startup_error", {{"reason", "failed to create preview window"}});
         return 3;
     }
 
@@ -2664,9 +2711,11 @@ static int run_host(const Args& args) {
     if (!renderer.initialize()) {
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
         write_status(args.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"native D3D11 renderer initialization failed\"}");
+        cdmw_native_diag::event("startup_error", {{"reason", "renderer initialization failed"}});
         return 4;
     }
     write_status(args.status_file, loaded_payload(stats));
+    cdmw_native_diag::event("loaded", {{"batches", std::to_string(stats.batch_count)}, {"vertices", std::to_string(stats.vertex_count)}});
 
     MSG msg{};
     bool running = true;
@@ -2701,21 +2750,30 @@ static int run_host(const Args& args) {
     }
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
     write_status(args.status_file, "{\"event\":\"closed\",\"backend\":\"D3D11\"}");
+    cdmw_native_diag::event("clean_shutdown");
     return 0;
 }
 
 int wmain(int argc, wchar_t** argv) {
     Args args = parse_args(argc, argv);
+    cdmw_native_diag::init("cdmw-d3d11-preview", args.crash_dir, args.diagnostic_log);
     if (args.self_test) {
+        cdmw_native_diag::event("self_test_start");
         ComPtr<ID3D11Device> device;
         ComPtr<ID3D11DeviceContext> context;
         D3D_FEATURE_LEVEL feature{};
         HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, device.GetAddressOf(), &feature, context.GetAddressOf());
+        if (FAILED(hr)) {
+            cdmw_native_diag::event("self_test_error", {{"hresult", std::to_string(static_cast<unsigned int>(hr))}});
+        } else {
+            cdmw_native_diag::event("self_test_ok", {{"feature_level", std::to_string(static_cast<unsigned int>(feature))}});
+        }
         std::cout << "{\"event\":\"self_test\",\"backend\":\"D3D11\",\"ok\":" << (SUCCEEDED(hr) ? "true" : "false") << "}\n";
         return SUCCEEDED(hr) ? 0 : 2;
     }
     if (args.backend != L"d3d11" && args.backend != L"D3D11") {
         write_status(args.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"only D3D11 backend is supported by this native host\"}");
+        cdmw_native_diag::event("startup_error", {{"reason", "unsupported backend"}, {"backend", cdmw_native_diag::wide_to_utf8_diag(args.backend)}});
         return 1;
     }
     return run_host(args);

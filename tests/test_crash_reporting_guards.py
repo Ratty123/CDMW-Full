@@ -25,6 +25,12 @@ class CrashReportingGuardTests(unittest.TestCase):
     def test_gui_has_heartbeat_and_hang_watchdog(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
         self.assertIn("heartbeat_path = crash_reports_dir / \"app_heartbeat.json\"", source)
+        self.assertIn("runtime_events_current.jsonl", source)
+        self.assertIn("native_events_current.jsonl", source)
+        self.assertIn("_runtime_event_ring = deque(maxlen=500)", source)
+        self.assertIn("def _record_runtime_event", source)
+        self.assertIn("def _rotate_runtime_event_logs", source)
+        self.assertIn("def _set_last_active_operation", source)
         self.assertIn("def _check_previous_unclean_exit", source)
         self.assertIn("def _process_is_alive", source)
         self.assertIn("previous_pid_alive", source)
@@ -56,6 +62,12 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("_cached_crash_context", source)
         self.assertIn("app.thread() != QThread.currentThread()", source)
         self.assertIn("context.update(_cached_crash_context)", source)
+        self.assertIn("runtime_event_tail", source)
+        self.assertIn("native_diagnostic_event_tail", source)
+        self.assertIn("last_active_operation", source)
+        self.assertIn("d3d11_status_payload", source)
+        self.assertIn("d3d11_process_state", source)
+        self.assertIn("archive_isolated_package_worker_active", source)
 
     def test_close_waits_for_workers_asynchronously(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -87,6 +99,20 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('context["texture_workflow_breadcrumb"]', source)
         self.assertIn("previous_context: Dict[str, object]", source)
         self.assertIn("_add_persisted_crash_breadcrumbs(previous_context)", source)
+        self.assertIn("persisted_runtime_event_tail", source)
+        self.assertIn("persisted_native_event_tail", source)
+
+    def test_d3d11_qprocess_cleanup_is_runtime_guarded(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn("def _archive_qprocess_state", source)
+        self.assertIn("def _delete_archive_qprocess_later", source)
+        self.assertIn("def _cleanup_finished_archive_isolated_renderer_process", source)
+        self.assertIn("_archive_qprocess_pid", source)
+        self.assertIn("cleanup_finished_process", source)
+        self.assertIn("kill_process_if_still_running", source)
+        self.assertIn("d3d11_process_shutdown_begin", source)
+        self.assertNotIn("lambda *_args, package_dir=package_dir, process=process: (", source)
+        self.assertNotIn("process.finished.connect(process.deleteLater)", source)
 
     def test_texture_workflow_workers_write_breadcrumbs_from_callbacks(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")

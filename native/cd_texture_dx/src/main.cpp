@@ -16,6 +16,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../../common/native_diagnostics.h"
+
 namespace fs = std::filesystem;
 
 struct ComInitScope {
@@ -48,6 +50,25 @@ struct EncodeJob {
     int mip_count = 1;
     bool overwrite = true;
 };
+
+struct CommonArgs {
+    fs::path crash_dir;
+    fs::path diagnostic_log;
+};
+
+static CommonArgs parse_common_args(int argc, wchar_t** argv) {
+    CommonArgs args;
+    for (int i = 1; i < argc; ++i) {
+        std::wstring key = argv[i] ? argv[i] : L"";
+        auto next = [&]() -> fs::path {
+            if (i + 1 >= argc) return {};
+            return fs::path(argv[++i]);
+        };
+        if (key == L"--crash-dir") args.crash_dir = next();
+        else if (key == L"--diagnostic-log") args.diagnostic_log = next();
+    }
+    return args;
+}
 
 static std::wstring utf8_to_wide(const std::string& text) {
     if (text.empty()) return L"";
@@ -464,31 +485,40 @@ static std::string decode_preview(const PreviewJob& job) {
 }
 
 static int inspect_json(const std::wstring& source) {
+    cdmw_native_diag::event("inspect_start", {{"source_path", wide_to_utf8(source)}});
     DirectX::ScratchImage image;
     DirectX::TexMetadata metadata{};
     HRESULT hr = DirectX::LoadFromDDSFile(source.c_str(), DirectX::DDS_FLAGS_NONE, &metadata, image);
     if (FAILED(hr)) {
+        cdmw_native_diag::event("inspect_error", {{"source_path", wide_to_utf8(source)}, {"hresult", std::to_string(static_cast<unsigned int>(hr))}});
         std::cout << "{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"source_path\":\""
             << json_escape(wide_to_utf8(source)) << "\",\"message\":\"LoadFromDDSFile failed\"}\n";
         return 2;
     }
+    cdmw_native_diag::event("inspect_ok", {{"source_path", wide_to_utf8(source)}, {"format", dxgi_format_name(metadata.format)}, {"width", std::to_string(metadata.width)}, {"height", std::to_string(metadata.height)}});
     std::cout << metadata_json(fs::path(source), metadata, "inspected") << "\n";
     return 0;
 }
 
 static int batch_preview_json(const fs::path& job_file, const fs::path& report_file) {
     std::vector<PreviewJob> jobs = parse_jobs(read_text_file(job_file));
+    cdmw_native_diag::event("batch_preview_start", {{"job_file", cdmw_native_diag::path_to_utf8(job_file)}, {"report_file", cdmw_native_diag::path_to_utf8(report_file)}, {"batch_size", std::to_string(jobs.size())}});
     std::ostringstream report;
     report << "{\"status\":\"ok\",\"backend\":\"directxtex_native_0.1\",\"batch_size\":" << jobs.size() << ",\"items\":[";
+    size_t errors = 0;
     for (size_t index = 0; index < jobs.size(); ++index) {
         if (index) report << ",";
-        report << decode_preview(jobs[index]);
+        const std::string item = decode_preview(jobs[index]);
+        if (item.find("\"status\":\"error\"") != std::string::npos) ++errors;
+        report << item;
     }
     report << "]}";
     if (!write_text_file(report_file, report.str())) {
         std::cerr << "failed to write report: " << report_file << "\n";
+        cdmw_native_diag::event("batch_preview_error", {{"reason", "failed to write report"}, {"report_file", cdmw_native_diag::path_to_utf8(report_file)}});
         return 3;
     }
+    cdmw_native_diag::event("batch_preview_complete", {{"batch_size", std::to_string(jobs.size())}, {"errors", std::to_string(errors)}});
     std::cout << report.str() << "\n";
     return 0;
 }
@@ -640,6 +670,7 @@ static std::string encode_dds(const EncodeJob& job) {
 
 static int batch_encode_json(const fs::path& job_file, const fs::path& report_file) {
     std::vector<EncodeJob> jobs = parse_encode_jobs(read_text_file(job_file));
+    cdmw_native_diag::event("batch_encode_start", {{"job_file", cdmw_native_diag::path_to_utf8(job_file)}, {"report_file", cdmw_native_diag::path_to_utf8(report_file)}, {"batch_size", std::to_string(jobs.size())}});
     std::ostringstream report;
     report << "{\"status\":\"ok\",\"backend\":\"directxtex_native_0.1\",\"batch_size\":" << jobs.size() << ",\"items\":[";
     bool any_error = false;
@@ -652,15 +683,20 @@ static int batch_encode_json(const fs::path& job_file, const fs::path& report_fi
     report << "]}";
     if (!write_text_file(report_file, report.str())) {
         std::cerr << "failed to write report: " << report_file << "\n";
+        cdmw_native_diag::event("batch_encode_error", {{"reason", "failed to write report"}, {"report_file", cdmw_native_diag::path_to_utf8(report_file)}});
         return 3;
     }
+    cdmw_native_diag::event("batch_encode_complete", {{"batch_size", std::to_string(jobs.size())}, {"any_error", any_error ? "true" : "false"}});
     std::cout << report.str() << "\n";
     return any_error ? 2 : 0;
 }
 
 int wmain(int argc, wchar_t** argv) {
+    CommonArgs common_args = parse_common_args(argc, argv);
+    cdmw_native_diag::init("cd-texture-dx", common_args.crash_dir, common_args.diagnostic_log);
     ComInitScope com_init;
     if (argc >= 2 && std::wstring(argv[1]) == L"self-test") {
+        cdmw_native_diag::event("self_test_ok");
         std::cout << "{\"event\":\"self_test\",\"ok\":true,\"backend\":\"directxtex_native_0.1\"}\n";
         return 0;
     }

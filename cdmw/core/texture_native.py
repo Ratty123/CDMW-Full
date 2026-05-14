@@ -76,6 +76,17 @@ def native_texture_available() -> bool:
     return find_directxtex_texture_binary() is not None or find_cd_texture_binary() is not None
 
 
+def _native_diagnostic_args() -> list[str]:
+    args: list[str] = []
+    crash_dir = str(os.environ.get("CDMW_CRASH_DIR", "") or "").strip()
+    diagnostic_log = str(os.environ.get("CDMW_NATIVE_DIAGNOSTIC_LOG", "") or "").strip()
+    if crash_dir:
+        args.extend(["--crash-dir", crash_dir])
+    if diagnostic_log:
+        args.extend(["--diagnostic-log", diagnostic_log])
+    return args
+
+
 def native_texture_report_sidecar_path(preview_path: Path) -> Path:
     return preview_path.with_name(f"{preview_path.name}.cdmw_texture.json")
 
@@ -169,7 +180,7 @@ def inspect_dds_with_rust(
         return None
     try:
         completed = subprocess.run(
-            [str(binary), "inspect-json", str(dds_path)],
+            [str(binary), "inspect-json", str(dds_path), *_native_diagnostic_args()],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=max(0.5, float(timeout_seconds)),
@@ -197,7 +208,7 @@ def inspect_dds_with_directxtex(
         return None
     try:
         completed = subprocess.run(
-            [str(binary), "inspect-json", str(dds_path)],
+            [str(binary), "inspect-json", str(dds_path), *_native_diagnostic_args()],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=max(0.5, float(timeout_seconds)),
@@ -370,7 +381,7 @@ def ensure_directxtex_dds_preview_pngs(
             encoding="utf-8",
         )
         returncode, _stdout, _stderr = run_process_with_cancellation(
-            [str(binary), "batch-preview-json", str(job_path), str(report_path)],
+            [str(binary), "batch-preview-json", str(job_path), str(report_path), *_native_diagnostic_args()],
             timeout=max(1.0, float(timeout_seconds)),
             stop_event=stop_event,
         )
@@ -473,6 +484,7 @@ def ensure_native_dds_preview_png(
                 str(srgb or "auto"),
                 "--normal-space",
                 str(normal_space or "auto"),
+                *_native_diagnostic_args(),
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -580,7 +592,7 @@ def encode_dds_batch_with_directxtex(
             encoding="utf-8",
         )
         returncode, _stdout, _stderr = run_process_with_cancellation(
-            [str(binary), "batch-encode-json", str(job_path), str(report_path)],
+            [str(binary), "batch-encode-json", str(job_path), str(report_path), *_native_diagnostic_args()],
             timeout=max(1.0, float(timeout_seconds)),
             stop_event=stop_event,
         )

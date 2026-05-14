@@ -18,7 +18,7 @@ import traceback
 import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Mapping
-from collections import Counter, OrderedDict, defaultdict
+from collections import Counter, OrderedDict, defaultdict, deque
 from html import escape
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
@@ -924,6 +924,19 @@ def run_gui() -> int:
     _fault_log_handle = None
     _cached_crash_context: Dict[str, object] = {}
     _previous_session_unclean = False
+    _runtime_event_ring = deque(maxlen=500)
+    _runtime_event_log_path = crash_reports_dir / "runtime_events_current.jsonl"
+    _native_diagnostic_log_path = crash_reports_dir / "native_events_current.jsonl"
+    _runtime_event_max_bytes = 5 * 1024 * 1024
+    _runtime_event_rotation_count = 3
+    _last_active_operation: Dict[str, object] = {
+        "operation": "startup",
+        "timestamp": time.time(),
+        "pid": os.getpid(),
+        "session_id": _session_id,
+    }
+    os.environ.setdefault("CDMW_CRASH_DIR", str(crash_reports_dir))
+    os.environ.setdefault("CDMW_NATIVE_DIAGNOSTIC_LOG", str(_native_diagnostic_log_path))
 
     def _set_crash_capture_enabled(enabled: bool) -> None:
         nonlocal _capture_crash_details_enabled
@@ -931,6 +944,106 @@ def run_gui() -> int:
 
     def _crash_timestamp() -> str:
         return time.strftime("%Y%m%d_%H%M%S") + f"_{int((time.time() % 1) * 1000):03d}"
+
+    def _runtime_event_log_sibling(path: Path, index: int) -> Path:
+        return path.with_name(f"{path.name}.{index}")
+
+    def _rotate_runtime_event_logs(path: Path) -> None:
+        try:
+            if not path.is_file() or path.stat().st_size < _runtime_event_max_bytes:
+                return
+            for index in range(_runtime_event_rotation_count, 0, -1):
+                rotated = _runtime_event_log_sibling(path, index)
+                if index == _runtime_event_rotation_count:
+                    try:
+                        rotated.unlink()
+                    except OSError:
+                        pass
+                    continue
+                previous = _runtime_event_log_sibling(path, index)
+                target = _runtime_event_log_sibling(path, index + 1)
+                if previous.is_file():
+                    try:
+                        previous.replace(target)
+                    except OSError:
+                        pass
+            path.replace(_runtime_event_log_sibling(path, 1))
+        except OSError:
+            pass
+
+    def _sanitize_runtime_event_value(value: object, *, depth: int = 0) -> object:
+        if depth > 3:
+            return str(type(value).__name__)
+        if value is None or isinstance(value, (bool, int, float)):
+            return value
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, Mapping):
+            sanitized: Dict[str, object] = {}
+            for index, (key, item) in enumerate(value.items()):
+                if index >= 40:
+                    sanitized["..."] = f"{len(value) - index} more"
+                    break
+                sanitized[str(key)[:80]] = _sanitize_runtime_event_value(item, depth=depth + 1)
+            return sanitized
+        if isinstance(value, (list, tuple, set)):
+            items = list(value)
+            sanitized_items = [_sanitize_runtime_event_value(item, depth=depth + 1) for item in items[:40]]
+            if len(items) > 40:
+                sanitized_items.append(f"{len(items) - 40} more")
+            return sanitized_items
+        text = str(value)
+        if len(text) > 1000:
+            return text[:1000] + "...<truncated>"
+        return text
+
+    def _append_runtime_event_log(path: Path, payload: Mapping[str, object]) -> None:
+        try:
+            crash_reports_dir.mkdir(parents=True, exist_ok=True)
+            _rotate_runtime_event_logs(path)
+            with path.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(dict(payload), ensure_ascii=False, separators=(",", ":")) + "\n")
+        except Exception:
+            pass
+
+    def _record_runtime_event(event: str, **fields: object) -> Dict[str, object]:
+        payload: Dict[str, object] = {
+            "timestamp": time.time(),
+            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "pid": os.getpid(),
+            "session_id": _session_id,
+            "event": str(event or "event"),
+        }
+        for key, value in fields.items():
+            payload[str(key)] = _sanitize_runtime_event_value(value)
+        _runtime_event_ring.append(payload)
+        _append_runtime_event_log(_runtime_event_log_path, payload)
+        return payload
+
+    def _set_last_active_operation(operation: str, **fields: object) -> None:
+        nonlocal _last_active_operation
+        _last_active_operation = _record_runtime_event(
+            "last_active_operation",
+            operation=str(operation or "operation"),
+            **fields,
+        )
+
+    def _read_jsonl_tail(path: Path, *, limit: int = 80) -> List[Dict[str, object]]:
+        try:
+            if not path.is_file():
+                return []
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()[-max(1, int(limit)) :]
+        except Exception:
+            return []
+        payloads: List[Dict[str, object]] = []
+        for line in lines:
+            try:
+                parsed = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                payloads.append(parsed)
+        return payloads
 
     def _read_crash_json_context_file(file_name: str) -> Optional[Dict[str, object]]:
         try:
@@ -953,6 +1066,12 @@ def run_gui() -> int:
         texture_workflow_breadcrumb = _read_crash_json_context_file("texture_workflow_breadcrumb.json")
         if texture_workflow_breadcrumb is not None:
             context["texture_workflow_breadcrumb"] = texture_workflow_breadcrumb
+        runtime_tail = _read_jsonl_tail(_runtime_event_log_path, limit=80)
+        if runtime_tail:
+            context["persisted_runtime_event_tail"] = runtime_tail
+        native_tail = _read_jsonl_tail(_native_diagnostic_log_path, limit=80)
+        if native_tail:
+            context["persisted_native_event_tail"] = native_tail
 
     def _write_ui_breadcrumb(payload: Mapping[str, object]) -> None:
         try:
@@ -1044,10 +1163,73 @@ def run_gui() -> int:
             context["archive_package_root"] = window.archive_package_root_edit.text().strip()
         except Exception:
             pass
+        try:
+            context["last_active_operation"] = dict(_last_active_operation)
+        except Exception:
+            pass
+        try:
+            context["runtime_event_tail"] = list(_runtime_event_ring)[-120:]
+        except Exception:
+            pass
+        try:
+            context["native_diagnostic_log_path"] = str(_native_diagnostic_log_path)
+            context["native_diagnostic_event_tail"] = _read_jsonl_tail(_native_diagnostic_log_path, limit=120)
+        except Exception:
+            pass
+        try:
+            context["archive_renderer_backend"] = window._archive_model_renderer_backend()
+            context["archive_preview_request_id"] = int(getattr(window, "archive_preview_request_id", 0) or 0)
+            context["archive_isolated_package_request_id"] = int(
+                getattr(window, "archive_isolated_package_request_id", 0) or 0
+            )
+            context["pending_archive_preview_request"] = str(getattr(window, "pending_archive_preview_request", None))
+            context["scheduled_archive_preview_request"] = str(getattr(window, "scheduled_archive_preview_request", None))
+            context["active_d3d11_package"] = str(getattr(window, "archive_isolated_renderer_active_package", "") or "")
+            status_file = getattr(window, "archive_isolated_renderer_status_file", None)
+            context["d3d11_status_file"] = str(status_file or "")
+            if status_file is not None and Path(status_file).is_file():
+                try:
+                    status_payload = json.loads(Path(status_file).read_text(encoding="utf-8"))
+                except Exception as exc:
+                    status_payload = {"read_error": str(exc)}
+                context["d3d11_status_payload"] = status_payload
+            process = getattr(window, "archive_isolated_renderer_process", None)
+            if process is not None:
+                try:
+                    context["d3d11_process_pid"] = int(process.processId())
+                except RuntimeError:
+                    context["d3d11_process_pid"] = "deleted"
+                try:
+                    context["d3d11_process_state"] = str(process.state())
+                except RuntimeError:
+                    context["d3d11_process_state"] = "deleted"
+            package_worker = getattr(window, "archive_isolated_package_worker", None)
+            package_thread = getattr(window, "archive_isolated_package_thread", None)
+            context["archive_isolated_package_worker_active"] = package_worker is not None
+            if package_thread is not None:
+                try:
+                    context["archive_isolated_package_thread_running"] = bool(package_thread.isRunning())
+                except RuntimeError:
+                    context["archive_isolated_package_thread_running"] = "deleted"
+            preview_worker = getattr(window, "archive_preview_worker", None)
+            preview_thread = getattr(window, "archive_preview_thread", None)
+            context["archive_preview_worker_active"] = preview_worker is not None
+            if preview_thread is not None:
+                try:
+                    context["archive_preview_thread_running"] = bool(preview_thread.isRunning())
+                except RuntimeError:
+                    context["archive_preview_thread_running"] = "deleted"
+        except Exception:
+            pass
         _add_persisted_crash_breadcrumbs(context)
         try:
             log_lines = window.log_view.toPlainText().splitlines()
             context["recent_log_tail"] = log_lines[-80:]
+        except Exception:
+            pass
+        try:
+            archive_log_lines = window.archive_log_view.toPlainText().splitlines()
+            context["recent_archive_log_tail"] = archive_log_lines[-80:]
         except Exception:
             pass
         _cached_crash_context = dict(context)
@@ -1316,6 +1498,11 @@ def run_gui() -> int:
         sys.unraisablehook = _handle_unraisable_exception
     _enable_native_fault_log()
     _previous_session_unclean = _check_previous_unclean_exit()
+    _record_runtime_event(
+        "session_start",
+        crash_reports_dir=str(crash_reports_dir),
+        previous_session_unclean=bool(_previous_session_unclean),
+    )
     _write_heartbeat("starting")
     _start_hang_watchdog()
 
@@ -8938,16 +9125,20 @@ def run_gui() -> int:
                     if license_path.exists():
                         archive.writestr(license_path.name, license_path.read_text(encoding="utf-8"))
                     if crash_reports_dir.exists():
-                        latest_crash_report = max(
-                            (path for path in crash_reports_dir.glob("*.log") if path.is_file()),
-                            default=None,
-                            key=lambda path: path.stat().st_mtime,
-                        )
-                        if latest_crash_report is not None:
-                            archive.writestr(
-                                f"crash_reports/{latest_crash_report.name}",
-                                latest_crash_report.read_text(encoding="utf-8"),
-                            )
+                        crash_report_candidates = [
+                            path
+                            for path in crash_reports_dir.glob("*")
+                            if path.is_file() and path.suffix.lower() in {".log", ".json", ".jsonl"}
+                        ]
+                        crash_report_candidates.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+                        for crash_report in crash_report_candidates[:20]:
+                            try:
+                                archive.writestr(
+                                    f"crash_reports/{crash_report.name}",
+                                    crash_report.read_text(encoding="utf-8", errors="replace"),
+                                )
+                            except OSError:
+                                pass
                     for archive_name, archive_text in self.text_search_tab.diagnostic_entries().items():
                         archive.writestr(archive_name, archive_text)
 
@@ -13036,6 +13227,11 @@ def run_gui() -> int:
             self.append_archive_log(
                 "Starting archive refresh." if force_refresh else "Starting archive scan (cache-aware)."
             )
+            _set_last_active_operation(
+                "archive_scan",
+                package_root=str(package_root),
+                force_refresh=force_refresh,
+            )
 
             browser_view_will_render_now = bool(
                 activate_archive_tab or self._is_tool_visible_or_current(self.archive_browser_tab)
@@ -13317,6 +13513,13 @@ def run_gui() -> int:
                     f"Loaded {len(self.archive_entries):,} archive entries from cache."
                     if source == "cache"
                     else f"Archive scan complete. Found {len(self.archive_entries):,} entries."
+                )
+                _record_runtime_event(
+                    "archive_scan_complete",
+                    source=source,
+                    entry_count=len(self.archive_entries),
+                    cache_path=cache_path_text,
+                    timing_summary=timing_summary,
                 )
                 if cache_path_text and source == "scan":
                     self.append_archive_log(f"Archive cache ready: {cache_path_text}")
@@ -18189,6 +18392,14 @@ def run_gui() -> int:
         ) -> None:
             request_id = self.archive_preview_request_id + 1
             self.archive_preview_request_id = request_id
+            _set_last_active_operation(
+                "archive_preview_request",
+                request_id=request_id,
+                path=getattr(entry, "path", ""),
+                backend=self._archive_model_renderer_backend(),
+                include_loose_preview_assets=include_loose_preview_assets,
+                prefer_loose_preview=prefer_loose_preview,
+            )
             self.archive_preview_cache_keys = {
                 existing_request_id: cache_key
                 for existing_request_id, cache_key in self.archive_preview_cache_keys.items()
@@ -18395,6 +18606,14 @@ def run_gui() -> int:
         ) -> None:
             companion_entry = self._find_archive_preview_companion_entry(entry)
             preview_settings = self._current_model_preview_render_settings()
+            _record_runtime_event(
+                "archive_preview_worker_start",
+                request_id=request_id,
+                path=getattr(entry, "path", ""),
+                companion_path=getattr(companion_entry, "path", ""),
+                backend=self._archive_model_renderer_backend(),
+                native_preview_core_enabled=(self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11),
+            )
             worker = ArchivePreviewWorker(
                 request_id,
                 texconv_path,
@@ -18440,6 +18659,13 @@ def run_gui() -> int:
             request_started_at = self.archive_preview_request_started_at.pop(request_id, None)
             request_phase_timings = self.archive_preview_request_phase_timings.pop(request_id, {})
             source = self.archive_preview_request_sources.pop(request_id, "worker")
+            _record_runtime_event(
+                "archive_preview_ready",
+                request_id=request_id,
+                source=source,
+                current_request_id=self.archive_preview_request_id,
+                stale=bool(request_id != self.archive_preview_request_id),
+            )
             if self._shutting_down or request_id != self.archive_preview_request_id:
                 return
             try:
@@ -18477,6 +18703,12 @@ def run_gui() -> int:
             self.archive_preview_request_started_at.pop(request_id, None)
             self.archive_preview_request_phase_timings.pop(request_id, None)
             self.archive_preview_request_sources.pop(request_id, None)
+            _record_runtime_event(
+                "archive_preview_error",
+                request_id=request_id,
+                current_request_id=self.archive_preview_request_id,
+                message=message,
+            )
             if self._shutting_down or request_id != self.archive_preview_request_id:
                 return
             self._stop_archive_preview_loading_indicator(success=False)
@@ -18798,6 +19030,43 @@ def run_gui() -> int:
                 return True
             return sender is getattr(self, "archive_isolated_renderer_process", None)
 
+        def _archive_qprocess_state(self, process: Optional[QProcess]) -> object:
+            if process is None:
+                return QProcess.NotRunning
+            try:
+                return process.state()
+            except RuntimeError:
+                return QProcess.NotRunning
+
+        def _archive_qprocess_pid(self, process: Optional[QProcess]) -> object:
+            if process is None:
+                return ""
+            try:
+                return int(process.processId())
+            except RuntimeError:
+                return "deleted"
+
+        def _delete_archive_qprocess_later(self, process: Optional[QProcess]) -> None:
+            if process is None:
+                return
+            try:
+                process.deleteLater()
+            except RuntimeError:
+                pass
+
+        def _cleanup_finished_archive_isolated_renderer_process(
+            self,
+            process: Optional[QProcess],
+            package_dir: Optional[Path],
+        ) -> None:
+            _record_runtime_event(
+                "d3d11_process_cleanup_finished",
+                package_dir=str(package_dir or ""),
+                process_pid=self._archive_qprocess_pid(process),
+            )
+            self._remove_archive_isolated_package_dir(package_dir)
+            self._delete_archive_qprocess_later(process)
+
         def _native_d3d11_renderer_command(
             self,
             package_dir: Path,
@@ -18822,6 +19091,10 @@ def run_gui() -> int:
                 theme_payload["background"],
                 "--theme-text",
                 theme_payload["text"],
+                "--crash-dir",
+                str(crash_reports_dir),
+                "--diagnostic-log",
+                str(_native_diagnostic_log_path),
             ]
             try:
                 host_widget.setAttribute(Qt.WA_NativeWindow, True)
@@ -18930,7 +19203,11 @@ def run_gui() -> int:
 
         def _kill_archive_isolated_renderer_process_if_running(self, process: QProcess) -> None:
             try:
-                if process.state() != QProcess.NotRunning:
+                if self._archive_qprocess_state(process) != QProcess.NotRunning:
+                    _record_runtime_event(
+                        "d3d11_process_kill",
+                        process_pid=self._archive_qprocess_pid(process),
+                    )
                     process.kill()
             except RuntimeError:
                 pass
@@ -18939,6 +19216,12 @@ def run_gui() -> int:
             if not self._archive_isolated_renderer_process_running():
                 self.archive_d3d11_preview_status_label.setText("Preparing native D3D11 preview package...")
                 return
+            _record_runtime_event(
+                "d3d11_preview_clear_for_new_request",
+                request_id=self.archive_preview_request_id,
+                active_package=str(getattr(self, "archive_isolated_renderer_active_package", "") or ""),
+                status_file=str(getattr(self, "archive_isolated_renderer_status_file", "") or ""),
+            )
             cleared = self.archive_d3d11_preview_host.clear_preview()
             self.archive_d3d11_preview_status_label.setText("Preparing native D3D11 preview package...")
             if cleared:
@@ -18955,6 +19238,12 @@ def run_gui() -> int:
             if self.archive_isolated_package_thread is not None:
                 self.archive_isolated_package_request_id += 1
                 self.archive_isolated_package_pending_result = result
+                _record_runtime_event(
+                    "d3d11_package_worker_queue_latest",
+                    package_request_id=self.archive_isolated_package_request_id,
+                    archive_preview_request_id=self.archive_preview_request_id,
+                    source_path=getattr(preview_model, "path", ""),
+                )
                 if self.archive_isolated_package_worker is not None:
                     self.archive_isolated_package_worker.stop()
                 self.archive_d3d11_preview_status_label.setText("Queued latest D3D11 preview package...")
@@ -18965,6 +19254,13 @@ def run_gui() -> int:
             self.archive_isolated_package_request_id += 1
             request_id = self.archive_isolated_package_request_id
             archive_preview_request_id = int(self.archive_preview_request_id)
+            _set_last_active_operation(
+                "d3d11_package_prepare",
+                package_request_id=request_id,
+                archive_preview_request_id=archive_preview_request_id,
+                source_path=getattr(preview_model, "path", ""),
+                batches=len(getattr(prepared_preview, "batches", ()) or ()),
+            )
             worker = ArchiveD3D11PackageWorker(
                 request_id,
                 archive_preview_request_id,
@@ -19013,6 +19309,14 @@ def run_gui() -> int:
                 int(request_id) != int(getattr(self, "archive_isolated_package_request_id", 0) or 0)
                 or int(archive_preview_request_id) != int(self.archive_preview_request_id)
             ):
+                _record_runtime_event(
+                    "d3d11_package_ready_stale",
+                    package_request_id=request_id,
+                    archive_preview_request_id=archive_preview_request_id,
+                    current_package_request_id=getattr(self, "archive_isolated_package_request_id", 0),
+                    current_archive_preview_request_id=self.archive_preview_request_id,
+                    package_dir=str(package_dir),
+                )
                 try:
                     shutil.rmtree(package_dir, ignore_errors=True)
                 except OSError:
@@ -19022,6 +19326,13 @@ def run_gui() -> int:
             if previous is not None:
                 self.archive_isolated_renderer_retired_packages.append(previous)
             self.archive_isolated_renderer_active_package = package_dir
+            _record_runtime_event(
+                "d3d11_package_ready",
+                package_request_id=request_id,
+                archive_preview_request_id=archive_preview_request_id,
+                package_dir=str(package_dir),
+                elapsed_ms=round(float(elapsed_ms), 3),
+            )
             self.set_status_message(f"Prepared native D3D11 preview package in {float(elapsed_ms):.1f} ms.")
             self._start_archive_isolated_renderer_process(package_dir)
 
@@ -19036,6 +19347,12 @@ def run_gui() -> int:
                 or int(archive_preview_request_id) != int(self.archive_preview_request_id)
             ):
                 return
+            _record_runtime_event(
+                "d3d11_package_error",
+                package_request_id=request_id,
+                archive_preview_request_id=archive_preview_request_id,
+                message=message,
+            )
             self.set_status_message(f"Failed to prepare native D3D11 preview package: {message}", error=True)
             self.archive_d3d11_preview_status_label.setText("D3D11 package preparation failed.")
             self._set_archive_isolated_renderer_debug(f"Native D3D11 Preview: package preparation failed: {message}")
@@ -19050,6 +19367,12 @@ def run_gui() -> int:
 
         def _start_archive_isolated_renderer_process(self, package_dir: Path) -> None:
             status_file = package_dir / "host_status.json"
+            _set_last_active_operation(
+                "d3d11_renderer_start",
+                package_dir=str(package_dir),
+                status_file=str(status_file),
+                request_id=self.archive_preview_request_id,
+            )
             try:
                 status_file.unlink(missing_ok=True)
             except OSError:
@@ -19057,6 +19380,12 @@ def run_gui() -> int:
             self.archive_isolated_renderer_status_file = status_file
             self.archive_isolated_renderer_status_mtime = 0.0
             if self._archive_isolated_renderer_process_running():
+                _record_runtime_event(
+                    "d3d11_renderer_reload",
+                    package_dir=str(package_dir),
+                    status_file=str(status_file),
+                    process_pid=self._archive_qprocess_pid(getattr(self, "archive_isolated_renderer_process", None)),
+                )
                 self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
                 self.archive_d3d11_preview_status_label.setText("Reloading native D3D11 preview...")
                 self._set_archive_isolated_renderer_debug(
@@ -19072,7 +19401,7 @@ def run_gui() -> int:
                 process = getattr(self, "archive_isolated_renderer_process", None)
                 if process is not None:
                     try:
-                        process.finished.connect(process.deleteLater)
+                        process.finished.connect(lambda *_args, process=process: self._delete_archive_qprocess_later(process))
                     except (RuntimeError, TypeError):
                         pass
                     self._kill_archive_isolated_renderer_process_if_running(process)
@@ -19080,6 +19409,11 @@ def run_gui() -> int:
             try:
                 program, arguments = self._archive_isolated_renderer_command(package_dir, status_file)
             except Exception as exc:
+                _record_runtime_event(
+                    "d3d11_renderer_command_unavailable",
+                    package_dir=str(package_dir),
+                    message=str(exc),
+                )
                 self.set_status_message(f"Native D3D11 renderer is unavailable: {exc}", error=True)
                 self._set_archive_isolated_renderer_debug(
                     f"Isolated Renderer: native D3D11 host unavailable: {exc}\n"
@@ -19092,6 +19426,13 @@ def run_gui() -> int:
                 return
             process.setProgram(program)
             process.setArguments(arguments)
+            _record_runtime_event(
+                "d3d11_renderer_process_configured",
+                program=program,
+                arguments=arguments,
+                package_dir=str(package_dir),
+                status_file=str(status_file),
+            )
             try:
                 process.setWorkingDirectory(str(Path(__file__).resolve().parents[2]))
             except Exception:
@@ -19123,6 +19464,11 @@ def run_gui() -> int:
             if expected_status.is_file():
                 return
             self.set_status_message("Isolated D3D11 renderer has not written a status file yet.", error=True)
+            _record_runtime_event(
+                "d3d11_renderer_start_timeout",
+                status_file=str(expected_status),
+                process_pid=self._archive_qprocess_pid(getattr(self, "archive_isolated_renderer_process", None)),
+            )
             self._set_archive_isolated_renderer_debug(
                 "Isolated Renderer: startup timeout waiting for status file. "
                 "If Windows Defender quarantines the unsigned EXE, submit it to Microsoft before allowing it: "
@@ -19151,6 +19497,7 @@ def run_gui() -> int:
             except RuntimeError:
                 return
             if chunk:
+                _record_runtime_event("d3d11_renderer_stderr", message=chunk[-1200:])
                 self._set_archive_isolated_renderer_debug(f"Isolated Renderer stderr: {chunk[-1200:]}")
 
         def _poll_archive_isolated_renderer_status(self) -> None:
@@ -19173,6 +19520,15 @@ def run_gui() -> int:
             if not isinstance(payload, Mapping):
                 return
             event = str(payload.get("event", "") or "").strip().lower()
+            _record_runtime_event(
+                "d3d11_status_event",
+                status_event=event,
+                status_file=str(status_file),
+                stage=payload.get("stage", ""),
+                message=payload.get("message", ""),
+                batch_count=payload.get("batch_count", 0),
+                vertex_count=payload.get("vertex_count", 0),
+            )
             if event == "loaded":
                 self._cleanup_archive_isolated_renderer_packages(include_active=False)
                 self._set_archive_isolated_renderer_debug(self._format_archive_isolated_renderer_debug(payload))
@@ -19209,6 +19565,11 @@ def run_gui() -> int:
         def _handle_archive_isolated_renderer_error(self, error) -> None:
             if not self._archive_isolated_renderer_sender_is_current():
                 return
+            _record_runtime_event(
+                "d3d11_process_error",
+                error=str(error),
+                process_pid=self._archive_qprocess_pid(getattr(self, "archive_isolated_renderer_process", None)),
+            )
             self.set_status_message(f"Isolated D3D11 renderer process error: {error}", error=True)
             self._set_archive_isolated_renderer_debug(
                 f"Isolated Renderer process error: {error}\n"
@@ -19223,6 +19584,12 @@ def run_gui() -> int:
         def _handle_archive_isolated_renderer_finished(self, exit_code: int, exit_status) -> None:
             if not self._archive_isolated_renderer_sender_is_current():
                 return
+            _record_runtime_event(
+                "d3d11_process_finished",
+                exit_code=int(exit_code),
+                exit_status=str(exit_status),
+                process_pid=self._archive_qprocess_pid(getattr(self, "archive_isolated_renderer_process", None)),
+            )
             self._poll_archive_isolated_renderer_status()
             self.archive_isolated_renderer_process = None
             self.archive_isolated_renderer_active_process = None
@@ -19245,6 +19612,12 @@ def run_gui() -> int:
                 self._cleanup_archive_isolated_renderer_packages(include_active=True)
                 return
             package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
+            _record_runtime_event(
+                "d3d11_process_shutdown_begin",
+                package_dir=str(package_dir or ""),
+                process_pid=self._archive_qprocess_pid(process),
+                process_state=str(self._archive_qprocess_state(process)),
+            )
             self.archive_isolated_renderer_process = None
             self.archive_isolated_renderer_active_process = None
             self.archive_isolated_renderer_active_package = None
@@ -19257,27 +19630,35 @@ def run_gui() -> int:
                 pass
             except TypeError:
                 pass
+            state = self._archive_qprocess_state(process)
             try:
-                if process.state() != QProcess.NotRunning:
-                    process.finished.connect(
-                        lambda *_args, package_dir=package_dir, process=process: (
-                            self._remove_archive_isolated_package_dir(package_dir),
-                            process.deleteLater(),
-                        )
-                    )
+                if state != QProcess.NotRunning:
+                    def cleanup_finished_process(*_args: object) -> None:
+                        self._cleanup_finished_archive_isolated_renderer_process(process, package_dir)
+
+                    def kill_process_if_still_running() -> None:
+                        self._kill_archive_isolated_renderer_process_if_running(process)
+
+                    def remove_retired_package_dir() -> None:
+                        self._remove_archive_isolated_package_dir(package_dir)
+
+                    process.finished.connect(cleanup_finished_process)
                     process.terminate()
-                    QTimer.singleShot(
-                        1200,
-                        lambda process=process: self._kill_archive_isolated_renderer_process_if_running(process),
-                    )
-                    QTimer.singleShot(7000, lambda package_dir=package_dir: self._remove_archive_isolated_package_dir(package_dir))
+                    QTimer.singleShot(1200, kill_process_if_still_running)
+                    QTimer.singleShot(7000, remove_retired_package_dir)
                 else:
                     self._remove_archive_isolated_package_dir(package_dir)
-                    process.deleteLater()
+                    self._delete_archive_qprocess_later(process)
             except RuntimeError:
                 self._remove_archive_isolated_package_dir(package_dir)
+                self._delete_archive_qprocess_later(process)
             self._cleanup_archive_isolated_renderer_packages(include_active=False)
             self.archive_d3d11_preview_status_label.setText("D3D11 preview is not running.")
+            _record_runtime_event(
+                "d3d11_process_shutdown_queued",
+                package_dir=str(package_dir or ""),
+                process_state=str(state),
+            )
 
         def _handle_archive_model_preview_reset_overrides(self) -> None:
             self.archive_model_preview.reset_preview_overrides()
@@ -49242,6 +49623,11 @@ def run_gui() -> int:
             if current_entry is None:
                 self.set_status_message("Select a supported archive mesh to modify.", error=True)
                 return
+            _set_last_active_operation(
+                "mesh_replacement_modify_original",
+                path=getattr(current_entry, "path", ""),
+                package=str(getattr(current_entry, "pamt_path", "") or ""),
+            )
             self._start_archive_modify_original_workspace(current_entry)
 
         def _default_archive_hkx_json_path(self, entry: ArchiveEntry) -> Path:
@@ -59773,6 +60159,12 @@ def run_gui() -> int:
             self._apply_pending_texture_editor_workflow_export_if_needed()
             self.set_status_message("Preparing DDS to PNG conversion...")
             self.append_log("Starting DDS -> PNG conversion.")
+            _set_last_active_operation(
+                "texture_conversion",
+                mode="dds_to_png",
+                original_dds_root=config.original_dds_root,
+                png_root=config.png_root,
+            )
             if config.upscale_backend == UPSCALE_BACKEND_NONE:
                 self.append_log(
                     "Warning: DDS-to-PNG conversion is enabled while the upscaling backend is disabled, so Start will convert DDS files to PNG and stop."

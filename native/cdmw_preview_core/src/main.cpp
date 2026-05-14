@@ -22,6 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include "../../common/native_diagnostics.h"
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -3469,9 +3471,30 @@ std::string preview_report_for_job(const fs::path& job_path) {
     return out.str();
 }
 
+struct CommonArgs {
+    fs::path crash_dir;
+    fs::path diagnostic_log;
+};
+
+CommonArgs parse_common_args(int argc, char** argv) {
+    CommonArgs args;
+    for (int i = 1; i < argc; ++i) {
+        std::string key = argv[i] ? argv[i] : "";
+        auto next = [&]() -> fs::path {
+            if (i + 1 >= argc) return {};
+            return fs::path(argv[++i]);
+        };
+        if (key == "--crash-dir") args.crash_dir = next();
+        else if (key == "--diagnostic-log") args.diagnostic_log = next();
+    }
+    return args;
+}
+
 int run_preview_job(const fs::path& job_path, const fs::path& report_path) {
     try {
+        cdmw_native_diag::event("preview_job_start", {{"job_path", cdmw_native_diag::path_to_utf8(job_path)}, {"report_path", cdmw_native_diag::path_to_utf8(report_path)}});
         write_text(report_path, preview_report_for_job(job_path));
+        cdmw_native_diag::event("preview_job_complete", {{"job_path", cdmw_native_diag::path_to_utf8(job_path)}, {"report_path", cdmw_native_diag::path_to_utf8(report_path)}});
         return 0;
     } catch (const std::exception& exc) {
         std::ostringstream out;
@@ -3482,6 +3505,7 @@ int run_preview_job(const fs::path& job_path, const fs::path& report_path) {
         } catch (...) {
         }
         std::cerr << exc.what() << "\n";
+        cdmw_native_diag::event("preview_job_error", {{"job_path", cdmw_native_diag::path_to_utf8(job_path)}, {"message", exc.what()}});
         return 2;
     }
 }
@@ -3493,15 +3517,18 @@ std::string extract_line_path(const std::string& line, const std::string& key) {
 }
 
 int run_service() {
+    cdmw_native_diag::event("service_start");
     std::cout << "{\"event\":\"ready\",\"backend\":\"cdmw_preview_core_0.1\"}" << std::endl;
     std::string line;
     while (std::getline(std::cin, line)) {
         const std::string lowered = lower_copy(line);
         if (lowered.find("\"shutdown\"") != std::string::npos) {
+            cdmw_native_diag::event("service_shutdown");
             std::cout << "{\"event\":\"closed\",\"backend\":\"cdmw_preview_core_0.1\"}" << std::endl;
             return 0;
         }
         if (lowered.find("\"ping\"") != std::string::npos) {
+            cdmw_native_diag::event("service_ping");
             std::cout << "{\"event\":\"pong\",\"backend\":\"cdmw_preview_core_0.1\"}" << std::endl;
             continue;
         }
@@ -3512,20 +3539,26 @@ int run_service() {
             try {
                 std::cout << read_text(fs::path(report_path)) << std::endl;
             } catch (...) {
+                cdmw_native_diag::event("service_report_readback_failed", {{"report_path", report_path}});
                 std::cout << "{\"status\":\"error\",\"backend\":\"cdmw_preview_core_0.1\",\"message\":\"report readback failed\"}" << std::endl;
             }
             continue;
         }
+        cdmw_native_diag::event("service_unknown_command");
         std::cout << "{\"status\":\"error\",\"backend\":\"cdmw_preview_core_0.1\",\"message\":\"unknown command\"}" << std::endl;
     }
+    cdmw_native_diag::event("service_closed_stdin");
     return 0;
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
+    CommonArgs common_args = parse_common_args(argc, argv);
+    cdmw_native_diag::init("cdmw-preview-core", common_args.crash_dir, common_args.diagnostic_log);
     try {
         if (argc >= 2 && std::string(argv[1]) == "self-test") {
+            cdmw_native_diag::event("self_test_ok");
             std::cout << "{\"event\":\"self_test\",\"ok\":true,\"backend\":\"cdmw_preview_core_0.1\"}\n";
             return 0;
         }

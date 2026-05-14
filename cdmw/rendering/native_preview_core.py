@@ -92,6 +92,17 @@ class NativePreviewCoreAttempt:
         return f"Native Preview Core: fallback; reason={reason or self.status}; time={timing}."
 
 
+def _native_diagnostic_args(*, crash_dir: Optional[Path] = None, diagnostic_log: Optional[Path] = None) -> list[str]:
+    resolved_crash_dir = str(crash_dir or os.environ.get("CDMW_CRASH_DIR", "") or "").strip()
+    resolved_diagnostic_log = str(diagnostic_log or os.environ.get("CDMW_NATIVE_DIAGNOSTIC_LOG", "") or "").strip()
+    args: list[str] = []
+    if resolved_crash_dir:
+        args.extend(["--crash-dir", resolved_crash_dir])
+    if resolved_diagnostic_log:
+        args.extend(["--diagnostic-log", resolved_diagnostic_log])
+    return args
+
+
 class NativePreviewCoreServiceClient:
     """Small persistent JSON-line client for cdmw-preview-core.exe.
 
@@ -101,8 +112,16 @@ class NativePreviewCoreServiceClient:
     full D3D11 package generation.
     """
 
-    def __init__(self, binary: Path) -> None:
+    def __init__(
+        self,
+        binary: Path,
+        *,
+        crash_dir: Optional[Path] = None,
+        diagnostic_log: Optional[Path] = None,
+    ) -> None:
         self.binary = Path(binary)
+        self.crash_dir = Path(crash_dir) if crash_dir else None
+        self.diagnostic_log = Path(diagnostic_log) if diagnostic_log else None
         self._lock = threading.RLock()
         self._process: Optional[subprocess.Popen[str]] = None
 
@@ -170,8 +189,10 @@ class NativePreviewCoreServiceClient:
         process = self._process
         if process is not None and process.poll() is None:
             return
+        command = [str(self.binary), "--service"]
+        command.extend(_native_diagnostic_args(crash_dir=self.crash_dir, diagnostic_log=self.diagnostic_log))
         self._process = subprocess.Popen(
-            [str(self.binary), "--service"],
+            command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -229,13 +250,27 @@ _native_preview_core_service_lock = threading.RLock()
 _native_preview_core_service: Optional[NativePreviewCoreServiceClient] = None
 
 
-def _get_native_preview_core_service(binary: Path) -> NativePreviewCoreServiceClient:
+def _get_native_preview_core_service(
+    binary: Path,
+    *,
+    crash_dir: Optional[Path] = None,
+    diagnostic_log: Optional[Path] = None,
+) -> NativePreviewCoreServiceClient:
     global _native_preview_core_service
     with _native_preview_core_service_lock:
-        if _native_preview_core_service is None or _native_preview_core_service.binary != Path(binary):
+        if (
+            _native_preview_core_service is None
+            or _native_preview_core_service.binary != Path(binary)
+            or _native_preview_core_service.crash_dir != (Path(crash_dir) if crash_dir else None)
+            or _native_preview_core_service.diagnostic_log != (Path(diagnostic_log) if diagnostic_log else None)
+        ):
             if _native_preview_core_service is not None:
                 _native_preview_core_service.shutdown()
-            _native_preview_core_service = NativePreviewCoreServiceClient(Path(binary))
+            _native_preview_core_service = NativePreviewCoreServiceClient(
+                Path(binary),
+                crash_dir=crash_dir,
+                diagnostic_log=diagnostic_log,
+            )
         return _native_preview_core_service
 
 
@@ -336,6 +371,8 @@ def run_native_preview_core_preview_job(
     timeout_seconds: float = 3.0,
     stop_event: Any = None,
     use_service: bool = True,
+    crash_dir: Optional[Path] = None,
+    diagnostic_log: Optional[Path] = None,
 ) -> NativePreviewCoreAttempt:
     raise_if_cancelled(stop_event, "Native preview-core job cancelled.")
     binary = find_native_preview_core_binary()
@@ -361,7 +398,7 @@ def run_native_preview_core_preview_job(
     started = time.perf_counter()
     try:
         if use_service:
-            service = _get_native_preview_core_service(binary)
+            service = _get_native_preview_core_service(binary, crash_dir=crash_dir, diagnostic_log=diagnostic_log)
             service.preview_job(
                 job_path,
                 report_path,
@@ -370,8 +407,10 @@ def run_native_preview_core_preview_job(
             )
             returncode, stdout_text, stderr_text = 0, "", ""
         else:
+            command = [str(binary), "preview-job", str(job_path), str(report_path)]
+            command.extend(_native_diagnostic_args(crash_dir=crash_dir, diagnostic_log=diagnostic_log))
             returncode, stdout_text, stderr_text = run_process_with_cancellation(
-                [str(binary), "preview-job", str(job_path), str(report_path)],
+                command,
                 timeout_seconds=max(0.5, float(timeout_seconds)),
                 stop_event=stop_event,
             )
