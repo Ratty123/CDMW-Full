@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -1132,7 +1133,6 @@ private:
 struct PamtIndex {
     fs::path pamt_path;
     std::unordered_map<std::string, std::vector<ArchiveEntryRef>> by_basename;
-    std::unordered_map<std::string, ArchiveEntryRef> by_path;
     std::vector<ArchiveEntryRef> material_sidecars;
     size_t entry_count = 0;
 };
@@ -1253,9 +1253,7 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
         ref.comp_size = comp_size;
         ref.orig_size = orig_size;
         ref.flags = flags;
-        index.by_basename[lower_copy(ref.basename)].push_back(ref);
-        index.by_path[lower_copy(full_path)] = ref;
-        if (
+        const bool material_sidecar =
             ref.extension == ".pami" ||
             ref.extension == ".pac_xml" ||
             ref.extension == ".pam_xml" ||
@@ -1264,8 +1262,16 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
             ref.extension == ".technique" ||
             ref.extension == ".prefab" ||
             ref.extension == ".prefabdata_xml" ||
-            ref.extension == ".meshinfo"
-        ) {
+            ref.extension == ".meshinfo";
+        const bool lookup_relevant =
+            ref.extension == ".dds" ||
+            ref.extension == ".hkx" ||
+            ref.extension == ".pab" ||
+            material_sidecar;
+        if (lookup_relevant) {
+            index.by_basename[lower_copy(ref.basename)].push_back(ref);
+        }
+        if (material_sidecar) {
             index.material_sidecars.push_back(ref);
         }
     }
@@ -2392,10 +2398,13 @@ static bool technical_for_visible_base(const std::string& parameter_name, const 
 static std::string visible_class_for_binding(const std::string& parameter_name, const std::string& raw_path, const std::string& role) {
     if (technical_for_visible_base(parameter_name, raw_path, role)) return "technical";
     const std::string hint = std::regex_replace(lower_copy(parameter_name), std::regex("[^a-z0-9]+"), "");
+    if (hint.find("overlaycolor") != std::string::npos || low_authority_base_path(raw_path)) {
+        return "visible_generic";
+    }
     if (hint.find("grime") != std::string::npos || hint.find("detail") != std::string::npos || hint.find("layer") != std::string::npos || hint.find("blend") != std::string::npos || hint.find("decal") != std::string::npos) {
         return "layer_visible";
     }
-    if (hint.find("basecolor") != std::string::npos || hint.find("basecolour") != std::string::npos || hint.find("albedo") != std::string::npos || hint.find("diffuse") != std::string::npos || hint.find("colortexture") != std::string::npos || hint.find("overlaycolor") != std::string::npos || hint.find("base") != std::string::npos) {
+    if (hint.find("basecolor") != std::string::npos || hint.find("basecolour") != std::string::npos || hint.find("albedo") != std::string::npos || hint.find("diffuse") != std::string::npos || hint.find("colortexture") != std::string::npos || hint.find("base") != std::string::npos) {
         return "primary_visible";
     }
     if (hint.find("color") != std::string::npos || hint.find("colour") != std::string::npos || hint.find("overlay") != std::string::npos || hint.find("tint") != std::string::npos || hint.find("emissive") != std::string::npos) {
@@ -2407,7 +2416,7 @@ static std::string visible_class_for_binding(const std::string& parameter_name, 
 static bool visible_class_allowed_for_mode(const std::string& mode, const std::string& visible_class) {
     if (visible_class == "technical") return false;
     const std::string normalized = normalize_visible_texture_mode(mode);
-    if (normalized == "mesh_base_first") return visible_class == "primary_visible";
+    if (normalized == "mesh_base_first") return visible_class == "primary_visible" || visible_class == "layer_visible";
     return visible_class == "primary_visible" || visible_class == "visible_generic" || visible_class == "layer_visible";
 }
 
@@ -2885,6 +2894,22 @@ struct NativeMaterialGraph {
     TechniqueIndex technique_index;
 };
 
+static void apply_material_graph_summary(NativeMaterialGraph& graph, const std::string& summary) {
+    if (summary.empty()) return;
+    graph.pamt_count = static_cast<int>(std::max<long long>(graph.pamt_count, find_int_value(summary, "pamt_count", graph.pamt_count)));
+    graph.entry_count = static_cast<size_t>(std::max<long long>(static_cast<long long>(graph.entry_count), find_int_value(summary, "entry_count", static_cast<long long>(graph.entry_count))));
+    graph.material_sidecar_count = static_cast<size_t>(std::max<long long>(static_cast<long long>(graph.material_sidecar_count), find_int_value(summary, "material_sidecar_count", static_cast<long long>(graph.material_sidecar_count))));
+    graph.texture_candidate_count = static_cast<size_t>(std::max<long long>(static_cast<long long>(graph.texture_candidate_count), find_int_value(summary, "texture_candidate_count", static_cast<long long>(graph.texture_candidate_count))));
+    const int cached_technique_files = static_cast<int>(std::max<long long>(graph.technique_index.files_scanned, find_int_value(summary, "technique_files", graph.technique_index.files_scanned)));
+    const int cached_technique_count = static_cast<int>(std::max<long long>(static_cast<long long>(graph.technique_index.technique_names.size()), find_int_value(summary, "techniques", static_cast<long long>(graph.technique_index.technique_names.size()))));
+    const int cached_texture_params = static_cast<int>(std::max<long long>(graph.technique_index.texture_parameters, find_int_value(summary, "texture_parameters", graph.technique_index.texture_parameters)));
+    graph.technique_index.files_scanned = cached_technique_files;
+    graph.technique_index.texture_parameters = cached_texture_params;
+    while (static_cast<int>(graph.technique_index.technique_names.size()) < cached_technique_count) {
+        graph.technique_index.technique_names.insert("#cached_" + std::to_string(graph.technique_index.technique_names.size()));
+    }
+}
+
 static size_t count_dds_basenames(const PamtIndex& index) {
     size_t count = 0;
     for (const auto& [basename, _refs] : index.by_basename) {
@@ -2909,12 +2934,21 @@ static const NativeMaterialGraph& cached_native_material_graph(
     graph.key = hex64(fnv1a64(key));
     graph.cache_path = job.cache_root / "native_material_graph" / (graph.key + ".json");
     graph.persistent_cache_hit = fs::is_regular_file(graph.cache_path);
-    graph.technique_index = cached_package_technique_index(job, primary_index);
+    graph.technique_index = cached_technique_index(primary_index);
     graph.pamt_count = 1;
     graph.entry_count = primary_index.entry_count;
     graph.material_sidecar_count = primary_index.material_sidecars.size();
     graph.texture_candidate_count = count_dds_basenames(primary_index);
-    if (!job.package_root.empty()) {
+    if (graph.persistent_cache_hit) {
+        try {
+            apply_material_graph_summary(graph, read_text(graph.cache_path));
+        } catch (...) {
+        }
+        return cache.emplace(key, std::move(graph)).first->second;
+    }
+
+    const bool build_archive_wide_summary = std::getenv("CDMW_PREVIEW_CORE_ARCHIVE_WIDE_GRAPH") != nullptr;
+    if (build_archive_wide_summary && !job.package_root.empty()) {
         std::set<std::string> seen_pamts;
         seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
         for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
@@ -2926,6 +2960,7 @@ static const NativeMaterialGraph& cached_native_material_graph(
                 graph.entry_count += index.entry_count;
                 graph.material_sidecar_count += index.material_sidecars.size();
                 graph.texture_candidate_count += count_dds_basenames(index);
+                merge_technique_index(graph.technique_index, cached_technique_index(index));
             } catch (...) {
             }
         }
@@ -2986,7 +3021,10 @@ static void add_sidecar_texture_ref(
     std::replace(path.begin(), path.end(), '\\', '/');
     if (lower_copy(path).find(".dds") == std::string::npos) return;
     if (parameter.empty()) parameter = basename_from_path(path);
-    const std::string key = lower_copy(path + "|" + parameter + "|" + material_name + "|" + shader_family);
+    // A single DDS can appear under multiple same-slot layer parameters and again
+    // through synthetic sibling expansion. Extracting it once per material keeps
+    // native packages smaller without losing the slot ownership evidence.
+    const std::string key = lower_copy(path + "|" + material_name + "|" + shader_family);
     if (seen.insert(key).second) {
         refs.push_back(SidecarTextureRef{path, parameter, material_name, shader_family, material_parameters});
     }
@@ -3386,6 +3424,16 @@ static const TextureBinding* best_base_binding_for_mode(
     int* selected_score = nullptr
 ) {
     const std::string mode = normalize_visible_texture_mode(job.visible_texture_mode);
+    bool has_non_low_authority_visible_base = false;
+    for (const TextureBinding& binding : bindings) {
+        if (binding.source_path.empty() || binding.role != "base") continue;
+        if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
+        if (low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name)) continue;
+        if (binding.source_authority == "embedded_mesh" || visible_class_allowed_for_mode(mode, binding.visible_class)) {
+            has_non_low_authority_visible_base = true;
+            break;
+        }
+    }
     const TextureBinding* best = nullptr;
     int best_score = 40;
     for (const TextureBinding& binding : bindings) {
@@ -3393,27 +3441,37 @@ static const TextureBinding* best_base_binding_for_mode(
         if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
         const bool embedded = binding.source_authority == "embedded_mesh";
         const bool low_authority = low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name);
+        if (low_authority && has_non_low_authority_visible_base) {
+            continue;
+        }
         if (!embedded && !visible_class_allowed_for_mode(mode, binding.visible_class)) {
-            if (!(mode == "mesh_base_first" && binding.visible_class == "visible_generic")) {
+            if (!(mode == "mesh_base_first" && binding.visible_class == "visible_generic" && !has_non_low_authority_visible_base)) {
                 continue;
             }
         }
+        const std::string parameter_key = normalized_key(binding.parameter_name);
         int score = material_match_score(binding, mesh, "base");
         score += visible_class_priority(binding.visible_class) * 18;
         if (embedded) score += mode == "sidecar_visible_first" ? 20 : 120;
         if (binding.source_authority == "exact_sidecar") score += mode == "sidecar_visible_first" ? 95 : 55;
         if (mode == "mesh_base_first") {
             if (!embedded && binding.visible_class == "primary_visible") score += 75;
-            if (!embedded && binding.visible_class == "layer_visible") score -= 12;
-            if (!embedded && binding.visible_class == "visible_generic") score -= 26;
-            if (low_authority) score -= 90;
+            if (!embedded && binding.visible_class == "layer_visible") {
+                score += 34;
+                if (parameter_key.find("detaildiffuse") != std::string::npos || parameter_key.find("detailcol") != std::string::npos) score += 44;
+                if (parameter_key.find("grimediffuse") != std::string::npos) score += 18;
+            }
+            if (!embedded && binding.visible_class == "visible_generic") score -= 54;
+            if (low_authority) score -= 220;
         } else if (mode == "layer_aware_visible") {
             if (binding.visible_class == "layer_visible") score += 35;
-            if (low_authority) score -= 45;
+            if (parameter_key.find("detaildiffuse") != std::string::npos) score += 24;
+            if (low_authority) score -= 140;
         } else if (mode == "sidecar_visible_first") {
             if (!embedded) score += 65;
             if (binding.visible_class == "layer_visible") score += 22;
-            if (low_authority) score -= 35;
+            if (parameter_key.find("detaildiffuse") != std::string::npos) score += 18;
+            if (low_authority) score -= 120;
         }
         if (score > best_score) {
             best_score = score;
@@ -3726,7 +3784,7 @@ static std::vector<ArchiveEntryRef> lookup_basename_candidates_across_package(
         }
     };
     add_from_index(primary_index);
-    if (result.size() >= max_count || job.package_root.empty()) return result;
+    if (!result.empty() || job.package_root.empty()) return result;
     std::set<std::string> seen_pamts;
     seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
     for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
@@ -3761,9 +3819,12 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
         basenames = {model_stem + ".pamlod_xml", model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab", model_stem + ".prefabdata_xml", model_stem + ".meshinfo"};
     }
     for (const std::string& base : basenames) {
+        const size_t before_primary = candidates.size();
         add_sidecar_basename_candidates(candidates, seen, index, base, model_dir);
-        for (const ArchiveEntryRef& ref : lookup_basename_candidates_across_package(job, index, base, 24)) {
-            add_sidecar_candidate(candidates, seen, ref);
+        if (candidates.size() == before_primary) {
+            for (const ArchiveEntryRef& ref : lookup_basename_candidates_across_package(job, index, base, 24)) {
+                add_sidecar_candidate(candidates, seen, ref);
+            }
         }
     }
     if ((job.extension == ".pam" || job.extension == ".pamlod") && !candidates.empty()) {
@@ -4782,7 +4843,8 @@ static NativePackage write_d3d11_package(
         const int base_largest_dimension = base == nullptr ? 0 : std::max(base->dds_width, base->dds_height);
         const bool base_technical = base != nullptr && technical_for_visible_base(base->parameter_name, base->archive_path, base->role);
         const bool base_low_authority = base != nullptr && (low_authority_base_path(base->archive_path) || low_authority_base_path(base->texture_name));
-        const bool base_low_res = base != nullptr && base_largest_dimension > 0 && base_largest_dimension < 512 && !base_low_authority;
+        const bool base_layer_visible = base != nullptr && base->visible_class == "layer_visible";
+        const bool base_low_res = base != nullptr && base_largest_dimension > 0 && base_largest_dimension < 512 && !base_low_authority && !base_layer_visible;
         const bool base_low_confidence = base != nullptr && base_score < 120 && base_identity_score < 72;
         if (job.use_textures && base == nullptr) {
             ++package.base_missing_count;
@@ -4797,6 +4859,8 @@ static NativePackage write_d3d11_package(
             package.material_quality_safe = false;
             package.base_quality_notes.push_back("batch " + std::to_string(batch_index) + " " + mesh.material + ": low-resolution base " + base->texture_name + " " + std::to_string(base->dds_width) + "x" + std::to_string(base->dds_height));
         } else if (job.use_textures && base_low_authority) {
+            ++package.base_low_confidence_count;
+            package.material_quality_safe = false;
             package.base_quality_notes.push_back("batch " + std::to_string(batch_index) + " " + mesh.material + ": low-authority base fallback " + base->texture_name);
         } else if (job.use_textures && base_low_confidence) {
             ++package.base_low_confidence_count;
@@ -5029,7 +5093,7 @@ static NativePackage write_d3d11_package(
             }
         }
         batches_json << "],"
-            << "\"native_base_quality\":{\"safe\":" << ((!job.use_textures || (base != nullptr && !base_technical && !base_low_res && !base_low_confidence)) ? "true" : "false")
+            << "\"native_base_quality\":{\"safe\":" << ((!job.use_textures || (base != nullptr && !base_technical && !base_low_res && !base_low_confidence && !base_low_authority)) ? "true" : "false")
             << ",\"score\":" << base_score
             << ",\"identity_score\":" << base_identity_score
             << ",\"low_res\":" << (base_low_res ? "true" : "false")

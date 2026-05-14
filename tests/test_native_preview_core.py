@@ -389,6 +389,28 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertNotIn("Native Preview Core: material quality fallback", python_source)
         self.assertIn("D3D11 package source: native-core", python_source)
 
+    def test_native_base_selection_promotes_layer_diffuse_over_overlay(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        selector_start = source.index("static const TextureBinding* best_base_binding_for_mode")
+        selector_end = source.index("static std::string shader_rule_for_family", selector_start)
+        selector = source[selector_start:selector_end]
+        visible_start = source.index("static std::string visible_class_for_binding")
+        visible_end = source.index("static bool visible_class_allowed_for_mode", visible_start)
+        visible = source[visible_start:visible_end]
+
+        self.assertIn('hint.find("overlaycolor")', visible)
+        self.assertIn("low_authority_base_path(raw_path)", visible)
+        self.assertIn('return "visible_generic";', visible)
+        self.assertIn('visible_class == "layer_visible"', source)
+        self.assertIn("has_non_low_authority_visible_base", selector)
+        self.assertIn("if (low_authority && has_non_low_authority_visible_base)", selector)
+        self.assertIn('parameter_key.find("detaildiffuse")', selector)
+        self.assertIn("score -= 220", selector)
+        self.assertIn("!base_low_authority", source)
+        self.assertIn("lookup_relevant", source)
+        self.assertIn("if (!result.empty() || job.package_root.empty()) return result;", source)
+        self.assertNotIn("by_path", source)
+
     def test_d3d11_host_does_not_use_rich_material_inputs_as_base_override(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
         parse_start = source.index("static std::vector<PreviewBatch> parse_manifest_batches")
