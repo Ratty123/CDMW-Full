@@ -3487,13 +3487,13 @@ def run_gui() -> int:
             model_texture_references, asset_family_graph, metadata_lines, native_schema_version = (
                 self._native_preview_core_manifest_metadata(native_attempt.package_path)
             )
-            if native_schema_version < 5 or asset_family_graph is None:
+            if native_schema_version < 6 or asset_family_graph is None:
                 fallback_references, fallback_graph, fallback_lines = self._native_preview_core_reference_metadata()
                 if fallback_references or fallback_graph is not None:
                     model_texture_references = fallback_references
                     asset_family_graph = fallback_graph
                     metadata_lines = tuple(metadata_lines) + (
-                        "Native Asset Family: compatibility fallback used because native schema-v5 metadata was unavailable.",
+                        "Native Asset Family: compatibility fallback used because native schema-v6 metadata was unavailable.",
                     ) + tuple(fallback_lines)
             diagnostics = dict(native_attempt.diagnostics)
             notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())

@@ -64,7 +64,7 @@ class _FakeServiceProcess:
 
 
 class NativePreviewCoreTests(unittest.TestCase):
-    def test_build_job_carries_archive_entry_and_schema_v5(self) -> None:
+    def test_build_job_carries_archive_entry_and_schema_v6(self) -> None:
         job = build_native_preview_core_job(
             _entry(),
             cache_root=Path("C:/cache/native"),
@@ -73,7 +73,7 @@ class NativePreviewCoreTests(unittest.TestCase):
             package_root=Path("C:/game"),
         )
 
-        self.assertEqual(5, job["schema_version"])
+        self.assertEqual(6, job["schema_version"])
         self.assertEqual("d3d11", job["renderer_backend"])
         self.assertEqual("character/model/example/cd_example.pac", job["entry"]["path"])
         self.assertEqual("C:\\game\\0009\\1.paz", job["entry"]["paz_file"])
@@ -342,7 +342,14 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("technical_for_visible_base", source)
         self.assertIn("native_asset_family_json", source)
         self.assertIn("asset_family_reference_count", source)
-        self.assertIn("std::max(5, job.schema_version)", source)
+        self.assertIn("std::max(6, job.schema_version)", source)
+        self.assertIn("material_semantics_version", source)
+        self.assertIn("extract_material_parameters", source)
+        self.assertIn("compile_material_layers", source)
+        self.assertIn("material_layers", source)
+        self.assertIn("primary_material_layer", source)
+        self.assertIn("layer_role", source)
+        self.assertIn("evidence_grade", source)
         self.assertIn("_native_preview_core_reference_metadata", python_source)
         self.assertIn("_native_preview_core_manifest_metadata", python_source)
         self.assertIn("Native Asset Family: schema=v", python_source)
@@ -360,6 +367,20 @@ class NativePreviewCoreTests(unittest.TestCase):
 
         self.assertIn('batch.base_dds = dds_slot_source(object, "base");', parse_source)
         self.assertNotIn('best_material_dds_for_role(object, "base")', parse_source)
+
+    def test_d3d11_host_consumes_schema_v6_material_layer_stack(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("parse_primary_material_layer", source)
+        self.assertIn("Texture2D layer_diffuse_tex : register(t9)", source)
+        self.assertIn("Texture2D layer_mask_tex : register(t10)", source)
+        self.assertIn("Texture2D layer_material_tex : register(t11)", source)
+        self.assertIn("Texture2D layer_normal_tex : register(t12)", source)
+        self.assertIn("Texture2D layer_height_tex : register(t13)", source)
+        self.assertIn("constants.flags4 = DirectX::XMFLOAT4", source)
+        self.assertIn("constants.layer_params = DirectX::XMFLOAT4", source)
+        self.assertIn("ID3D11ShaderResourceView* srvs[14]", source)
+        self.assertIn("context_->PSSetShaderResources(0, 14, srvs)", source)
 
 
 if __name__ == "__main__":

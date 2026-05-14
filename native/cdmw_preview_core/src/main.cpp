@@ -398,9 +398,58 @@ struct TextureBinding {
     std::string source_authority = "sidecar";
     std::string relation_confidence = "derived_same_stem";
     std::string relation_reason = "Recovered by native material index.";
+    std::string layer_role;
+    std::string layer_channel;
+    std::string evidence_grade = "corpus_inferred";
+    std::string blend_flags;
+    std::string material_parameter_names;
+    float layer_weight = 0.0f;
+    float roughness_hint = 0.0f;
+    float metalness_hint = 0.0f;
+    float specular_hint = 0.0f;
+    float height_scale_hint = 0.0f;
+    std::array<float, 4> tint_color{1.0f, 1.0f, 1.0f, 1.0f};
     int dds_width = 0;
     int dds_height = 0;
     std::string dds_format = "";
+};
+
+struct MaterialParameterRecord {
+    std::string kind;
+    std::string name;
+    std::string value;
+    float numeric_value = 0.0f;
+    bool has_numeric = false;
+};
+
+struct MaterialLayer {
+    std::string layer_role;
+    std::string layer_channel = "r";
+    std::string shader_family;
+    std::string shader_rule;
+    std::string evidence_grade = "corpus_inferred";
+    std::string blend_order = "base_then_layer";
+    std::string source_parameter;
+    std::string mask_parameter;
+    std::string diffuse_source;
+    std::string diffuse_archive_path;
+    std::string normal_source;
+    std::string normal_archive_path;
+    std::string material_source;
+    std::string material_archive_path;
+    std::string height_source;
+    std::string height_archive_path;
+    std::string mask_source;
+    std::string mask_archive_path;
+    std::string roughness_hint_source;
+    std::string metallic_hint_source;
+    std::string specular_hint_source;
+    float weight = 0.0f;
+    float roughness_hint = 0.0f;
+    float metalness_hint = 0.0f;
+    float specular_hint = 0.0f;
+    float height_scale_hint = 0.0f;
+    std::array<float, 4> tint{1.0f, 1.0f, 1.0f, 1.0f};
 };
 
 struct NativeAssetFamilyRow {
@@ -2412,7 +2461,142 @@ struct SidecarTextureRef {
     std::string parameter_name;
     std::string material_name;
     std::string shader_family;
+    std::vector<MaterialParameterRecord> material_parameters;
 };
+
+static std::string xml_attr_value(const std::string& text, std::initializer_list<const char*> names);
+
+static std::string normalized_key(std::string value) {
+    std::string out;
+    out.reserve(value.size());
+    for (char ch : value) {
+        if (std::isalnum(static_cast<unsigned char>(ch))) {
+            out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+        }
+    }
+    return out;
+}
+
+static std::array<float, 4> byte4_channels(const std::string& raw_value) {
+    std::array<float, 4> channels{0.0f, 0.0f, 0.0f, 0.0f};
+    if (raw_value.empty()) return channels;
+    try {
+        unsigned long value = std::stoul(raw_value);
+        value = std::min<unsigned long>(value, 0xFFFFFFFFul);
+        for (int index = 0; index < 4; ++index) {
+            channels[static_cast<size_t>(index)] = static_cast<float>((value >> (8 * index)) & 0xFFu) / 255.0f;
+        }
+    } catch (...) {
+    }
+    return channels;
+}
+
+static float numeric_parameter_value(const std::string& raw_value, bool* ok = nullptr) {
+    if (ok) *ok = false;
+    if (raw_value.empty()) return 0.0f;
+    try {
+        size_t consumed = 0;
+        float value = std::stof(raw_value, &consumed);
+        if (consumed == 0) return 0.0f;
+        if (ok) *ok = true;
+        return value;
+    } catch (...) {
+        return 0.0f;
+    }
+}
+
+static std::array<float, 4> color_parameter_value(const std::string& raw_value) {
+    std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
+    std::string text = raw_value;
+    if (!text.empty() && text.front() == '#') text.erase(text.begin());
+    if (text.size() != 6 && text.size() != 8) return color;
+    try {
+        const int r = std::stoi(text.substr(0, 2), nullptr, 16);
+        const int g = std::stoi(text.substr(2, 2), nullptr, 16);
+        const int b = std::stoi(text.substr(4, 2), nullptr, 16);
+        const int a = text.size() >= 8 ? std::stoi(text.substr(6, 2), nullptr, 16) : 255;
+        color = {r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f};
+    } catch (...) {
+    }
+    return color;
+}
+
+static std::vector<MaterialParameterRecord> extract_material_parameters(const std::string& scope_text) {
+    std::vector<MaterialParameterRecord> records;
+    const std::regex parameter_tag_pattern(
+        "<MaterialParameter(?:Float|Color|Byte4|BitFlag32)\\b[^>]*(?:/>|>[\\s\\S]*?</MaterialParameter(?:Float|Color|Byte4|BitFlag32)\\s*>)",
+        std::regex_constants::icase
+    );
+    auto begin = std::sregex_iterator(scope_text.begin(), scope_text.end(), parameter_tag_pattern);
+    auto end = std::sregex_iterator();
+    for (auto it = begin; it != end; ++it) {
+        const std::string tag = it->str();
+        MaterialParameterRecord record;
+        const std::string tag_lower = lower_copy(tag);
+        if (tag_lower.find("materialparameterfloat") != std::string::npos) record.kind = "float";
+        else if (tag_lower.find("materialparametercolor") != std::string::npos) record.kind = "color";
+        else if (tag_lower.find("materialparameterbyte4") != std::string::npos) record.kind = "byte4";
+        else if (tag_lower.find("materialparameterbitflag32") != std::string::npos) record.kind = "bitflag32";
+        else record.kind = "unknown";
+        record.name = xml_attr_value(tag, {"_name", "StringItemID", "Name"});
+        record.value = xml_attr_value(tag, {"_value", "Value", "DefaultValue"});
+        if (record.name.empty()) continue;
+        bool has_numeric = false;
+        record.numeric_value = numeric_parameter_value(record.value, &has_numeric);
+        record.has_numeric = has_numeric;
+        records.push_back(record);
+    }
+    return records;
+}
+
+static const MaterialParameterRecord* find_material_parameter(
+    const std::vector<MaterialParameterRecord>& parameters,
+    std::initializer_list<const char*> names
+) {
+    for (const MaterialParameterRecord& parameter : parameters) {
+        const std::string key = normalized_key(parameter.name);
+        for (const char* name : names) {
+            const std::string wanted = normalized_key(name);
+            if (!wanted.empty() && key.find(wanted) != std::string::npos) return &parameter;
+        }
+    }
+    return nullptr;
+}
+
+static std::array<float, 4> byte4_parameter_channels(
+    const std::vector<MaterialParameterRecord>& parameters,
+    std::initializer_list<const char*> names
+) {
+    const MaterialParameterRecord* parameter = find_material_parameter(parameters, names);
+    if (parameter == nullptr) return {0.0f, 0.0f, 0.0f, 0.0f};
+    return byte4_channels(parameter->value);
+}
+
+static float scalar_parameter_hint(
+    const std::vector<MaterialParameterRecord>& parameters,
+    std::initializer_list<const char*> names,
+    float fallback = 0.0f
+) {
+    const MaterialParameterRecord* parameter = find_material_parameter(parameters, names);
+    if (parameter == nullptr) return fallback;
+    if (parameter->kind == "byte4") {
+        const auto channels = byte4_channels(parameter->value);
+        return std::max({channels[0], channels[1], channels[2], channels[3], fallback});
+    }
+    return parameter->has_numeric ? parameter->numeric_value : fallback;
+}
+
+static std::string joined_parameter_names(const std::vector<MaterialParameterRecord>& parameters, size_t limit = 16) {
+    std::ostringstream out;
+    size_t count = 0;
+    for (const MaterialParameterRecord& parameter : parameters) {
+        if (parameter.name.empty()) continue;
+        if (count++) out << ",";
+        out << parameter.name;
+        if (count >= limit) break;
+    }
+    return out.str();
+}
 
 static std::string extract_shader_family_hint(const std::string& text) {
     const std::regex material_name_pattern("_materialName=\"([^\"]+)\"", std::regex_constants::icase);
@@ -2612,14 +2796,15 @@ static void add_sidecar_texture_ref(
     std::string path,
     std::string parameter,
     const std::string& material_name,
-    const std::string& shader_family
+    const std::string& shader_family,
+    const std::vector<MaterialParameterRecord>& material_parameters = {}
 ) {
     std::replace(path.begin(), path.end(), '\\', '/');
     if (lower_copy(path).find(".dds") == std::string::npos) return;
     if (parameter.empty()) parameter = basename_from_path(path);
     const std::string key = lower_copy(path + "|" + parameter + "|" + material_name + "|" + shader_family);
     if (seen.insert(key).second) {
-        refs.push_back(SidecarTextureRef{path, parameter, material_name, shader_family});
+        refs.push_back(SidecarTextureRef{path, parameter, material_name, shader_family, material_parameters});
     }
 }
 
@@ -2630,6 +2815,7 @@ static void extract_texture_refs_from_scope(
     std::vector<SidecarTextureRef>& refs,
     std::set<std::string>& seen
 ) {
+    const std::vector<MaterialParameterRecord> material_parameters = extract_material_parameters(scope_text);
     const std::regex texture_tag_pattern(
         "<MaterialParameterTexture[^>]*(?:/>|>[\\s\\S]*?</MaterialParameterTexture\\s*>)",
         std::regex_constants::icase
@@ -2645,7 +2831,7 @@ static void extract_texture_refs_from_scope(
             std::smatch match;
             if (std::regex_search(tag, match, resource_pattern)) path = match[1].str();
         }
-        add_sidecar_texture_ref(refs, seen, path, parameter, material_name, shader_family);
+        add_sidecar_texture_ref(refs, seen, path, parameter, material_name, shader_family, material_parameters);
     }
 }
 
@@ -2980,6 +3166,103 @@ static std::string packed_channels_for_role(const std::string& role, const std::
     return "";
 }
 
+static std::string layer_channel_from_parameter(const std::string& parameter_name) {
+    const std::string key = normalized_key(parameter_name);
+    if (key.ends_with("r")) return "r";
+    if (key.ends_with("g")) return "g";
+    if (key.ends_with("b")) return "b";
+    if (key.ends_with("a")) return "a";
+    return "r";
+}
+
+static int layer_channel_index(const std::string& channel) {
+    const std::string value = lower_copy(channel);
+    if (value == "g") return 1;
+    if (value == "b") return 2;
+    if (value == "a") return 3;
+    return 0;
+}
+
+static std::string layer_role_from_parameter(const std::string& parameter_name, const std::string& role) {
+    const std::string key = normalized_key(parameter_name);
+    if (key.find("grime") != std::string::npos) return "grime";
+    if (key.find("detail") != std::string::npos || key.find("dyeing") != std::string::npos) return "detail";
+    if (key.find("damage") != std::string::npos) return "damage";
+    if (key.find("overlay") != std::string::npos) return "overlay";
+    if (key.find("layer") != std::string::npos || key.find("colortexture") != std::string::npos) return "layer";
+    if (role == "base") return "base";
+    if (role == "detail") return "detail_mask";
+    if (role == "material") return "material_response";
+    if (role == "specular") return "specular_response";
+    return role.empty() ? "material" : role;
+}
+
+static float layer_weight_from_parameters(
+    const std::vector<MaterialParameterRecord>& parameters,
+    const std::string& layer_role,
+    const std::string& channel
+) {
+    const int channel_index = layer_channel_index(channel);
+    if (layer_role == "base") return 1.0f;
+    if (layer_role == "overlay") return 0.24f;
+    if (layer_role == "grime") {
+        const auto opacity = byte4_parameter_channels(parameters, {"grimeBlendingOpacityParameter", "grimeOpacity"});
+        float value = opacity[std::min(channel_index, 3)];
+        if (value <= 0.01f) value = 0.34f;
+        return std::clamp(value, 0.03f, 0.72f);
+    }
+    if (layer_role == "detail") {
+        const auto global = byte4_parameter_channels(parameters, {"dyeingGlobalOpacity"});
+        float value = global[std::min(channel_index, 3)];
+        if (value <= 0.01f) value = 0.42f;
+        const auto property = byte4_parameter_channels(parameters, {"dyeingPropertyBlend"});
+        value *= std::max(0.25f, std::max({property[0], property[1], property[2], value}));
+        return std::clamp(value, 0.04f, 0.68f);
+    }
+    if (layer_role == "damage") {
+        const auto damage = byte4_parameter_channels(parameters, {"damageBlendingParameter"});
+        float value = std::max({damage[0], damage[1], damage[2], damage[3], 0.18f});
+        return std::clamp(value, 0.04f, 0.58f);
+    }
+    return 0.28f;
+}
+
+static std::array<float, 4> tint_for_layer(
+    const std::vector<MaterialParameterRecord>& parameters,
+    const std::string& layer_role,
+    const std::string& channel
+) {
+    std::vector<std::string> candidates;
+    if (layer_role == "grime") {
+        candidates = {"scratchTintColor" + channel, "tintColor" + channel, "dyeingDetailLayerColorMask" + channel};
+    } else if (layer_role == "detail") {
+        candidates = {"dyeingDetailLayerColorMask" + channel, "dyeingColorMask" + channel, "tintColor" + channel};
+    } else if (layer_role == "overlay") {
+        candidates = {"overlayColor", "tintColor" + channel, "tintColor"};
+    } else {
+        candidates = {"tintColor" + channel, "dyeingColorMask" + channel, "tintColor"};
+    }
+    for (const std::string& candidate : candidates) {
+        const MaterialParameterRecord* parameter = find_material_parameter(parameters, {candidate.c_str()});
+        if (parameter != nullptr && parameter->kind == "color") {
+            return color_parameter_value(parameter->value);
+        }
+    }
+    return {1.0f, 1.0f, 1.0f, 1.0f};
+}
+
+static std::string evidence_grade_for_binding(
+    const TextureBinding& binding,
+    const TechniqueParameterInfo* technique_parameter
+) {
+    if (binding.material_output_quality == "exact" && technique_parameter != nullptr && technique_parameter->declared) {
+        return "corpus_inferred";
+    }
+    if (binding.material_output_quality == "exact") return "corpus_inferred";
+    if (binding.material_output_quality == "inferred") return "approximate";
+    return "approximate";
+}
+
 static std::string role_from_parameter_shader_and_name(
     const std::string& parameter_name,
     const std::string& shader_rule,
@@ -3233,7 +3516,7 @@ static std::vector<TextureBinding> build_material_bindings(
         std::vector<SidecarTextureRef> refs = extract_sidecar_texture_refs(sidecar_text);
         if (refs.empty()) {
             for (const std::string& token : extract_dds_tokens(sidecar_text)) {
-                refs.push_back(SidecarTextureRef{token, ""});
+                refs.push_back(SidecarTextureRef{token, "", "", sidecar_shader_family, extract_material_parameters(sidecar_text)});
             }
         }
         package.dds_candidates += static_cast<int>(refs.size());
@@ -3299,6 +3582,16 @@ static std::vector<TextureBinding> build_material_bindings(
             binding.relation_reason = texture_ref.parameter_name.empty()
                 ? "Resolved by native texture basename/family lookup."
                 : "Resolved from native material sidecar texture parameter.";
+            binding.layer_role = layer_role_from_parameter(binding.parameter_name, binding.role);
+            binding.layer_channel = layer_channel_from_parameter(binding.parameter_name);
+            binding.layer_weight = layer_weight_from_parameters(texture_ref.material_parameters, binding.layer_role, binding.layer_channel);
+            binding.tint_color = tint_for_layer(texture_ref.material_parameters, binding.layer_role, binding.layer_channel);
+            binding.blend_flags = normalized_key(binding.parameter_name).find("colorblending") != std::string::npos ? "color_blending_mask" : "";
+            binding.material_parameter_names = joined_parameter_names(texture_ref.material_parameters);
+            binding.roughness_hint = std::clamp(scalar_parameter_hint(texture_ref.material_parameters, {"roughness", "scratchRoughness"}, 0.0f), 0.0f, 1.0f);
+            binding.metalness_hint = std::clamp(scalar_parameter_hint(texture_ref.material_parameters, {"metallic", "metalness", "scratchMetallic"}, 0.0f), 0.0f, 1.0f);
+            binding.specular_hint = std::clamp(scalar_parameter_hint(texture_ref.material_parameters, {"specular", "specularAmount"}, 0.0f), 0.0f, 1.0f);
+            binding.height_scale_hint = std::clamp(scalar_parameter_hint(texture_ref.material_parameters, {"screenSpaceDisplacementScale", "detailScreenSpaceDisplacementScale", "heightIntensity"}, 0.0f), 0.0f, 1.0f);
             if (binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))) {
                 binding.material_output_quality = "approximate";
             } else if (technique_parameter != nullptr && !texture_ref.parameter_name.empty() && !texture_ref.material_name.empty()) {
@@ -3309,6 +3602,7 @@ static std::vector<TextureBinding> build_material_bindings(
                 binding.material_output_quality = "inferred";
             }
             if (binding.material_output_quality == "exact") binding.source_authority = "exact_sidecar";
+            binding.evidence_grade = evidence_grade_for_binding(binding, technique_parameter);
             const std::string binding_key = lower_copy(binding.role + "|" + binding.archive_path + "|" + binding.parameter_name + "|" + binding.material_name);
             if (seen_bindings.insert(binding_key).second) {
                 bindings.push_back(binding);
@@ -3711,6 +4005,198 @@ static NativeMaterialHints material_hints_for_bindings(const std::vector<const T
     return hints;
 }
 
+static bool binding_is_layer_diffuse(const TextureBinding& binding, const TextureBinding* selected_base) {
+    if (binding.role != "base") return false;
+    if (&binding == selected_base) return false;
+    const std::string role = lower_copy(binding.layer_role);
+    if (role == "detail" || role == "grime" || role == "damage" || role == "overlay" || role == "layer") return true;
+    if (binding.visible_class == "layer_visible") return true;
+    const std::string parameter = normalized_key(binding.parameter_name);
+    return parameter.find("detaildiffuse") != std::string::npos
+        || parameter.find("grimediffuse") != std::string::npos
+        || parameter.find("colortexture") != std::string::npos;
+}
+
+static bool layer_channel_matches(const TextureBinding& binding, const std::string& channel) {
+    return binding.layer_channel.empty() || channel.empty() || binding.layer_channel == channel;
+}
+
+static const TextureBinding* find_layer_aux_binding(
+    const std::vector<const TextureBinding*>& bindings,
+    const std::string& desired_role,
+    const std::string& layer_role,
+    const std::string& channel
+) {
+    const TextureBinding* best = nullptr;
+    int best_score = -1000;
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr || binding->source_path.empty()) continue;
+        int score = -1000;
+        const std::string parameter = normalized_key(binding->parameter_name);
+        const std::string binding_layer = lower_copy(binding->layer_role);
+        if (desired_role == "mask") {
+            if (layer_role == "detail" && (parameter.find("detailmask") != std::string::npos || binding->role == "detail")) score = 120;
+            else if ((layer_role == "grime" || layer_role == "layer") && (parameter.find("colorblendingmask") != std::string::npos || parameter.find("blendingmask") != std::string::npos)) score = 118;
+            else if (layer_role == "damage" && parameter.find("mask") != std::string::npos) score = 104;
+            else if (binding->role == "detail") score = 42;
+        } else if (desired_role == "normal") {
+            if (binding->role == "normal") score = 72;
+            if (parameter.find(layer_role + "normal") != std::string::npos) score += 60;
+            if (parameter.find("detailnormal") != std::string::npos && layer_role == "detail") score += 60;
+            if (parameter.find("grimenormal") != std::string::npos && layer_role == "grime") score += 60;
+        } else if (desired_role == "material") {
+            if (binding->role == "material" || binding->role == "specular") score = 62;
+            if (parameter.find(layer_role + "material") != std::string::npos) score += 64;
+            if (parameter.find("detailmaterial") != std::string::npos && layer_role == "detail") score += 64;
+            if (parameter.find("grimematerial") != std::string::npos && layer_role == "grime") score += 64;
+        } else if (desired_role == "height") {
+            if (binding->role == "height") score = 52;
+            if (parameter.find(layer_role + "height") != std::string::npos) score += 66;
+            if (parameter.find("detailheight") != std::string::npos && layer_role == "detail") score += 66;
+        }
+        if (score <= -1000) continue;
+        if (binding_layer == layer_role) score += 18;
+        if (layer_channel_matches(*binding, channel)) score += 24;
+        else score -= 18;
+        if (score > best_score) {
+            best_score = score;
+            best = binding;
+        }
+    }
+    return best_score >= 40 ? best : nullptr;
+}
+
+static MaterialLayer make_base_material_layer(
+    const TextureBinding* base,
+    const TextureBinding* normal,
+    const TextureBinding* material,
+    const TextureBinding* height,
+    const TextureBinding* specular,
+    const NativeMaterialHints& hints
+) {
+    MaterialLayer layer;
+    layer.layer_role = "base";
+    layer.layer_channel = "r";
+    layer.shader_family = base != nullptr ? base->shader_family : "";
+    layer.shader_rule = base != nullptr ? base->shader_rule : "";
+    layer.evidence_grade = base != nullptr ? base->evidence_grade : "approximate";
+    layer.weight = 1.0f;
+    layer.roughness_hint = hints.roughness;
+    layer.metalness_hint = hints.metalness;
+    layer.specular_hint = hints.specular;
+    layer.height_scale_hint = hints.height_scale;
+    if (base != nullptr) {
+        layer.diffuse_source = base->source_path;
+        layer.diffuse_archive_path = base->archive_path;
+        layer.source_parameter = base->parameter_name;
+        layer.tint = base->tint_color;
+    }
+    if (normal != nullptr) {
+        layer.normal_source = normal->source_path;
+        layer.normal_archive_path = normal->archive_path;
+    }
+    const TextureBinding* material_response = material != nullptr ? material : specular;
+    if (material_response != nullptr) {
+        layer.material_source = material_response->source_path;
+        layer.material_archive_path = material_response->archive_path;
+    }
+    if (height != nullptr) {
+        layer.height_source = height->source_path;
+        layer.height_archive_path = height->archive_path;
+    }
+    return layer;
+}
+
+static std::vector<MaterialLayer> compile_material_layers(
+    const std::vector<const TextureBinding*>& bindings,
+    const TextureBinding* base,
+    const TextureBinding* normal,
+    const TextureBinding* material,
+    const TextureBinding* height,
+    const TextureBinding* specular,
+    const NativeMaterialHints& hints
+) {
+    std::vector<MaterialLayer> layers;
+    layers.push_back(make_base_material_layer(base, normal, material, height, specular, hints));
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr || !binding_is_layer_diffuse(*binding, base)) continue;
+        MaterialLayer layer;
+        layer.layer_role = binding->layer_role.empty() || binding->layer_role == "base" ? "layer" : binding->layer_role;
+        layer.layer_channel = binding->layer_channel.empty() ? "r" : binding->layer_channel;
+        layer.shader_family = binding->shader_family;
+        layer.shader_rule = binding->shader_rule;
+        layer.evidence_grade = binding->evidence_grade;
+        layer.weight = std::clamp(binding->layer_weight, 0.0f, 1.0f);
+        if (layer.weight <= 0.001f) layer.weight = 0.28f;
+        layer.tint = binding->tint_color;
+        layer.diffuse_source = binding->source_path;
+        layer.diffuse_archive_path = binding->archive_path;
+        layer.source_parameter = binding->parameter_name;
+        layer.blend_order = "base_then_" + layer.layer_role;
+        const TextureBinding* mask = find_layer_aux_binding(bindings, "mask", layer.layer_role, layer.layer_channel);
+        const TextureBinding* layer_normal = find_layer_aux_binding(bindings, "normal", layer.layer_role, layer.layer_channel);
+        const TextureBinding* layer_material = find_layer_aux_binding(bindings, "material", layer.layer_role, layer.layer_channel);
+        const TextureBinding* layer_height = find_layer_aux_binding(bindings, "height", layer.layer_role, layer.layer_channel);
+        if (mask != nullptr) {
+            layer.mask_source = mask->source_path;
+            layer.mask_archive_path = mask->archive_path;
+            layer.mask_parameter = mask->parameter_name;
+        } else {
+            layer.evidence_grade = "approximate";
+        }
+        if (layer_normal != nullptr) {
+            layer.normal_source = layer_normal->source_path;
+            layer.normal_archive_path = layer_normal->archive_path;
+        }
+        if (layer_material != nullptr) {
+            layer.material_source = layer_material->source_path;
+            layer.material_archive_path = layer_material->archive_path;
+            layer.roughness_hint = std::max(layer.roughness_hint, layer_material->roughness_hint);
+            layer.metalness_hint = std::max(layer.metalness_hint, layer_material->metalness_hint);
+            layer.specular_hint = std::max(layer.specular_hint, layer_material->specular_hint);
+        }
+        if (layer_height != nullptr) {
+            layer.height_source = layer_height->source_path;
+            layer.height_archive_path = layer_height->archive_path;
+            layer.height_scale_hint = std::max(layer.height_scale_hint, layer_height->height_scale_hint);
+        }
+        layers.push_back(layer);
+        if (layers.size() >= 5) break;
+    }
+    return layers;
+}
+
+static std::string material_layer_json(const MaterialLayer& layer) {
+    std::ostringstream out;
+    out << "{"
+        << "\"layer_role\":\"" << json_escape(layer.layer_role) << "\","
+        << "\"mask_channel\":\"" << json_escape(layer.layer_channel) << "\","
+        << "\"shader_family\":\"" << json_escape(layer.shader_family) << "\","
+        << "\"shader_rule\":\"" << json_escape(layer.shader_rule) << "\","
+        << "\"evidence_grade\":\"" << json_escape(layer.evidence_grade) << "\","
+        << "\"blend_order\":\"" << json_escape(layer.blend_order) << "\","
+        << "\"source_parameter\":\"" << json_escape(layer.source_parameter) << "\","
+        << "\"mask_parameter\":\"" << json_escape(layer.mask_parameter) << "\","
+        << "\"diffuse_source\":\"" << json_escape(layer.diffuse_source) << "\","
+        << "\"diffuse_archive_path\":\"" << json_escape(layer.diffuse_archive_path) << "\","
+        << "\"normal_source\":\"" << json_escape(layer.normal_source) << "\","
+        << "\"normal_archive_path\":\"" << json_escape(layer.normal_archive_path) << "\","
+        << "\"material_source\":\"" << json_escape(layer.material_source) << "\","
+        << "\"material_archive_path\":\"" << json_escape(layer.material_archive_path) << "\","
+        << "\"height_source\":\"" << json_escape(layer.height_source) << "\","
+        << "\"height_archive_path\":\"" << json_escape(layer.height_archive_path) << "\","
+        << "\"mask_source\":\"" << json_escape(layer.mask_source) << "\","
+        << "\"mask_archive_path\":\"" << json_escape(layer.mask_archive_path) << "\","
+        << "\"weight\":" << layer.weight << ","
+        << "\"roughness_hint\":" << layer.roughness_hint << ","
+        << "\"metalness_hint\":" << layer.metalness_hint << ","
+        << "\"specular_hint\":" << layer.specular_hint << ","
+        << "\"height_scale_hint\":" << layer.height_scale_hint << ","
+        << "\"tint\":[" << layer.tint[0] << "," << layer.tint[1] << "," << layer.tint[2] << "," << layer.tint[3] << "]"
+        << "}";
+    return out.str();
+}
+
 static bool job_allows_texture_role(const EntryJob& job, const std::string& role) {
     if (!job.use_textures) return false;
     if (role == "base") return true;
@@ -3760,7 +4246,7 @@ static std::string native_asset_family_json(const NativePackage& package, const 
     std::ostringstream out;
     out << "\"asset_family\":{"
         << "\"source\":\"native-core\","
-        << "\"schema_version\":5,"
+        << "\"schema_version\":6,"
         << "\"root_path\":\"" << json_escape(job.path) << "\","
         << "\"family_key\":\"" << json_escape(stem_from_path(job.path)) << "\","
         << "\"summary\":\"" << json_escape(native_asset_family_summary(package.asset_family_rows)) << "\","
@@ -3900,6 +4386,22 @@ static NativePackage write_d3d11_package(
             {base, normal, material, height, specular, detail}
         );
         const NativeMaterialHints material_hints = material_hints_for_bindings(batch_bindings);
+        const std::vector<MaterialLayer> material_layers = compile_material_layers(
+            batch_bindings,
+            base,
+            normal,
+            material,
+            height,
+            specular,
+            material_hints
+        );
+        const MaterialLayer* primary_layer = nullptr;
+        for (const MaterialLayer& layer : material_layers) {
+            if (layer.layer_role != "base" && !layer.diffuse_source.empty()) {
+                primary_layer = &layer;
+                break;
+            }
+        }
         if (package.selected_texture_examples.size() < 12) {
             auto texture_label = [](const TextureBinding* binding) -> std::string {
                 if (binding == nullptr) return "-";
@@ -3974,6 +4476,12 @@ static NativePackage write_d3d11_package(
                     << "\"srgb_mode\":\"" << json_escape(binding.srgb_mode) << "\","
                     << "\"parameter_declared_by\":\"" << json_escape(binding.parameter_declared_by) << "\","
                     << "\"material_output_quality\":\"" << json_escape(binding.material_output_quality) << "\","
+                    << "\"evidence_grade\":\"" << json_escape(binding.evidence_grade) << "\","
+                    << "\"layer_role\":\"" << json_escape(binding.layer_role) << "\","
+                    << "\"layer_channel\":\"" << json_escape(binding.layer_channel) << "\","
+                    << "\"layer_weight\":" << binding.layer_weight << ","
+                    << "\"blend_flags\":\"" << json_escape(binding.blend_flags) << "\","
+                    << "\"material_parameter_names\":\"" << json_escape(binding.material_parameter_names) << "\","
                     << "\"visible_class\":\"" << json_escape(binding.visible_class) << "\","
                     << "\"source_authority\":\"" << json_escape(binding.source_authority) << "\","
                     << "\"relation_confidence\":\"" << json_escape(binding.relation_confidence) << "\","
@@ -3991,6 +4499,56 @@ static NativePackage write_d3d11_package(
             << "\"texture_flip_vertical\":true,"
             << "\"has_texture_coordinates\":true,"
             << "\"tangents_usable\":true,"
+            << "\"shader_family\":\"" << json_escape(batch_bindings.empty() ? "" : batch_bindings.front()->shader_family) << "\","
+            << "\"shader_rule\":\"" << json_escape(batch_bindings.empty() ? "generic" : batch_bindings.front()->shader_rule) << "\","
+            << "\"evidence_grade\":\"" << json_escape(material_layers.empty() ? "approximate" : material_layers.front().evidence_grade) << "\","
+            << "\"material_layers\":[";
+        for (size_t layer_index = 0; layer_index < material_layers.size(); ++layer_index) {
+            if (layer_index) batches_json << ",";
+            batches_json << material_layer_json(material_layers[layer_index]);
+        }
+        batches_json << "],"
+            << "\"primary_material_layer\":{"
+            << "\"active\":" << (primary_layer != nullptr ? "true" : "false") << ","
+            << "\"layer_role\":\"" << json_escape(primary_layer == nullptr ? "" : primary_layer->layer_role) << "\","
+            << "\"mask_channel\":\"" << json_escape(primary_layer == nullptr ? "r" : primary_layer->layer_channel) << "\","
+            << "\"weight\":" << (primary_layer == nullptr ? 0.0f : primary_layer->weight) << ","
+            << "\"diffuse_source\":\"" << json_escape(primary_layer == nullptr ? "" : primary_layer->diffuse_source) << "\","
+            << "\"mask_source\":\"" << json_escape(primary_layer == nullptr ? "" : primary_layer->mask_source) << "\","
+            << "\"material_source\":\"" << json_escape(primary_layer == nullptr ? "" : primary_layer->material_source) << "\","
+            << "\"normal_source\":\"" << json_escape(primary_layer == nullptr ? "" : primary_layer->normal_source) << "\","
+            << "\"height_source\":\"" << json_escape(primary_layer == nullptr ? "" : primary_layer->height_source) << "\","
+            << "\"tint\":[" << (primary_layer == nullptr ? 1.0f : primary_layer->tint[0]) << "," << (primary_layer == nullptr ? 1.0f : primary_layer->tint[1]) << "," << (primary_layer == nullptr ? 1.0f : primary_layer->tint[2]) << "," << (primary_layer == nullptr ? 1.0f : primary_layer->tint[3]) << "],"
+            << "\"roughness_hint\":" << (primary_layer == nullptr ? 0.0f : primary_layer->roughness_hint) << ","
+            << "\"metalness_hint\":" << (primary_layer == nullptr ? 0.0f : primary_layer->metalness_hint) << ","
+            << "\"specular_hint\":" << (primary_layer == nullptr ? 0.0f : primary_layer->specular_hint) << ","
+            << "\"height_scale_hint\":" << (primary_layer == nullptr ? 0.0f : primary_layer->height_scale_hint)
+            << "},"
+            << "\"unknown_parameters\":[";
+        bool first_unknown = true;
+        std::set<std::string> unknown_parameter_names;
+        for (const TextureBinding* binding_ptr : batch_bindings) {
+            if (binding_ptr == nullptr) continue;
+            if (binding_ptr->role == "base" || binding_ptr->role == "normal" || binding_ptr->role == "height" || binding_ptr->role == "material" || binding_ptr->role == "specular" || binding_ptr->role == "detail") continue;
+            if (!binding_ptr->parameter_name.empty()) unknown_parameter_names.insert(binding_ptr->parameter_name);
+        }
+        for (const std::string& name : unknown_parameter_names) {
+            if (!first_unknown) batches_json << ",";
+            first_unknown = false;
+            batches_json << "\"" << json_escape(name) << "\"";
+        }
+        batches_json << "],"
+            << "\"rejected_inputs\":[";
+        bool first_rejected = true;
+        for (const TextureBinding* binding_ptr : batch_bindings) {
+            if (binding_ptr == nullptr) continue;
+            if (binding_ptr->role == "base" && technical_for_visible_base(binding_ptr->parameter_name, binding_ptr->archive_path, binding_ptr->role)) {
+                if (!first_rejected) batches_json << ",";
+                first_rejected = false;
+                batches_json << "{\"parameter_name\":\"" << json_escape(binding_ptr->parameter_name) << "\",\"archive_path\":\"" << json_escape(binding_ptr->archive_path) << "\",\"reason\":\"technical map rejected as albedo\"}";
+            }
+        }
+        batches_json << "],"
             << "\"native_base_quality\":{\"safe\":" << ((!job.use_textures || (base != nullptr && !base_technical && !base_low_res && !base_low_confidence)) ? "true" : "false")
             << ",\"score\":" << base_score
             << ",\"identity_score\":" << base_identity_score
@@ -4110,7 +4668,8 @@ static NativePackage write_d3d11_package(
         : job.extension;
     std::ostringstream manifest;
     manifest << "{"
-        << "\"schema_version\":" << std::max(5, job.schema_version) << ","
+        << "\"schema_version\":" << std::max(6, job.schema_version) << ","
+        << "\"material_semantics_version\":1,"
         << "\"backend\":\"d3d11\","
         << "\"source_path\":\"" << json_escape(job.path) << "\","
         << "\"format\":\"" << json_escape(format) << "\","
@@ -4137,7 +4696,7 @@ static NativePackage write_d3d11_package(
         << "\"shininess_max\":" << job.shininess_max << ","
         << "\"use_textures\":" << (job.use_textures ? "true" : "false") << ","
         << "\"high_quality_textures\":" << (job.high_quality_textures ? "true" : "false") << ","
-        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << package.base_missing_count << ",\"base_low_res_count\":" << package.base_low_res_count << ",\"base_low_confidence_count\":" << package.base_low_confidence_count << ",\"base_technical_count\":" << package.base_technical_count << ",\"asset_family_reference_count\":" << package.asset_family_reference_count << ",\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\",\"lod_count\":" << package.lod_count << "},"
+        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"material_semantics_version\":1,\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << package.base_missing_count << ",\"base_low_res_count\":" << package.base_low_res_count << ",\"base_low_confidence_count\":" << package.base_low_confidence_count << ",\"base_technical_count\":" << package.base_technical_count << ",\"asset_family_reference_count\":" << package.asset_family_reference_count << ",\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\",\"lod_count\":" << package.lod_count << "},"
         << native_asset_family_json(package, job) << ","
         << "\"batches\":[" << batches_json.str() << "]"
         << "}";
@@ -4241,7 +4800,8 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"base_low_res_count\":" << package.base_low_res_count << ","
         << "\"base_low_confidence_count\":" << package.base_low_confidence_count << ","
         << "\"base_technical_count\":" << package.base_technical_count << ","
-        << "\"schema_version\":" << std::max(5, job.schema_version) << ","
+        << "\"schema_version\":" << std::max(6, job.schema_version) << ","
+        << "\"material_semantics_version\":1,"
         << "\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\","
         << "\"entry_path\":\"" << json_escape(job.path) << "\","
         << "\"extension\":\"" << json_escape(job.extension) << "\","

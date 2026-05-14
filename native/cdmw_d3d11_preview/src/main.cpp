@@ -80,6 +80,11 @@ struct PreviewBatch {
     std::wstring specular_dds;
     std::wstring detail_dds;
     std::wstring height_dds;
+    std::wstring layer_diffuse_dds;
+    std::wstring layer_mask_dds;
+    std::wstring layer_material_dds;
+    std::wstring layer_normal_dds;
+    std::wstring layer_height_dds;
     std::wstring base_png;
     std::wstring normal_png;
     std::wstring occlusion_png;
@@ -93,6 +98,15 @@ struct PreviewBatch {
     float metalness_hint = 0.0f;
     float specular_hint = 0.0f;
     float height_scale_hint = 0.0f;
+    float layer_weight = 0.0f;
+    float layer_channel_index = 0.0f;
+    float layer_roughness_hint = 0.0f;
+    float layer_metalness_hint = 0.0f;
+    float layer_specular_hint = 0.0f;
+    float layer_height_scale_hint = 0.0f;
+    float layer_tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    std::string layer_role;
+    std::string layer_evidence_grade;
     int source_submesh_index = -1;
     std::wstring identity_file;
     float highlight_strength = 0.0f;
@@ -109,6 +123,11 @@ struct PreviewBatch {
     ComPtr<ID3D11ShaderResourceView> specular_srv;
     ComPtr<ID3D11ShaderResourceView> detail_srv;
     ComPtr<ID3D11ShaderResourceView> height_srv;
+    ComPtr<ID3D11ShaderResourceView> layer_diffuse_srv;
+    ComPtr<ID3D11ShaderResourceView> layer_mask_srv;
+    ComPtr<ID3D11ShaderResourceView> layer_material_srv;
+    ComPtr<ID3D11ShaderResourceView> layer_normal_srv;
+    ComPtr<ID3D11ShaderResourceView> layer_height_srv;
 };
 
 struct EditorCandidate {
@@ -182,6 +201,10 @@ struct ConstantBuffer {
     DirectX::XMFLOAT4 render_tuning;
     DirectX::XMFLOAT4 render_tuning2;
     DirectX::XMFLOAT4 editor_tint;
+    DirectX::XMFLOAT4 flags4;
+    DirectX::XMFLOAT4 layer_params;
+    DirectX::XMFLOAT4 layer_tint;
+    DirectX::XMFLOAT4 layer_hints;
 };
 
 struct RendererStats {
@@ -489,6 +512,24 @@ static std::vector<int> json_int_array_field(const std::string& object, const st
     return values;
 }
 
+static std::vector<float> json_float_array_field(const std::string& object, const std::string& name) {
+    std::vector<float> values;
+    std::regex pattern("\"" + name + "\"\\s*:\\s*\\[([^\\]]*)\\]");
+    std::smatch match;
+    if (!std::regex_search(object, match, pattern)) return values;
+    std::string array_text = match[1].str();
+    std::regex item_pattern("-?\\d+(?:\\.\\d+)?");
+    auto begin = std::sregex_iterator(array_text.begin(), array_text.end(), item_pattern);
+    auto end = std::sregex_iterator();
+    for (auto it = begin; it != end; ++it) {
+        try {
+            values.push_back(std::stof(it->str()));
+        } catch (...) {
+        }
+    }
+    return values;
+}
+
 static std::string json_object_field(const std::string& object, const std::string& name) {
     std::regex pattern("\"" + name + "\"\\s*:\\s*\\{([^{}]*)\\}");
     std::smatch match;
@@ -620,6 +661,36 @@ static std::wstring best_material_dds_for_role(const std::string& object, const 
     return utf8_to_wide(best_path);
 }
 
+static float material_layer_channel_index(const std::string& channel) {
+    std::string value = lower_copy(channel);
+    if (value == "g") return 1.0f;
+    if (value == "b") return 2.0f;
+    if (value == "a") return 3.0f;
+    return 0.0f;
+}
+
+static void parse_primary_material_layer(PreviewBatch& batch, const std::string& object) {
+    const std::string layer = json_object_field(object, "primary_material_layer");
+    if (layer.empty() || !json_bool_field(layer, "active", false)) return;
+    batch.layer_role = json_string_field(layer, "layer_role");
+    batch.layer_evidence_grade = json_string_field(layer, "evidence_grade");
+    batch.layer_channel_index = material_layer_channel_index(json_string_field(layer, "mask_channel", "r"));
+    batch.layer_weight = std::clamp(json_float_field(layer, "weight", 0.0f), 0.0f, 1.0f);
+    batch.layer_diffuse_dds = utf8_to_wide(json_string_field(layer, "diffuse_source"));
+    batch.layer_mask_dds = utf8_to_wide(json_string_field(layer, "mask_source"));
+    batch.layer_material_dds = utf8_to_wide(json_string_field(layer, "material_source"));
+    batch.layer_normal_dds = utf8_to_wide(json_string_field(layer, "normal_source"));
+    batch.layer_height_dds = utf8_to_wide(json_string_field(layer, "height_source"));
+    batch.layer_roughness_hint = std::clamp(json_float_field(layer, "roughness_hint", 0.0f), 0.0f, 1.0f);
+    batch.layer_metalness_hint = std::clamp(json_float_field(layer, "metalness_hint", 0.0f), 0.0f, 1.0f);
+    batch.layer_specular_hint = std::clamp(json_float_field(layer, "specular_hint", 0.0f), 0.0f, 1.0f);
+    batch.layer_height_scale_hint = std::clamp(json_float_field(layer, "height_scale_hint", 0.0f), 0.0f, 1.0f);
+    const std::vector<float> tint = json_float_array_field(layer, "tint");
+    for (size_t index = 0; index < std::min<size_t>(4, tint.size()); ++index) {
+        batch.layer_tint[index] = std::clamp(tint[index], 0.0f, 2.0f);
+    }
+}
+
 static void increment_slot(SlotCounts& counts, const std::string& slot) {
     if (slot == "base") ++counts.base;
     else if (slot == "normal") ++counts.normal;
@@ -731,6 +802,7 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.metalness_hint = std::clamp(json_float_field(object, "metalness", 0.0f), 0.0f, 1.0f);
         batch.specular_hint = std::clamp(json_float_field(object, "specular", 0.0f), 0.0f, 1.0f);
         batch.height_scale_hint = std::clamp(json_float_field(object, "height_scale", 0.0f), 0.0f, 1.0f);
+        parse_primary_material_layer(batch, object);
         std::string editor_identity = json_object_field(object, "editor_identity");
         batch.source_submesh_index = json_int_field(editor_identity, "source_submesh_index", -1);
         batch.identity_file = absolute_from_manifest_path(package_dir, json_string_field(editor_identity, "identity_file"));
@@ -743,6 +815,11 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         if (!batch.specular_dds.empty()) increment_slot(stats.dds_candidates, "specular");
         if (!batch.detail_dds.empty()) increment_slot(stats.dds_candidates, "detail");
         if (!batch.height_dds.empty()) increment_slot(stats.dds_candidates, "height");
+        if (!batch.layer_diffuse_dds.empty()) increment_slot(stats.dds_candidates, "detail");
+        if (!batch.layer_mask_dds.empty()) increment_slot(stats.dds_candidates, "detail");
+        if (!batch.layer_material_dds.empty()) increment_slot(stats.dds_candidates, "material");
+        if (!batch.layer_normal_dds.empty()) increment_slot(stats.dds_candidates, "normal");
+        if (!batch.layer_height_dds.empty()) increment_slot(stats.dds_candidates, "height");
         if (json_bool_field(object, "material_combiner_active", false)) {
             ++stats.material_combiner_active_batches;
         }
@@ -904,6 +981,10 @@ cbuffer Constants : register(b0) {
     float4 render_tuning;
     float4 render_tuning2;
     float4 editor_tint;
+    float4 flags4;
+    float4 layer_params;
+    float4 layer_tint;
+    float4 layer_hints;
 };
 Texture2D base_tex : register(t0);
 Texture2D normal_tex : register(t1);
@@ -914,6 +995,11 @@ Texture2D metalness_tex : register(t5);
 Texture2D specular_tex : register(t6);
 Texture2D height_tex : register(t7);
 Texture2D detail_tex : register(t8);
+Texture2D layer_diffuse_tex : register(t9);
+Texture2D layer_mask_tex : register(t10);
+Texture2D layer_material_tex : register(t11);
+Texture2D layer_normal_tex : register(t12);
+Texture2D layer_height_tex : register(t13);
 SamplerState preview_sampler : register(s0);
 struct VSIn {
     float3 position : POSITION;
@@ -956,6 +1042,18 @@ float4 ps_main(VSOut input) : SV_TARGET {
     if (flags.x > 0.5) {
         albedo = base_tex.Sample(preview_sampler, uv).rgb;
     }
+    float layer_alpha = 0.0;
+    if (flags4.x > 0.5) {
+        float4 mask_sample = float4(1.0, 1.0, 1.0, 1.0);
+        if (flags4.y > 0.5) {
+            mask_sample = layer_mask_tex.Sample(preview_sampler, uv);
+        }
+        int mask_channel = (int)round(saturate(layer_params.x / 3.0) * 3.0);
+        float mask_value = mask_channel == 1 ? mask_sample.g : (mask_channel == 2 ? mask_sample.b : (mask_channel == 3 ? mask_sample.a : mask_sample.r));
+        layer_alpha = saturate(mask_value * layer_params.y * layer_tint.a);
+        float3 layer_color = layer_diffuse_tex.Sample(preview_sampler, uv).rgb * layer_tint.rgb;
+        albedo = lerp(albedo, layer_color, layer_alpha);
+    }
     float3 n = normalize(input.normal);
     float3 t = input.tangent;
     float3 b = input.bitangent;
@@ -977,6 +1075,15 @@ float4 ps_main(VSOut input) : SV_TARGET {
         float3 mapped = normalize(float3(xy, z));
         float3 normal_mapped = normalize(t * mapped.x + b * mapped.y + n * mapped.z);
         n = normalize(lerp(n, normal_mapped, saturate(material_params.x)));
+    }
+    if (flags4.w > 0.5 && layer_alpha > 0.001) {
+        float3 sampled = layer_normal_tex.Sample(preview_sampler, uv).xyz;
+        float2 xy = sampled.xy * 2.0 - 1.0;
+        xy.y = -xy.y;
+        float z = sqrt(saturate(1.0 - dot(xy, xy)));
+        float3 mapped = normalize(float3(xy, z));
+        float3 normal_mapped = normalize(t * mapped.x + b * mapped.y + n * mapped.z);
+        n = normalize(lerp(n, normal_mapped, saturate(material_params.x * layer_alpha * 0.65)));
     }
     float ao = 1.0;
     float roughness = 0.55;
@@ -1024,6 +1131,12 @@ float4 ps_main(VSOut input) : SV_TARGET {
             specular = saturate(max(specular, detail_value * 0.16));
         }
     }
+    if (flags4.z > 0.5 && layer_alpha > 0.001) {
+        float4 lm = layer_material_tex.Sample(preview_sampler, uv);
+        roughness = lerp(roughness, saturate(max(lm.g, layer_hints.x)), saturate(layer_alpha * 0.58));
+        metalness = max(metalness, saturate(max(lm.b * 0.42, layer_hints.y)) * layer_alpha);
+        specular = max(specular, saturate(max(max(lm.a, lm.b * 0.55), layer_hints.z)) * layer_alpha);
+    }
     specular = min(specular, max(render_tuning.w, render_tuning.z));
     float height_value = 0.5;
     if (flags.w > 0.5) {
@@ -1043,6 +1156,11 @@ float4 ps_main(VSOut input) : SV_TARGET {
         n = normalize(lerp(n, height_normal, height_strength));
         float relief = (height_value - 0.5) * saturate(material_params.y * 10.0);
         roughness = saturate(roughness - relief * 0.10);
+    }
+    if (layer_params.z > 0.5 && layer_alpha > 0.001) {
+        float layer_height_value = layer_height_tex.Sample(preview_sampler, uv).r;
+        height_value = lerp(height_value, layer_height_value, layer_alpha);
+        roughness = saturate(roughness - (layer_height_value - 0.5) * saturate(layer_hints.w * layer_alpha) * 0.12);
     }
     float3 l = normalize(light_dir.xyz);
     float ndotl = saturate(dot(n, l));
@@ -1116,8 +1234,8 @@ public:
         const std::uint64_t released_texture_bytes = estimated_texture_bytes_;
 
         if (context_) {
-            ID3D11ShaderResourceView* null_srvs[9] = {};
-            context_->PSSetShaderResources(0, 9, null_srvs);
+            ID3D11ShaderResourceView* null_srvs[14] = {};
+            context_->PSSetShaderResources(0, 14, null_srvs);
             ID3D11Buffer* null_vertex_buffer = nullptr;
             UINT stride = 0;
             UINT offset = 0;
@@ -1416,10 +1534,30 @@ public:
                 0.72f,
                 0.18f,
                 std::clamp(batch.highlight_strength, 0.0f, 0.42f));
+            constants.flags4 = DirectX::XMFLOAT4(
+                batch.layer_diffuse_srv ? 1.0f : 0.0f,
+                batch.layer_mask_srv ? 1.0f : 0.0f,
+                batch.layer_material_srv ? 1.0f : 0.0f,
+                batch.layer_normal_srv ? 1.0f : 0.0f);
+            constants.layer_params = DirectX::XMFLOAT4(
+                batch.layer_channel_index,
+                std::clamp(batch.layer_weight, 0.0f, 1.0f),
+                batch.layer_height_srv ? 1.0f : 0.0f,
+                0.0f);
+            constants.layer_tint = DirectX::XMFLOAT4(
+                batch.layer_tint[0],
+                batch.layer_tint[1],
+                batch.layer_tint[2],
+                batch.layer_tint[3]);
+            constants.layer_hints = DirectX::XMFLOAT4(
+                batch.layer_roughness_hint,
+                batch.layer_metalness_hint,
+                batch.layer_specular_hint,
+                batch.layer_height_srv ? std::max(batch.layer_height_scale_hint, 0.02f) : 0.0f);
             context_->UpdateSubresource(constants_.Get(), 0, nullptr, &constants, 0, 0);
             context_->VSSetConstantBuffers(0, 1, constants_.GetAddressOf());
             context_->PSSetConstantBuffers(0, 1, constants_.GetAddressOf());
-            ID3D11ShaderResourceView* srvs[9] = {
+            ID3D11ShaderResourceView* srvs[14] = {
                 batch.base_srv.Get(),
                 batch.normal_srv.Get(),
                 batch.material_srv.Get(),
@@ -1429,11 +1567,16 @@ public:
                 batch.specular_srv.Get(),
                 batch.height_srv.Get(),
                 batch.detail_srv.Get(),
+                batch.layer_diffuse_srv.Get(),
+                batch.layer_mask_srv.Get(),
+                batch.layer_material_srv.Get(),
+                batch.layer_normal_srv.Get(),
+                batch.layer_height_srv.Get(),
             };
-            context_->PSSetShaderResources(0, 9, srvs);
+            context_->PSSetShaderResources(0, 14, srvs);
             context_->Draw(static_cast<UINT>(batch.vertex_count), 0);
-            ID3D11ShaderResourceView* clear_srvs[9] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-            context_->PSSetShaderResources(0, 9, clear_srvs);
+            ID3D11ShaderResourceView* clear_srvs[14] = {};
+            context_->PSSetShaderResources(0, 14, clear_srvs);
         }
         swap_chain_->Present(1, 0);
         draw_alignment_overlay_gdi();
@@ -2621,6 +2764,11 @@ private:
             load_batch_texture(batch.specular_dds, batch.specular_png, batch.specular_srv, "specular");
             load_batch_texture(batch.detail_dds, L"", batch.detail_srv, "detail");
             load_batch_texture(batch.height_dds, batch.height_png, batch.height_srv, "height");
+            load_batch_texture(batch.layer_diffuse_dds, L"", batch.layer_diffuse_srv, "detail");
+            load_batch_texture(batch.layer_mask_dds, L"", batch.layer_mask_srv, "detail");
+            load_batch_texture(batch.layer_material_dds, L"", batch.layer_material_srv, "material");
+            load_batch_texture(batch.layer_normal_dds, L"", batch.layer_normal_srv, "normal");
+            load_batch_texture(batch.layer_height_dds, L"", batch.layer_height_srv, "height");
         }
         stats_.texture_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - texture_start).count();

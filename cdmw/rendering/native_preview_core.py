@@ -404,7 +404,7 @@ def build_native_preview_core_job(
     companion_entry: Optional[ArchiveEntry] = None,
     package_root: Optional[Path] = None,
     renderer_backend: str = "d3d11",
-    schema_version: int = 5,
+    schema_version: int = 6,
 ) -> Dict[str, Any]:
     return {
         "version": 1,
