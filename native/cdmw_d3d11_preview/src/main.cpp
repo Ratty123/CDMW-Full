@@ -1152,11 +1152,26 @@ Texture2D metalness_tex : register(t5);
 Texture2D specular_tex : register(t6);
 Texture2D height_tex : register(t7);
 Texture2D detail_tex : register(t8);
-Texture2D layer_diffuse_tex[4] : register(t9);
-Texture2D layer_mask_tex[4] : register(t13);
-Texture2D layer_material_tex[4] : register(t17);
-Texture2D layer_normal_tex[4] : register(t21);
-Texture2D layer_height_tex[4] : register(t25);
+Texture2D layer0_diffuse_tex : register(t9);
+Texture2D layer1_diffuse_tex : register(t10);
+Texture2D layer2_diffuse_tex : register(t11);
+Texture2D layer3_diffuse_tex : register(t12);
+Texture2D layer0_mask_tex : register(t13);
+Texture2D layer1_mask_tex : register(t14);
+Texture2D layer2_mask_tex : register(t15);
+Texture2D layer3_mask_tex : register(t16);
+Texture2D layer0_material_tex : register(t17);
+Texture2D layer1_material_tex : register(t18);
+Texture2D layer2_material_tex : register(t19);
+Texture2D layer3_material_tex : register(t20);
+Texture2D layer0_normal_tex : register(t21);
+Texture2D layer1_normal_tex : register(t22);
+Texture2D layer2_normal_tex : register(t23);
+Texture2D layer3_normal_tex : register(t24);
+Texture2D layer0_height_tex : register(t25);
+Texture2D layer1_height_tex : register(t26);
+Texture2D layer2_height_tex : register(t27);
+Texture2D layer3_height_tex : register(t28);
 SamplerState preview_sampler : register(s0);
 struct VSIn {
     float3 position : POSITION;
@@ -1190,6 +1205,20 @@ VSOut vs_main(VSIn input) {
     output.bitangent = normalize(input.bitangent);
     return output;
 }
+float select_mask_channel(float4 sample_value, float channel_value) {
+    int mask_channel = (int)round(saturate(channel_value / 3.0) * 3.0);
+    return mask_channel == 1 ? sample_value.g : (mask_channel == 2 ? sample_value.b : (mask_channel == 3 ? sample_value.a : sample_value.r));
+}
+float3 blend_sampled_normal(float3 base_n, float3 tangent, float3 bitangent, float3 sampled, float strength, float invert_y) {
+    float2 xy = sampled.xy * 2.0 - 1.0;
+    if (invert_y > 0.5) {
+        xy.y = -xy.y;
+    }
+    float z = sqrt(saturate(1.0 - dot(xy, xy)));
+    float3 mapped = normalize(float3(xy, z));
+    float3 normal_mapped = normalize(tangent * mapped.x + bitangent * mapped.y + base_n * mapped.z);
+    return normalize(lerp(base_n, normal_mapped, saturate(strength)));
+}
 float4 ps_main(VSOut input) : SV_TARGET {
     float2 uv = input.uv;
     if (base_color_flip.w > 0.5) {
@@ -1200,21 +1229,22 @@ float4 ps_main(VSOut input) : SV_TARGET {
         albedo = base_tex.Sample(preview_sampler, uv).rgb;
     }
     float layer_alpha[4] = {0.0, 0.0, 0.0, 0.0};
-    [unroll]
-    for (int li = 0; li < 4; ++li) {
-        if (layer_flags[li].x <= 0.5) {
-            continue;
-        }
-        float4 mask_sample = float4(1.0, 1.0, 1.0, 1.0);
-        if (layer_flags[li].y > 0.5) {
-            mask_sample = layer_mask_tex[li].Sample(preview_sampler, uv);
-        }
-        int mask_channel = (int)round(saturate(layer_params[li].x / 3.0) * 3.0);
-        float mask_value = mask_channel == 1 ? mask_sample.g : (mask_channel == 2 ? mask_sample.b : (mask_channel == 3 ? mask_sample.a : mask_sample.r));
-        layer_alpha[li] = saturate(mask_value * layer_params[li].y * layer_tint[li].a);
-        float3 layer_color = layer_diffuse_tex[li].Sample(preview_sampler, uv).rgb * layer_tint[li].rgb;
-        albedo = lerp(albedo, layer_color, layer_alpha[li]);
+#define APPLY_ALBEDO_LAYER(ID, DIFFUSE_TEX, MASK_TEX) \
+    if (layer_flags[ID].x > 0.5) { \
+        float4 mask_sample = float4(1.0, 1.0, 1.0, 1.0); \
+        if (layer_flags[ID].y > 0.5) { \
+            mask_sample = MASK_TEX.Sample(preview_sampler, uv); \
+        } \
+        float mask_value = select_mask_channel(mask_sample, layer_params[ID].x); \
+        layer_alpha[ID] = saturate(mask_value * layer_params[ID].y * layer_tint[ID].a); \
+        float3 layer_color = DIFFUSE_TEX.Sample(preview_sampler, uv).rgb * layer_tint[ID].rgb; \
+        albedo = lerp(albedo, layer_color, layer_alpha[ID]); \
     }
+    APPLY_ALBEDO_LAYER(0, layer0_diffuse_tex, layer0_mask_tex)
+    APPLY_ALBEDO_LAYER(1, layer1_diffuse_tex, layer1_mask_tex)
+    APPLY_ALBEDO_LAYER(2, layer2_diffuse_tex, layer2_mask_tex)
+    APPLY_ALBEDO_LAYER(3, layer3_diffuse_tex, layer3_mask_tex)
+#undef APPLY_ALBEDO_LAYER
     float3 n = normalize(input.normal);
     float3 t = input.tangent;
     float3 b = input.bitangent;
@@ -1239,21 +1269,15 @@ float4 ps_main(VSOut input) : SV_TARGET {
         float3 normal_mapped = normalize(t * mapped.x + b * mapped.y + n * mapped.z);
         n = normalize(lerp(n, normal_mapped, saturate(material_params.x)));
     }
-    [unroll]
-    for (int li = 0; li < 4; ++li) {
-        if (layer_flags[li].w <= 0.5 || layer_alpha[li] <= 0.001) {
-            continue;
-        }
-        float3 sampled = layer_normal_tex[li].Sample(preview_sampler, uv).xyz;
-        float2 xy = sampled.xy * 2.0 - 1.0;
-        if (flags3.y > 0.5) {
-            xy.y = -xy.y;
-        }
-        float z = sqrt(saturate(1.0 - dot(xy, xy)));
-        float3 mapped = normalize(float3(xy, z));
-        float3 normal_mapped = normalize(t * mapped.x + b * mapped.y + n * mapped.z);
-        n = normalize(lerp(n, normal_mapped, saturate(material_params.x * layer_alpha[li] * 0.65)));
+#define APPLY_NORMAL_LAYER(ID, NORMAL_TEX) \
+    if (layer_flags[ID].w > 0.5 && layer_alpha[ID] > 0.001) { \
+        n = blend_sampled_normal(n, t, b, NORMAL_TEX.Sample(preview_sampler, uv).xyz, material_params.x * layer_alpha[ID] * 0.65, flags3.y); \
     }
+    APPLY_NORMAL_LAYER(0, layer0_normal_tex)
+    APPLY_NORMAL_LAYER(1, layer1_normal_tex)
+    APPLY_NORMAL_LAYER(2, layer2_normal_tex)
+    APPLY_NORMAL_LAYER(3, layer3_normal_tex)
+#undef APPLY_NORMAL_LAYER
     float ao = 1.0;
     float roughness = 0.55;
     float specular = 0.15;
@@ -1300,16 +1324,18 @@ float4 ps_main(VSOut input) : SV_TARGET {
             specular = saturate(max(specular, detail_value * 0.16));
         }
     }
-    [unroll]
-    for (int li = 0; li < 4; ++li) {
-        if (layer_flags[li].z <= 0.5 || layer_alpha[li] <= 0.001) {
-            continue;
-        }
-        float4 lm = layer_material_tex[li].Sample(preview_sampler, uv);
-        roughness = lerp(roughness, saturate(max(lm.g, layer_hints[li].x)), saturate(layer_alpha[li] * 0.58));
-        metalness = max(metalness, saturate(max(lm.b * 0.42, layer_hints[li].y)) * layer_alpha[li]);
-        specular = max(specular, saturate(max(max(lm.a, lm.b * 0.55), layer_hints[li].z)) * layer_alpha[li]);
+#define APPLY_MATERIAL_LAYER(ID, MATERIAL_TEX) \
+    if (layer_flags[ID].z > 0.5 && layer_alpha[ID] > 0.001) { \
+        float4 lm = MATERIAL_TEX.Sample(preview_sampler, uv); \
+        roughness = lerp(roughness, saturate(max(lm.g, layer_hints[ID].x)), saturate(layer_alpha[ID] * 0.58)); \
+        metalness = max(metalness, saturate(max(lm.b * 0.42, layer_hints[ID].y)) * layer_alpha[ID]); \
+        specular = max(specular, saturate(max(max(lm.a, lm.b * 0.55), layer_hints[ID].z)) * layer_alpha[ID]); \
     }
+    APPLY_MATERIAL_LAYER(0, layer0_material_tex)
+    APPLY_MATERIAL_LAYER(1, layer1_material_tex)
+    APPLY_MATERIAL_LAYER(2, layer2_material_tex)
+    APPLY_MATERIAL_LAYER(3, layer3_material_tex)
+#undef APPLY_MATERIAL_LAYER
     specular = min(specular, max(render_tuning.w, render_tuning.z));
     float height_value = 0.5;
     if (flags.w > 0.5) {
@@ -1330,15 +1356,17 @@ float4 ps_main(VSOut input) : SV_TARGET {
         float relief = (height_value - 0.5) * saturate(material_params.y * 10.0);
         roughness = saturate(roughness - relief * 0.10);
     }
-    [unroll]
-    for (int li = 0; li < 4; ++li) {
-        if (layer_params[li].z <= 0.5 || layer_alpha[li] <= 0.001) {
-            continue;
-        }
-        float layer_height_value = layer_height_tex[li].Sample(preview_sampler, uv).r;
-        height_value = lerp(height_value, layer_height_value, layer_alpha[li]);
-        roughness = saturate(roughness - (layer_height_value - 0.5) * saturate(layer_hints[li].w * layer_alpha[li]) * 0.12);
+#define APPLY_HEIGHT_LAYER(ID, HEIGHT_TEX) \
+    if (layer_params[ID].z > 0.5 && layer_alpha[ID] > 0.001) { \
+        float layer_height_value = HEIGHT_TEX.Sample(preview_sampler, uv).r; \
+        height_value = lerp(height_value, layer_height_value, layer_alpha[ID]); \
+        roughness = saturate(roughness - (layer_height_value - 0.5) * saturate(layer_hints[ID].w * layer_alpha[ID]) * 0.12); \
     }
+    APPLY_HEIGHT_LAYER(0, layer0_height_tex)
+    APPLY_HEIGHT_LAYER(1, layer1_height_tex)
+    APPLY_HEIGHT_LAYER(2, layer2_height_tex)
+    APPLY_HEIGHT_LAYER(3, layer3_height_tex)
+#undef APPLY_HEIGHT_LAYER
     float3 l = normalize(light_dir.xyz);
     float ndotl = saturate(dot(n, l));
     float3 view_dir = float3(0.0, 0.0, -1.0);
@@ -1456,13 +1484,13 @@ public:
         cdmw_native_diag::event("package_load_start", {{"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)}, {"status_file", cdmw_native_diag::path_to_utf8(args_.status_file)}});
         write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"manifest\",\"message\":\"Loading native D3D11 preview package...\"}");
         auto start = std::chrono::steady_clock::now();
+        release_model_resources("reload");
         std::string manifest = read_text(args_.preview_package / L"manifest.json");
         RendererStats next_stats;
         std::vector<PreviewBatch> next_batches = parse_manifest_batches(args_.preview_package, manifest, next_stats);
         ViewSettings next_view_settings = parse_view_settings(manifest);
         RenderTuning next_render_tuning = parse_render_tuning(manifest);
         next_stats.manifest_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-        release_model_resources("reload");
         batches_ = std::move(next_batches);
         stats_ = next_stats;
         view_settings_ = next_view_settings;
@@ -3276,13 +3304,22 @@ int wmain(int argc, wchar_t** argv) {
         ComPtr<ID3D11DeviceContext> context;
         D3D_FEATURE_LEVEL feature{};
         HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, device.GetAddressOf(), &feature, context.GetAddressOf());
+        std::string shader_error;
+        ComPtr<ID3DBlob> vs_blob;
+        ComPtr<ID3DBlob> ps_blob;
+        const bool shader_ok =
+            SUCCEEDED(compile_shader(kShaderSource, "vs_main", "vs_4_0", vs_blob.GetAddressOf(), shader_error))
+            && SUCCEEDED(compile_shader(kShaderSource, "ps_main", "ps_4_0", ps_blob.GetAddressOf(), shader_error));
         if (FAILED(hr)) {
             cdmw_native_diag::event("self_test_error", {{"hresult", std::to_string(static_cast<unsigned int>(hr))}});
+        } else if (!shader_ok) {
+            cdmw_native_diag::event("self_test_error", {{"reason", "shader_compile_failed"}, {"message", shader_error}});
         } else {
-            cdmw_native_diag::event("self_test_ok", {{"feature_level", std::to_string(static_cast<unsigned int>(feature))}});
+            cdmw_native_diag::event("self_test_ok", {{"feature_level", std::to_string(static_cast<unsigned int>(feature))}, {"shader", "ok"}});
         }
-        std::cout << "{\"event\":\"self_test\",\"backend\":\"D3D11\",\"ok\":" << (SUCCEEDED(hr) ? "true" : "false") << "}\n";
-        return SUCCEEDED(hr) ? 0 : 2;
+        const bool ok = SUCCEEDED(hr) && shader_ok;
+        std::cout << "{\"event\":\"self_test\",\"backend\":\"D3D11\",\"ok\":" << (ok ? "true" : "false") << "}\n";
+        return ok ? 0 : 2;
     }
     if (args.backend != L"d3d11" && args.backend != L"D3D11") {
         write_status(args.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"only D3D11 backend is supported by this native host\"}");

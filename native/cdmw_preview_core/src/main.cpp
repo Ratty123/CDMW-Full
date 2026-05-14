@@ -2610,10 +2610,13 @@ static std::string joined_parameter_names(const std::vector<MaterialParameterRec
 }
 
 static std::string extract_shader_family_hint(const std::string& text) {
-    const std::regex material_name_pattern("_materialName=\"([^\"]+)\"", std::regex_constants::icase);
+    const std::regex material_name_pattern("(?:_materialName|MaterialName|TechniqueName)=\"([^\"]+)\"", std::regex_constants::icase);
     std::smatch match;
     if (std::regex_search(text, match, material_name_pattern)) return match[1].str();
-    const std::regex pattern("(SkinnedMesh(?:Skin|Standard(?:_Ver2)?|Cloth(?:_Ver2)?|Hair)|MultiTextured|Standard)", std::regex_constants::icase);
+    const std::regex pattern(
+        "(SkinnedMesh(?:Skin(?:Wrinkle)?|Standard(?:_Ver[0-9]+)?|Cloth(?:_Ver[0-9]+)?|Hair|Fur(?:_Ver[0-9]+)?|AnimalHair)|MultiTextured|Standard)",
+        std::regex_constants::icase
+    );
     if (std::regex_search(text, match, pattern)) return match[1].str();
     return "";
 }
@@ -3066,22 +3069,69 @@ static void extract_texture_refs_from_scope(
     }
 }
 
+static int score_material_wrapper_block_for_preview(const std::string& block, const std::string& material_name) {
+    const std::string shader_family = extract_shader_family_hint(block);
+    const std::string shader_rule = shader_rule_for_family(shader_family);
+    const std::string block_lower = lower_copy(block);
+    const std::string material_key = normalized_key(material_name);
+    int score = 0;
+    if (block_lower.find("_basecolortexture") != std::string::npos) score += 180;
+    if (block_lower.find("_normaltexture") != std::string::npos) score += 35;
+    if (block_lower.find("_materialtexture") != std::string::npos) score += 35;
+    if (block_lower.find("_heighttexture") != std::string::npos) score += 18;
+    if (block_lower.find("_overlaycolortexture") != std::string::npos && block_lower.find("_basecolortexture") == std::string::npos) score -= 80;
+    if (shader_rule == "standard_v2" || shader_rule == "cloth_v2") score += 28;
+    else if (shader_rule == "standard" || shader_rule == "cloth" || shader_rule == "skin") score += 22;
+    else if (shader_rule == "hair") score -= 35;
+    else if (shader_rule == "generic") score -= 55;
+    for (const std::string& texture_tag : collect_xml_tag_blocks(block, "MaterialParameterTexture")) {
+        const auto attrs = xml_attribute_map(texture_tag);
+        std::string path = xml_attr_value_from_map(attrs, {"Value", "_path"});
+        if (path.empty()) {
+            for (const std::string& resource_tag : collect_xml_tag_blocks(texture_tag, "ResourceReferencePath_ITexture")) {
+                const auto resource_attrs = xml_attribute_map(resource_tag);
+                path = xml_attr_value_from_map(resource_attrs, {"_path", "Value"});
+                if (!path.empty()) break;
+            }
+        }
+        const std::string stem_key = normalized_key(stem_from_path(path));
+        if (!material_key.empty() && !stem_key.empty() && (stem_key == material_key || stem_key.find(material_key) != std::string::npos || material_key.find(stem_key) != std::string::npos)) {
+            score += 95;
+        }
+    }
+    return score;
+}
+
 static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(const std::string& text) {
     std::vector<SidecarTextureRef> refs;
     std::set<std::string> seen;
 
+    std::map<std::string, std::pair<int, std::string>> best_wrapper_by_material;
     for (const std::string& block : collect_xml_tag_blocks(text, "SkinnedMeshMaterialWrapper")) {
         const std::string material_name = xml_attr_value(block, {"_subMeshName", "PrimitiveName", "Name"});
+        const std::string key = normalized_key(material_name.empty() ? "default" : material_name);
+        const int score = score_material_wrapper_block_for_preview(block, material_name);
+        auto found = best_wrapper_by_material.find(key);
+        if (found == best_wrapper_by_material.end() || score > found->second.first) {
+            best_wrapper_by_material[key] = std::make_pair(score, block);
+        }
+    }
+    for (const auto& item : best_wrapper_by_material) {
+        const std::string& block = item.second.second;
+        std::string material_name = xml_attr_value(block, {"_subMeshName", "PrimitiveName", "Name"});
+        std::replace(material_name.begin(), material_name.end(), '\\', '/');
         const std::string shader_family = extract_shader_family_hint(block);
         extract_texture_refs_from_scope(block, material_name, shader_family, refs, seen);
     }
 
-    for (const std::string& block : collect_xml_tag_blocks(text, "Material")) {
-        std::string material_name = xml_attr_value(block, {"PrimitiveName", "_subMeshName", "Name"});
-        std::replace(material_name.begin(), material_name.end(), '\\', '/');
-        std::string shader_family = extract_shader_family_hint(block);
-        if (shader_family.empty()) shader_family = xml_attr_value(block, {"MaterialName", "_materialName"});
-        extract_texture_refs_from_scope(block, material_name, shader_family, refs, seen);
+    if (refs.empty()) {
+        for (const std::string& block : collect_xml_tag_blocks(text, "Material")) {
+            std::string material_name = xml_attr_value(block, {"PrimitiveName", "_subMeshName", "Name"});
+            std::replace(material_name.begin(), material_name.end(), '\\', '/');
+            std::string shader_family = extract_shader_family_hint(block);
+            if (shader_family.empty()) shader_family = xml_attr_value(block, {"MaterialName", "_materialName"});
+            extract_texture_refs_from_scope(block, material_name, shader_family, refs, seen);
+        }
     }
 
     if (refs.empty()) {
@@ -3381,7 +3431,7 @@ static std::string shader_rule_for_family(const std::string& family) {
     if (lower.find("skinnedmeshcloth") != std::string::npos) return "cloth";
     if (lower.find("skinnedmeshstandard_ver2") != std::string::npos) return "standard_v2";
     if (lower.find("skinnedmeshstandard") != std::string::npos) return "standard";
-    if (lower.find("skinnedmeshhair") != std::string::npos) return "hair";
+    if (lower.find("skinnedmeshhair") != std::string::npos || lower.find("skinnedmeshfur") != std::string::npos || lower.find("animalhair") != std::string::npos) return "hair";
     if (lower.find("multitextured") != std::string::npos) return "static_multitextured";
     if (lower.find("standard") != std::string::npos) return "static_standard";
     return "generic";
@@ -3758,6 +3808,7 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
 static std::vector<TextureBinding> build_material_bindings(
     const EntryJob& job,
     const PamtIndex& index,
+    const std::vector<NativeSubmesh>& meshes,
     NativePackage& package
 ) {
     std::vector<TextureBinding> bindings;
@@ -3838,8 +3889,35 @@ static std::vector<TextureBinding> build_material_bindings(
             "; flags=" + std::to_string(parameter_summary.bit_flags)
         );
         const std::vector<SidecarTextureRef>& refs = parsed_sidecar->refs;
-        package.dds_candidates += static_cast<int>(refs.size());
+        int refs_considered = 0;
         for (const SidecarTextureRef& texture_ref : refs) {
+            const std::string ref_material_key = normalized_material_key(texture_ref.material_name);
+            if (!ref_material_key.empty() && !meshes.empty()) {
+                bool matched_mesh = false;
+                for (const NativeSubmesh& mesh : meshes) {
+                    const std::string mesh_material_key = normalized_material_key(mesh.material);
+                    const std::string mesh_name_key = normalized_material_key(mesh.name);
+                    if (
+                        (!mesh_material_key.empty() && (ref_material_key == mesh_material_key || ref_material_key.find(mesh_material_key) != std::string::npos || mesh_material_key.find(ref_material_key) != std::string::npos))
+                        || (!mesh_name_key.empty() && (ref_material_key == mesh_name_key || ref_material_key.find(mesh_name_key) != std::string::npos || mesh_name_key.find(ref_material_key) != std::string::npos))
+                    ) {
+                        matched_mesh = true;
+                        break;
+                    }
+                }
+                if (!matched_mesh) {
+                    if (package.rejected_texture_examples.size() < 16) {
+                        package.rejected_texture_examples.push_back(
+                            "sidecar skipped unrelated material wrapper "
+                            + (texture_ref.material_name.empty() ? std::string("-") : texture_ref.material_name)
+                            + " texture="
+                            + basename_from_path(texture_ref.path)
+                        );
+                    }
+                    continue;
+                }
+            }
+            ++refs_considered;
             const std::string base = lower_copy(basename_from_path(texture_ref.path));
             std::vector<ArchiveEntryRef> texture_candidates = lookup_basename_candidates_across_package(job, index, base, 96);
             if (texture_candidates.empty()) {
@@ -3949,6 +4027,7 @@ static std::vector<TextureBinding> build_material_bindings(
                 });
             }
         }
+        package.dds_candidates += refs_considered;
     }
     package.dds_extracted = static_cast<int>(bindings.size());
     int exact_bindings = 0;
@@ -5136,7 +5215,7 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     package.mesh_parse = parsed.parser;
     package.lod_count = parsed.lod_count;
     const PamtIndex& index = cached_pamt_index(job.entry.pamt_path);
-    std::vector<TextureBinding> bindings = build_material_bindings(job, index, package);
+    std::vector<TextureBinding> bindings = build_material_bindings(job, index, parsed.meshes, package);
     append_mesh_reference_bindings(job, index, parsed.meshes, bindings, package);
     if (bindings.empty()) {
         if (package.material_index.empty()) package.material_index = "none";

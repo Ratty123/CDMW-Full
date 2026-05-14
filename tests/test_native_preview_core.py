@@ -405,11 +405,12 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("parse_material_layers", source)
         self.assertIn("json_object_array_field", source)
         self.assertIn("parse_primary_material_layer", source)
-        self.assertIn("Texture2D layer_diffuse_tex[4] : register(t9)", source)
-        self.assertIn("Texture2D layer_mask_tex[4] : register(t13)", source)
-        self.assertIn("Texture2D layer_material_tex[4] : register(t17)", source)
-        self.assertIn("Texture2D layer_normal_tex[4] : register(t21)", source)
-        self.assertIn("Texture2D layer_height_tex[4] : register(t25)", source)
+        self.assertIn("Texture2D layer0_diffuse_tex : register(t9)", source)
+        self.assertIn("Texture2D layer3_diffuse_tex : register(t12)", source)
+        self.assertIn("Texture2D layer0_mask_tex : register(t13)", source)
+        self.assertIn("Texture2D layer0_material_tex : register(t17)", source)
+        self.assertIn("Texture2D layer0_normal_tex : register(t21)", source)
+        self.assertIn("Texture2D layer0_height_tex : register(t25)", source)
         self.assertIn("constants.flags4 = DirectX::XMFLOAT4", source)
         self.assertIn("normal_y_policy", source)
         self.assertIn("invert_normal_y", source)
@@ -418,6 +419,17 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("ID3D11ShaderResourceView* srvs[kTotalSrvCount]", source)
         self.assertIn("context_->PSSetShaderResources(0, kTotalSrvCount, srvs)", source)
         self.assertIn("CREATETEX_FORCE_SRGB", source)
+        self.assertIn('compile_shader(kShaderSource, "ps_main", "ps_4_0"', source)
+
+    def test_native_core_scopes_sidecar_wrappers_before_dds_extraction(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("score_material_wrapper_block_for_preview", source)
+        self.assertIn("best_wrapper_by_material", source)
+        self.assertIn("build_material_bindings(job, index, parsed.meshes, package)", source)
+        self.assertIn("refs_considered", source)
+        self.assertIn("sidecar skipped unrelated material wrapper", source)
+        self.assertIn("SkinnedMesh(?:Skin(?:Wrinkle)?|Standard(?:_Ver[0-9]+)?|Cloth(?:_Ver[0-9]+)?|Hair|Fur", source)
 
 
 if __name__ == "__main__":

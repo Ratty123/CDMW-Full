@@ -19876,7 +19876,10 @@ def run_gui() -> int:
                     "Native D3D11 Preview: reloading the embedded renderer with the latest preview package."
                 )
                 self.archive_isolated_renderer_status_timer.start()
-                if self.archive_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
+                # A new archive selection must not leave the prior model/camera state visible if
+                # the native host rejects the new package after queuing the reload.
+                self.archive_d3d11_preview_host.clear_preview(status_file)
+                if self.archive_d3d11_preview_host.load_package(package_dir, status_file, reset_view=True):
                     QTimer.singleShot(
                         10000,
                         lambda expected_status=status_file: self._check_archive_isolated_renderer_start_timeout(expected_status),
@@ -20085,10 +20088,12 @@ def run_gui() -> int:
             self.archive_isolated_renderer_active_process = None
             self.archive_isolated_renderer_status_timer.stop()
             self._cleanup_archive_isolated_renderer_packages(include_active=True)
-            if self.archive_preview_stack.currentWidget() is self.archive_d3d11_preview_host:
+            if int(exit_code) == 0 and self.archive_preview_stack.currentWidget() is self.archive_d3d11_preview_host:
                 self.archive_preview_stack.setCurrentWidget(self.archive_model_preview)
             self.set_status_message(f"Isolated D3D11 renderer exited with code {int(exit_code)}.")
             if int(exit_code) != 0:
+                self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
+                self.archive_d3d11_preview_status_label.setText(f"Native D3D11 preview failed to load (exit {int(exit_code)}).")
                 self._set_archive_isolated_renderer_debug(
                     f"Isolated Renderer: process exited with code {int(exit_code)} ({exit_status}).\n"
                     "Defender note: if Windows Defender quarantines this unsigned experimental build, submit the EXE to Microsoft for analysis before allowing it: "
