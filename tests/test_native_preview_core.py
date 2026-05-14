@@ -408,7 +408,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertNotIn("Native Preview Core: material quality fallback", python_source)
         self.assertIn("D3D11 package source: native-core", python_source)
 
-    def test_native_base_selection_promotes_layer_diffuse_over_overlay(self) -> None:
+    def test_native_base_selection_uses_wrapper_overlay_before_layer_diffuse(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
         selector_start = source.index("static const TextureBinding* best_base_binding_for_mode")
         selector_end = source.index("static std::string shader_rule_for_family", selector_start)
@@ -424,10 +424,13 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("has_non_low_authority_visible_base", selector)
         self.assertIn("has_authoritative_sidecar_base_for_mesh", selector)
         self.assertIn("authoritative_visible_base", selector)
-        self.assertIn("if (low_authority && has_non_low_authority_visible_base)", selector)
+        self.assertIn("authoritative_wrapper_visible_base_for_mesh", source)
+        self.assertIn("placeholder_visible_base_path", source)
+        self.assertIn("if (low_authority && has_non_low_authority_visible_base && !authoritative_wrapper_visible_base_for_mesh(binding, mesh))", selector)
+        self.assertIn("(has_non_low_authority_visible_base || has_authoritative_sidecar_base_for_mesh)", selector)
         self.assertIn('parameter_key.find("detaildiffuse")', selector)
         self.assertIn("score += 260", selector)
-        self.assertIn("score -= 220", selector)
+        self.assertIn("score -= authoritative_wrapper_visible_base_for_mesh(binding, mesh) ? 36 : 220", selector)
         self.assertIn("material_identity_text_match_score", source)
         self.assertIn("submesh_specific_match", source)
         self.assertIn("return 220 + std::min(std::max(text_score, 0), 180)", source)

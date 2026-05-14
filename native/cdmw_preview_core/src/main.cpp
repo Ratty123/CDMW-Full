@@ -3002,6 +3002,15 @@ static bool low_authority_base_path(const std::string& raw_path) {
     return false;
 }
 
+static bool placeholder_visible_base_path(const std::string& raw_path) {
+    const std::string stem = lower_copy(stem_from_path(raw_path));
+    if (stem.empty()) return false;
+    if (stem.find("nonetexture") != std::string::npos || stem.find("nulltexture") != std::string::npos || stem.find("dummytexture") != std::string::npos) return true;
+    if (stem == "cd_common_default_overlay" || stem == "cd_common_default_overlay_old") return true;
+    if (stem.find("common_default") != std::string::npos && stem.find("overlay") != std::string::npos) return true;
+    return false;
+}
+
 static bool technical_for_visible_base(const std::string& parameter_name, const std::string& raw_path, const std::string& role) {
     const std::string hint = lower_copy(parameter_name);
     const std::string compact_hint = std::regex_replace(hint, std::regex("[^a-z0-9]+"), "");
@@ -4108,6 +4117,18 @@ static bool material_identity_requires_exact_path_match(const TextureBinding& bi
     return binding_material.find(".dds") != std::string::npos && mesh_material.find(".dds") != std::string::npos;
 }
 
+static bool authoritative_wrapper_visible_base_for_mesh(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    if (binding.role != "base") return false;
+    if (binding.source_authority != "exact_sidecar") return false;
+    if (!binding.material_wrapper_order_authoritative) return false;
+    if (!parameter_is_authoritative_visible_base(binding.parameter_name)) return false;
+    if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) return false;
+    if (placeholder_visible_base_path(binding.archive_path) || placeholder_visible_base_path(binding.texture_name)) return false;
+    const int largest_dimension = std::max(binding.dds_width, binding.dds_height);
+    if (largest_dimension > 0 && largest_dimension < 512) return false;
+    return material_identity_match_score(binding, mesh) >= 300;
+}
+
 static bool support_role_requires_material_scope(const std::string& desired_role) {
     return desired_role == "normal"
         || desired_role == "material"
@@ -4221,17 +4242,21 @@ static const TextureBinding* best_base_binding_for_mode(
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty() || binding.role != "base") continue;
         if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
-        if (low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name)) continue;
         const int identity_score = material_identity_match_score(binding, mesh);
         const bool authoritative_visible_base =
             parameter_is_authoritative_visible_base(binding.parameter_name)
             || binding.visible_class == "primary_visible";
+        const bool authoritative_wrapper_visible_base = authoritative_wrapper_visible_base_for_mesh(binding, mesh);
+        if (!authoritative_wrapper_visible_base && (low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name))) continue;
         if (
-            binding.source_authority == "exact_sidecar"
-            && binding.material_wrapper_order_authoritative
-            && identity_score >= 300
-            && authoritative_visible_base
-            && (visible_class_allowed_for_mode(mode, binding.visible_class) || parameter_is_authoritative_visible_base(binding.parameter_name))
+            authoritative_wrapper_visible_base
+            || (
+                binding.source_authority == "exact_sidecar"
+                && binding.material_wrapper_order_authoritative
+                && identity_score >= 300
+                && authoritative_visible_base
+                && (visible_class_allowed_for_mode(mode, binding.visible_class) || parameter_is_authoritative_visible_base(binding.parameter_name))
+            )
         ) {
             has_authoritative_sidecar_base_for_mesh = true;
         }
@@ -4283,10 +4308,10 @@ static const TextureBinding* best_base_binding_for_mode(
         if (embedded && has_authoritative_sidecar_base_for_mesh) {
             continue;
         }
-        if (low_authority && has_non_low_authority_visible_base) {
+        if (low_authority && has_non_low_authority_visible_base && !authoritative_wrapper_visible_base_for_mesh(binding, mesh)) {
             continue;
         }
-        if (mode == "mesh_base_first" && layer_diffuse_candidate && has_non_low_authority_visible_base && !embedded) {
+        if (mode == "mesh_base_first" && layer_diffuse_candidate && (has_non_low_authority_visible_base || has_authoritative_sidecar_base_for_mesh) && !embedded) {
             continue;
         }
         if (!embedded && !visible_class_allowed_for_mode(mode, binding.visible_class)) {
@@ -4312,7 +4337,9 @@ static const TextureBinding* best_base_binding_for_mode(
                 if (parameter_key.find("grimediffuse") != std::string::npos) score += 18;
             }
             if (!embedded && binding.visible_class == "visible_generic") score -= 54;
-            if (low_authority) score -= 220;
+            if (low_authority) {
+                score -= authoritative_wrapper_visible_base_for_mesh(binding, mesh) ? 36 : 220;
+            }
         } else if (mode == "layer_aware_visible") {
             if (binding.visible_class == "layer_visible") score += 35;
             if (parameter_key.find("detaildiffuse") != std::string::npos) score += 24;
@@ -5765,7 +5792,10 @@ static NativePackage write_d3d11_package(
         const int base_identity_score = base == nullptr ? 0 : material_identity_match_score(*base, mesh);
         const int base_largest_dimension = base == nullptr ? 0 : std::max(base->dds_width, base->dds_height);
         const bool base_technical = base != nullptr && technical_for_visible_base(base->parameter_name, base->archive_path, base->role);
-        const bool base_low_authority = base != nullptr && (low_authority_base_path(base->archive_path) || low_authority_base_path(base->texture_name));
+        const bool base_authoritative_wrapper_visible = base != nullptr && authoritative_wrapper_visible_base_for_mesh(*base, mesh);
+        const bool base_low_authority = base != nullptr
+            && !base_authoritative_wrapper_visible
+            && (low_authority_base_path(base->archive_path) || low_authority_base_path(base->texture_name));
         const bool base_layer_visible = base != nullptr && base->visible_class == "layer_visible";
         const bool base_authoritative_small_slot =
             base != nullptr
