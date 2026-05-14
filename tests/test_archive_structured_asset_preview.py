@@ -70,6 +70,18 @@ def _seqmt_sample(columns: int, rows: int, *, flags: int = 0, extra_payload: byt
     )
 
 
+def _paccd_sample() -> bytes:
+    header = struct.pack("<IIIIIIII", 0, 14, 2, 0, 0x01050000, 0, 3, 0x00FA0000)
+    rows = bytearray()
+    for slot_index in range(14):
+        row = bytearray(19)
+        row[0:3] = bytes((slot_index * 3 % 101, 50, 100))
+        row[6] = 100 if slot_index % 2 == 0 else 0
+        row[10:13] = bytes((50, 50, 50))
+        rows.extend(row)
+    return header + bytes(rows)
+
+
 class ArchiveStructuredAssetPreviewTests(unittest.TestCase):
     def test_meshinfo_preview_and_json_include_sidecar_recovery_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -532,6 +544,42 @@ class ArchiveStructuredAssetPreviewTests(unittest.TestCase):
             self.assertEqual(seqmt_report["seqmt"]["payload_statuses"][0]["status"], "complete")
             self.assertFalse(report["editing"]["supported"])
 
+    def test_paccd_preview_decodes_customization_slot_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = _entry("character/binary/customization/test_customization.paccd", root)
+            data = _paccd_sample()
+
+            preview = build_structured_asset_preview(data, source.path, extension=".paccd", source_entry=source)
+            document = json.loads(
+                build_binary_sidecar_analysis_json(data, source.path, extension=".paccd", source_entry=source)
+            )
+
+            self.assertIn("Character customization inspector", preview.preview_text)
+            self.assertIn("PACCD customization table", preview.preview_text)
+            self.assertIn("Slots: 14", preview.preview_text)
+            self.assertIn("row stride 19", preview.preview_text)
+            self.assertEqual(document["source"]["kind"], "Character Customization Data")
+            self.assertTrue(document["paccd"]["recognized"])
+            self.assertEqual(document["paccd"]["slot_count"], 14)
+            self.assertEqual(document["paccd"]["row_stride"], 19)
+            self.assertFalse(document["editing"]["supported"])
+
+    def test_binary_sidecar_corpus_report_includes_paccd_layouts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            paccd = root / "test_customization.paccd"
+            paccd.write_bytes(_paccd_sample())
+
+            report = build_binary_sidecar_corpus_report((root,), discovery_limit=10, detail_scan_limit=10)
+            paccd_report = report["by_extension"][".paccd"]
+
+            self.assertEqual(report["summary"]["paccd_files_scanned"], 1)
+            self.assertEqual(paccd_report["files_scanned"], 1)
+            self.assertEqual(paccd_report["paccd"]["layout_families"][0]["format_family"], "compact_customization_rows")
+            self.assertEqual(paccd_report["paccd"]["slot_counts"][0]["slot_count"], 14)
+            self.assertFalse(report["editing"]["supported"])
+
     def test_world_navigation_preview_groups_nav_and_road_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -573,6 +621,7 @@ class ArchiveStructuredAssetPreviewTests(unittest.TestCase):
             self.assertEqual("metadata", archive_entry_role(_entry("object/test.prefab", root)))
             self.assertEqual("metadata", archive_entry_role(_entry("object/test.pappt", root)))
             self.assertEqual("metadata", archive_entry_role(_entry("object/test.pamhc", root)))
+            self.assertEqual("metadata", archive_entry_role(_entry("character/binary/customization/test.paccd", root)))
             self.assertEqual("metadata", archive_entry_role(_entry("gamedata/binary__/client/bin/iteminfo.pabgb", root)))
             self.assertEqual("animation", archive_entry_role(_entry("actionchart/bin__/animmeta/test.paa_metabin", root)))
             self.assertEqual("animation", archive_entry_role(_entry("actionchart/bin__/schedule/test.paschedule", root)))

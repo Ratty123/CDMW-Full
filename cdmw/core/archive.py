@@ -1028,6 +1028,7 @@ _STRUCTURED_BINARY_ASSET_REFERENCE_EXTENSIONS: frozenset[str] = frozenset(
         ".pabgh",
         ".pamhc",
         ".pappt",
+        ".paccd",
         ".papr",
         ".paa",
         ".paa_metabin",
@@ -1065,6 +1066,7 @@ _ARCHIVE_STRUCTURED_BINARY_PREVIEW_EXTENSIONS: Tuple[str, ...] = (
     ".pabgh",
     ".pabc",
     ".pabv",
+    ".paccd",
     ".pamhc",
     ".pappt",
     ".paem",
@@ -2662,7 +2664,7 @@ def archive_entry_role(entry: ArchiveEntry) -> str:
         return "model"
     if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".papr", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
         return "animation"
-    if extension in {".meshinfo", ".prefab", ".pamhc", ".pappt", ".pabgb", ".pabgh", ".pabc", ".pabv", ".levelinfo", ".palevel", ".roadsector", ".road", ".nav", ".seqmt", ".uianiminit"}:
+    if extension in {".meshinfo", ".prefab", ".pamhc", ".pappt", ".paccd", ".pabgb", ".pabgh", ".pabc", ".pabv", ".levelinfo", ".palevel", ".roadsector", ".road", ".nav", ".seqmt", ".uianiminit"}:
         return "metadata"
     if extension == ".pathc":
         return "metadata"
@@ -2862,13 +2864,15 @@ def archive_entry_role_label(entry: Optional[ArchiveEntry]) -> str:
         return "Prefab"
     if ext == ".pamhc":
         return "Model Property Metadata"
+    if ext == ".paccd":
+        return "Character Customization"
     if ext == ".seqmt":
         return "Sequence Texture Metadata"
     if ext in ARCHIVE_AUDIO_EXTENSIONS:
         return "Audio"
     if ext in ARCHIVE_VIDEO_EXTENSIONS:
         return "Video"
-    if ext in ARCHIVE_TEXT_EXTENSIONS or ext in {".meshinfo", ".motionblending", ".paa_metabin", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
+    if ext in ARCHIVE_TEXT_EXTENSIONS or ext in {".meshinfo", ".motionblending", ".paa_metabin", ".prefab", ".pappt", ".pamhc", ".paccd", ".seqmt"}:
         if "/ui" in path or path.startswith("ui/"):
             return "UI"
         return "Metadata"
@@ -11869,6 +11873,134 @@ def _seqmt_analysis_document(
     }
 
 
+def _paccd_analysis_document(
+    data: bytes,
+    virtual_path: str,
+    *,
+    max_rows: int = 24,
+    max_row_bytes: int = 32,
+) -> Dict[str, object]:
+    """Decode observed PACCD character customization byte tables.
+
+    Local corpus samples are either a compact 298-byte table or a larger
+    palette-style table. Both variants share a small integer header where
+    word 1 is consistently 14, followed by per-slot byte payloads. The byte
+    semantics are not named yet, so expose row/byte evidence read-only.
+    """
+
+    if len(data) < 28:
+        return {
+            "recognized": False,
+            "reason": "too_small_for_paccd_header",
+            "editing_supported": False,
+        }
+
+    header_word_count = min(len(data) // 4, 8)
+    header_words = [int(struct.unpack_from("<I", data, offset * 4)[0]) for offset in range(header_word_count)]
+    slot_count = int(header_words[1]) if len(header_words) > 1 else 0
+    profile_version = int(header_words[2]) if len(header_words) > 2 else 0
+    if slot_count <= 0 or slot_count > 128:
+        return {
+            "recognized": False,
+            "reason": "invalid_slot_count",
+            "header_words_le_u32": header_words,
+            "editing_supported": False,
+        }
+
+    candidate_offsets = (32, 28, 24)
+    payload_offset = 32 if len(data) >= 32 else 28
+    for candidate in candidate_offsets:
+        if len(data) <= candidate:
+            continue
+        if (len(data) - candidate) % slot_count == 0:
+            payload_offset = candidate
+            break
+    payload_size = max(0, len(data) - payload_offset)
+    row_stride = payload_size // slot_count if slot_count > 0 else 0
+    trailing_payload_bytes = payload_size - row_stride * slot_count
+    format_family = "compact_customization_rows" if row_stride <= 32 else "extended_customization_palette"
+
+    rows: List[Dict[str, object]] = []
+    neutral_values = {0, 50, 100, 125, 255}
+    for row_index in range(min(slot_count, max_rows)):
+        row_offset = payload_offset + row_index * row_stride
+        if row_offset >= len(data):
+            break
+        raw = data[row_offset : min(len(data), row_offset + row_stride)]
+        byte_values = [int(value) for value in raw[:max_row_bytes]]
+        if raw:
+            minimum = min(int(value) for value in raw)
+            maximum = max(int(value) for value in raw)
+            non_zero_count = sum(1 for value in raw if int(value) != 0)
+            non_neutral_count = sum(1 for value in raw if int(value) not in neutral_values)
+        else:
+            minimum = maximum = non_zero_count = non_neutral_count = 0
+        rgb_candidates: List[Dict[str, object]] = []
+        for component_offset in range(0, min(len(raw), max_row_bytes) - 2, 3):
+            triplet = [int(raw[component_offset + index]) for index in range(3)]
+            if triplet in ([0, 0, 0], [255, 255, 255]):
+                continue
+            rgb_candidates.append(
+                {
+                    "byte_offset_in_row": component_offset,
+                    "rgb_bytes": triplet,
+                    "normalized_rgb": [round(value / 255.0, 4) for value in triplet],
+                }
+            )
+            if len(rgb_candidates) >= 4:
+                break
+        rows.append(
+            {
+                "slot_index": row_index,
+                "offset": row_offset,
+                "row_stride": row_stride,
+                "preview_hex": raw[:max_row_bytes].hex(" ").upper(),
+                "preview_bytes": byte_values,
+                "min_byte": minimum,
+                "max_byte": maximum,
+                "non_zero_bytes": non_zero_count,
+                "non_neutral_bytes": non_neutral_count,
+                "rgb_candidates": rgb_candidates,
+                "confidence": "observed_fixed_slot_byte_row",
+            }
+        )
+
+    notes = [
+        "PACCD row bytes are exposed as customization slider/palette evidence; exact field names are not proven.",
+        "Editing is disabled until row ownership, defaults, and no-edit rebuilds are validated.",
+    ]
+    if row_stride == 19 and payload_offset == 32:
+        notes.append("This matches the common 298-byte compact corpus layout: 32-byte header plus 14 x 19-byte rows.")
+    elif row_stride > 32:
+        notes.append("This looks like the extended customization palette layout with larger per-slot byte rows.")
+    if trailing_payload_bytes:
+        notes.append("Trailing bytes exist after the evenly divided slot rows and are preserved as unknown payload.")
+
+    return {
+        "recognized": True,
+        "format": "character_customization_byte_table",
+        "path_hint": str(virtual_path or ""),
+        "header_words_le_u32": header_words,
+        "slot_count": slot_count,
+        "profile_version": profile_version,
+        "payload_offset": payload_offset,
+        "payload_size": payload_size,
+        "row_stride": row_stride,
+        "format_family": format_family,
+        "trailing_payload_bytes": trailing_payload_bytes,
+        "trailing_payload_preview_hex": data[
+            payload_offset + row_stride * slot_count : min(len(data), payload_offset + row_stride * slot_count + 64)
+        ].hex(" ").upper()
+        if trailing_payload_bytes > 0
+        else "",
+        "rows_preview": rows,
+        "rows_preview_truncated": slot_count > len(rows),
+        "editing_supported": False,
+        "confidence": "confirmed_on_local_paccd_corpus_header",
+        "notes": notes,
+    }
+
+
 def _binary_sidecar_offset_candidates(
     data: bytes,
     *,
@@ -12404,6 +12536,9 @@ def _binary_sidecar_container_summary(data: bytes, extension: str) -> Dict[str, 
         container["note"] = "Part-prefab table metadata. Current decode is read-only and used for part/model relationship evidence."
     elif normalized_extension == ".pamhc":
         container["note"] = "Model-property header metadata. Current decode is read-only and used for material/model relationship evidence."
+    elif normalized_extension == ".paccd":
+        container["recognized_family"] = "PACCD_CUSTOMIZATION"
+        container["note"] = "Character customization byte table. Current decode exposes compact/extended slot rows as read-only slider/palette evidence."
     elif normalized_extension in {".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
         container["note"] = "Animation schedule/sequence metadata. Current decode is read-only and relationship/schema-recovery oriented."
     elif normalized_extension == ".seqmt":
@@ -12429,6 +12564,8 @@ def _binary_sidecar_kind_label(extension: str) -> str:
         return "Part Prefab Table"
     if normalized_extension == ".pamhc":
         return "Model Property Header"
+    if normalized_extension == ".paccd":
+        return "Character Customization Data"
     if normalized_extension in {".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
         return "Animation Schedule"
     if normalized_extension == ".seqmt":
@@ -12505,6 +12642,11 @@ def build_binary_sidecar_analysis_document(
     seqmt_metadata = (
         _seqmt_analysis_document(data, virtual_path)
         if normalized_extension == ".seqmt"
+        else {}
+    )
+    paccd_metadata = (
+        _paccd_analysis_document(data, virtual_path)
+        if normalized_extension == ".paccd"
         else {}
     )
     string_records = _extract_binary_string_records(data, sample_limit=262_144, max_strings=512)
@@ -12623,6 +12765,15 @@ def build_binary_sidecar_analysis_document(
             "seqmt_payload_complete": bool(seqmt_metadata.get("payload_complete"))
             if isinstance(seqmt_metadata, Mapping)
             else False,
+            "paccd_recognized": bool(paccd_metadata.get("recognized"))
+            if isinstance(paccd_metadata, Mapping)
+            else False,
+            "paccd_slot_count": int(paccd_metadata.get("slot_count") or 0)
+            if isinstance(paccd_metadata, Mapping)
+            else 0,
+            "paccd_row_stride": int(paccd_metadata.get("row_stride") or 0)
+            if isinstance(paccd_metadata, Mapping)
+            else 0,
             "animation_metadata_stream_bytes": int(
                 ((animation_metadata.get("packed_metadata_stream") or {}).get("stream_size") or 0)
                 if isinstance(animation_metadata.get("packed_metadata_stream"), Mapping)
@@ -12648,6 +12799,7 @@ def build_binary_sidecar_analysis_document(
             "note": ".paa animation clip rows are exposed as read-only recovery evidence. Channel ownership and write rules are not proven.",
         } if normalized_extension == ".paa" else {},
         "seqmt": seqmt_metadata,
+        "paccd": paccd_metadata,
         "strings": {
             "field_rows": field_rows,
             "readable_rows": [
@@ -12673,7 +12825,7 @@ def build_binary_sidecar_analysis_document(
             "supported": False,
             "policy": "read_only_until_schema_and_no_edit_roundtrip_are_proven",
             "reason": (
-                ".meshinfo, .motionblending, .paa, .paa_metabin, .prefab, .pappt, .pamhc, and .seqmt layout/count semantics are not proven yet. "
+                ".meshinfo, .motionblending, .paa, .paa_metabin, .prefab, .pappt, .pamhc, .paccd, and .seqmt layout/count semantics are not proven yet. "
                 "The app can export decoded declarations and recovery evidence, but it will not write edited values "
                 "until exact value offsets, fixed-size fields, array counts, offsets, and no-edit binary rebuilds "
                 "are validated."
@@ -12709,7 +12861,16 @@ def build_binary_sidecar_analysis_json(
     return json.dumps(document, indent=2)
 
 
-_BINARY_SIDECAR_CORPUS_EXTENSIONS = (".meshinfo", ".motionblending", ".paa_metabin", ".prefab", ".pappt", ".pamhc", ".seqmt")
+_BINARY_SIDECAR_CORPUS_EXTENSIONS = (
+    ".meshinfo",
+    ".motionblending",
+    ".paa_metabin",
+    ".prefab",
+    ".pappt",
+    ".pamhc",
+    ".paccd",
+    ".seqmt",
+)
 
 
 def _discover_binary_sidecar_corpus_paths(
@@ -12741,12 +12902,13 @@ def _discover_binary_sidecar_corpus_paths(
             continue
         if not source.is_dir():
             continue
-        for extension in _BINARY_SIDECAR_CORPUS_EXTENSIONS:
-            for path in source.rglob(f"*{extension}"):
-                raise_if_cancelled(stop_event)
-                if not path.is_file():
+        for dirpath, _dirnames, filenames in os.walk(source):
+            raise_if_cancelled(stop_event)
+            for filename in filenames:
+                extension = PurePosixPath(filename).suffix.lower()
+                if extension not in _BINARY_SIDECAR_CORPUS_EXTENSIONS:
                     continue
-                add_candidate(path)
+                add_candidate(Path(dirpath) / filename)
 
     for extension in _BINARY_SIDECAR_CORPUS_EXTENSIONS:
         candidates_by_extension[extension].sort(key=lambda item: str(item).casefold())
@@ -12852,6 +13014,10 @@ def _build_binary_sidecar_corpus_extension_report(
     seqmt_flag_counts: Counter[int] = Counter()
     seqmt_payload_status_counts: Counter[str] = Counter()
     seqmt_examples: Dict[str, str] = {}
+    paccd_layout_counts: Counter[str] = Counter()
+    paccd_slot_counts: Counter[int] = Counter()
+    paccd_stride_counts: Counter[int] = Counter()
+    paccd_examples: Dict[str, str] = {}
     scanned_count = 0
     failed_rows: List[Dict[str, object]] = []
 
@@ -12891,6 +13057,18 @@ def _build_binary_sidecar_corpus_extension_report(
                 payload_status = "complete_with_trailing_payload"
             seqmt_payload_status_counts[payload_status] += 1
             seqmt_examples.setdefault(payload_status, label)
+
+        paccd_metadata = document.get("paccd", {})
+        if isinstance(paccd_metadata, Mapping) and paccd_metadata.get("recognized"):
+            family = str(paccd_metadata.get("format_family") or "unknown")
+            slot_count = int(paccd_metadata.get("slot_count") or 0)
+            row_stride = int(paccd_metadata.get("row_stride") or 0)
+            paccd_layout_counts[family] += 1
+            paccd_slot_counts[slot_count] += 1
+            paccd_stride_counts[row_stride] += 1
+            paccd_examples.setdefault(family, label)
+            paccd_examples.setdefault(f"slot_{slot_count}", label)
+            paccd_examples.setdefault(f"stride_{row_stride}", label)
 
         animation_metadata = document.get("animation_metadata", {})
         if isinstance(animation_metadata, Mapping) and animation_metadata:
@@ -13109,6 +13287,32 @@ def _build_binary_sidecar_corpus_extension_report(
             for name, count in seqmt_payload_status_counts.most_common(16)
         ],
     }
+    paccd_rows = {
+        "layout_families": [
+            {
+                "format_family": name,
+                "file_count": int(count),
+                "example_path": paccd_examples.get(name, ""),
+            }
+            for name, count in paccd_layout_counts.most_common(16)
+        ],
+        "slot_counts": [
+            {
+                "slot_count": int(value),
+                "file_count": int(count),
+                "example_path": paccd_examples.get(f"slot_{value}", ""),
+            }
+            for value, count in paccd_slot_counts.most_common(16)
+        ],
+        "row_strides": [
+            {
+                "row_stride": int(value),
+                "file_count": int(count),
+                "example_path": paccd_examples.get(f"stride_{value}", ""),
+            }
+            for value, count in paccd_stride_counts.most_common(16)
+        ],
+    }
 
     return {
         "files_scanned": scanned_count,
@@ -13120,6 +13324,7 @@ def _build_binary_sidecar_corpus_extension_report(
         "candidate_value_regions": value_region_rows,
         "animation_metadata": animation_rows,
         "seqmt": seqmt_rows,
+        "paccd": paccd_rows,
     }
 
 
@@ -13180,6 +13385,7 @@ def build_binary_sidecar_corpus_report(
             "prefab_files_scanned": len(by_extension_paths.get(".prefab", [])),
             "pappt_files_scanned": len(by_extension_paths.get(".pappt", [])),
             "pamhc_files_scanned": len(by_extension_paths.get(".pamhc", [])),
+            "paccd_files_scanned": len(by_extension_paths.get(".paccd", [])),
             "seqmt_files_scanned": len(by_extension_paths.get(".seqmt", [])),
         },
         "by_extension": by_extension,
@@ -13244,6 +13450,8 @@ def _binary_sidecar_group_func_for_extension(extension: str) -> Callable[[str], 
         return _group_prefab_field_name
     if normalized_extension == ".pamhc":
         return _group_model_property_header_field_name
+    if normalized_extension == ".paccd":
+        return _group_character_customization_field_name
     if normalized_extension == ".seqmt":
         return _group_seqmt_field_name
     if normalized_extension in {".levelinfo", ".palevel", ".roadsector", ".road", ".nav"}:
@@ -13268,6 +13476,23 @@ def _group_model_property_header_field_name(name: str) -> str:
     if any(token in normalized for token in ("bounds", "bbox", "position", "rotation", "scale", "transform")):
         return "Transform / Bounds"
     if any(token in normalized for token in ("variant", "part", "body", "gender", "race")):
+        return "Variant / Part"
+    return "Misc"
+
+
+def _group_character_customization_field_name(name: str) -> str:
+    normalized = str(name or "").strip().lstrip("_").lower()
+    if not normalized:
+        return "Misc"
+    if any(token in normalized for token in ("custom", "slot", "slider", "morph", "blend", "palette", "preset")):
+        return "Customization Slots"
+    if any(token in normalized for token in ("color", "tint", "rgb", "skin", "hair", "dye")):
+        return "Palette / Color"
+    if any(token in normalized for token in ("face", "head", "body", "eye", "nose", "mouth", "brow")):
+        return "Body / Face"
+    if any(token in normalized for token in ("material", "texture", "shader", "mask")):
+        return "Material / Texture"
+    if any(token in normalized for token in ("part", "variant", "gender", "race", "class")):
         return "Variant / Part"
     return "Misc"
 
@@ -15671,6 +15896,21 @@ def _structured_asset_profile(
             ),
             "Summarizes model-property header metadata, material/resource hints, and same-stem companions. It is read-only relationship evidence, not an editable material sidecar.",
         )
+    if normalized_extension == ".paccd":
+        return (
+            "Character customization inspector",
+            "Character Customization Data",
+            _group_character_customization_field_name,
+            (
+                "Customization Slots",
+                "Palette / Color",
+                "Body / Face",
+                "Material / Texture",
+                "Variant / Part",
+                "Misc",
+            ),
+            "Summarizes PACCD customization slot rows and palette-like byte values. It is read-only evidence for character appearance variants.",
+        )
     if normalized_extension in {".paschedule", ".paschedulepath", ".paseq", ".pastage"}:
         return (
             "Animation schedule inspector",
@@ -16025,6 +16265,51 @@ def _seqmt_preview_lines(seqmt_metadata: Mapping[str, object], *, max_rows: int 
     return lines
 
 
+def _paccd_preview_lines(paccd_metadata: Mapping[str, object], *, max_rows: int = 14) -> List[str]:
+    if not bool(paccd_metadata.get("recognized")):
+        reason = str(paccd_metadata.get("reason") or "unrecognized")
+        return ["", f"PACCD customization table: not recognized ({reason})."]
+
+    lines = [
+        "",
+        "PACCD customization table:",
+        f"  - Slots: {int(paccd_metadata.get('slot_count') or 0):,}",
+        f"  - Profile/version word: {int(paccd_metadata.get('profile_version') or 0)}",
+        f"  - Layout: {paccd_metadata.get('format_family') or 'unknown'}, row stride {int(paccd_metadata.get('row_stride') or 0):,} byte(s)",
+        f"  - Payload offset: 0x{int(paccd_metadata.get('payload_offset') or 0):X}",
+    ]
+    trailing = int(paccd_metadata.get("trailing_payload_bytes") or 0)
+    if trailing:
+        lines.append(f"  - Unknown trailing payload: {trailing:,} byte(s)")
+
+    rows = [row for row in paccd_metadata.get("rows_preview") or [] if isinstance(row, Mapping)]
+    if rows:
+        lines.append("  - Slot rows:")
+        for row in rows[:max_rows]:
+            rgb_rows = [
+                rgb
+                for rgb in row.get("rgb_candidates") or []
+                if isinstance(rgb, Mapping)
+            ]
+            rgb_text = ""
+            if rgb_rows:
+                first_rgb = rgb_rows[0].get("rgb_bytes") or []
+                rgb_text = f", rgb hint={first_rgb}"
+            lines.append(
+                "    "
+                f"slot {int(row.get('slot_index') or 0):02d} "
+                f"@0x{int(row.get('offset') or 0):X}: "
+                f"range={int(row.get('min_byte') or 0)}-{int(row.get('max_byte') or 0)}, "
+                f"non-neutral={int(row.get('non_neutral_bytes') or 0):,}, "
+                f"bytes={row.get('preview_hex') or ''}{rgb_text}"
+            )
+        if bool(paccd_metadata.get("rows_preview_truncated")) or len(rows) > max_rows:
+            remaining = max(0, int(paccd_metadata.get("slot_count") or 0) - max_rows)
+            lines.append(f"    ... {remaining:,} more slot row(s)")
+    lines.append("  - Row semantics are read-only evidence until customization slot ownership is proven.")
+    return lines
+
+
 def build_structured_asset_preview(
     data: bytes,
     virtual_path: str,
@@ -16067,6 +16352,11 @@ def build_structured_asset_preview(
     seqmt_metadata = (
         _seqmt_analysis_document(data, virtual_path)
         if normalized_extension == ".seqmt"
+        else {}
+    )
+    paccd_metadata = (
+        _paccd_analysis_document(data, virtual_path)
+        if normalized_extension == ".paccd"
         else {}
     )
     declared_rows = (
@@ -16139,6 +16429,13 @@ def build_structured_asset_preview(
             f"{int(seqmt_metadata.get('columns') or 0)} x {int(seqmt_metadata.get('rows') or 0)}, "
             f"{int(seqmt_metadata.get('frame_count') or 0):,} frame record(s)"
         )
+    if isinstance(paccd_metadata, Mapping) and paccd_metadata.get("recognized"):
+        lines.append(
+            "- PACCD customization table: "
+            f"{int(paccd_metadata.get('slot_count') or 0):,} slot(s), "
+            f"row stride {int(paccd_metadata.get('row_stride') or 0):,}, "
+            f"{paccd_metadata.get('format_family') or 'unknown'}"
+        )
     if type_candidates:
         type_names = [
             str(candidate.get("name") or "").strip()
@@ -16154,6 +16451,8 @@ def build_structured_asset_preview(
         lines.extend(_prefab_capability_lines(declared_rows, asset_references))
     if normalized_extension == ".seqmt":
         lines.extend(_seqmt_preview_lines(seqmt_metadata if isinstance(seqmt_metadata, Mapping) else {}))
+    if normalized_extension == ".paccd":
+        lines.extend(_paccd_preview_lines(paccd_metadata if isinstance(paccd_metadata, Mapping) else {}))
 
     if iteminfo_name_candidates:
         lines.extend(["", "Recovered item identifiers:"])
@@ -16212,6 +16511,15 @@ def build_structured_asset_preview(
         else:
             detail_lines.append(
                 "SEQMT preview falls back to readable identifiers, asset references, and same-stem companions. Editing remains disabled."
+            )
+    if normalized_extension == ".paccd":
+        if isinstance(paccd_metadata, Mapping) and paccd_metadata.get("recognized"):
+            detail_lines.append(
+                "PACCD preview decodes the observed 14-slot customization byte table. Slider/color ownership is still read-only evidence."
+            )
+        else:
+            detail_lines.append(
+                "PACCD preview falls back to raw header evidence because the customization table header was not recognized."
             )
     if iteminfo_name_candidates:
         detail_lines.append(
@@ -17516,7 +17824,7 @@ def build_archive_preview_result(
                 loose_preview_detail_text=loose_preview_detail_text,
             )
 
-        if extension in {".prefab", ".pappt", ".pamhc", ".seqmt", ".levelinfo", ".palevel", ".roadsector", ".road", ".nav", ".pabc", ".pabv", ".pabgb", ".pabgh"}:
+        if extension in {".prefab", ".pappt", ".pamhc", ".paccd", ".seqmt", ".levelinfo", ".palevel", ".roadsector", ".road", ".nav", ".pabc", ".pabv", ".pabgb", ".pabgh"}:
             structured_preview = build_structured_asset_preview(
                 data,
                 entry.path,
