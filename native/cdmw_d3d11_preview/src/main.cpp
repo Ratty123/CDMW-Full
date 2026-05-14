@@ -200,6 +200,7 @@ struct RendererStats {
     std::map<std::string, int> material_combiner_outputs;
     std::map<std::string, int> material_combiner_decode_modes;
     std::map<std::string, int> dds_upload_formats;
+    std::vector<std::string> texture_details;
     double manifest_ms = 0.0;
     double geometry_ms = 0.0;
     double texture_ms = 0.0;
@@ -254,6 +255,11 @@ static std::wstring utf8_to_wide(const std::string& text) {
     std::wstring output(static_cast<size_t>(needed), L'\0');
     MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), output.data(), needed);
     return output;
+}
+
+static std::string filename_from_path(const std::wstring& path) {
+    if (path.empty()) return "";
+    return wide_to_utf8(fs::path(path).filename().wstring());
 }
 
 static std::string json_escape(const std::string& text) {
@@ -704,7 +710,7 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.vertex_file = absolute_from_manifest_path(package_dir, json_string_field(object, "vertex_file"));
         batch.base_dds = dds_slot_source(object, "base");
         std::wstring rich_base_dds = best_material_dds_for_role(object, "base");
-        if (!rich_base_dds.empty()) batch.base_dds = rich_base_dds;
+        if (batch.base_dds.empty() && !rich_base_dds.empty()) batch.base_dds = rich_base_dds;
         batch.normal_dds = dds_slot_source(object, "normal");
         batch.material_dds = dds_slot_source(object, "material");
         if (batch.material_dds.empty()) batch.material_dds = best_material_dds_for_role(object, "material");
@@ -803,6 +809,17 @@ static std::string skipped_json(const std::vector<std::string>& skipped) {
     return out.str();
 }
 
+static std::string string_array_json(const std::vector<std::string>& values) {
+    std::ostringstream out;
+    out << "[";
+    for (size_t i = 0; i < values.size(); ++i) {
+        if (i) out << ",";
+        out << "\"" << json_escape(values[i]) << "\"";
+    }
+    out << "]";
+    return out.str();
+}
+
 static std::string float3_json(const DirectX::XMFLOAT3& value) {
     std::ostringstream out;
     out << "[" << value.x << "," << value.y << "," << value.z << "]";
@@ -842,6 +859,7 @@ static std::string loaded_payload(const RendererStats& stats) {
            << "\"estimated_texture_bytes\":" << stats.estimated_texture_bytes << ","
            << "\"process_working_set_bytes\":" << stats.process_working_set_bytes << ","
            << "\"process_private_bytes\":" << stats.process_private_bytes << ","
+           << "\"texture_details\":" << string_array_json(stats.texture_details) << ","
            << "\"skipped\":" << skipped_json(stats.skipped)
            << "}";
     return loaded.str();
@@ -2243,6 +2261,29 @@ private:
             send_json_event(event.str());
             return true;
         }
+        if (command == "set_render_tuning") {
+            render_tuning_ = parse_render_tuning(payload);
+            view_settings_ = parse_view_settings(payload);
+            const bool sampler_ok = create_sampler_state();
+            cdmw_native_diag::event(
+                "command_set_render_tuning",
+                {
+                    {"max_anisotropy", std::to_string(render_tuning_.max_anisotropy)},
+                    {"ambient_strength", std::to_string(render_tuning_.ambient_strength)},
+                    {"diffuse_light_scale", std::to_string(render_tuning_.diffuse_light_scale)},
+                    {"specular_max", std::to_string(render_tuning_.specular_max)},
+                    {"sampler_ok", sampler_ok ? "true" : "false"}
+                });
+            std::ostringstream event;
+            event << "{\"event\":\"render_tuning\",\"ok\":" << (sampler_ok ? "true" : "false")
+                  << ",\"max_anisotropy\":" << render_tuning_.max_anisotropy
+                  << ",\"ambient_strength\":" << render_tuning_.ambient_strength
+                  << ",\"diffuse_light_scale\":" << render_tuning_.diffuse_light_scale
+                  << ",\"specular_max\":" << render_tuning_.specular_max
+                  << "}";
+            send_json_event(event.str());
+            return true;
+        }
         if (command == "set_highlights") {
             std::set<int> highlighted;
             for (int value : json_int_array_field(payload, "source_submesh_indices")) {
@@ -2496,16 +2537,7 @@ private:
         cb_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
         hr = device_->CreateBuffer(&cb_desc, nullptr, constants_.GetAddressOf());
         if (FAILED(hr)) return false;
-        D3D11_SAMPLER_DESC sampler_desc{};
-        sampler_desc.Filter = D3D11_FILTER_ANISOTROPIC;
-        sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-        sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-        sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-        sampler_desc.MipLODBias = -0.85f;
-        sampler_desc.MaxAnisotropy = static_cast<UINT>(std::clamp(render_tuning_.max_anisotropy, 1, 16));
-        sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
-        hr = device_->CreateSamplerState(&sampler_desc, sampler_.GetAddressOf());
-        if (FAILED(hr)) return false;
+        if (!create_sampler_state()) return false;
         D3D11_RASTERIZER_DESC raster_desc{};
         raster_desc.FillMode = D3D11_FILL_SOLID;
         raster_desc.CullMode = D3D11_CULL_NONE;
@@ -2517,6 +2549,20 @@ private:
         depth_desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
         depth_desc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
         return SUCCEEDED(device_->CreateDepthStencilState(&depth_desc, depth_state_.GetAddressOf()));
+    }
+
+    bool create_sampler_state() {
+        if (!device_) return false;
+        D3D11_SAMPLER_DESC sampler_desc{};
+        sampler_desc.Filter = D3D11_FILTER_ANISOTROPIC;
+        sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+        sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+        sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+        sampler_desc.MipLODBias = -0.85f;
+        sampler_desc.MaxAnisotropy = static_cast<UINT>(std::clamp(render_tuning_.max_anisotropy, 1, 16));
+        sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
+        HRESULT hr = device_->CreateSamplerState(&sampler_desc, sampler_.ReleaseAndGetAddressOf());
+        return SUCCEEDED(hr);
     }
 
     bool upload_batches() {
@@ -2622,6 +2668,9 @@ private:
                 if (slot_name == "base" && std::max(info.width, info.height) > 0 && std::max(info.width, info.height) < 512) {
                     ++stats_.low_resolution_base_textures;
                 }
+                stats_.texture_details.push_back(
+                    slot_name + ":dds:" + filename_from_path(dds_path) + ":" +
+                    info.format_name + ":" + std::to_string(info.width) + "x" + std::to_string(info.height));
                 return;
             }
             stats_.skipped.push_back(slot_name + " DDS upload failed:" + wide_to_utf8(dds_path));
@@ -2634,6 +2683,7 @@ private:
                 increment_slot(stats_.textures_loaded, slot_name);
                 if (slot_name == "base") ++stats_.srgb_color_uploads;
                 else ++stats_.linear_data_uploads;
+                stats_.texture_details.push_back(slot_name + ":png:" + filename_from_path(png_fallback));
                 return;
             }
             stats_.skipped.push_back(slot_name + " PNG fallback failed:" + wide_to_utf8(png_fallback));

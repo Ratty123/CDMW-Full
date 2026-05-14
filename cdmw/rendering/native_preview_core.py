@@ -356,6 +356,19 @@ def render_settings_to_native_preview_core_dict(settings: Optional[ModelPreviewR
         "surface_contrast",
         "resolution_scale",
         "sharpen_strength",
+        "max_anisotropy",
+        "ambient_strength",
+        "diffuse_light_scale",
+        "orbit_sensitivity",
+        "pan_sensitivity",
+        "invert_orbit_x",
+        "invert_orbit_y",
+        "invert_pan_x",
+        "invert_pan_y",
+        "specular_base",
+        "specular_max",
+        "shininess_min",
+        "shininess_max",
     ):
         if hasattr(settings, attr):
             value = getattr(settings, attr)

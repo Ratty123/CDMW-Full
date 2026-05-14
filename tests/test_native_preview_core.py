@@ -324,6 +324,21 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("parameter_declared_by", source)
         self.assertIn("native technique index: files=", source)
 
+    def test_native_preview_core_reports_material_quality_gate(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        python_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+
+        self.assertIn("material_quality_safe", source)
+        self.assertIn("base_low_res_count", source)
+        self.assertIn("base_low_confidence_count", source)
+        self.assertIn("base_technical_count", source)
+        self.assertIn("native_base_quality", source)
+        self.assertIn("selected_texture_examples", source)
+        self.assertIn("job_allows_texture_role", source)
+        self.assertIn("_native_preview_core_quality_fallback_reason", python_source)
+        self.assertIn("Native Preview Core: material quality fallback", python_source)
+        self.assertIn("D3D11 package source: native-core", python_source)
+
 
 if __name__ == "__main__":
     unittest.main()

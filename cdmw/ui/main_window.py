@@ -678,6 +678,26 @@ def run_gui() -> int:
                 }
             )
 
+        def set_render_tuning(self, settings: object) -> bool:
+            return self._send_host_json_command(
+                {
+                    "command": "set_render_tuning",
+                    "max_anisotropy": int(getattr(settings, "max_anisotropy", 16) or 16),
+                    "ambient_strength": float(getattr(settings, "ambient_strength", 0.55) or 0.55),
+                    "diffuse_light_scale": float(getattr(settings, "diffuse_light_scale", 0.65) or 0.65),
+                    "specular_base": float(getattr(settings, "specular_base", 0.05) or 0.05),
+                    "specular_max": float(getattr(settings, "specular_max", 0.18) or 0.18),
+                    "shininess_min": float(getattr(settings, "shininess_min", 28.0) or 28.0),
+                    "shininess_max": float(getattr(settings, "shininess_max", 72.0) or 72.0),
+                    "orbit_sensitivity": float(getattr(settings, "orbit_sensitivity", 0.22) or 0.22),
+                    "pan_sensitivity": float(getattr(settings, "pan_sensitivity", 0.60) or 0.60),
+                    "invert_orbit_x": bool(getattr(settings, "invert_orbit_x", False)),
+                    "invert_orbit_y": bool(getattr(settings, "invert_orbit_y", False)),
+                    "invert_pan_x": bool(getattr(settings, "invert_pan_x", False)),
+                    "invert_pan_y": bool(getattr(settings, "invert_pan_y", False)),
+                }
+            )
+
         def set_highlighted_source_submeshes(self, source_submesh_indices: Sequence[int]) -> bool:
             ordered = sorted({int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0})
             return self._send_host_json_command(
@@ -3086,10 +3106,21 @@ def run_gui() -> int:
                 if native_attempt is not None:
                     timings["native_preview_core_s"] = max(0.0, float(native_attempt.elapsed_ms) / 1000.0)
                     if native_attempt.succeeded:
-                        payload = self._native_preview_core_result(native_attempt, timings)
-                        if not self.stop_event.is_set():
-                            self.completed.emit(self.request_id, payload)
-                        return
+                        native_quality_reason = self._native_preview_core_quality_fallback_reason(native_attempt)
+                        if not native_quality_reason:
+                            payload = self._native_preview_core_result(native_attempt, timings)
+                            if not self.stop_event.is_set():
+                                self.completed.emit(self.request_id, payload)
+                            return
+                        native_attempt = NativePreviewCoreAttempt(
+                            status="fallback",
+                            package_path=native_attempt.package_path,
+                            fallback_reason=f"Native Preview Core: material quality fallback: {native_quality_reason}",
+                            diagnostics=dict(native_attempt.diagnostics),
+                            elapsed_ms=native_attempt.elapsed_ms,
+                            report_path=native_attempt.report_path,
+                            backend=native_attempt.backend,
+                        )
                 worker_build_started_at = time.perf_counter()
                 payload = build_archive_preview_result(
                     self.texconv_path,
@@ -3246,12 +3277,40 @@ def run_gui() -> int:
         ) -> ArchivePreviewResult:
             entry = self.entry
             metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
+            diagnostics = dict(native_attempt.diagnostics)
+            notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
+            base_quality_notes = tuple(
+                str(note)
+                for note in tuple(diagnostics.get("base_quality_notes", ()) or ())
+                if str(note).strip()
+            )
+            selected_texture_examples = tuple(
+                str(note)
+                for note in tuple(diagnostics.get("selected_texture_examples", ()) or ())
+                if str(note).strip()
+            )
+            diagnostic_lines = [
+                "Native Preview Core generated a D3D11 preview package without Python mesh preparation.",
+                "D3D11 package source: native-core",
+                native_attempt.diagnostic_line(),
+                (
+                    "Native Material Quality: "
+                    f"safe={bool(diagnostics.get('material_quality_safe', False))}; "
+                    f"missing_base={int(diagnostics.get('base_missing_count', 0) or 0)}; "
+                    f"low_res_base={int(diagnostics.get('base_low_res_count', 0) or 0)}; "
+                    f"low_confidence_base={int(diagnostics.get('base_low_confidence_count', 0) or 0)}; "
+                    f"technical_base={int(diagnostics.get('base_technical_count', 0) or 0)}"
+                ),
+            ]
+            if notes:
+                diagnostic_lines.append("Native Material Notes: " + "; ".join(notes[:8]))
+            if base_quality_notes:
+                diagnostic_lines.append("Native Base Quality Notes: " + "; ".join(base_quality_notes[:8]))
+            if selected_texture_examples:
+                diagnostic_lines.append("Native Selected Textures: " + "; ".join(selected_texture_examples[:8]))
             detail_text = "\n".join(
                 part
-                for part in (
-                    "Native Preview Core generated a D3D11 preview package without Python mesh preparation.",
-                    native_attempt.diagnostic_line(),
-                )
+                for part in diagnostic_lines
                 if part
             )
             return ArchivePreviewResult(
@@ -3266,6 +3325,22 @@ def run_gui() -> int:
                 preferred_view="model",
                 sidecar_generation=self.sidecar_generation,
             )
+
+        @staticmethod
+        def _native_preview_core_quality_fallback_reason(native_attempt: NativePreviewCoreAttempt) -> str:
+            diagnostics = dict(getattr(native_attempt, "diagnostics", {}) or {})
+            if diagnostics.get("material_quality_safe") is not True:
+                if "material_quality_safe" not in diagnostics:
+                    return "native package did not report material quality"
+                counts = {
+                    "missing_base": int(diagnostics.get("base_missing_count", 0) or 0),
+                    "low_res_base": int(diagnostics.get("base_low_res_count", 0) or 0),
+                    "low_confidence_base": int(diagnostics.get("base_low_confidence_count", 0) or 0),
+                    "technical_base": int(diagnostics.get("base_technical_count", 0) or 0),
+                }
+                active = [f"{name}={count}" for name, count in counts.items() if count > 0]
+                return ", ".join(active) if active else "native package reported unsafe material quality"
+            return ""
 
         @staticmethod
         def _attach_native_preview_core_note(
@@ -4034,6 +4109,7 @@ def run_gui() -> int:
             self.archive_isolated_renderer_status_timer.setInterval(250)
             self.archive_isolated_renderer_status_timer.timeout.connect(self._poll_archive_isolated_renderer_status)
             self.archive_isolated_renderer_debug_text = ""
+            self.archive_isolated_renderer_package_source = ""
             self.archive_isolated_package_thread: Optional[QThread] = None
             self.archive_isolated_package_worker: Optional[ArchiveD3D11PackageWorker] = None
             self.archive_isolated_package_request_id = 0
@@ -19233,6 +19309,7 @@ def run_gui() -> int:
 
         def _format_archive_isolated_renderer_debug(self, payload: Mapping[str, object]) -> str:
             backend = str(payload.get("backend", "d3d11") or "d3d11").upper()
+            package_source = str(getattr(self, "archive_isolated_renderer_package_source", "") or "").strip()
             textures = payload.get("textures", {})
             if isinstance(textures, Mapping):
                 texture_text = " ".join(
@@ -19244,6 +19321,12 @@ def run_gui() -> int:
                 texture_text = "none"
             skipped = tuple(str(item) for item in tuple(payload.get("skipped", ()) or ()) if str(item))
             skipped_text = "; ".join(skipped[:8]) if skipped else "none"
+            texture_details = tuple(
+                str(item)
+                for item in tuple(payload.get("texture_details", ()) or ())
+                if str(item).strip()
+            )
+            texture_details_text = "; ".join(texture_details[:10]) if texture_details else "none"
             cache_hits = int(payload.get("texture_cache_hits", 0) or 0)
             cache_entries = int(payload.get("texture_cache_entries", 0) or 0)
             texture_bytes = int(payload.get("estimated_texture_bytes", 0) or 0)
@@ -19273,6 +19356,7 @@ def run_gui() -> int:
                 "Native D3D11 Preview: embedded child process; "
                 f"backend={backend}; batches={int(payload.get('batch_count', 0) or 0):,}; "
                 f"vertices={int(payload.get('vertex_count', 0) or 0):,}; textures={texture_text}\n"
+                f"D3D11 package source: {package_source or 'unknown'}\n"
                 "Native D3D11 Timing: "
                 f"manifest={float(payload.get('manifest_read_ms', 0.0) or 0.0):.1f} ms; "
                 f"textures={float(payload.get('texture_bind_ms', 0.0) or 0.0):.1f} ms; "
@@ -19284,6 +19368,7 @@ def run_gui() -> int:
                 f"private={private_bytes / (1024 * 1024):.1f} MiB\n"
                 "Native D3D11 Texture Space: "
                 f"base_srgb={srgb_color_uploads:,}; data_linear={linear_data_uploads:,}\n"
+                f"Native D3D11 Texture Details: {texture_details_text}\n"
                 "Native D3D11 Material Combiner: "
                 f"active_batches={int(payload.get('material_combiner_active', 0) or 0):,}; "
                 f"outputs={combiner_output_text}; decode={combiner_mode_text}\n"
@@ -19302,6 +19387,7 @@ def run_gui() -> int:
                 self.archive_isolated_renderer_active_process = None
                 self.archive_isolated_renderer_status_file = None
                 self.archive_isolated_renderer_status_mtime = 0.0
+                self.archive_isolated_renderer_package_source = ""
             self.archive_isolated_renderer_retired_packages = []
             for package_dir in retired:
                 try:
@@ -19442,6 +19528,7 @@ def run_gui() -> int:
             if previous is not None:
                 self.archive_isolated_renderer_retired_packages.append(previous)
             self.archive_isolated_renderer_active_package = package_dir
+            self.archive_isolated_renderer_package_source = "python-prepared"
             _record_runtime_event(
                 "d3d11_package_ready",
                 package_request_id=request_id,
@@ -19450,6 +19537,10 @@ def run_gui() -> int:
                 elapsed_ms=round(float(elapsed_ms), 3),
             )
             self.set_status_message(f"Prepared native D3D11 preview package in {float(elapsed_ms):.1f} ms.")
+            self._set_archive_isolated_renderer_debug(
+                "D3D11 package source: python-prepared\n"
+                "Native D3D11 Preview: loading package generated from Python's full material resolver."
+            )
             self._start_archive_isolated_renderer_process(package_dir)
 
         def _handle_archive_isolated_package_error(
@@ -20398,10 +20489,24 @@ def run_gui() -> int:
                 or previous_settings.disable_material_map != preview_settings.disable_material_map
                 or previous_settings.disable_height_map != preview_settings.disable_height_map
             )
-            d3d11_package_only_changed = (
+            d3d11_package_affecting_changed = (
                 previous_settings.use_textures_by_default != preview_settings.use_textures_by_default
                 or previous_settings.high_quality_by_default != preview_settings.high_quality_by_default
                 or support_slot_settings_changed
+                or previous_settings.normal_strength_floor != preview_settings.normal_strength_floor
+                or previous_settings.normal_strength_cap != preview_settings.normal_strength_cap
+                or previous_settings.height_effect_max != preview_settings.height_effect_max
+                or getattr(previous_settings, "specular_response", None) != getattr(preview_settings, "specular_response", None)
+                or getattr(previous_settings, "surface_contrast", None) != getattr(preview_settings, "surface_contrast", None)
+            )
+            d3d11_render_tuning_changed = (
+                previous_settings.max_anisotropy != preview_settings.max_anisotropy
+                or previous_settings.ambient_strength != preview_settings.ambient_strength
+                or previous_settings.diffuse_light_scale != preview_settings.diffuse_light_scale
+                or previous_settings.specular_base != preview_settings.specular_base
+                or previous_settings.specular_max != preview_settings.specular_max
+                or previous_settings.shininess_min != preview_settings.shininess_min
+                or previous_settings.shininess_max != preview_settings.shininess_max
                 or previous_settings.orbit_sensitivity != preview_settings.orbit_sensitivity
                 or previous_settings.pan_sensitivity != preview_settings.pan_sensitivity
                 or previous_settings.invert_orbit_x != preview_settings.invert_orbit_x
@@ -20409,16 +20514,28 @@ def run_gui() -> int:
                 or previous_settings.invert_pan_x != preview_settings.invert_pan_x
                 or previous_settings.invert_pan_y != preview_settings.invert_pan_y
             )
-            if needs_asset_refresh:
-                self._schedule_current_model_preview_asset_refresh()
-            elif (
-                d3d11_package_only_changed
-                and self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
-                and self.current_archive_preview_result is not None
+            current_result = self.current_archive_preview_result
+            native_package_path = str(getattr(current_result, "native_preview_package_path", "") or "").strip() if current_result is not None else ""
+            d3d11_backend_active = (
+                self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
+                and current_result is not None
                 and not self.archive_preview_showing_loose
-                and getattr(self.current_archive_preview_result, "preview_model", None) is not None
+            )
+            current_has_d3d11_preview_data = bool(
+                current_result is not None
+                and (
+                    getattr(current_result, "preview_model", None) is not None
+                    or native_package_path
+                )
+            )
+            if d3d11_backend_active and current_has_d3d11_preview_data and (
+                needs_asset_refresh or d3d11_package_affecting_changed
             ):
-                self._launch_archive_isolated_preview_result(self.current_archive_preview_result)
+                self._refresh_current_model_preview_assets()
+            elif needs_asset_refresh:
+                self._schedule_current_model_preview_asset_refresh()
+            elif d3d11_backend_active and d3d11_render_tuning_changed and self.archive_d3d11_preview_host.set_render_tuning(preview_settings):
+                self.set_status_message("Updated native D3D11 render tuning.")
             elif support_slot_settings_changed:
                 self._schedule_current_model_preview_asset_refresh()
             preview_model = None
@@ -59427,6 +59544,7 @@ def run_gui() -> int:
                     if previous is not None:
                         self.archive_isolated_renderer_retired_packages.append(previous)
                     self.archive_isolated_renderer_active_package = package_dir
+                    self.archive_isolated_renderer_package_source = "native-core"
                     detail_text = self._detail_text_with_renderer_note(detail_text, None)
                     self._set_archive_preview_base_detail_text(detail_text, include_current_model_debug=False)
                     self.archive_media_preview.clear_media("No media preview available.")

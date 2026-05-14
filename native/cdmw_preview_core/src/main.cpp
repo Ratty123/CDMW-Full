@@ -162,6 +162,55 @@ long long find_int_value(const std::string& json, const std::string& key, long l
     return negative ? -value : value;
 }
 
+bool find_bool_value(const std::string& json, const std::string& key, bool fallback = false) {
+    const std::string needle = "\"" + key + "\"";
+    size_t pos = json.find(needle);
+    if (pos == std::string::npos) return fallback;
+    pos = json.find(':', pos + needle.size());
+    if (pos == std::string::npos) return fallback;
+    ++pos;
+    while (pos < json.size() && std::isspace(static_cast<unsigned char>(json[pos]))) ++pos;
+    if (json.compare(pos, 4, "true") == 0) return true;
+    if (json.compare(pos, 5, "false") == 0) return false;
+    if (pos < json.size() && (json[pos] == '0' || json[pos] == '1')) return json[pos] != '0';
+    return fallback;
+}
+
+float find_float_value(const std::string& json, const std::string& key, float fallback = 0.0f) {
+    const std::string needle = "\"" + key + "\"";
+    size_t pos = json.find(needle);
+    if (pos == std::string::npos) return fallback;
+    pos = json.find(':', pos + needle.size());
+    if (pos == std::string::npos) return fallback;
+    ++pos;
+    while (pos < json.size() && std::isspace(static_cast<unsigned char>(json[pos]))) ++pos;
+    const size_t start = pos;
+    if (pos < json.size() && (json[pos] == '-' || json[pos] == '+')) ++pos;
+    bool any = false;
+    while (pos < json.size() && std::isdigit(static_cast<unsigned char>(json[pos]))) {
+        any = true;
+        ++pos;
+    }
+    if (pos < json.size() && json[pos] == '.') {
+        ++pos;
+        while (pos < json.size() && std::isdigit(static_cast<unsigned char>(json[pos]))) {
+            any = true;
+            ++pos;
+        }
+    }
+    if (pos < json.size() && (json[pos] == 'e' || json[pos] == 'E')) {
+        ++pos;
+        if (pos < json.size() && (json[pos] == '-' || json[pos] == '+')) ++pos;
+        while (pos < json.size() && std::isdigit(static_cast<unsigned char>(json[pos]))) ++pos;
+    }
+    if (!any) return fallback;
+    try {
+        return std::stof(json.substr(start, pos - start));
+    } catch (...) {
+        return fallback;
+    }
+}
+
 std::string lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
         return static_cast<char>(std::tolower(c));
@@ -245,6 +294,27 @@ struct EntryJob {
     int schema_version = 4;
     ArchiveEntryRef entry;
     ArchiveEntryRef companion_entry;
+    bool use_textures = true;
+    bool high_quality_textures = true;
+    bool disable_all_support_maps = false;
+    bool disable_normal_map = false;
+    bool disable_material_map = false;
+    bool disable_height_map = false;
+    float normal_strength_cap = 1.0f;
+    float height_effect_max = 0.35f;
+    int max_anisotropy = 16;
+    float ambient_strength = 0.55f;
+    float diffuse_light_scale = 0.65f;
+    float specular_base = 0.05f;
+    float specular_max = 0.18f;
+    float shininess_min = 28.0f;
+    float shininess_max = 72.0f;
+    float orbit_sensitivity = 0.22f;
+    float pan_sensitivity = 0.60f;
+    bool invert_orbit_x = false;
+    bool invert_orbit_y = false;
+    bool invert_pan_x = false;
+    bool invert_pan_y = false;
 };
 
 ArchiveEntryRef parse_archive_entry_ref(const std::string& object) {
@@ -321,6 +391,9 @@ struct TextureBinding {
     std::string material_output_quality = "inferred";
     std::string srgb_mode = "auto";
     std::string parameter_declared_by;
+    int dds_width = 0;
+    int dds_height = 0;
+    std::string dds_format = "";
 };
 
 struct NativePackage {
@@ -336,6 +409,13 @@ struct NativePackage {
     std::string material_output_quality = "approximate";
     std::vector<std::string> notes;
     int lod_count = 0;
+    bool material_quality_safe = true;
+    int base_missing_count = 0;
+    int base_low_res_count = 0;
+    int base_low_confidence_count = 0;
+    int base_technical_count = 0;
+    std::vector<std::string> base_quality_notes;
+    std::vector<std::string> selected_texture_examples;
 };
 
 static std::uint16_t read_u16(const std::vector<char>& data, size_t offset) {
@@ -434,6 +514,30 @@ EntryJob parse_job(const fs::path& job_path) {
     job.comp_size = job.entry.comp_size;
     job.orig_size = job.entry.orig_size;
     job.flags = job.entry.flags;
+    const std::string render_settings = find_object_value(text, "render_settings");
+    if (!render_settings.empty()) {
+        job.use_textures = find_bool_value(render_settings, "use_textures_by_default", job.use_textures);
+        job.high_quality_textures = find_bool_value(render_settings, "high_quality_by_default", job.high_quality_textures);
+        job.disable_all_support_maps = find_bool_value(render_settings, "disable_all_support_maps", job.disable_all_support_maps);
+        job.disable_normal_map = find_bool_value(render_settings, "disable_normal_map", job.disable_normal_map);
+        job.disable_material_map = find_bool_value(render_settings, "disable_material_map", job.disable_material_map);
+        job.disable_height_map = find_bool_value(render_settings, "disable_height_map", job.disable_height_map);
+        job.normal_strength_cap = std::clamp(find_float_value(render_settings, "normal_strength_cap", job.normal_strength_cap), 0.0f, 2.0f);
+        job.height_effect_max = std::clamp(find_float_value(render_settings, "height_effect_max", job.height_effect_max), 0.0f, 1.5f);
+        job.max_anisotropy = static_cast<int>(std::clamp<long long>(find_int_value(render_settings, "max_anisotropy", job.max_anisotropy), 1, 16));
+        job.ambient_strength = std::clamp(find_float_value(render_settings, "ambient_strength", job.ambient_strength), 0.05f, 1.2f);
+        job.diffuse_light_scale = std::clamp(find_float_value(render_settings, "diffuse_light_scale", job.diffuse_light_scale), 0.05f, 1.5f);
+        job.specular_base = std::clamp(find_float_value(render_settings, "specular_base", job.specular_base), 0.0f, 0.5f);
+        job.specular_max = std::clamp(find_float_value(render_settings, "specular_max", job.specular_max), job.specular_base, 1.0f);
+        job.shininess_min = std::clamp(find_float_value(render_settings, "shininess_min", job.shininess_min), 1.0f, 128.0f);
+        job.shininess_max = std::clamp(find_float_value(render_settings, "shininess_max", job.shininess_max), job.shininess_min, 256.0f);
+        job.orbit_sensitivity = std::clamp(find_float_value(render_settings, "orbit_sensitivity", job.orbit_sensitivity), 0.001f, 8.0f);
+        job.pan_sensitivity = std::clamp(find_float_value(render_settings, "pan_sensitivity", job.pan_sensitivity), 0.001f, 8.0f);
+        job.invert_orbit_x = find_bool_value(render_settings, "invert_orbit_x", job.invert_orbit_x);
+        job.invert_orbit_y = find_bool_value(render_settings, "invert_orbit_y", job.invert_orbit_y);
+        job.invert_pan_x = find_bool_value(render_settings, "invert_pan_x", job.invert_pan_x);
+        job.invert_pan_y = find_bool_value(render_settings, "invert_pan_y", job.invert_pan_y);
+    }
     if (job.output_root.empty()) job.output_root = fs::temp_directory_path() / "cdmw_preview_core_package";
     if (job.cache_root.empty()) job.cache_root = fs::temp_directory_path() / "cdmw_preview_core_cache";
     return job;
@@ -2502,11 +2606,52 @@ static std::string extracted_dds_path_for_entry(
     return fs::absolute(out_path).string();
 }
 
+struct DdsHeaderInfo {
+    int width = 0;
+    int height = 0;
+    std::string format;
+};
+
+static std::uint32_t read_u32_le_raw(const std::vector<char>& data, size_t offset) {
+    if (offset + 4 > data.size()) return 0;
+    const auto* p = reinterpret_cast<const unsigned char*>(data.data() + offset);
+    return static_cast<std::uint32_t>(p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24));
+}
+
+static DdsHeaderInfo inspect_dds_header_file(const std::string& path) {
+    DdsHeaderInfo info;
+    std::ifstream in(fs::path(path), std::ios::binary);
+    if (!in) return info;
+    std::vector<char> header(148, 0);
+    in.read(header.data(), static_cast<std::streamsize>(header.size()));
+    const size_t count = static_cast<size_t>(std::max<std::streamsize>(0, in.gcount()));
+    header.resize(count);
+    if (header.size() < 128 || std::string(header.data(), header.data() + 4) != "DDS ") return info;
+    info.height = static_cast<int>(read_u32_le_raw(header, 12));
+    info.width = static_cast<int>(read_u32_le_raw(header, 16));
+    if (header.size() >= 88) {
+        std::string fourcc(header.data() + 84, header.data() + 88);
+        if (fourcc == "DX10" && header.size() >= 132) {
+            info.format = "DXGI_" + std::to_string(read_u32_le_raw(header, 128));
+        } else {
+            info.format = fourcc;
+        }
+    }
+    return info;
+}
+
 static int material_match_score(const TextureBinding& binding, const NativeSubmesh& mesh, const std::string& desired_role) {
     int score = 0;
     if (binding.role == desired_role) score += 100;
     if (desired_role == "material" && (binding.role == "detail" || binding.role == "specular")) score += 16;
     if (desired_role == "base" && role_is_technical_for_base(binding.role)) score -= 200;
+    if (desired_role == "base") {
+        const int largest_dimension = std::max(binding.dds_width, binding.dds_height);
+        if (largest_dimension >= 2048) score += 24;
+        else if (largest_dimension >= 1024) score += 18;
+        else if (largest_dimension >= 512) score += 8;
+        else if (largest_dimension > 0) score -= 42;
+    }
     const std::string material = lower_copy(mesh.material + " " + mesh.name);
     const std::string texture = lower_copy(
         binding.texture_name + " " +
@@ -2580,7 +2725,8 @@ static bool material_identity_requires_exact_path_match(const TextureBinding& bi
 static const TextureBinding* best_binding_for_role(
     const std::vector<TextureBinding>& bindings,
     const NativeSubmesh& mesh,
-    const std::string& desired_role
+    const std::string& desired_role,
+    int* selected_score = nullptr
 ) {
     const TextureBinding* best = nullptr;
     int best_score = desired_role == "base" ? 40 : 20;
@@ -2599,6 +2745,7 @@ static const TextureBinding* best_binding_for_role(
             best = &binding;
         }
     }
+    if (selected_score != nullptr) *selected_score = best == nullptr ? 0 : best_score;
     return best;
 }
 
@@ -2897,6 +3044,10 @@ static std::vector<TextureBinding> build_material_bindings(
             binding.source_path = extracted;
             binding.archive_path = selected->path;
             binding.texture_name = selected->basename;
+            const DdsHeaderInfo dds_info = inspect_dds_header_file(extracted);
+            binding.dds_width = dds_info.width;
+            binding.dds_height = dds_info.height;
+            binding.dds_format = dds_info.format;
             binding.parameter_name = texture_ref.parameter_name.empty() ? base : texture_ref.parameter_name;
             const std::string parameter_lower = lower_copy(binding.parameter_name);
             if (binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))) {
@@ -3098,6 +3249,9 @@ static std::string dds_entry_json(const TextureBinding* binding, const std::stri
         << "\"srgb_mode\":\"" << json_escape(binding->srgb_mode) << "\","
         << "\"parameter_declared_by\":\"" << json_escape(binding->parameter_declared_by) << "\","
         << "\"material_output_quality\":\"" << json_escape(binding->material_output_quality) << "\","
+        << "\"width\":" << binding->dds_width << ","
+        << "\"height\":" << binding->dds_height << ","
+        << "\"format\":\"" << json_escape(binding->dds_format) << "\","
         << "\"available\":true,"
         << "\"direct_upload_candidate\":true"
         << "}";
@@ -3199,6 +3353,25 @@ static NativeMaterialHints material_hints_for_bindings(const std::vector<const T
     return hints;
 }
 
+static bool job_allows_texture_role(const EntryJob& job, const std::string& role) {
+    if (!job.use_textures) return false;
+    if (role == "base") return true;
+    if (job.disable_all_support_maps) return false;
+    if (role == "normal") return !job.disable_normal_map;
+    if (role == "height") return !job.disable_height_map;
+    if (
+        role == "material"
+        || role == "occlusion"
+        || role == "roughness"
+        || role == "metalness"
+        || role == "specular"
+        || role == "detail"
+    ) {
+        return !job.disable_material_map;
+    }
+    return true;
+}
+
 static NativePackage write_d3d11_package(
     const EntryJob& job,
     const std::vector<NativeSubmesh>& submeshes,
@@ -3238,18 +3411,62 @@ static NativePackage write_d3d11_package(
         write_geometry_blob(geometry_path, identity_path, mesh, center, scale, color);
         const int vertex_count = static_cast<int>(mesh.indices.size());
         emitted_vertex_count += vertex_count;
-        const TextureBinding* base = best_binding_for_role(bindings, mesh, "base");
-        const TextureBinding* normal = best_binding_for_role(bindings, mesh, "normal");
-        const TextureBinding* material = best_binding_for_role(bindings, mesh, "material");
-        const TextureBinding* height = best_binding_for_role(bindings, mesh, "height");
-        const TextureBinding* specular = best_binding_for_role(bindings, mesh, "specular");
-        const TextureBinding* detail = best_binding_for_role(bindings, mesh, "detail");
+        int base_score = 0;
+        const TextureBinding* base = job_allows_texture_role(job, "base") ? best_binding_for_role(bindings, mesh, "base", &base_score) : nullptr;
+        const TextureBinding* normal = job_allows_texture_role(job, "normal") ? best_binding_for_role(bindings, mesh, "normal") : nullptr;
+        const TextureBinding* material = job_allows_texture_role(job, "material") ? best_binding_for_role(bindings, mesh, "material") : nullptr;
+        const TextureBinding* height = job_allows_texture_role(job, "height") ? best_binding_for_role(bindings, mesh, "height") : nullptr;
+        const TextureBinding* specular = job_allows_texture_role(job, "specular") ? best_binding_for_role(bindings, mesh, "specular") : nullptr;
+        const TextureBinding* detail = job_allows_texture_role(job, "detail") ? best_binding_for_role(bindings, mesh, "detail") : nullptr;
+        const int base_identity_score = base == nullptr ? 0 : material_identity_match_score(*base, mesh);
+        const int base_largest_dimension = base == nullptr ? 0 : std::max(base->dds_width, base->dds_height);
+        const bool base_technical = base != nullptr && role_is_technical_for_base(texture_role_from_name(base->texture_name));
+        const bool base_low_res = base != nullptr && base_largest_dimension > 0 && base_largest_dimension < 512;
+        const bool base_low_confidence = base != nullptr && base_score < 120 && base_identity_score < 72;
+        if (job.use_textures && base == nullptr) {
+            ++package.base_missing_count;
+            package.material_quality_safe = false;
+            package.base_quality_notes.push_back("batch " + std::to_string(batch_index) + " " + mesh.material + ": no reliable base DDS");
+        } else if (job.use_textures && base_technical) {
+            ++package.base_technical_count;
+            package.material_quality_safe = false;
+            package.base_quality_notes.push_back("batch " + std::to_string(batch_index) + " " + mesh.material + ": technical base rejected " + base->texture_name);
+        } else if (job.use_textures && base_low_res) {
+            ++package.base_low_res_count;
+            package.material_quality_safe = false;
+            package.base_quality_notes.push_back("batch " + std::to_string(batch_index) + " " + mesh.material + ": low-resolution base " + base->texture_name + " " + std::to_string(base->dds_width) + "x" + std::to_string(base->dds_height));
+        } else if (job.use_textures && base_low_confidence) {
+            ++package.base_low_confidence_count;
+            package.material_quality_safe = false;
+            package.base_quality_notes.push_back("batch " + std::to_string(batch_index) + " " + mesh.material + ": low-confidence base " + base->texture_name + " score=" + std::to_string(base_score) + " identity=" + std::to_string(base_identity_score));
+        }
         const std::vector<const TextureBinding*> batch_bindings = relevant_bindings_for_mesh(
             bindings,
             mesh,
             {base, normal, material, height, specular, detail}
         );
         const NativeMaterialHints material_hints = material_hints_for_bindings(batch_bindings);
+        if (package.selected_texture_examples.size() < 12) {
+            auto texture_label = [](const TextureBinding* binding) -> std::string {
+                if (binding == nullptr) return "-";
+                std::string text = binding->texture_name.empty() ? basename_from_path(binding->archive_path) : binding->texture_name;
+                const int largest_dimension = std::max(binding->dds_width, binding->dds_height);
+                if (largest_dimension > 0) {
+                    text += " " + std::to_string(binding->dds_width) + "x" + std::to_string(binding->dds_height);
+                }
+                if (!binding->dds_format.empty()) {
+                    text += " " + binding->dds_format;
+                }
+                return text;
+            };
+            package.selected_texture_examples.push_back(
+                "batch " + std::to_string(batch_index) + " " + mesh.material
+                + ": base=" + texture_label(base)
+                + ", normal=" + texture_label(normal)
+                + ", material=" + texture_label(material)
+                + ", height=" + texture_label(height)
+            );
+        }
         if (emitted_batch_count++) batches_json << ",";
         batches_json << "{"
             << "\"index\":" << batch_index << ","
@@ -3269,6 +3486,7 @@ static NativePackage write_d3d11_package(
             {"material", material},
             {"height", height},
         }) {
+            if (!job_allows_texture_role(job, slot_pair.first)) continue;
             const std::string slot_json = dds_entry_json(slot_pair.second, slot_pair.first);
             if (slot_json.empty()) continue;
             if (wrote_slot) batches_json << ",";
@@ -3282,6 +3500,7 @@ static NativePackage write_d3d11_package(
             for (const TextureBinding* binding_ptr : batch_bindings) {
                 if (binding_ptr == nullptr || binding_ptr->source_path.empty()) continue;
                 const TextureBinding& binding = *binding_ptr;
+                if (!job_allows_texture_role(job, binding.role)) continue;
                 if (!first_input) batches_json << ",";
                 first_input = false;
                 batches_json << "{"
@@ -3301,6 +3520,9 @@ static NativePackage write_d3d11_package(
                     << "\"srgb_mode\":\"" << json_escape(binding.srgb_mode) << "\","
                     << "\"parameter_declared_by\":\"" << json_escape(binding.parameter_declared_by) << "\","
                     << "\"material_output_quality\":\"" << json_escape(binding.material_output_quality) << "\","
+                    << "\"width\":" << binding.dds_width << ","
+                    << "\"height\":" << binding.dds_height << ","
+                    << "\"format\":\"" << json_escape(binding.dds_format) << "\","
                     << "\"available\":true,"
                     << "\"direct_upload_candidate\":true"
                     << "}";
@@ -3311,8 +3533,20 @@ static NativePackage write_d3d11_package(
             << "\"texture_flip_vertical\":true,"
             << "\"has_texture_coordinates\":true,"
             << "\"tangents_usable\":true,"
-            << "\"normal_strength\":1.0,"
-            << "\"height_amount\":0.04,"
+            << "\"native_base_quality\":{\"safe\":" << ((!job.use_textures || (base != nullptr && !base_technical && !base_low_res && !base_low_confidence)) ? "true" : "false")
+            << ",\"score\":" << base_score
+            << ",\"identity_score\":" << base_identity_score
+            << ",\"low_res\":" << (base_low_res ? "true" : "false")
+            << ",\"technical\":" << (base_technical ? "true" : "false")
+            << ",\"missing\":" << (base == nullptr ? "true" : "false")
+            << ",\"source\":\"" << json_escape(base == nullptr ? "" : base->source_path) << "\""
+            << ",\"archive_path\":\"" << json_escape(base == nullptr ? "" : base->archive_path) << "\""
+            << ",\"texture_name\":\"" << json_escape(base == nullptr ? "" : base->texture_name) << "\""
+            << ",\"width\":" << (base == nullptr ? 0 : base->dds_width)
+            << ",\"height\":" << (base == nullptr ? 0 : base->dds_height)
+            << ",\"format\":\"" << json_escape(base == nullptr ? "" : base->dds_format) << "\"},"
+            << "\"normal_strength\":" << job.normal_strength_cap << ","
+            << "\"height_amount\":" << std::clamp(job.height_effect_max * 0.12f, 0.0f, 0.16f) << ","
             << "\"roughness\":" << material_hints.roughness << ","
             << "\"metalness\":" << material_hints.metalness << ","
             << "\"specular\":" << material_hints.specular << ","
@@ -3344,22 +3578,22 @@ static NativePackage write_d3d11_package(
         << "\"face_count\":" << face_total << ","
         << "\"normalization_center\":[" << center.x << "," << center.y << "," << center.z << "],"
         << "\"normalization_scale\":" << scale << ","
-        << "\"orbit_sensitivity\":0.22,"
-        << "\"pan_sensitivity\":0.60,"
-        << "\"invert_orbit_x\":false,"
-        << "\"invert_orbit_y\":false,"
-        << "\"invert_pan_x\":false,"
-        << "\"invert_pan_y\":false,"
-        << "\"max_anisotropy\":16,"
-        << "\"ambient_strength\":0.32,"
-        << "\"diffuse_light_scale\":0.92,"
-        << "\"specular_base\":0.10,"
-        << "\"specular_max\":0.72,"
-        << "\"shininess_min\":18.0,"
-        << "\"shininess_max\":180.0,"
-        << "\"use_textures\":true,"
-        << "\"high_quality_textures\":true,"
-        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"lod_count\":" << package.lod_count << "},"
+        << "\"orbit_sensitivity\":" << job.orbit_sensitivity << ","
+        << "\"pan_sensitivity\":" << job.pan_sensitivity << ","
+        << "\"invert_orbit_x\":" << (job.invert_orbit_x ? "true" : "false") << ","
+        << "\"invert_orbit_y\":" << (job.invert_orbit_y ? "true" : "false") << ","
+        << "\"invert_pan_x\":" << (job.invert_pan_x ? "true" : "false") << ","
+        << "\"invert_pan_y\":" << (job.invert_pan_y ? "true" : "false") << ","
+        << "\"max_anisotropy\":" << job.max_anisotropy << ","
+        << "\"ambient_strength\":" << job.ambient_strength << ","
+        << "\"diffuse_light_scale\":" << job.diffuse_light_scale << ","
+        << "\"specular_base\":" << job.specular_base << ","
+        << "\"specular_max\":" << job.specular_max << ","
+        << "\"shininess_min\":" << job.shininess_min << ","
+        << "\"shininess_max\":" << job.shininess_max << ","
+        << "\"use_textures\":" << (job.use_textures ? "true" : "false") << ","
+        << "\"high_quality_textures\":" << (job.high_quality_textures ? "true" : "false") << ","
+        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << package.base_missing_count << ",\"base_low_res_count\":" << package.base_low_res_count << ",\"base_low_confidence_count\":" << package.base_low_confidence_count << ",\"base_technical_count\":" << package.base_technical_count << ",\"lod_count\":" << package.lod_count << "},"
         << "\"batches\":[" << batches_json.str() << "]"
         << "}";
     write_text(package_dir / "manifest.json", manifest.str());
@@ -3456,6 +3690,11 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"native_material_index\":\"" << json_escape(package.material_index.empty() ? "pending" : package.material_index) << "\","
         << "\"native_texture_resolution\":\"" << json_escape(package.texture_resolution.empty() ? "pending" : package.texture_resolution) << "\","
         << "\"native_material_output_quality\":\"" << json_escape(package.material_output_quality.empty() ? "pending" : package.material_output_quality) << "\","
+        << "\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ","
+        << "\"base_missing_count\":" << package.base_missing_count << ","
+        << "\"base_low_res_count\":" << package.base_low_res_count << ","
+        << "\"base_low_confidence_count\":" << package.base_low_confidence_count << ","
+        << "\"base_technical_count\":" << package.base_technical_count << ","
         << "\"schema_version\":" << job.schema_version << ","
         << "\"entry_path\":\"" << json_escape(job.path) << "\","
         << "\"extension\":\"" << json_escape(job.extension) << "\","
@@ -3484,6 +3723,18 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"package_path\":\"" << json_escape(status == "ok" ? package.path.string() : "") << "\","
         << "\"fallback_reason\":\"" << json_escape(fallback_reason) << "\","
         << "\"message\":\"" << json_escape(message) << "\","
+        << "\"base_quality_notes\":[";
+    for (size_t i = 0; i < package.base_quality_notes.size(); ++i) {
+        if (i) out << ",";
+        out << "\"" << json_escape(package.base_quality_notes[i]) << "\"";
+    }
+    out << "],"
+        << "\"selected_texture_examples\":[";
+    for (size_t i = 0; i < package.selected_texture_examples.size(); ++i) {
+        if (i) out << ",";
+        out << "\"" << json_escape(package.selected_texture_examples[i]) << "\"";
+    }
+    out << "],"
         << "\"notes\":[";
     for (size_t i = 0; i < package.notes.size(); ++i) {
         if (i) out << ",";
