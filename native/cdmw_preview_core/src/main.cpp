@@ -2307,6 +2307,37 @@ static std::vector<NativeSubmesh> parse_pac_submeshes(const std::vector<char>& d
                         diag.str(),
                         std::move(meshes)
                     });
+                    const Candidate& original = candidates.back();
+                    if (original.unsafe_meshes > 0 && original.unsafe_meshes < original.submeshes) {
+                        std::vector<NativeSubmesh> safe_meshes;
+                        int safe_faces = 0;
+                        int safe_vertices = 0;
+                        float safe_quality = 0.0f;
+                        for (const NativeSubmesh& mesh : original.meshes) {
+                            if (!mesh.geometry_safe) continue;
+                            safe_faces += static_cast<int>(mesh.indices.size() / 3u);
+                            safe_vertices += static_cast<int>(mesh.positions.size());
+                            safe_quality += mesh.geometry_quality_score;
+                            safe_meshes.push_back(mesh);
+                        }
+                        if (
+                            !safe_meshes.empty()
+                            && safe_faces >= static_cast<int>(static_cast<float>(original.faces) * 0.60f)
+                            && safe_quality >= 140.0f
+                        ) {
+                            candidates.push_back(Candidate{
+                                safe_faces,
+                                safe_vertices,
+                                static_cast<int>(safe_meshes.size()),
+                                geom_section_idx,
+                                safe_quality - static_cast<float>(original.unsafe_meshes) * 24.0f,
+                                0,
+                                layout.name + "_filtered_safe",
+                                std::string("filtered unsafe native PAC submesh(es); ") + original.diagnostic,
+                                std::move(safe_meshes)
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -2990,6 +3021,15 @@ static bool technical_for_visible_base(const std::string& parameter_name, const 
 
 static bool parameter_is_authoritative_visible_base(const std::string& parameter_name) {
     const std::string hint = std::regex_replace(lower_copy(parameter_name), std::regex("[^a-z0-9]+"), "");
+    if (
+        hint.find("grime") != std::string::npos
+        || hint.find("detail") != std::string::npos
+        || hint.find("damage") != std::string::npos
+        || hint.find("dye") != std::string::npos
+        || hint.find("layer") != std::string::npos
+    ) {
+        return false;
+    }
     return hint == "basecolortexture"
         || hint == "diffusetexture"
         || hint == "albedotexture"
@@ -3940,6 +3980,72 @@ static bool material_keys_overlap(const std::string& a, const std::string& b) {
     return a == b || a.find(b) != std::string::npos || b.find(a) != std::string::npos;
 }
 
+static std::vector<std::string> material_key_tokens(const std::string& key) {
+    std::vector<std::string> tokens;
+    std::string current;
+    for (char ch : lower_copy(key)) {
+        if (std::isalnum(static_cast<unsigned char>(ch))) current.push_back(ch);
+        else if (!current.empty()) {
+            tokens.push_back(current);
+            current.clear();
+        }
+    }
+    if (!current.empty()) tokens.push_back(current);
+    return tokens;
+}
+
+static bool material_key_has_token(const std::string& key, const std::string& token) {
+    const std::vector<std::string> tokens = material_key_tokens(key);
+    return std::find(tokens.begin(), tokens.end(), token) != tokens.end();
+}
+
+static std::vector<std::string> material_identity_tokens(const std::string& key) {
+    std::vector<std::string> result;
+    for (const std::string& token : material_key_tokens(key)) {
+        if (token == "cd" || token == "00" || token == "01" || token == "02" || token == "03") continue;
+        if (token.size() < 3) continue;
+        result.push_back(token);
+    }
+    return result;
+}
+
+static int material_key_token_cover_score(const std::string& texture_family_key, const std::string& mesh_key) {
+    const std::vector<std::string> mesh_tokens = material_identity_tokens(mesh_key);
+    if (texture_family_key.empty() || mesh_tokens.empty()) return 0;
+    int matched = 0;
+    for (const std::string& token : mesh_tokens) {
+        if (material_key_has_token(texture_family_key, token)) ++matched;
+    }
+    if (matched == static_cast<int>(mesh_tokens.size())) {
+        return 118 + matched * 12;
+    }
+    if (matched >= 2) {
+        return matched * 34;
+    }
+    return 0;
+}
+
+static int material_identity_extra_part_penalty(const std::string& texture_family_key, const std::string& mesh_key_a, const std::string& mesh_key_b) {
+    if (texture_family_key.empty()) return 0;
+    int penalty = 0;
+    static const std::vector<std::string> specific_tokens = {
+        "hand", "head", "foot", "eye", "eyecover", "hair", "beard", "fur", "arm", "leg", "lb", "ub"
+    };
+    for (const std::string& token : specific_tokens) {
+        if (!material_key_has_token(texture_family_key, token)) continue;
+        if (material_key_has_token(mesh_key_a, token) || material_key_has_token(mesh_key_b, token)) continue;
+        penalty += 96;
+    }
+    return penalty;
+}
+
+static bool material_keys_match_for_identity(const std::string& candidate_key, const std::string& mesh_key) {
+    if (material_keys_overlap(candidate_key, mesh_key)) return true;
+    const int cover_score = material_key_token_cover_score(candidate_key, mesh_key)
+        - material_identity_extra_part_penalty(candidate_key, mesh_key, "");
+    return cover_score >= 100;
+}
+
 static int material_identity_text_match_score(const TextureBinding& binding, const NativeSubmesh& mesh) {
     const std::string mesh_text = lower_copy(mesh.material + " " + mesh.name);
     const std::string binding_text = lower_copy(binding.material_name + " " + binding.texture_name + " " + binding.archive_path);
@@ -3959,6 +4065,8 @@ static int material_identity_text_match_score(const TextureBinding& binding, con
     if (!texture_family_key.empty()) {
         if (material_keys_overlap(texture_family_key, mesh_key_a)) score += 80;
         if (material_keys_overlap(texture_family_key, mesh_key_b)) score += 80;
+        score += material_key_token_cover_score(texture_family_key, mesh_key_a);
+        score += material_key_token_cover_score(texture_family_key, mesh_key_b);
     }
     std::string current;
     std::vector<std::string> mesh_tokens;
@@ -3973,6 +4081,7 @@ static int material_identity_text_match_score(const TextureBinding& binding, con
     for (const std::string& token : mesh_tokens) {
         if (token.size() >= 4 && binding_text.find(token) != std::string::npos) score += 14;
     }
+    score -= material_identity_extra_part_penalty(texture_family_key, mesh_key_a, mesh_key_b);
     return score;
 }
 
@@ -3980,10 +4089,7 @@ static int material_identity_match_score(const TextureBinding& binding, const Na
     const int text_score = material_identity_text_match_score(binding, mesh);
     if (binding.material_wrapper_order_authoritative && binding.material_wrapper_index >= 0 && mesh.source_submesh_index >= 0) {
         if (binding.material_wrapper_index == mesh.source_submesh_index) {
-            if (text_score > 0 || normalized_material_key(binding.material_name).empty()) {
-                return 220 + std::min(text_score, 180);
-            }
-            return 80;
+            return 220 + std::min(std::max(text_score, 0), 180);
         }
         const std::string mesh_submesh_key = normalized_material_key(mesh.name);
         const std::string binding_key = normalized_material_key(binding.material_name);
@@ -4052,7 +4158,25 @@ static const TextureBinding* best_binding_for_role(
             }
             continue;
         }
-        const int score = material_match_score(binding, mesh, desired_role);
+        int score = material_match_score(binding, mesh, desired_role);
+        score += identity_score / 2;
+        const std::string parameter_key = normalized_key(binding.parameter_name);
+        const std::string layer_role = lower_copy(binding.layer_role);
+        if (desired_role == "material" || desired_role == "specular") {
+            if (parameter_key.find("materialtexture") != std::string::npos && layer_role != "damage" && layer_role != "detail" && layer_role != "grime") {
+                score += 140;
+            }
+            if (layer_role == "damage" || layer_role == "detail" || layer_role == "grime") {
+                score -= 190;
+            }
+        }
+        if (binding.material_wrapper_order_authoritative && binding.material_wrapper_index >= 0 && mesh.source_submesh_index >= 0) {
+            if (binding.material_wrapper_index == mesh.source_submesh_index) {
+                score += 180;
+            } else {
+                score -= 48;
+            }
+        }
         if (score > best_score) {
             best_score = score;
             best = &binding;
@@ -4076,15 +4200,27 @@ static const TextureBinding* best_base_binding_for_mode(
         if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
         if (low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name)) continue;
         const int identity_score = material_identity_match_score(binding, mesh);
+        const bool authoritative_visible_base =
+            parameter_is_authoritative_visible_base(binding.parameter_name)
+            || binding.visible_class == "primary_visible";
         if (
             binding.source_authority == "exact_sidecar"
             && binding.material_wrapper_order_authoritative
             && identity_score >= 300
-            && visible_class_allowed_for_mode(mode, binding.visible_class)
+            && authoritative_visible_base
+            && (visible_class_allowed_for_mode(mode, binding.visible_class) || parameter_is_authoritative_visible_base(binding.parameter_name))
         ) {
             has_authoritative_sidecar_base_for_mesh = true;
         }
-        if (binding.source_authority == "embedded_mesh" || visible_class_allowed_for_mode(mode, binding.visible_class)) {
+        const bool stable_visible_base =
+            binding.source_authority == "embedded_mesh"
+            || binding.visible_class == "primary_visible"
+            || (
+                authoritative_visible_base
+                && !low_authority_base_path(binding.archive_path)
+                && !low_authority_base_path(binding.texture_name)
+            );
+        if (identity_score >= 120 && stable_visible_base) {
             has_non_low_authority_visible_base = true;
             break;
         }
@@ -4110,6 +4246,9 @@ static const TextureBinding* best_base_binding_for_mode(
             );
         const bool embedded = binding.source_authority == "embedded_mesh";
         const bool low_authority = low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name);
+        if (!embedded && !normalized_material_key(binding.material_name).empty() && identity_score <= 0) {
+            continue;
+        }
         if (embedded && has_authoritative_sidecar_base_for_mesh) {
             continue;
         }
@@ -4120,7 +4259,11 @@ static const TextureBinding* best_base_binding_for_mode(
             continue;
         }
         if (!embedded && !visible_class_allowed_for_mode(mode, binding.visible_class)) {
-            if (!(mode == "mesh_base_first" && binding.visible_class == "visible_generic" && !has_non_low_authority_visible_base)) {
+            const bool allow_authoritative_mesh_base =
+                mode == "mesh_base_first"
+                && authoritative_visible_base
+                && identity_score >= 120;
+            if (!allow_authoritative_mesh_base && !(mode == "mesh_base_first" && binding.visible_class == "visible_generic" && !has_non_low_authority_visible_base)) {
                 continue;
             }
         }
@@ -4656,10 +4799,10 @@ static std::vector<TextureBinding> build_material_bindings(
                     const std::string mesh_material_key = normalized_material_key(mesh.material);
                     const std::string mesh_name_key = normalized_material_key(mesh.name);
                     if (
-                        material_keys_overlap(ref_material_key, mesh_material_key)
-                        || material_keys_overlap(ref_material_key, mesh_name_key)
-                        || material_keys_overlap(texture_family_key, mesh_material_key)
-                        || material_keys_overlap(texture_family_key, mesh_name_key)
+                        material_keys_match_for_identity(ref_material_key, mesh_material_key)
+                        || material_keys_match_for_identity(ref_material_key, mesh_name_key)
+                        || material_keys_match_for_identity(texture_family_key, mesh_material_key)
+                        || material_keys_match_for_identity(texture_family_key, mesh_name_key)
                     ) {
                         matched_mesh = true;
                         break;
@@ -4755,7 +4898,7 @@ static std::vector<TextureBinding> build_material_bindings(
             for (const NativeSubmesh& mesh : meshes) {
                 const std::string mesh_material_key = normalized_material_key(mesh.material);
                 const std::string mesh_name_key = normalized_material_key(mesh.name);
-                if (material_keys_overlap(texture_family_key, mesh_material_key) || material_keys_overlap(texture_family_key, mesh_name_key)) {
+                if (material_keys_match_for_identity(texture_family_key, mesh_material_key) || material_keys_match_for_identity(texture_family_key, mesh_name_key)) {
                     binding.material_name = stem_from_path(texture_ref.path);
                     break;
                 }
