@@ -711,6 +711,8 @@ def _sanitize_native_name_search_field(value: object) -> str:
 def _load_native_name_search_index_binary(
     binary_path: Path,
     entries: Sequence[ArchiveEntry],
+    *,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> ArchiveNameSearchIndex:
     data = Path(binary_path).read_bytes()
     if len(data) < 20 or data[:8] != b"CDNIDX1\0":
@@ -741,7 +743,10 @@ def _load_native_name_search_index_binary(
     if entry_count != len(entries):
         raise ValueError("native name-search index entry count does not match")
     token_rows: Dict[str, Tuple[int, ...]] = {}
-    for _index in range(token_count):
+    progress_every = max(1, token_count // 20) if token_count else 1
+    if on_progress is not None:
+        on_progress(0, max(token_count, 1), f"Loading native archive name search index... 0 / {token_count:,} token(s)")
+    for token_index in range(token_count):
         token_size = read_u16()
         if offset + token_size > len(data):
             raise ValueError("native name-search token is truncated")
@@ -755,6 +760,16 @@ def _load_native_name_search_index_binary(
         offset += byte_count
         if token:
             token_rows[token] = tuple(int(row) for row in rows if 0 <= int(row) < len(entries))
+        if on_progress is not None and (
+            token_index == 0
+            or (token_index + 1) % progress_every == 0
+            or token_index + 1 == token_count
+        ):
+            on_progress(
+                token_index + 1,
+                max(token_count, 1),
+                f"Loading native archive name search index... {token_index + 1:,} / {token_count:,} token(s)",
+            )
     return ArchiveNameSearchIndex(
         entries=entries,
         token_rows=token_rows,
@@ -801,13 +816,55 @@ def _try_build_archive_name_search_index_native(
     if binary is None:
         return None
     total_entries = len(entries)
+    progress_total = max(total_entries, 1)
     if on_progress:
-        on_progress(0 if total_entries > 0 else 1, max(total_entries, 1), "Building archive name search index with native helper...")
+        on_progress(0 if total_entries > 0 else 1, progress_total, "Preparing native archive name search input...")
+
+    def emit_native_progress(progress_path: Path, last_key: str) -> str:
+        if on_progress is None or not progress_path.is_file():
+            return last_key
+        try:
+            payload = json.loads(progress_path.read_text(encoding="utf-8"))
+        except Exception:
+            return last_key
+        if not isinstance(payload, Mapping):
+            return last_key
+        stage = str(payload.get("stage") or "").strip().lower()
+        processed_entries = int(payload.get("processed_entries") or 0)
+        token_count = int(payload.get("token_count") or 0)
+        posting_count = int(payload.get("posting_count") or 0)
+        key = f"{stage}:{processed_entries}:{token_count}:{posting_count}"
+        if key == last_key:
+            return last_key
+        if stage == "tokenize":
+            on_progress(
+                min(processed_entries, progress_total),
+                progress_total,
+                f"Building archive name search index with native helper... {processed_entries:,} / {total_entries:,} entries | {token_count:,} token(s)",
+            )
+        elif stage == "write":
+            on_progress(
+                progress_total,
+                progress_total,
+                f"Writing native archive name search index... {token_count:,} token(s) | {posting_count:,} posting(s)",
+            )
+        elif stage == "complete":
+            on_progress(
+                progress_total,
+                progress_total,
+                f"Native archive name search index built: {token_count:,} token(s), {posting_count:,} posting(s)",
+            )
+        elif stage == "error":
+            on_progress(progress_total, progress_total, "Native archive name search index failed; falling back to Python...")
+        return key
+
     with tempfile.TemporaryDirectory(prefix="cdmw_name_search_") as temp_dir:
         temp_path = Path(temp_dir)
         input_path = temp_path / "entries.tsv"
         output_path = temp_path / "name_index.bin"
         report_path = temp_path / "name_index_report.json"
+        progress_path = temp_path / "name_index_progress.json"
+        input_update_every = 50_000 if total_entries >= 500_000 else 10_000 if total_entries >= 100_000 else 2_000
         with input_path.open("w", encoding="utf-8", newline="\n") as handle:
             for entry_index, entry in enumerate(entries):
                 if stop_event is not None and (entry_index == 0 or entry_index % 4096 == 0):
@@ -816,23 +873,54 @@ def _try_build_archive_name_search_index_native(
                 handle.write(
                     f"{entry_index}\t"
                     f"{_sanitize_native_name_search_field(entry.path)}\t"
-                    f"{_sanitize_native_name_search_field(entry.basename)}\t"
+                    # The full archive path already includes the basename. Keep
+                    # the field for native TSV compatibility, but avoid sending
+                    # duplicate text through the hot startup path.
+                    f"\t"
                     f"{_sanitize_native_name_search_field(alias_text)}\n"
                 )
-        command = [str(binary), "name-index-job", str(input_path), str(output_path), str(report_path)]
-        completed = subprocess.run(
+                if on_progress is not None and (
+                    entry_index == 0
+                    or (entry_index + 1) % input_update_every == 0
+                    or entry_index + 1 == total_entries
+                ):
+                    on_progress(
+                        entry_index + 1,
+                        progress_total,
+                        f"Preparing native archive name search input... {entry_index + 1:,} / {total_entries:,} entries",
+                    )
+        if on_progress is not None:
+            on_progress(0 if total_entries > 0 else 1, progress_total, "Building archive name search index with native helper...")
+        command = [str(binary), "name-index-job", str(input_path), str(output_path), str(report_path), str(progress_path)]
+        process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=120.0,
             **hidden_subprocess_kwargs(),
         )
-        if completed.returncode != 0 or not output_path.is_file():
+        deadline = time.monotonic() + 120.0
+        last_progress_key = ""
+        while process.poll() is None:
+            if stop_event is not None:
+                raise_if_cancelled(stop_event)
+            last_progress_key = emit_native_progress(progress_path, last_progress_key)
+            if time.monotonic() > deadline:
+                try:
+                    process.kill()
+                finally:
+                    process.communicate(timeout=2.0)
+                return None
+            time.sleep(0.15)
+        stdout_text, stderr_text = process.communicate()
+        last_progress_key = emit_native_progress(progress_path, last_progress_key)
+        if process.returncode != 0 or not output_path.is_file():
             return None
-        return _load_native_name_search_index_binary(output_path, entries)
+        if on_progress is not None:
+            on_progress(progress_total, progress_total, "Loading native archive name search index...")
+        return _load_native_name_search_index_binary(output_path, entries, on_progress=on_progress)
 
 
 def build_archive_name_search_index(

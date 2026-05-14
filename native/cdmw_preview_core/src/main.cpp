@@ -6513,14 +6513,43 @@ static void write_pod(std::ofstream& out, T value) {
     out.write(reinterpret_cast<const char*>(&value), sizeof(T));
 }
 
-int run_name_index_job(const fs::path& input_tsv_path, const fs::path& output_bin_path, const fs::path& report_path) {
+static void write_name_index_progress(
+    const fs::path& progress_path,
+    const std::string& stage,
+    std::uint64_t processed_entries,
+    std::uint64_t token_count = 0,
+    std::uint64_t posting_count = 0
+) {
+    if (progress_path.empty()) return;
+    try {
+        fs::create_directories(progress_path.parent_path());
+        std::ofstream out(progress_path, std::ios::binary | std::ios::trunc);
+        if (!out) return;
+        out << "{"
+            << "\"stage\":\"" << json_escape(stage) << "\","
+            << "\"processed_entries\":" << processed_entries << ","
+            << "\"token_count\":" << token_count << ","
+            << "\"posting_count\":" << posting_count
+            << "}";
+    } catch (...) {
+    }
+}
+
+int run_name_index_job(
+    const fs::path& input_tsv_path,
+    const fs::path& output_bin_path,
+    const fs::path& report_path,
+    const fs::path& progress_path = {}
+) {
     const auto started = std::chrono::steady_clock::now();
     std::uint32_t entry_count = 0;
     std::unordered_map<std::string, std::vector<std::uint32_t>> token_rows;
     try {
+        write_name_index_progress(progress_path, "tokenize", 0, 0, 0);
         std::ifstream in(input_tsv_path, std::ios::binary);
         if (!in) throw std::runtime_error("could not open name-search input TSV");
         std::string line;
+        std::uint64_t processed_lines = 0;
         while (std::getline(in, line)) {
             const std::vector<std::string> fields = split_tsv_line(line);
             if (fields.size() < 3) continue;
@@ -6541,8 +6570,13 @@ int run_name_index_job(const fs::path& input_tsv_path, const fs::path& output_bi
                 if (!seen_tokens.insert(token).second) continue;
                 add_name_search_token(token_rows, token, row);
             }
+            ++processed_lines;
+            if (processed_lines == 1 || processed_lines % 50000u == 0) {
+                write_name_index_progress(progress_path, "tokenize", processed_lines, token_rows.size(), 0);
+            }
         }
 
+        write_name_index_progress(progress_path, "write", entry_count, token_rows.size(), 0);
         fs::create_directories(output_bin_path.parent_path());
         std::ofstream out(output_bin_path, std::ios::binary | std::ios::trunc);
         if (!out) throw std::runtime_error("could not write name-search output binary");
@@ -6558,6 +6592,7 @@ int run_name_index_job(const fs::path& input_tsv_path, const fs::path& output_bi
         write_pod<std::uint32_t>(out, entry_count);
         write_pod<std::uint32_t>(out, static_cast<std::uint32_t>(keys.size()));
         std::uint64_t posting_count = 0;
+        std::uint64_t processed_tokens = 0;
         for (const std::string& token : keys) {
             std::vector<std::uint32_t>& rows = token_rows[token];
             std::sort(rows.begin(), rows.end());
@@ -6570,9 +6605,14 @@ int run_name_index_job(const fs::path& input_tsv_path, const fs::path& output_bi
                 out.write(reinterpret_cast<const char*>(rows.data()), static_cast<std::streamsize>(rows.size() * sizeof(std::uint32_t)));
                 posting_count += rows.size();
             }
+            ++processed_tokens;
+            if (processed_tokens == 1 || processed_tokens % 25000u == 0 || processed_tokens == keys.size()) {
+                write_name_index_progress(progress_path, "write", entry_count, processed_tokens, posting_count);
+            }
         }
         out.close();
         if (!out) throw std::runtime_error("name-search output binary write failed");
+        write_name_index_progress(progress_path, "complete", entry_count, keys.size(), posting_count);
         const double elapsed_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
         std::ostringstream report;
         report << "{"
@@ -6592,6 +6632,7 @@ int run_name_index_job(const fs::path& input_tsv_path, const fs::path& output_bi
         report << "{\"status\":\"error\",\"backend\":\"cdmw_preview_core_0.1\",\"operation\":\"name_index\",\"message\":\""
                << json_escape(exc.what()) << "\"}";
         try { write_text(report_path, report.str()); } catch (...) {}
+        write_name_index_progress(progress_path, "error", entry_count, token_rows.size(), 0);
         return 2;
     }
 }
@@ -6663,9 +6704,14 @@ int main(int argc, char** argv) {
             return run_preview_job(fs::path(argv[2]), fs::path(argv[3]));
         }
         if (argc >= 5 && std::string(argv[1]) == "name-index-job") {
-            return run_name_index_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]));
+            return run_name_index_job(
+                fs::path(argv[2]),
+                fs::path(argv[3]),
+                fs::path(argv[4]),
+                argc >= 6 ? fs::path(argv[5]) : fs::path()
+            );
         }
-        std::cerr << "usage: cdmw-preview-core self-test | --service | preview-job <job.json> <report.json> | name-index-job <input.tsv> <output.bin> <report.json>\n";
+        std::cerr << "usage: cdmw-preview-core self-test | --service | preview-job <job.json> <report.json> | name-index-job <input.tsv> <output.bin> <report.json> [progress.json]\n";
         return 1;
     } catch (const std::exception& exc) {
         std::cerr << exc.what() << "\n";

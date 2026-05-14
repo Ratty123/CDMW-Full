@@ -199,7 +199,12 @@ class ArchiveNameSearchIndexTests(unittest.TestCase):
         self.assertIn("CDMW_NATIVE_NAME_SEARCH_MIN_ENTRIES", source_text)
         self.assertIn("resolve_archive_name_search_index_cache_path", source_text)
         self.assertIn("_write_native_name_search_index_binary", source_text)
+        self.assertIn("Preparing native archive name search input", source_text)
+        self.assertIn("emit_native_progress", source_text)
+        self.assertIn("Loading native archive name search index", source_text)
         self.assertIn("name-index-job", native_text)
+        self.assertIn("write_name_index_progress", native_text)
+        self.assertIn("[progress.json]", native_text)
         self.assertIn("'C', 'D', 'N', 'I', 'D', 'X', '1'", native_text)
 
 
