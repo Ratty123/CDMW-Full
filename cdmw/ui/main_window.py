@@ -6903,9 +6903,18 @@ def run_gui() -> int:
             archive_preview_tab_layout.setSpacing(6)
             self.archive_preview_text_tools = self._build_archive_text_tools(self.archive_preview_text_edit)
             self.archive_preview_info_tools = self._build_archive_text_tools(self.archive_preview_info_edit)
+            self.archive_preview_controls_hint_label = QLabel(
+                "Controls: left-drag orbit | middle/right-drag pan | Shift+left-drag pan | mouse wheel zoom | Fit resets view."
+            )
+            self.archive_preview_controls_hint_label.setObjectName("HintLabel")
+            self.archive_preview_controls_hint_label.setWordWrap(True)
+            self.archive_preview_controls_hint_label.setToolTip(
+                "These controls move the preview camera/view only. Mesh placement and exported transforms are changed in edit/alignment tools."
+            )
             archive_preview_tab_layout.addWidget(self.archive_preview_text_tools)
             archive_preview_tab_layout.addWidget(self.archive_preview_info_tools)
             archive_preview_tab_layout.addWidget(self.archive_preview_stack)
+            archive_preview_tab_layout.addWidget(self.archive_preview_controls_hint_label)
             archive_details_tab = QWidget()
             archive_details_tab_layout = QVBoxLayout(archive_details_tab)
             archive_details_tab_layout.setContentsMargins(0, 0, 0, 0)
@@ -9769,6 +9778,11 @@ def run_gui() -> int:
             self.archive_preview_text_tools.setVisible(current_widget is self.archive_preview_text_edit)
             if hasattr(self, "archive_preview_info_tools"):
                 self.archive_preview_info_tools.setVisible(current_widget is self.archive_preview_info_edit)
+            if hasattr(self, "archive_preview_controls_hint_label"):
+                self.archive_preview_controls_hint_label.setVisible(
+                    current_widget is self.archive_model_preview
+                    or current_widget is self.archive_d3d11_preview_host
+                )
 
         def _preference_bool(self, key: str, default: bool) -> bool:
             return self._read_bool(f"preferences/{key}", default)
@@ -30674,6 +30688,14 @@ def run_gui() -> int:
             preview_text_tools = self._build_archive_text_tools(preview_text_edit)
             preview_summary_tools = self._build_archive_text_tools(preview_summary_edit)
             preview_info_tools = self._build_archive_text_tools(preview_info_edit)
+            preview_controls_hint_label = QLabel(
+                "Controls: left-drag orbit | middle/right-drag pan | Shift+left-drag pan | mouse wheel zoom | Fit resets view."
+            )
+            preview_controls_hint_label.setObjectName("HintLabel")
+            preview_controls_hint_label.setWordWrap(True)
+            preview_controls_hint_label.setToolTip(
+                "These controls move the preview camera/view only. Mesh placement and exported transforms are changed in edit/alignment tools."
+            )
             reference_preview_text_tools = {
                 preview_text_edit: preview_text_tools,
                 preview_summary_edit: preview_summary_tools,
@@ -30684,11 +30706,13 @@ def run_gui() -> int:
                 current_widget = preview_stack.currentWidget()
                 for editor, tools in reference_preview_text_tools.items():
                     tools.setVisible(current_widget is editor)
+                preview_controls_hint_label.setVisible(current_widget is preview_model)
 
             preview_tab_layout.addWidget(preview_text_tools)
             preview_tab_layout.addWidget(preview_summary_tools)
             preview_tab_layout.addWidget(preview_info_tools)
             preview_tab_layout.addWidget(preview_stack)
+            preview_tab_layout.addWidget(preview_controls_hint_label)
             preview_stack.currentChanged.connect(_update_reference_preview_text_tools_visibility)
 
             details_edit = ArchiveDetailsEditor(

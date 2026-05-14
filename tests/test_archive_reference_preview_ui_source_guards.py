@@ -70,6 +70,18 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_preview_info_edit.set_theme(self.current_theme_key)", source)
         self.assertIn("current_widget is self.archive_preview_info_edit", source)
 
+    def test_model_preview_panes_show_navigation_controls_hint(self) -> None:
+        source = (REPO_ROOT / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
+
+        self.assertIn("self.archive_preview_controls_hint_label = QLabel", source)
+        self.assertIn("preview_controls_hint_label = QLabel", source)
+        self.assertIn("left-drag orbit | middle/right-drag pan", source)
+        self.assertIn("These controls move the preview camera/view only", source)
+        self.assertIn("self.archive_preview_controls_hint_label.setVisible(", source)
+        self.assertIn("current_widget is self.archive_model_preview", source)
+        self.assertIn("current_widget is self.archive_d3d11_preview_host", source)
+        self.assertIn("preview_controls_hint_label.setVisible(current_widget is preview_model)", source)
+
 
 if __name__ == "__main__":
     unittest.main()

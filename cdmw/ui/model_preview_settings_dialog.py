@@ -365,6 +365,12 @@ class ModelPreviewSettingsDialog(QDialog):
         controls_form.setContentsMargins(0, 0, 0, 0)
         controls_form.setHorizontalSpacing(12)
         controls_form.setVerticalSpacing(10)
+        controls_usage_hint = QLabel(
+            "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view."
+        )
+        controls_usage_hint.setObjectName("HintLabel")
+        controls_usage_hint.setWordWrap(True)
+        controls_layout.addWidget(controls_usage_hint)
         self._add_slider_row(
             controls_form,
             "Orbit sensitivity",
@@ -387,6 +393,18 @@ class ModelPreviewSettingsDialog(QDialog):
         self.invert_orbit_y_checkbox = QCheckBox("Invert orbit Y")
         self.invert_pan_x_checkbox = QCheckBox("Invert pan X")
         self.invert_pan_y_checkbox = QCheckBox("Invert pan Y")
+        self.invert_orbit_x_checkbox.setToolTip(
+            "Reverse horizontal orbit. With this enabled, dragging left or right rotates the camera around the model in the opposite direction."
+        )
+        self.invert_orbit_y_checkbox.setToolTip(
+            "Reverse vertical orbit. With this enabled, dragging up or down tilts the camera around the model in the opposite direction."
+        )
+        self.invert_pan_x_checkbox.setToolTip(
+            "Reverse horizontal pan. This only changes screen-space preview navigation; it does not change mesh placement or export data."
+        )
+        self.invert_pan_y_checkbox.setToolTip(
+            "Reverse vertical pan. This only changes screen-space preview navigation; it does not change mesh placement or export data."
+        )
         invert_row_one = QHBoxLayout()
         invert_row_one.setContentsMargins(0, 0, 0, 0)
         invert_row_one.setSpacing(10)
@@ -403,6 +421,12 @@ class ModelPreviewSettingsDialog(QDialog):
         invert_layout.addLayout(invert_row_two)
         controls_form.addRow("Control inversion", invert_widget)
         controls_layout.addLayout(controls_form)
+        inversion_hint = QLabel(
+            "Invert orbit X reverses horizontal orbit: dragging left/right spins around the model in the opposite direction. Invert orbit Y reverses vertical orbit. Pan inversion reverses screen-space panning and never edits the asset."
+        )
+        inversion_hint.setObjectName("HintLabel")
+        inversion_hint.setWordWrap(True)
+        controls_layout.addWidget(inversion_hint)
         controls_hint = QLabel(
             "Reset keeps the inversion checkboxes as-is so you do not lose your preferred camera controls."
         )

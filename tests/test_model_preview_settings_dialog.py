@@ -61,6 +61,24 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         dialog.close()
         dialog.deleteLater()
 
+    def test_controls_tab_explains_preview_navigation_and_inversion(self) -> None:
+        _app()
+        dialog = ModelPreviewSettingsDialog(settings=ModelPreviewRenderSettings())
+
+        dialog_text = " ".join(label.text() for label in dialog.findChildren(QLabel))
+        self.assertIn("left-drag orbits", dialog_text)
+        self.assertIn("Shift+left-drag pans", dialog_text)
+        self.assertIn("These controls only move the preview camera/view", dialog_text)
+        self.assertIn("Invert orbit X reverses horizontal orbit", dialog_text)
+        self.assertIn("never edits the asset", dialog_text)
+        self.assertIn("Reverse horizontal orbit", dialog.invert_orbit_x_checkbox.toolTip())
+        self.assertIn("Reverse vertical orbit", dialog.invert_orbit_y_checkbox.toolTip())
+        self.assertIn("screen-space preview navigation", dialog.invert_pan_x_checkbox.toolTip())
+        self.assertIn("screen-space preview navigation", dialog.invert_pan_y_checkbox.toolTip())
+
+        dialog.close()
+        dialog.deleteLater()
+
     def test_probe_texture_selection_switches_to_selected_texture_probe_mode(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(settings=ModelPreviewRenderSettings(render_diagnostic_mode="lit"))
