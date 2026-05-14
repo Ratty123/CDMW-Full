@@ -4124,8 +4124,6 @@ static bool authoritative_wrapper_visible_base_for_mesh(const TextureBinding& bi
     if (!parameter_is_authoritative_visible_base(binding.parameter_name)) return false;
     if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) return false;
     if (placeholder_visible_base_path(binding.archive_path) || placeholder_visible_base_path(binding.texture_name)) return false;
-    const int largest_dimension = std::max(binding.dds_width, binding.dds_height);
-    if (largest_dimension > 0 && largest_dimension < 512) return false;
     return material_identity_match_score(binding, mesh) >= 300;
 }
 
@@ -4212,6 +4210,14 @@ static const TextureBinding* best_binding_for_role(
             }
             if (layer_role == "damage" || layer_role == "detail" || layer_role == "grime") {
                 score -= 190;
+            }
+        }
+        if (desired_role == "height") {
+            if (parameter_key.find("heighttexture") != std::string::npos && layer_role != "damage" && layer_role != "detail" && layer_role != "grime") {
+                score += 140;
+            }
+            if (layer_role == "damage" || layer_role == "detail" || layer_role == "grime") {
+                score -= 170;
             }
         }
         if (binding.material_wrapper_order_authoritative && binding.material_wrapper_index >= 0 && mesh.source_submesh_index >= 0) {
@@ -4899,8 +4905,13 @@ static std::vector<TextureBinding> build_material_bindings(
                 pre_technique_parameter);
             const std::string mode = normalize_visible_texture_mode(job.visible_texture_mode);
             const std::string parameter_key = normalized_key(texture_ref.parameter_name);
+            const bool keep_layer_stack_aux =
+                pre_shader_rule.find("standard") != std::string::npos
+                || pre_shader_rule.find("cloth") != std::string::npos
+                || pre_shader_rule.find("multitextured") != std::string::npos;
             if (
                 mode == "mesh_base_first"
+                && !keep_layer_stack_aux
                 && (parameter_key.find("detail") != std::string::npos || parameter_key.find("grime") != std::string::npos || parameter_key.find("dye") != std::string::npos)
                 && pre_role != "base"
             ) {
@@ -5410,22 +5421,45 @@ static bool binding_is_layer_diffuse(const TextureBinding& binding, const Textur
     if (binding.role != "base") return false;
     if (&binding == selected_base) return false;
     const std::string role = lower_copy(binding.layer_role);
-    if (role == "detail" || role == "grime" || role == "damage" || role == "overlay" || role == "layer") return true;
+    if (role == "overlay") return false;
+    if (role == "detail" || role == "grime" || role == "damage" || role == "layer") return true;
     if (binding.visible_class == "layer_visible") return true;
     const std::string parameter = normalized_key(binding.parameter_name);
     return parameter.find("detaildiffuse") != std::string::npos
         || parameter.find("grimediffuse") != std::string::npos
-        || parameter.find("colortexture") != std::string::npos;
+        || (
+            parameter.find("colortexture") != std::string::npos
+            && parameter.find("overlaycolor") == std::string::npos
+        );
 }
 
 static bool shader_rule_holds_layer_albedo(const std::vector<const TextureBinding*>& bindings) {
     for (const TextureBinding* binding : bindings) {
         if (binding == nullptr) continue;
+        const std::string shader_rule = lower_copy(binding->shader_rule);
+        const std::string shader_family = lower_copy(binding->shader_family);
+        const std::string rule = shader_rule + " " + shader_family;
+        if (
+            shader_rule == "skin"
+            || shader_family.find("skinnedmeshskin") != std::string::npos
+            || rule.find("wrinkle") != std::string::npos
+            || shader_rule == "hair"
+            || shader_family.find("skinnedmeshhair") != std::string::npos
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool shader_rule_supports_conservative_layer_stack(const std::vector<const TextureBinding*>& bindings) {
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr) continue;
         const std::string rule = lower_copy(binding->shader_rule + " " + binding->shader_family);
         if (
-            rule.find("skin") != std::string::npos
-            || rule.find("wrinkle") != std::string::npos
-            || rule.find("hair") != std::string::npos
+            rule.find("standard") != std::string::npos
+            || rule.find("cloth") != std::string::npos
+            || rule.find("multitextured") != std::string::npos
         ) {
             return true;
         }
@@ -5536,16 +5570,31 @@ static std::vector<MaterialLayer> compile_material_layers(
     std::vector<MaterialLayer> layers;
     layers.push_back(make_base_material_layer(base, normal, material, height, specular, hints));
     const std::string mode = normalize_visible_texture_mode(visible_texture_mode);
-    if (mode == "mesh_base_first") {
-        return layers;
-    }
     if (shader_rule_holds_layer_albedo(bindings)) {
         return layers;
     }
+    if (mode == "mesh_base_first" && !shader_rule_supports_conservative_layer_stack(bindings)) {
+        return layers;
+    }
+    std::set<std::string> seen_layer_keys;
     for (const TextureBinding* binding : bindings) {
         if (binding == nullptr || !binding_is_layer_diffuse(*binding, base)) continue;
-        const std::string shader_rule = lower_copy(binding->shader_rule + " " + binding->shader_family);
-        if (shader_rule.find("generic") != std::string::npos || shader_rule.find("hair") != std::string::npos || shader_rule.find("skin") != std::string::npos) {
+        const std::string binding_shader_rule = lower_copy(binding->shader_rule);
+        const std::string binding_shader_family = lower_copy(binding->shader_family);
+        const bool held_shader =
+            binding_shader_rule == "hair"
+            || binding_shader_rule == "skin"
+            || binding_shader_family.find("skinnedmeshhair") != std::string::npos
+            || binding_shader_family.find("skinnedmeshskin") != std::string::npos
+            || binding_shader_family.find("wrinkle") != std::string::npos;
+        if (binding_shader_rule.find("generic") != std::string::npos || held_shader) {
+            continue;
+        }
+        const std::string layer_key =
+            lower_copy(binding->archive_path)
+            + "|" + lower_copy(binding->layer_role)
+            + "|" + lower_copy(binding->layer_channel);
+        if (!seen_layer_keys.insert(layer_key).second) {
             continue;
         }
         MaterialLayer layer;

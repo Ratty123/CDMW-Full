@@ -426,6 +426,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("authoritative_visible_base", selector)
         self.assertIn("authoritative_wrapper_visible_base_for_mesh", source)
         self.assertIn("placeholder_visible_base_path", source)
+        authoritative_start = source.index("static bool authoritative_wrapper_visible_base_for_mesh")
+        authoritative_end = source.index("static bool support_role_requires_material_scope", authoritative_start)
+        authoritative = source[authoritative_start:authoritative_end]
+        self.assertNotIn("largest_dimension < 512", authoritative)
         self.assertIn("if (low_authority && has_non_low_authority_visible_base && !authoritative_wrapper_visible_base_for_mesh(binding, mesh))", selector)
         self.assertIn("(has_non_low_authority_visible_base || has_authoritative_sidecar_base_for_mesh)", selector)
         self.assertIn('parameter_key.find("detaildiffuse")', selector)
@@ -438,6 +442,27 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("lookup_relevant", source)
         self.assertIn("if (!result.empty() || job.package_root.empty()) return result;", source)
         self.assertNotIn("by_path", source)
+
+    def test_native_layer_stack_does_not_treat_skinned_standard_as_skin(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        hold_start = source.index("static bool shader_rule_holds_layer_albedo")
+        hold_end = source.index("static bool shader_rule_supports_conservative_layer_stack", hold_start)
+        hold = source[hold_start:hold_end]
+        compile_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
+        compile_end = source.index("static std::string material_layer_json", compile_start)
+        compiler = source[compile_start:compile_end]
+
+        self.assertIn('shader_family.find("skinnedmeshskin")', hold)
+        self.assertIn('shader_family.find("skinnedmeshhair")', hold)
+        self.assertNotIn('rule.find("skin")', hold)
+        self.assertIn("shader_rule_supports_conservative_layer_stack", source)
+        self.assertIn('rule.find("standard")', source)
+        self.assertIn('rule.find("cloth")', source)
+        self.assertIn('mode == "mesh_base_first" && !shader_rule_supports_conservative_layer_stack', compiler)
+        self.assertIn("seen_layer_keys", compiler)
+        self.assertIn('role == "overlay") return false', source)
+        self.assertIn("keep_layer_stack_aux", source)
+        self.assertIn('parameter_key.find("heighttexture")', source)
 
     def test_d3d11_host_does_not_use_rich_material_inputs_as_base_override(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
@@ -521,11 +546,13 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertLess(role_source.index('p.find("flow")'), role_source.index('t.find("_n.dds")'))
         self.assertIn('return "flow";', role_source)
         self.assertIn('name.find("_flow")', source)
-        self.assertIn('if (mode == "mesh_base_first")', layer_source)
+        self.assertIn('mode == "mesh_base_first" && !shader_rule_supports_conservative_layer_stack', layer_source)
         self.assertIn('if (mask == nullptr)', layer_source)
         self.assertIn('layer.weight <= 0.001f ? 0.14f : layer.weight', layer_source)
-        self.assertIn('shader_rule.find("hair")', layer_source)
-        self.assertIn('shader_rule.find("skin")', layer_source)
+        self.assertIn('binding_shader_rule == "hair"', layer_source)
+        self.assertIn('binding_shader_rule == "skin"', layer_source)
+        self.assertIn('binding_shader_family.find("skinnedmeshhair")', layer_source)
+        self.assertIn('binding_shader_family.find("skinnedmeshskin")', layer_source)
         self.assertIn('\\"alpha_mode', source)
         self.assertIn('\\"two_sided', source)
         self.assertIn('\\"uv_flip_policy\\":\\"legacy_no_flip', source)
