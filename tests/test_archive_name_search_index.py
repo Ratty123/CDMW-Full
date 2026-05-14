@@ -185,6 +185,16 @@ class ArchiveNameSearchIndexTests(unittest.TestCase):
         self.assertNotIn("name_search_index", payload)
         self.assertNotIn("token_rows", payload)
 
+    def test_native_name_search_path_is_guarded_for_large_indexes(self) -> None:
+        source_text = Path("cdmw/core/archive.py").read_text(encoding="utf-8")
+        native_text = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("_try_build_archive_name_search_index_native", source_text)
+        self.assertIn("CDMW_DISABLE_NATIVE_NAME_SEARCH", source_text)
+        self.assertIn("CDMW_NATIVE_NAME_SEARCH_MIN_ENTRIES", source_text)
+        self.assertIn("name-index-job", native_text)
+        self.assertIn("'C', 'D', 'N', 'I', 'D', 'X', '1'", native_text)
+
 
 if __name__ == "__main__":
     unittest.main()

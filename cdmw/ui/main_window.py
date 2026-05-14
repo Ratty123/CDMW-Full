@@ -3507,6 +3507,11 @@ def run_gui() -> int:
                 for note in tuple(diagnostics.get("selected_texture_examples", ()) or ())
                 if str(note).strip()
             )
+            rejected_texture_examples = tuple(
+                str(note)
+                for note in tuple(diagnostics.get("rejected_texture_examples", ()) or ())
+                if str(note).strip()
+            )
             diagnostic_lines = [
                 "Native Preview Core generated a D3D11 preview package without Python mesh preparation.",
                 "D3D11 package source: native-core",
@@ -3526,6 +3531,8 @@ def run_gui() -> int:
                 diagnostic_lines.append("Native Base Quality Notes: " + "; ".join(base_quality_notes[:8]))
             if selected_texture_examples:
                 diagnostic_lines.append("Native Selected Textures: " + "; ".join(selected_texture_examples[:8]))
+            if rejected_texture_examples:
+                diagnostic_lines.append("Native Rejected Texture Candidates: " + "; ".join(rejected_texture_examples[:8]))
             if metadata_lines:
                 diagnostic_lines.extend(metadata_lines)
             detail_text = "\n".join(
@@ -18655,6 +18662,7 @@ def run_gui() -> int:
                 loose_roots_key = "|".join(str(path).strip().lower() for path in loose_search_roots)
             preview_settings = self._current_model_preview_render_settings()
             support_slots_key = ",".join(self._archive_preview_support_texture_slots(preview_settings))
+            renderer_backend_key = str(self._archive_model_renderer_backend() or "").strip().lower()
             pamt_stamp = self._archive_file_stamp_for_cache(getattr(entry, "pamt_path", None))
             paz_stamp = self._archive_file_stamp_for_cache(getattr(entry, "paz_file", None))
             pathc_stamp = ""
@@ -18676,6 +18684,7 @@ def run_gui() -> int:
                     str(entry.orig_size),
                     str(entry.flags),
                     str(entry.paz_index),
+                    f"renderer:{renderer_backend_key}",
                     texconv_key,
                     f"sidecars:{self.archive_sidecar_generation if sidecar_generation is None else int(sidecar_generation)}",
                     str(preview_settings.visible_texture_mode),
@@ -18700,6 +18709,63 @@ def run_gui() -> int:
                 return f"{path.resolve()}:{int(stat_result.st_size)}:{mtime_ns}"
             except Exception:
                 return f"{path_value}:missing"
+
+        @staticmethod
+        def _validate_d3d11_preview_package_paths(package_dir: Path) -> Tuple[bool, Tuple[str, ...]]:
+            package_dir = Path(package_dir)
+            manifest_path = package_dir / "manifest.json"
+            if not manifest_path.is_file():
+                return False, (f"missing manifest:{manifest_path}",)
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                return False, (f"invalid manifest:{exc}",)
+            if not isinstance(manifest, Mapping):
+                return False, ("manifest is not a JSON object",)
+
+            def existing_path(raw_value: object, *, relative_to_package: bool) -> Tuple[bool, str]:
+                text = str(raw_value or "").strip()
+                if not text:
+                    return True, ""
+                try:
+                    path = Path(text)
+                    if relative_to_package and not path.is_absolute():
+                        path = package_dir / text
+                    elif not path.is_absolute():
+                        path = package_dir / text
+                    return path.is_file(), str(path)
+                except (OSError, ValueError) as exc:
+                    return False, f"{text}:{exc}"
+
+            missing: List[str] = []
+            for batch_index, batch in enumerate(tuple(manifest.get("batches", ()) or ())):
+                if not isinstance(batch, Mapping):
+                    continue
+                vertex_ok, vertex_path = existing_path(batch.get("vertex_file"), relative_to_package=True)
+                if not vertex_ok:
+                    missing.append(f"batch {batch_index} vertex:{vertex_path}")
+                textures = batch.get("textures")
+                if isinstance(textures, Mapping):
+                    for slot, raw_value in textures.items():
+                        ok, path_text = existing_path(raw_value, relative_to_package=True)
+                        if not ok:
+                            missing.append(f"batch {batch_index} {slot} PNG:{path_text}")
+                dds_textures = batch.get("dds_textures")
+                if isinstance(dds_textures, Mapping):
+                    for slot, descriptor in dds_textures.items():
+                        if isinstance(descriptor, Mapping):
+                            ok, path_text = existing_path(descriptor.get("source_path"), relative_to_package=False)
+                            if not ok:
+                                missing.append(f"batch {batch_index} {slot} DDS:{path_text}")
+                primary_layer = batch.get("primary_material_layer")
+                if isinstance(primary_layer, Mapping):
+                    for slot in ("diffuse_source", "mask_source", "material_source", "normal_source", "height_source"):
+                        ok, path_text = existing_path(primary_layer.get(slot), relative_to_package=False)
+                        if not ok:
+                            missing.append(f"batch {batch_index} layer {slot}:{path_text}")
+                if len(missing) >= 12:
+                    break
+            return not missing, tuple(missing[:12])
 
         def _get_cached_archive_preview_result(self, cache_key: str) -> Optional[ArchivePreviewResult]:
             if not cache_key:
@@ -19556,6 +19622,9 @@ def run_gui() -> int:
             low_res_base_count = int(payload.get("low_resolution_base_textures", 0) or 0)
             srgb_color_uploads = int(payload.get("srgb_color_uploads", 0) or 0)
             linear_data_uploads = int(payload.get("linear_data_uploads", 0) or 0)
+            sampler_max_anisotropy = int(payload.get("sampler_max_anisotropy", 0) or 0)
+            sampler_recreate_count = int(payload.get("sampler_recreate_count", 0) or 0)
+            sampler_mip_lod_bias = float(payload.get("sampler_mip_lod_bias", 0.0) or 0.0)
             combiner_outputs = payload.get("material_combiner_outputs", {})
             if isinstance(combiner_outputs, Mapping):
                 combiner_output_text = " ".join(
@@ -19590,6 +19659,8 @@ def run_gui() -> int:
                 f"private={private_bytes / (1024 * 1024):.1f} MiB\n"
                 "Native D3D11 Texture Space: "
                 f"base_srgb={srgb_color_uploads:,}; data_linear={linear_data_uploads:,}\n"
+                "Native D3D11 Sampler: "
+                f"anisotropy={sampler_max_anisotropy}; mip_lod_bias={sampler_mip_lod_bias:.2f}; recreates={sampler_recreate_count}\n"
                 f"Native D3D11 Texture Details: {texture_details_text}\n"
                 "Native D3D11 Material Combiner: "
                 f"active_batches={int(payload.get('material_combiner_active', 0) or 0):,}; "
@@ -19746,6 +19817,26 @@ def run_gui() -> int:
                 except OSError:
                     pass
                 return
+            valid_package, missing_paths = self._validate_d3d11_preview_package_paths(package_dir)
+            if not valid_package:
+                message = "D3D11 package manifest references missing files: " + "; ".join(missing_paths[:6])
+                _record_runtime_event(
+                    "d3d11_package_invalid_paths",
+                    package_request_id=request_id,
+                    archive_preview_request_id=archive_preview_request_id,
+                    package_dir=str(package_dir),
+                    missing=list(missing_paths[:12]),
+                )
+                try:
+                    shutil.rmtree(package_dir, ignore_errors=True)
+                except OSError:
+                    pass
+                self.set_status_message(message, error=True)
+                self.archive_d3d11_preview_status_label.setText("D3D11 package validation failed.")
+                self._set_archive_isolated_renderer_debug(
+                    "Native D3D11 Preview: package validation failed before launch.\n" + message
+                )
+                return
             previous = getattr(self, "archive_isolated_renderer_active_package", None)
             if previous is not None:
                 self.archive_isolated_renderer_retired_packages.append(previous)
@@ -19795,6 +19886,18 @@ def run_gui() -> int:
                 QTimer.singleShot(0, lambda result=pending_result: self._launch_archive_isolated_preview_result(result))
 
         def _start_archive_isolated_renderer_process(self, package_dir: Path) -> None:
+            valid_package, missing_paths = self._validate_d3d11_preview_package_paths(package_dir)
+            if not valid_package:
+                message = "Native D3D11 package validation failed: " + "; ".join(missing_paths[:6])
+                _record_runtime_event(
+                    "d3d11_renderer_start_blocked_invalid_package",
+                    package_dir=str(package_dir),
+                    missing=list(missing_paths[:12]),
+                )
+                self.set_status_message(message, error=True)
+                self.archive_d3d11_preview_status_label.setText("D3D11 package validation failed.")
+                self._set_archive_isolated_renderer_debug(message)
+                return
             status_file = package_dir / "host_status.json"
             _set_last_active_operation(
                 "d3d11_renderer_start",
@@ -20615,6 +20718,7 @@ def run_gui() -> int:
             if normalized == self._archive_model_renderer_backend():
                 return
             self.archive_model_renderer_backend = normalized
+            self._clear_archive_preview_cache()
             dialog = getattr(self, "model_preview_settings_dialog", None)
             if dialog is not None and hasattr(dialog, "set_archive_renderer_backend"):
                 dialog.set_archive_renderer_backend(normalized)
@@ -20623,20 +20727,27 @@ def run_gui() -> int:
             if (
                 result is not None
                 and not self.archive_preview_showing_loose
-                and getattr(result, "preview_model", None) is not None
             ):
                 if normalized == ARCHIVE_MODEL_RENDERER_D3D11:
+                    native_package_path = str(getattr(result, "native_preview_package_path", "") or "").strip()
                     self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
-                    self._launch_archive_isolated_preview_result(result)
+                    if getattr(result, "preview_model", None) is not None or native_package_path:
+                        if native_package_path and getattr(result, "preview_model", None) is None:
+                            self._start_archive_isolated_renderer_process(Path(native_package_path))
+                        else:
+                            self._launch_archive_isolated_preview_result(result)
                 else:
                     self._shutdown_archive_isolated_renderer_host()
-                    self.archive_model_preview.set_prepared_model(
-                        result.preview_model,
-                        getattr(result, "prepared_preview_model", None),
-                    )
-                    self.archive_preview_stack.setCurrentWidget(self.archive_model_preview)
-                    self._refresh_archive_preview_details_text()
-                    self._apply_archive_preview_zoom()
+                    if getattr(result, "preview_model", None) is not None:
+                        self.archive_model_preview.set_prepared_model(
+                            result.preview_model,
+                            getattr(result, "prepared_preview_model", None),
+                        )
+                        self.archive_preview_stack.setCurrentWidget(self.archive_model_preview)
+                        self._refresh_archive_preview_details_text()
+                        self._apply_archive_preview_zoom()
+                    else:
+                        self._refresh_current_model_preview_assets()
             self._update_archive_model_action_controls(
                 None if result is None else getattr(result, "preview_model", None)
             )
@@ -59762,6 +59873,20 @@ def run_gui() -> int:
                 host_binary = find_native_d3d11_host() if renderer_backend == ARCHIVE_MODEL_RENDERER_D3D11 else None
                 if host_binary is not None:
                     package_dir = Path(native_package_path)
+                    valid_package, missing_paths = self._validate_d3d11_preview_package_paths(package_dir)
+                    if not valid_package:
+                        message = "Native D3D11 package validation failed: " + "; ".join(missing_paths[:6])
+                        _record_runtime_event(
+                            "d3d11_native_package_invalid_paths",
+                            request_id=request_id,
+                            package_dir=str(package_dir),
+                            missing=list(missing_paths[:12]),
+                        )
+                        detail_text = f"{detail_text.rstrip()}\n\n{message}\nRebuild the preview package by reselecting the entry or switching renderer mode.".strip()
+                        self._set_archive_preview_base_detail_text(detail_text, include_current_model_debug=False)
+                        self.set_status_message(message, error=True)
+                        self._set_archive_isolated_renderer_debug(message)
+                        return 0.0
                     previous = getattr(self, "archive_isolated_renderer_active_package", None)
                     if previous is not None:
                         self.archive_isolated_renderer_retired_packages.append(previous)

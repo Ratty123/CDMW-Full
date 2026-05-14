@@ -233,6 +233,9 @@ struct RendererStats {
     std::uint64_t estimated_texture_bytes = 0;
     std::uint64_t process_working_set_bytes = 0;
     std::uint64_t process_private_bytes = 0;
+    int sampler_max_anisotropy = 1;
+    float sampler_mip_lod_bias = 0.0f;
+    int sampler_recreate_count = 0;
     std::vector<std::string> skipped;
 };
 
@@ -934,6 +937,9 @@ static std::string loaded_payload(const RendererStats& stats) {
            << "\"estimated_texture_bytes\":" << stats.estimated_texture_bytes << ","
            << "\"process_working_set_bytes\":" << stats.process_working_set_bytes << ","
            << "\"process_private_bytes\":" << stats.process_private_bytes << ","
+           << "\"sampler_max_anisotropy\":" << stats.sampler_max_anisotropy << ","
+           << "\"sampler_mip_lod_bias\":" << stats.sampler_mip_lod_bias << ","
+           << "\"sampler_recreate_count\":" << stats.sampler_recreate_count << ","
            << "\"texture_details\":" << string_array_json(stats.texture_details) << ","
            << "\"skipped\":" << skipped_json(stats.skipped)
            << "}";
@@ -2703,7 +2709,13 @@ private:
         sampler_desc.MaxAnisotropy = static_cast<UINT>(std::clamp(render_tuning_.max_anisotropy, 1, 16));
         sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
         HRESULT hr = device_->CreateSamplerState(&sampler_desc, sampler_.ReleaseAndGetAddressOf());
-        return SUCCEEDED(hr);
+        if (SUCCEEDED(hr)) {
+            stats_.sampler_max_anisotropy = static_cast<int>(sampler_desc.MaxAnisotropy);
+            stats_.sampler_mip_lod_bias = sampler_desc.MipLODBias;
+            ++stats_.sampler_recreate_count;
+            return true;
+        }
+        return false;
     }
 
     bool upload_batches() {

@@ -634,7 +634,7 @@ class ArchiveNameSearchIndex:
         ]
 
 
-def build_archive_name_search_index(
+def _build_archive_name_search_index_python(
     entries: Sequence[ArchiveEntry],
     *,
     item_search_aliases: Optional[Mapping[str, str]] = None,
@@ -693,6 +693,148 @@ def build_archive_name_search_index(
         token_rows=frozen_rows,
         sorted_tokens=tuple(sorted(frozen_rows)),
         common_aliases=_ARCHIVE_NAME_SEARCH_QUERY_ALIASES,
+    )
+
+
+def _archive_name_search_native_min_entries() -> int:
+    raw_value = os.environ.get("CDMW_NATIVE_NAME_SEARCH_MIN_ENTRIES", "100000")
+    try:
+        return max(0, int(raw_value))
+    except (TypeError, ValueError):
+        return 100000
+
+
+def _sanitize_native_name_search_field(value: object) -> str:
+    return str(value or "").replace("\t", " ").replace("\r", " ").replace("\n", " ").strip()
+
+
+def _load_native_name_search_index_binary(
+    binary_path: Path,
+    entries: Sequence[ArchiveEntry],
+) -> ArchiveNameSearchIndex:
+    data = Path(binary_path).read_bytes()
+    if len(data) < 20 or data[:8] != b"CDNIDX1\0":
+        raise ValueError("native name-search index header is not recognized")
+    offset = 8
+
+    def read_u16() -> int:
+        nonlocal offset
+        if offset + 2 > len(data):
+            raise ValueError("native name-search index is truncated")
+        value = struct.unpack_from("<H", data, offset)[0]
+        offset += 2
+        return int(value)
+
+    def read_u32() -> int:
+        nonlocal offset
+        if offset + 4 > len(data):
+            raise ValueError("native name-search index is truncated")
+        value = struct.unpack_from("<I", data, offset)[0]
+        offset += 4
+        return int(value)
+
+    version = read_u32()
+    if version != 1:
+        raise ValueError(f"unsupported native name-search index version: {version}")
+    entry_count = read_u32()
+    token_count = read_u32()
+    if entry_count != len(entries):
+        raise ValueError("native name-search index entry count does not match")
+    token_rows: Dict[str, Tuple[int, ...]] = {}
+    for _index in range(token_count):
+        token_size = read_u16()
+        if offset + token_size > len(data):
+            raise ValueError("native name-search token is truncated")
+        token = data[offset : offset + token_size].decode("utf-8", errors="replace")
+        offset += token_size
+        row_count = read_u32()
+        byte_count = row_count * 4
+        if offset + byte_count > len(data):
+            raise ValueError("native name-search posting list is truncated")
+        rows = struct.unpack_from(f"<{row_count}I", data, offset) if row_count else ()
+        offset += byte_count
+        if token:
+            token_rows[token] = tuple(int(row) for row in rows if 0 <= int(row) < len(entries))
+    return ArchiveNameSearchIndex(
+        entries=entries,
+        token_rows=token_rows,
+        sorted_tokens=tuple(sorted(token_rows)),
+        common_aliases=_ARCHIVE_NAME_SEARCH_QUERY_ALIASES,
+    )
+
+
+def _try_build_archive_name_search_index_native(
+    entries: Sequence[ArchiveEntry],
+    *,
+    item_search_aliases: Optional[Mapping[str, str]] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> Optional[ArchiveNameSearchIndex]:
+    if os.environ.get("CDMW_DISABLE_NATIVE_NAME_SEARCH", "").strip() in {"1", "true", "yes"}:
+        return None
+    try:
+        from cdmw.rendering.native_preview_core import find_native_preview_core_binary
+    except Exception:
+        return None
+    binary = find_native_preview_core_binary()
+    if binary is None:
+        return None
+    total_entries = len(entries)
+    if on_progress:
+        on_progress(0 if total_entries > 0 else 1, max(total_entries, 1), "Building archive name search index with native helper...")
+    with tempfile.TemporaryDirectory(prefix="cdmw_name_search_") as temp_dir:
+        temp_path = Path(temp_dir)
+        input_path = temp_path / "entries.tsv"
+        output_path = temp_path / "name_index.bin"
+        report_path = temp_path / "name_index_report.json"
+        with input_path.open("w", encoding="utf-8", newline="\n") as handle:
+            for entry_index, entry in enumerate(entries):
+                if stop_event is not None and (entry_index == 0 or entry_index % 4096 == 0):
+                    raise_if_cancelled(stop_event)
+                alias_text = _archive_entry_item_alias_text(entry, item_search_aliases)
+                handle.write(
+                    f"{entry_index}\t"
+                    f"{_sanitize_native_name_search_field(entry.path)}\t"
+                    f"{_sanitize_native_name_search_field(entry.basename)}\t"
+                    f"{_sanitize_native_name_search_field(alias_text)}\n"
+                )
+        command = [str(binary), "name-index-job", str(input_path), str(output_path), str(report_path)]
+        completed = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120.0,
+            **hidden_subprocess_kwargs(),
+        )
+        if completed.returncode != 0 or not output_path.is_file():
+            return None
+        return _load_native_name_search_index_binary(output_path, entries)
+
+
+def build_archive_name_search_index(
+    entries: Sequence[ArchiveEntry],
+    *,
+    item_search_aliases: Optional[Mapping[str, str]] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> ArchiveNameSearchIndex:
+    if len(entries) >= _archive_name_search_native_min_entries():
+        native_index = _try_build_archive_name_search_index_native(
+            entries,
+            item_search_aliases=item_search_aliases,
+            on_progress=on_progress,
+            stop_event=stop_event,
+        )
+        if native_index is not None:
+            return native_index
+    return _build_archive_name_search_index_python(
+        entries,
+        item_search_aliases=item_search_aliases,
+        on_progress=on_progress,
+        stop_event=stop_event,
     )
 
 

@@ -495,6 +495,7 @@ struct NativePackage {
     int base_technical_count = 0;
     std::vector<std::string> base_quality_notes;
     std::vector<std::string> selected_texture_examples;
+    std::vector<std::string> rejected_texture_examples;
     std::vector<NativeAssetFamilyRow> asset_family_rows;
     int asset_family_reference_count = 0;
 };
@@ -3033,11 +3034,28 @@ static bool material_identity_requires_exact_path_match(const TextureBinding& bi
     return binding_material.find(".dds") != std::string::npos && mesh_material.find(".dds") != std::string::npos;
 }
 
+static bool support_role_requires_material_scope(const std::string& desired_role) {
+    return desired_role == "normal"
+        || desired_role == "material"
+        || desired_role == "height"
+        || desired_role == "specular"
+        || desired_role == "detail";
+}
+
+static int support_role_identity_threshold(const std::string& desired_role) {
+    if (desired_role == "height") return 120;
+    if (desired_role == "normal") return 96;
+    if (desired_role == "material" || desired_role == "specular") return 88;
+    if (desired_role == "detail") return 72;
+    return 0;
+}
+
 static const TextureBinding* best_binding_for_role(
     const std::vector<TextureBinding>& bindings,
     const NativeSubmesh& mesh,
     const std::string& desired_role,
-    int* selected_score = nullptr
+    int* selected_score = nullptr,
+    std::vector<std::string>* rejected_examples = nullptr
 ) {
     const TextureBinding* best = nullptr;
     int best_score = desired_role == "base" ? 40 : 20;
@@ -3047,7 +3065,23 @@ static const TextureBinding* best_binding_for_role(
             const bool compatible_material_response = desired_role == "material" && (binding.role == "detail" || binding.role == "specular");
             if (!compatible_material_response) continue;
         }
-        if (material_identity_requires_exact_path_match(binding, mesh) && material_identity_match_score(binding, mesh) < 120) {
+        const int identity_score = material_identity_match_score(binding, mesh);
+        const int identity_threshold = support_role_requires_material_scope(desired_role)
+            ? support_role_identity_threshold(desired_role)
+            : 0;
+        if (
+            (material_identity_requires_exact_path_match(binding, mesh) && identity_score < 120)
+            || (identity_threshold > 0 && identity_score > 0 && identity_score < identity_threshold)
+            || (identity_threshold > 0 && !normalized_material_key(binding.material_name).empty() && identity_score <= 0)
+        ) {
+            if (rejected_examples != nullptr && rejected_examples->size() < 16) {
+                rejected_examples->push_back(
+                    desired_role + " rejected cross-slot candidate "
+                    + (binding.texture_name.empty() ? basename_from_path(binding.archive_path) : binding.texture_name)
+                    + " for " + mesh.material
+                    + " identity=" + std::to_string(identity_score)
+                );
+            }
             continue;
         }
         const int score = material_match_score(binding, mesh, desired_role);
@@ -3075,7 +3109,7 @@ static const TextureBinding* best_base_binding_for_mode(
         const bool embedded = binding.source_authority == "embedded_mesh";
         const bool low_authority = low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name);
         if (!embedded && !visible_class_allowed_for_mode(mode, binding.visible_class)) {
-            if (!(mode == "mesh_base_first" && (binding.visible_class == "layer_visible" || binding.visible_class == "visible_generic"))) {
+            if (!(mode == "mesh_base_first" && binding.visible_class == "visible_generic")) {
                 continue;
             }
         }
@@ -4017,6 +4051,21 @@ static bool binding_is_layer_diffuse(const TextureBinding& binding, const Textur
         || parameter.find("colortexture") != std::string::npos;
 }
 
+static bool shader_rule_holds_layer_albedo(const std::vector<const TextureBinding*>& bindings) {
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr) continue;
+        const std::string rule = lower_copy(binding->shader_rule + " " + binding->shader_family);
+        if (
+            rule.find("skin") != std::string::npos
+            || rule.find("wrinkle") != std::string::npos
+            || rule.find("hair") != std::string::npos
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool layer_channel_matches(const TextureBinding& binding, const std::string& channel) {
     return binding.layer_channel.empty() || channel.empty() || binding.layer_channel == channel;
 }
@@ -4118,6 +4167,9 @@ static std::vector<MaterialLayer> compile_material_layers(
 ) {
     std::vector<MaterialLayer> layers;
     layers.push_back(make_base_material_layer(base, normal, material, height, specular, hints));
+    if (shader_rule_holds_layer_albedo(bindings)) {
+        return layers;
+    }
     for (const TextureBinding* binding : bindings) {
         if (binding == nullptr || !binding_is_layer_diffuse(*binding, base)) continue;
         MaterialLayer layer;
@@ -4349,12 +4401,17 @@ static NativePackage write_d3d11_package(
         const int vertex_count = static_cast<int>(mesh.indices.size());
         emitted_vertex_count += vertex_count;
         int base_score = 0;
+        int normal_score = 0;
+        int material_score = 0;
+        int height_score = 0;
+        int specular_score = 0;
+        int detail_score = 0;
         const TextureBinding* base = job_allows_texture_role(job, "base") ? best_base_binding_for_mode(bindings, mesh, job, &base_score) : nullptr;
-        const TextureBinding* normal = job_allows_texture_role(job, "normal") ? best_binding_for_role(bindings, mesh, "normal") : nullptr;
-        const TextureBinding* material = job_allows_texture_role(job, "material") ? best_binding_for_role(bindings, mesh, "material") : nullptr;
-        const TextureBinding* height = job_allows_texture_role(job, "height") ? best_binding_for_role(bindings, mesh, "height") : nullptr;
-        const TextureBinding* specular = job_allows_texture_role(job, "specular") ? best_binding_for_role(bindings, mesh, "specular") : nullptr;
-        const TextureBinding* detail = job_allows_texture_role(job, "detail") ? best_binding_for_role(bindings, mesh, "detail") : nullptr;
+        const TextureBinding* normal = job_allows_texture_role(job, "normal") ? best_binding_for_role(bindings, mesh, "normal", &normal_score, &package.rejected_texture_examples) : nullptr;
+        const TextureBinding* material = job_allows_texture_role(job, "material") ? best_binding_for_role(bindings, mesh, "material", &material_score, &package.rejected_texture_examples) : nullptr;
+        const TextureBinding* height = job_allows_texture_role(job, "height") ? best_binding_for_role(bindings, mesh, "height", &height_score, &package.rejected_texture_examples) : nullptr;
+        const TextureBinding* specular = job_allows_texture_role(job, "specular") ? best_binding_for_role(bindings, mesh, "specular", &specular_score, &package.rejected_texture_examples) : nullptr;
+        const TextureBinding* detail = job_allows_texture_role(job, "detail") ? best_binding_for_role(bindings, mesh, "detail", &detail_score, &package.rejected_texture_examples) : nullptr;
         const int base_identity_score = base == nullptr ? 0 : material_identity_match_score(*base, mesh);
         const int base_largest_dimension = base == nullptr ? 0 : std::max(base->dds_width, base->dds_height);
         const bool base_technical = base != nullptr && technical_for_visible_base(base->parameter_name, base->archive_path, base->role);
@@ -4386,6 +4443,7 @@ static NativePackage write_d3d11_package(
             {base, normal, material, height, specular, detail}
         );
         const NativeMaterialHints material_hints = material_hints_for_bindings(batch_bindings);
+        const bool held_layer_albedo = shader_rule_holds_layer_albedo(batch_bindings);
         const std::vector<MaterialLayer> material_layers = compile_material_layers(
             batch_bindings,
             base,
@@ -4421,6 +4479,8 @@ static NativePackage write_d3d11_package(
                 + ", normal=" + texture_label(normal)
                 + ", material=" + texture_label(material)
                 + ", height=" + texture_label(height)
+                + ", uv_flip_policy=legacy_no_flip"
+                + ", normal_y_policy=shader_invert_legacy_compat"
             );
         }
         if (emitted_batch_count++) batches_json << ",";
@@ -4496,7 +4556,17 @@ static NativePackage write_d3d11_package(
             batches_json << "]";
         }
         batches_json << "},"
-            << "\"texture_flip_vertical\":true,"
+            << "\"texture_flip_vertical\":false,"
+            << "\"uv_flip_policy\":\"legacy_no_flip\","
+            << "\"normal_y_policy\":\"shader_invert_legacy_compat\","
+            << "\"selected_texture_slots\":{"
+            << "\"base\":{\"match_score\":" << base_score << ",\"identity_score\":" << base_identity_score << ",\"archive_path\":\"" << json_escape(base == nullptr ? "" : base->archive_path) << "\"},"
+            << "\"normal\":{\"match_score\":" << normal_score << ",\"identity_score\":" << (normal == nullptr ? 0 : material_identity_match_score(*normal, mesh)) << ",\"archive_path\":\"" << json_escape(normal == nullptr ? "" : normal->archive_path) << "\"},"
+            << "\"material\":{\"match_score\":" << material_score << ",\"identity_score\":" << (material == nullptr ? 0 : material_identity_match_score(*material, mesh)) << ",\"archive_path\":\"" << json_escape(material == nullptr ? "" : material->archive_path) << "\"},"
+            << "\"specular\":{\"match_score\":" << specular_score << ",\"identity_score\":" << (specular == nullptr ? 0 : material_identity_match_score(*specular, mesh)) << ",\"archive_path\":\"" << json_escape(specular == nullptr ? "" : specular->archive_path) << "\"},"
+            << "\"height\":{\"match_score\":" << height_score << ",\"identity_score\":" << (height == nullptr ? 0 : material_identity_match_score(*height, mesh)) << ",\"archive_path\":\"" << json_escape(height == nullptr ? "" : height->archive_path) << "\"},"
+            << "\"detail\":{\"match_score\":" << detail_score << ",\"identity_score\":" << (detail == nullptr ? 0 : material_identity_match_score(*detail, mesh)) << ",\"archive_path\":\"" << json_escape(detail == nullptr ? "" : detail->archive_path) << "\"}"
+            << "},"
             << "\"has_texture_coordinates\":true,"
             << "\"tangents_usable\":true,"
             << "\"shader_family\":\"" << json_escape(batch_bindings.empty() ? "" : batch_bindings.front()->shader_family) << "\","
@@ -4571,7 +4641,9 @@ static NativePackage write_d3d11_package(
             << "\"specular\":" << material_hints.specular << ","
             << "\"height_scale\":" << material_hints.height_scale << ","
             << "\"native_material_hints\":{\"shader_family\":\"" << json_escape(batch_bindings.empty() ? "" : batch_bindings.front()->shader_family) << "\",\"roughness\":" << material_hints.roughness << ",\"metalness\":" << material_hints.metalness << ",\"specular\":" << material_hints.specular << ",\"height_scale\":" << material_hints.height_scale << "},"
-            << "\"notes\":[\"generated by cdmw-preview-core " << json_escape(package.mesh_parse) << " path\",\"native material inputs scoped to this batch: " << batch_bindings.size() << "\"],"
+            << "\"notes\":[\"generated by cdmw-preview-core " << json_escape(package.mesh_parse) << " path\",\"native material inputs scoped to this batch: " << batch_bindings.size() << "\""
+            << (held_layer_albedo ? ",\"skin/hair visible layer albedo held until mask semantics are validated\"" : "")
+            << "],"
             << "\"material_combiner_active\":false,"
             << "\"material_combiner_outputs\":[],"
             << "\"material_combiner_decode_modes\":[\"direct_dds_sidecar\"]"
@@ -4843,6 +4915,12 @@ std::string preview_report_for_job(const fs::path& job_path) {
         out << "\"" << json_escape(package.selected_texture_examples[i]) << "\"";
     }
     out << "],"
+        << "\"rejected_texture_examples\":[";
+    for (size_t i = 0; i < package.rejected_texture_examples.size(); ++i) {
+        if (i) out << ",";
+        out << "\"" << json_escape(package.rejected_texture_examples[i]) << "\"";
+    }
+    out << "],"
         << "\"notes\":[";
     for (size_t i = 0; i < package.notes.size(); ++i) {
         if (i) out << ",";
@@ -4907,6 +4985,159 @@ int run_preview_job(const fs::path& job_path, const fs::path& report_path) {
         }
         std::cerr << exc.what() << "\n";
         cdmw_native_diag::event("preview_job_error", {{"job_path", cdmw_native_diag::path_to_utf8(job_path)}, {"message", exc.what()}});
+        return 2;
+    }
+}
+
+static std::vector<std::string> name_search_tokens(const std::string& text) {
+    std::vector<std::string> tokens;
+    std::string current;
+    for (unsigned char raw_ch : text) {
+        if (std::isalnum(raw_ch)) {
+            current.push_back(static_cast<char>(std::tolower(raw_ch)));
+        } else if (!current.empty()) {
+            tokens.push_back(current);
+            current.clear();
+        }
+    }
+    if (!current.empty()) tokens.push_back(current);
+    return tokens;
+}
+
+static const std::vector<std::pair<std::string, std::vector<std::string>>>& name_search_token_aliases() {
+    static const std::vector<std::pair<std::string, std::vector<std::string>>> aliases = {
+        {"armor", {"armour"}},
+        {"armour", {"armor"}},
+        {"helmet", {"helm"}},
+        {"helm", {"helmet"}},
+        {"pickaxe", {"axe"}},
+        {"crossbow", {"bow"}},
+        {"treasurebox", {"treasure", "box"}},
+        {"campfire", {"camp", "fire"}},
+        {"candlestick", {"candle", "lamp"}},
+    };
+    return aliases;
+}
+
+static void add_name_search_token(
+    std::unordered_map<std::string, std::vector<std::uint32_t>>& token_rows,
+    const std::string& token,
+    std::uint32_t row
+) {
+    const std::string normalized = lower_copy(token);
+    if (normalized.size() <= 1) return;
+    token_rows[normalized].push_back(row);
+    for (const auto& [source, aliases] : name_search_token_aliases()) {
+        if (source.size() > 4 && normalized.find(source) != std::string::npos && source != normalized) {
+            token_rows[source].push_back(row);
+        }
+        if (normalized == source || (source.size() > 4 && normalized.find(source) != std::string::npos)) {
+            for (const std::string& alias : aliases) {
+                if (alias.size() > 1) token_rows[alias].push_back(row);
+            }
+        }
+    }
+}
+
+static std::vector<std::string> split_tsv_line(const std::string& line) {
+    std::vector<std::string> fields;
+    std::string current;
+    for (char ch : line) {
+        if (ch == '\t') {
+            fields.push_back(current);
+            current.clear();
+        } else {
+            current.push_back(ch);
+        }
+    }
+    fields.push_back(current);
+    return fields;
+}
+
+template <typename T>
+static void write_pod(std::ofstream& out, T value) {
+    out.write(reinterpret_cast<const char*>(&value), sizeof(T));
+}
+
+int run_name_index_job(const fs::path& input_tsv_path, const fs::path& output_bin_path, const fs::path& report_path) {
+    const auto started = std::chrono::steady_clock::now();
+    std::uint32_t entry_count = 0;
+    std::unordered_map<std::string, std::vector<std::uint32_t>> token_rows;
+    try {
+        std::ifstream in(input_tsv_path, std::ios::binary);
+        if (!in) throw std::runtime_error("could not open name-search input TSV");
+        std::string line;
+        while (std::getline(in, line)) {
+            const std::vector<std::string> fields = split_tsv_line(line);
+            if (fields.size() < 3) continue;
+            std::uint32_t row = 0;
+            try {
+                row = static_cast<std::uint32_t>(std::stoul(fields[0]));
+            } catch (...) {
+                continue;
+            }
+            entry_count = std::max(entry_count, row + 1u);
+            std::string text = fields[1] + " " + fields[2];
+            if (fields.size() >= 4 && !fields[3].empty()) {
+                text += " ";
+                text += fields[3];
+            }
+            std::set<std::string> seen_tokens;
+            for (const std::string& token : name_search_tokens(text)) {
+                if (!seen_tokens.insert(token).second) continue;
+                add_name_search_token(token_rows, token, row);
+            }
+        }
+
+        fs::create_directories(output_bin_path.parent_path());
+        std::ofstream out(output_bin_path, std::ios::binary | std::ios::trunc);
+        if (!out) throw std::runtime_error("could not write name-search output binary");
+        const char magic[8] = {'C', 'D', 'N', 'I', 'D', 'X', '1', '\0'};
+        out.write(magic, sizeof(magic));
+        write_pod<std::uint32_t>(out, 1u);
+        std::vector<std::string> keys;
+        keys.reserve(token_rows.size());
+        for (const auto& [token, _rows] : token_rows) {
+            if (!token.empty() && token.size() <= 65535u) keys.push_back(token);
+        }
+        std::sort(keys.begin(), keys.end());
+        write_pod<std::uint32_t>(out, entry_count);
+        write_pod<std::uint32_t>(out, static_cast<std::uint32_t>(keys.size()));
+        std::uint64_t posting_count = 0;
+        for (const std::string& token : keys) {
+            std::vector<std::uint32_t>& rows = token_rows[token];
+            std::sort(rows.begin(), rows.end());
+            rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
+            const auto token_size = static_cast<std::uint16_t>(token.size());
+            write_pod<std::uint16_t>(out, token_size);
+            out.write(token.data(), token.size());
+            write_pod<std::uint32_t>(out, static_cast<std::uint32_t>(rows.size()));
+            if (!rows.empty()) {
+                out.write(reinterpret_cast<const char*>(rows.data()), static_cast<std::streamsize>(rows.size() * sizeof(std::uint32_t)));
+                posting_count += rows.size();
+            }
+        }
+        out.close();
+        if (!out) throw std::runtime_error("name-search output binary write failed");
+        const double elapsed_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+        std::ostringstream report;
+        report << "{"
+               << "\"status\":\"ok\","
+               << "\"backend\":\"cdmw_preview_core_0.1\","
+               << "\"operation\":\"name_index\","
+               << "\"entry_count\":" << entry_count << ","
+               << "\"token_count\":" << keys.size() << ","
+               << "\"posting_count\":" << posting_count << ","
+               << "\"elapsed_ms\":" << elapsed_ms << ","
+               << "\"output_path\":\"" << json_escape(output_bin_path.string()) << "\""
+               << "}";
+        write_text(report_path, report.str());
+        return 0;
+    } catch (const std::exception& exc) {
+        std::ostringstream report;
+        report << "{\"status\":\"error\",\"backend\":\"cdmw_preview_core_0.1\",\"operation\":\"name_index\",\"message\":\""
+               << json_escape(exc.what()) << "\"}";
+        try { write_text(report_path, report.str()); } catch (...) {}
         return 2;
     }
 }
@@ -4977,7 +5208,10 @@ int main(int argc, char** argv) {
         if (argc >= 4 && std::string(argv[1]) == "preview-job") {
             return run_preview_job(fs::path(argv[2]), fs::path(argv[3]));
         }
-        std::cerr << "usage: cdmw-preview-core self-test | --service | preview-job <job.json> <report.json>\n";
+        if (argc >= 5 && std::string(argv[1]) == "name-index-job") {
+            return run_name_index_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]));
+        }
+        std::cerr << "usage: cdmw-preview-core self-test | --service | preview-job <job.json> <report.json> | name-index-job <input.tsv> <output.bin> <report.json>\n";
         return 1;
     } catch (const std::exception& exc) {
         std::cerr << exc.what() << "\n";
