@@ -728,6 +728,24 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("GetProcessMemoryInfo", diagnostics_source)
         self.assertIn("current_process_memory", diagnostics_source)
 
+    def test_native_d3d11_host_throttles_idle_rendering_and_prunes_srv_cache(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("void request_render()", source)
+        self.assertIn("bool should_render() const", source)
+        self.assertIn("render_requested_", source)
+        self.assertIn("renderer.should_render()", source)
+        self.assertIn("MsgWaitForMultipleObjects", source)
+        self.assertIn("kIdleWaitMs", source)
+        self.assertIn("WM_PAINT", source)
+        self.assertIn("WM_SIZE", source)
+        self.assertIn("kSrvCacheSoftMaxEntries", source)
+        self.assertIn("kSrvCacheSoftMaxBytes", source)
+        self.assertIn("prune_srv_cache_if_needed", source)
+        self.assertIn("texture_cache_pruned", source)
+        self.assertIn('prune_srv_cache_if_needed("pre_upload_soft_cap")', source)
+        self.assertIn('prune_srv_cache_if_needed("texture_load_soft_cap")', source)
+
     def test_native_d3d11_host_rejects_stale_or_invalid_packages_and_exposes_debug_modes(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
 

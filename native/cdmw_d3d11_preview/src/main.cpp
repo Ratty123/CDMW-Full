@@ -41,6 +41,9 @@ static constexpr UINT kCdmwSetFitMessage = WM_APP + 0x432u;
 static constexpr UINT kCdmwResetViewMessage = WM_APP + 0x433u;
 static constexpr ULONG_PTR kCdmwCommandCopyData = 0x43444D57u; // "CDMW"
 static constexpr ULONG_PTR kCdmwEventCopyData = 0x44334431u; // "D3D1"
+static constexpr size_t kSrvCacheSoftMaxEntries = 512;
+static constexpr std::uint64_t kSrvCacheSoftMaxBytes = 384ull * 1024ull * 1024ull;
+static constexpr DWORD kIdleWaitMs = 50;
 
 struct Args {
     std::wstring backend = L"d3d11";
@@ -1501,6 +1504,34 @@ public:
         return create_render_targets() && create_pipeline() && upload_batches();
     }
 
+    void request_render() {
+        render_requested_ = true;
+    }
+
+    bool should_render() const {
+        return render_requested_ || !first_frame_reported_;
+    }
+
+    void prune_srv_cache_if_needed(const char* reason) {
+        if (srv_cache_.size() <= kSrvCacheSoftMaxEntries && estimated_texture_bytes_ <= kSrvCacheSoftMaxBytes) return;
+        const size_t released_srv_entries = srv_cache_.size();
+        const size_t released_texture_info_entries = texture_info_cache_.size();
+        const std::uint64_t released_texture_bytes = estimated_texture_bytes_;
+        srv_cache_.clear();
+        texture_info_cache_.clear();
+        estimated_texture_bytes_ = 0;
+        ++texture_cache_releases_;
+        cdmw_native_diag::event(
+            "texture_cache_pruned",
+            {
+                {"reason", reason && reason[0] ? reason : "soft_cap"},
+                {"released_texture_cache_entries", std::to_string(released_srv_entries)},
+                {"released_texture_info_entries", std::to_string(released_texture_info_entries)},
+                {"released_estimated_texture_bytes", std::to_string(released_texture_bytes)},
+                {"texture_cache_releases", std::to_string(texture_cache_releases_)}
+            });
+    }
+
     void release_model_resources(const char* reason) {
         const std::string reason_text = reason && reason[0] ? reason : "release";
         const size_t released_batches = batches_.size();
@@ -1544,6 +1575,7 @@ public:
     bool load_package(const fs::path& package_dir, const fs::path& status_file, bool reset_view_state) {
         if (package_dir.empty() || !fs::is_directory(package_dir)) {
             release_model_resources("load-missing-package");
+            request_render();
             if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
             write_status(status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"preview package directory is missing\"}");
             cdmw_native_diag::event("package_load_error", {{"reason", "package directory missing"}, {"package_dir", cdmw_native_diag::path_to_utf8(package_dir)}});
@@ -1568,6 +1600,7 @@ public:
             next_view_settings = parse_view_settings(manifest);
             next_render_tuning = parse_render_tuning(manifest);
         } catch (const std::exception& exc) {
+            request_render();
             if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
             write_status(args_.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"native D3D11 manifest read/parse failed\"}");
             cdmw_native_diag::event("package_load_error", {{"reason", std::string("manifest read/parse failed: ") + exc.what()}, {"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)}});
@@ -1600,6 +1633,7 @@ public:
             }
         }
         if (next_batches.empty() || !missing_paths.empty()) {
+            request_render();
             if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
             std::ostringstream message;
             message << (next_batches.empty() ? "native D3D11 manifest had no renderable batches" : "native D3D11 manifest referenced missing files");
@@ -1645,6 +1679,7 @@ public:
         }
         update_runtime_stats();
         write_status(args_.status_file, loaded_payload(stats_));
+        request_render();
         cdmw_native_diag::event(
             "package_loaded",
             {
@@ -1685,6 +1720,7 @@ public:
         if (hwnd_) {
             InvalidateRect(hwnd_, nullptr, FALSE);
         }
+        request_render();
         update_runtime_stats();
         write_status(args_.status_file, cleared_payload(stats_));
         cdmw_native_diag::event(
@@ -1701,29 +1737,40 @@ public:
         switch (msg) {
         case WM_COPYDATA:
             result = handle_copy_data(reinterpret_cast<COPYDATASTRUCT*>(lparam)) ? 1 : 0;
+            request_render();
             return true;
+        case WM_SIZE:
+        case WM_PAINT:
+            request_render();
+            return false;
         case kCdmwSetZoomMessage:
             set_zoom_factor(static_cast<float>(wparam) / 1000.0f);
+            request_render();
             result = 0;
             return true;
         case kCdmwSetFitMessage:
             set_fit_to_view(wparam != 0);
+            request_render();
             result = 0;
             return true;
         case kCdmwResetViewMessage:
             reset_view();
+            request_render();
             result = 0;
             return true;
         case WM_LBUTTONDBLCLK:
             reset_view();
+            request_render();
             result = 0;
             return true;
         case WM_LBUTTONDOWN:
             if (begin_mesh_edit_drag(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                request_render();
                 result = 0;
                 return true;
             }
             if (begin_alignment_drag(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                request_render();
                 result = 0;
                 return true;
             }
@@ -1732,28 +1779,34 @@ public:
         case WM_MBUTTONDOWN:
         case WM_RBUTTONDOWN:
             begin_mouse_drag(msg, wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+            request_render();
             result = 0;
             return true;
         case WM_MOUSEMOVE:
             if (update_mesh_edit_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                request_render();
                 result = 0;
                 return true;
             }
             if (update_alignment_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam), wparam)) {
+                request_render();
                 result = 0;
                 return true;
             }
             update_alignment_hover(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             update_source_part_hover(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             update_mouse_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+            request_render();
             result = 0;
             return drag_mode_ != 0;
         case WM_LBUTTONUP:
             if (finish_mesh_edit_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                request_render();
                 result = 0;
                 return true;
             }
             if (finish_alignment_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam), wparam)) {
+                request_render();
                 result = 0;
                 return true;
             }
@@ -1762,6 +1815,7 @@ public:
         case WM_MBUTTONUP:
         case WM_RBUTTONUP:
             end_mouse_drag(msg);
+            request_render();
             result = 0;
             return true;
         case WM_CAPTURECHANGED:
@@ -1770,9 +1824,11 @@ public:
             source_part_.click_pending = false;
             drag_mode_ = 0;
             drag_button_ = 0;
+            request_render();
             return false;
         case WM_MOUSEWHEEL:
             apply_wheel_delta(GET_WHEEL_DELTA_WPARAM(wparam));
+            request_render();
             result = 0;
             return true;
         default:
@@ -1801,6 +1857,7 @@ public:
         }
         swap_chain_->Present(1, 0);
         draw_alignment_overlay_gdi();
+        render_requested_ = false;
         if (!first_frame_reported_) {
             stats_.first_frame_ms = std::chrono::duration<double, std::milli>(
                 std::chrono::steady_clock::now() - first_frame_timer_).count();
@@ -1819,15 +1876,17 @@ public:
         }
     }
 
-    void process_pending_commands() {
-        if (pending_package_dir_.empty()) return;
+    bool process_pending_commands() {
+        if (pending_package_dir_.empty()) return false;
         fs::path package_dir = pending_package_dir_;
         fs::path status_file = pending_status_file_;
         bool reset_view_state = pending_reset_view_;
         pending_package_dir_.clear();
         pending_status_file_.clear();
         pending_reset_view_ = false;
-        load_package(package_dir, status_file, reset_view_state);
+        const bool loaded = load_package(package_dir, status_file, reset_view_state);
+        request_render();
+        return loaded;
     }
 
 private:
@@ -2396,7 +2455,11 @@ private:
         if (!alignment_.enabled || mesh_edit_.enabled || alignment_.drag_active || alignment_.rotation_drag_active) {
             return;
         }
-        alignment_.hover_axis = alignment_axis_at(x, y);
+        std::string next_axis = alignment_axis_at(x, y);
+        if (next_axis != alignment_.hover_axis) {
+            alignment_.hover_axis = next_axis;
+            request_render();
+        }
     }
 
     bool finish_alignment_drag(int x, int y, WPARAM wparam) {
@@ -2517,6 +2580,7 @@ private:
         if (source_submesh == source_part_.hovered_source_submesh) return;
         source_part_.hovered_source_submesh = source_submesh;
         send_source_part_event("source_part_hovered", source_submesh);
+        request_render();
     }
 
     void begin_source_part_click(WPARAM wparam, int x, int y) {
@@ -2873,6 +2937,7 @@ private:
             pending_package_dir_ = utf8_to_wide(json_string_field(payload, "package_dir"));
             pending_status_file_ = utf8_to_wide(json_string_field(payload, "status_file"));
             pending_reset_view_ = json_bool_field(payload, "reset_view", false);
+            request_render();
             cdmw_native_diag::event("command_load_package", {{"package_dir", cdmw_native_diag::path_to_utf8(fs::path(pending_package_dir_))}, {"status_file", cdmw_native_diag::path_to_utf8(fs::path(pending_status_file_))}});
             send_json_event("{\"event\":\"command_result\",\"command\":\"load_package\",\"ok\":true,\"queued\":true}");
             return true;
@@ -2890,6 +2955,7 @@ private:
                 mode = "replacement_only";
             }
             display_mode_ = mode;
+            request_render();
             cdmw_native_diag::event("command_set_display_mode", {{"mode", display_mode_}});
             std::ostringstream event;
             event << "{\"event\":\"display_mode\",\"mode\":\"" << json_escape(display_mode_) << "\"}";
@@ -2903,6 +2969,7 @@ private:
             render_tuning_ = parse_render_tuning(payload);
             view_settings_ = parse_view_settings(payload);
             const bool sampler_ok = create_sampler_state();
+            request_render();
             cdmw_native_diag::event(
                 "command_set_render_tuning",
                 {
@@ -2935,6 +3002,7 @@ private:
                 batch.highlight_strength = active ? 0.34f : 0.0f;
                 if (active) ++highlighted_batches;
             }
+            request_render();
             std::ostringstream event;
             event << "{\"event\":\"highlight_state\",\"highlighted_batches\":" << highlighted_batches << "}";
             send_json_event(event.str());
@@ -2951,6 +3019,7 @@ private:
             if (!mesh_edit_.enabled) {
                 cancel_mesh_edit_drag();
             }
+            request_render();
             send_json_event("{\"event\":\"mesh_edit_state\",\"ok\":true}");
             return true;
         }
@@ -2972,12 +3041,14 @@ private:
                 cancel_alignment_drag();
                 alignment_.hover_axis.clear();
             }
+            request_render();
             send_json_event("{\"event\":\"alignment_state\",\"ok\":true}");
             return true;
         }
         if (command == "clear_mesh_edit_selection") {
             mesh_edit_.selected_vertices.clear();
             send_mesh_edit_selection_event();
+            request_render();
             return true;
         }
         if (command == "select_mesh_edit_brush") {
@@ -2991,6 +3062,7 @@ private:
                 mesh_edit_.selected_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.source_vertex_index));
             }
             send_mesh_edit_selection_event();
+            request_render();
             return true;
         }
         if (command == "set_view") {
@@ -3000,6 +3072,7 @@ private:
             fit_to_view_ = json_bool_field(payload, "fit_to_view", fit_to_view_);
             distance_ = fit_to_view_ ? kFitDistance : kFitDistance / std::max(zoom_factor_, 0.1f);
             send_view_event("set_view");
+            request_render();
             return true;
         }
         send_json_event("{\"event\":\"warning\",\"message\":\"unknown D3D11 host command\"}");
@@ -3219,6 +3292,7 @@ private:
     }
 
     bool upload_batches() {
+        prune_srv_cache_if_needed("pre_upload_soft_cap");
         auto geometry_start = std::chrono::steady_clock::now();
         bool uploaded_any_geometry = false;
         for (PreviewBatch& batch : batches_) {
@@ -3363,6 +3437,7 @@ private:
         ComPtr<ID3D11ShaderResourceView>& target,
         TextureLoadInfo* info,
         DirectX::CREATETEX_FLAGS create_flags) {
+        prune_srv_cache_if_needed("texture_load_soft_cap");
         std::wstring cache_key = (dds ? L"dds|" : L"wic|") + std::to_wstring(static_cast<uint32_t>(create_flags)) + L"|" + path;
         auto cached = srv_cache_.find(cache_key);
         if (cached != srv_cache_.end() && cached->second) {
@@ -3435,6 +3510,7 @@ private:
     int last_mouse_y_ = 0;
     bool first_frame_started_ = false;
     bool first_frame_reported_ = false;
+    bool render_requested_ = true;
     std::chrono::steady_clock::time_point first_frame_timer_{};
     D3D_FEATURE_LEVEL feature_level_{};
     DirectX::XMFLOAT4 clear_color_{0.03f, 0.04f, 0.05f, 1.0f};
@@ -3552,6 +3628,8 @@ static int run_host(const Args& args) {
     MSG msg{};
     bool running = true;
     auto last_parent_sync = std::chrono::steady_clock::now();
+    int last_parent_width = window_width;
+    int last_parent_height = window_height;
     while (running) {
         while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
             if (msg.message == WM_QUIT) {
@@ -3571,13 +3649,22 @@ static int run_host(const Args& args) {
                 } else if (GetClientRect(parent_hwnd, &rect)) {
                     int width = std::max<LONG>(1, rect.right - rect.left);
                     int height = std::max<LONG>(1, rect.bottom - rect.top);
-                    SetWindowPos(hwnd, nullptr, 0, 0, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+                    if (width != last_parent_width || height != last_parent_height) {
+                        last_parent_width = width;
+                        last_parent_height = height;
+                        SetWindowPos(hwnd, nullptr, 0, 0, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+                        renderer.request_render();
+                    }
                 }
             }
         }
         if (running) {
             renderer.process_pending_commands();
-            renderer.render();
+            if (renderer.should_render()) {
+                renderer.render();
+            } else {
+                MsgWaitForMultipleObjects(0, nullptr, FALSE, kIdleWaitMs, QS_ALLINPUT);
+            }
         }
     }
     renderer.release_model_resources("shutdown");
