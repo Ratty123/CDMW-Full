@@ -32,6 +32,7 @@ namespace {
 constexpr int kNativePackageSchemaVersion = 8;
 constexpr int kNativeMaterialGraphVersion = 3;
 constexpr int kNativeMaterialSemanticsVersion = 3;
+constexpr int kNativeDdsExtractionVersion = 2;
 
 std::string json_escape(const std::string& value) {
     std::string out;
@@ -219,6 +220,13 @@ float find_float_value(const std::string& json, const std::string& key, float fa
 std::string lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
         return static_cast<char>(std::tolower(c));
+    });
+    return value;
+}
+
+std::string upper_copy(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::toupper(c));
     });
     return value;
 }
@@ -753,6 +761,329 @@ static std::vector<char> lz4_decompress_block(const std::vector<char>& input, si
     return output;
 }
 
+static std::uint32_t pa_rot32(std::uint32_t value, int shift) {
+    return static_cast<std::uint32_t>((value << shift) | (value >> (32 - shift)));
+}
+
+static std::uint32_t calculate_pa_checksum(const std::string& value) {
+    const std::string data = value;
+    std::uint32_t length = static_cast<std::uint32_t>(data.size());
+    std::uint32_t remaining = length;
+    std::uint32_t a = length + 0xDEBA1DCDu;
+    std::uint32_t b = a;
+    std::uint32_t c = a;
+    size_t offset = 0;
+    auto read_tail_u32 = [&](size_t local_offset) -> std::uint32_t {
+        std::uint32_t out = 0;
+        for (size_t i = 0; i < 4; ++i) {
+            const size_t source = local_offset + i;
+            if (source < data.size()) {
+                out |= static_cast<std::uint32_t>(static_cast<unsigned char>(data[source])) << (8 * i);
+            }
+        }
+        return out;
+    };
+    auto mix = [&]() {
+        a -= c; a ^= pa_rot32(c, 4); c += b;
+        b -= a; b ^= pa_rot32(a, 6); a += c;
+        c -= b; c ^= pa_rot32(b, 8); b += a;
+        a -= c; a ^= pa_rot32(c, 16); c += b;
+        b -= a; b ^= pa_rot32(a, 19); a += c;
+        c -= b; c ^= pa_rot32(b, 4); b += a;
+    };
+    while (remaining > 12) {
+        a += read_tail_u32(offset);
+        b += read_tail_u32(offset + 4);
+        c += read_tail_u32(offset + 8);
+        mix();
+        offset += 12;
+        remaining -= 12;
+    }
+    if (remaining == 0) return c;
+    a += read_tail_u32(offset);
+    b += read_tail_u32(offset + 4);
+    c += read_tail_u32(offset + 8);
+    c = (c ^ b) - pa_rot32(b, 14);
+    a = (a ^ c) - pa_rot32(c, 11);
+    b = (b ^ a) - pa_rot32(a, 25);
+    c = (c ^ b) - pa_rot32(b, 16);
+    a = (a ^ c) - pa_rot32(c, 4);
+    b = (b ^ a) - pa_rot32(a, 14);
+    c = (c ^ b) - pa_rot32(b, 24);
+    return c;
+}
+
+static std::vector<std::uint32_t> u32_values_from_bytes(const std::vector<char>& data, size_t offset, size_t count) {
+    std::vector<std::uint32_t> values;
+    values.reserve(count);
+    for (size_t index = 0; index < count; ++index) {
+        const size_t at = offset + index * 4u;
+        values.push_back(at + 4 <= data.size() ? read_u32(data, at) : 0u);
+    }
+    return values;
+}
+
+static int dds_bytes_per_block(std::uint32_t dxgi_format, const std::string& fourcc) {
+    static const std::set<std::uint32_t> block8_formats = {71u, 72u, 80u, 81u};
+    static const std::set<std::uint32_t> block16_formats = {74u, 75u, 77u, 78u, 83u, 84u, 94u, 95u, 96u, 98u, 99u};
+    if (block8_formats.find(dxgi_format) != block8_formats.end()) return 8;
+    if (block16_formats.find(dxgi_format) != block16_formats.end()) return 16;
+    const std::string cc = upper_copy(fourcc);
+    if (cc == "DXT1" || cc == "BC4U" || cc == "BC4S" || cc == "ATI1") return 8;
+    if (cc == "DXT3" || cc == "DXT5" || cc == "BC5U" || cc == "BC5S" || cc == "ATI2" || cc == "RXGB") return 16;
+    return 0;
+}
+
+static size_t dds_surface_size(
+    int width,
+    int height,
+    std::uint32_t dxgi_format,
+    const std::string& fourcc,
+    std::uint32_t pf_flags,
+    std::uint32_t rgb_bit_count,
+    std::uint32_t pitch_or_linear_size,
+    int mip_level
+) {
+    if (width <= 0 || height <= 0) return 0;
+    const int bytes_per_block = dds_bytes_per_block(dxgi_format, fourcc);
+    if (bytes_per_block > 0) {
+        const int block_w = std::max(1, (std::max(1, width) + 3) / 4);
+        const int block_h = std::max(1, (std::max(1, height) + 3) / 4);
+        return static_cast<size_t>(block_w) * static_cast<size_t>(block_h) * static_cast<size_t>(bytes_per_block);
+    }
+    constexpr std::uint32_t DDPF_ALPHAPIXELS = 0x1u;
+    constexpr std::uint32_t DDPF_ALPHA = 0x2u;
+    constexpr std::uint32_t DDPF_RGB = 0x40u;
+    constexpr std::uint32_t DDPF_LUMINANCE = 0x20000u;
+    if ((pf_flags & (DDPF_LUMINANCE | DDPF_RGB | DDPF_ALPHAPIXELS | DDPF_ALPHA)) != 0 && rgb_bit_count > 0 && rgb_bit_count % 8u == 0) {
+        return static_cast<size_t>(width) * static_cast<size_t>(height) * static_cast<size_t>(std::max<std::uint32_t>(1u, rgb_bit_count / 8u));
+    }
+    if (pitch_or_linear_size > 0) {
+        const std::uint32_t row_pitch = std::max<std::uint32_t>(1u, pitch_or_linear_size >> std::max(0, mip_level));
+        return static_cast<size_t>(row_pitch) * static_cast<size_t>(std::max(1, height));
+    }
+    throw std::runtime_error("unsupported DDS partial compression format");
+}
+
+struct PathcLookup {
+    bool found = false;
+    int texture_header_index = -1;
+    std::vector<char> compressed_block_infos;
+};
+
+struct PathcEntryNative {
+    std::uint16_t texture_header_index = 0;
+    std::uint8_t collision_start_index = 0;
+    std::uint8_t collision_end_index = 0;
+    std::vector<char> compressed_block_infos;
+};
+
+struct PathcCollisionEntryNative {
+    std::uint32_t filename_offset = 0;
+    std::uint16_t texture_header_index = 0;
+    std::vector<char> compressed_block_infos;
+    std::string path;
+};
+
+struct PathcCollectionNative {
+    std::uint32_t header_size = 0;
+    std::vector<std::vector<char>> headers;
+    std::unordered_map<std::uint32_t, PathcEntryNative> entries;
+    std::unordered_map<std::string, PathcCollisionEntryNative> collisions;
+
+    PathcLookup lookup_file(const std::string& raw_path) const {
+        std::string normalized = raw_path;
+        std::replace(normalized.begin(), normalized.end(), '\\', '/');
+        while (!normalized.empty() && normalized.front() == '/') normalized.erase(normalized.begin());
+        const std::uint32_t checksum = calculate_pa_checksum("/" + normalized);
+        auto found = entries.find(checksum);
+        if (found == entries.end()) return {};
+        const PathcEntryNative& entry = found->second;
+        if (entry.texture_header_index != 0xFFFFu) {
+            const int header_index = static_cast<int>(entry.texture_header_index);
+            if (header_index >= 0 && static_cast<size_t>(header_index) < headers.size()) {
+                return PathcLookup{true, header_index, entry.compressed_block_infos};
+            }
+            return {};
+        }
+        auto collision = collisions.find(normalized);
+        if (collision == collisions.end()) return {};
+        const int header_index = static_cast<int>(collision->second.texture_header_index);
+        if (header_index < 0 || static_cast<size_t>(header_index) >= headers.size()) return {};
+        return PathcLookup{true, header_index, collision->second.compressed_block_infos};
+    }
+
+    std::vector<char> get_file_header(const std::string& raw_path) const {
+        const PathcLookup lookup = lookup_file(raw_path);
+        if (!lookup.found || lookup.texture_header_index < 0 || static_cast<size_t>(lookup.texture_header_index) >= headers.size()) {
+            throw std::runtime_error("partial DDS PATHC header was not found for " + raw_path);
+        }
+        const std::vector<char>& header = headers[static_cast<size_t>(lookup.texture_header_index)];
+        if (header_size == 0x94u && header.size() >= 0x94u && lookup.compressed_block_infos.size() >= 16u) {
+            std::vector<char> patched;
+            patched.reserve(header.size());
+            patched.insert(patched.end(), header.begin(), header.begin() + 0x20);
+            patched.insert(patched.end(), lookup.compressed_block_infos.begin(), lookup.compressed_block_infos.begin() + 16);
+            patched.insert(patched.end(), header.begin() + 0x30, header.end());
+            return patched;
+        }
+        return header;
+    }
+};
+
+static PathcCollectionNative load_pathc_collection_native(const fs::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) throw std::runtime_error("could not open PATHC file " + path.string());
+    std::vector<char> raw((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    if (raw.size() < 32) throw std::runtime_error("PATHC file is too small");
+    PathcCollectionNative collection;
+    collection.header_size = read_u32(raw, 8);
+    const std::uint32_t header_count = read_u32(raw, 12);
+    const std::uint32_t entry_count = read_u32(raw, 16);
+    const std::uint32_t collision_entry_count = read_u32(raw, 20);
+    const std::uint32_t filenames_length = read_u32(raw, 24);
+    size_t offset = 28;
+    for (std::uint32_t i = 0; i < header_count; ++i) {
+        if (offset + collection.header_size > raw.size()) throw std::runtime_error("PATHC texture header table is truncated");
+        collection.headers.emplace_back(raw.begin() + static_cast<std::ptrdiff_t>(offset), raw.begin() + static_cast<std::ptrdiff_t>(offset + collection.header_size));
+        offset += collection.header_size;
+    }
+    std::vector<std::uint32_t> checksums;
+    checksums.reserve(entry_count);
+    for (std::uint32_t i = 0; i < entry_count; ++i) {
+        if (offset + 4 > raw.size()) throw std::runtime_error("PATHC checksum table is truncated");
+        checksums.push_back(read_u32(raw, offset));
+        offset += 4;
+    }
+    for (std::uint32_t i = 0; i < entry_count; ++i) {
+        if (offset + 20 > raw.size()) throw std::runtime_error("PATHC entry table is truncated");
+        PathcEntryNative entry;
+        entry.texture_header_index = read_u16(raw, offset);
+        entry.collision_start_index = static_cast<std::uint8_t>(raw[offset + 2]);
+        entry.collision_end_index = static_cast<std::uint8_t>(raw[offset + 3]);
+        entry.compressed_block_infos.assign(raw.begin() + static_cast<std::ptrdiff_t>(offset + 4), raw.begin() + static_cast<std::ptrdiff_t>(offset + 20));
+        collection.entries[checksums[static_cast<size_t>(i)]] = std::move(entry);
+        offset += 20;
+    }
+    std::vector<PathcCollisionEntryNative> collision_rows;
+    collision_rows.reserve(collision_entry_count);
+    for (std::uint32_t i = 0; i < collision_entry_count; ++i) {
+        if (offset + 24 > raw.size()) throw std::runtime_error("PATHC collision table is truncated");
+        PathcCollisionEntryNative collision;
+        collision.filename_offset = read_u32(raw, offset);
+        collision.texture_header_index = read_u16(raw, offset + 4);
+        collision.compressed_block_infos.assign(raw.begin() + static_cast<std::ptrdiff_t>(offset + 8), raw.begin() + static_cast<std::ptrdiff_t>(offset + 24));
+        collision_rows.push_back(std::move(collision));
+        offset += 24;
+    }
+    if (offset + filenames_length > raw.size()) throw std::runtime_error("PATHC filename table is truncated");
+    for (PathcCollisionEntryNative& collision : collision_rows) {
+        if (collision.filename_offset >= filenames_length) continue;
+        size_t start = offset + collision.filename_offset;
+        size_t end = start;
+        while (end < offset + filenames_length && raw[end] != 0) ++end;
+        collision.path.assign(raw.begin() + static_cast<std::ptrdiff_t>(start), raw.begin() + static_cast<std::ptrdiff_t>(end));
+        std::replace(collision.path.begin(), collision.path.end(), '\\', '/');
+        if (!collision.path.empty()) {
+            collection.collisions[collision.path] = std::move(collision);
+        }
+    }
+    return collection;
+}
+
+static const PathcCollectionNative& cached_pathc_collection_native(const fs::path& path) {
+    static std::map<std::string, PathcCollectionNative> cache;
+    const std::string key = fs::absolute(path).string();
+    auto found = cache.find(key);
+    if (found != cache.end()) return found->second;
+    return cache.emplace(key, load_pathc_collection_native(path)).first->second;
+}
+
+static fs::path pathc_path_for_entry(const ArchiveEntryRef& entry) {
+    fs::path root = entry.pamt_path.parent_path().parent_path();
+    return root / "meta" / "0.pathc";
+}
+
+static std::vector<char> reconstruct_partial_dds(const ArchiveEntryRef& entry, const std::vector<char>& data) {
+    const fs::path pathc_path = pathc_path_for_entry(entry);
+    const PathcCollectionNative& pathc = cached_pathc_collection_native(pathc_path);
+    const std::vector<char> header = pathc.get_file_header(entry.path);
+    if (header.size() < 0x80u || std::string(header.data(), header.data() + 4) != "DDS ") {
+        throw std::runtime_error("Partial DDS PATHC header is missing or invalid");
+    }
+    const std::uint32_t height = read_u32(header, 12);
+    const std::uint32_t width = read_u32(header, 16);
+    const std::uint32_t pitch_or_linear_size = read_u32(header, 20);
+    const std::uint32_t depth = read_u32(header, 24);
+    const std::uint32_t mip_map_count = read_u32(header, 28);
+    const std::vector<std::uint32_t> reserved1 = u32_values_from_bytes(header, 32, 11);
+    const std::uint32_t pf_flags = read_u32(header, 80);
+    const std::string fourcc(header.data() + 84, header.data() + 88);
+    const std::uint32_t rgb_bit_count = read_u32(header, 88);
+    const std::uint32_t caps2 = read_u32(header, 112);
+    const bool is_dx10 = fourcc == "DX10";
+    const size_t header_size = is_dx10 ? 0x94u : 0x80u;
+    const std::uint32_t dxgi_format = is_dx10 && header.size() >= 0x94u ? read_u32(header, 0x80) : 0u;
+    const std::uint32_t dx10_array_size = is_dx10 && header.size() >= 0x94u ? read_u32(header, 0x8C) : 1u;
+    const bool multi_chunk_supported_0 = is_dx10 ? dx10_array_size < 2u : true;
+    const bool multi_chunk_supported_1 = mip_map_count > 5u && caps2 == 0u && depth < 2u;
+    const bool use_single_chunk = !multi_chunk_supported_0 || !multi_chunk_supported_1;
+
+    std::vector<std::uint32_t> compressed_block_sizes;
+    std::vector<size_t> decompressed_block_sizes;
+    if (use_single_chunk) {
+        compressed_block_sizes.push_back(reserved1.size() > 0 ? reserved1[0] : 0u);
+        decompressed_block_sizes.push_back(reserved1.size() > 1 ? static_cast<size_t>(reserved1[1]) : 0u);
+    } else {
+        for (size_t i = 0; i < 4 && i < reserved1.size(); ++i) {
+            compressed_block_sizes.push_back(reserved1[i]);
+        }
+        int current_width = static_cast<int>(std::max<std::uint32_t>(1u, width));
+        int current_height = static_cast<int>(std::max<std::uint32_t>(1u, height));
+        const int levels = static_cast<int>(std::min<std::uint32_t>(4u, std::max<std::uint32_t>(1u, mip_map_count)));
+        for (int level = 0; level < levels; ++level) {
+            decompressed_block_sizes.push_back(dds_surface_size(
+                current_width,
+                current_height,
+                dxgi_format,
+                fourcc,
+                pf_flags,
+                rgb_bit_count,
+                pitch_or_linear_size,
+                level));
+            current_width = std::max(1, current_width >> 1);
+            current_height = std::max(1, current_height >> 1);
+        }
+    }
+
+    size_t current_data_offset = header_size;
+    std::vector<char> output;
+    output.reserve(static_cast<size_t>(entry.orig_size));
+    output.insert(output.end(), header.begin(), header.begin() + static_cast<std::ptrdiff_t>(std::min(header_size, header.size())));
+    const size_t count = std::min(compressed_block_sizes.size(), decompressed_block_sizes.size());
+    for (size_t i = 0; i < count; ++i) {
+        const std::uint32_t compressed_size = compressed_block_sizes[i];
+        const size_t decompressed_size = decompressed_block_sizes[i];
+        if (compressed_size == 0 || decompressed_size == 0) continue;
+        if (current_data_offset + compressed_size > data.size()) {
+            throw std::runtime_error("Partial DDS block is truncated");
+        }
+        std::vector<char> block(data.begin() + static_cast<std::ptrdiff_t>(current_data_offset), data.begin() + static_cast<std::ptrdiff_t>(current_data_offset + compressed_size));
+        if (compressed_size != decompressed_size) {
+            block = lz4_decompress_block(block, decompressed_size);
+            if (block.size() != decompressed_size) {
+                throw std::runtime_error("Partial DDS LZ4 block decompressed to the wrong size");
+            }
+        }
+        output.insert(output.end(), block.begin(), block.end());
+        current_data_offset += compressed_size;
+    }
+    if (current_data_offset < data.size()) {
+        output.insert(output.end(), data.begin() + static_cast<std::ptrdiff_t>(current_data_offset), data.end());
+    }
+    return output;
+}
+
 static std::vector<char> maybe_decompress_partial_par(const ArchiveEntryRef& entry, const std::vector<char>& data) {
     if (entry.compression_type() != 1 || data.size() < 0x50 || std::string(data.data(), data.data() + 4) != "PAR ") {
         return {};
@@ -818,10 +1149,8 @@ static std::vector<char> decode_archive_ref_bytes(const ArchiveEntryRef& entry, 
     if (entry.compression_type() == 1) {
         std::vector<char> partial_par = maybe_decompress_partial_par(entry, data);
         if (!partial_par.empty()) return partial_par;
-        if (entry.extension == ".dds" && data.size() >= 4 && std::string(data.data(), data.data() + 4) == "DDS " && data.size() >= 128) {
-            std::vector<char> padded = data;
-            padded.resize(static_cast<size_t>(entry.orig_size), 0);
-            return padded;
+        if (entry.extension == ".dds") {
+            return reconstruct_partial_dds(entry, data);
         }
         return data;
     }
@@ -2659,6 +2988,17 @@ static bool technical_for_visible_base(const std::string& parameter_name, const 
     return false;
 }
 
+static bool parameter_is_authoritative_visible_base(const std::string& parameter_name) {
+    const std::string hint = std::regex_replace(lower_copy(parameter_name), std::regex("[^a-z0-9]+"), "");
+    return hint == "basecolortexture"
+        || hint == "diffusetexture"
+        || hint == "albedotexture"
+        || hint == "overlaycolortexture"
+        || hint.find("basecolor") != std::string::npos
+        || (hint.find("diffuse") != std::string::npos && hint.find("mask") == std::string::npos)
+        || (hint.find("albedo") != std::string::npos && hint.find("mask") == std::string::npos);
+}
+
 static std::string visible_class_for_binding(const std::string& parameter_name, const std::string& raw_path, const std::string& role) {
     if (technical_for_visible_base(parameter_name, raw_path, role)) return "technical";
     const std::string hint = std::regex_replace(lower_copy(parameter_name), std::regex("[^a-z0-9]+"), "");
@@ -3451,10 +3791,13 @@ static std::string extracted_dds_path_for_entry(
 ) {
     if (ref.path.empty() || ref.extension != ".dds") return "";
     if (ref.compressed() && ref.comp_size != ref.orig_size) {
-        // Sparse DDS often has the header and first payload bytes stored. Padding
-        // is acceptable for preview, but fully compressed entries stay on Python.
+        // Partial DDS entries are reconstructed with PATHC before reaching this cache.
+        // The cache key includes the native extraction version to avoid stale padded DDS.
     }
-    const std::string identity = ref.pamt_path.string() + "|" + ref.path + "|" + std::to_string(ref.offset) + "|" + std::to_string(ref.comp_size) + "|" + std::to_string(ref.orig_size);
+    const std::string identity =
+        "native_dds_v" + std::to_string(kNativeDdsExtractionVersion) + "|"
+        + ref.pamt_path.string() + "|" + ref.path + "|" + std::to_string(ref.offset) + "|"
+        + std::to_string(ref.comp_size) + "|" + std::to_string(ref.orig_size);
     const fs::path out_path = cache_root / "dds" / (hex64(fnv1a64(identity)) + "_" + safe_filename(ref.basename));
     const std::uint64_t expected_size = ref.orig_size > 0 ? ref.orig_size : ref.comp_size;
     if (expected_size > 0) {
@@ -3597,13 +3940,7 @@ static bool material_keys_overlap(const std::string& a, const std::string& b) {
     return a == b || a.find(b) != std::string::npos || b.find(a) != std::string::npos;
 }
 
-static int material_identity_match_score(const TextureBinding& binding, const NativeSubmesh& mesh) {
-    if (binding.material_wrapper_order_authoritative && binding.material_wrapper_index >= 0 && mesh.source_submesh_index >= 0) {
-        if (binding.material_wrapper_index == mesh.source_submesh_index) {
-            return 360;
-        }
-        return 0;
-    }
+static int material_identity_text_match_score(const TextureBinding& binding, const NativeSubmesh& mesh) {
     const std::string mesh_text = lower_copy(mesh.material + " " + mesh.name);
     const std::string binding_text = lower_copy(binding.material_name + " " + binding.texture_name + " " + binding.archive_path);
     const std::string mesh_key_a = normalized_material_key(mesh.material);
@@ -3637,6 +3974,26 @@ static int material_identity_match_score(const TextureBinding& binding, const Na
         if (token.size() >= 4 && binding_text.find(token) != std::string::npos) score += 14;
     }
     return score;
+}
+
+static int material_identity_match_score(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    const int text_score = material_identity_text_match_score(binding, mesh);
+    if (binding.material_wrapper_order_authoritative && binding.material_wrapper_index >= 0 && mesh.source_submesh_index >= 0) {
+        if (binding.material_wrapper_index == mesh.source_submesh_index) {
+            if (text_score > 0 || normalized_material_key(binding.material_name).empty()) {
+                return 220 + std::min(text_score, 180);
+            }
+            return 80;
+        }
+        const std::string mesh_submesh_key = normalized_material_key(mesh.name);
+        const std::string binding_key = normalized_material_key(binding.material_name);
+        const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
+        const bool submesh_specific_match =
+            material_keys_overlap(binding_key, mesh_submesh_key)
+            || material_keys_overlap(texture_family_key, mesh_submesh_key);
+        return submesh_specific_match && text_score >= 120 ? std::min(text_score, 220) : 0;
+    }
+    return text_score;
 }
 
 static bool material_identity_requires_exact_path_match(const TextureBinding& binding, const NativeSubmesh& mesh) {
@@ -3712,11 +4069,21 @@ static const TextureBinding* best_base_binding_for_mode(
     int* selected_score = nullptr
 ) {
     const std::string mode = normalize_visible_texture_mode(job.visible_texture_mode);
+    bool has_authoritative_sidecar_base_for_mesh = false;
     bool has_non_low_authority_visible_base = false;
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty() || binding.role != "base") continue;
         if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
         if (low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name)) continue;
+        const int identity_score = material_identity_match_score(binding, mesh);
+        if (
+            binding.source_authority == "exact_sidecar"
+            && binding.material_wrapper_order_authoritative
+            && identity_score >= 300
+            && visible_class_allowed_for_mode(mode, binding.visible_class)
+        ) {
+            has_authoritative_sidecar_base_for_mesh = true;
+        }
         if (binding.source_authority == "embedded_mesh" || visible_class_allowed_for_mode(mode, binding.visible_class)) {
             has_non_low_authority_visible_base = true;
             break;
@@ -3728,17 +4095,24 @@ static const TextureBinding* best_base_binding_for_mode(
         if (binding.source_path.empty() || binding.role != "base") continue;
         if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
         const int identity_score = material_identity_match_score(binding, mesh);
-        if (binding.material_wrapper_order_authoritative && identity_score <= 0) {
+        if (binding.material_wrapper_order_authoritative && identity_score < 120) {
             continue;
         }
         const std::string binding_layer_role = lower_copy(binding.layer_role);
+        const bool authoritative_visible_base = parameter_is_authoritative_visible_base(binding.parameter_name);
         const bool layer_diffuse_candidate =
-            binding_layer_role == "detail"
-            || binding_layer_role == "grime"
-            || binding_layer_role == "damage"
-            || binding_layer_role == "layer";
+            !authoritative_visible_base
+            && (
+                binding_layer_role == "detail"
+                || binding_layer_role == "grime"
+                || binding_layer_role == "damage"
+                || binding_layer_role == "layer"
+            );
         const bool embedded = binding.source_authority == "embedded_mesh";
         const bool low_authority = low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name);
+        if (embedded && has_authoritative_sidecar_base_for_mesh) {
+            continue;
+        }
         if (low_authority && has_non_low_authority_visible_base) {
             continue;
         }
@@ -3753,6 +4127,7 @@ static const TextureBinding* best_base_binding_for_mode(
         const std::string parameter_key = normalized_key(binding.parameter_name);
         int score = material_match_score(binding, mesh, "base");
         score += visible_class_priority(binding.visible_class) * 18;
+        if (binding.source_authority == "exact_sidecar" && binding.material_wrapper_order_authoritative && identity_score >= 300) score += 260;
         if (embedded) score += mode == "sidecar_visible_first" ? 20 : 120;
         if (binding.source_authority == "exact_sidecar") score += mode == "sidecar_visible_first" ? 95 : 55;
         if (mode == "mesh_base_first") {
@@ -4364,7 +4739,9 @@ static std::vector<TextureBinding> build_material_bindings(
             binding.dds_format = dds_info.format;
             binding.parameter_name = texture_ref.parameter_name.empty() ? base : texture_ref.parameter_name;
             const std::string parameter_lower = lower_copy(binding.parameter_name);
-            if (binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))) {
+            if (binding.role == "base"
+                && !parameter_is_authoritative_visible_base(binding.parameter_name)
+                && role_is_technical_for_base(texture_role_from_name(base))) {
                 binding.role = texture_role_from_name(base);
             }
             binding.semantic_type = semantic_type_for_role(binding.role);
@@ -4405,7 +4782,9 @@ static std::vector<TextureBinding> build_material_bindings(
             binding.metalness_hint = std::clamp(scalar_parameter_hint(texture_ref.material_parameters, {"metallic", "metalness", "scratchMetallic"}, 0.0f), 0.0f, 1.0f);
             binding.specular_hint = std::clamp(scalar_parameter_hint(texture_ref.material_parameters, {"specular", "specularAmount"}, 0.0f), 0.0f, 1.0f);
             binding.height_scale_hint = std::clamp(scalar_parameter_hint(texture_ref.material_parameters, {"screenSpaceDisplacementScale", "detailScreenSpaceDisplacementScale", "heightIntensity"}, 0.0f), 0.0f, 1.0f);
-            if (binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))) {
+            if (binding.role == "base"
+                && !parameter_is_authoritative_visible_base(binding.parameter_name)
+                && role_is_technical_for_base(texture_role_from_name(base))) {
                 binding.material_output_quality = "approximate";
             } else if (technique_parameter != nullptr && !texture_ref.parameter_name.empty() && !texture_ref.material_name.empty()) {
                 binding.material_output_quality = "exact";
@@ -5207,7 +5586,11 @@ static NativePackage write_d3d11_package(
         const bool base_technical = base != nullptr && technical_for_visible_base(base->parameter_name, base->archive_path, base->role);
         const bool base_low_authority = base != nullptr && (low_authority_base_path(base->archive_path) || low_authority_base_path(base->texture_name));
         const bool base_layer_visible = base != nullptr && base->visible_class == "layer_visible";
-        const bool base_low_res = base != nullptr && base_largest_dimension > 0 && base_largest_dimension < 512 && !base_low_authority && !base_layer_visible;
+        const bool base_authoritative_small_slot =
+            base != nullptr
+            && parameter_is_authoritative_visible_base(base->parameter_name)
+            && base_identity_score >= 300;
+        const bool base_low_res = base != nullptr && base_largest_dimension > 0 && base_largest_dimension < 512 && !base_low_authority && !base_layer_visible && !base_authoritative_small_slot;
         const bool base_low_confidence = base != nullptr && base_score < 120 && base_identity_score < 72;
         if (job.use_textures && base == nullptr) {
             ++package.base_missing_count;
@@ -5389,6 +5772,10 @@ static NativePackage write_d3d11_package(
                     << "\"material_parameter_names\":\"" << json_escape(binding.material_parameter_names) << "\","
                     << "\"visible_class\":\"" << json_escape(binding.visible_class) << "\","
                     << "\"source_authority\":\"" << json_escape(binding.source_authority) << "\","
+                    << "\"material_wrapper_index\":" << binding.material_wrapper_index << ","
+                    << "\"material_wrapper_count\":" << binding.material_wrapper_count << ","
+                    << "\"material_wrapper_order_authoritative\":" << (binding.material_wrapper_order_authoritative ? "true" : "false") << ","
+                    << "\"mesh_identity_score\":" << material_identity_match_score(binding, mesh) << ","
                     << "\"relation_confidence\":\"" << json_escape(binding.relation_confidence) << "\","
                     << "\"relation_reason\":\"" << json_escape(binding.relation_reason) << "\","
                     << "\"width\":" << binding.dds_width << ","
