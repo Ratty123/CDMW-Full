@@ -73,6 +73,8 @@ class NativePreviewCoreAttempt:
             batch_count = self.diagnostics.get("batch_count")
             vertex_count = self.diagnostics.get("vertex_count")
             dds_extracted = self.diagnostics.get("dds_extracted")
+            cache_hits = self.diagnostics.get("decoded_cache_job_hits")
+            cache_misses = self.diagnostics.get("decoded_cache_job_misses")
             mesh_parser = str(self.diagnostics.get("native_mesh_parser") or "").strip()
             metrics = []
             if isinstance(batch_count, int):
@@ -81,6 +83,8 @@ class NativePreviewCoreAttempt:
                 metrics.append(f"vertices={vertex_count:,}")
             if isinstance(dds_extracted, int):
                 metrics.append(f"dds={dds_extracted:,}")
+            if isinstance(cache_hits, int) and isinstance(cache_misses, int):
+                metrics.append(f"cache={cache_hits:,}/{cache_misses:,}")
             if mesh_parser:
                 metrics.append(f"parser={mesh_parser}")
             suffix = f"; {'; '.join(metrics)}" if metrics else ""

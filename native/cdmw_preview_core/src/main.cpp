@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <optional>
 #include <regex>
@@ -18,6 +19,7 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -237,6 +239,7 @@ struct EntryJob {
     std::uint32_t flags = 0;
     fs::path output_root;
     fs::path cache_root;
+    fs::path package_root;
     int schema_version = 4;
     ArchiveEntryRef entry;
     ArchiveEntryRef companion_entry;
@@ -314,6 +317,8 @@ struct TextureBinding {
     std::string linked_mesh_path;
     std::string packed_channels;
     std::string material_output_quality = "inferred";
+    std::string srgb_mode = "auto";
+    std::string parameter_declared_by;
 };
 
 struct NativePackage {
@@ -414,6 +419,7 @@ EntryJob parse_job(const fs::path& job_path) {
     EntryJob job;
     job.output_root = fs::path(find_string_value(text, "output_root"));
     job.cache_root = fs::path(find_string_value(text, "cache_root"));
+    job.package_root = fs::path(find_string_value(text, "package_root"));
     job.schema_version = static_cast<int>(std::max<long long>(1, find_int_value(text, "schema_version", 4)));
     const std::string entry_object = find_object_value(text, "entry");
     job.entry = parse_archive_entry_ref(entry_object.empty() ? text : entry_object);
@@ -610,13 +616,24 @@ static std::vector<char> decode_archive_ref_bytes(const ArchiveEntryRef& entry, 
 static std::string archive_ref_identity(const ArchiveEntryRef& entry) {
     return entry.pamt_path.string() + "|" + entry.paz_file.string() + "|" + entry.path + "|" +
         std::to_string(entry.offset) + "|" + std::to_string(entry.comp_size) + "|" +
-        std::to_string(entry.orig_size) + "|" + std::to_string(entry.flags);
+        std::to_string(entry.orig_size) + "|" + std::to_string(entry.flags) + "|" +
+        std::to_string(entry.paz_index);
 }
 
-static std::unordered_map<std::string, std::vector<char>> g_decoded_entry_cache;
+struct DecodedEntryCacheValue {
+    std::vector<char> bytes;
+    size_t last_used = 0;
+};
+
+static std::unordered_map<std::string, DecodedEntryCacheValue> g_decoded_entry_cache;
 static size_t g_decoded_entry_cache_bytes = 0;
+static size_t g_decoded_entry_cache_clock = 0;
+static std::uint64_t g_decoded_entry_cache_hits = 0;
+static std::uint64_t g_decoded_entry_cache_misses = 0;
+static std::uint64_t g_decoded_entry_cache_evictions = 0;
 static constexpr size_t kDecodedEntryCacheMaxEntries = 1024;
 static constexpr size_t kDecodedEntryCacheMaxBytes = 512ull * 1024ull * 1024ull;
+static constexpr size_t kDecodedEntryCacheMaxSingleBytes = 64ull * 1024ull * 1024ull;
 
 static size_t decoded_entry_cache_entries() {
     return g_decoded_entry_cache.size();
@@ -626,23 +643,52 @@ static size_t decoded_entry_cache_bytes() {
     return g_decoded_entry_cache_bytes;
 }
 
+static std::uint64_t decoded_entry_cache_hits() {
+    return g_decoded_entry_cache_hits;
+}
+
+static std::uint64_t decoded_entry_cache_misses() {
+    return g_decoded_entry_cache_misses;
+}
+
+static std::uint64_t decoded_entry_cache_evictions() {
+    return g_decoded_entry_cache_evictions;
+}
+
+static void prune_decoded_entry_cache() {
+    while (
+        g_decoded_entry_cache.size() > kDecodedEntryCacheMaxEntries ||
+        g_decoded_entry_cache_bytes > kDecodedEntryCacheMaxBytes
+    ) {
+        auto oldest = g_decoded_entry_cache.end();
+        size_t oldest_tick = std::numeric_limits<size_t>::max();
+        for (auto it = g_decoded_entry_cache.begin(); it != g_decoded_entry_cache.end(); ++it) {
+            if (it->second.last_used < oldest_tick) {
+                oldest_tick = it->second.last_used;
+                oldest = it;
+            }
+        }
+        if (oldest == g_decoded_entry_cache.end()) break;
+        g_decoded_entry_cache_bytes -= oldest->second.bytes.size();
+        g_decoded_entry_cache.erase(oldest);
+        ++g_decoded_entry_cache_evictions;
+    }
+}
+
 static std::vector<char> read_archive_ref_decoded_bytes(const ArchiveEntryRef& entry) {
     const std::string key = archive_ref_identity(entry);
     auto found = g_decoded_entry_cache.find(key);
     if (found != g_decoded_entry_cache.end()) {
-        return found->second;
+        ++g_decoded_entry_cache_hits;
+        found->second.last_used = ++g_decoded_entry_cache_clock;
+        return found->second.bytes;
     }
+    ++g_decoded_entry_cache_misses;
     std::vector<char> decoded = decode_archive_ref_bytes(entry, read_archive_ref_raw_bytes(entry));
-    if (decoded.size() <= 64ull * 1024ull * 1024ull) {
-        if (
-            g_decoded_entry_cache.size() >= kDecodedEntryCacheMaxEntries ||
-            g_decoded_entry_cache_bytes + decoded.size() > kDecodedEntryCacheMaxBytes
-        ) {
-            g_decoded_entry_cache.clear();
-            g_decoded_entry_cache_bytes = 0;
-        }
+    if (decoded.size() <= kDecodedEntryCacheMaxSingleBytes) {
         g_decoded_entry_cache_bytes += decoded.size();
-        g_decoded_entry_cache.emplace(key, decoded);
+        g_decoded_entry_cache.emplace(key, DecodedEntryCacheValue{decoded, ++g_decoded_entry_cache_clock});
+        prune_decoded_entry_cache();
     }
     return decoded;
 }
@@ -2139,6 +2185,179 @@ static std::string xml_attr_value(const std::string& text, std::initializer_list
     return "";
 }
 
+struct TechniqueParameterInfo {
+    std::string name;
+    std::string type;
+    std::string srgb;
+    std::string default_value;
+    bool declared = false;
+};
+
+struct TechniqueIndex {
+    std::unordered_map<std::string, TechniqueParameterInfo> parameters_by_name;
+    std::set<std::string> technique_names;
+    int files_scanned = 0;
+    int parameters = 0;
+    int texture_parameters = 0;
+};
+
+static void add_technique_parameter(TechniqueIndex& index, const std::string& tag) {
+    TechniqueParameterInfo info;
+    info.name = xml_attr_value(tag, {"Name", "_name"});
+    if (info.name.empty()) return;
+    info.type = xml_attr_value(tag, {"Type", "_type"});
+    info.srgb = xml_attr_value(tag, {"sRGB", "SRGB", "Srgb"});
+    info.default_value = xml_attr_value(tag, {"DefaultValue", "Value", "_defaultValue"});
+    info.declared = true;
+    ++index.parameters;
+    const std::string key = lower_copy(info.name);
+    const std::string type_lower = lower_copy(info.type);
+    if (type_lower.find("texture") != std::string::npos || key.find("texture") != std::string::npos) {
+        ++index.texture_parameters;
+    }
+    auto found = index.parameters_by_name.find(key);
+    if (found == index.parameters_by_name.end()) {
+        index.parameters_by_name.emplace(key, info);
+    } else {
+        if (found->second.srgb.empty()) found->second.srgb = info.srgb;
+        if (found->second.type.empty()) found->second.type = info.type;
+        if (found->second.default_value.empty()) found->second.default_value = info.default_value;
+    }
+}
+
+static TechniqueIndex build_technique_index_for_pamt(const PamtIndex& pamt_index) {
+    TechniqueIndex index;
+    const std::regex technique_tag_pattern("<Technique\\b[^>]*>", std::regex_constants::icase);
+    const std::regex parameter_tag_pattern("<Parameter\\b[^>]*(?:/>|>[\\s\\S]*?</Parameter\\s*>)", std::regex_constants::icase);
+    for (const ArchiveEntryRef& ref : pamt_index.material_sidecars) {
+        if (ref.extension != ".technique" && ref.extension != ".material") continue;
+        std::vector<char> bytes;
+        try {
+            bytes = read_archive_ref_decoded_bytes(ref);
+        } catch (...) {
+            continue;
+        }
+        ++index.files_scanned;
+        const std::string text(bytes.begin(), bytes.end());
+        auto technique_begin = std::sregex_iterator(text.begin(), text.end(), technique_tag_pattern);
+        auto technique_end = std::sregex_iterator();
+        for (auto it = technique_begin; it != technique_end; ++it) {
+            const std::string name = xml_attr_value(it->str(), {"Name"});
+            if (!name.empty()) index.technique_names.insert(name);
+        }
+        auto parameter_begin = std::sregex_iterator(text.begin(), text.end(), parameter_tag_pattern);
+        auto parameter_end = std::sregex_iterator();
+        for (auto it = parameter_begin; it != parameter_end; ++it) {
+            add_technique_parameter(index, it->str());
+        }
+    }
+    return index;
+}
+
+static void merge_technique_index(TechniqueIndex& destination, const TechniqueIndex& source) {
+    destination.files_scanned += source.files_scanned;
+    destination.parameters += source.parameters;
+    destination.texture_parameters += source.texture_parameters;
+    destination.technique_names.insert(source.technique_names.begin(), source.technique_names.end());
+    for (const auto& [key, value] : source.parameters_by_name) {
+        auto found = destination.parameters_by_name.find(key);
+        if (found == destination.parameters_by_name.end()) {
+            destination.parameters_by_name.emplace(key, value);
+        } else {
+            if (found->second.srgb.empty()) found->second.srgb = value.srgb;
+            if (found->second.type.empty()) found->second.type = value.type;
+            if (found->second.default_value.empty()) found->second.default_value = value.default_value;
+        }
+    }
+}
+
+static const TechniqueIndex& cached_technique_index(const PamtIndex& pamt_index) {
+    static std::map<std::string, TechniqueIndex> cache;
+    const std::string key = fs::absolute(pamt_index.pamt_path).string();
+    auto it = cache.find(key);
+    if (it == cache.end()) {
+        it = cache.emplace(key, build_technique_index_for_pamt(pamt_index)).first;
+    }
+    return it->second;
+}
+
+static std::vector<fs::path> package_root_pamt_paths(const fs::path& package_root) {
+    std::vector<fs::path> paths;
+    if (package_root.empty()) return paths;
+    std::error_code ec;
+    if (fs::is_regular_file(package_root, ec) && package_root.extension() == ".pamt") {
+        paths.push_back(package_root);
+        return paths;
+    }
+    if (!fs::is_directory(package_root, ec)) return paths;
+    for (const fs::directory_entry& root_entry : fs::directory_iterator(package_root, ec)) {
+        if (ec) break;
+        if (root_entry.is_regular_file(ec) && root_entry.path().extension() == ".pamt") {
+            paths.push_back(root_entry.path());
+        } else if (root_entry.is_directory(ec)) {
+            std::error_code inner_ec;
+            for (const fs::directory_entry& child : fs::directory_iterator(root_entry.path(), inner_ec)) {
+                if (inner_ec) break;
+                if (child.is_regular_file(inner_ec) && child.path().extension() == ".pamt") {
+                    paths.push_back(child.path());
+                }
+            }
+        }
+        if (paths.size() >= 64) break;
+    }
+    std::sort(paths.begin(), paths.end());
+    paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
+    return paths;
+}
+
+static const TechniqueIndex& cached_package_technique_index(
+    const EntryJob& job,
+    const PamtIndex& primary_index
+) {
+    if (job.package_root.empty()) {
+        return cached_technique_index(primary_index);
+    }
+    static std::map<std::string, TechniqueIndex> cache;
+    const std::string key = fs::absolute(job.package_root).string();
+    auto found = cache.find(key);
+    if (found != cache.end()) return found->second;
+    TechniqueIndex combined;
+    std::set<std::string> seen_pamts;
+    merge_technique_index(combined, cached_technique_index(primary_index));
+    seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
+    for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
+        const std::string pamt_key = fs::absolute(pamt_path).string();
+        if (!seen_pamts.insert(pamt_key).second) continue;
+        try {
+            merge_technique_index(combined, cached_technique_index(cached_pamt_index(pamt_path)));
+        } catch (...) {
+        }
+    }
+    return cache.emplace(key, std::move(combined)).first->second;
+}
+
+static const TechniqueParameterInfo* technique_parameter_for_name(
+    const TechniqueIndex& index,
+    const std::string& parameter_name
+) {
+    if (parameter_name.empty()) return nullptr;
+    auto found = index.parameters_by_name.find(lower_copy(parameter_name));
+    if (found == index.parameters_by_name.end()) return nullptr;
+    return &found->second;
+}
+
+static std::string srgb_mode_for_role(
+    const std::string& role,
+    const TechniqueParameterInfo* technique_parameter
+) {
+    if (technique_parameter != nullptr && !technique_parameter->srgb.empty()) {
+        const std::string srgb = lower_copy(technique_parameter->srgb);
+        if (srgb == "true" || srgb == "1" || srgb == "yes") return "srgb";
+        if (srgb == "false" || srgb == "0" || srgb == "no") return "linear";
+    }
+    return role == "base" ? "srgb" : "linear";
+}
+
 static void add_sidecar_texture_ref(
     std::vector<SidecarTextureRef>& refs,
     std::set<std::string>& seen,
@@ -2428,10 +2647,25 @@ static std::string packed_channels_for_role(const std::string& role, const std::
 static std::string role_from_parameter_shader_and_name(
     const std::string& parameter_name,
     const std::string& shader_rule,
-    const std::string& texture_name
+    const std::string& texture_name,
+    const TechniqueParameterInfo* technique_parameter = nullptr
 ) {
     const std::string p = lower_copy(parameter_name);
     const std::string t = lower_copy(texture_name);
+    if (technique_parameter != nullptr && technique_parameter->declared) {
+        const std::string declared_type = lower_copy(technique_parameter->type);
+        const std::string declared_default = lower_copy(technique_parameter->default_value);
+        const bool declared_texture = declared_type.find("texture") != std::string::npos || p.find("texture") != std::string::npos;
+        if (declared_texture) {
+            if (p.find("normal") != std::string::npos || declared_default.find("0xff7f7f00") != std::string::npos) return "normal";
+            if (p.find("height") != std::string::npos || p.find("displacement") != std::string::npos || p.find("disp") != std::string::npos) return "height";
+            if (p.find("specular") != std::string::npos || p.find("gloss") != std::string::npos || p.find("smoothness") != std::string::npos) return "specular";
+            if (p.find("basecolor") != std::string::npos || p.find("diffuse") != std::string::npos || p.find("albedo") != std::string::npos) return "base";
+            if (p.find("overlaycolor") != std::string::npos || p.find("layerbasecolor") != std::string::npos || p.find("layercolor") != std::string::npos) return "base";
+            if (p.find("mask") != std::string::npos && (p.find("detail") != std::string::npos || p.find("blend") != std::string::npos || p.find("layer") != std::string::npos)) return "detail";
+            if (p.find("material") != std::string::npos || p.find("colorblendingmask") != std::string::npos || p == "_masktexture") return "material";
+        }
+    }
     if (p.find("normal") != std::string::npos || p == "n" || t.find("_n.dds") != std::string::npos) return "normal";
     if (p.find("height") != std::string::npos || p.find("displacement") != std::string::npos || p.find("disp") != std::string::npos || t.find("_disp.dds") != std::string::npos) return "height";
     if (p.find("specular") != std::string::npos || p.find("_sp") != std::string::npos || t.find("_sp.dds") != std::string::npos) return "specular";
@@ -2564,6 +2798,14 @@ static std::vector<TextureBinding> build_material_bindings(
         package.notes.push_back("native material index: no matching .pac_xml/.pam_xml/.pamlod_xml/.pami/.material/.technique/.prefab sidecar");
         return bindings;
     }
+    const TechniqueIndex& technique_index = cached_package_technique_index(job, index);
+    if (technique_index.files_scanned > 0) {
+        package.notes.push_back(
+            "native technique index: files=" + std::to_string(technique_index.files_scanned) +
+            "; techniques=" + std::to_string(technique_index.technique_names.size()) +
+            "; texture_params=" + std::to_string(technique_index.texture_parameters)
+        );
+    }
     std::vector<std::string> notes;
     std::set<std::string> seen_bindings;
     std::set<std::string> sidecar_kinds;
@@ -2630,8 +2872,9 @@ static std::vector<TextureBinding> build_material_bindings(
             std::string shader_family = texture_ref.shader_family.empty() ? sidecar_shader_family : texture_ref.shader_family;
             if (shader_family.empty() && sidecar.extension == ".pami") shader_family = "StaticMaterial";
             const std::string shader_rule = shader_rule_for_family(shader_family);
+            const TechniqueParameterInfo* technique_parameter = technique_parameter_for_name(technique_index, texture_ref.parameter_name);
             TextureBinding binding;
-            binding.role = role_from_parameter_shader_and_name(texture_ref.parameter_name, shader_rule, base);
+            binding.role = role_from_parameter_shader_and_name(texture_ref.parameter_name, shader_rule, base, technique_parameter);
             binding.source_path = extracted;
             binding.archive_path = selected->path;
             binding.texture_name = selected->basename;
@@ -2649,8 +2892,12 @@ static std::vector<TextureBinding> build_material_bindings(
             binding.sidecar_kind = sidecar.extension;
             binding.linked_mesh_path = parameter_summary.linked_mesh_path;
             binding.packed_channels = packed_channels_for_role(binding.role, base, parameter_lower);
+            binding.srgb_mode = srgb_mode_for_role(binding.role, technique_parameter);
+            binding.parameter_declared_by = technique_parameter != nullptr ? "technique" : "";
             if (binding.role == "base" && role_is_technical_for_base(texture_role_from_name(base))) {
                 binding.material_output_quality = "approximate";
+            } else if (technique_parameter != nullptr && !texture_ref.parameter_name.empty() && !texture_ref.material_name.empty()) {
+                binding.material_output_quality = "exact";
             } else if (!texture_ref.parameter_name.empty() && !texture_ref.material_name.empty()) {
                 binding.material_output_quality = "exact";
             } else {
@@ -2829,6 +3076,8 @@ static std::string dds_entry_json(const TextureBinding* binding, const std::stri
         << "\"sidecar_kind\":\"" << json_escape(binding->sidecar_kind) << "\","
         << "\"linked_mesh_path\":\"" << json_escape(binding->linked_mesh_path) << "\","
         << "\"packed_channels\":\"" << json_escape(binding->packed_channels) << "\","
+        << "\"srgb_mode\":\"" << json_escape(binding->srgb_mode) << "\","
+        << "\"parameter_declared_by\":\"" << json_escape(binding->parameter_declared_by) << "\","
         << "\"material_output_quality\":\"" << json_escape(binding->material_output_quality) << "\","
         << "\"available\":true,"
         << "\"direct_upload_candidate\":true"
@@ -3030,6 +3279,8 @@ static NativePackage write_d3d11_package(
                     << "\"sidecar_kind\":\"" << json_escape(binding.sidecar_kind) << "\","
                     << "\"linked_mesh_path\":\"" << json_escape(binding.linked_mesh_path) << "\","
                     << "\"packed_channels\":\"" << json_escape(binding.packed_channels) << "\","
+                    << "\"srgb_mode\":\"" << json_escape(binding.srgb_mode) << "\","
+                    << "\"parameter_declared_by\":\"" << json_escape(binding.parameter_declared_by) << "\","
                     << "\"material_output_quality\":\"" << json_escape(binding.material_output_quality) << "\","
                     << "\"available\":true,"
                     << "\"direct_upload_candidate\":true"
@@ -3135,6 +3386,9 @@ std::string preview_report_for_job(const fs::path& job_path) {
     const int compression_type = static_cast<int>(job.flags & 0x0F);
     bool raw_read_ok = false;
     NativePackage package;
+    const std::uint64_t cache_hits_before = decoded_entry_cache_hits();
+    const std::uint64_t cache_misses_before = decoded_entry_cache_misses();
+    const std::uint64_t cache_evictions_before = decoded_entry_cache_evictions();
     try {
         fs::create_directories(job.output_root);
         fs::create_directories(job.cache_root);
@@ -3195,6 +3449,12 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"dds_extracted\":" << package.dds_extracted << ","
         << "\"decoded_cache_entries\":" << decoded_entry_cache_entries() << ","
         << "\"decoded_cache_bytes\":" << decoded_entry_cache_bytes() << ","
+        << "\"decoded_cache_hits\":" << decoded_entry_cache_hits() << ","
+        << "\"decoded_cache_misses\":" << decoded_entry_cache_misses() << ","
+        << "\"decoded_cache_evictions\":" << decoded_entry_cache_evictions() << ","
+        << "\"decoded_cache_job_hits\":" << (decoded_entry_cache_hits() - cache_hits_before) << ","
+        << "\"decoded_cache_job_misses\":" << (decoded_entry_cache_misses() - cache_misses_before) << ","
+        << "\"decoded_cache_job_evictions\":" << (decoded_entry_cache_evictions() - cache_evictions_before) << ","
         << "\"elapsed_ms\":" << elapsed_ms << ","
         << "\"package_path\":\"" << json_escape(status == "ok" ? package.path.string() : "") << "\","
         << "\"fallback_reason\":\"" << json_escape(fallback_reason) << "\","

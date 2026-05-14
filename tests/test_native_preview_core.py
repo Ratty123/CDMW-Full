@@ -65,6 +65,8 @@ class NativePreviewCoreTests(unittest.TestCase):
                         "status": "ok",
                         "package_path": "C:/cache/native/package_001",
                         "backend": "cdmw_preview_core_0.1",
+                        "decoded_cache_job_hits": 2,
+                        "decoded_cache_job_misses": 1,
                     }
                 ),
                 encoding="utf-8",
@@ -87,6 +89,7 @@ class NativePreviewCoreTests(unittest.TestCase):
 
         self.assertTrue(attempt.succeeded)
         self.assertEqual("C:/cache/native/package_001", attempt.package_path)
+        self.assertIn("cache=2/1", attempt.diagnostic_line())
 
     def test_native_preview_core_is_bundled_and_archive_worker_attempts_it(self) -> None:
         spec_text = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
@@ -112,6 +115,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("role_from_parameter_shader_and_name", source_text)
         self.assertIn("packed_channels_for_role", source_text)
         self.assertIn("material_output_quality", source_text)
+        self.assertIn("decoded_cache_job_hits", source_text)
+        self.assertIn("prune_decoded_entry_cache", source_text)
         self.assertIn("_get_native_preview_core_service", Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8"))
 
     def test_archive_preview_worker_owns_native_preview_core_helpers(self) -> None:
@@ -158,6 +163,19 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("native material inputs scoped to this batch", source)
         self.assertIn('p.find("colorblendingmask")', source)
         self.assertIn('material_output_quality = "exact"', source)
+
+    def test_native_material_index_reads_technique_parameter_declarations(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("struct TechniqueParameterInfo", source)
+        self.assertIn("cached_technique_index", source)
+        self.assertIn("cached_package_technique_index", source)
+        self.assertIn("package_root_pamt_paths", source)
+        self.assertIn("technique_parameter_for_name", source)
+        self.assertIn("srgb_mode_for_role", source)
+        self.assertIn("srgb_mode", source)
+        self.assertIn("parameter_declared_by", source)
+        self.assertIn("native technique index: files=", source)
 
 
 if __name__ == "__main__":
