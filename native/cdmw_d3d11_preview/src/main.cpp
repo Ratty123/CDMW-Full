@@ -143,6 +143,8 @@ struct PreviewBatch {
     int material_layer_count = 0;
     int source_submesh_index = -1;
     std::wstring identity_file;
+    std::string editor_role;
+    bool editor_editable = true;
     float highlight_strength = 0.0f;
     std::vector<DirectX::XMFLOAT3> cpu_positions;
     std::vector<int> cpu_source_submeshes;
@@ -221,6 +223,20 @@ struct SourcePartInteractionState {
 struct ScreenPoint {
     float x = 0.0f;
     float y = 0.0f;
+};
+
+enum class PreviewViewRole {
+    All,
+    Reference,
+    Replacement,
+};
+
+struct PreviewRenderView {
+    D3D11_VIEWPORT viewport{};
+    PreviewViewRole role = PreviewViewRole::All;
+    bool wireframe = false;
+    bool no_depth = false;
+    float reference_tint_alpha = 0.0f;
 };
 
 struct ConstantBuffer {
@@ -976,6 +992,8 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         std::string editor_identity = json_object_field(object, "editor_identity");
         batch.source_submesh_index = json_int_field(editor_identity, "source_submesh_index", -1);
         batch.identity_file = absolute_from_manifest_path(package_dir, json_string_field(editor_identity, "identity_file"));
+        batch.editor_role = lower_copy(json_string_field(editor_identity, "role"));
+        batch.editor_editable = json_bool_field(editor_identity, "editable", batch.source_submesh_index >= 0);
         if (!batch.base_dds.empty()) increment_slot(stats.dds_candidates, "base");
         if (!batch.normal_dds.empty()) increment_slot(stats.dds_candidates, "normal");
         if (!batch.material_dds.empty()) increment_slot(stats.dds_candidates, "material");
@@ -1769,139 +1787,13 @@ public:
         context_->OMSetRenderTargets(1, render_target_.GetAddressOf(), depth_view_.Get());
         context_->ClearRenderTargetView(render_target_.Get(), clear);
         context_->ClearDepthStencilView(depth_view_.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
-        D3D11_VIEWPORT viewport{};
-        viewport.Width = static_cast<float>(width_);
-        viewport.Height = static_cast<float>(height_);
-        viewport.MinDepth = 0.0f;
-        viewport.MaxDepth = 1.0f;
-        context_->RSSetViewports(1, &viewport);
         context_->IASetInputLayout(input_layout_.Get());
         context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         context_->VSSetShader(vertex_shader_.Get(), nullptr, 0);
         context_->PSSetShader(pixel_shader_.Get(), nullptr, 0);
         context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
-        context_->RSSetState(rasterizer_.Get());
-        context_->OMSetDepthStencilState(depth_state_.Get(), 0);
-
-        DirectX::XMMATRIX world = DirectX::XMMatrixRotationRollPitchYaw(
-                DirectX::XMConvertToRadians(pitch_),
-                DirectX::XMConvertToRadians(yaw_),
-                0.0f)
-            * DirectX::XMMatrixTranslation(pan_x_, pan_y_, pan_z_);
-        DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(
-            DirectX::XMVectorSet(0.0f, 0.0f, -distance_, 1.0f),
-            DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
-            DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-        DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(
-            DirectX::XMConvertToRadians(kVerticalFovDegrees),
-            static_cast<float>(width_) / std::max(1.0f, static_cast<float>(height_)),
-            0.05f,
-            100.0f);
-        DirectX::XMMATRIX mvp = world * view * projection;
-
-        for (PreviewBatch& batch : batches_) {
-            if (!batch.vertex_buffer || batch.vertex_count <= 0) continue;
-            UINT stride = kVertexStrideBytes;
-            UINT offset = 0;
-            context_->IASetVertexBuffers(0, 1, batch.vertex_buffer.GetAddressOf(), &stride, &offset);
-            ConstantBuffer constants{};
-            DirectX::XMStoreFloat4x4(&constants.mvp, mvp);
-            constants.light_dir = DirectX::XMFLOAT4(-0.35f, 0.45f, -0.82f, 0.0f);
-            constants.base_color_flip = DirectX::XMFLOAT4(batch.base_color[0], batch.base_color[1], batch.base_color[2], batch.flip_v ? 1.0f : 0.0f);
-            constants.flags = DirectX::XMFLOAT4(
-                batch.base_srv ? 1.0f : 0.0f,
-                batch.normal_srv ? 1.0f : 0.0f,
-                batch.material_srv ? 1.0f : 0.0f,
-                batch.height_srv ? 1.0f : 0.0f);
-            constants.flags2 = DirectX::XMFLOAT4(
-                batch.occlusion_srv ? 1.0f : 0.0f,
-                batch.roughness_srv ? 1.0f : 0.0f,
-                batch.metalness_srv ? 1.0f : 0.0f,
-                batch.specular_srv ? 1.0f : 0.0f);
-            constants.material_params = DirectX::XMFLOAT4(
-                batch.normal_strength,
-                batch.height_amount,
-                0.0f,
-                0.0f);
-            constants.material_hints = DirectX::XMFLOAT4(
-                batch.roughness_hint,
-                batch.metalness_hint,
-                batch.specular_hint,
-                batch.height_scale_hint);
-            constants.flags3 = DirectX::XMFLOAT4(
-                batch.detail_srv ? 1.0f : 0.0f,
-                batch.invert_normal_y ? 1.0f : 0.0f,
-                batch.alpha_cutout ? 1.0f : 0.0f,
-                batch.alpha_threshold);
-            constants.render_tuning = DirectX::XMFLOAT4(
-                render_tuning_.ambient_strength,
-                render_tuning_.diffuse_light_scale,
-                render_tuning_.specular_base,
-                render_tuning_.specular_max);
-            constants.render_tuning2 = DirectX::XMFLOAT4(
-                render_tuning_.shininess_min,
-                render_tuning_.shininess_max,
-                0.0f,
-                0.0f);
-            constants.editor_tint = DirectX::XMFLOAT4(
-                1.0f,
-                0.72f,
-                0.18f,
-                std::clamp(batch.highlight_strength, 0.0f, 0.42f));
-            constants.flags4 = DirectX::XMFLOAT4(
-                batch.material_layer_count > 0 ? 1.0f : 0.0f,
-                static_cast<float>(render_tuning_.diagnostic_mode),
-                static_cast<float>(std::max(0, batch.source_submesh_index + 1)),
-                0.0f);
-            for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
-                const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
-                constants.layer_flags[layer_index] = DirectX::XMFLOAT4(
-                    layer.diffuse_srv ? 1.0f : 0.0f,
-                    layer.mask_srv ? 1.0f : 0.0f,
-                    layer.material_srv ? 1.0f : 0.0f,
-                    layer.normal_srv ? 1.0f : 0.0f);
-                constants.layer_params[layer_index] = DirectX::XMFLOAT4(
-                    layer.channel_index,
-                    std::clamp(layer.weight, 0.0f, 1.0f),
-                    layer.height_srv ? 1.0f : 0.0f,
-                    0.0f);
-                constants.layer_tint[layer_index] = DirectX::XMFLOAT4(
-                    layer.tint[0],
-                    layer.tint[1],
-                    layer.tint[2],
-                    layer.tint[3]);
-                constants.layer_hints[layer_index] = DirectX::XMFLOAT4(
-                    layer.roughness_hint,
-                    layer.metalness_hint,
-                    layer.specular_hint,
-                    layer.height_srv ? std::max(layer.height_scale_hint, 0.02f) : 0.0f);
-            }
-            context_->UpdateSubresource(constants_.Get(), 0, nullptr, &constants, 0, 0);
-            context_->VSSetConstantBuffers(0, 1, constants_.GetAddressOf());
-            context_->PSSetConstantBuffers(0, 1, constants_.GetAddressOf());
-            ID3D11ShaderResourceView* srvs[kTotalSrvCount] = {
-                batch.base_srv.Get(),
-                batch.normal_srv.Get(),
-                batch.material_srv.Get(),
-                batch.occlusion_srv.Get(),
-                batch.roughness_srv.Get(),
-                batch.metalness_srv.Get(),
-                batch.specular_srv.Get(),
-                batch.height_srv.Get(),
-                batch.detail_srv.Get(),
-            };
-            for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
-                const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
-                srvs[9 + layer_index] = layer.diffuse_srv.Get();
-                srvs[13 + layer_index] = layer.mask_srv.Get();
-                srvs[17 + layer_index] = layer.material_srv.Get();
-                srvs[21 + layer_index] = layer.normal_srv.Get();
-                srvs[25 + layer_index] = layer.height_srv.Get();
-            }
-            context_->PSSetShaderResources(0, kTotalSrvCount, srvs);
-            context_->Draw(static_cast<UINT>(batch.vertex_count), 0);
-            ID3D11ShaderResourceView* clear_srvs[kTotalSrvCount] = {};
-            context_->PSSetShaderResources(0, kTotalSrvCount, clear_srvs);
+        for (const PreviewRenderView& view : active_render_views()) {
+            draw_render_view(view);
         }
         swap_chain_->Present(1, 0);
         draw_alignment_overlay_gdi();
@@ -1935,6 +1827,226 @@ public:
     }
 
 private:
+    bool batch_is_reference(const PreviewBatch& batch) const {
+        std::string role = lower_copy(batch.editor_role);
+        return role.find("original") != std::string::npos
+            || role.find("reference") != std::string::npos
+            || (!batch.editor_editable && batch.source_submesh_index < 0 && !role.empty());
+    }
+
+    bool has_reference_batches() const {
+        for (const PreviewBatch& batch : batches_) {
+            if (batch_is_reference(batch)) return true;
+        }
+        return false;
+    }
+
+    static D3D11_VIEWPORT viewport_rect(float x, float y, float width, float height) {
+        D3D11_VIEWPORT viewport{};
+        viewport.TopLeftX = std::max(0.0f, x);
+        viewport.TopLeftY = std::max(0.0f, y);
+        viewport.Width = std::max(1.0f, width);
+        viewport.Height = std::max(1.0f, height);
+        viewport.MinDepth = 0.0f;
+        viewport.MaxDepth = 1.0f;
+        return viewport;
+    }
+
+    D3D11_VIEWPORT full_viewport() const {
+        return viewport_rect(0.0f, 0.0f, static_cast<float>(std::max<LONG>(1, width_)), static_cast<float>(std::max<LONG>(1, height_)));
+    }
+
+    D3D11_VIEWPORT replacement_editor_viewport() const {
+        if (display_mode_ == "side_by_side" && has_reference_batches() && width_ > 4) {
+            const float left_width = std::floor(static_cast<float>(width_) * 0.5f);
+            return viewport_rect(left_width + 1.0f, 0.0f, static_cast<float>(width_) - left_width - 1.0f, static_cast<float>(height_));
+        }
+        return full_viewport();
+    }
+
+    std::vector<PreviewRenderView> active_render_views() const {
+        std::vector<PreviewRenderView> views;
+        const bool has_reference = has_reference_batches();
+        if (display_mode_ == "side_by_side" && has_reference && width_ > 4) {
+            const float left_width = std::floor(static_cast<float>(width_) * 0.5f);
+            PreviewRenderView left;
+            left.viewport = viewport_rect(0.0f, 0.0f, left_width, static_cast<float>(height_));
+            left.role = PreviewViewRole::Reference;
+            left.reference_tint_alpha = 0.18f;
+            views.push_back(left);
+            PreviewRenderView right;
+            right.viewport = viewport_rect(left_width + 1.0f, 0.0f, static_cast<float>(width_) - left_width - 1.0f, static_cast<float>(height_));
+            right.role = PreviewViewRole::Replacement;
+            views.push_back(right);
+            return views;
+        }
+        if (display_mode_ == "overlay" && has_reference) {
+            PreviewRenderView replacement;
+            replacement.viewport = full_viewport();
+            replacement.role = PreviewViewRole::Replacement;
+            views.push_back(replacement);
+            PreviewRenderView reference_overlay;
+            reference_overlay.viewport = full_viewport();
+            reference_overlay.role = PreviewViewRole::Reference;
+            reference_overlay.wireframe = true;
+            reference_overlay.no_depth = true;
+            reference_overlay.reference_tint_alpha = 0.72f;
+            views.push_back(reference_overlay);
+            return views;
+        }
+        PreviewRenderView only;
+        only.viewport = full_viewport();
+        only.role = (display_mode_ == "replacement_only" && has_reference) ? PreviewViewRole::Replacement : PreviewViewRole::All;
+        views.push_back(only);
+        return views;
+    }
+
+    bool batch_visible_in_view(const PreviewBatch& batch, PreviewViewRole role) const {
+        if (role == PreviewViewRole::All) return true;
+        const bool reference = batch_is_reference(batch);
+        if (role == PreviewViewRole::Reference) return reference;
+        if (role == PreviewViewRole::Replacement) return !reference;
+        return true;
+    }
+
+    DirectX::XMMATRIX view_projection_matrix_for_viewport(const D3D11_VIEWPORT& viewport) const {
+        DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(
+            DirectX::XMVectorSet(0.0f, 0.0f, -distance_, 1.0f),
+            DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
+            DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+        DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(
+            DirectX::XMConvertToRadians(kVerticalFovDegrees),
+            std::max(1.0f, viewport.Width) / std::max(1.0f, viewport.Height),
+            0.05f,
+            100.0f);
+        return view * projection;
+    }
+
+    void draw_preview_batch(PreviewBatch& batch, const DirectX::XMMATRIX& mvp, const DirectX::XMFLOAT4& editor_tint) {
+        if (!batch.vertex_buffer || batch.vertex_count <= 0) return;
+        UINT stride = kVertexStrideBytes;
+        UINT offset = 0;
+        context_->IASetVertexBuffers(0, 1, batch.vertex_buffer.GetAddressOf(), &stride, &offset);
+        ConstantBuffer constants{};
+        DirectX::XMStoreFloat4x4(&constants.mvp, mvp);
+        constants.light_dir = DirectX::XMFLOAT4(-0.35f, 0.45f, -0.82f, 0.0f);
+        constants.base_color_flip = DirectX::XMFLOAT4(batch.base_color[0], batch.base_color[1], batch.base_color[2], batch.flip_v ? 1.0f : 0.0f);
+        constants.flags = DirectX::XMFLOAT4(
+            batch.base_srv ? 1.0f : 0.0f,
+            batch.normal_srv ? 1.0f : 0.0f,
+            batch.material_srv ? 1.0f : 0.0f,
+            batch.height_srv ? 1.0f : 0.0f);
+        constants.flags2 = DirectX::XMFLOAT4(
+            batch.occlusion_srv ? 1.0f : 0.0f,
+            batch.roughness_srv ? 1.0f : 0.0f,
+            batch.metalness_srv ? 1.0f : 0.0f,
+            batch.specular_srv ? 1.0f : 0.0f);
+        constants.material_params = DirectX::XMFLOAT4(
+            batch.normal_strength,
+            batch.height_amount,
+            0.0f,
+            0.0f);
+        constants.material_hints = DirectX::XMFLOAT4(
+            batch.roughness_hint,
+            batch.metalness_hint,
+            batch.specular_hint,
+            batch.height_scale_hint);
+        constants.flags3 = DirectX::XMFLOAT4(
+            batch.detail_srv ? 1.0f : 0.0f,
+            batch.invert_normal_y ? 1.0f : 0.0f,
+            batch.alpha_cutout ? 1.0f : 0.0f,
+            batch.alpha_threshold);
+        constants.render_tuning = DirectX::XMFLOAT4(
+            render_tuning_.ambient_strength,
+            render_tuning_.diffuse_light_scale,
+            render_tuning_.specular_base,
+            render_tuning_.specular_max);
+        constants.render_tuning2 = DirectX::XMFLOAT4(
+            render_tuning_.shininess_min,
+            render_tuning_.shininess_max,
+            0.0f,
+            0.0f);
+        constants.editor_tint = editor_tint;
+        constants.flags4 = DirectX::XMFLOAT4(
+            batch.material_layer_count > 0 ? 1.0f : 0.0f,
+            static_cast<float>(render_tuning_.diagnostic_mode),
+            static_cast<float>(std::max(0, batch.source_submesh_index + 1)),
+            0.0f);
+        for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
+            const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
+            constants.layer_flags[layer_index] = DirectX::XMFLOAT4(
+                layer.diffuse_srv ? 1.0f : 0.0f,
+                layer.mask_srv ? 1.0f : 0.0f,
+                layer.material_srv ? 1.0f : 0.0f,
+                layer.normal_srv ? 1.0f : 0.0f);
+            constants.layer_params[layer_index] = DirectX::XMFLOAT4(
+                layer.channel_index,
+                std::clamp(layer.weight, 0.0f, 1.0f),
+                layer.height_srv ? 1.0f : 0.0f,
+                0.0f);
+            constants.layer_tint[layer_index] = DirectX::XMFLOAT4(
+                layer.tint[0],
+                layer.tint[1],
+                layer.tint[2],
+                layer.tint[3]);
+            constants.layer_hints[layer_index] = DirectX::XMFLOAT4(
+                layer.roughness_hint,
+                layer.metalness_hint,
+                layer.specular_hint,
+                layer.height_srv ? std::max(layer.height_scale_hint, 0.02f) : 0.0f);
+        }
+        context_->UpdateSubresource(constants_.Get(), 0, nullptr, &constants, 0, 0);
+        context_->VSSetConstantBuffers(0, 1, constants_.GetAddressOf());
+        context_->PSSetConstantBuffers(0, 1, constants_.GetAddressOf());
+        ID3D11ShaderResourceView* srvs[kTotalSrvCount] = {
+            batch.base_srv.Get(),
+            batch.normal_srv.Get(),
+            batch.material_srv.Get(),
+            batch.occlusion_srv.Get(),
+            batch.roughness_srv.Get(),
+            batch.metalness_srv.Get(),
+            batch.specular_srv.Get(),
+            batch.height_srv.Get(),
+            batch.detail_srv.Get(),
+        };
+        for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
+            const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
+            srvs[9 + layer_index] = layer.diffuse_srv.Get();
+            srvs[13 + layer_index] = layer.mask_srv.Get();
+            srvs[17 + layer_index] = layer.material_srv.Get();
+            srvs[21 + layer_index] = layer.normal_srv.Get();
+            srvs[25 + layer_index] = layer.height_srv.Get();
+        }
+        context_->PSSetShaderResources(0, kTotalSrvCount, srvs);
+        context_->Draw(static_cast<UINT>(batch.vertex_count), 0);
+        ID3D11ShaderResourceView* clear_srvs[kTotalSrvCount] = {};
+        context_->PSSetShaderResources(0, kTotalSrvCount, clear_srvs);
+    }
+
+    void draw_render_view(const PreviewRenderView& view) {
+        context_->RSSetViewports(1, &view.viewport);
+        context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : rasterizer_.Get());
+        context_->OMSetDepthStencilState(view.no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
+        const DirectX::XMMATRIX mvp = current_world_matrix() * view_projection_matrix_for_viewport(view.viewport);
+        for (PreviewBatch& batch : batches_) {
+            if (!batch_visible_in_view(batch, view.role)) continue;
+            const bool reference = batch_is_reference(batch);
+            DirectX::XMFLOAT4 tint(
+                1.0f,
+                0.72f,
+                0.18f,
+                std::clamp(batch.highlight_strength, 0.0f, 0.42f));
+            if (reference) {
+                tint = DirectX::XMFLOAT4(
+                    0.36f,
+                    0.58f,
+                    1.0f,
+                    std::max(view.reference_tint_alpha, std::clamp(batch.highlight_strength, 0.0f, 0.42f)));
+            }
+            draw_preview_batch(batch, mvp, tint);
+        }
+    }
+
     void update_runtime_stats() {
         stats_.texture_cache_entries = static_cast<int>(srv_cache_.size());
         stats_.texture_cache_releases = texture_cache_releases_;
@@ -1951,7 +2063,8 @@ private:
     }
 
     float world_units_per_pixel() const {
-        float viewport_height = std::max(1.0f, static_cast<float>(height_));
+        D3D11_VIEWPORT viewport = replacement_editor_viewport();
+        float viewport_height = std::max(1.0f, viewport.Height);
         float visible_height = 2.0f * std::max(distance_, 0.1f) * std::tan(DirectX::XMConvertToRadians(kVerticalFovDegrees) * 0.5f);
         return visible_height / viewport_height;
     }
@@ -1965,16 +2078,7 @@ private:
     }
 
     DirectX::XMMATRIX current_view_projection_matrix() const {
-        DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(
-            DirectX::XMVectorSet(0.0f, 0.0f, -distance_, 1.0f),
-            DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
-            DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-        DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(
-            DirectX::XMConvertToRadians(kVerticalFovDegrees),
-            static_cast<float>(width_) / std::max(1.0f, static_cast<float>(height_)),
-            0.05f,
-            100.0f);
-        return view * projection;
+        return view_projection_matrix_for_viewport(replacement_editor_viewport());
     }
 
     DirectX::XMMATRIX current_mvp_matrix() const {
@@ -1988,8 +2092,9 @@ private:
         DirectX::XMStoreFloat3(&clip, projected);
         if (!std::isfinite(clip.x) || !std::isfinite(clip.y) || !std::isfinite(clip.z)) return false;
         if (clip.z < 0.0f || clip.z > 1.0f) return false;
-        screen_x = (clip.x * 0.5f + 0.5f) * static_cast<float>(width_);
-        screen_y = (0.5f - clip.y * 0.5f) * static_cast<float>(height_);
+        D3D11_VIEWPORT viewport = replacement_editor_viewport();
+        screen_x = viewport.TopLeftX + (clip.x * 0.5f + 0.5f) * viewport.Width;
+        screen_y = viewport.TopLeftY + (0.5f - clip.y * 0.5f) * viewport.Height;
         return std::isfinite(screen_x) && std::isfinite(screen_y);
     }
 
@@ -2725,6 +2830,9 @@ private:
             std::ostringstream event;
             event << "{\"event\":\"display_mode\",\"mode\":\"" << json_escape(display_mode_) << "\"}";
             send_json_event(event.str());
+            if (hwnd_) {
+                InvalidateRect(hwnd_, nullptr, FALSE);
+            }
             return true;
         }
         if (command == "set_render_tuning") {
@@ -3012,11 +3120,18 @@ private:
         raster_desc.DepthClipEnable = TRUE;
         hr = device_->CreateRasterizerState(&raster_desc, rasterizer_.GetAddressOf());
         if (FAILED(hr)) return false;
+        raster_desc.FillMode = D3D11_FILL_WIREFRAME;
+        hr = device_->CreateRasterizerState(&raster_desc, wireframe_rasterizer_.GetAddressOf());
+        if (FAILED(hr)) return false;
         D3D11_DEPTH_STENCIL_DESC depth_desc{};
         depth_desc.DepthEnable = TRUE;
         depth_desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
         depth_desc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
-        return SUCCEEDED(device_->CreateDepthStencilState(&depth_desc, depth_state_.GetAddressOf()));
+        hr = device_->CreateDepthStencilState(&depth_desc, depth_state_.GetAddressOf());
+        if (FAILED(hr)) return false;
+        depth_desc.DepthEnable = FALSE;
+        depth_desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+        return SUCCEEDED(device_->CreateDepthStencilState(&depth_desc, overlay_depth_state_.GetAddressOf()));
     }
 
     bool create_sampler_state() {
@@ -3270,7 +3385,9 @@ private:
     ComPtr<ID3D11Buffer> constants_;
     ComPtr<ID3D11SamplerState> sampler_;
     ComPtr<ID3D11RasterizerState> rasterizer_;
+    ComPtr<ID3D11RasterizerState> wireframe_rasterizer_;
     ComPtr<ID3D11DepthStencilState> depth_state_;
+    ComPtr<ID3D11DepthStencilState> overlay_depth_state_;
     std::map<std::wstring, ComPtr<ID3D11ShaderResourceView>> srv_cache_;
     std::map<std::wstring, TextureLoadInfo> texture_info_cache_;
     int texture_cache_releases_ = 0;

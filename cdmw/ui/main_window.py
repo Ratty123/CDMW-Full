@@ -38589,13 +38589,49 @@ def run_gui() -> int:
                 replacement_shifted = _translated_preview_model(replacement_model, right_target - replacement_center)
                 return _combine_preview_models(original_shifted, replacement_shifted)
 
+            def _tag_alignment_d3d11_workspace_model(model: object, role: str, *, editable: bool) -> Optional[object]:
+                if not isinstance(model, ModelPreviewData):
+                    return None
+                tagged = _clone_preview_model(model)
+                if not isinstance(tagged, ModelPreviewData):
+                    return None
+                for mesh in getattr(tagged, "meshes", ()) or ():
+                    try:
+                        mesh.preview_role = role
+                    except Exception:
+                        pass
+                    if not editable:
+                        try:
+                            mesh.source_submesh_index = -1
+                            mesh.source_vertex_indices = []
+                        except Exception:
+                            pass
+                return tagged
+
             def _alignment_d3d11_display_model(preview_model: object, overlay_model: object = None) -> Optional[object]:
                 active_preview_mode = str(preview_mode_combo.currentData() or "side_by_side")
-                if active_preview_mode == "overlay" and isinstance(overlay_model, ModelPreviewData):
-                    return overlay_model
-                if active_preview_mode == "side_by_side" and isinstance(original_reference_preview_model, ModelPreviewData):
-                    return _side_by_side_alignment_preview_model(original_reference_preview_model, preview_model)
-                return preview_model if isinstance(preview_model, ModelPreviewData) else None
+                replacement_workspace = _tag_alignment_d3d11_workspace_model(
+                    preview_model,
+                    "replacement_preview",
+                    editable=True,
+                )
+                if replacement_workspace is None:
+                    return None
+                if active_preview_mode == "replacement_only" or not isinstance(original_reference_preview_model, ModelPreviewData):
+                    return replacement_workspace
+                original_workspace_source = _tint_preview_model(
+                    original_reference_preview_model,
+                    (0.30, 0.42, 0.54),
+                    clear_textures=False,
+                )
+                original_workspace = _tag_alignment_d3d11_workspace_model(
+                    original_workspace_source,
+                    "original_reference",
+                    editable=False,
+                )
+                if original_workspace is None:
+                    return replacement_workspace
+                return _combine_preview_models(original_workspace, replacement_workspace)
 
             def _queue_alignment_d3d11_preview(model: object, *, label: str = "Live alignment preview") -> None:
                 if not _alignment_d3d11_preview_active():

@@ -1004,6 +1004,7 @@ class ModelPreviewMesh:
     preview_material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
     preview_debug_flip_base_v: bool = False
     preview_debug_disable_support_maps: bool = False
+    preview_role: str = ""
 
 
 @dataclass(slots=True)
