@@ -36288,6 +36288,7 @@ def run_gui() -> int:
                 return
             setup.supplemental_files = supplemental_files
             setup.source_label = setup.source_label or f"Modify Original clone: {obj_path}"
+            setup.defer_original_texture_preview = True
             self._start_archive_mesh_patch(entry, preset_setup=setup)
 
         def _show_modify_original_workspace_ready_dialog(
@@ -36752,6 +36753,14 @@ def run_gui() -> int:
             def _alignment_startup_step(message: str) -> None:
                 if startup_progress_closed["closed"]:
                     return
+                _record_runtime_event(
+                    "mesh_alignment_startup_step",
+                    path=getattr(entry, "path", ""),
+                    dialog_title=dialog_title,
+                    message=str(message or ""),
+                    modify_original_clone=modify_original_clone_mode,
+                    defer_original_texture_preview=defer_original_texture_preview,
+                )
                 startup_progress.setLabelText(message)
                 startup_progress.setValue(0)
                 QApplication.processEvents()
@@ -36956,6 +36965,11 @@ def run_gui() -> int:
             preview_header.addWidget(alignment_preview_settings_button)
             preview_panel_layout.addLayout(preview_header)
             preview_render_settings = self._current_model_preview_render_settings()
+            if modify_original_clone_mode and defer_original_texture_preview:
+                preview_render_settings.disable_all_support_maps = True
+                preview_render_settings.disable_normal_map = True
+                preview_render_settings.disable_material_map = True
+                preview_render_settings.disable_height_map = True
             preview_render_controls_widget = QWidget(preview_panel)
             preview_render_controls_widget.setVisible(False)
             preview_render_controls = QHBoxLayout(preview_render_controls_widget)
