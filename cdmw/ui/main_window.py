@@ -4244,6 +4244,13 @@ def run_gui() -> int:
             self._archive_sidecar_status_timer = QTimer(self)
             self._archive_sidecar_status_timer.setInterval(1000)
             self._archive_sidecar_status_timer.timeout.connect(self._refresh_archive_sidecar_status_elapsed)
+            self._archive_scan_progress_pending: Optional[Tuple[int, int, str]] = None
+            self._archive_scan_progress_last_flush = 0.0
+            self._archive_scan_progress_min_interval_s = 1.0 / 30.0
+            self._archive_scan_progress_timer = QTimer(self)
+            self._archive_scan_progress_timer.setSingleShot(True)
+            self._archive_scan_progress_timer.setTimerType(Qt.PreciseTimer)
+            self._archive_scan_progress_timer.timeout.connect(self._flush_archive_scan_progress)
             self._column_autofit_timer = QTimer(self)
             self._column_autofit_timer.setSingleShot(True)
             self._column_autofit_timer.setInterval(90)
@@ -4347,9 +4354,9 @@ def run_gui() -> int:
             self.archive_tree_population_next_index = 0
             self.archive_tree_population_preferred_path = ""
             self.archive_tree_population_target_item: Optional[QTreeWidgetItem] = None
-            self.archive_tree_population_default_batch_size = 500
+            self.archive_tree_population_default_batch_size = 360
             self.archive_tree_population_batch_size = self.archive_tree_population_default_batch_size
-            self.archive_tree_population_continue_batch_size = 300
+            self.archive_tree_population_continue_batch_size = 160
             self.archive_tree_population_render_total = 0
             self.archive_tree_flat_render_limit = 5_000
             self.archive_tree_category_render_limit = 5_000
@@ -4360,7 +4367,7 @@ def run_gui() -> int:
             self.archive_tree_category_population_render_total = 0
             self.archive_tree_category_population_total_entries = 0
             self.archive_tree_category_population_category = ""
-            self.archive_tree_population_time_budget_ms = 12.0
+            self.archive_tree_population_time_budget_ms = 6.0
             self.archive_tree_population_last_progress_update = 0.0
             self._archive_tree_clear_on_complete: Optional[Callable[[], None]] = None
             self._archive_tree_population_on_complete: Optional[Callable[[], None]] = None
@@ -13554,6 +13561,8 @@ def run_gui() -> int:
 
         def scan_archives(self, force_refresh: bool = False, *, activate_archive_tab: bool = True) -> None:
             self._cancel_archive_tree_population()
+            self._archive_scan_progress_timer.stop()
+            self._archive_scan_progress_pending = None
             if self._background_task_active():
                 return
             self._stop_archive_sidecar_worker()
@@ -13665,7 +13674,7 @@ def run_gui() -> int:
                 return
             self.archive_warmup_overlay.hide()
 
-        def _handle_archive_scan_progress(self, current: int, total: int, detail: str) -> None:
+        def _apply_archive_scan_progress(self, current: int, total: int, detail: str) -> None:
             self.archive_scan_progress_label.setText(detail)
             self._update_startup_splash(detail, current, total)
             if total > 0:
@@ -13692,7 +13701,29 @@ def run_gui() -> int:
                 )
             self.set_status_message(detail)
 
+        def _flush_archive_scan_progress(self) -> None:
+            pending = self._archive_scan_progress_pending
+            if pending is None:
+                return
+            self._archive_scan_progress_pending = None
+            self._archive_scan_progress_last_flush = time.perf_counter()
+            current, total, detail = pending
+            self._apply_archive_scan_progress(current, total, detail)
+
+        def _handle_archive_scan_progress(self, current: int, total: int, detail: str) -> None:
+            self._archive_scan_progress_pending = (int(current or 0), int(total or 0), str(detail or "Working..."))
+            now = time.perf_counter()
+            elapsed = now - self._archive_scan_progress_last_flush
+            if elapsed >= self._archive_scan_progress_min_interval_s:
+                self._archive_scan_progress_timer.stop()
+                self._flush_archive_scan_progress()
+                return
+            if not self._archive_scan_progress_timer.isActive():
+                delay_ms = max(1, int((self._archive_scan_progress_min_interval_s - elapsed) * 1000.0))
+                self._archive_scan_progress_timer.start(delay_ms)
+
         def _handle_archive_scan_complete(self, result: object) -> None:
+            self._flush_archive_scan_progress()
             payload = result if isinstance(result, dict) else {}
             updated_fingerprints = payload.get("game_executable_fingerprints")
             if isinstance(updated_fingerprints, Mapping):
@@ -14738,6 +14769,7 @@ def run_gui() -> int:
             thread.start()
 
         def _handle_archive_filter_complete(self, result: object) -> None:
+            self._flush_archive_scan_progress()
             payload = result if isinstance(result, dict) else {}
             browser_state = payload.get("browser_state") if isinstance(payload.get("browser_state"), dict) else {}
             request_signature = tuple(payload.get("request_signature") or ())
@@ -16585,15 +16617,15 @@ def run_gui() -> int:
 
         def _suggest_archive_tree_population_batch_sizes(self, total_entries: int) -> Tuple[int, int]:
             if total_entries >= 100_000:
-                return 900, 260
+                return 420, 130
             if total_entries >= 50_000:
-                return 760, 220
+                return 380, 120
             if total_entries >= 20_000:
-                return 620, 180
+                return 340, 110
             if total_entries >= 5_000:
-                return 460, 140
-            base = max(self.archive_tree_population_default_batch_size, 500)
-            return min(base, 320), min(base, 220)
+                return 300, 100
+            base = max(self.archive_tree_population_default_batch_size, 240)
+            return min(base, 260), min(base, 140)
 
         def _archive_flat_render_total(self, preferred_path: str = "") -> int:
             total_entries = len(self.archive_filtered_entries)
@@ -61208,6 +61240,9 @@ def run_gui() -> int:
                 self._utility_completion_handler(result)
 
         def _handle_worker_error(self, message: str) -> None:
+            if hasattr(self, "_archive_scan_progress_timer"):
+                self._archive_scan_progress_timer.stop()
+                self._archive_scan_progress_pending = None
             if _is_expected_cancellation_message(message):
                 self.set_status_message(message, error=True)
                 self.append_log(message)

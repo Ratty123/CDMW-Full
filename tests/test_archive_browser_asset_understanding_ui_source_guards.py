@@ -172,6 +172,19 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("Category evidence:", source)
         self.assertIn("Generated thumbnail from asset texture", source)
 
+    def test_archive_startup_progress_is_coalesced_for_smooth_splash(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+
+        self.assertIn("self._archive_scan_progress_timer = QTimer(self)", source)
+        self.assertIn("self._archive_scan_progress_min_interval_s = 1.0 / 30.0", source)
+        self.assertIn("def _flush_archive_scan_progress(self) -> None:", source)
+        self.assertIn("def _apply_archive_scan_progress(self, current: int, total: int, detail: str) -> None:", source)
+        self.assertIn("self._archive_scan_progress_pending = (int(current or 0), int(total or 0), str(detail or \"Working...\"))", source)
+        self.assertIn("self._archive_scan_progress_timer.start(delay_ms)", source)
+        self.assertIn("self._flush_archive_scan_progress()", source)
+        self.assertIn("self.archive_tree_population_time_budget_ms = 6.0", source)
+        self.assertIn("return 420, 130", source)
+
     def test_placement_workspace_and_loose_overlay_review_are_present(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
 
