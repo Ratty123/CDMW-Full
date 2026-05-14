@@ -3249,6 +3249,15 @@ def run_gui() -> int:
                 return None
             if str(getattr(self.entry, "extension", "") or "").strip().lower() not in ARCHIVE_MODEL_EXTENSIONS:
                 return None
+            visible_mode = _normalize_model_visible_texture_mode(self.visible_texture_mode)
+            if visible_mode != "mesh_base_first":
+                return NativePreviewCoreAttempt(
+                    status="fallback",
+                    fallback_reason=(
+                        "native preview-core bypassed: "
+                        f"visible texture mode {visible_mode} requires Python material resolver"
+                    ),
+                )
             cache_root = self.native_preview_core_cache_root
             if cache_root is None:
                 return None
@@ -3270,6 +3279,69 @@ def run_gui() -> int:
                     fallback_reason=f"native preview-core failed before fallback: {exc}",
                 )
 
+        def _native_preview_core_reference_metadata(
+            self,
+        ) -> Tuple[Tuple[ArchiveModelTextureReference, ...], Optional[AssetFamilyGraph], Tuple[str, ...]]:
+            entry = self.entry
+            if entry is None or str(getattr(entry, "extension", "") or "").strip().lower() not in ARCHIVE_MODEL_EXTENSIONS:
+                return (), None, ()
+            lines: List[str] = []
+            sidecar_texture_references: Tuple[object, ...] = ()
+            sidecar_reference_paths: Tuple[str, ...] = ()
+            sidecar_texts_by_normalized_path: Dict[str, Tuple[str, ...]] = {}
+            sidecar_texts_by_basename: Dict[str, Tuple[str, ...]] = {}
+            try:
+                (
+                    sidecar_texture_references,
+                    sidecar_reference_paths,
+                    sidecar_texts_by_normalized_path,
+                    sidecar_texts_by_basename,
+                ) = _extract_archive_model_sidecar_texture_references(
+                    entry,
+                    archive_entries_by_basename=self.texture_entries_by_basename,
+                    stop_event=self.stop_event,
+                )
+            except RunCancelled:
+                raise
+            except Exception as exc:
+                lines.append(f"Native metadata sidecar scan failed: {exc}")
+            if sidecar_texture_references:
+                sidecar_suffix = f" from {', '.join(sidecar_reference_paths[:2])}" if sidecar_reference_paths else ""
+                if len(sidecar_reference_paths) > 2:
+                    sidecar_suffix += " ..."
+                lines.append(
+                    f"Native metadata preserved {len(sidecar_texture_references):,} sidecar texture binding(s){sidecar_suffix}."
+                )
+            try:
+                references = tuple(
+                    build_archive_model_texture_references(
+                        entry,
+                        None,
+                        sidecar_texture_references=sidecar_texture_references,
+                        texture_entries_by_normalized_path=self.texture_entries_by_normalized_path,
+                        texture_entries_by_basename=self.texture_entries_by_basename,
+                        sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
+                        sidecar_texts_by_basename=sidecar_texts_by_basename,
+                    )
+                )
+                graph_references = build_archive_relationship_references(
+                    entry,
+                    archive_entries_by_normalized_path=self.texture_entries_by_normalized_path,
+                    archive_entries_by_basename=self.texture_entries_by_basename,
+                )
+                references = tuple(merge_archive_reference_rows(references, graph_references))
+                graph = build_archive_asset_family_graph(entry, references)
+            except RunCancelled:
+                raise
+            except Exception as exc:
+                lines.append(f"Native metadata relationship scan failed: {exc}")
+                return (), None, tuple(lines)
+            if references:
+                lines.append(
+                    f"Native metadata resolved {len(references):,} Asset Family reference row(s) without Python mesh preparation."
+                )
+            return references, graph, tuple(lines)
+
         def _native_preview_core_result(
             self,
             native_attempt: NativePreviewCoreAttempt,
@@ -3277,6 +3349,7 @@ def run_gui() -> int:
         ) -> ArchivePreviewResult:
             entry = self.entry
             metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
+            model_texture_references, asset_family_graph, metadata_lines = self._native_preview_core_reference_metadata()
             diagnostics = dict(native_attempt.diagnostics)
             notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
             base_quality_notes = tuple(
@@ -3308,6 +3381,8 @@ def run_gui() -> int:
                 diagnostic_lines.append("Native Base Quality Notes: " + "; ".join(base_quality_notes[:8]))
             if selected_texture_examples:
                 diagnostic_lines.append("Native Selected Textures: " + "; ".join(selected_texture_examples[:8]))
+            if metadata_lines:
+                diagnostic_lines.extend(metadata_lines)
             detail_text = "\n".join(
                 part
                 for part in diagnostic_lines
@@ -3320,6 +3395,8 @@ def run_gui() -> int:
                 detail_text=detail_text,
                 timings=dict(timings),
                 preview_model=None,
+                model_texture_references=model_texture_references,
+                asset_family_graph=asset_family_graph,
                 native_preview_package_path=native_attempt.package_path,
                 native_preview_diagnostics=dict(native_attempt.diagnostics),
                 preferred_view="model",
