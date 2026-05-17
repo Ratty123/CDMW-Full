@@ -28,8 +28,8 @@ from cdmw.models import (
 )
 
 
-ISOLATED_PREVIEW_SCHEMA_VERSION = 4
-SUPPORTED_ISOLATED_PREVIEW_SCHEMA_VERSIONS = {1, 2, 3, 4}
+ISOLATED_PREVIEW_SCHEMA_VERSION = 5
+SUPPORTED_ISOLATED_PREVIEW_SCHEMA_VERSIONS = {1, 2, 3, 4, 5}
 ISOLATED_PREVIEW_VERTEX_FLOATS = 23
 ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES = ISOLATED_PREVIEW_VERTEX_FLOATS * 4
 _VERTEX_STRUCT = struct.Struct("<23f")
@@ -505,6 +505,221 @@ def _render_settings_to_dict(settings: Optional[ModelPreviewRenderSettings]) -> 
         field_info.name: getattr(value, field_info.name)
         for field_info in dataclasses.fields(ModelPreviewRenderSettings)
     }
+
+
+def _normalized_shader_family(value: object) -> str:
+    text = str(value or "").strip().lower()
+    if not text:
+        return ""
+    compact = "".join(ch for ch in text if ch.isalnum())
+    if "skin" in compact and "skinnedmesh" not in compact:
+        return "skin"
+    if "hair" in compact:
+        return "hair"
+    if "cloth" in compact:
+        return "cloth_v2" if "v2" in compact or "ver2" in compact else "cloth"
+    if "emissive" in compact:
+        return "emissive_v2" if "v2" in compact or "ver2" in compact else "emissive"
+    if "static" in compact and ("multi" in compact or "rgbtexture" in compact):
+        return "static_multitextured"
+    if "static" in compact:
+        return "static_standard"
+    if "standard" in compact:
+        return "standard_v2" if "v2" in compact or "ver2" in compact else "standard"
+    return text.replace(" ", "_")
+
+
+def _material_contract_shader_family(batch: PreparedModelPreviewBatch) -> str:
+    candidates: list[str] = []
+    direct = str(getattr(batch, "preview_sidecar_shader_family", "") or "").strip()
+    if direct:
+        candidates.append(direct)
+    for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ()):
+        if isinstance(texture_input, PreviewMaterialTextureInput):
+            shader_family = str(getattr(texture_input, "shader_family", "") or "").strip()
+            if shader_family:
+                candidates.append(shader_family)
+    if not candidates:
+        return ""
+    normalized = [_normalized_shader_family(value) for value in candidates]
+    for preferred in (
+        "skin",
+        "hair",
+        "cloth_v2",
+        "cloth",
+        "standard_v2",
+        "standard",
+        "static_multitextured",
+        "static_standard",
+        "emissive_v2",
+        "emissive",
+    ):
+        if preferred in normalized:
+            return preferred
+    return normalized[0]
+
+
+def _material_decode_policy(shader_family: str) -> Dict[str, object]:
+    family = str(shader_family or "").strip().lower()
+    policies: Dict[str, Dict[str, object]] = {
+        "skin": {
+            "roughness_source": "sidecar skin roughness/detail parameters",
+            "metalness_scale": 0.08,
+            "specular_scale": 0.45,
+            "layered_diffuse": True,
+        },
+        "hair": {
+            "roughness_source": "hair flow/specular parameters",
+            "metalness_scale": 0.02,
+            "specular_scale": 0.70,
+            "anisotropic_hint": True,
+        },
+        "cloth": {
+            "roughness_source": "cloth material/detail mask parameters",
+            "metalness_scale": 0.12,
+            "specular_scale": 0.38,
+            "layered_diffuse": True,
+        },
+        "cloth_v2": {
+            "roughness_source": "cloth v2 colorBlend/detail/grime parameters",
+            "metalness_scale": 0.16,
+            "specular_scale": 0.42,
+            "layered_diffuse": True,
+        },
+        "standard": {
+            "roughness_source": "standard material mask/specular parameters",
+            "metalness_scale": 0.62,
+            "specular_scale": 0.82,
+            "layered_diffuse": True,
+        },
+        "standard_v2": {
+            "roughness_source": "standard v2 material/detail/grime parameters",
+            "metalness_scale": 0.78,
+            "specular_scale": 0.90,
+            "layered_diffuse": True,
+        },
+        "static_standard": {
+            "roughness_source": "static material mask parameters",
+            "metalness_scale": 0.72,
+            "specular_scale": 0.80,
+            "layered_diffuse": False,
+        },
+        "static_multitextured": {
+            "roughness_source": "rgbTexture layer material parameters",
+            "metalness_scale": 0.70,
+            "specular_scale": 0.78,
+            "layered_diffuse": True,
+        },
+        "emissive_v2": {
+            "roughness_source": "emissive v2 standard/detail parameters",
+            "metalness_scale": 0.42,
+            "specular_scale": 0.68,
+            "layered_diffuse": True,
+            "emissive_hint": True,
+        },
+    }
+    policy = dict(policies.get(family, {}))
+    if not policy:
+        policy = {
+            "roughness_source": "generic material mask/specular fallback",
+            "metalness_scale": 0.55,
+            "specular_scale": 0.72,
+            "layered_diffuse": False,
+            "unknown_family": bool(family),
+        }
+    policy["family"] = family or "generic"
+    return policy
+
+
+def _texture_slot_state(slot_name: str, textures: Mapping[str, str], dds_textures: Mapping[str, object]) -> Dict[str, object]:
+    dds_entry = dds_textures.get(slot_name)
+    direct_dds = bool(
+        isinstance(dds_entry, Mapping)
+        and dds_entry.get("available")
+        and dds_entry.get("source_path")
+        and dds_entry.get("direct_upload_candidate")
+    )
+    return {
+        "slot": slot_name,
+        "preview_path": str(textures.get(slot_name, "") or ""),
+        "source_dds_path": str(dds_entry.get("source_path", "") or "") if isinstance(dds_entry, Mapping) else "",
+        "source_width": _safe_int(dds_entry.get("width"), 0) if isinstance(dds_entry, Mapping) else 0,
+        "source_height": _safe_int(dds_entry.get("height"), 0) if isinstance(dds_entry, Mapping) else 0,
+        "direct_dds": direct_dds,
+        "status": "direct_dds" if direct_dds else ("preview_png" if textures.get(slot_name) else "missing"),
+    }
+
+
+def _material_contract_for_batch(
+    batch: PreparedModelPreviewBatch,
+    *,
+    textures: Mapping[str, str],
+    dds_textures: Mapping[str, object],
+    combiner_metadata: Mapping[str, object],
+) -> Dict[str, object]:
+    shader_family = _material_contract_shader_family(batch)
+    hints = _native_material_hints_for_batch(batch)
+    slot_states = {
+        slot_name: _texture_slot_state(slot_name, textures, dds_textures)
+        for slot_name in ("base", "normal", "material", "occlusion", "roughness", "metalness", "specular", "height")
+    }
+    return {
+        "schema_version": 1,
+        "shader_family": shader_family or "generic",
+        "decode_policy": _material_decode_policy(shader_family),
+        "material_hints": hints,
+        "texture_slots": slot_states,
+        "packed_channels": list(tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ())),
+        "material_input_count": sum(
+            1
+            for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
+            if isinstance(texture_input, PreviewMaterialTextureInput)
+        ),
+        "combiner_active": bool(combiner_metadata.get("active", False)),
+        "combiner_outputs": list(tuple(combiner_metadata.get("outputs", ()) or ())),
+        "fallback": "generic" if not shader_family else "",
+    }
+
+
+def _texture_quality_summary(
+    *,
+    textures: Mapping[str, str],
+    dds_textures: Mapping[str, object],
+    settings: ModelPreviewRenderSettings,
+    high_quality_textures: bool,
+) -> Dict[str, object]:
+    support_cap = int(getattr(settings, "low_quality_texture_max_dimension", 2048) or 2048)
+    base_cap = int(getattr(settings, "preview_texture_max_dimension", 16384) or 16384)
+    slots = {
+        slot_name: _texture_slot_state(slot_name, textures, dds_textures)
+        for slot_name in ("base", "normal", "material", "occlusion", "roughness", "metalness", "specular", "height")
+    }
+    for slot_name, slot in slots.items():
+        cap = base_cap if slot_name == "base" else support_cap
+        slot["preview_cap"] = cap
+        width = _safe_int(slot.get("source_width"), 0)
+        height = _safe_int(slot.get("source_height"), 0)
+        slot["source_exceeds_preview_cap"] = bool(max(width, height) > cap > 0)
+        slot["safe_upscale_candidate"] = bool(slot_name == "base" and (slot.get("source_dds_path") or slot.get("preview_path")))
+    low_resolution_base = False
+    base = slots["base"]
+    if base.get("source_width") and base.get("source_height"):
+        low_resolution_base = max(_safe_int(base.get("source_width"), 0), _safe_int(base.get("source_height"), 0)) < 1024
+    return {
+        "schema_version": 1,
+        "preview_texture_max_dimension": base_cap,
+        "support_texture_max_dimension": support_cap,
+        "high_quality_textures": bool(high_quality_textures),
+        "slots": slots,
+        "low_resolution_base": low_resolution_base,
+        "upscale_handoff_policy": "opt-in visible/base textures only; technical maps preserved by default",
+    }
+
+
+def _combiner_generated_authoritative_albedo(combiner_metadata: Mapping[str, object]) -> bool:
+    notes = tuple(str(note or "").strip().lower() for note in tuple(combiner_metadata.get("notes", ()) or ()))
+    outputs = {str(output or "").strip().lower() for output in tuple(combiner_metadata.get("outputs", ()) or ())}
+    return bool("albedo" in outputs and any(note.startswith("albedo synthesized") for note in notes))
 
 
 def _normalized_material_key(value: object) -> str:
@@ -1142,6 +1357,8 @@ def _texture_sources_for_batch(
                 "decode_modes": tuple(combined.decode_modes),
                 "notes": tuple(combined.notes),
             }
+            if combined.base_note:
+                combiner_metadata["base_note"] = str(combined.base_note)
             notes.extend(str(note) for note in tuple(combined.notes or ()) if str(note))
             if combined.base_source:
                 textures["base"] = package_relative(combined.base_source, "base")
@@ -1347,6 +1564,24 @@ def write_isolated_qtquick3d_preview_package(
             texture_flip_vertical = bool(combiner_metadata.get("texture_flip_vertical", texture_flip_vertical))
         if bool(getattr(settings, "flip_texture_v", False)):
             texture_flip_vertical = not texture_flip_vertical
+        prefer_generated_base_texture = bool(
+            textures.get("base")
+            and _combiner_generated_authoritative_albedo(combiner_metadata)
+        )
+        if prefer_generated_base_texture:
+            notes = tuple(notes) + ("native base DDS bypassed for synthesized sidecar albedo",)
+        material_contract = _material_contract_for_batch(
+            batch,
+            textures=textures,
+            dds_textures=dds_textures,
+            combiner_metadata=combiner_metadata,
+        )
+        texture_quality = _texture_quality_summary(
+            textures=textures,
+            dds_textures=dds_textures,
+            settings=settings,
+            high_quality_textures=bool(high_quality_textures),
+        )
         batch_payload = {
                 "index": batch_index,
                 "material_name": str(getattr(batch, "material_name", "") or ""),
@@ -1363,6 +1598,10 @@ def write_isolated_qtquick3d_preview_package(
                 "normal_strength": normal_strength,
                 "height_amount": height_amount,
                 "native_material_hints": _native_material_hints_for_batch(batch),
+                "material_contract": material_contract,
+                "material_shader_family": str(material_contract.get("shader_family", "generic") or "generic"),
+                "prefer_generated_base_texture": prefer_generated_base_texture,
+                "texture_quality": texture_quality,
                 "notes": list(notes),
                 "material_combiner_active": bool(combiner_metadata.get("active", False)),
                 "material_combiner_outputs": list(tuple(combiner_metadata.get("outputs", ()) or ())),
@@ -1416,6 +1655,14 @@ def write_isolated_qtquick3d_preview_package(
         "invert_pan_y": bool(getattr(settings, "invert_pan_y", False)),
         "use_textures": bool(use_textures),
         "high_quality_textures": bool(high_quality_textures),
+        "material_contract_schema": 1,
+        "texture_quality_schema": 1,
+        "texture_quality_policy": {
+            "preview_texture_max_dimension": int(getattr(settings, "preview_texture_max_dimension", 16384) or 16384),
+            "support_texture_max_dimension": int(getattr(settings, "low_quality_texture_max_dimension", 2048) or 2048),
+            "upscale_handoff": "opt-in visible/base textures only",
+            "technical_map_default": "preserve",
+        },
         "cloth_runtime_schema": 1,
         "cloth_batch_count": cloth_batch_count,
         "cloth_particle_count": cloth_particle_count,

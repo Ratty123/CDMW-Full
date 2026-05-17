@@ -145,6 +145,9 @@ struct ClothRuntime {
     std::vector<DirectX::XMFLOAT3> previous_positions;
     std::vector<float> pin_weights;
     std::vector<ClothConstraint> constraints;
+    bool root_motion_initialized = false;
+    bool non_translation_reanchored = false;
+    DirectX::XMFLOAT3 last_root_translation{0.0f, 0.0f, 0.0f};
 };
 
 struct ClothCollider {
@@ -209,6 +212,8 @@ struct PreviewBatch {
     float layer_tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     std::string layer_role;
     std::string layer_evidence_grade;
+    std::string material_shader_family = "generic";
+    float material_family_code = 0.0f;
     std::array<PreviewMaterialLayer, kMaxMaterialLayers> material_layers;
     int material_layer_count = 0;
     int source_submesh_index = -1;
@@ -1083,6 +1088,17 @@ static void parse_base_color(const std::string& object, float out_color[3]) {
     }
 }
 
+static float material_family_code(const std::string& shader_family) {
+    const std::string family = lower_copy(shader_family);
+    if (family == "skin") return 1.0f;
+    if (family == "hair") return 2.0f;
+    if (family == "cloth" || family == "cloth_v2") return 3.0f;
+    if (family == "standard" || family == "standard_v2") return 4.0f;
+    if (family == "static_standard" || family == "static_multitextured") return 5.0f;
+    if (family == "emissive" || family == "emissive_v2") return 6.0f;
+    return 0.0f;
+}
+
 static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_dir, const std::string& manifest, RendererStats& stats) {
     std::vector<PreviewBatch> batches;
     for (const std::string& object : objects_with_key(manifest, "vertex_file")) {
@@ -1116,12 +1132,17 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.metalness_png = texture_slot_relative(package_dir, object, "metalness");
         batch.specular_png = texture_slot_relative(package_dir, object, "specular");
         batch.height_png = texture_slot_relative(package_dir, object, "height");
+        if (json_bool_field(object, "prefer_generated_base_texture", false) && !batch.base_png.empty()) {
+            batch.base_dds.clear();
+        }
         batch.normal_strength = std::clamp(json_float_field(object, "normal_strength", 1.0f), 0.0f, 2.0f);
         batch.height_amount = std::clamp(json_float_field(object, "height_amount", 0.0f), 0.0f, 0.16f);
         batch.roughness_hint = std::clamp(json_float_field(object, "roughness", 0.0f), 0.0f, 1.0f);
         batch.metalness_hint = std::clamp(json_float_field(object, "metalness", 0.0f), 0.0f, 1.0f);
         batch.specular_hint = std::clamp(json_float_field(object, "specular", 0.0f), 0.0f, 1.0f);
         batch.height_scale_hint = std::clamp(json_float_field(object, "height_scale", 0.0f), 0.0f, 1.0f);
+        batch.material_shader_family = lower_copy(json_string_field(object, "material_shader_family", "generic"));
+        batch.material_family_code = material_family_code(batch.material_shader_family);
         parse_material_layers(batch, object);
         parse_primary_material_layer(batch, object);
         std::string editor_identity = json_object_field(object, "editor_identity");
@@ -1599,13 +1620,42 @@ float4 ps_main(VSOut input) : SV_TARGET {
     if (material_hints.z > 0.02) {
         specular = max(specular, material_hints.z);
     }
+    float family_code = flags4.w;
+    float metal_scale = 1.0;
+    float specular_scale = 1.0;
+    float roughness_bias = 0.0;
+    if (family_code > 0.5 && family_code < 1.5) {
+        metal_scale = 0.12;
+        specular_scale = 1.20;
+        roughness_bias = 0.06;
+    } else if (family_code > 1.5 && family_code < 2.5) {
+        metal_scale = 0.05;
+        specular_scale = 1.45;
+        roughness_bias = -0.08;
+    } else if (family_code > 2.5 && family_code < 3.5) {
+        metal_scale = 0.28;
+        specular_scale = 0.95;
+        roughness_bias = 0.10;
+    } else if (family_code > 3.5 && family_code < 4.5) {
+        metal_scale = 1.15;
+        specular_scale = 1.35;
+        roughness_bias = -0.04;
+    } else if (family_code > 4.5 && family_code < 5.5) {
+        metal_scale = 1.05;
+        specular_scale = 1.20;
+        roughness_bias = -0.02;
+    } else if (family_code > 5.5 && family_code < 6.5) {
+        metal_scale = 0.55;
+        specular_scale = 1.15;
+        roughness_bias = -0.03;
+    }
     specular = max(specular, render_tuning.z);
     if (flags.z > 0.5) {
         float4 m = material_tex.Sample(preview_sampler, uv);
         ao = min(ao, max(0.35, m.r));
         roughness = saturate(m.g);
-        metalness = max(metalness, saturate(m.b) * 0.55);
-        specular = saturate(max(m.a, m.b * 0.55));
+        metalness = max(metalness, saturate(m.b) * 0.55 * metal_scale);
+        specular = saturate(max(m.a, m.b * 0.55) * specular_scale);
     }
     if (flags2.x > 0.5) {
         ao = min(ao, max(0.35, occlusion_tex.Sample(preview_sampler, uv).r));
@@ -1614,12 +1664,12 @@ float4 ps_main(VSOut input) : SV_TARGET {
         roughness = saturate(roughness_tex.Sample(preview_sampler, uv).r);
     }
     if (flags2.z > 0.5) {
-        metalness = saturate(metalness_tex.Sample(preview_sampler, uv).r);
+        metalness = saturate(metalness_tex.Sample(preview_sampler, uv).r * metal_scale);
     }
     if (flags2.w > 0.5) {
         float3 spec_sample = specular_tex.Sample(preview_sampler, uv).rgb;
         float spec_value = max(spec_sample.r, max(spec_sample.g, spec_sample.b));
-        specular = saturate(max(specular, spec_value * 0.88));
+        specular = saturate(max(specular, spec_value * 0.88 * specular_scale));
         if (flags2.y < 0.5) {
             roughness = min(roughness, lerp(0.72, 0.24, spec_value));
         }
@@ -1636,8 +1686,8 @@ float4 ps_main(VSOut input) : SV_TARGET {
     if (layer_flags[ID].z > 0.5 && layer_alpha[ID] > 0.001) { \
         float4 lm = MATERIAL_TEX.Sample(preview_sampler, uv); \
         roughness = lerp(roughness, saturate(max(lm.g, layer_hints[ID].x)), saturate(layer_alpha[ID] * 0.58)); \
-        metalness = max(metalness, saturate(max(lm.b * 0.42, layer_hints[ID].y)) * layer_alpha[ID]); \
-        specular = max(specular, saturate(max(max(lm.a, lm.b * 0.55), layer_hints[ID].z)) * layer_alpha[ID]); \
+        metalness = max(metalness, saturate(max(lm.b * 0.42, layer_hints[ID].y) * metal_scale) * layer_alpha[ID]); \
+        specular = max(specular, saturate(max(max(lm.a, lm.b * 0.55), layer_hints[ID].z) * specular_scale) * layer_alpha[ID]); \
     }
     APPLY_MATERIAL_LAYER(0, layer0_material_tex)
     APPLY_MATERIAL_LAYER(1, layer1_material_tex)
@@ -1647,7 +1697,8 @@ float4 ps_main(VSOut input) : SV_TARGET {
     if (debug_mode > 5.5 && debug_mode < 6.5) {
         return float4(saturate(ao), saturate(roughness), saturate(specular), 1.0);
     }
-    specular = min(specular, max(render_tuning.w, render_tuning.z));
+    roughness = saturate(roughness + roughness_bias);
+    specular = min(specular, max(max(render_tuning.w, render_tuning.z), lerp(0.34, 0.92, metalness)));
     float height_value = 0.5;
     if (flags.w > 0.5) {
         height_value = height_tex.Sample(preview_sampler, uv).r;
@@ -1682,12 +1733,20 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float ndotl = saturate(dot(n, l));
     float3 view_dir = float3(0.0, 0.0, -1.0);
     float3 h = normalize(l - view_dir);
+    float smoothness = saturate(1.0 - roughness);
     float shine_power = lerp(render_tuning2.y, render_tuning2.x, roughness);
-    float highlight = pow(saturate(dot(n, h)), shine_power) * lerp(specular, max(specular, 0.72), metalness);
+    float fresnel = pow(1.0 - saturate(abs(dot(n, view_dir))), 5.0);
+    float highlight = pow(saturate(dot(n, h)), shine_power) * lerp(specular, max(specular, 0.78), metalness);
+    float broad_highlight = pow(saturate(dot(n, h)), max(2.0, shine_power * 0.20)) * smoothness * (0.04 + specular * 0.22 + metalness * 0.30);
+    float rim = pow(1.0 - saturate(abs(dot(n, view_dir))), 2.0) * (0.03 + specular * 0.28 + metalness * 0.24);
+    float env_lobe = saturate((n.y * 0.42) + (n.z * -0.18) + 0.58);
+    float3 env_color = lerp(float3(0.045, 0.050, 0.058), float3(0.62, 0.68, 0.75), env_lobe);
     float height_light = lerp(1.0 - material_params.y, 1.0 + material_params.y, height_value);
-    float3 diffuse = albedo * (render_tuning.x + ndotl * render_tuning.y) * ao * height_light * lerp(1.0, 0.72, metalness);
-    float3 specular_color = lerp(highlight.xxx, highlight.xxx * max(albedo, 0.12), metalness);
-    float3 color = diffuse + specular_color;
+    float3 diffuse = albedo * (render_tuning.x + ndotl * render_tuning.y) * ao * height_light * lerp(1.0, 0.48, metalness);
+    float3 specular_color = lerp(highlight.xxx, highlight.xxx * max(albedo, float3(0.12, 0.12, 0.12)), metalness);
+    float3 env_reflection = env_color * (fresnel + smoothness * 0.45) * (0.02 + specular * 0.34 + metalness * 0.62);
+    env_reflection = lerp(env_reflection, env_reflection * max(albedo, float3(0.16, 0.16, 0.16)), metalness);
+    float3 color = diffuse + specular_color + env_reflection + broad_highlight.xxx + rim.xxx;
     color = lerp(color, editor_tint.rgb, saturate(editor_tint.a));
     return float4(linear_to_srgb(color), 1.0);
 }
@@ -2403,6 +2462,16 @@ private:
             || std::abs(alignment_.scale_total.z - 1.0f) > kEpsilon;
     }
 
+    bool alignment_non_translation_transform_active() const {
+        constexpr float kEpsilon = 1.0e-6f;
+        return std::abs(alignment_.rotation_total.x) > kEpsilon
+            || std::abs(alignment_.rotation_total.y) > kEpsilon
+            || std::abs(alignment_.rotation_total.z) > kEpsilon
+            || std::abs(alignment_.scale_total.x - 1.0f) > kEpsilon
+            || std::abs(alignment_.scale_total.y - 1.0f) > kEpsilon
+            || std::abs(alignment_.scale_total.z - 1.0f) > kEpsilon;
+    }
+
     bool alignment_handle_origin_base(DirectX::XMFLOAT3& origin) const {
         if (alignment_.origin_cache_valid) {
             origin = alignment_.origin_cache;
@@ -2826,7 +2895,7 @@ private:
             batch.material_layer_count > 0 ? 1.0f : 0.0f,
             static_cast<float>(render_tuning_.diagnostic_mode),
             static_cast<float>(std::max(0, batch.source_submesh_index + 1)),
-            0.0f);
+            batch.material_family_code);
         for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
             const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
             constants.layer_flags[layer_index] = DirectX::XMFLOAT4(
@@ -4333,6 +4402,48 @@ private:
         }
     }
 
+    DirectX::XMFLOAT3 cloth_root_translation_for_batch(const PreviewBatch& batch) const {
+        DirectX::XMFLOAT3 root(pan_x_, pan_y_, pan_z_);
+        if (alignment_batch_active(batch)) {
+            root.x += alignment_.translation_total.x;
+            root.y += alignment_.translation_total.y;
+            root.z += alignment_.translation_total.z;
+        }
+        return root;
+    }
+
+    void apply_cloth_root_motion(PreviewBatch& batch) {
+        ClothRuntime& cloth = batch.cloth;
+        if (!cloth.initialized || cloth.positions.empty()) return;
+        const bool non_translation_active = alignment_batch_active(batch) && alignment_non_translation_transform_active();
+        const DirectX::XMFLOAT3 root = cloth_root_translation_for_batch(batch);
+        if (non_translation_active && !cloth.non_translation_reanchored) {
+            cloth.positions = cloth.rest_positions;
+            cloth.previous_positions = cloth.rest_positions;
+            cloth.root_motion_initialized = false;
+            cloth.non_translation_reanchored = true;
+            apply_cloth_to_batch_vertices(batch);
+        } else if (!non_translation_active) {
+            cloth.non_translation_reanchored = false;
+        }
+        if (!cloth.root_motion_initialized) {
+            cloth.last_root_translation = root;
+            cloth.root_motion_initialized = true;
+            return;
+        }
+        const DirectX::XMFLOAT3 delta = sub3(root, cloth.last_root_translation);
+        cloth.last_root_translation = root;
+        if (length3(delta) <= 1.0e-7f) return;
+        for (size_t index = 0; index < cloth.positions.size(); ++index) {
+            const float pin = index < cloth.pin_weights.size() ? std::clamp(cloth.pin_weights[index], 0.0f, 1.0f) : 0.0f;
+            const DirectX::XMFLOAT3 local_delta = mul3(delta, -(1.0f - pin));
+            cloth.positions[index] = add3(cloth.positions[index], local_delta);
+            if (index < cloth.previous_positions.size()) {
+                cloth.previous_positions[index] = add3(cloth.previous_positions[index], local_delta);
+            }
+        }
+    }
+
     void apply_cloth_to_batch_vertices(PreviewBatch& batch) {
         ClothRuntime& cloth = batch.cloth;
         if (!cloth.initialized || batch.cpu_vertices.size() < static_cast<size_t>(batch.vertex_count) * 23u) return;
@@ -4389,6 +4500,9 @@ private:
             if (!cloth.initialized || cloth.rest_positions.empty()) continue;
             cloth.positions = cloth.rest_positions;
             cloth.previous_positions = cloth.rest_positions;
+            cloth.root_motion_initialized = false;
+            cloth.non_translation_reanchored = false;
+            cloth.last_root_translation = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
             apply_cloth_to_batch_vertices(batch);
         }
         cloth_last_step_ = std::chrono::steady_clock::now();
@@ -4416,6 +4530,7 @@ private:
         for (PreviewBatch& batch : batches_) {
             ClothRuntime& cloth = batch.cloth;
             if (!cloth.initialized || cloth.positions.empty()) continue;
+            apply_cloth_root_motion(batch);
             for (size_t index = 0; index < cloth.positions.size(); ++index) {
                 float pin = index < cloth.pin_weights.size() ? std::clamp(cloth.pin_weights[index], 0.0f, 1.0f) : 0.0f;
                 if (pin >= 0.999f) {

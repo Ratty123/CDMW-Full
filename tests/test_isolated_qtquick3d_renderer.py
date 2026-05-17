@@ -90,8 +90,11 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             )
             manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
 
-        self.assertEqual(4, manifest["schema_version"])
+        self.assertEqual(5, manifest["schema_version"])
         self.assertEqual("empty.pac", manifest["source_path"])
+        self.assertEqual(1, manifest["material_contract_schema"])
+        self.assertEqual(1, manifest["texture_quality_schema"])
+        self.assertEqual("preserve", manifest["texture_quality_policy"]["technical_map_default"])
         self.assertEqual("replacement_only", manifest["display_mode"])
         self.assertEqual("", manifest["editor_workspace"])
         self.assertEqual([], manifest["batches"])
@@ -105,9 +108,11 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             cloth_batch = ClothPreviewBatch(
                 mesh_index=0,
                 source_submesh_index=2,
-                simulation_material_name="Armor_Cloak",
+                simulation_material_name="LongHair",
+                simulation_kind="hair",
                 material_settings=PbdMaterialSettings(
-                    material_name="Armor_Cloak",
+                    material_name="LongHair",
+                    simulation_kind="hair",
                     gravity=-8.0,
                     damping=0.25,
                     wind_response=0.7,
@@ -122,10 +127,10 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
             prepared = PreparedModelPreviewData(
-                source_path="cloak.pac",
+                source_path="hair.pac",
                 batches=(
                     PreparedModelPreviewBatch(
-                        material_name="cloak_mat",
+                        material_name="hair_mat",
                         vertex_blob=_vertex(0, 1, 0) + _vertex(0, 0, 0) + _vertex(1, 0, 0),
                         index_count=3,
                         source_submesh_index=2,
@@ -136,7 +141,7 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 cloth_preview=ClothPreviewData(batches=(cloth_batch,)),
             )
             model = ModelPreviewData(
-                path="cloak.pac",
+                path="hair.pac",
                 physics_overlay=HkxPhysicsOverlayData(
                     shapes=(
                         HkxPhysicsOverlayShape(
@@ -160,7 +165,8 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertEqual(2, manifest["cloth_constraint_count"])
             self.assertEqual(1, manifest["cloth_collider_count"])
             self.assertTrue(batch["cloth_enabled"])
-            self.assertEqual("Armor_Cloak", batch["cloth_material_name"])
+            self.assertEqual("hair", batch["cloth_kind"])
+            self.assertEqual("LongHair", batch["cloth_material_name"])
             self.assertEqual(3, batch["cloth_particle_count"])
             self.assertEqual(2, batch["cloth_constraint_count"])
             self.assertAlmostEqual(-8.0, batch["cloth_gravity"])
@@ -336,6 +342,8 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             geometry_path = package_dir / batch["vertex_file"]
             textures = batch["textures"]
             dds_textures = batch["dds_textures"]
+            material_contract = batch["material_contract"]
+            texture_quality = batch["texture_quality"]
             editor_identity = batch["editor_identity"]
 
             self.assertEqual("side_by_side", manifest["display_mode"])
@@ -356,6 +364,15 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertEqual("", textures["roughness"])
             self.assertEqual("", textures["metalness"])
             self.assertTrue(batch["tangents_usable"])
+            self.assertEqual("standard_v2", batch["material_shader_family"])
+            self.assertEqual("standard_v2", material_contract["shader_family"])
+            self.assertEqual(1, material_contract["schema_version"])
+            self.assertEqual("standard_v2", material_contract["decode_policy"]["family"])
+            self.assertGreater(material_contract["decode_policy"]["metalness_scale"], 0.0)
+            self.assertEqual("direct_dds", material_contract["texture_slots"]["base"]["status"])
+            self.assertEqual("direct_dds", texture_quality["slots"]["base"]["status"])
+            self.assertTrue(texture_quality["slots"]["base"]["safe_upscale_candidate"])
+            self.assertEqual("opt-in visible/base textures only; technical maps preserved by default", texture_quality["upscale_handoff_policy"])
             self.assertGreater(batch["native_material_hints"]["metalness"], 0.0)
             self.assertGreater(batch["native_material_hints"]["specular"], 0.0)
             self.assertIn("packed material map skipped", " ".join(batch["notes"]))
@@ -478,6 +495,101 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertEqual(str(base_dds), batch["dds_textures"]["base"]["source_path"])
             self.assertTrue(batch["dds_textures"]["base"]["promoted_from_material_input"])
             self.assertIn("base PNG fallback skipped", " ".join(batch["notes"]))
+
+    def test_synthesized_albedo_overrides_direct_low_authority_base_for_d3d11(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            low_authority_base = temp_path / "cd_common_default_overlay_old.png"
+            base_image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+            base_image.fill(QColor(245, 245, 245, 255))
+            self.assertTrue(base_image.save(str(low_authority_base), "PNG"))
+            low_authority_dds = temp_path / "cd_common_default_overlay_old.dds"
+            low_authority_dds.write_bytes(_minimal_bc_dds(b"DXT1"))
+            detail_diffuse = temp_path / "cd_texturelayer_013_0018.png"
+            detail_image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+            detail_image.fill(QColor(95, 32, 24, 255))
+            self.assertTrue(detail_image.save(str(detail_diffuse), "PNG"))
+            detail_mask = temp_path / "cd_phm_02_blade_0014_mg.png"
+            mask_image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+            mask_image.fill(QColor(0, 255, 0, 255))
+            self.assertTrue(mask_image.save(str(detail_mask), "PNG"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0014.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="CD_PHM_02_Blade_0014",
+                        texture_name="CD_PHM_02_Blade_0014",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(low_authority_base),
+                        preview_texture_dds_path=str(low_authority_dds),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="base",
+                                parameter_name="_overlayColorTexture",
+                                source_texture_path="character/texture/cd_common_default_overlay_old.dds",
+                                source_dds_path=str(low_authority_dds),
+                                texture_name="cd_common_default_overlay_old.dds",
+                                preview_texture_path=str(low_authority_base),
+                                semantic_type="color",
+                                semantic_subtype="albedo",
+                                material_name="CD_PHM_02_Blade_0014",
+                                shader_family="SkinnedMeshStandard_Ver2",
+                                confidence="pac_xml",
+                                visualized=True,
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_grimeDiffuseTextureG",
+                                source_texture_path="character/texture/cd_texturelayer_013_0018.dds",
+                                texture_name="cd_texturelayer_013_0018.dds",
+                                preview_texture_path=str(detail_diffuse),
+                                semantic_type="color",
+                                semantic_subtype="detail_diffuse",
+                                material_name="CD_PHM_02_Blade_0014",
+                                shader_family="SkinnedMeshStandard_Ver2",
+                                visualized=True,
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_detailMaskTexture",
+                                source_texture_path="character/texture/cd_phm_02_blade_0014_mg.dds",
+                                texture_name="cd_phm_02_blade_0014_mg.dds",
+                                preview_texture_path=str(detail_mask),
+                                semantic_type="mask",
+                                semantic_subtype="detail_mask",
+                                material_name="CD_PHM_02_Blade_0014",
+                                shader_family="SkinnedMeshStandard_Ver2",
+                                visualized=True,
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                ModelPreviewData(path="cd_phm_02_sword_0014.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                prefer_direct_dds=True,
+            )
+            batch = read_isolated_qtquick3d_preview_manifest(package_dir)["batches"][0]
+            generated_base = package_dir / batch["textures"]["base"]
+            generated_image = QImage(str(generated_base))
+
+            self.assertTrue(batch["prefer_generated_base_texture"])
+            self.assertTrue(generated_base.is_file())
+            self.assertFalse(generated_image.isNull())
+            self.assertLess(generated_image.pixelColor(0, 0).red(), 245)
+            self.assertIn("native base DDS bypassed for synthesized sidecar albedo", " ".join(batch["notes"]))
 
     def test_d3d11_manifest_honors_support_map_and_camera_settings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -755,6 +867,12 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("texture_cache_hits", source)
         self.assertIn("best_material_dds_for_role", source)
         self.assertIn("material_hints", source)
+        self.assertIn("material_shader_family", source)
+        self.assertIn("material_family_code", source)
+        self.assertIn("prefer_generated_base_texture", source)
+        self.assertIn("batch.base_dds.clear()", source)
+        self.assertIn("env_reflection", source)
+        self.assertIn("roughness_bias", source)
         self.assertIn("RenderTuning", source)
         self.assertIn("parse_render_tuning", source)
         self.assertIn("MaxAnisotropy", source)
@@ -1001,8 +1119,8 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("show_tool_pbd_cloth_pins", source)
         self.assertIn("show_tool_pbd_cloth_colliders", source)
         self.assertIn("cloth_simulation_steps", source)
-        self.assertIn("Native D3D11 Cloth Preview", main_window_source)
-        self.assertIn("Tool-side PBD cloth preview", main_window_source)
+        self.assertIn("Native D3D11 PBD Physics Preview", main_window_source)
+        self.assertIn("Tool-side PBD physics preview", main_window_source)
 
     def test_native_d3d11_host_rejects_stale_or_invalid_packages_and_exposes_debug_modes(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
