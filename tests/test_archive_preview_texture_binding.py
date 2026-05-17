@@ -456,6 +456,49 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         self.assertEqual("low_authority_overlay", model.meshes[0].preview_base_texture_quality)
         self.assertNotIn("Promoted", "\n".join(lines))
 
+    def test_direction_vector_sidecar_texture_does_not_become_visible_base(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        by_normalized, by_basename = _texture_maps(
+            "character/texture/cd_test_cloak_o.dds",
+            "character/texture/cd_test_cloak_dr.dds",
+        )
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="CD_Test_Cloak", texture_name="CD_Test_Cloak")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path="character/texture/cd_test_cloak_o.dds",
+                parameter_name="_overlayColorTexture",
+                submesh_name="CD_Test_Cloak",
+                sidecar_kind="pac_xml",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                texture_path="character/texture/cd_test_cloak_dr.dds",
+                parameter_name="_directionTexture",
+                submesh_name="CD_Test_Cloak",
+                sidecar_kind="pac_xml",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_sidecar_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                visible_texture_mode="layer_aware_visible",
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual("preview://character/texture/cd_test_cloak_o.dds", model.meshes[0].preview_texture_path)
+        self.assertNotEqual("preview://character/texture/cd_test_cloak_dr.dds", model.meshes[0].preview_texture_path)
+
     def test_placeholder_none_texture_does_not_become_visible_base(self) -> None:
         source_entry = _entry("character/model/cd_test_model.pac")
         by_normalized, by_basename = _texture_maps("texture/nonetexture0x00000000.dds")

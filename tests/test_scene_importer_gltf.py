@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from cdmw.core.archive_modding import attach_scene_preview_textures, parsed_mesh_to_preview_model
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.scene_importer import (
     SCENE_IMPORT_EXTENSIONS,
@@ -136,6 +137,145 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertIn((root / "body_normal.png").resolve(), discovered)
             self.assertIn((root / "body_metallic_roughness.png").resolve(), discovered)
             self.assertEqual((root / "body_base.png").resolve().as_posix(), result.mesh.submeshes[0].texture)
+            self.assertEqual(1, len(result.material_bindings))
+            binding_slots = {slot for slot, _path in result.material_bindings[0].texture_slots}
+            self.assertIn("base", binding_slots)
+            self.assertIn("normal", binding_slots)
+            self.assertIn("material", binding_slots)
+            self.assertEqual("metallicRoughness", result.material_bindings[0].pbr_workflow)
+            self.assertIsNotNone(result.external_audit)
+            self.assertIn("base", result.external_audit.texture_slots)
+            self.assertIn("normal", result.external_audit.texture_slots)
+
+    def test_gltf_specular_glossiness_diffuse_texture_is_base_texture(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            (root / "triangle.bin").write_bytes(bin_chunk)
+            (root / "blade_diffuse.jpeg").write_bytes(b"jpeg")
+            (root / "blade_normal.png").write_bytes(b"png")
+            (root / "blade_specularGlossiness.png").write_bytes(b"png")
+            document["buffers"][0]["uri"] = "triangle.bin"
+            document["materials"][0] = {
+                "name": "Blade",
+                "extensions": {
+                    "KHR_materials_pbrSpecularGlossiness": {
+                        "diffuseFactor": [0.25, 0.5, 0.75, 1.0],
+                        "diffuseTexture": {"index": 0},
+                        "specularGlossinessTexture": {"index": 1},
+                    }
+                },
+                "normalTexture": {"index": 2},
+            }
+            document["textures"] = [{"source": 0}, {"source": 1}, {"source": 2}]
+            document["images"] = [
+                {"uri": "blade_diffuse.jpeg"},
+                {"uri": "blade_specularGlossiness.png"},
+                {"uri": "blade_normal.png"},
+            ]
+            path = root / "triangle.gltf"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+            resolved_count = attach_scene_preview_textures(preview_model, result, path)
+
+            self.assertIn((root / "blade_diffuse.jpeg").resolve(), result.discovered_texture_files)
+            self.assertIn((root / "blade_specularGlossiness.png").resolve(), result.discovered_texture_files)
+            self.assertEqual((root / "blade_diffuse.jpeg").resolve().as_posix(), result.mesh.submeshes[0].texture)
+            self.assertEqual((0.25, 0.5, 0.75), getattr(result.mesh.submeshes[0], "preview_color"))
+            self.assertGreaterEqual(resolved_count, 3)
+            self.assertEqual("blade_diffuse.jpeg", Path(preview_model.meshes[0].preview_texture_path).name)
+            self.assertEqual("blade_normal.png", Path(preview_model.meshes[0].preview_normal_texture_path).name)
+            self.assertEqual("blade_specularGlossiness.png", Path(preview_model.meshes[0].preview_material_texture_path).name)
+            self.assertEqual("specular", preview_model.meshes[0].preview_material_texture_subtype)
+            self.assertEqual("specularGlossiness", result.material_bindings[0].pbr_workflow)
+            self.assertIn("specular_glossiness", {slot for slot, _path in result.material_bindings[0].texture_slots})
+
+    def test_gltf_metallic_roughness_is_not_used_as_base_texture(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            (root / "triangle.bin").write_bytes(bin_chunk)
+            (root / "painted_base.png").write_bytes(b"png")
+            (root / "shared_metallicRoughness.png").write_bytes(b"png")
+            document["buffers"][0]["uri"] = "triangle.bin"
+            document["materials"] = [
+                {
+                    "name": "Painted",
+                    "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}},
+                },
+                {
+                    "name": "BareMetal",
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [0.05, 0.05, 0.05, 1.0],
+                        "metallicRoughnessTexture": {"index": 1},
+                    },
+                },
+            ]
+            document["meshes"][0]["primitives"].append(
+                {
+                    "attributes": {"POSITION": 0, "NORMAL": 1, "TEXCOORD_0": 2},
+                    "indices": 3,
+                    "material": 1,
+                }
+            )
+            document["textures"] = [{"source": 0}, {"source": 1}]
+            document["images"] = [
+                {"uri": "painted_base.png"},
+                {"uri": "shared_metallicRoughness.png"},
+            ]
+            path = root / "triangle.gltf"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+            resolved_count = attach_scene_preview_textures(preview_model, result, path)
+
+            self.assertEqual(2, len(result.mesh.submeshes))
+            self.assertEqual((root / "painted_base.png").resolve().as_posix(), result.mesh.submeshes[0].texture)
+            self.assertEqual("", result.mesh.submeshes[1].texture)
+            self.assertEqual((0.05, 0.05, 0.05), getattr(result.mesh.submeshes[1], "preview_color"))
+            self.assertIn("shared_metallicRoughness.png", getattr(result.mesh.submeshes[1], "preview_material_texture_path"))
+            self.assertGreaterEqual(resolved_count, 2)
+            self.assertEqual("painted_base.png", Path(preview_model.meshes[0].preview_texture_path).name)
+            self.assertEqual("", preview_model.meshes[1].preview_texture_path)
+            self.assertEqual("shared_metallicRoughness.png", Path(preview_model.meshes[1].preview_material_texture_path).name)
+            self.assertEqual("orm", preview_model.meshes[1].preview_material_texture_subtype)
+
+    def test_external_model_audit_classifies_sword_and_flags_axem_character(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            (root / "Serpent-Sword.bin").write_bytes(bin_chunk)
+            (root / "Serpent_Sword_baseColor.png").write_bytes(b"png")
+            (root / "Serpent_Sword_normal.png").write_bytes(b"png")
+            document["buffers"][0]["uri"] = "Serpent-Sword.bin"
+            document["materials"][0]["name"] = "Blade"
+            document["materials"][0]["pbrMetallicRoughness"] = {"baseColorTexture": {"index": 0}}
+            document["materials"][0]["normalTexture"] = {"index": 1}
+            document["textures"] = [{"source": 0}, {"source": 1}]
+            document["images"] = [{"uri": "Serpent_Sword_baseColor.png"}, {"uri": "Serpent_Sword_normal.png"}]
+            sword_path = root / "Serpent-Sword.gltf"
+            sword_path.write_text(json.dumps(document), encoding="utf-8")
+
+            sword = import_scene_mesh_with_report(sword_path)
+
+            self.assertIsNotNone(sword.external_audit)
+            self.assertEqual("sword", sword.external_audit.verified_category)
+            self.assertGreaterEqual(sword.external_audit.confidence, 0.35)
+            self.assertFalse(sword.external_audit.false_positive)
+
+            axem_document = json.loads(json.dumps(document))
+            axem_document["materials"][0]["name"] = "Character Body Skin Arm"
+            axem_path = root / "Axem-Green-character.gltf"
+            axem_path.write_text(json.dumps(axem_document), encoding="utf-8")
+
+            axem = import_scene_mesh_with_report(axem_path)
+
+            self.assertIsNotNone(axem.external_audit)
+            self.assertTrue(axem.external_audit.false_positive)
+            self.assertTrue(axem.external_audit.mixed_model)
 
     def test_gltf_data_uri_buffer_import(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

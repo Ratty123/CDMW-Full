@@ -5,9 +5,18 @@ import struct
 import tempfile
 import unittest
 
+from PySide6.QtGui import QColor, QImage
+
 from cdmw.models import (
+    ClothPreviewBatch,
+    ClothPreviewConstraint,
+    ClothPreviewData,
+    HkxPhysicsOverlayData,
+    HkxPhysicsOverlayShape,
     ModelPreviewData,
+    ModelPreviewMesh,
     ModelPreviewRenderSettings,
+    PbdMaterialSettings,
     PreparedModelPreviewBatch,
     PreparedModelPreviewData,
     PreviewMaterialParameterInput,
@@ -83,7 +92,154 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
 
         self.assertEqual(4, manifest["schema_version"])
         self.assertEqual("empty.pac", manifest["source_path"])
+        self.assertEqual("replacement_only", manifest["display_mode"])
+        self.assertEqual("", manifest["editor_workspace"])
         self.assertEqual([], manifest["batches"])
+        self.assertEqual(0, manifest["cloth_batch_count"])
+        self.assertEqual(0, manifest["cloth_particle_count"])
+        self.assertEqual(0, manifest["cloth_constraint_count"])
+
+    def test_writes_tool_side_pbd_cloth_runtime_payloads(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            cloth_batch = ClothPreviewBatch(
+                mesh_index=0,
+                source_submesh_index=2,
+                simulation_material_name="Armor_Cloak",
+                material_settings=PbdMaterialSettings(
+                    material_name="Armor_Cloak",
+                    gravity=-8.0,
+                    damping=0.25,
+                    wind_response=0.7,
+                    solver_iterations=9,
+                    collision_enabled=True,
+                ),
+                positions=((0.0, 1.0, 0.0), (0.0, 0.0, 0.0), (1.0, 0.0, 0.0)),
+                pin_weights=(1.0, 0.0, 0.0),
+                constraints=(
+                    ClothPreviewConstraint(kind="structural", a=0, b=1, rest_length=1.0, stiffness=0.6),
+                    ClothPreviewConstraint(kind="structural", a=1, b=2, rest_length=1.0, stiffness=0.6),
+                ),
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="cloak.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="cloak_mat",
+                        vertex_blob=_vertex(0, 1, 0) + _vertex(0, 0, 0) + _vertex(1, 0, 0),
+                        index_count=3,
+                        source_submesh_index=2,
+                        source_vertex_indices=(0, 1, 2),
+                        cloth_preview=cloth_batch,
+                    ),
+                ),
+                cloth_preview=ClothPreviewData(batches=(cloth_batch,)),
+            )
+            model = ModelPreviewData(
+                path="cloak.pac",
+                physics_overlay=HkxPhysicsOverlayData(
+                    shapes=(
+                        HkxPhysicsOverlayShape(
+                            center=(0.0, 0.5, 0.0),
+                            radius=0.2,
+                        ),
+                    )
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                model,
+                prepared,
+                output_root=temp_path / "package",
+            )
+            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+
+            batch = manifest["batches"][0]
+            self.assertEqual(1, manifest["cloth_batch_count"])
+            self.assertEqual(3, manifest["cloth_particle_count"])
+            self.assertEqual(2, manifest["cloth_constraint_count"])
+            self.assertEqual(1, manifest["cloth_collider_count"])
+            self.assertTrue(batch["cloth_enabled"])
+            self.assertEqual("Armor_Cloak", batch["cloth_material_name"])
+            self.assertEqual(3, batch["cloth_particle_count"])
+            self.assertEqual(2, batch["cloth_constraint_count"])
+            self.assertAlmostEqual(-8.0, batch["cloth_gravity"])
+            self.assertEqual(9, batch["cloth_solver_iterations"])
+            self.assertTrue((package_dir / batch["cloth_particle_file"]).is_file())
+            self.assertTrue((package_dir / batch["cloth_pin_file"]).is_file())
+            self.assertTrue((package_dir / batch["cloth_constraint_file"]).is_file())
+            self.assertEqual(3 * 3 * 4, (package_dir / batch["cloth_particle_file"]).stat().st_size)
+            self.assertEqual(3 * 4, (package_dir / batch["cloth_pin_file"]).stat().st_size)
+            self.assertEqual(2 * 16, (package_dir / batch["cloth_constraint_file"]).stat().st_size)
+            self.assertEqual(11 * 4, (package_dir / manifest["cloth_collider_file"]).stat().st_size)
+
+    def test_materializes_in_memory_base_texture_for_d3d11_package(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+            image.fill(QColor("#884422"))
+            model = ModelPreviewData(
+                path="replacement.pac",
+                meshes=[ModelPreviewMesh(preview_texture_image=image)],
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="replacement.pac",
+                vertex_count=3,
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_texture_path="in_memory:0",
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                model,
+                prepared,
+                output_root=temp_path / "package",
+                use_textures=True,
+                prefer_direct_dds=True,
+            )
+            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            base_texture = manifest["batches"][0]["textures"]["base"]
+            base_texture_exists = (package_dir / base_texture).is_file()
+
+        self.assertTrue(base_texture)
+        self.assertTrue(base_texture_exists)
+        self.assertNotIn("in_memory", base_texture)
+
+    def test_copies_file_url_imported_base_texture_for_d3d11_package(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "Scene_-_Root_baseColor.png"
+            base.write_bytes(b"png")
+            prepared = PreparedModelPreviewData(
+                source_path="replacement.gltf",
+                vertex_count=3,
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_texture_path=base.as_uri(),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                ModelPreviewData(path="replacement.gltf"),
+                prepared,
+                output_root=temp_path / "package",
+                use_textures=True,
+                prefer_direct_dds=True,
+            )
+            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            base_texture = manifest["batches"][0]["textures"]["base"]
+
+            self.assertTrue(base_texture)
+            self.assertTrue((package_dir / base_texture).is_file())
 
     def test_writes_geometry_and_direct_texture_slots(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -171,6 +327,8 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ModelPreviewData(path="weapon.pac"),
                 prepared,
                 output_root=temp_path / "package",
+                display_mode="side_by_side",
+                editor_workspace="mesh_alignment",
             )
             manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
 
@@ -180,6 +338,8 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             dds_textures = batch["dds_textures"]
             editor_identity = batch["editor_identity"]
 
+            self.assertEqual("side_by_side", manifest["display_mode"])
+            self.assertEqual("mesh_alignment", manifest["editor_workspace"])
             self.assertEqual(3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES, geometry_path.stat().st_size)
             self.assertEqual(7, editor_identity["source_submesh_index"])
             self.assertEqual("replacement", editor_identity["role"])
@@ -545,6 +705,35 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertEqual(["pbr_combined"], batch["material_combiner_decode_modes"])
             self.assertIn("legacy PBR response reused", " ".join(batch["material_combiner_notes"]))
 
+    def test_d3d11_package_can_flip_texture_v_from_render_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "base.png"
+            base.write_bytes(b"png")
+            prepared = PreparedModelPreviewData(
+                source_path="weapon.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="blade",
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_texture_flip_vertical=False,
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                ModelPreviewData(path="weapon.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                render_settings=ModelPreviewRenderSettings(flip_texture_v=True),
+            )
+            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+
+        self.assertTrue(manifest["batches"][0]["texture_flip_vertical"])
+
 
 class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
     def test_native_host_is_isolated_from_qtquick_and_archive_stack(self) -> None:
@@ -573,12 +762,23 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("detail_tex", source)
         self.assertIn("CREATETEX_FORCE_SRGB", source)
         self.assertIn("CREATETEX_IGNORE_SRGB", source)
+        self.assertIn("struct ComInitScope", source)
+        self.assertIn("CoInitializeEx(nullptr, COINIT_MULTITHREADED)", source)
+        self.assertIn("CoUninitialize()", source)
+        self.assertIn("hr == RPC_E_CHANGED_MODE", source)
+        self.assertIn("hr = create_srv(create_flags)", source)
+        self.assertIn("hr = create_srv(static_cast<DirectX::CREATETEX_FLAGS>(0))", source)
+        self.assertIn("Some WIC-decoded PNGs from external model archives fail", source)
         self.assertIn("srgb_color_uploads", source)
         self.assertIn("linear_to_srgb", source)
         self.assertIn("srgb_to_linear", source)
         self.assertIn("begin_mouse_drag", source)
         self.assertIn("kZoomSteps", source)
         self.assertIn("WM_MOUSEWHEEL", source)
+        self.assertIn("reference_camera_ = camera;", source)
+        self.assertIn("(void)role;\n        return replacement_camera();", source)
+        self.assertIn("drag_view_role_ = PreviewViewRole::Replacement;", source)
+        self.assertNotIn("reference_camera_ = camera;\n            return;", source)
         self.assertIn("WM_COPYDATA", source)
         self.assertIn("kCdmwCommandCopyData", source)
         self.assertIn("process_pending_commands", source)
@@ -638,10 +838,16 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("NativeD3D11PreviewHostFrame", source)
         self.assertIn("_WM_SET_ZOOM", source)
         self.assertIn("_WM_COPYDATA_COMMAND", source)
+        self.assertIn('preferred_state["role"] = "replacement"', source)
         self.assertIn("load_package(self, package_dir", source)
         self.assertIn("clear_preview(self, status_file", source)
         self.assertIn("set_render_tuning(self, settings", source)
         self.assertIn("set_highlighted_source_submeshes", source)
+        self.assertIn("set_hidden_source_submeshes", source)
+        self.assertIn("archive_d3d11_part_visibility_button", source)
+        self.assertIn("_populate_archive_d3d11_part_visibility_menu", source)
+        self.assertIn("archive_d3d11_part_visibility_groups", source)
+        self.assertIn("Hide added prefab pieces", source)
         self.assertIn("archive_isolated_renderer_package_source", source)
         self.assertIn("_native_preview_core_failure_result", source)
         self.assertIn("D3D11 runtime is native-only", source)
@@ -674,8 +880,15 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("archive_isolated_renderer_status_timer", source)
         self.assertIn("_clear_archive_isolated_renderer_surface_for_request", source)
         self.assertIn("self.archive_d3d11_preview_host.clear_preview()", source)
+        self.assertIn("self._clear_archive_d3d11_part_visibility_menu()", source)
+        self.assertIn("self._populate_archive_d3d11_part_visibility_menu(package_dir)", source)
         self.assertIn("self.archive_d3d11_preview_host.clear_preview(status_file)", source)
-        self.assertIn("self.archive_d3d11_preview_host.load_package(package_dir, status_file, reset_view=True)", source)
+        self.assertIn("archive_d3d11_view_state", source)
+        self.assertIn("view_state_payload_changed.connect(self._handle_archive_d3d11_view_state_payload)", source)
+        self.assertIn("preserved_view_state", source)
+        self.assertIn("reset_view=not bool(preserved_view_state)", source)
+        self.assertIn("self.archive_d3d11_preview_host.restore_view_state(state)", source)
+        self.assertIn("self.archive_d3d11_preview_host.set_render_tuning(self._current_model_preview_render_settings())", source)
         self.assertIn("process.terminate()", source)
         self.assertIn("readyReadStandardError.connect(self._handle_archive_isolated_renderer_stderr)", source)
         self.assertIn("finished.connect(self._handle_archive_isolated_renderer_finished)", source)
@@ -695,7 +908,14 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("bool clear_preview", source)
         self.assertIn('command == "clear_preview"', source)
         self.assertIn('command == "set_render_tuning"', source)
+        self.assertIn('command == "set_hidden_source_submeshes"', source)
+        self.assertIn("hidden_source_submeshes_", source)
+        self.assertIn('"{\\"event\\":\\"part_visibility\\"', source)
         self.assertIn("command_set_render_tuning", source)
+        self.assertIn("view_settings_overridden_", source)
+        self.assertIn("render_tuning_overridden_", source)
+        self.assertIn("if (!view_settings_overridden_)", source)
+        self.assertIn("if (!render_tuning_overridden_)", source)
         self.assertIn("texture_details", source)
         self.assertIn("batches_.clear()", source)
         self.assertIn("Native D3D11 preview cleared", source)
@@ -713,12 +933,13 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("PSSetShaderResources(0, kTotalSrvCount, null_srvs)", source)
         self.assertIn("context_->Flush()", source)
         self.assertIn("batches_.clear()", source)
-        self.assertIn('reason_text == "shutdown" || reason_text == "destructor"', source)
+        self.assertIn('reason_text == "parent_unresponsive"', source)
+        self.assertIn('reason_text == "parent_window_gone"', source)
         self.assertIn("srv_cache_.clear()", source)
         self.assertIn("texture_info_cache_.clear()", source)
         self.assertIn('release_model_resources("reload")', source)
         self.assertIn('release_model_resources("clear")', source)
-        self.assertIn('release_model_resources("shutdown")', source)
+        self.assertIn("release_model_resources(close_reason.c_str())", source)
         self.assertIn("model_resources_released", source)
         self.assertIn("texture_cache_entries", source)
         self.assertIn("texture_cache_releases", source)
@@ -738,13 +959,50 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("MsgWaitForMultipleObjects", source)
         self.assertIn("kIdleWaitMs", source)
         self.assertIn("WM_PAINT", source)
+        self.assertIn("BeginPaint(hwnd_, &ps)", source)
+        self.assertIn("EndPaint(hwnd_, &ps)", source)
+        self.assertIn("ValidateRect(hwnd_, nullptr)", source)
         self.assertIn("WM_SIZE", source)
+        self.assertIn("SendMessageTimeoutW", source)
+        self.assertIn("kParentHealthCheckMs", source)
+        self.assertIn("kParentHangExitMs", source)
+        self.assertIn("parent_unresponsive_exit", source)
+        self.assertIn("parent_window_gone", source)
+        self.assertIn("parent_not_renderable", source)
+        self.assertIn("window_not_visible", source)
+        self.assertIn("void note_render_suppressed", source)
+        self.assertIn("render_suppressed", source)
+        self.assertIn("frame_count", source)
+        self.assertIn("render_request_count", source)
+        self.assertIn("parent_health", source)
+        self.assertIn("closed_payload(stats, close_reason)", source)
+        self.assertIn("release_model_resources(close_reason.c_str())", source)
         self.assertIn("kSrvCacheSoftMaxEntries", source)
         self.assertIn("kSrvCacheSoftMaxBytes", source)
         self.assertIn("prune_srv_cache_if_needed", source)
         self.assertIn("texture_cache_pruned", source)
         self.assertIn('prune_srv_cache_if_needed("pre_upload_soft_cap")', source)
         self.assertIn('prune_srv_cache_if_needed("texture_load_soft_cap")', source)
+
+    def test_native_d3d11_host_runs_tool_side_pbd_cloth_preview(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+
+        self.assertIn("struct ClothRuntime", source)
+        self.assertIn("struct ClothCollider", source)
+        self.assertIn("cloth_enabled", source)
+        self.assertIn("parse_cloth_colliders", source)
+        self.assertIn("load_cloth_runtime", source)
+        self.assertIn("step_cloth_simulation", source)
+        self.assertIn("D3D11_USAGE_DYNAMIC", source)
+        self.assertIn("D3D11_MAP_WRITE_DISCARD", source)
+        self.assertIn("reset_tool_pbd_cloth_preview", source)
+        self.assertIn("draw_cloth_debug_overlays", source)
+        self.assertIn("show_tool_pbd_cloth_pins", source)
+        self.assertIn("show_tool_pbd_cloth_colliders", source)
+        self.assertIn("cloth_simulation_steps", source)
+        self.assertIn("Native D3D11 Cloth Preview", main_window_source)
+        self.assertIn("Tool-side PBD cloth preview", main_window_source)
 
     def test_native_d3d11_host_rejects_stale_or_invalid_packages_and_exposes_debug_modes(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")

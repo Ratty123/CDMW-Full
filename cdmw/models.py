@@ -1008,6 +1008,58 @@ class ModelPreviewMesh:
 
 
 @dataclass(slots=True)
+class PbdMaterialSettings:
+    material_name: str = ""
+    material_path: str = ""
+    simulation_kind: str = "cloth"
+    stretching_stiffness: float = 0.30
+    bending_stiffness: float = 0.18
+    damping: float = 0.65
+    gravity: float = -10.0
+    air_resistance: float = 1.0
+    wind_response: float = 0.40
+    solver_iterations: int = 30
+    collision_enabled: bool = True
+    is_cloak: bool = False
+
+
+@dataclass(slots=True)
+class ClothPreviewConstraint:
+    kind: str = "structural"
+    a: int = 0
+    b: int = 0
+    rest_length: float = 0.0
+    stiffness: float = 0.3
+
+
+@dataclass(slots=True)
+class ClothPreviewBatch:
+    mesh_index: int = -1
+    source_submesh_index: int = -1
+    mesh_name: str = ""
+    material_name: str = ""
+    simulation_material_name: str = ""
+    simulation_kind: str = "cloth"
+    material_settings: PbdMaterialSettings = field(default_factory=PbdMaterialSettings)
+    positions: Tuple[Tuple[float, float, float], ...] = ()
+    triangles: Tuple[Tuple[int, int, int], ...] = ()
+    pin_weights: Tuple[float, ...] = ()
+    constraints: Tuple[ClothPreviewConstraint, ...] = ()
+    bone_indices: Tuple[Tuple[int, ...], ...] = ()
+    bone_weights: Tuple[Tuple[float, ...], ...] = ()
+    notes: Tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
+class ClothPreviewData:
+    schema_version: int = 1
+    source_path: str = ""
+    summary: str = ""
+    batches: Tuple[ClothPreviewBatch, ...] = ()
+    limitations: Tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
 class HkxPhysicsOverlayShape:
     shape_type: str = ""
     label: str = ""
@@ -1138,6 +1190,7 @@ class ModelPreviewData:
     normalization_scale: float = 1.0
     meshes: List[ModelPreviewMesh] = field(default_factory=list)
     physics_overlay: Optional[HkxPhysicsOverlayData] = None
+    cloth_preview: Optional[ClothPreviewData] = None
 
 
 @dataclass(slots=True)
@@ -1175,6 +1228,7 @@ class PreparedModelPreviewBatch:
     editor_role: str = ""
     editor_part_name: str = ""
     editor_editable: bool = True
+    cloth_preview: Optional[ClothPreviewBatch] = None
 
 
 @dataclass(slots=True)
@@ -1190,6 +1244,7 @@ class PreparedModelPreviewData:
     normalization_center: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     normalization_scale: float = 1.0
     batches: Tuple[PreparedModelPreviewBatch, ...] = ()
+    cloth_preview: Optional[ClothPreviewData] = None
 
 
 @dataclass(slots=True)
@@ -1240,6 +1295,8 @@ MODEL_PREVIEW_RENDER_LIMITS: Dict[str, Tuple[float, float]] = {
     "shininess_min": (1.0, 128.0),
     "shininess_max": (1.0, 256.0),
     "height_shininess_boost": (0.0, 64.0),
+    "tool_pbd_cloth_wind_strength": (0.0, 2.0),
+    "tool_pbd_cloth_wind_direction_degrees": (-180.0, 180.0),
 }
 
 MODEL_PREVIEW_VISIBLE_TEXTURE_MODES: Tuple[str, ...] = (
@@ -1404,11 +1461,18 @@ class ModelPreviewRenderSettings:
     disable_material_map: bool = False
     disable_height_map: bool = False
     disable_all_support_maps: bool = False
+    flip_texture_v: bool = False
     disable_lighting: bool = False
     disable_depth_test: bool = False
     show_texture_debug_strip: bool = False
     show_physics_overlay: bool = True
-    show_physics_simulation_preview: bool = True
+    show_physics_simulation_preview: bool = False
+    enable_tool_pbd_cloth_preview: bool = False
+    pause_tool_pbd_cloth_preview: bool = False
+    tool_pbd_cloth_wind_strength: float = 0.0
+    tool_pbd_cloth_wind_direction_degrees: float = 35.0
+    show_tool_pbd_cloth_pins: bool = False
+    show_tool_pbd_cloth_colliders: bool = False
     solo_batch_index: int = -1
     preview_texture_max_dimension: int = 16384
     low_quality_texture_max_dimension: int = 2048

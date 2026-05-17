@@ -382,7 +382,7 @@ def ensure_directxtex_dds_preview_pngs(
         )
         returncode, _stdout, _stderr = run_process_with_cancellation(
             [str(binary), "batch-preview-json", str(job_path), str(report_path), *_native_diagnostic_args()],
-            timeout=max(1.0, float(timeout_seconds)),
+            timeout_seconds=max(1.0, float(timeout_seconds)),
             stop_event=stop_event,
         )
     except RunCancelled:
@@ -593,7 +593,7 @@ def encode_dds_batch_with_directxtex(
         )
         returncode, _stdout, _stderr = run_process_with_cancellation(
             [str(binary), "batch-encode-json", str(job_path), str(report_path), *_native_diagnostic_args()],
-            timeout=max(1.0, float(timeout_seconds)),
+            timeout_seconds=max(1.0, float(timeout_seconds)),
             stop_event=stop_event,
         )
     except RunCancelled:

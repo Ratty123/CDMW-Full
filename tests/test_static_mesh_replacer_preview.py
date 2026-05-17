@@ -98,6 +98,139 @@ def _minimal_pac_original() -> tuple[bytes, ParsedMesh]:
 
 
 class StaticMeshReplacementPreviewTests(unittest.TestCase):
+    def test_manual_alignment_does_not_apply_hidden_axis_rotation(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(
+                    name="target",
+                    material="target",
+                    vertices=[(0.0, 0.0, 0.0), (0.0, 3.0, 0.0), (0.0, 0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "replacement.obj",
+            [
+                SubMesh(
+                    name="replacement",
+                    material="replacement",
+                    vertices=[(0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+        preview = build_static_replacement_preview_mesh(
+            original,
+            replacement,
+            StaticMeshReplacementOptions(
+                transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+                submesh_mappings=[mapping],
+            ),
+        )
+
+        self.assertEqual(preview.submeshes[0].vertices[1], (2.0, 0.0, 0.0))
+
+    def test_auto_flat_original_rolls_replacement_to_original_plane(self) -> None:
+        original = _mesh(
+            "flat_target.pac",
+            [
+                SubMesh(
+                    name="target blade",
+                    material="target blade",
+                    vertices=[(0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "upright_replacement.obj",
+            [
+                SubMesh(
+                    name="replacement blade",
+                    material="replacement blade",
+                    vertices=[(0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target blade",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+
+        preview = build_static_replacement_preview_mesh(
+            original,
+            replacement,
+            StaticMeshReplacementOptions(
+                transform=StaticReplacementTransform(alignment_mode="auto_flat_original", scale_to_original_length=False),
+                submesh_mappings=[mapping],
+            ),
+        )
+
+        first, _tip, width = preview.submeshes[0].vertices
+        width_delta = (
+            width[0] - first[0],
+            width[1] - first[1],
+            width[2] - first[2],
+        )
+        self.assertAlmostEqual(0.0, width_delta[1], places=6)
+        self.assertGreater(abs(width_delta[2]), 0.9)
+
+    def test_grid_flat_forces_replacement_to_preview_grid(self) -> None:
+        original = _mesh(
+            "upright_target.pac",
+            [
+                SubMesh(
+                    name="target blade",
+                    material="target blade",
+                    vertices=[(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 2.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "upright_replacement.obj",
+            [
+                SubMesh(
+                    name="replacement blade",
+                    material="replacement blade",
+                    vertices=[(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 2.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target blade",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+
+        preview = build_static_replacement_preview_mesh(
+            original,
+            replacement,
+            StaticMeshReplacementOptions(
+                transform=StaticReplacementTransform(alignment_mode="grid_flat", scale_to_original_length=False),
+                submesh_mappings=[mapping],
+            ),
+        )
+
+        vertices = preview.submeshes[0].vertices
+        y_span = max(vertex[1] for vertex in vertices) - min(vertex[1] for vertex in vertices)
+        z_span = max(vertex[2] for vertex in vertices) - min(vertex[2] for vertex in vertices)
+        self.assertLess(y_span, 1e-6)
+        self.assertGreater(z_span, 1.9)
+
     def test_preview_allows_large_mapped_target_that_export_rejects(self) -> None:
         original = _mesh(
             "helmet.pac",

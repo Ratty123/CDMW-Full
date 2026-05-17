@@ -1216,9 +1216,11 @@ def _semantic_hint_from_sidecar_parameter(
         else:
             semantic_subtype = "height"
         return "height", semantic_subtype, 98, evidence, ()
-    if any(token in normalized for token in ("flow", "vector", "velocity", "position", "pivot")):
+    if any(token in normalized for token in ("flow", "direction", "vector", "velocity", "position", "pivot")):
         if any(token in normalized for token in ("flow", "velocity")):
             semantic_subtype = "flow_vector"
+        elif "direction" in normalized:
+            semantic_subtype = "direction_vector"
         elif "pivot" in normalized:
             semantic_subtype = "pivot_position"
         elif "position" in normalized:

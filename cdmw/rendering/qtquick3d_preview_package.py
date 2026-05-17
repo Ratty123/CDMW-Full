@@ -10,12 +10,15 @@ import tempfile
 import time
 from types import SimpleNamespace
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
+from urllib.parse import unquote, urlparse
 
 from PySide6.QtGui import QColor, QImage
 
 from cdmw.core.dds_native import dds_native_report_dict, dds_source_path_from_report, inspect_dds_native_path
 from cdmw.core.texture_native import read_native_texture_report_sidecar
 from cdmw.models import (
+    ClothPreviewBatch,
+    ClothPreviewConstraint,
     ModelPreviewData,
     ModelPreviewRenderSettings,
     PreparedModelPreviewBatch,
@@ -126,6 +129,124 @@ def _write_editor_identity_blob(
     }
 
 
+def _write_cloth_runtime_payloads(
+    package_dir: Path,
+    geometry_dir: Path,
+    batch_index: int,
+    cloth_batch: object,
+) -> Dict[str, object]:
+    if not isinstance(cloth_batch, ClothPreviewBatch):
+        return {}
+    positions = tuple(getattr(cloth_batch, "positions", ()) or ())
+    constraints = tuple(getattr(cloth_batch, "constraints", ()) or ())
+    pin_weights = tuple(float(value) for value in tuple(getattr(cloth_batch, "pin_weights", ()) or ()))
+    particle_count = len(positions)
+    if particle_count <= 0:
+        return {}
+    if len(pin_weights) != particle_count:
+        pin_weights = tuple(0.0 for _ in range(particle_count))
+
+    particle_path = geometry_dir / f"batch_{batch_index:03d}_cloth_particles.bin"
+    with particle_path.open("wb") as stream:
+        for position in positions:
+            try:
+                x, y, z = (float(position[0]), float(position[1]), float(position[2]))
+            except (TypeError, ValueError, IndexError, OverflowError):
+                x, y, z = 0.0, 0.0, 0.0
+            stream.write(struct.pack("<3f", x, y, z))
+
+    pin_path = geometry_dir / f"batch_{batch_index:03d}_cloth_pins.bin"
+    with pin_path.open("wb") as stream:
+        for weight in pin_weights:
+            stream.write(struct.pack("<f", max(0.0, min(1.0, _safe_float(weight, 0.0)))))
+
+    constraint_path = geometry_dir / f"batch_{batch_index:03d}_cloth_constraints.bin"
+    written_constraints = 0
+    with constraint_path.open("wb") as stream:
+        for constraint in constraints:
+            if not isinstance(constraint, ClothPreviewConstraint):
+                continue
+            a = _safe_int(getattr(constraint, "a", -1), -1)
+            b = _safe_int(getattr(constraint, "b", -1), -1)
+            if a < 0 or b < 0 or a >= particle_count or b >= particle_count or a == b:
+                continue
+            rest_length = max(0.0, _safe_float(getattr(constraint, "rest_length", 0.0), 0.0))
+            stiffness = max(0.0, min(1.0, _safe_float(getattr(constraint, "stiffness", 0.0), 0.0)))
+            stream.write(struct.pack("<ii2f", a, b, rest_length, stiffness))
+            written_constraints += 1
+
+    material = getattr(cloth_batch, "material_settings", None)
+    return {
+        "cloth_enabled": True,
+        "cloth_kind": str(getattr(cloth_batch, "simulation_kind", "cloth") or "cloth"),
+        "cloth_material_name": str(getattr(cloth_batch, "simulation_material_name", "") or ""),
+        "cloth_particle_file": particle_path.relative_to(package_dir).as_posix(),
+        "cloth_pin_file": pin_path.relative_to(package_dir).as_posix(),
+        "cloth_constraint_file": constraint_path.relative_to(package_dir).as_posix(),
+        "cloth_particle_count": particle_count,
+        "cloth_constraint_count": written_constraints,
+        "cloth_gravity": _safe_float(getattr(material, "gravity", -10.0), -10.0),
+        "cloth_damping": _safe_float(getattr(material, "damping", 0.65), 0.65),
+        "cloth_air_resistance": _safe_float(getattr(material, "air_resistance", 1.0), 1.0),
+        "cloth_wind_response": _safe_float(getattr(material, "wind_response", 0.4), 0.4),
+        "cloth_solver_iterations": max(1, min(64, _safe_int(getattr(material, "solver_iterations", 30), 30))),
+        "cloth_collision_enabled": bool(getattr(material, "collision_enabled", True)),
+    }
+
+
+def _tuple3(value: object) -> Tuple[float, float, float]:
+    try:
+        raw = tuple(value)  # type: ignore[arg-type]
+        result = (float(raw[0]), float(raw[1]), float(raw[2]))
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return ()
+    return result if all(math.isfinite(component) for component in result) else ()
+
+
+def _write_cloth_collider_payload(
+    model: object,
+    package_dir: Path,
+    geometry_dir: Path,
+) -> Tuple[str, int]:
+    overlay = getattr(model, "physics_overlay", None)
+    shapes = tuple(getattr(overlay, "shapes", ()) or ())
+    if not shapes:
+        return "", 0
+    collider_path = geometry_dir / "cloth_colliders.bin"
+    collider_count = 0
+    with collider_path.open("wb") as stream:
+        for shape in shapes[:512]:
+            center = _tuple3(getattr(shape, "center", ()) or ())
+            radius = max(0.0, _safe_float(getattr(shape, "radius", 0.0), 0.0))
+            capsule_start = _tuple3(getattr(shape, "capsule_start", ()) or ())
+            capsule_end = _tuple3(getattr(shape, "capsule_end", ()) or ())
+            bounds_min = _tuple3(getattr(shape, "bounds_min", ()) or ())
+            bounds_max = _tuple3(getattr(shape, "bounds_max", ()) or ())
+            if capsule_start and capsule_end and radius > 0.0:
+                record = (2.0, *capsule_start, *capsule_end, radius, 0.0, 0.0, 0.0)
+            elif center and radius > 0.0:
+                record = (1.0, *center, radius, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            elif bounds_min and bounds_max:
+                record = (3.0, *bounds_min, *bounds_max, 0.0, 0.0, 0.0, 0.0)
+            else:
+                vertices = tuple(getattr(shape, "vertices", ()) or ())
+                points = [_tuple3(vertex) for vertex in vertices[:1024]]
+                points = [point for point in points if point]
+                if not points:
+                    continue
+                xs, ys, zs = zip(*points)
+                record = (3.0, min(xs), min(ys), min(zs), max(xs), max(ys), max(zs), 0.0, 0.0, 0.0, 0.0)
+            stream.write(struct.pack("<11f", *record))
+            collider_count += 1
+    if collider_count <= 0:
+        try:
+            collider_path.unlink()
+        except OSError:
+            pass
+        return "", 0
+    return collider_path.relative_to(package_dir).as_posix(), collider_count
+
+
 def _suffix_tokens(name: str) -> Tuple[str, ...]:
     lower = str(name or "").replace("\\", "/").split("/")[-1].lower()
     stem = lower.rsplit(".", 1)[0]
@@ -207,6 +328,11 @@ def _copy_texture(
     raw = str(source_path or "").strip()
     if not raw:
         return ""
+    parsed = urlparse(raw)
+    if parsed.scheme.lower() == "file":
+        raw = unquote(parsed.path or "")
+        if len(raw) >= 3 and raw[0] == "/" and raw[2] == ":":
+            raw = raw[1:]
     try:
         source = Path(raw).expanduser()
     except OSError:
@@ -232,6 +358,81 @@ def _copy_texture(
     relative = target.relative_to(package_dir).as_posix()
     copy_cache[key] = relative
     return relative
+
+
+def _materialize_in_memory_texture_key(
+    model: object,
+    texture_key: str,
+    *,
+    textures_dir: Path,
+    batch_index: int,
+    slot_name: str,
+) -> str:
+    key = str(texture_key or "").strip()
+    if not key.startswith("in_memory"):
+        return key
+    prefix, _separator, raw_index = key.partition(":")
+    try:
+        mesh_index = int(raw_index)
+    except (TypeError, ValueError):
+        return key
+    meshes = tuple(getattr(model, "meshes", ()) or ())
+    if mesh_index < 0 or mesh_index >= len(meshes):
+        return key
+    image_attribute = {
+        "in_memory": "preview_texture_image",
+        "in_memory_normal": "preview_normal_texture_image",
+        "in_memory_material": "preview_material_texture_image",
+        "in_memory_height": "preview_height_texture_image",
+    }.get(prefix)
+    if not image_attribute:
+        return key
+    image = getattr(meshes[mesh_index], image_attribute, None)
+    if image is None or not hasattr(image, "save"):
+        return key
+    try:
+        if hasattr(image, "isNull") and image.isNull():
+            return key
+    except Exception:
+        return key
+    materialized_dir = textures_dir / "in_memory"
+    materialized_dir.mkdir(parents=True, exist_ok=True)
+    target = materialized_dir / f"batch_{batch_index:03d}_{slot_name}.png"
+    try:
+        if image.save(str(target), "PNG"):
+            return str(target)
+    except Exception:
+        return key
+    return key
+
+
+def _materialized_in_memory_batch(
+    model: object,
+    batch: PreparedModelPreviewBatch,
+    *,
+    textures_dir: Path,
+    batch_index: int,
+) -> PreparedModelPreviewBatch:
+    replacements: Dict[str, str] = {}
+    for attribute_name, slot_name in (
+        ("preview_texture_path", "base"),
+        ("preview_normal_texture_path", "normal"),
+        ("preview_material_texture_path", "material"),
+        ("preview_height_texture_path", "height"),
+    ):
+        value = str(getattr(batch, attribute_name, "") or "")
+        materialized = _materialize_in_memory_texture_key(
+            model,
+            value,
+            textures_dir=textures_dir,
+            batch_index=batch_index,
+            slot_name=slot_name,
+        )
+        if materialized != value:
+            replacements[attribute_name] = materialized
+    if not replacements:
+        return batch
+    return dataclasses.replace(batch, **replacements)
 
 
 def _split_legacy_pbr_texture(
@@ -1045,6 +1246,8 @@ def write_isolated_qtquick3d_preview_package(
     output_root: Optional[Path] = None,
     enable_material_combiner: bool = True,
     prefer_direct_dds: bool = False,
+    display_mode: str = "replacement_only",
+    editor_workspace: str = "",
 ) -> Path:
     if not isinstance(prepared_preview, PreparedModelPreviewData):
         raise TypeError("prepared_preview must be PreparedModelPreviewData")
@@ -1064,9 +1267,29 @@ def write_isolated_qtquick3d_preview_package(
     dds_inspect_cache: Dict[str, Dict[str, object]] = {}
     batches: list[Dict[str, object]] = []
     total_vertices = 0
-    for batch_index, batch in enumerate(tuple(getattr(prepared_preview, "batches", ()) or ())):
+    prepared_batches = tuple(getattr(prepared_preview, "batches", ()) or ())
+    has_cloth_batches = any(
+        isinstance(getattr(batch, "cloth_preview", None), ClothPreviewBatch)
+        for batch in prepared_batches
+        if isinstance(batch, PreparedModelPreviewBatch)
+    )
+    cloth_collider_file, cloth_collider_count = (
+        _write_cloth_collider_payload(model, package_dir, geometry_dir)
+        if has_cloth_batches
+        else ("", 0)
+    )
+    cloth_batch_count = 0
+    cloth_particle_count = 0
+    cloth_constraint_count = 0
+    for batch_index, batch in enumerate(prepared_batches):
         if not isinstance(batch, PreparedModelPreviewBatch):
             continue
+        batch = _materialized_in_memory_batch(
+            model,
+            batch,
+            textures_dir=textures_dir,
+            batch_index=batch_index,
+        )
         blob = bytes(getattr(batch, "vertex_blob", b"") or b"")
         vertex_count = max(
             0,
@@ -1122,8 +1345,9 @@ def write_isolated_qtquick3d_preview_package(
         texture_flip_vertical = bool(getattr(batch, "preview_texture_flip_vertical", True))
         if "texture_flip_vertical" in combiner_metadata:
             texture_flip_vertical = bool(combiner_metadata.get("texture_flip_vertical", texture_flip_vertical))
-        batches.append(
-            {
+        if bool(getattr(settings, "flip_texture_v", False)):
+            texture_flip_vertical = not texture_flip_vertical
+        batch_payload = {
                 "index": batch_index,
                 "material_name": str(getattr(batch, "material_name", "") or ""),
                 "texture_name": str(getattr(batch, "texture_name", "") or ""),
@@ -1150,13 +1374,31 @@ def write_isolated_qtquick3d_preview_package(
                     if isinstance(texture_input, PreviewMaterialTextureInput)
                 ],
             }
+        cloth_payload = _write_cloth_runtime_payloads(
+            package_dir,
+            geometry_dir,
+            batch_index,
+            getattr(batch, "cloth_preview", None),
         )
+        if cloth_payload:
+            cloth_batch_count += 1
+            cloth_particle_count += _safe_int(cloth_payload.get("cloth_particle_count"), 0)
+            cloth_constraint_count += _safe_int(cloth_payload.get("cloth_constraint_count"), 0)
+            if not cloth_collider_file:
+                cloth_payload["cloth_collision_enabled"] = False
+            batch_payload.update(cloth_payload)
+        batches.append(batch_payload)
 
+    normalized_display_mode = str(display_mode or "replacement_only").strip().lower()
+    if normalized_display_mode not in {"side_by_side", "overlay", "replacement_only"}:
+        normalized_display_mode = "replacement_only"
     manifest = {
         "schema_version": ISOLATED_PREVIEW_SCHEMA_VERSION,
         "backend": str(backend or "d3d11").strip().lower(),
         "created_at": time.time(),
         "write_ms": max(0.0, (time.perf_counter() - started) * 1000.0),
+        "display_mode": normalized_display_mode,
+        "editor_workspace": str(editor_workspace or "").strip(),
         "source_path": str(getattr(prepared_preview, "source_path", "") or getattr(model, "path", "") or ""),
         "format": str(getattr(prepared_preview, "format", "") or getattr(model, "format", "") or ""),
         "summary": str(getattr(prepared_preview, "summary", "") or getattr(model, "summary", "") or ""),
@@ -1174,6 +1416,12 @@ def write_isolated_qtquick3d_preview_package(
         "invert_pan_y": bool(getattr(settings, "invert_pan_y", False)),
         "use_textures": bool(use_textures),
         "high_quality_textures": bool(high_quality_textures),
+        "cloth_runtime_schema": 1,
+        "cloth_batch_count": cloth_batch_count,
+        "cloth_particle_count": cloth_particle_count,
+        "cloth_constraint_count": cloth_constraint_count,
+        "cloth_collider_file": cloth_collider_file,
+        "cloth_collider_count": cloth_collider_count,
         "batches": batches,
     }
     (package_dir / "manifest.json").write_text(json.dumps(manifest, separators=(",", ":")), encoding="utf-8")

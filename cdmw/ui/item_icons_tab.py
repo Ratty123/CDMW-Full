@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -35,6 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.core.item_icon import (
+    ITEM_ICON_DEFAULT_BACKGROUND_MODE,
     ITEM_ICON_SOURCE_EXTENSIONS,
     ItemIconLibraryRecord,
     ItemIconOverrideSpec,
@@ -42,6 +44,8 @@ from cdmw.core.item_icon import (
     build_item_icon_payload,
     build_item_icon_source_preview_png,
     import_edited_item_icon_source,
+    normalize_item_icon_background_mode,
+    patch_existing_loose_mod_with_item_icon,
     read_item_icon_template_info,
     save_item_icon_library_index,
     scan_item_icon_library,
@@ -128,7 +132,7 @@ class ItemIconLibraryTab(QWidget):
         root_layout.setContentsMargins(10, 10, 10, 10)
         root_layout.setSpacing(8)
 
-        header = QLabel("Icon creator")
+        header = QLabel("Icon Creator")
         header.setObjectName("SectionTitle")
         root_layout.addWidget(header)
 
@@ -213,6 +217,7 @@ class ItemIconLibraryTab(QWidget):
         self.records_tree.setAlternatingRowColors(True)
         self.records_tree.setUniformRowHeights(True)
         self.records_tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.records_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.records_tree.setSortingEnabled(True)
         self.records_tree.header().setStretchLastSection(True)
         self.records_tree.header().resizeSection(0, 210)
@@ -229,6 +234,7 @@ class ItemIconLibraryTab(QWidget):
         self.favorite_only_checkbox.toggled.connect(lambda _checked=False: self._populate_records_tree())
         self.records_tree.currentItemChanged.connect(lambda current, _previous: self._handle_record_selection(current))
         self.records_tree.itemDoubleClicked.connect(lambda _item, _column: self.open_selected_in_texture_editor())
+        self.records_tree.customContextMenuRequested.connect(self._show_records_context_menu)
         return panel
 
     def _build_preview_panel(self) -> QWidget:
@@ -262,6 +268,8 @@ class ItemIconLibraryTab(QWidget):
         self.notes_edit.setPlaceholderText("Notes")
         self.save_metadata_button = QPushButton("Save Metadata")
         self.open_editor_button = QPushButton("Open In Texture Editor")
+        self.delete_source_button = QPushButton("Delete Source")
+        self.delete_source_button.setEnabled(False)
         metadata_grid.addWidget(self.favorite_checkbox, 0, 0, 1, 2)
         metadata_grid.addWidget(QLabel("Tags"), 1, 0)
         metadata_grid.addWidget(self.tags_edit, 1, 1)
@@ -269,6 +277,7 @@ class ItemIconLibraryTab(QWidget):
         metadata_grid.addWidget(self.notes_edit, 2, 1)
         metadata_grid.addWidget(self.save_metadata_button, 3, 0)
         metadata_grid.addWidget(self.open_editor_button, 3, 1)
+        metadata_grid.addWidget(self.delete_source_button, 4, 0, 1, 2)
         metadata_grid.setColumnStretch(1, 1)
         source_layout.addLayout(metadata_grid)
         layout.addWidget(source_group, stretch=1)
@@ -294,6 +303,20 @@ class ItemIconLibraryTab(QWidget):
         target_button_row.addWidget(self.open_target_archive_button)
         target_button_row.addStretch(1)
         target_layout.addLayout(target_button_row)
+        background_row = QHBoxLayout()
+        background_row.addWidget(QLabel("Background"))
+        self.background_mode_combo = QComboBox()
+        self.background_mode_combo.addItem("Auto transparent", "auto_transparent")
+        self.background_mode_combo.addItem("Keep source", "keep_source")
+        self.background_mode_combo.addItem("Target underlay", "target_underlay")
+        saved_background_mode = normalize_item_icon_background_mode(
+            self.settings.value("item_icons/background_mode", ITEM_ICON_DEFAULT_BACKGROUND_MODE)
+        )
+        saved_index = self.background_mode_combo.findData(saved_background_mode)
+        if saved_index >= 0:
+            self.background_mode_combo.setCurrentIndex(saved_index)
+        background_row.addWidget(self.background_mode_combo, stretch=1)
+        target_layout.addLayout(background_row)
         self.target_match_label = QLabel("")
         self.target_match_label.setObjectName("HintLabel")
         self.target_match_label.setWordWrap(True)
@@ -312,21 +335,26 @@ class ItemIconLibraryTab(QWidget):
         export_row = QHBoxLayout()
         self.preview_final_button = QPushButton("Preview Final")
         self.export_generated_button = QPushButton("Export Generated Icon...")
+        self.add_to_loose_mod_button = QPushButton("Add To Existing Loose Mod...")
         export_row.addWidget(self.preview_final_button)
         export_row.addWidget(self.export_generated_button)
+        export_row.addWidget(self.add_to_loose_mod_button)
         export_row.addStretch(1)
         target_layout.addLayout(export_row)
         layout.addWidget(target_group, stretch=1)
 
         self.save_metadata_button.clicked.connect(self.save_selected_metadata)
         self.open_editor_button.clicked.connect(self.open_selected_in_texture_editor)
+        self.delete_source_button.clicked.connect(self.delete_selected_source)
         self.refresh_targets_button.clicked.connect(self.refresh_targets)
         self.target_filter_edit.textChanged.connect(lambda _text="": self._handle_target_filter_changed())
         self.target_combo.currentIndexChanged.connect(lambda _index=0: self.update_final_preview())
+        self.background_mode_combo.currentIndexChanged.connect(lambda _index=0: self._handle_background_mode_changed())
         self.use_archive_selection_button.clicked.connect(self.use_archive_selection_as_target)
         self.open_target_archive_button.clicked.connect(self.open_current_target_in_archive_browser)
         self.preview_final_button.clicked.connect(lambda _checked=False: self.update_final_preview(show_errors=True))
         self.export_generated_button.clicked.connect(self.export_generated_icon)
+        self.add_to_loose_mod_button.clicked.connect(self.add_to_existing_loose_mod)
         return panel
 
     def shutdown(self) -> None:
@@ -338,6 +366,15 @@ class ItemIconLibraryTab(QWidget):
     def _texconv_path(self) -> Optional[Path]:
         text = str(self.get_texconv_path() or "").strip()
         return Path(text).expanduser() if text else None
+
+    def _background_mode(self) -> str:
+        if not hasattr(self, "background_mode_combo"):
+            return ITEM_ICON_DEFAULT_BACKGROUND_MODE
+        return normalize_item_icon_background_mode(self.background_mode_combo.currentData())
+
+    def _handle_background_mode_changed(self) -> None:
+        self.settings.setValue("item_icons/background_mode", self._background_mode())
+        self.update_final_preview()
 
     def _save_roots(self) -> None:
         self.settings.setValue("item_icons/library_roots", _path_list_to_settings(self.library_roots))
@@ -362,7 +399,7 @@ class ItemIconLibraryTab(QWidget):
         except OSError:
             resolved = root
         if not resolved.is_dir():
-            QMessageBox.warning(self, "Icon creator", "Choose an existing folder.")
+            QMessageBox.warning(self, "Icon Creator", "Choose an existing folder.")
             return
         existing = {str(path).casefold() for path in self.library_roots}
         if str(resolved).casefold() not in existing:
@@ -462,6 +499,8 @@ class ItemIconLibraryTab(QWidget):
             self.notes_edit.setPlainText(record.notes if record else "")
         finally:
             self._loading_record = False
+        if hasattr(self, "delete_source_button"):
+            self.delete_source_button.setEnabled(bool(path is not None and path.is_file()))
         self.update_source_preview()
         self.update_final_preview()
 
@@ -621,13 +660,13 @@ class ItemIconLibraryTab(QWidget):
     def use_archive_selection_as_target(self) -> None:
         selected_path = str(self.get_current_archive_path() or "").replace("\\", "/").strip()
         if not selected_path:
-            QMessageBox.information(self, "Icon creator", "Select an item icon DDS in Archive Browser first.")
+            QMessageBox.information(self, "Icon Creator", "Select an item icon DDS in Archive Browser first.")
             return
         entry = self._target_entry_for_path(selected_path)
         if entry is None:
             QMessageBox.warning(
                 self,
-                "Icon creator",
+                "Icon Creator",
                 "The current Archive Browser selection is not a loaded existing item icon target.",
             )
             return
@@ -638,7 +677,7 @@ class ItemIconLibraryTab(QWidget):
     def open_current_target_in_archive_browser(self) -> None:
         target_path = self._current_target_path()
         if not target_path:
-            QMessageBox.information(self, "Icon creator", "Choose an existing target icon path first.")
+            QMessageBox.information(self, "Icon Creator", "Choose an existing target icon path first.")
             return
         self.open_target_in_archive_requested.emit(target_path)
 
@@ -658,30 +697,33 @@ class ItemIconLibraryTab(QWidget):
             template_path = self.resolve_target_template_path(target_entry)
             preview_path = self.preview_root / f"{PurePosixPath(target_path).stem}_{source_path.stem}_preview.png"
             preview_path.parent.mkdir(parents=True, exist_ok=True)
-            _preview_path, target_info, source_dimensions = build_item_icon_fit_pad_preview(
+            _preview_path, target_info, source_dimensions, warnings = build_item_icon_fit_pad_preview(
                 source_path,
                 target_path=target_path,
                 target_template_path=template_path,
                 output_path=preview_path,
                 texconv_path=self._texconv_path(),
+                background_mode=self._background_mode(),
             )
             self.final_preview_label.set_preview_image_path(str(preview_path), "Final item icon preview")
+            warning_text = f" | {'; '.join(warnings)}" if warnings else ""
             self.target_meta_label.setText(
                 f"Final: {target_path} | target {target_info.width}x{target_info.height}, "
                 f"{target_info.target_format}, {target_info.mip_count} mip(s) | source {source_dimensions[0]}x{source_dimensions[1]}"
+                f" | background {self._background_mode()}{warning_text}"
             )
         except Exception as exc:
             self.final_preview_label.clear_preview(str(exc))
             self.target_meta_label.setText(str(exc))
             if show_errors:
-                QMessageBox.warning(self, "Icon creator", str(exc))
+                QMessageBox.warning(self, "Icon Creator", str(exc))
 
     def export_generated_icon(self) -> None:
         source_path = self.current_source_path()
         target_entry = self._current_target_entry()
         target_path = self._current_target_path()
         if source_path is None or target_entry is None or not target_path:
-            QMessageBox.warning(self, "Icon creator", "Choose a source image and an existing target icon path.")
+            QMessageBox.warning(self, "Icon Creator", "Choose a source image and an existing target icon path.")
             return
         output_dir = QFileDialog.getExistingDirectory(self, "Export Generated Item Icon Package", str(self.library_root))
         if not output_dir:
@@ -694,6 +736,7 @@ class ItemIconLibraryTab(QWidget):
                     target_entry=target_entry,
                     target_path=target_path,
                     source_mode="library",
+                    background_mode=self._background_mode(),
                 ),
                 target_template_path=template_path,
                 texconv_path=self._texconv_path(),
@@ -703,11 +746,62 @@ class ItemIconLibraryTab(QWidget):
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(payload.payload_data)
         except Exception as exc:
-            QMessageBox.warning(self, "Icon creator", str(exc))
+            QMessageBox.warning(self, "Icon Creator", str(exc))
             self._emit_status(f"Item icon export failed: {exc}", True)
             return
         self._emit_status(f"Exported generated item icon: {destination}")
-        QMessageBox.information(self, "Icon creator", f"Generated icon written to:\n{destination}")
+        QMessageBox.information(self, "Icon Creator", f"Generated icon written to:\n{destination}")
+
+    def add_to_existing_loose_mod(self) -> None:
+        source_path = self.current_source_path()
+        target_entry = self._current_target_entry()
+        target_path = self._current_target_path()
+        if source_path is None or target_entry is None or not target_path:
+            QMessageBox.warning(self, "Icon Creator", "Choose a source image and an existing target icon path.")
+            return
+        loose_mod_dir = QFileDialog.getExistingDirectory(
+            self,
+            "Choose Existing Loose Mod Folder",
+            str(self.library_root),
+        )
+        if not loose_mod_dir:
+            return
+        try:
+            template_path = self.resolve_target_template_path(target_entry)
+            payload = build_item_icon_payload(
+                ItemIconOverrideSpec(
+                    source_path=source_path,
+                    target_entry=target_entry,
+                    target_path=target_path,
+                    source_mode="library",
+                    background_mode=self._background_mode(),
+                ),
+                target_template_path=template_path,
+                texconv_path=self._texconv_path(),
+            )
+            result = patch_existing_loose_mod_with_item_icon(
+                Path(loose_mod_dir),
+                target_path=payload.target_path,
+                payload_data=payload.payload_data,
+                target_entry=target_entry,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Icon Creator", str(exc))
+            self._emit_status(f"Existing loose mod icon patch failed: {exc}", True)
+            return
+
+        details = [
+            f"Patched copy:\n{result.output_root}",
+            f"Icon:\n{result.icon_path}",
+        ]
+        if result.manifest_path is not None:
+            details.append(f"Manifest updated:\n{result.manifest_path}")
+        if result.zip_path is not None:
+            details.append(f"Fresh zip:\n{result.zip_path}")
+        if payload.warnings:
+            details.append("Warnings:\n" + "\n".join(payload.warnings))
+        self._emit_status(f"Added generated item icon to patched loose mod copy: {result.output_root}")
+        QMessageBox.information(self, "Icon Creator", "\n\n".join(details))
 
     def open_selected_in_texture_editor(self) -> None:
         path = self.current_source_path()
@@ -720,6 +814,56 @@ class ItemIconLibraryTab(QWidget):
             source_identity_path=str(path),
         )
         self.open_in_texture_editor_requested.emit(str(path), binding)
+
+    def delete_selected_source(self) -> None:
+        path = self.current_source_path()
+        if path is None or not path.is_file():
+            QMessageBox.information(self, "Icon Creator", "Select an icon source file first.")
+            return
+        answer = QMessageBox.question(
+            self,
+            "Delete Icon Source",
+            f"Delete this icon source from disk?\n\n{path}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            path.unlink()
+        except OSError as exc:
+            QMessageBox.warning(self, "Icon Creator", f"Could not delete icon source:\n{exc}")
+            self._emit_status(f"Icon source delete failed: {exc}", True)
+            return
+        self.source_preview_label.clear_preview("Select an icon source.")
+        self.final_preview_label.clear_preview("Select a source and target icon.")
+        self._emit_status(f"Deleted icon source: {path.name}")
+        self.scan_library(show_status=False)
+
+    def _show_records_context_menu(self, position) -> None:
+        item = self.records_tree.itemAt(position)
+        if item is None:
+            return
+        self.records_tree.setCurrentItem(item)
+        path = self.current_source_path(item)
+        menu = QMenu(self)
+        open_action = menu.addAction("Open In Texture Editor")
+        open_action.setEnabled(bool(path is not None and path.is_file()))
+        open_action.triggered.connect(self.open_selected_in_texture_editor)
+        folder_action = menu.addAction("Open Folder")
+        folder_action.setEnabled(bool(path is not None and path.parent.is_dir()))
+        folder_action.triggered.connect(
+            lambda _checked=False, source_path=path: (
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(source_path.parent)))
+                if source_path is not None
+                else None
+            )
+        )
+        menu.addSeparator()
+        delete_action = menu.addAction("Delete Source")
+        delete_action.setEnabled(bool(path is not None and path.is_file()))
+        delete_action.triggered.connect(self.delete_selected_source)
+        menu.exec(self.records_tree.viewport().mapToGlobal(position))
 
     def add_imported_source(self, source_path: Path) -> Optional[Path]:
         source = source_path.expanduser()

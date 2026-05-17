@@ -3010,6 +3010,7 @@ def export_archive_mesh(
     archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     related_entries: Sequence[ArchiveEntry] = (),
     allow_missing_skeleton: bool = False,
+    resolve_skeleton_for_obj: bool = True,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> MeshExportResult:
     export_kind = export_format.strip().lower()
@@ -3032,7 +3033,10 @@ def export_archive_mesh(
     skeleton_resolution_warning = ""
     skeleton_resolve_report: Optional[SkeletonResolveReport] = None
     copied_related_count = 0
-    if entry.extension == ".pac":
+    should_resolve_skeleton = entry.extension == ".pac" and (
+        export_kind == "fbx" or bool(resolve_skeleton_for_obj)
+    )
+    if should_resolve_skeleton:
         skeleton_entry, skeleton_resolution_warning, _attempted_paths, skeleton_resolve_report = _find_matching_skeleton_entry(
             entry,
             archive_entries_by_normalized_path=archive_entries_by_normalized_path,
@@ -3267,18 +3271,50 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
         indices: List[int] = []
         for face in submesh.faces:
             indices.extend(int(index) for index in face[:3])
-        preview_meshes.append(
-            ModelPreviewMesh(
-                material_name=str(submesh.material or submesh.name or ""),
-                texture_name=str(submesh.texture or ""),
-                positions=[tuple(vertex) for vertex in submesh.vertices],
-                texture_coordinates=[tuple(uv) for uv in submesh.uvs[: len(submesh.vertices)]],
-                normals=[tuple(normal) for normal in submesh.normals[: len(submesh.vertices)]],
-                indices=indices,
-                source_submesh_index=submesh_index,
-                source_vertex_indices=list(range(len(submesh.vertices))),
-            )
+        preview_mesh = ModelPreviewMesh(
+            material_name=str(submesh.material or submesh.name or ""),
+            texture_name=str(submesh.texture or ""),
+            positions=[tuple(vertex) for vertex in submesh.vertices],
+            texture_coordinates=[tuple(uv) for uv in submesh.uvs[: len(submesh.vertices)]],
+            normals=[tuple(normal) for normal in submesh.normals[: len(submesh.vertices)]],
+            indices=indices,
+            source_submesh_index=submesh_index,
+            source_vertex_indices=list(range(len(submesh.vertices))),
         )
+        preview_color = tuple(getattr(submesh, "preview_color", ()) or ())
+        if len(preview_color) >= 3:
+            preview_mesh.preview_color = tuple(float(component) for component in preview_color[:3])
+        preview_normal_texture_path = str(getattr(submesh, "preview_normal_texture_path", "") or "").strip()
+        if preview_normal_texture_path:
+            preview_mesh.preview_normal_texture_path = preview_normal_texture_path
+            preview_mesh.preview_normal_texture_name = str(
+                getattr(submesh, "preview_normal_texture_name", "") or Path(preview_normal_texture_path).name
+            )
+            preview_mesh.preview_normal_texture_strength = float(
+                getattr(submesh, "preview_normal_texture_strength", 0.75) or 0.75
+            )
+        preview_material_texture_path = str(getattr(submesh, "preview_material_texture_path", "") or "").strip()
+        if preview_material_texture_path:
+            preview_mesh.preview_material_texture_path = preview_material_texture_path
+            preview_mesh.preview_material_texture_name = str(
+                getattr(submesh, "preview_material_texture_name", "") or Path(preview_material_texture_path).name
+            )
+            preview_mesh.preview_material_texture_type = str(getattr(submesh, "preview_material_texture_type", "") or "").strip()
+            preview_mesh.preview_material_texture_subtype = str(
+                getattr(submesh, "preview_material_texture_subtype", "") or ""
+            ).strip()
+            preview_mesh.preview_material_texture_packed_channels = tuple(
+                str(channel or "").strip()
+                for channel in (getattr(submesh, "preview_material_texture_packed_channels", ()) or ())
+                if str(channel or "").strip()
+            )
+        preview_height_texture_path = str(getattr(submesh, "preview_height_texture_path", "") or "").strip()
+        if preview_height_texture_path:
+            preview_mesh.preview_height_texture_path = preview_height_texture_path
+            preview_mesh.preview_height_texture_name = str(
+                getattr(submesh, "preview_height_texture_name", "") or Path(preview_height_texture_path).name
+            )
+        preview_meshes.append(preview_mesh)
     return preview_meshes
 
 
@@ -3300,6 +3336,280 @@ def parsed_mesh_to_preview_model(parsed_mesh: ParsedMesh) -> ModelPreviewData:
     source_submeshes = parsed_mesh.submeshes
     label = "submesh" if parsed_mesh.format != "pac" else "mesh"
     return _build_model_preview(parsed_mesh.path, parsed_mesh.format, _preview_meshes_from_submeshes(source_submeshes), label)
+
+
+def attach_scene_preview_textures(
+    preview_model: object,
+    scene_result: SceneImportResult,
+    scene_path: str | Path,
+) -> int:
+    if not isinstance(preview_model, ModelPreviewData):
+        return 0
+    source_path = Path(scene_path).expanduser()
+    try:
+        source_path = source_path.resolve()
+    except OSError:
+        source_path = source_path.absolute()
+
+    texture_paths: List[Path] = []
+    for candidate in tuple(scene_result.discovered_texture_files or ()) + tuple(scene_result.extracted_embedded_files or ()):
+        if isinstance(candidate, Path) and candidate.is_file():
+            texture_paths.append(candidate.resolve())
+    for mesh in getattr(preview_model, "meshes", []) or []:
+        for attr_name in (
+            "preview_texture_path",
+            "preview_normal_texture_path",
+            "preview_material_texture_path",
+            "preview_height_texture_path",
+        ):
+            candidate_text = str(getattr(mesh, attr_name, "") or "").strip()
+            if not candidate_text:
+                continue
+            candidate = Path(candidate_text)
+            if candidate.is_file():
+                texture_paths.append(candidate.resolve())
+    if not texture_paths:
+        for root in (source_path.parent, source_path.parent / "textures", source_path.parent.parent / "textures"):
+            if not root.is_dir():
+                continue
+            try:
+                for candidate in root.iterdir():
+                    if candidate.is_file() and candidate.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS:
+                        texture_paths.append(candidate.resolve())
+            except OSError:
+                continue
+    texture_paths = list(dict.fromkeys(texture_paths))
+    by_key: Dict[str, Path] = {}
+    for texture_path in texture_paths:
+        by_key[str(texture_path).replace("\\", "/").lower()] = texture_path
+        by_key[texture_path.as_posix().lower()] = texture_path
+        by_key[texture_path.name.lower()] = texture_path
+        by_key[texture_path.stem.lower()] = texture_path
+
+    def compact(value: object) -> str:
+        return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+
+    def slot_kind(path: Path) -> str:
+        stem = compact(path.stem)
+        if any(token in stem for token in ("normalmap", "normalgl", "normaldx", "normal", "nrm", "bump")):
+            return "normal"
+        if any(token in stem for token in ("heightmap", "height", "displacement", "disp", "depth")):
+            return "height"
+        if any(token in stem for token in ("basecolor", "basecolour", "albedo", "diffuse", "diffusemap", "colormap")):
+            return "base"
+        if any(
+            token in stem
+            for token in (
+                "metallicroughness",
+                "roughnessmetallic",
+                "occlusionroughnessmetallic",
+                "roughness",
+                "metallic",
+                "metalness",
+                "ambientocclusion",
+                "occlusion",
+                "specular",
+                "glossiness",
+                "gloss",
+                "opacity",
+                "alpha",
+                "orm",
+                "rma",
+                "mra",
+                "arm",
+                "mask",
+            )
+        ):
+            return "material"
+        return "base"
+
+    def material_subtype(path: Path) -> str:
+        stem = compact(path.stem)
+        if "metallicroughness" in stem or "occlusionroughnessmetallic" in stem or "orm" in stem:
+            return "orm"
+        if "roughnessmetallic" in stem or "rma" in stem:
+            return "rma"
+        if "metallic" in stem or "metalness" in stem:
+            return "metallic"
+        if "roughness" in stem:
+            return "roughness"
+        if "occlusion" in stem or stem.endswith("ao"):
+            return "ao"
+        if "specular" in stem:
+            return "specular"
+        return "packed"
+
+    def material_channels(subtype: str) -> Tuple[str, ...]:
+        if subtype == "specular":
+            return ("specular", "glossiness")
+        if subtype == "orm":
+            return ("ao", "roughness", "metallic")
+        if subtype == "rma":
+            return ("roughness", "metallic", "ao")
+        return ()
+
+    def texture_group_key(path: Path) -> str:
+        stem = compact(path.stem)
+        for token in (
+            "metallicroughness",
+            "roughnessmetallic",
+            "occlusionroughnessmetallic",
+            "basecolor",
+            "basecolour",
+            "diffuse",
+            "albedo",
+            "normalmap",
+            "normalgl",
+            "normaldx",
+            "normal",
+            "nrm",
+            "bump",
+            "roughness",
+            "metallic",
+            "metalness",
+            "ambientocclusion",
+            "occlusion",
+            "specular",
+            "glossiness",
+            "gloss",
+            "heightmap",
+            "height",
+            "displacement",
+            "disp",
+            "depth",
+            "opacity",
+            "alpha",
+            "orm",
+            "rma",
+            "mra",
+            "arm",
+            "mask",
+            "color",
+            "colour",
+            "base",
+        ):
+            stem = stem.replace(token, "")
+        return stem or compact(path.stem)
+
+    grouped: Dict[str, Dict[str, Path]] = defaultdict(dict)
+    for texture_path in texture_paths:
+        grouped[texture_group_key(texture_path)].setdefault(slot_kind(texture_path), texture_path)
+
+    def resolve_texture(value: object) -> Optional[Path]:
+        text = str(value or "").strip().replace("\\", "/")
+        if not text:
+            return None
+        direct = Path(text)
+        if direct.is_file():
+            return direct.resolve()
+        local = source_path.parent.joinpath(*PurePosixPath(text).parts)
+        if local.is_file():
+            return local.resolve()
+        return by_key.get(text.lower()) or by_key.get(Path(text).name.lower()) or by_key.get(Path(text).stem.lower())
+
+    def assign_base(mesh: ModelPreviewMesh, path: Path) -> int:
+        path_text = str(path)
+        mesh.preview_texture_path = path_text
+        mesh.preview_texture_image = None
+        mesh.preview_base_texture_default_path = path_text
+        mesh.preview_base_texture_default_name = path.name
+        return 1
+
+    def assign_normal(mesh: ModelPreviewMesh, path: Path) -> int:
+        path_text = str(path)
+        mesh.preview_normal_texture_path = path_text
+        mesh.preview_normal_texture_name = path.name
+        mesh.preview_normal_texture_strength = float(getattr(mesh, "preview_normal_texture_strength", 0.0) or 0.75)
+        mesh.preview_normal_texture_default_path = path_text
+        mesh.preview_normal_texture_default_name = path.name
+        mesh.preview_normal_texture_default_strength = mesh.preview_normal_texture_strength
+        return 1
+
+    def assign_material(mesh: ModelPreviewMesh, path: Path) -> int:
+        path_text = str(path)
+        subtype = material_subtype(path)
+        mesh.preview_material_texture_path = path_text
+        mesh.preview_material_texture_name = path.name
+        mesh.preview_material_texture_type = subtype if subtype in {"ao", "specular", "roughness", "metallic"} else "material"
+        mesh.preview_material_texture_subtype = subtype
+        mesh.preview_material_texture_packed_channels = material_channels(subtype)
+        mesh.preview_material_texture_default_path = path_text
+        mesh.preview_material_texture_default_name = path.name
+        mesh.preview_material_texture_default_type = mesh.preview_material_texture_type
+        mesh.preview_material_texture_default_subtype = mesh.preview_material_texture_subtype
+        mesh.preview_material_texture_default_packed_channels = mesh.preview_material_texture_packed_channels
+        return 1
+
+    def assign_height(mesh: ModelPreviewMesh, path: Path) -> int:
+        path_text = str(path)
+        mesh.preview_height_texture_path = path_text
+        mesh.preview_height_texture_name = path.name
+        mesh.preview_height_texture_default_path = path_text
+        mesh.preview_height_texture_default_name = path.name
+        return 1
+
+    meshes = [mesh for mesh in getattr(preview_model, "meshes", []) or [] if isinstance(mesh, ModelPreviewMesh)]
+    base_candidates = [path for path in texture_paths if slot_kind(path) == "base"]
+    single_mesh_base = base_candidates[0] if len(meshes) == 1 and len(base_candidates) == 1 else None
+    resolved_count = 0
+    for mesh in meshes:
+        resolved_paths: Dict[str, Path] = {}
+        for slot_name, attr_name in (
+            ("base", "preview_texture_path"),
+            ("normal", "preview_normal_texture_path"),
+            ("material", "preview_material_texture_path"),
+            ("height", "preview_height_texture_path"),
+        ):
+            existing = resolve_texture(getattr(mesh, attr_name, ""))
+            if existing is not None:
+                resolved_paths[slot_name] = existing
+        named_texture = resolve_texture(getattr(mesh, "texture_name", ""))
+        if named_texture is not None:
+            named_kind = slot_kind(named_texture)
+            if named_kind == "base":
+                resolved_paths.setdefault("base", named_texture)
+            elif named_kind == "normal":
+                resolved_paths.setdefault("normal", named_texture)
+            elif named_kind == "height":
+                resolved_paths.setdefault("height", named_texture)
+            else:
+                resolved_paths.setdefault("material", named_texture)
+
+        sibling_group: Mapping[str, Path] = {}
+        group_source = resolved_paths.get("base") or resolved_paths.get("material") or resolved_paths.get("normal") or resolved_paths.get("height")
+        if group_source is not None:
+            sibling_group = grouped.get(texture_group_key(group_source), {})
+        material_key = compact(getattr(mesh, "material_name", ""))
+        if not resolved_paths.get("base") and material_key:
+            for group_key, group in grouped.items():
+                base_path = group.get("base")
+                if base_path is None:
+                    continue
+                compact_group_key = compact(group_key)
+                if compact_group_key and (compact_group_key in material_key or material_key in compact_group_key):
+                    resolved_paths["base"] = base_path
+                    sibling_group = group
+                    break
+        if not resolved_paths.get("base") and sibling_group.get("base") is not None:
+            group_key = compact(texture_group_key(group_source)) if group_source is not None else ""
+            if not material_key or (group_key and (group_key in material_key or material_key in group_key)):
+                resolved_paths["base"] = sibling_group["base"]
+        if not resolved_paths.get("base") and single_mesh_base is not None:
+            resolved_paths["base"] = single_mesh_base
+
+        if resolved_paths.get("base") is not None:
+            resolved_count += assign_base(mesh, resolved_paths["base"])
+        if sibling_group:
+            resolved_paths.setdefault("normal", sibling_group.get("normal"))
+            resolved_paths.setdefault("material", sibling_group.get("material"))
+            resolved_paths.setdefault("height", sibling_group.get("height"))
+        if resolved_paths.get("normal") is not None:
+            resolved_count += assign_normal(mesh, resolved_paths["normal"])
+        if resolved_paths.get("material") is not None:
+            resolved_count += assign_material(mesh, resolved_paths["material"])
+        if resolved_paths.get("height") is not None:
+            resolved_count += assign_height(mesh, resolved_paths["height"])
+    return resolved_count
 
 
 def _restore_rebuilt_mesh_texture_identity(
@@ -4133,15 +4443,42 @@ def build_mesh_import_preview(
         getattr(static_replacement_options, "source_material_texture_overrides", ()) or ()
     )
     donor_material_plans = tuple(getattr(static_replacement_options, "donor_material_plans", ()) or ())
+    prune_removed_target_texture_parameters = bool(
+        getattr(static_replacement_options, "prune_removed_target_texture_parameters", False)
+    )
+    prune_unmapped_original_texture_parameters = bool(
+        getattr(static_replacement_options, "prune_unmapped_original_texture_parameters", False)
+    )
     if (
         normalized_import_mode == "static_replacement"
-        and (resolved_supplemental_files or texture_slot_overrides or source_material_texture_overrides or donor_material_plans)
+        and bool(getattr(static_replacement_options, "neutralize_inherited_material_layers", False))
+    ):
+        summary_lines.append(
+            "Source-color faithful material mode: enabled; generated material sidecars will neutralize inherited tint/grime/detail/color-blend layers on rebuilt draw sections."
+        )
+    if (
+        normalized_import_mode == "static_replacement"
+        and (
+            resolved_supplemental_files
+            or texture_slot_overrides
+            or source_material_texture_overrides
+            or donor_material_plans
+            or prune_removed_target_texture_parameters
+            or prune_unmapped_original_texture_parameters
+        )
     ):
         original_sidecars = _collect_original_mesh_sidecar_texts(entry, texture_entries_by_basename)
         texture_source_files = tuple(
             path for path in resolved_supplemental_files if path.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS
         )
-        if texture_source_files or texture_slot_overrides or source_material_texture_overrides or donor_material_plans:
+        if (
+            texture_source_files
+            or texture_slot_overrides
+            or source_material_texture_overrides
+            or donor_material_plans
+            or prune_removed_target_texture_parameters
+            or prune_unmapped_original_texture_parameters
+        ):
             try:
                 generated_payloads, texture_replacement_report = build_texture_replacement_payloads(
                     obj_mesh=effective_static_source_mesh,
@@ -4163,6 +4500,17 @@ def build_mesh_import_preview(
                     pac_driven_sidecar=bool(
                         getattr(static_replacement_options, "rebuild_material_sidecar", True)
                     ),
+                    neutralize_inherited_material_layers=bool(
+                        getattr(static_replacement_options, "neutralize_inherited_material_layers", False)
+                    ),
+                    removed_target_material_names=tuple(
+                        str(getattr(original_mesh.submeshes[int(index)], "material", "") or getattr(original_mesh.submeshes[int(index)], "name", "") or f"target {int(index)}")
+                        for index in tuple(getattr(static_replacement_options, "removed_target_submesh_indices", ()) or ())
+                        if str(index).strip().lstrip("-").isdigit()
+                        and 0 <= int(index) < len(getattr(original_mesh, "submeshes", ()) or ())
+                    ),
+                    prune_removed_target_texture_parameters=prune_removed_target_texture_parameters,
+                    prune_unmapped_original_texture_parameters=prune_unmapped_original_texture_parameters,
                 )
             except Exception as exc:
                 generated_payloads = []
@@ -20728,6 +21076,598 @@ def merge_hkx_physics_overlays(overlays: Sequence[Optional[HkxPhysicsOverlayData
         constraint_count=constraint_count,
         limitations=tuple(limitations),
     )
+
+
+def _hkx_preview_float(value: object, fallback: float = 0.0) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return fallback
+    return result if math.isfinite(result) else fallback
+
+
+def _hkx_preview_vector(value: object) -> Tuple[float, float, float]:
+    if not isinstance(value, (list, tuple)) or len(value) < 3:
+        return ()
+    try:
+        point = (float(value[0]), float(value[1]), float(value[2]))
+    except (TypeError, ValueError, OverflowError):
+        return ()
+    return point if all(math.isfinite(component) for component in point) else ()
+
+
+def _hkx_preview_bounds(points: Sequence[Tuple[float, float, float]]) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
+    if not points:
+        return (), ()
+    return (
+        (
+            min(point[0] for point in points),
+            min(point[1] for point in points),
+            min(point[2] for point in points),
+        ),
+        (
+            max(point[0] for point in points),
+            max(point[1] for point in points),
+            max(point[2] for point in points),
+        ),
+    )
+
+
+def _hkx_preview_dimension(points: Sequence[Tuple[float, float, float]]) -> float:
+    bounds_min, bounds_max = _hkx_preview_bounds(points)
+    if not bounds_min or not bounds_max:
+        return 1.0
+    return max(
+        abs(bounds_max[0] - bounds_min[0]),
+        abs(bounds_max[1] - bounds_min[1]),
+        abs(bounds_max[2] - bounds_min[2]),
+        1e-4,
+    )
+
+
+def _hkx_preview_vec_add(
+    a: Tuple[float, float, float],
+    b: Tuple[float, float, float],
+) -> Tuple[float, float, float]:
+    return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
+
+
+def _hkx_preview_vec_sub(
+    a: Tuple[float, float, float],
+    b: Tuple[float, float, float],
+) -> Tuple[float, float, float]:
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def _hkx_preview_vec_scale(
+    value: Tuple[float, float, float],
+    scale: float,
+) -> Tuple[float, float, float]:
+    return (value[0] * scale, value[1] * scale, value[2] * scale)
+
+
+def _hkx_preview_vec_cross(
+    a: Tuple[float, float, float],
+    b: Tuple[float, float, float],
+) -> Tuple[float, float, float]:
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def _hkx_preview_vec_length(value: Tuple[float, float, float]) -> float:
+    return math.sqrt(value[0] * value[0] + value[1] * value[1] + value[2] * value[2])
+
+
+def _hkx_preview_vec_normalize(
+    value: Tuple[float, float, float],
+    fallback: Tuple[float, float, float] = (0.0, 1.0, 0.0),
+) -> Tuple[float, float, float]:
+    length = _hkx_preview_vec_length(value)
+    if length <= 1e-9 or not math.isfinite(length):
+        return fallback
+    return (value[0] / length, value[1] / length, value[2] / length)
+
+
+def _hkx_preview_box_mesh(
+    bounds_min: Tuple[float, float, float],
+    bounds_max: Tuple[float, float, float],
+    *,
+    material_name: str,
+    preview_color: Tuple[float, float, float],
+    source_submesh_index: int = -1,
+    preview_role: str = "",
+) -> Optional[ModelPreviewMesh]:
+    if len(bounds_min) < 3 or len(bounds_max) < 3:
+        return None
+    min_x, min_y, min_z = bounds_min
+    max_x, max_y, max_z = bounds_max
+    if max(abs(max_x - min_x), abs(max_y - min_y), abs(max_z - min_z)) <= 1e-9:
+        return None
+    positions = [
+        (min_x, min_y, min_z),
+        (max_x, min_y, min_z),
+        (max_x, max_y, min_z),
+        (min_x, max_y, min_z),
+        (min_x, min_y, max_z),
+        (max_x, min_y, max_z),
+        (max_x, max_y, max_z),
+        (min_x, max_y, max_z),
+    ]
+    indices = [
+        0, 1, 2, 0, 2, 3,
+        4, 6, 5, 4, 7, 6,
+        0, 4, 5, 0, 5, 1,
+        1, 5, 6, 1, 6, 2,
+        2, 6, 7, 2, 7, 3,
+        3, 7, 4, 3, 4, 0,
+    ]
+    return ModelPreviewMesh(
+        material_name=material_name,
+        preview_color=preview_color,
+        positions=positions,
+        indices=indices,
+        source_submesh_index=source_submesh_index,
+        source_vertex_indices=list(range(len(positions))),
+        preview_role=preview_role,
+    )
+
+
+def _hkx_preview_triangulated_indices(
+    raw_faces: object,
+    vertex_count: int,
+) -> List[int]:
+    indices: List[int] = []
+    if not isinstance(raw_faces, list):
+        return indices
+    for raw_face in raw_faces:
+        if not isinstance(raw_face, (list, tuple)):
+            continue
+        face: List[int] = []
+        for raw_index in raw_face:
+            try:
+                index = int(raw_index)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if 0 <= index < vertex_count and index not in face:
+                face.append(index)
+        if len(face) < 3:
+            continue
+        for face_index in range(1, len(face) - 1):
+            indices.extend((face[0], face[face_index], face[face_index + 1]))
+    return indices
+
+
+def _hkx_preview_cylinder_mesh(
+    start: Tuple[float, float, float],
+    end: Tuple[float, float, float],
+    radius: float,
+    *,
+    material_name: str,
+    preview_color: Tuple[float, float, float],
+    source_submesh_index: int = -1,
+    preview_role: str = "",
+    sides: int = 8,
+) -> Optional[ModelPreviewMesh]:
+    axis = _hkx_preview_vec_sub(end, start)
+    length = _hkx_preview_vec_length(axis)
+    if length <= 1e-8:
+        return _hkx_preview_marker_mesh(
+            start,
+            radius=max(radius * 2.0, 0.001),
+            material_name=material_name,
+            preview_color=preview_color,
+            source_submesh_index=source_submesh_index,
+            preview_role=preview_role,
+        )
+    direction = _hkx_preview_vec_scale(axis, 1.0 / length)
+    up = (0.0, 1.0, 0.0) if abs(direction[1]) < 0.92 else (1.0, 0.0, 0.0)
+    tangent = _hkx_preview_vec_normalize(_hkx_preview_vec_cross(direction, up), (1.0, 0.0, 0.0))
+    bitangent = _hkx_preview_vec_normalize(_hkx_preview_vec_cross(direction, tangent), (0.0, 0.0, 1.0))
+    radius = max(0.0005, abs(float(radius)))
+    sides = max(5, int(sides))
+    positions: List[Tuple[float, float, float]] = []
+    for base in (start, end):
+        for side in range(sides):
+            angle = (math.tau * side) / float(sides)
+            offset = _hkx_preview_vec_add(
+                _hkx_preview_vec_scale(tangent, math.cos(angle) * radius),
+                _hkx_preview_vec_scale(bitangent, math.sin(angle) * radius),
+            )
+            positions.append(_hkx_preview_vec_add(base, offset))
+    start_center = len(positions)
+    positions.append(start)
+    end_center = len(positions)
+    positions.append(end)
+    indices: List[int] = []
+    for side in range(sides):
+        next_side = (side + 1) % sides
+        a = side
+        b = next_side
+        c = sides + next_side
+        d = sides + side
+        indices.extend((a, b, c, a, c, d))
+        indices.extend((start_center, b, a))
+        indices.extend((end_center, d, c))
+    return ModelPreviewMesh(
+        material_name=material_name,
+        preview_color=preview_color,
+        positions=positions,
+        indices=indices,
+        source_submesh_index=source_submesh_index,
+        source_vertex_indices=list(range(len(positions))),
+        preview_role=preview_role,
+    )
+
+
+def _hkx_preview_marker_mesh(
+    center: Tuple[float, float, float],
+    radius: float,
+    *,
+    material_name: str,
+    preview_color: Tuple[float, float, float],
+    source_submesh_index: int = -1,
+    preview_role: str = "",
+) -> Optional[ModelPreviewMesh]:
+    if len(center) < 3:
+        return None
+    radius = max(0.0005, abs(float(radius)))
+    cx, cy, cz = center
+    positions = [
+        (cx + radius, cy, cz),
+        (cx - radius, cy, cz),
+        (cx, cy + radius, cz),
+        (cx, cy - radius, cz),
+        (cx, cy, cz + radius),
+        (cx, cy, cz - radius),
+    ]
+    indices = [
+        0, 2, 4, 2, 1, 4, 1, 3, 4, 3, 0, 4,
+        2, 0, 5, 1, 2, 5, 3, 1, 5, 0, 3, 5,
+    ]
+    return ModelPreviewMesh(
+        material_name=material_name,
+        preview_color=preview_color,
+        positions=positions,
+        indices=indices,
+        source_submesh_index=source_submesh_index,
+        source_vertex_indices=list(range(len(positions))),
+        preview_role=preview_role,
+    )
+
+
+def _hkx_preview_sphere_mesh(
+    center: Tuple[float, float, float],
+    radius: float,
+    *,
+    material_name: str,
+    preview_color: Tuple[float, float, float],
+    source_submesh_index: int = -1,
+    preview_role: str = "",
+    segments: int = 10,
+    rings: int = 5,
+) -> Optional[ModelPreviewMesh]:
+    if len(center) < 3:
+        return None
+    radius = max(0.0005, abs(float(radius)))
+    segments = max(6, int(segments))
+    rings = max(3, int(rings))
+    cx, cy, cz = center
+    positions: List[Tuple[float, float, float]] = []
+    for ring in range(rings + 1):
+        phi = math.pi * float(ring) / float(rings)
+        y = math.cos(phi) * radius
+        ring_radius = math.sin(phi) * radius
+        for segment in range(segments):
+            theta = math.tau * float(segment) / float(segments)
+            positions.append((cx + math.cos(theta) * ring_radius, cy + y, cz + math.sin(theta) * ring_radius))
+    indices: List[int] = []
+    for ring in range(rings):
+        for segment in range(segments):
+            next_segment = (segment + 1) % segments
+            a = ring * segments + segment
+            b = ring * segments + next_segment
+            c = (ring + 1) * segments + next_segment
+            d = (ring + 1) * segments + segment
+            indices.extend((a, b, c, a, c, d))
+    return ModelPreviewMesh(
+        material_name=material_name,
+        preview_color=preview_color,
+        positions=positions,
+        indices=indices,
+        source_submesh_index=source_submesh_index,
+        source_vertex_indices=list(range(len(positions))),
+        preview_role=preview_role,
+    )
+
+
+def _hkx_preview_edges_from_faces(raw_faces: object, vertex_count: int) -> Tuple[Tuple[int, int], ...]:
+    if not isinstance(raw_faces, list):
+        return ()
+    edges: set[Tuple[int, int]] = set()
+    for raw_face in raw_faces:
+        if not isinstance(raw_face, (list, tuple)):
+            continue
+        face: List[int] = []
+        for raw_index in raw_face:
+            try:
+                index = int(raw_index)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if 0 <= index < vertex_count:
+                face.append(index)
+        if len(face) < 2:
+            continue
+        for edge_index, start in enumerate(face):
+            end = face[(edge_index + 1) % len(face)]
+            if start == end:
+                continue
+            edges.add((min(start, end), max(start, end)))
+    return tuple(sorted(edges))
+
+
+def _hkx_preview_shape_meshes(
+    shape: Mapping[str, object],
+    *,
+    source_path: str,
+    shape_index: int,
+    preview_extent: float,
+) -> List[ModelPreviewMesh]:
+    shape_type = str(shape.get("shape_type") or "hknpShape")
+    label = shape_type
+    name_hint = shape.get("name_hint")
+    if isinstance(name_hint, Mapping) and str(name_hint.get("name") or "").strip():
+        label = str(name_hint.get("name") or "").strip()
+    elif isinstance(shape.get("body_contexts"), list):
+        first_context = next((context for context in shape.get("body_contexts", []) if isinstance(context, Mapping)), None)
+        if isinstance(first_context, Mapping):
+            label = str(first_context.get("body_name") or first_context.get("socket_name") or label)
+    material_name = f"HKX {shape_index}: {label}"
+    mesh_color = (0.86, 0.54, 0.23)
+    meshes: List[ModelPreviewMesh] = []
+    raw_vertices = shape.get("vertices")
+    vertices = [
+        point
+        for point in (_hkx_preview_vector(raw_vertex) for raw_vertex in (raw_vertices if isinstance(raw_vertices, list) else []))
+        if point
+    ]
+    raw_faces = shape.get("faces")
+    if not isinstance(raw_faces, list):
+        hull_topology = shape.get("hull_topology")
+        if isinstance(hull_topology, Mapping):
+            raw_faces = hull_topology.get("face_vertex_loops")
+    indices = _hkx_preview_triangulated_indices(raw_faces, len(vertices))
+    if vertices and indices:
+        meshes.append(
+            ModelPreviewMesh(
+                material_name=material_name,
+                preview_color=mesh_color,
+                positions=list(vertices),
+                indices=indices,
+                source_submesh_index=shape_index,
+                source_vertex_indices=list(range(len(vertices))),
+                preview_role="hkx_collision_shape",
+            )
+        )
+        edge_radius = max(0.0008, float(preview_extent) * 0.0035)
+        edge_meshes = [
+            edge_mesh
+            for edge_mesh in (
+                _hkx_preview_cylinder_mesh(
+                    vertices[start],
+                    vertices[end],
+                    edge_radius,
+                    material_name=f"{material_name} outline",
+                    preview_color=(0.16, 0.20, 0.24),
+                    source_submesh_index=shape_index,
+                    preview_role="hkx_collision_outline",
+                    sides=6,
+                )
+                for start, end in _hkx_preview_edges_from_faces(raw_faces, len(vertices))[:128]
+            )
+            if edge_mesh is not None
+        ]
+        meshes.extend(edge_meshes)
+        return meshes
+
+    bounds_min = _hkx_preview_vector(shape.get("bounds_min"))
+    bounds_max = _hkx_preview_vector(shape.get("bounds_max"))
+    if bounds_min and bounds_max:
+        box = _hkx_preview_box_mesh(
+            bounds_min,
+            bounds_max,
+            material_name=material_name,
+            preview_color=mesh_color,
+            source_submesh_index=shape_index,
+            preview_role="hkx_collision_bounds",
+        )
+        return [box] if box is not None else []
+
+    center = _hkx_preview_vector(shape.get("center")) or _hkx_preview_vector(shape.get("sphere_center"))
+    radius = 0.0
+    for key in ("sphere_radius", "capsule_radius", "radius"):
+        value = shape.get(key)
+        if isinstance(value, (int, float)):
+            radius = max(radius, abs(_hkx_preview_float(value)))
+    endpoints = shape.get("capsule_endpoints")
+    if isinstance(endpoints, list) and len(endpoints) >= 2:
+        start = _hkx_preview_vector(endpoints[0])
+        end = _hkx_preview_vector(endpoints[1])
+        if start and end:
+            capsule_meshes: List[ModelPreviewMesh] = []
+            body = _hkx_preview_cylinder_mesh(
+                start,
+                end,
+                max(radius, float(preview_extent) * 0.012),
+                material_name=material_name,
+                preview_color=mesh_color,
+                source_submesh_index=shape_index,
+                preview_role="hkx_collision_capsule",
+                sides=10,
+            )
+            if body is not None:
+                capsule_meshes.append(body)
+            for marker_center in (start, end):
+                marker = _hkx_preview_sphere_mesh(
+                    marker_center,
+                    max(radius, float(preview_extent) * 0.012),
+                    material_name=f"{material_name} cap",
+                    preview_color=mesh_color,
+                    source_submesh_index=shape_index,
+                    preview_role="hkx_collision_capsule_cap",
+                )
+                if marker is not None:
+                    capsule_meshes.append(marker)
+            return capsule_meshes
+    if center and radius > 0.0:
+        sphere = _hkx_preview_sphere_mesh(
+            center,
+            radius,
+            material_name=material_name,
+            preview_color=mesh_color,
+            source_submesh_index=shape_index,
+            preview_role="hkx_collision_sphere",
+        )
+        return [sphere] if sphere is not None else []
+    return []
+
+
+def _hkx_preview_skeleton_meshes(
+    skeleton_bone_positions: Optional[Mapping[str, object]],
+    *,
+    preview_extent: float,
+    limit: int = 384,
+) -> List[ModelPreviewMesh]:
+    if not isinstance(skeleton_bone_positions, Mapping) or not skeleton_bone_positions:
+        return []
+    rows: List[Mapping[str, object]] = [
+        row
+        for row in skeleton_bone_positions.values()
+        if isinstance(row, Mapping) and _hkx_preview_vector(row.get("position"))
+    ]
+    rows.sort(key=lambda row: int(row.get("index")) if isinstance(row.get("index"), int) else 1_000_000)
+    rows_by_index = {int(row.get("index")): row for row in rows if isinstance(row.get("index"), int)}
+    rows_by_name = {str(row.get("name") or ""): row for row in rows if str(row.get("name") or "")}
+    radius = max(0.0015, float(preview_extent) * 0.0045)
+    meshes: List[ModelPreviewMesh] = []
+    for row in rows[:limit]:
+        name = str(row.get("name") or f"bone {len(meshes)}")
+        position = _hkx_preview_vector(row.get("position"))
+        parent_index = row.get("parent_index")
+        parent_name = str(row.get("parent_name") or "")
+        parent_row = rows_by_index.get(parent_index) if isinstance(parent_index, int) else None
+        if parent_row is None and parent_name:
+            parent_row = rows_by_name.get(parent_name)
+        parent_position = _hkx_preview_vector(parent_row.get("position")) if isinstance(parent_row, Mapping) else ()
+        if parent_position:
+            mesh = _hkx_preview_cylinder_mesh(
+                parent_position,
+                position,
+                radius,
+                material_name=f"Skeleton: {parent_name or 'parent'} -> {name}",
+                preview_color=(0.28, 0.68, 0.92),
+                preview_role="hkx_skeleton_bone",
+                sides=7,
+            )
+        else:
+            mesh = _hkx_preview_marker_mesh(
+                position,
+                radius * 2.4,
+                material_name=f"Skeleton: {name}",
+                preview_color=(0.55, 0.78, 0.95),
+                preview_role="hkx_skeleton_joint",
+            )
+        if mesh is not None:
+            meshes.append(mesh)
+    return meshes
+
+
+def build_hkx_model_preview_from_document(
+    document: Mapping[str, object],
+    *,
+    source_path: str = "",
+    skeleton_bone_positions: Optional[Mapping[str, object]] = None,
+    max_shapes: int = 96,
+) -> Optional[ModelPreviewData]:
+    """Convert decoded HKX collision and skeleton context into a real preview mesh.
+
+    D3D11 and the legacy renderer both consume ModelPreviewData triangle batches.
+    This visual model is not a Havok simulation; it is a display mesh for recovered
+    collision surfaces plus related skeleton bones when PAB context is available.
+    """
+
+    shapes_value = document.get("collision_shapes") or document.get("shapes")
+    if not isinstance(shapes_value, list):
+        return None
+    shape_points: List[Tuple[float, float, float]] = []
+    for shape in shapes_value[:max_shapes]:
+        if not isinstance(shape, Mapping):
+            continue
+        for raw_vertex in shape.get("vertices") if isinstance(shape.get("vertices"), list) else []:
+            point = _hkx_preview_vector(raw_vertex)
+            if point:
+                shape_points.append(point)
+        for key in ("bounds_min", "bounds_max", "center", "sphere_center"):
+            point = _hkx_preview_vector(shape.get(key))
+            if point:
+                shape_points.append(point)
+        endpoints = shape.get("capsule_endpoints")
+        if isinstance(endpoints, list):
+            for endpoint in endpoints[:2]:
+                point = _hkx_preview_vector(endpoint)
+                if point:
+                    shape_points.append(point)
+    skeleton_points = [
+        point
+        for point in (
+            _hkx_preview_vector(row.get("position"))
+            for row in (
+                skeleton_bone_positions.values()
+                if isinstance(skeleton_bone_positions, Mapping)
+                else ()
+            )
+            if isinstance(row, Mapping)
+        )
+        if point
+    ]
+    preview_extent = _hkx_preview_dimension(tuple(shape_points + skeleton_points))
+    meshes: List[ModelPreviewMesh] = []
+    for shape_index, shape in enumerate(shapes_value[:max_shapes]):
+        if not isinstance(shape, Mapping):
+            continue
+        meshes.extend(
+            _hkx_preview_shape_meshes(
+                shape,
+                source_path=source_path,
+                shape_index=int(shape.get("index")) if isinstance(shape.get("index"), int) else shape_index,
+                preview_extent=preview_extent,
+            )
+        )
+    meshes.extend(_hkx_preview_skeleton_meshes(skeleton_bone_positions, preview_extent=preview_extent))
+    if not meshes:
+        return None
+    preview = _build_model_preview(source_path, "hkx", meshes, "HKX preview batch")
+    overlay = build_hkx_physics_overlay_from_document(
+        document,
+        source_path=source_path,
+        normalization_center=preview.normalization_center,
+        normalization_scale=preview.normalization_scale,
+        skeleton_bone_positions=skeleton_bone_positions,
+    )
+    preview.physics_overlay = overlay
+    collision_shape_count = sum(1 for shape in shapes_value if isinstance(shape, Mapping))
+    skeleton_bone_count = len(skeleton_points)
+    preview.summary = (
+        f"{source_path}\n"
+        f"HKX collision/skeleton preview\n"
+        f"{collision_shape_count:,} decoded shape(s)\n"
+        f"{skeleton_bone_count:,} skeleton bone(s)\n"
+        f"{preview.vertex_count:,} vertices\n"
+        f"{preview.face_count:,} faces"
+    )
+    return preview
 
 
 def build_hkx_editable_geometry_json(

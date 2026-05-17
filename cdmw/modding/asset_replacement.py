@@ -81,6 +81,11 @@ def infer_cd_texture_role_from_path(texture_path: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "", stem)
     last = tokens[-1] if tokens else normalized
 
+    if last in {"dr", "flow", "flowmap", "direction", "directionmap", "dir", "vector", "velocity"}:
+        return "flow"
+    if normalized.endswith(("direction", "directionmap", "directiontexture", "flowtexture", "ssdmvector")):
+        return "flow"
+
     if last in {"n", "normal", "normalmap", "norm", "nrm", "nm", "wn", "nor", "no"}:
         return "normal"
     if normalized.endswith(("normalopengl", "normaldirectx", "normaldx")):
@@ -347,6 +352,8 @@ def classify_texture_binding(
         return result("detail_mask", "Detail mask", "mask", "detail_mask", False, "DDS filename suffix identifies this as a shader detail mask; it is exported but not fully reproduced by the alignment preview.", ("detail", "mask"))
     if path_role == "material":
         return result("material", "Material / mask", "mask", "material_mask", True, "DDS filename suffix identifies this as packed material/support data.")
+    if path_role == "flow":
+        return result("material", "Vector / flow", "vector", "flow_vector", False, "DDS filename suffix identifies this as vector/flow data; it is preserved for export but not used as visible color.")
     if any(token in normalized for token in ("wrinklecolortexture", "wrinklediffuse", "wrinklealbedo")):
         return result("base", "Wrinkle color", "color", "wrinkle_color", True, "Wrinkle color is shown as a visible color layer when selected.")
     if any(token in normalized for token in ("wrinklenormal", "wrinklenormaltexture")):

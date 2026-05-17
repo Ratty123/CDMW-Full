@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence
 from urllib.parse import unquote, urlparse
 
 from .logging import get_logger
@@ -64,12 +64,41 @@ _SCENE_TEXTURE_DISCOVERY_FALLBACK_MAX_TEXTURES = 256
 
 
 @dataclass(slots=True)
+class ImportedMaterialBinding:
+    material_index: int = -1
+    material_name: str = ""
+    submesh_index: int = -1
+    submesh_name: str = ""
+    texture_slots: tuple[tuple[str, Path], ...] = ()
+    pbr_workflow: str = ""
+    alpha_mode: str = ""
+    double_sided: bool = False
+
+
+@dataclass(slots=True)
+class ExternalModelAudit:
+    source_path: str = ""
+    verified_category: str = "unknown"
+    confidence: float = 0.0
+    mesh_count: int = 0
+    material_count: int = 0
+    texture_slots: tuple[str, ...] = ()
+    pbr_workflows: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+    false_positive: bool = False
+    mixed_model: bool = False
+    evidence: tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
 class SceneImportResult:
     mesh: ParsedMesh
     diagnostics: tuple[str, ...] = ()
     discovered_texture_files: tuple[Path, ...] = ()
     extracted_embedded_files: tuple[Path, ...] = ()
     discovered_supplemental_files: tuple[Path, ...] = ()
+    material_bindings: tuple[ImportedMaterialBinding, ...] = ()
+    external_audit: Optional[ExternalModelAudit] = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -107,6 +136,13 @@ class _GltfPayload:
     diagnostics: list[str]
     extracted_embedded_files: list[Path]
     discovered_texture_files: list[Path]
+
+
+def _scene_result_context(scene_result: SceneImportResult) -> dict[str, object]:
+    return {
+        "material_bindings": tuple(getattr(scene_result, "material_bindings", ()) or ()),
+        "external_audit": getattr(scene_result, "external_audit", None),
+    }
 
 
 def import_scene_mesh(path: str | Path) -> ParsedMesh:
@@ -329,6 +365,7 @@ def reduce_scene_import_result_quality(
             discovered_texture_files=tuple(scene_result.discovered_texture_files or ()),
             extracted_embedded_files=tuple(scene_result.extracted_embedded_files or ()),
             discovered_supplemental_files=tuple(scene_result.discovered_supplemental_files or ()),
+            **_scene_result_context(scene_result),
         ),
         report,
     )
@@ -356,6 +393,7 @@ def flatten_scene_import_result_parts(
             discovered_texture_files=tuple(scene_result.discovered_texture_files or ()),
             extracted_embedded_files=tuple(scene_result.extracted_embedded_files or ()),
             discovered_supplemental_files=tuple(scene_result.discovered_supplemental_files or ()),
+            **_scene_result_context(scene_result),
         )
 
     def unique_values(attribute_name: str) -> list[str]:
@@ -451,6 +489,7 @@ def flatten_scene_import_result_parts(
         discovered_texture_files=tuple(scene_result.discovered_texture_files or ()),
         extracted_embedded_files=tuple(scene_result.extracted_embedded_files or ()),
         discovered_supplemental_files=tuple(scene_result.discovered_supplemental_files or ()),
+        **_scene_result_context(scene_result),
     )
 
 
@@ -475,6 +514,7 @@ def group_scene_import_result_parts_by_material(
             discovered_texture_files=tuple(scene_result.discovered_texture_files or ()),
             extracted_embedded_files=tuple(scene_result.extracted_embedded_files or ()),
             discovered_supplemental_files=tuple(scene_result.discovered_supplemental_files or ()),
+            **_scene_result_context(scene_result),
         )
 
     grouped: "OrderedDict[str, list[SubMesh]]" = OrderedDict()
@@ -500,6 +540,7 @@ def group_scene_import_result_parts_by_material(
             discovered_texture_files=tuple(scene_result.discovered_texture_files or ()),
             extracted_embedded_files=tuple(scene_result.extracted_embedded_files or ()),
             discovered_supplemental_files=tuple(scene_result.discovered_supplemental_files or ()),
+            **_scene_result_context(scene_result),
         )
         grouped_name = f"{base_name}: {material}" if len(grouped) > 1 else base_name
         flattened = flatten_scene_import_result_parts(
@@ -522,6 +563,7 @@ def group_scene_import_result_parts_by_material(
         discovered_texture_files=tuple(scene_result.discovered_texture_files or ()),
         extracted_embedded_files=tuple(scene_result.extracted_embedded_files or ()),
         discovered_supplemental_files=tuple(scene_result.discovered_supplemental_files or ()),
+        **_scene_result_context(scene_result),
     )
 
 
@@ -592,12 +634,22 @@ def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
     suffix = source_path.suffix.lower()
     if suffix == ".obj":
         mesh = import_obj(str(source_path))
+        if not str(getattr(mesh, "format", "") or "").strip():
+            mesh.format = "obj"
+        if not str(getattr(mesh, "path", "") or "").strip():
+            mesh.path = source_path.as_posix()
         discovered_textures = discover_scene_texture_files(source_path, mesh)
         _attach_fallback_texture_references(mesh, discovered_textures)
-        return SceneImportResult(mesh=mesh, discovered_texture_files=discovered_textures)
+        return _result_with_external_audit(
+            source_path,
+            SceneImportResult(mesh=mesh, discovered_texture_files=discovered_textures),
+        )
     if suffix == ".dae":
         mesh = import_dae(source_path)
-        return SceneImportResult(mesh=mesh, discovered_texture_files=discover_scene_texture_files(source_path, mesh))
+        return _result_with_external_audit(
+            source_path,
+            SceneImportResult(mesh=mesh, discovered_texture_files=discover_scene_texture_files(source_path, mesh)),
+        )
     if suffix in {".gltf", ".glb"}:
         return import_gltf(source_path)
     if suffix in LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS:
@@ -618,18 +670,176 @@ def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
             diagnostics.append(f"Discovered {len(discovered_sidecars):,} local material sidecar file(s).")
         if discovered_textures:
             diagnostics.append(f"Discovered {len(discovered_textures):,} local DDS/texture file(s).")
-        return SceneImportResult(
-            mesh=mesh,
-            diagnostics=tuple(diagnostics),
-            discovered_texture_files=discovered_textures,
-            discovered_supplemental_files=discovered_sidecars,
+        return _result_with_external_audit(
+            source_path,
+            SceneImportResult(
+                mesh=mesh,
+                diagnostics=tuple(diagnostics),
+                discovered_texture_files=discovered_textures,
+                discovered_supplemental_files=discovered_sidecars,
+            ),
         )
     raise ValueError(f"Unsupported mesh import format: {source_path.suffix or source_path.name}")
 
 
+def _result_with_external_audit(source_path: Path, result: SceneImportResult) -> SceneImportResult:
+    if not isinstance(result, SceneImportResult):
+        return result
+    if result.external_audit is None:
+        result.external_audit = audit_external_model(source_path, result)
+    return result
+
+
+def audit_external_model(source_path: str | Path, scene_result: SceneImportResult) -> ExternalModelAudit:
+    """Classify an imported model using geometry, material, and texture evidence."""
+    source = Path(source_path)
+    mesh = scene_result.mesh
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    material_names = {
+        str(getattr(submesh, "material", "") or getattr(submesh, "name", "") or "").strip()
+        for submesh in submeshes
+        if str(getattr(submesh, "material", "") or getattr(submesh, "name", "") or "").strip()
+    }
+    texture_paths = tuple(
+        path
+        for path in tuple(scene_result.discovered_texture_files or ())
+        + tuple(scene_result.extracted_embedded_files or ())
+        + tuple(scene_result.discovered_supplemental_files or ())
+        if isinstance(path, Path) and path.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS
+    )
+    binding_slots = [
+        slot_kind
+        for binding in tuple(getattr(scene_result, "material_bindings", ()) or ())
+        for slot_kind, _path in tuple(getattr(binding, "texture_slots", ()) or ())
+    ]
+    texture_slots = tuple(sorted(set(binding_slots + [_audit_texture_slot_from_path(path) for path in texture_paths if _audit_texture_slot_from_path(path)])))
+    workflows = tuple(
+        sorted(
+            {
+                str(getattr(binding, "pbr_workflow", "") or "").strip()
+                for binding in tuple(getattr(scene_result, "material_bindings", ()) or ())
+                if str(getattr(binding, "pbr_workflow", "") or "").strip()
+            }
+        )
+    )
+    text = " ".join(
+        [str(source), str(getattr(mesh, "path", "") or "")]
+        + [str(name) for name in material_names]
+        + [path.stem for path in texture_paths]
+    ).lower()
+    tokens = set(re.findall(r"[a-z0-9]+", text))
+    extent = _mesh_extent(mesh)
+    longest = max(extent) if extent else 0.0
+    shortest = max(min(value for value in extent if value > 1e-8), 1e-8) if extent else 1e-8
+    slender_ratio = longest / shortest if shortest > 0.0 else 0.0
+    scores = {"sword": 0.0, "axe": 0.0, "helmet": 0.0}
+    if tokens & {"sword", "blade", "dagger", "katana", "scimitar", "greatsword", "longsword"}:
+        scores["sword"] += 0.50
+    if tokens & {"axe", "hatchet", "halberd", "ax"}:
+        scores["axe"] += 0.48
+    if tokens & {"helmet", "helm", "mask", "visor"}:
+        scores["helmet"] += 0.55
+    if slender_ratio >= 5.0:
+        scores["sword"] += 0.22
+        scores["axe"] += 0.10
+    if 1.1 <= slender_ratio <= 3.2 and tokens & {"helmet", "helm", "mask", "visor"}:
+        scores["helmet"] += 0.18
+    if any(slot in texture_slots for slot in ("base", "normal")):
+        for key in scores:
+            scores[key] += 0.06
+    character_tokens = {"character", "body", "head", "hair", "skin", "arm", "hand", "leg", "foot", "nude", "torso"}
+    false_positive = bool((tokens & {"axem", "axe"}) and len(tokens & character_tokens) >= 2)
+    if "axem" in text.replace("-", "").replace("_", ""):
+        false_positive = True
+    if false_positive:
+        scores["axe"] *= 0.30
+    category, confidence = max(scores.items(), key=lambda item: item[1])
+    if confidence < 0.35:
+        category = "unknown"
+    mixed_categories = [name for name, score in scores.items() if score >= 0.35]
+    warnings: list[str] = []
+    evidence: list[str] = []
+    if false_positive:
+        warnings.append("Filename/tag evidence looks like an axe, but mesh/material evidence looks like a mixed character asset.")
+    if len(mixed_categories) > 1:
+        warnings.append("Model has mixed category evidence; verify the intended subpart before replacement.")
+    if texture_paths and "base" not in texture_slots:
+        warnings.append("Textures were found but no clear visible base/diffuse texture was identified.")
+    if not texture_paths:
+        warnings.append("No external texture files were discovered.")
+    if slender_ratio:
+        evidence.append(f"shape ratio {slender_ratio:.1f}:1")
+    if texture_slots:
+        evidence.append("texture roles " + ", ".join(texture_slots[:8]))
+    if workflows:
+        evidence.append("PBR " + ", ".join(workflows))
+    return ExternalModelAudit(
+        source_path=str(source),
+        verified_category=category,
+        confidence=max(0.0, min(1.0, float(confidence))),
+        mesh_count=len(submeshes),
+        material_count=len(material_names),
+        texture_slots=texture_slots,
+        pbr_workflows=workflows,
+        warnings=tuple(warnings),
+        false_positive=false_positive,
+        mixed_model=len(mixed_categories) > 1 or false_positive,
+        evidence=tuple(evidence),
+    )
+
+
+def _mesh_extent(mesh: ParsedMesh) -> tuple[float, float, float]:
+    vertices = [vertex for submesh in tuple(getattr(mesh, "submeshes", ()) or ()) for vertex in tuple(getattr(submesh, "vertices", ()) or ())]
+    if not vertices:
+        return (0.0, 0.0, 0.0)
+    xs = [float(vertex[0]) for vertex in vertices]
+    ys = [float(vertex[1]) for vertex in vertices]
+    zs = [float(vertex[2]) for vertex in vertices]
+    return (max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs))
+
+
+def _audit_texture_slot_from_path(path: Path) -> str:
+    stem = re.sub(r"[^a-z0-9]+", "", path.stem.lower())
+    if any(token in stem for token in ("basecolor", "basecolour", "albedo", "diffuse", "color", "colour")):
+        return "base"
+    if any(token in stem for token in ("normal", "normalmap", "nrm")):
+        return "normal"
+    if any(token in stem for token in ("metallicroughness", "roughnessmetallic", "metalrough")):
+        return "roughness"
+    if "roughness" in stem:
+        return "roughness"
+    if any(token in stem for token in ("metallic", "metalness")):
+        return "metallic"
+    if any(token in stem for token in ("specularglossiness", "specular", "glossiness")):
+        return "specular"
+    if any(token in stem for token in ("emissive", "emission", "glow")):
+        return "emissive"
+    if any(token in stem for token in ("height", "displacement", "bump")):
+        return "height"
+    if any(token in stem for token in ("ao", "occlusion")):
+        return "ao"
+    return ""
+
+
 def _visible_texture_score(path: Path) -> int:
     stem = re.sub(r"[^a-z0-9]+", "", path.stem.lower())
-    if any(token in stem for token in ("normal", "normalmap", "nrm", "roughness", "metallic", "height", "displacement", "ambientocclusion")):
+    if any(
+        token in stem
+        for token in (
+            "normal",
+            "normalmap",
+            "nrm",
+            "roughness",
+            "metallic",
+            "height",
+            "displacement",
+            "ambientocclusion",
+            "mixedao",
+            "occlusion",
+            "emissive",
+            "emission",
+        )
+    ):
         return 0
     if any(token in stem for token in ("basecolor", "basecolour", "basecol")):
         return 100
@@ -655,9 +865,16 @@ def _attach_fallback_texture_references(mesh: ParsedMesh, texture_files: Sequenc
         reverse=True,
     )
     visible_textures = [path for path in visible_textures if _visible_texture_score(path) > 0]
-    if len(visible_textures) != 1:
+    if not visible_textures:
         return
-    texture_name = visible_textures[0].name
+    if len(visible_textures) == 1:
+        texture_name = visible_textures[0].name
+    else:
+        best_score = _visible_texture_score(visible_textures[0])
+        second_score = _visible_texture_score(visible_textures[1])
+        if best_score < 80 or best_score <= second_score:
+            return
+        texture_name = visible_textures[0].name
     for submesh in submeshes:
         if not str(getattr(submesh, "texture", "") or "").strip():
             submesh.texture = texture_name
@@ -667,8 +884,16 @@ def import_gltf(path: str | Path) -> SceneImportResult:
     source_path = Path(path).expanduser().resolve()
     payload = _load_gltf_payload(source_path)
     _validate_gltf_static_payload(payload)
-    material_names, material_textures = _gltf_material_info(payload)
+    (
+        material_names,
+        material_textures,
+        material_colors,
+        material_texture_slots,
+        material_workflows,
+        material_flags,
+    ) = _gltf_material_info(payload)
     submeshes: list[SubMesh] = []
+    material_bindings: list[ImportedMaterialBinding] = []
     mesh_instances = _iter_gltf_mesh_instances(payload.document)
     if not mesh_instances:
         mesh_instances = [(index, _identity_matrix(), "") for index, _mesh in enumerate(payload.document.get("meshes", []) or [])]
@@ -712,7 +937,31 @@ def import_gltf(path: str | Path) -> SceneImportResult:
             copied.name = submesh.name
             copied.material = submesh.material
             copied.texture = submesh.texture
+            _apply_gltf_preview_material_metadata(
+                copied,
+                material_index,
+                material_colors=material_colors,
+                material_texture_slots=material_texture_slots,
+            )
             submeshes.append(copied)
+            slots = tuple(
+                (str(slot_kind), Path(str(slot_path)).expanduser())
+                for slot_kind, slot_path in sorted(material_texture_slots.get(material_index, {}).items())
+                if str(slot_path or "").strip()
+            )
+            flags = material_flags.get(material_index, {})
+            material_bindings.append(
+                ImportedMaterialBinding(
+                    material_index=material_index,
+                    material_name=material_name or copied.material,
+                    submesh_index=len(submeshes) - 1,
+                    submesh_name=copied.name,
+                    texture_slots=slots,
+                    pbr_workflow=str(material_workflows.get(material_index, "") or ""),
+                    alpha_mode=str(flags.get("alpha_mode", "") or ""),
+                    double_sided=bool(flags.get("double_sided", False)),
+                )
+            )
     if not submeshes:
         raise ValueError(f"glTF import did not contain supported uncompressed triangle geometry: {source_path}")
     vertices = [vertex for submesh in submeshes for vertex in submesh.vertices]
@@ -736,11 +985,15 @@ def import_gltf(path: str | Path) -> SceneImportResult:
         payload.diagnostics.append(
             f"Discovered {len(payload.discovered_texture_files):,} glTF texture reference(s)."
         )
-    return SceneImportResult(
-        mesh=mesh,
-        diagnostics=tuple(_dedupe_text(payload.diagnostics)),
-        discovered_texture_files=tuple(_dedupe_paths(payload.discovered_texture_files)),
-        extracted_embedded_files=tuple(_dedupe_paths(payload.extracted_embedded_files)),
+    return _result_with_external_audit(
+        source_path,
+        SceneImportResult(
+            mesh=mesh,
+            diagnostics=tuple(_dedupe_text(payload.diagnostics)),
+            discovered_texture_files=tuple(_dedupe_paths(payload.discovered_texture_files)),
+            extracted_embedded_files=tuple(_dedupe_paths(payload.extracted_embedded_files)),
+            material_bindings=tuple(material_bindings),
+        ),
     )
 
 
@@ -1317,20 +1570,71 @@ def _validate_gltf_static_payload(payload: _GltfPayload) -> None:
                 warned_morphs = True
 
 
-def _gltf_material_info(payload: _GltfPayload) -> tuple[dict[int, str], dict[int, str]]:
+def _gltf_material_info(
+    payload: _GltfPayload,
+) -> tuple[
+    dict[int, str],
+    dict[int, str],
+    dict[int, tuple[float, float, float]],
+    dict[int, dict[str, str]],
+    dict[int, str],
+    dict[int, dict[str, object]],
+]:
     material_names: dict[int, str] = {}
     material_textures: dict[int, str] = {}
+    material_colors: dict[int, tuple[float, float, float]] = {}
+    material_texture_slots: dict[int, dict[str, str]] = {}
+    material_workflows: dict[int, str] = {}
+    material_flags: dict[int, dict[str, object]] = {}
     textures = payload.document.get("textures", []) or []
     images = payload.document.get("images", []) or []
     for material_index, material in enumerate(payload.document.get("materials", []) or []):
         if not isinstance(material, dict):
             continue
         material_names[material_index] = str(material.get("name", "") or f"material_{material_index}")
+        material_flags[material_index] = {
+            "alpha_mode": str(material.get("alphaMode", "") or ""),
+            "double_sided": bool(material.get("doubleSided", False)),
+        }
         pbr = material.get("pbrMetallicRoughness", {})
+        material_slots: dict[str, str] = {}
         texture_infos: list[tuple[str, object]] = []
         if isinstance(pbr, dict):
+            material_workflows[material_index] = "metallicRoughness"
+            base_color_factor = pbr.get("baseColorFactor")
+            if isinstance(base_color_factor, Sequence) and len(base_color_factor) >= 3:
+                color_values: list[float] = []
+                for value in base_color_factor[:3]:
+                    try:
+                        color_values.append(max(0.0, min(1.0, float(value))))
+                    except (TypeError, ValueError, OverflowError):
+                        color_values.append(1.0)
+                material_colors[material_index] = (color_values[0], color_values[1], color_values[2])
+            else:
+                material_colors[material_index] = (1.0, 1.0, 1.0)
             texture_infos.append(("base", pbr.get("baseColorTexture")))
             texture_infos.append(("material", pbr.get("metallicRoughnessTexture")))
+        else:
+            material_colors[material_index] = (1.0, 1.0, 1.0)
+        extensions = material.get("extensions", {})
+        specular_gloss = (
+            extensions.get("KHR_materials_pbrSpecularGlossiness")
+            if isinstance(extensions, dict)
+            else None
+        )
+        if isinstance(specular_gloss, dict):
+            material_workflows[material_index] = "specularGlossiness"
+            diffuse_factor = specular_gloss.get("diffuseFactor")
+            if isinstance(diffuse_factor, Sequence) and len(diffuse_factor) >= 3:
+                color_values = []
+                for value in diffuse_factor[:3]:
+                    try:
+                        color_values.append(max(0.0, min(1.0, float(value))))
+                    except (TypeError, ValueError, OverflowError):
+                        color_values.append(1.0)
+                material_colors[material_index] = (color_values[0], color_values[1], color_values[2])
+            texture_infos.append(("base", specular_gloss.get("diffuseTexture")))
+            texture_infos.append(("specular_glossiness", specular_gloss.get("specularGlossinessTexture")))
         texture_infos.extend(
             (
                 ("normal", material.get("normalTexture")),
@@ -1342,11 +1646,53 @@ def _gltf_material_info(payload: _GltfPayload) -> tuple[dict[int, str], dict[int
             image_path = _gltf_texture_image_path(payload, textures, images, texture_info)
             if image_path is None:
                 continue
-            if slot_kind == "base" or material_index not in material_textures:
+            material_slots[slot_kind] = image_path.as_posix()
+            if slot_kind == "base":
                 material_textures[material_index] = image_path.as_posix()
             if image_path.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS:
                 payload.discovered_texture_files.append(image_path)
-    return material_names, material_textures
+        if material_slots:
+            material_texture_slots[material_index] = material_slots
+    return material_names, material_textures, material_colors, material_texture_slots, material_workflows, material_flags
+
+
+def _apply_gltf_preview_material_metadata(
+    submesh: SubMesh,
+    material_index: int,
+    *,
+    material_colors: Mapping[int, tuple[float, float, float]],
+    material_texture_slots: Mapping[int, Mapping[str, str]],
+) -> None:
+    if material_index < 0:
+        return
+    color = material_colors.get(material_index)
+    if color is not None:
+        submesh.preview_color = tuple(float(component) for component in color[:3])
+    slots = material_texture_slots.get(material_index, {})
+    normal_path = str(slots.get("normal", "") or "").strip()
+    if normal_path:
+        submesh.preview_normal_texture_path = normal_path
+        submesh.preview_normal_texture_name = Path(normal_path).name
+        submesh.preview_normal_texture_strength = 0.75
+    specular_gloss_path = str(slots.get("specular_glossiness", "") or "").strip()
+    material_path = str(slots.get("material", "") or specular_gloss_path or "").strip()
+    if material_path:
+        submesh.preview_material_texture_path = material_path
+        submesh.preview_material_texture_name = Path(material_path).name
+        if specular_gloss_path:
+            submesh.preview_material_texture_type = "specular"
+            submesh.preview_material_texture_subtype = "specular"
+            submesh.preview_material_texture_packed_channels = ("specular", "glossiness")
+        else:
+            submesh.preview_material_texture_type = "material"
+            submesh.preview_material_texture_subtype = "orm"
+            submesh.preview_material_texture_packed_channels = ("ao", "roughness", "metallic")
+    elif str(slots.get("ao", "") or "").strip():
+        ao_path = str(slots.get("ao", "") or "").strip()
+        submesh.preview_material_texture_path = ao_path
+        submesh.preview_material_texture_name = Path(ao_path).name
+        submesh.preview_material_texture_type = "ao"
+        submesh.preview_material_texture_subtype = "ao"
 
 
 def _gltf_texture_image_path(

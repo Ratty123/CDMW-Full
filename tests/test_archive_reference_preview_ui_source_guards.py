@@ -80,7 +80,23 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_preview_controls_hint_label.setVisible(", source)
         self.assertIn("current_widget is self.archive_model_preview", source)
         self.assertIn("current_widget is self.archive_d3d11_preview_host", source)
-        self.assertIn("preview_controls_hint_label.setVisible(current_widget is preview_model)", source)
+        self.assertIn("preview_controls_hint_label.setVisible(current_widget is preview_model or current_widget is preview_d3d11_host)", source)
+
+    def test_referenced_pac_preview_can_use_native_d3d11_package(self) -> None:
+        source = (REPO_ROOT / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
+        reference_start = source.index("def _open_archive_reference_preview_entry")
+        reference_end = source.index("def _export_selected_archive_texture_reference", reference_start)
+        reference_source = source[reference_start:reference_end]
+        dialog_start = source.index("def _show_archive_reference_preview_dialog")
+        dialog_end = source.index("def _update_archive_texture_reference_action_controls", dialog_start)
+        dialog_source = source[dialog_start:dialog_end]
+
+        self.assertIn("run_native_preview_core_preview_job", reference_source)
+        self.assertIn("NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS", reference_source)
+        self.assertIn("native_preview_package_path=native_attempt.package_path", reference_source)
+        self.assertIn("preview_d3d11_host = NativeD3D11PreviewHostFrame(dialog)", dialog_source)
+        self.assertIn("_start_reference_d3d11_preview", dialog_source)
+        self.assertIn("self._native_d3d11_renderer_command(", dialog_source)
 
 
 if __name__ == "__main__":

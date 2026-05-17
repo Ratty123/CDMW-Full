@@ -2217,6 +2217,7 @@ class ModelPreviewWidget(QOpenGLWidget):
         *,
         render_settings: Optional[ModelPreviewRenderSettings] = None,
         stop_event=None,
+        enable_material_combiner: bool = True,
     ) -> Tuple[object, Optional[PreparedModelPreviewData]]:
         if stop_event is not None and stop_event.is_set():
             raise RunCancelled("Model preview preparation cancelled.")
@@ -2228,13 +2229,32 @@ class ModelPreviewWidget(QOpenGLWidget):
                 raise RunCancelled("Model preview preparation cancelled.")
             if isinstance(mesh, ModelPreviewMesh):
                 cls._initialize_mesh_preview_slot_defaults(mesh)
-        cls._apply_legacy_material_combiner(
-            cloned_model,
-            render_settings=render_settings,
-            stop_event=stop_event,
-        )
+        if bool(enable_material_combiner):
+            cls._apply_legacy_material_combiner(
+                cloned_model,
+                render_settings=render_settings,
+                stop_event=stop_event,
+            )
         vertex_blob, vertex_count, mesh_batches = cls._build_vertex_blob(cloned_model)
         prepared_batches: List[PreparedModelPreviewBatch] = []
+        cloth_preview = getattr(cloned_model, "cloth_preview", None)
+
+        def int_or_default(value: object, default: int = -1) -> int:
+            try:
+                return int(value)
+            except (TypeError, ValueError, OverflowError):
+                return default
+
+        cloth_by_mesh_index = {
+            int_or_default(getattr(batch, "mesh_index", -1), -1): batch
+            for batch in tuple(getattr(cloth_preview, "batches", ()) or ())
+            if int_or_default(getattr(batch, "mesh_index", -1), -1) >= 0
+        }
+        cloth_by_source_submesh = {
+            int_or_default(getattr(batch, "source_submesh_index", -1), -1): batch
+            for batch in tuple(getattr(cloth_preview, "batches", ()) or ())
+            if int_or_default(getattr(batch, "source_submesh_index", -1), -1) >= 0
+        }
         floats_per_vertex = 23
         bytes_per_vertex = floats_per_vertex * 4
         for mesh, batch in zip(getattr(cloned_model, "meshes", ()) or (), mesh_batches):
@@ -2242,7 +2262,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                 raise RunCancelled("Model preview preparation cancelled.")
             start = int(batch.first_vertex) * bytes_per_vertex
             end = start + (int(batch.vertex_count) * bytes_per_vertex)
-            mesh_source_submesh_index = int(getattr(mesh, "source_submesh_index", -1) or -1)
+            mesh_source_submesh_index = int_or_default(getattr(mesh, "source_submesh_index", -1), -1)
             mesh_source_vertices = tuple(int(index) for index in tuple(getattr(mesh, "source_vertex_indices", ()) or ()))
             mesh_indices = tuple(int(index) for index in tuple(getattr(mesh, "indices", ()) or ()))
             emitted_source_vertices: Tuple[int, ...] = ()
@@ -2258,6 +2278,9 @@ class ModelPreviewWidget(QOpenGLWidget):
                 emitted_source_vertices = tuple(mesh_indices[: int(batch.vertex_count)])
             elif int(batch.vertex_count) > 0:
                 emitted_source_vertices = tuple(range(int(batch.vertex_count)))
+            cloth_batch = cloth_by_mesh_index.get(int(getattr(batch, "mesh_index", -1)))
+            if cloth_batch is None:
+                cloth_batch = cloth_by_source_submesh.get(mesh_source_submesh_index)
             prepared_batches.append(
                 PreparedModelPreviewBatch(
                     material_name=str(getattr(mesh, "material_name", "") or "").strip(),
@@ -2304,6 +2327,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                         or ""
                     ).strip(),
                     editor_editable=mesh_source_submesh_index >= 0,
+                    cloth_preview=cloth_batch,
                 )
             )
         return cloned_model, PreparedModelPreviewData(
@@ -2318,6 +2342,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             normalization_center=tuple(getattr(cloned_model, "normalization_center", (0.0, 0.0, 0.0)) or (0.0, 0.0, 0.0)),
             normalization_scale=float(getattr(cloned_model, "normalization_scale", 1.0) or 1.0),
             batches=tuple(prepared_batches),
+            cloth_preview=getattr(cloned_model, "cloth_preview", None),
         )
 
     @staticmethod
@@ -4199,23 +4224,23 @@ class ModelPreviewWidget(QOpenGLWidget):
                 1
                 for shape in tuple(self._physics_overlay.shapes)
                 if isinstance(shape, HkxPhysicsOverlayShape)
-                and self._physics_simulation_role_is_dynamic(str(getattr(shape, "simulation_role", "") or ""))
+                and self._physics_simulation_shape_is_dynamic(shape)
                 and bool(self._physics_shape_rest_position(shape))
             )
             dynamic_guide_count = sum(
                 1
                 for constraint in tuple(self._physics_overlay.constraints)
                 if isinstance(constraint, HkxPhysicsOverlayConstraint)
-                and self._physics_simulation_role_is_dynamic(str(getattr(constraint, "simulation_role", "") or ""))
+                and self._physics_simulation_constraint_is_dynamic(constraint)
             )
             cloth_deform_count = self._cloth_deformation_preview_batch_count()
             role_counts = tuple(getattr(self._physics_overlay, "simulation_role_counts", ()) or ())
             role_text = ", ".join(f"{role}={count}" for role, count in role_counts[:6]) if role_counts else "none decoded"
-            simulation_enabled = bool(getattr(self.render_settings(), "show_physics_simulation_preview", True))
+            simulation_enabled = bool(getattr(self.render_settings(), "show_physics_simulation_preview", False))
             overlay_enabled = bool(getattr(self.render_settings(), "show_physics_overlay", True))
             sim_status = "running" if self._physics_simulation_timer.isActive() else "available"
             if not simulation_enabled:
-                sim_status = "disabled: animation checkbox off"
+                sim_status = "disabled: approximate animation off"
             elif not overlay_enabled and cloth_deform_count > 0:
                 sim_status = "running: cloth mesh physics preview" if self._physics_simulation_timer.isActive() else "available: cloth mesh physics preview"
             elif not overlay_enabled:
@@ -4333,10 +4358,10 @@ class ModelPreviewWidget(QOpenGLWidget):
             self._rebuild_gl_textures()
             self.doneCurrent()
         if previous.show_physics_overlay != clamped.show_physics_overlay or (
-            getattr(previous, "show_physics_simulation_preview", True)
-            != getattr(clamped, "show_physics_simulation_preview", True)
+            getattr(previous, "show_physics_simulation_preview", False)
+            != getattr(clamped, "show_physics_simulation_preview", False)
         ):
-            if not bool(getattr(clamped, "show_physics_simulation_preview", True)):
+            if not bool(getattr(clamped, "show_physics_simulation_preview", False)):
                 self._physics_simulation_state.clear()
             self._sync_physics_simulation_timer()
             self._refresh_debug_overlay_lines()
@@ -6635,6 +6660,16 @@ class ModelPreviewWidget(QOpenGLWidget):
     def _physics_simulation_role_is_dynamic(role: str) -> bool:
         return str(role or "").strip().lower() in {"hair", "cloth", "body_soft", "attachment"}
 
+    def _physics_simulation_constraint_is_dynamic(self, constraint: HkxPhysicsOverlayConstraint) -> bool:
+        if self._physics_overlay_constraint_is_context_skeleton(constraint):
+            return False
+        return self._physics_simulation_role_is_dynamic(str(getattr(constraint, "simulation_role", "") or ""))
+
+    def _physics_simulation_shape_is_dynamic(self, shape: HkxPhysicsOverlayShape) -> bool:
+        if self._physics_overlay_shape_is_context_skeleton(shape):
+            return False
+        return self._physics_simulation_role_is_dynamic(str(getattr(shape, "simulation_role", "") or ""))
+
     def _physics_overlay_has_dynamic_guides(self) -> bool:
         overlay = self._physics_overlay
         if not isinstance(overlay, HkxPhysicsOverlayData) or not overlay.shapes:
@@ -6642,14 +6677,14 @@ class ModelPreviewWidget(QOpenGLWidget):
         for constraint in tuple(getattr(overlay, "constraints", ()) or ()):
             if not isinstance(constraint, HkxPhysicsOverlayConstraint):
                 continue
-            if not self._physics_simulation_role_is_dynamic(str(getattr(constraint, "simulation_role", "") or "")):
+            if not self._physics_simulation_constraint_is_dynamic(constraint):
                 continue
             if len(tuple(getattr(constraint, "start", ()) or ())) >= 3 and len(tuple(getattr(constraint, "end", ()) or ())) >= 3:
                 return True
         for shape in tuple(getattr(overlay, "shapes", ()) or ()):
             if not isinstance(shape, HkxPhysicsOverlayShape):
                 continue
-            if not self._physics_simulation_role_is_dynamic(str(getattr(shape, "simulation_role", "") or "")):
+            if not self._physics_simulation_shape_is_dynamic(shape):
                 continue
             if self._physics_shape_rest_position(shape):
                 return True
@@ -6664,18 +6699,18 @@ class ModelPreviewWidget(QOpenGLWidget):
             if not isinstance(shape, HkxPhysicsOverlayShape):
                 continue
             role = str(getattr(shape, "simulation_role", "") or "").strip().lower()
-            if self._physics_simulation_role_is_dynamic(role):
+            if self._physics_simulation_shape_is_dynamic(shape):
                 roles.add(role)
         for constraint in tuple(getattr(overlay, "constraints", ()) or ()):
             if not isinstance(constraint, HkxPhysicsOverlayConstraint):
                 continue
             role = str(getattr(constraint, "simulation_role", "") or "").strip().lower()
-            if self._physics_simulation_role_is_dynamic(role):
+            if self._physics_simulation_constraint_is_dynamic(constraint):
                 roles.add(role)
         return roles
 
     def _batch_cloth_deformation_strength(self, batch: _ModelPreviewDrawBatch) -> float:
-        if not bool(getattr(self.render_settings(), "show_physics_simulation_preview", True)):
+        if not bool(getattr(self.render_settings(), "show_physics_simulation_preview", False)):
             return 0.0
         dynamic_roles = self._physics_overlay_dynamic_roles()
         if not dynamic_roles:
@@ -6736,7 +6771,7 @@ class ModelPreviewWidget(QOpenGLWidget):
 
     def _sync_physics_simulation_timer(self) -> None:
         was_active = self._physics_simulation_timer.isActive()
-        simulation_enabled = bool(getattr(self.render_settings(), "show_physics_simulation_preview", True))
+        simulation_enabled = bool(getattr(self.render_settings(), "show_physics_simulation_preview", False))
         overlay_enabled = bool(getattr(self.render_settings(), "show_physics_overlay", True))
         enabled = (
             simulation_enabled
@@ -6861,7 +6896,7 @@ class ModelPreviewWidget(QOpenGLWidget):
 
     def _step_physics_simulation_preview(self) -> None:
         overlay = self._physics_overlay
-        simulation_enabled = bool(getattr(self.render_settings(), "show_physics_simulation_preview", True))
+        simulation_enabled = bool(getattr(self.render_settings(), "show_physics_simulation_preview", False))
         overlay_enabled = bool(getattr(self.render_settings(), "show_physics_overlay", True))
         if (
             not simulation_enabled
@@ -6881,7 +6916,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                 if not isinstance(constraint, HkxPhysicsOverlayConstraint):
                     continue
                 role = str(getattr(constraint, "simulation_role", "") or "")
-                if not self._physics_simulation_role_is_dynamic(role):
+                if not self._physics_simulation_constraint_is_dynamic(constraint):
                     continue
                 rest = self._physics_tuple3(tuple(getattr(constraint, "start", ()) or ()))
                 fixed = self._physics_tuple3(tuple(getattr(constraint, "end", ()) or ()))
@@ -6940,7 +6975,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             if not isinstance(shape, HkxPhysicsOverlayShape):
                 continue
             role = str(getattr(shape, "simulation_role", "") or "")
-            if not self._physics_simulation_role_is_dynamic(role):
+            if not self._physics_simulation_shape_is_dynamic(shape):
                 continue
             rest = self._physics_shape_rest_position(shape)
             if not rest:
@@ -7052,6 +7087,13 @@ class ModelPreviewWidget(QOpenGLWidget):
             str(getattr(anchor, "confidence", "") or "") == "skeleton_context"
             or bool(str(getattr(anchor, "skeleton_bone_name", "") or "").strip())
             or bool(str(getattr(anchor, "skeleton_source_path", "") or "").strip())
+        )
+
+    @staticmethod
+    def _physics_overlay_shape_is_context_skeleton(shape: HkxPhysicsOverlayShape) -> bool:
+        return (
+            str(getattr(shape, "confidence", "") or "") == "skeleton_context"
+            or "skeleton" in str(getattr(shape, "placement_source", "") or "").strip().lower()
         )
 
     @staticmethod
@@ -7594,7 +7636,7 @@ class ModelPreviewWidget(QOpenGLWidget):
     def _draw_physics_simulation_preview(self, painter: QPainter, mvp: QMatrix4x4) -> None:
         overlay = self._physics_overlay
         if (
-            not bool(getattr(self.render_settings(), "show_physics_simulation_preview", True))
+            not bool(getattr(self.render_settings(), "show_physics_simulation_preview", False))
             or not isinstance(overlay, HkxPhysicsOverlayData)
             or not self._physics_simulation_state
         ):
@@ -7605,7 +7647,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             if self._physics_overlay_constraint_is_context_skeleton(constraint) and not self.physics_overlay_bones_visible():
                 continue
             role = str(getattr(constraint, "simulation_role", "") or "")
-            if not self._physics_simulation_role_is_dynamic(role):
+            if not self._physics_simulation_constraint_is_dynamic(constraint):
                 continue
             fixed = self._physics_tuple3(tuple(getattr(constraint, "end", ()) or ()))
             rest = self._physics_tuple3(tuple(getattr(constraint, "start", ()) or ()))
@@ -7632,7 +7674,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             if not isinstance(shape, HkxPhysicsOverlayShape):
                 continue
             role = str(getattr(shape, "simulation_role", "") or "")
-            if not self._physics_simulation_role_is_dynamic(role):
+            if not self._physics_simulation_shape_is_dynamic(shape):
                 continue
             state = self._physics_simulation_state.get(self._physics_shape_simulation_key(shape, index))
             if not isinstance(state, dict):
@@ -7702,7 +7744,7 @@ class ModelPreviewWidget(QOpenGLWidget):
                 color = self._physics_edited_overlay_color(color)
             if len(start) >= 3 and len(end) >= 3:
                 self._draw_preview_line(painter, mvp, start[:3], end[:3], color, width=2.8 if edited else 1.7, style=Qt.DashLine)
-                if self._physics_simulation_role_is_dynamic(str(getattr(constraint, "simulation_role", "") or "")):
+                if self._physics_simulation_constraint_is_dynamic(constraint):
                     self._draw_physics_motion_envelope(painter, mvp, end[:3], start[:3], color)
                 for point in (start[:3], end[:3]):
                     projected = self._project_preview_point(mvp, point)
@@ -7926,7 +7968,7 @@ class ModelPreviewWidget(QOpenGLWidget):
         mvp = self._preview_mvp_matrix()
         origin_world = self._alignment_handle_origin()
         origin = self._project_preview_point(mvp, origin_world)
-        axis_extent = 0.72
+        axis_extent = 0.95
         points: Dict[str, Tuple[QPointF, QPointF]] = {}
         for axis_name, endpoint in (
             ("x", (origin_world[0] + axis_extent, origin_world[1], origin_world[2])),
@@ -7964,10 +8006,10 @@ class ModelPreviewWidget(QOpenGLWidget):
         if origin is not None:
             dx = float(point.x() - origin.x())
             dy = float(point.y() - origin.y())
-            if math.sqrt(dx * dx + dy * dy) <= 18.0:
+            if math.sqrt(dx * dx + dy * dy) <= 26.0:
                 return "screen"
         best_axis = ""
-        best_distance = 20.0
+        best_distance = 30.0
         for axis_name, (start, end) in self._alignment_axis_points().items():
             distance = self._distance_to_segment(point, start, end)
             if distance < best_distance:
@@ -7975,16 +8017,38 @@ class ModelPreviewWidget(QOpenGLWidget):
                 best_distance = distance
         return best_axis
 
+    def _alignment_rotation_handle_at(self, point: QPointF) -> str:
+        if not self._alignment_editing_enabled or self._vertex_count <= 0:
+            return ""
+        origin = self._project_preview_point(self._preview_mvp_matrix(), self._alignment_handle_origin())
+        if origin is None:
+            return ""
+        dx = float(point.x() - origin.x())
+        dy = float(point.y() - origin.y())
+        distance = math.sqrt(dx * dx + dy * dy)
+        if 34.0 <= distance <= 58.0:
+            return "rotate"
+        if 62.0 <= distance <= 84.0:
+            return "roll"
+        return ""
+
     def _draw_alignment_edit_handles(self, painter: QPainter) -> None:
         if not self._alignment_editing_enabled or self._vertex_count <= 0:
             return
         axis_points = self._alignment_axis_points()
         if not axis_points:
             return
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        dpr = max(1.0, float(self.devicePixelRatioF()))
+        handle_font = QFont(painter.font())
+        handle_font.setBold(True)
+        handle_font.setPointSize(max(handle_font.pointSize(), 10))
+        painter.setFont(handle_font)
         colors = {
-            "x": QColor(239, 68, 68, 220),
-            "y": QColor(59, 130, 246, 220),
-            "z": QColor(34, 197, 94, 220),
+            "x": QColor(255, 71, 71, 245),
+            "y": QColor(61, 145, 255, 245),
+            "z": QColor(28, 220, 110, 245),
         }
         labels = {"x": "X", "y": "Y", "z": "Z"}
         origin_point = None
@@ -7992,22 +8056,53 @@ class ModelPreviewWidget(QOpenGLWidget):
             active = axis_name == self._alignment_drag_axis or axis_name == self._alignment_hover_axis
             origin_point = start
             color = colors[axis_name]
-            width = 3.2 if active else 2.0
-            painter.setPen(QPen(color, width))
+            width = (7.2 if active else 5.4) / dpr
+            painter.setPen(QPen(QColor(0, 0, 0, 205), width + 2.8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             painter.drawLine(start, end)
-            painter.setPen(QPen(color, 1.2))
-            painter.drawEllipse(end, 7.0 if active else 5.5, 7.0 if active else 5.5)
+            painter.setPen(QPen(color, width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.drawLine(start, end)
+            radius = 12.5 if active else 10.0
+            painter.setBrush(QBrush(QColor(0, 0, 0, 210)))
+            painter.setPen(QPen(QColor(0, 0, 0, 190), 3.0 / dpr))
+            painter.drawEllipse(end, radius + 1.8, radius + 1.8)
+            painter.setBrush(QBrush(color))
+            painter.setPen(QPen(QColor(255, 255, 255, 165), max(1.2 / dpr, 0.8)))
+            painter.drawEllipse(end, radius, radius)
+            painter.setBrush(QBrush(QColor(255, 255, 255, 120)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(QPointF(end.x() - radius * 0.25, end.y() - radius * 0.25), radius * 0.22, radius * 0.22)
             label_point = self._clamped_overlay_point(end, margin=18.0)
-            painter.drawText(QRect(int(label_point.x()) + 8, int(label_point.y()) - 9, 18, 18), Qt.AlignLeft | Qt.AlignVCenter, labels[axis_name])
+            label_rect = QRect(int(label_point.x()) + 10, int(label_point.y()) - 10, 24, 22)
+            painter.setPen(QPen(QColor(0, 0, 0, 220), 2.0 / dpr))
+            for ox, oy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                painter.drawText(label_rect.adjusted(ox, oy, ox, oy), Qt.AlignLeft | Qt.AlignVCenter, labels[axis_name])
+            painter.setPen(QPen(color, 1.0))
+            painter.drawText(label_rect, Qt.AlignLeft | Qt.AlignVCenter, labels[axis_name])
         if origin_point is not None:
             active = self._alignment_drag_axis == "screen" or self._alignment_hover_axis == "screen"
-            painter.setPen(QPen(QColor(255, 255, 255, 230), 2.0 if active else 1.2))
+            painter.setPen(QPen(QColor(255, 255, 255, 240), (3.0 if active else 2.0) / dpr))
             painter.setBrush(QBrush(QColor(15, 23, 42, 210 if active else 170)))
-            radius = 9.0 if active else 7.0
+            radius = 12.0 if active else 9.0
             painter.drawEllipse(origin_point, radius, radius)
-            painter.setPen(QPen(QColor(255, 214, 92, 230), 1.2))
+            painter.setPen(QPen(QColor(255, 214, 92, 245), 2.0 / dpr))
             painter.drawLine(QPointF(origin_point.x() - radius + 3.0, origin_point.y()), QPointF(origin_point.x() + radius - 3.0, origin_point.y()))
             painter.drawLine(QPointF(origin_point.x(), origin_point.y() - radius + 3.0), QPointF(origin_point.x(), origin_point.y() + radius - 3.0))
+            rotate_active = self._alignment_rotation_drag_active and not self._alignment_rotation_drag_roll or self._alignment_hover_axis == "rotate"
+            roll_active = self._alignment_rotation_drag_active and self._alignment_rotation_drag_roll or self._alignment_hover_axis == "roll"
+            for ring_radius, ring_color, active_ring in (
+                (46.0, QColor(255, 214, 92, 235), rotate_active),
+                (72.0, QColor(210, 130, 255, 230), roll_active),
+            ):
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(QColor(0, 0, 0, 185), (6.0 if active_ring else 5.0) / dpr))
+                painter.drawEllipse(origin_point, ring_radius, ring_radius)
+                painter.setPen(QPen(ring_color, (4.2 if active_ring else 3.4) / dpr, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                painter.drawEllipse(origin_point, ring_radius, ring_radius)
+                handle_point = QPointF(origin_point.x() + ring_radius, origin_point.y())
+                painter.setBrush(QBrush(ring_color))
+                painter.setPen(QPen(QColor(0, 0, 0, 210), 2.0 / dpr))
+                painter.drawEllipse(handle_point, 6.0 if active_ring else 5.0, 6.0 if active_ring else 5.0)
+        painter.restore()
 
     def _draw_alignment_selected_mesh_outlines(self, painter: QPainter) -> None:
         if self._vertex_count <= 0:
@@ -8719,6 +8814,20 @@ class ModelPreviewWidget(QOpenGLWidget):
             event.accept()
             return
         if self._alignment_editing_enabled and self._vertex_count > 0 and event.button() == Qt.LeftButton:
+            rotation_handle = self._alignment_rotation_handle_at(event.position())
+            if rotation_handle:
+                self._alignment_rotation_drag_active = True
+                self._alignment_rotation_drag_roll = rotation_handle == "roll" or bool(event.modifiers() & Qt.ShiftModifier)
+                self._alignment_rotation_drag_total = QVector3D(0.0, 0.0, 0.0)
+                self.clear_alignment_live_rotation()
+                self._last_mouse_pos = event.position()
+                self.setCursor(Qt.ClosedHandCursor)
+                self.grabMouse()
+                self.update()
+                self.alignment_drag_started.emit()
+                event.accept()
+                return
+        if self._alignment_editing_enabled and self._vertex_count > 0 and event.button() == Qt.LeftButton:
             axis = self._alignment_axis_at(event.position())
             if axis:
                 self._alignment_drag_axis = axis
@@ -8781,7 +8890,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             event.accept()
             return
         if self._alignment_editing_enabled and self._vertex_count > 0 and not self._mesh_editing_enabled:
-            axis = self._alignment_axis_at(event.position())
+            axis = self._alignment_rotation_handle_at(event.position()) or self._alignment_axis_at(event.position())
             if axis != self._alignment_hover_axis:
                 self._alignment_hover_axis = axis
                 self.setCursor(Qt.SizeAllCursor if axis else Qt.ArrowCursor)
@@ -11624,11 +11733,14 @@ class QuickStartDialog(QDialog):
             <h3>What This App Covers</h3>
             <p><b>Crimson Desert Mod Workbench</b> is a read-only archive and loose-file workflow tool for Crimson Desert. It is built around extraction, research, editing, DDS rebuild, optional upscaling, comparison, and mod-ready loose export.</p>
             <ul>
+              <li><b>Dashboard</b>: launch common tasks, check workspace paths/tool health, review recent work, and reopen the last result.</li>
               <li><b>Archive Browser</b>: scan <b>.pamt/.paz</b>, preview supported assets, filter, classify, and extract to loose folders.</li>
               <li><b>Mesh Actions</b>: export OBJ/FBX, test <b>Import Mesh Preview</b>, preview texture overrides with <b>Import DDS Preview</b>, run <b>Import Mesh</b>, align static replacements, and use <b>Swap With In-Game Mesh</b> when another loaded archive mesh should become the source.</li>
               <li><b>Texture Workflow</b>: scan loose DDS files, convert DDS to PNG when needed, optionally upscale, rebuild DDS, compare results, and export loose mod output.</li>
               <li><b>Texture Editor</b>: open images directly for layered visible-texture editing and send flattened output back into the rebuild flow.</li>
               <li><b>Texture Replacer</b>: take edited PNG/DDS files, match them to the original game DDS, rebuild corrected output, and prepare mod-ready folders.</li>
+              <li><b>Model Library</b>: scan local/importable models, use mirror catalogue metadata, preview models, and route imports to archive workflows.</li>
+              <li><b>Icon Creator</b>: manage icon source images and generate compatible item-icon packages from archive targets.</li>
               <li><b>Research</b>: inspect grouped texture families, unknown classifications, references, DDS analysis, reports, and local notes.</li>
               <li><b>Text Search</b>: search archive or loose text-like files such as <b>.xml</b>, <b>.json</b>, <b>.cfg</b>, and <b>.lua</b>.</li>
               <li><b>Settings</b>: store theme, density, cache behavior, remembered layout state, confirmations, and startup preferences beside the EXE.</li>

@@ -316,6 +316,7 @@ struct EntryJob {
     bool disable_normal_map = false;
     bool disable_material_map = false;
     bool disable_height_map = false;
+    bool flip_texture_v = false;
     float normal_strength_cap = 1.0f;
     float height_effect_max = 0.35f;
     int max_anisotropy = 16;
@@ -383,12 +384,17 @@ struct PacDescriptor {
 struct NativeSubmesh {
     std::string name;
     std::string material;
+    std::string source_model_path;
+    std::string source_component_label;
     std::vector<Vec3> positions;
     std::vector<Vec2> uvs;
     std::vector<Vec3> normals;
     std::vector<std::uint32_t> indices;
     std::vector<std::int32_t> source_vertex_indices;
     int source_submesh_index = -1;
+    int source_local_submesh_index = -1;
+    int source_component_index = 0;
+    bool source_prefab_component = false;
     std::string vertex_layout_name;
     int vertex_stride = 40;
     int uv_offset = 8;
@@ -405,6 +411,55 @@ struct NativeSubmesh {
     float geometry_quality_score = 0.0f;
     bool geometry_safe = true;
     std::string geometry_quality_note;
+};
+
+struct NativePbdSidecarHint {
+    std::string simulation_material_name;
+    std::string material_name;
+    std::string submesh_name;
+    std::string parameter_name;
+    std::string sidecar_path;
+    std::string simulation_kind = "unknown";
+};
+
+struct NativePbdConfigMaterial {
+    std::string name;
+    std::string filename;
+    std::string mode;
+    std::string pbd_part;
+};
+
+struct NativePbdMaterialSettings {
+    std::string material_name;
+    std::string material_path;
+    std::string simulation_kind = "cloth";
+    float stretching_stiffness = 0.30f;
+    float bending_stiffness = 0.18f;
+    float damping = 0.65f;
+    float gravity = -10.0f;
+    float air_resistance = 1.0f;
+    float wind_response = 0.40f;
+    int solver_iterations = 30;
+    bool collision_enabled = true;
+    bool is_cloak = false;
+};
+
+struct NativeClothConstraint {
+    int a = 0;
+    int b = 0;
+    float rest_length = 0.0f;
+    float stiffness = 0.0f;
+};
+
+struct NativeClothRuntimeBatch {
+    bool active = false;
+    NativePbdSidecarHint hint;
+    NativePbdMaterialSettings settings;
+    fs::path particle_path;
+    fs::path pin_path;
+    fs::path constraint_path;
+    int particle_count = 0;
+    int constraint_count = 0;
 };
 
 struct TextureBinding {
@@ -434,9 +489,14 @@ struct TextureBinding {
     std::string evidence_grade = "corpus_inferred";
     std::string blend_flags;
     std::string material_parameter_names;
+    std::string pbd_simulation_material_name;
+    std::string pbd_simulation_kind;
+    std::string pbd_material_name;
+    std::string pbd_submesh_name;
     int material_wrapper_index = -1;
     int material_wrapper_count = 0;
     bool material_wrapper_order_authoritative = false;
+    bool alpha_test_enabled = false;
     float layer_weight = 0.0f;
     float roughness_hint = 0.0f;
     float metalness_hint = 0.0f;
@@ -645,6 +705,7 @@ EntryJob parse_job(const fs::path& job_path) {
         job.disable_normal_map = find_bool_value(render_settings, "disable_normal_map", job.disable_normal_map);
         job.disable_material_map = find_bool_value(render_settings, "disable_material_map", job.disable_material_map);
         job.disable_height_map = find_bool_value(render_settings, "disable_height_map", job.disable_height_map);
+        job.flip_texture_v = find_bool_value(render_settings, "flip_texture_v", job.flip_texture_v);
         job.normal_strength_cap = std::clamp(find_float_value(render_settings, "normal_strength_cap", job.normal_strength_cap), 0.0f, 2.0f);
         job.height_effect_max = std::clamp(find_float_value(render_settings, "height_effect_max", job.height_effect_max), 0.0f, 1.5f);
         job.max_anisotropy = static_cast<int>(std::clamp<long long>(find_int_value(render_settings, "max_anisotropy", job.max_anisotropy), 1, 16));
@@ -1054,6 +1115,48 @@ static std::vector<char> reconstruct_partial_dds(const ArchiveEntryRef& entry, c
                 level));
             current_width = std::max(1, current_width >> 1);
             current_height = std::max(1, current_height >> 1);
+        }
+    }
+    if (data.size() >= header_size && data.size() >= 0x80u && std::string(data.data(), data.data() + 4) == "DDS ") {
+        const std::vector<std::uint32_t> payload_reserved = u32_values_from_bytes(data, 32, 11);
+        std::vector<std::uint32_t> payload_compressed_sizes;
+        std::vector<size_t> payload_decompressed_sizes;
+        if (use_single_chunk) {
+            payload_compressed_sizes.push_back(payload_reserved.size() > 0 ? payload_reserved[0] : 0u);
+            payload_decompressed_sizes.push_back(payload_reserved.size() > 1 ? static_cast<size_t>(payload_reserved[1]) : 0u);
+        } else {
+            for (size_t i = 0; i < compressed_block_sizes.size() && i < payload_reserved.size(); ++i) {
+                payload_compressed_sizes.push_back(payload_reserved[i]);
+            }
+            payload_decompressed_sizes = decompressed_block_sizes;
+        }
+        std::uint64_t payload_bytes_needed = 0;
+        for (std::uint32_t value : payload_compressed_sizes) {
+            if (value > 0) payload_bytes_needed += value;
+        }
+        std::uint64_t payload_decompressed_needed = 0;
+        for (size_t value : payload_decompressed_sizes) {
+            if (value > 0) payload_decompressed_needed += static_cast<std::uint64_t>(value);
+        }
+        std::uint64_t current_bytes_needed = 0;
+        for (std::uint32_t value : compressed_block_sizes) {
+            if (value > 0) current_bytes_needed += value;
+        }
+        const bool payload_chunk_table_is_plausible =
+            payload_bytes_needed > 0
+            && header_size + payload_bytes_needed <= data.size()
+            && payload_decompressed_needed > 0
+            && payload_bytes_needed <= payload_decompressed_needed
+            && (
+                current_bytes_needed == 0
+                || header_size + current_bytes_needed > data.size()
+                || payload_bytes_needed < current_bytes_needed
+            );
+        if (payload_chunk_table_is_plausible) {
+            compressed_block_sizes = std::move(payload_compressed_sizes);
+            if (use_single_chunk) {
+                decompressed_block_sizes = std::move(payload_decompressed_sizes);
+            }
         }
     }
 
@@ -1605,6 +1708,13 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
         ref.comp_size = comp_size;
         ref.orig_size = orig_size;
         ref.flags = flags;
+        const std::string ref_path_lower = lower_copy(ref.path);
+        const bool pbd_xml_sidecar =
+            ref.extension == ".xml" &&
+            (
+                ref_path_lower.find("/descriptors/pbd/") != std::string::npos ||
+                lower_copy(ref.basename) == "pbdconfig.xml"
+            );
         const bool material_sidecar =
             ref.extension == ".pami" ||
             ref.extension == ".pac_xml" ||
@@ -1614,7 +1724,8 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
             ref.extension == ".technique" ||
             ref.extension == ".prefab" ||
             ref.extension == ".prefabdata_xml" ||
-            ref.extension == ".meshinfo";
+            ref.extension == ".meshinfo" ||
+            pbd_xml_sidecar;
         const bool lookup_relevant =
             ref.extension == ".dds" ||
             ref.extension == ".pac" ||
@@ -2103,6 +2214,7 @@ static NativeSubmesh decode_pac_submesh_vertices(
     mesh.name = desc.name;
     mesh.material = desc.material.empty() ? desc.name : desc.material;
     mesh.source_submesh_index = source_submesh_index;
+    mesh.source_local_submesh_index = source_submesh_index;
     mesh.vertex_layout_name = layout.name;
     mesh.vertex_stride = layout.stride;
     mesh.uv_offset = layout.uv_offset;
@@ -2540,6 +2652,7 @@ static NativeSubmesh parse_quantized_pam_mesh(
     mesh.name = raw.texture_name.empty() ? raw.material_name : raw.texture_name;
     mesh.material = raw.material_name.empty() ? raw.texture_name : raw.material_name;
     mesh.source_submesh_index = raw.index;
+    mesh.source_local_submesh_index = raw.index;
     if (vertex_base >= data.size() || index_offset + static_cast<size_t>(raw.index_count) * 2u > data.size()) return mesh;
     std::vector<std::uint32_t> source_indices;
     source_indices.reserve(raw.index_count);
@@ -2595,6 +2708,7 @@ static NativeSubmesh parse_global_pam_mesh_at(
     mesh.name = raw.texture_name.empty() ? raw.material_name : raw.texture_name;
     mesh.material = raw.material_name.empty() ? raw.texture_name : raw.material_name;
     mesh.source_submesh_index = raw.index;
+    mesh.source_local_submesh_index = raw.index;
     if (index_offset + static_cast<size_t>(raw.index_count) * 2u > data.size()) return mesh;
     std::vector<std::uint32_t> source_indices;
     source_indices.reserve(raw.index_count);
@@ -2970,6 +3084,7 @@ static std::string texture_role_from_name(const std::string& raw_name) {
     const std::string name = lower_copy(raw_name);
     if (name.find("_flow") != std::string::npos || name.find("flow") != std::string::npos) return "flow";
     if (name.find("_f.dds") != std::string::npos || name.find("_flowmap.dds") != std::string::npos) return "flow";
+    if (name.find("_dr.dds") != std::string::npos || name.find("_direction") != std::string::npos) return "flow";
     if (name.find("_n.dds") != std::string::npos || name.find("normal") != std::string::npos) return "normal";
     if (name.find("_disp.dds") != std::string::npos || name.find("height") != std::string::npos || name.find("displacement") != std::string::npos) return "height";
     if (name.find("_sp.dds") != std::string::npos || name.find("specular") != std::string::npos) return "specular";
@@ -3015,10 +3130,20 @@ static bool placeholder_visible_base_path(const std::string& raw_path) {
     return false;
 }
 
+static bool placeholder_layer_mask_path(const std::string& raw_path) {
+    const std::string stem = lower_copy(stem_from_path(raw_path));
+    if (stem.empty()) return false;
+    if (stem.find("nonetexture") != std::string::npos || stem.find("nulltexture") != std::string::npos || stem.find("dummytexture") != std::string::npos) return true;
+    if (stem.find("common_default") != std::string::npos) return true;
+    if (stem == "cd_temp" || stem.rfind("cd_temp_", 0) == 0) return true;
+    return false;
+}
+
 static bool technical_for_visible_base(const std::string& parameter_name, const std::string& raw_path, const std::string& role) {
     const std::string hint = lower_copy(parameter_name);
     const std::string compact_hint = std::regex_replace(hint, std::regex("[^a-z0-9]+"), "");
     if (role_is_technical_for_base(role)) return true;
+    if (compact_hint.find("ssdm") != std::string::npos || compact_hint.find("direction") != std::string::npos) return true;
     if (compact_hint.find("normal") != std::string::npos || compact_hint.find("height") != std::string::npos) return true;
     if (compact_hint.find("displacement") != std::string::npos || compact_hint.find("material") != std::string::npos) return true;
     if (compact_hint.find("roughness") != std::string::npos || compact_hint.find("metallic") != std::string::npos) return true;
@@ -3028,6 +3153,7 @@ static bool technical_for_visible_base(const std::string& parameter_name, const 
     if (compact_hint.find("mask") != std::string::npos && compact_hint.find("diffuse") == std::string::npos && compact_hint.find("albedo") == std::string::npos && compact_hint.find("color") == std::string::npos) return true;
     if (path_has_suffix_stem(raw_path, "_n") || path_has_suffix_stem(raw_path, "_disp") || path_has_suffix_stem(raw_path, "_ma")) return true;
     if (path_has_suffix_stem(raw_path, "_mg") || path_has_suffix_stem(raw_path, "_sp") || path_has_suffix_stem(raw_path, "_m")) return true;
+    if (path_has_suffix_stem(raw_path, "_dr")) return true;
     if (path_has_suffix_stem(raw_path, "_orm") || path_has_suffix_stem(raw_path, "_rma") || path_has_suffix_stem(raw_path, "_mra")) return true;
     return false;
 }
@@ -3211,6 +3337,10 @@ static std::vector<MaterialParameterRecord> extract_material_parameters(const st
         {"MaterialParameterColor", "color"},
         {"MaterialParameterByte4", "byte4"},
         {"MaterialParameterBitFlag32", "bitflag32"},
+        {"MaterialParameterUint", "uint"},
+        {"MaterialParameterUInt", "uint"},
+        {"MaterialParameterInt", "int"},
+        {"MaterialParameterBool", "bool"},
     };
     for (const auto& [tag_name, kind] : parameter_tags) {
         for (const std::string& tag : collect_xml_tag_blocks(scope_text, tag_name)) {
@@ -3241,6 +3371,23 @@ static const MaterialParameterRecord* find_material_parameter(
         }
     }
     return nullptr;
+}
+
+static bool material_parameters_enable_flag(
+    const std::vector<MaterialParameterRecord>& parameters,
+    std::initializer_list<const char*> names
+) {
+    const MaterialParameterRecord* parameter = find_material_parameter(parameters, names);
+    if (parameter == nullptr) return false;
+    std::string value = lower_copy(parameter->value);
+    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) {
+        return std::isspace(ch) != 0;
+    }), value.end());
+    if (value.empty()) return true;
+    if (value == "true" || value == "yes" || value == "on") return true;
+    if (value == "false" || value == "no" || value == "off") return false;
+    if (parameter->has_numeric) return std::abs(parameter->numeric_value) > 0.0001f;
+    return value != "0";
 }
 
 static std::array<float, 4> byte4_parameter_channels(
@@ -3394,6 +3541,265 @@ static std::vector<std::string> collect_xml_tag_blocks(const std::string& text, 
         search = block_end;
     }
     return blocks;
+}
+
+static std::vector<std::string> collect_xml_open_tags(const std::string& text) {
+    std::vector<std::string> tags;
+    if (text.empty()) return tags;
+    const std::regex pattern("<[^!?/][^>]*>");
+    auto begin = std::sregex_iterator(text.begin(), text.end(), pattern);
+    auto end = std::sregex_iterator();
+    for (auto it = begin; it != end; ++it) {
+        tags.push_back(it->str());
+    }
+    return tags;
+}
+
+static std::string native_joined_lower(std::initializer_list<std::string> values) {
+    std::string joined;
+    for (const std::string& value : values) {
+        if (!joined.empty()) joined.push_back(' ');
+        joined += lower_copy(value);
+    }
+    return joined;
+}
+
+static bool native_cloth_token_match(const std::string& value) {
+    const std::string text = lower_copy(value);
+    return text.find("cloth") != std::string::npos
+        || text.find("cloak") != std::string::npos
+        || text.find("cape") != std::string::npos
+        || text.find("skirt") != std::string::npos
+        || text.find("dress") != std::string::npos
+        || text.find("mantle") != std::string::npos
+        || text.find("robe") != std::string::npos
+        || text.find("flap") != std::string::npos;
+}
+
+static bool native_non_cloth_pbd_token_match(const std::string& value) {
+    const std::string text = lower_copy(value);
+    return text.find("weapon") != std::string::npos
+        || text.find("spline") != std::string::npos
+        || text.find("blade") != std::string::npos
+        || text.find("guard") != std::string::npos
+        || text.find("handle") != std::string::npos
+        || text.find("hilt") != std::string::npos
+        || text.find("sword") != std::string::npos
+        || text.find("metal") != std::string::npos
+        || text.find("rigid") != std::string::npos;
+}
+
+static bool native_pbd_hint_is_cloth(const NativePbdSidecarHint& hint) {
+    const std::string kind = lower_copy(hint.simulation_kind);
+    return kind == "cloth"
+        && native_cloth_token_match(
+            hint.simulation_material_name + " " +
+            hint.material_name + " " +
+            hint.submesh_name + " " +
+            hint.parameter_name
+        );
+}
+
+static bool native_pbd_hints_have_cloth(const std::vector<NativePbdSidecarHint>& hints) {
+    for (const NativePbdSidecarHint& hint : hints) {
+        if (native_pbd_hint_is_cloth(hint)) return true;
+    }
+    return false;
+}
+
+static std::string native_pbd_simulation_kind(std::initializer_list<std::string> values) {
+    const std::string joined = native_joined_lower(values);
+    if (joined.find("hair") != std::string::npos || joined.find("fur") != std::string::npos) {
+        return "hair";
+    }
+    if (
+        joined.find("breast") != std::string::npos ||
+        joined.find("belly") != std::string::npos ||
+        joined.find("body_soft") != std::string::npos ||
+        joined.find("jiggle") != std::string::npos
+    ) {
+        return "body_soft";
+    }
+    if (native_cloth_token_match(joined)) {
+        return "cloth";
+    }
+    if (native_non_cloth_pbd_token_match(joined)) {
+        return "spline";
+    }
+    return "unknown";
+}
+
+static std::string native_archive_path(std::string value) {
+    std::replace(value.begin(), value.end(), '\\', '/');
+    return value;
+}
+
+static void add_native_pbd_hint(
+    std::vector<NativePbdSidecarHint>& hints,
+    std::set<std::string>& seen,
+    const std::string& pbd_name,
+    const std::string& material_name,
+    const std::string& submesh_name,
+    const std::string& parameter_name,
+    const std::string& sidecar_path
+) {
+    if (pbd_name.empty()) return;
+    NativePbdSidecarHint hint;
+    hint.simulation_material_name = pbd_name;
+    hint.material_name = material_name;
+    hint.submesh_name = submesh_name;
+    hint.parameter_name = parameter_name;
+    hint.sidecar_path = sidecar_path;
+    hint.simulation_kind = native_pbd_simulation_kind({pbd_name, material_name, submesh_name, parameter_name});
+    const std::string key =
+        normalized_key(hint.simulation_material_name) + "|" +
+        normalized_key(hint.material_name) + "|" +
+        normalized_key(hint.submesh_name) + "|" +
+        normalized_key(hint.parameter_name) + "|" +
+        lower_copy(hint.sidecar_path);
+    if (seen.insert(key).second) {
+        hints.push_back(std::move(hint));
+    }
+}
+
+static std::vector<NativePbdSidecarHint> extract_native_pbd_sidecar_hints(
+    const std::string& text,
+    const std::string& sidecar_path
+) {
+    std::vector<NativePbdSidecarHint> hints;
+    std::set<std::string> seen;
+    if (text.empty()) return hints;
+    for (const std::string& tag : collect_xml_open_tags(text)) {
+        const auto attrs = xml_attribute_map(tag);
+        const std::string pbd_name = xml_attr_value_from_map(attrs, {"_pbdSimulationMaterialName", "pbdSimulationMaterialName"});
+        if (pbd_name.empty()) continue;
+        add_native_pbd_hint(
+            hints,
+            seen,
+            pbd_name,
+            xml_attr_value_from_map(attrs, {"_materialName", "materialName", "MaterialName"}),
+            xml_attr_value_from_map(attrs, {"_subMeshName", "subMeshName", "SubMeshName"}),
+            xml_attr_value_from_map(attrs, {"_name", "Name"}),
+            sidecar_path
+        );
+    }
+    for (const std::string& property_name : {"SkinnedMeshProperty", "OverridedPbdMaterialProperty", "PbdMaterialProperty"}) {
+        for (const std::string& block : collect_xml_tag_blocks(text, property_name)) {
+            const auto parent_attrs = xml_attribute_map(block);
+            const std::string pbd_name = xml_attr_value_from_map(parent_attrs, {"_pbdSimulationMaterialName", "pbdSimulationMaterialName"});
+            if (pbd_name.empty()) continue;
+            const std::string parent_material = xml_attr_value_from_map(parent_attrs, {"_materialName", "materialName", "MaterialName"});
+            const std::string parent_submesh = xml_attr_value_from_map(parent_attrs, {"_subMeshName", "subMeshName", "SubMeshName"});
+            add_native_pbd_hint(hints, seen, pbd_name, parent_material, parent_submesh, property_name, sidecar_path);
+            for (const std::string& wrapper : collect_xml_tag_blocks(block, "SkinnedMeshMaterialWrapper")) {
+                const auto wrapper_attrs = xml_attribute_map(wrapper);
+                std::string material_name = xml_attr_value_from_map(wrapper_attrs, {"_materialName", "materialName", "MaterialName"});
+                std::string submesh_name = xml_attr_value_from_map(wrapper_attrs, {"_subMeshName", "subMeshName", "SubMeshName"});
+                for (const std::string& material_tag : collect_xml_tag_blocks(wrapper, "Material")) {
+                    const auto material_attrs = xml_attribute_map(material_tag);
+                    const std::string nested_material = xml_attr_value_from_map(material_attrs, {"_materialName", "materialName", "MaterialName"});
+                    if (!nested_material.empty()) {
+                        material_name = nested_material;
+                        break;
+                    }
+                }
+                add_native_pbd_hint(hints, seen, pbd_name, material_name, submesh_name, "SkinnedMeshMaterialWrapper", sidecar_path);
+            }
+        }
+    }
+    return hints;
+}
+
+static std::map<std::string, NativePbdConfigMaterial> parse_native_pbd_config_materials(const std::string& text) {
+    std::map<std::string, NativePbdConfigMaterial> materials;
+    for (const std::string& tag : collect_xml_open_tags(text)) {
+        const auto attrs = xml_attribute_map(tag);
+        NativePbdConfigMaterial material;
+        material.name = xml_attr_value_from_map(attrs, {"Name", "_name", "name"});
+        material.filename = native_archive_path(xml_attr_value_from_map(attrs, {"Filename", "_filename", "filename"}));
+        if (material.name.empty() || material.filename.empty()) continue;
+        material.mode = xml_attr_value_from_map(attrs, {"Mode", "_mode", "mode"});
+        material.pbd_part = xml_attr_value_from_map(attrs, {"PbdPart", "_pbdPart", "pbdPart"});
+        materials[normalized_key(material.name)] = material;
+    }
+    return materials;
+}
+
+static std::map<std::string, std::string> native_material_scalar_values(const std::string& text) {
+    std::map<std::string, std::string> values;
+    for (const std::string& tag : collect_xml_open_tags(text)) {
+        const auto attrs = xml_attribute_map(tag);
+        const std::string name = xml_attr_value_from_map(attrs, {"Name", "_name", "name"});
+        const std::string value = xml_attr_value_from_map(attrs, {"Value", "_value", "value", "DefaultValue"});
+        if (!name.empty() && !value.empty()) {
+            values[normalized_key(name)] = value;
+        }
+        for (const auto& [key, attr_value] : attrs) {
+            if (!attr_value.empty()) {
+                values[normalized_key(key)] = attr_value;
+            }
+        }
+    }
+    return values;
+}
+
+static std::string native_first_scalar(const std::map<std::string, std::string>& values, std::initializer_list<const char*> names) {
+    for (const char* name : names) {
+        auto found = values.find(normalized_key(name));
+        if (found != values.end()) return found->second;
+    }
+    return "";
+}
+
+static float native_safe_float(const std::string& raw_value, float fallback) {
+    if (raw_value.empty()) return fallback;
+    bool ok = false;
+    const float value = numeric_parameter_value(raw_value, &ok);
+    if (!ok || !std::isfinite(value)) return fallback;
+    return value;
+}
+
+static int native_safe_int(const std::string& raw_value, int fallback) {
+    if (raw_value.empty()) return fallback;
+    try {
+        return static_cast<int>(std::lround(std::stof(raw_value)));
+    } catch (...) {
+        return fallback;
+    }
+}
+
+static bool native_safe_bool(const std::string& raw_value, bool fallback) {
+    const std::string text = lower_copy(raw_value);
+    if (text == "1" || text == "true" || text == "yes" || text == "on" || text == "enabled") return true;
+    if (text == "0" || text == "false" || text == "no" || text == "off" || text == "disabled") return false;
+    return fallback;
+}
+
+static NativePbdMaterialSettings parse_native_pbd_material_settings(
+    const std::string& text,
+    const NativePbdConfigMaterial& config_material,
+    const std::string& material_path
+) {
+    NativePbdMaterialSettings settings;
+    settings.material_name = config_material.name;
+    settings.material_path = material_path.empty() ? config_material.filename : material_path;
+    settings.simulation_kind = native_pbd_simulation_kind({settings.material_name, settings.material_path, config_material.mode, config_material.pbd_part});
+    settings.is_cloak = native_cloth_token_match(settings.material_name + " " + settings.material_path);
+    const std::map<std::string, std::string> values = native_material_scalar_values(text);
+    const std::string mode = native_first_scalar(values, {"SimulationMode", "Mode"});
+    if (!mode.empty()) {
+        settings.simulation_kind = native_pbd_simulation_kind({mode, settings.material_name, settings.material_path});
+    }
+    settings.stretching_stiffness = std::clamp(native_safe_float(native_first_scalar(values, {"StretchingStiffness", "StretchStiffness"}), settings.stretching_stiffness), 0.0f, 1.0f);
+    settings.bending_stiffness = std::clamp(native_safe_float(native_first_scalar(values, {"BendingStiffness", "BendStiffness"}), settings.bending_stiffness), 0.0f, 1.0f);
+    settings.damping = std::clamp(native_safe_float(native_first_scalar(values, {"Damping"}), settings.damping), 0.0f, 4.0f);
+    settings.gravity = std::clamp(native_safe_float(native_first_scalar(values, {"Gravity"}), settings.gravity), -50.0f, 50.0f);
+    settings.air_resistance = std::clamp(native_safe_float(native_first_scalar(values, {"AirResistance"}), settings.air_resistance), 0.0f, 8.0f);
+    settings.wind_response = std::clamp(native_safe_float(native_first_scalar(values, {"WindResponse"}), settings.wind_response), 0.0f, 4.0f);
+    settings.solver_iterations = std::clamp(native_safe_int(native_first_scalar(values, {"SolverIterationCount", "IterationCount"}), settings.solver_iterations), 1, 64);
+    settings.collision_enabled = native_safe_bool(native_first_scalar(values, {"CollisionCheck", "CollisionEnabled"}), settings.collision_enabled);
+    settings.is_cloak = native_safe_bool(native_first_scalar(values, {"IsCloak"}), settings.is_cloak);
+    return settings;
 }
 
 struct TechniqueParameterInfo {
@@ -3706,7 +4112,7 @@ static std::string texture_path_without_known_suffix(const std::string& raw_path
 
 static bool shader_rule_allows_visible_layer_family(const std::string& shader_family) {
     const std::string rule = shader_rule_for_family(shader_family);
-    return rule == "standard" || rule == "standard_v2" || rule == "cloth" || rule == "cloth_v2" || rule == "static_standard" || rule == "static_multitextured";
+    return rule == "standard" || rule == "standard_v2" || rule == "cloth" || rule == "cloth_v2" || rule == "static_standard" || rule == "static_multitextured" || rule == "generic";
 }
 
 static void add_layer_family_sibling_refs(
@@ -3932,11 +4338,22 @@ static DdsHeaderInfo inspect_dds_header_file(const std::string& path) {
     return info;
 }
 
+static bool dds_format_is_data_only_for_visible_base(const std::string& raw_format) {
+    const std::string format = lower_copy(raw_format);
+    if (format.empty()) return false;
+    if (format == "bc4u" || format == "bc4s" || format == "ati1") return true;
+    if (format == "bc5u" || format == "bc5s" || format == "ati2" || format == "rxgb") return true;
+    if (format == "dxgi_80" || format == "dxgi_81" || format == "dxgi_83" || format == "dxgi_84") return true;
+    if (format.find("bc4") != std::string::npos || format.find("bc5") != std::string::npos) return true;
+    return false;
+}
+
 static int material_match_score(const TextureBinding& binding, const NativeSubmesh& mesh, const std::string& desired_role) {
     int score = 0;
     if (binding.role == desired_role) score += 100;
     if (desired_role == "material" && (binding.role == "detail" || binding.role == "specular")) score += 16;
     if (desired_role == "base" && role_is_technical_for_base(binding.role)) score -= 200;
+    if (desired_role == "base" && dds_format_is_data_only_for_visible_base(binding.dds_format)) score -= 240;
     if (desired_role == "base") {
         const int largest_dimension = std::max(binding.dds_width, binding.dds_height);
         if (largest_dimension >= 2048) score += 24;
@@ -3979,7 +4396,7 @@ static std::string normalized_material_key(const std::string& text) {
 
 static std::string normalized_texture_family_key(const std::string& text) {
     std::string key = normalized_material_key(text);
-    for (const std::string& suffix : {"_disp", "_ma", "_mg", "_sp", "_m", "_n", "_o"}) {
+    for (const std::string& suffix : {"_disp", "_ma", "_mg", "_sp", "_m", "_n", "_o", "_dr"}) {
         if (key.size() > suffix.size() && key.ends_with(suffix)) {
             key.resize(key.size() - suffix.size());
             break;
@@ -4041,7 +4458,8 @@ static int material_key_token_cover_score(const std::string& texture_family_key,
 static const std::vector<std::string>& material_identity_specific_part_tokens() {
     static const std::vector<std::string> tokens = {
         "hand", "head", "foot", "eye", "eyecover", "hair", "beard", "fur", "arm", "leg", "lb", "ub",
-        "blade", "guard", "handle", "acc", "belt", "cloak", "sho"
+        "uw", "underwear", "nude",
+        "hel", "helmet", "mask", "blade", "guard", "handle", "acc", "belt", "cloak", "sho"
     };
     return tokens;
 }
@@ -4076,6 +4494,41 @@ static bool material_keys_match_for_identity(const std::string& candidate_key, c
     const int cover_score = material_key_token_cover_score(candidate_key, mesh_key)
         - material_identity_extra_part_penalty(candidate_key, mesh_key, "");
     return cover_score >= 100;
+}
+
+static std::string material_component_key_from_path(const std::string& path) {
+    std::string key = normalized_material_key(stem_from_path(path));
+    bool stripped = true;
+    while (stripped) {
+        stripped = false;
+        for (const std::string& suffix : {"_sub01", "_sub02", "_sub03", "_sub1", "_sub2", "_sub3", "_dm01", "_dm02", "_dm", "_op", "_v", "_s"}) {
+            if (key.size() > suffix.size() && key.ends_with(suffix)) {
+                key.resize(key.size() - suffix.size());
+                stripped = true;
+                break;
+            }
+        }
+    }
+    return key;
+}
+
+static bool material_sidecar_matches_mesh_source(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    if (binding.sidecar_path.empty() || mesh.source_model_path.empty()) return true;
+    const std::string sidecar_key = material_component_key_from_path(binding.sidecar_path);
+    const std::string mesh_source_key = material_component_key_from_path(mesh.source_model_path);
+    if (sidecar_key.empty() || mesh_source_key.empty()) return true;
+    return sidecar_key == mesh_source_key || material_keys_overlap(sidecar_key, mesh_source_key);
+}
+
+static bool material_binding_matches_mesh_source(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    if (!material_sidecar_matches_mesh_source(binding, mesh)) return false;
+    if (binding.source_authority != "embedded_mesh" || binding.linked_mesh_path.empty() || mesh.source_model_path.empty()) {
+        return true;
+    }
+    const std::string binding_key = material_component_key_from_path(binding.linked_mesh_path);
+    const std::string mesh_source_key = material_component_key_from_path(mesh.source_model_path);
+    if (binding_key.empty() || mesh_source_key.empty()) return true;
+    return binding_key == mesh_source_key || material_keys_overlap(binding_key, mesh_source_key);
 }
 
 static int material_identity_text_match_score(const TextureBinding& binding, const NativeSubmesh& mesh) {
@@ -4127,8 +4580,9 @@ static int material_identity_text_match_score(const TextureBinding& binding, con
 
 static int material_identity_match_score(const TextureBinding& binding, const NativeSubmesh& mesh) {
     const int text_score = material_identity_text_match_score(binding, mesh);
-    if (binding.material_wrapper_order_authoritative && binding.material_wrapper_index >= 0 && mesh.source_submesh_index >= 0) {
-        if (binding.material_wrapper_index == mesh.source_submesh_index) {
+    if (binding.material_wrapper_order_authoritative && binding.material_wrapper_index >= 0 && mesh.source_local_submesh_index >= 0) {
+        if (!material_binding_matches_mesh_source(binding, mesh)) return 0;
+        if (binding.material_wrapper_index == mesh.source_local_submesh_index) {
             return 220 + std::min(std::max(text_score, 0), 180);
         }
         const std::string mesh_submesh_key = normalized_material_key(mesh.name);
@@ -4140,6 +4594,14 @@ static int material_identity_match_score(const TextureBinding& binding, const Na
         return submesh_specific_match && text_score >= 120 ? std::min(text_score, 220) : 0;
     }
     return text_score;
+}
+
+static bool material_wrapper_matches_mesh_local_index(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    return binding.material_wrapper_order_authoritative
+        && binding.material_wrapper_index >= 0
+        && mesh.source_local_submesh_index >= 0
+        && binding.material_wrapper_index == mesh.source_local_submesh_index
+        && material_binding_matches_mesh_source(binding, mesh);
 }
 
 static bool material_identity_requires_exact_path_match(const TextureBinding& binding, const NativeSubmesh& mesh) {
@@ -4155,7 +4617,7 @@ static bool authoritative_wrapper_visible_base_for_mesh(const TextureBinding& bi
     if (!parameter_is_authoritative_visible_base(binding.parameter_name)) return false;
     if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) return false;
     if (placeholder_visible_base_path(binding.archive_path) || placeholder_visible_base_path(binding.texture_name)) return false;
-    return material_identity_match_score(binding, mesh) >= 300;
+    return material_wrapper_matches_mesh_local_index(binding, mesh) || material_identity_match_score(binding, mesh) >= 300;
 }
 
 static bool support_role_requires_material_scope(const std::string& desired_role) {
@@ -4192,8 +4654,8 @@ static const TextureBinding* best_binding_for_role(
         if (
             binding.material_wrapper_order_authoritative
             && binding.material_wrapper_index >= 0
-            && mesh.source_submesh_index >= 0
-            && binding.material_wrapper_index != mesh.source_submesh_index
+            && mesh.source_local_submesh_index >= 0
+            && binding.material_wrapper_index != mesh.source_local_submesh_index
         ) {
             if (rejected_examples != nullptr && rejected_examples->size() < 16) {
                 rejected_examples->push_back(
@@ -4204,12 +4666,26 @@ static const TextureBinding* best_binding_for_role(
             }
             continue;
         }
+        if (support_role_requires_material_scope(desired_role) && !material_binding_matches_mesh_source(binding, mesh)) {
+            if (rejected_examples != nullptr && rejected_examples->size() < 16) {
+                rejected_examples->push_back(
+                    desired_role + " rejected cross-component candidate "
+                    + (binding.texture_name.empty() ? basename_from_path(binding.archive_path) : binding.texture_name)
+                    + " for " + mesh.material
+                    + " sidecar=" + basename_from_path(binding.sidecar_path)
+                    + " source=" + basename_from_path(mesh.source_model_path)
+                );
+            }
+            continue;
+        }
         const int identity_score = material_identity_match_score(binding, mesh);
         const int identity_threshold = support_role_requires_material_scope(desired_role)
             ? support_role_identity_threshold(desired_role)
             : 0;
         const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
+        const bool authoritative_wrapper_match = material_wrapper_matches_mesh_local_index(binding, mesh);
         const bool conflicting_specific_part = support_role_requires_material_scope(desired_role)
+            && !authoritative_wrapper_match
             && material_identity_has_conflicting_specific_part(
                 texture_family_key,
                 normalized_material_key(mesh.material),
@@ -4258,8 +4734,8 @@ static const TextureBinding* best_binding_for_role(
                 score -= 170;
             }
         }
-        if (binding.material_wrapper_order_authoritative && binding.material_wrapper_index >= 0 && mesh.source_submesh_index >= 0) {
-            if (binding.material_wrapper_index == mesh.source_submesh_index) {
+        if (binding.material_wrapper_order_authoritative && binding.material_wrapper_index >= 0 && mesh.source_local_submesh_index >= 0) {
+            if (binding.material_wrapper_index == mesh.source_local_submesh_index) {
                 score += 180;
             } else {
                 score -= 48;
@@ -4285,10 +4761,13 @@ static const TextureBinding* best_base_binding_for_mode(
     bool has_non_low_authority_visible_base = false;
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty() || binding.role != "base") continue;
-        if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
+        if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)
+            || dds_format_is_data_only_for_visible_base(binding.dds_format)) continue;
+        if (!material_binding_matches_mesh_source(binding, mesh)) continue;
         const int identity_score = material_identity_match_score(binding, mesh);
         const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
-        if (material_identity_has_conflicting_specific_part(
+        const bool authoritative_wrapper_match = material_wrapper_matches_mesh_local_index(binding, mesh);
+        if (!authoritative_wrapper_match && material_identity_has_conflicting_specific_part(
             texture_family_key,
             normalized_material_key(mesh.material),
             normalized_material_key(mesh.name))) {
@@ -4298,15 +4777,14 @@ static const TextureBinding* best_base_binding_for_mode(
             parameter_is_authoritative_visible_base(binding.parameter_name)
             || binding.visible_class == "primary_visible";
         const bool authoritative_wrapper_visible_base = authoritative_wrapper_visible_base_for_mesh(binding, mesh);
-        if (!authoritative_wrapper_visible_base && (low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name))) continue;
+        const bool low_authority = low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name);
+        if (!authoritative_wrapper_visible_base && low_authority && !(authoritative_visible_base && identity_score >= 120)) continue;
         if (
             authoritative_wrapper_visible_base
             || (
                 binding.source_authority == "exact_sidecar"
-                && binding.material_wrapper_order_authoritative
                 && identity_score >= 300
                 && authoritative_visible_base
-                && (visible_class_allowed_for_mode(mode, binding.visible_class) || parameter_is_authoritative_visible_base(binding.parameter_name))
             )
         ) {
             has_authoritative_sidecar_base_for_mesh = true;
@@ -4328,11 +4806,14 @@ static const TextureBinding* best_base_binding_for_mode(
     int best_score = 40;
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty() || binding.role != "base") continue;
-        if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) continue;
+        if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)
+            || dds_format_is_data_only_for_visible_base(binding.dds_format)) continue;
+        if (!material_binding_matches_mesh_source(binding, mesh)) continue;
         const int identity_score = material_identity_match_score(binding, mesh);
         const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
         const bool embedded = binding.source_authority == "embedded_mesh";
-        if (material_identity_has_conflicting_specific_part(
+        const bool authoritative_wrapper_match = material_wrapper_matches_mesh_local_index(binding, mesh);
+        if (!authoritative_wrapper_match && material_identity_has_conflicting_specific_part(
             texture_family_key,
             normalized_material_key(mesh.material),
             normalized_material_key(mesh.name))) {
@@ -4341,8 +4822,8 @@ static const TextureBinding* best_base_binding_for_mode(
         if (
             binding.material_wrapper_order_authoritative
             && binding.material_wrapper_index >= 0
-            && mesh.source_submesh_index >= 0
-            && binding.material_wrapper_index != mesh.source_submesh_index
+            && mesh.source_local_submesh_index >= 0
+            && binding.material_wrapper_index != mesh.source_local_submesh_index
         ) {
             continue;
         }
@@ -4366,7 +4847,12 @@ static const TextureBinding* best_base_binding_for_mode(
         if (embedded && has_authoritative_sidecar_base_for_mesh) {
             continue;
         }
-        if (low_authority && has_non_low_authority_visible_base && !authoritative_wrapper_visible_base_for_mesh(binding, mesh)) {
+        if (
+            low_authority
+            && has_non_low_authority_visible_base
+            && !authoritative_wrapper_visible_base_for_mesh(binding, mesh)
+            && !(authoritative_visible_base && identity_score >= 120)
+        ) {
             continue;
         }
         if (mode == "mesh_base_first" && layer_diffuse_candidate && (has_non_low_authority_visible_base || has_authoritative_sidecar_base_for_mesh) && !embedded) {
@@ -4384,6 +4870,8 @@ static const TextureBinding* best_base_binding_for_mode(
         const std::string parameter_key = normalized_key(binding.parameter_name);
         int score = material_match_score(binding, mesh, "base");
         score += visible_class_priority(binding.visible_class) * 18;
+        if (authoritative_visible_base && identity_score >= 120) score += 155;
+        if (authoritative_wrapper_match) score += 210;
         if (binding.source_authority == "exact_sidecar" && binding.material_wrapper_order_authoritative && identity_score >= 300) score += 260;
         if (embedded) score += mode == "sidecar_visible_first" ? 20 : 120;
         if (binding.source_authority == "exact_sidecar") score += mode == "sidecar_visible_first" ? 95 : 55;
@@ -4465,6 +4953,7 @@ struct ParsedMaterialSidecar {
     std::string shader_rule;
     SidecarParameterSummary parameter_summary;
     std::vector<SidecarTextureRef> refs;
+    std::vector<NativePbdSidecarHint> pbd_hints;
     int material_wrapper_count = 0;
 };
 
@@ -4497,6 +4986,7 @@ static const ParsedMaterialSidecar& cached_parsed_material_sidecar(const Archive
     }
     parsed.shader_rule = shader_rule_for_family(parsed.shader_family);
     parsed.parameter_summary = summarize_sidecar_parameters(sidecar_text);
+    parsed.pbd_hints = extract_native_pbd_sidecar_hints(sidecar_text, sidecar.path);
     parsed.refs = extract_sidecar_texture_refs(sidecar_text);
     parsed.material_wrapper_count = 0;
     for (const SidecarTextureRef& ref : parsed.refs) {
@@ -4511,6 +5001,44 @@ static const ParsedMaterialSidecar& cached_parsed_material_sidecar(const Archive
         }
     }
     return cache.emplace(key, std::move(parsed)).first->second;
+}
+
+static const NativePbdSidecarHint* best_native_pbd_hint_for_binding(
+    const std::vector<NativePbdSidecarHint>& hints,
+    const std::string& binding_material_name,
+    const std::string& texture_ref_material_name,
+    const std::string& texture_parameter_name
+) {
+    const NativePbdSidecarHint* best = nullptr;
+    int best_score = 0;
+    const std::string material_key = normalized_material_key(binding_material_name);
+    const std::string ref_material_key = normalized_material_key(texture_ref_material_name);
+    const std::string parameter_key = normalized_key(texture_parameter_name);
+    const bool binding_looks_like_cloth = native_cloth_token_match(
+        binding_material_name + " " + texture_ref_material_name + " " + texture_parameter_name
+    );
+    if (!binding_looks_like_cloth) {
+        return nullptr;
+    }
+    for (const NativePbdSidecarHint& hint : hints) {
+        if (hint.simulation_material_name.empty()) continue;
+        if (!native_pbd_hint_is_cloth(hint)) continue;
+        int score = 0;
+        const std::string hint_material_key = normalized_material_key(hint.material_name);
+        const std::string hint_submesh_key = normalized_material_key(hint.submesh_name);
+        const std::string hint_pbd_key = normalized_material_key(hint.simulation_material_name);
+        if (!hint_material_key.empty() && (hint_material_key == material_key || hint_material_key == ref_material_key)) score += 100;
+        if (!hint_submesh_key.empty() && (hint_submesh_key == material_key || hint_submesh_key == ref_material_key)) score += 90;
+        if (!hint_pbd_key.empty() && (material_key.find(hint_pbd_key) != std::string::npos || ref_material_key.find(hint_pbd_key) != std::string::npos)) score += 40;
+        if (binding_looks_like_cloth) score += 80;
+        if (!parameter_key.empty() && (parameter_key.find("cloth") != std::string::npos || parameter_key.find("cloak") != std::string::npos)) score += 20;
+        if (hint_material_key.empty() && hint_submesh_key.empty() && binding_looks_like_cloth) score += 20;
+        if (score > best_score) {
+            best_score = score;
+            best = &hint;
+        }
+    }
+    return best_score >= 80 ? best : nullptr;
 }
 
 static std::string packed_channels_for_role(const std::string& role, const std::string& name, const std::string& parameter_name) {
@@ -4639,6 +5167,7 @@ static std::string role_from_parameter_shader_and_name(
     const std::string t = lower_copy(texture_name);
     if (p.find("flow") != std::string::npos) return "flow";
     if (shader_rule == "hair" && (p == "_flowtexture" || p.find("flowtexture") != std::string::npos || t.find("_f.dds") != std::string::npos)) return "flow";
+    if (p.find("ssdm") != std::string::npos || p.find("direction") != std::string::npos || t.find("_dr.dds") != std::string::npos) return "flow";
     if ((p.find("alpha") != std::string::npos || p.find("opacity") != std::string::npos) && p.find("base") == std::string::npos) return "opacity";
     if (technique_parameter != nullptr && technique_parameter->declared) {
         const std::string declared_type = lower_copy(technique_parameter->type);
@@ -4646,6 +5175,7 @@ static std::string role_from_parameter_shader_and_name(
         const bool declared_texture = declared_type.find("texture") != std::string::npos || p.find("texture") != std::string::npos;
         if (declared_texture) {
             if (p.find("flow") != std::string::npos) return "flow";
+            if (p.find("ssdm") != std::string::npos || p.find("direction") != std::string::npos) return "flow";
             if (p.find("normal") != std::string::npos || declared_default.find("0xff7f7f00") != std::string::npos) return "normal";
             if (p.find("height") != std::string::npos || p.find("displacement") != std::string::npos || p.find("disp") != std::string::npos) return "height";
             if (p.find("specular") != std::string::npos || p.find("gloss") != std::string::npos || p.find("smoothness") != std::string::npos) return "specular";
@@ -4800,6 +5330,80 @@ static std::optional<ArchiveEntryRef> resolve_archive_path_across_package(
     return *best;
 }
 
+static NativePbdMaterialSettings default_native_pbd_material_settings(const NativePbdSidecarHint& hint) {
+    NativePbdMaterialSettings settings;
+    settings.material_name = hint.simulation_material_name;
+    settings.simulation_kind = hint.simulation_kind.empty() ? "unknown" : hint.simulation_kind;
+    settings.is_cloak = native_cloth_token_match(
+        hint.simulation_material_name + " " + hint.material_name + " " + hint.submesh_name
+    );
+    return settings;
+}
+
+static NativePbdMaterialSettings resolve_native_pbd_material_settings(
+    const EntryJob& job,
+    const PamtIndex& primary_index,
+    const NativePbdSidecarHint& hint
+) {
+    NativePbdMaterialSettings fallback = default_native_pbd_material_settings(hint);
+    if (hint.simulation_material_name.empty()) return fallback;
+    std::vector<ArchiveEntryRef> config_candidates = lookup_basename_candidates_across_package(job, primary_index, "pbdconfig.xml", 16);
+    std::sort(config_candidates.begin(), config_candidates.end(), [](const ArchiveEntryRef& a, const ArchiveEntryRef& b) {
+        const std::string ap = lower_copy(a.path);
+        const std::string bp = lower_copy(b.path);
+        const int as = (ap.find("/descriptors/pbd/") != std::string::npos ? 80 : 0) + (ap.find("pbdconfig.xml") != std::string::npos ? 20 : 0);
+        const int bs = (bp.find("/descriptors/pbd/") != std::string::npos ? 80 : 0) + (bp.find("pbdconfig.xml") != std::string::npos ? 20 : 0);
+        if (as != bs) return as > bs;
+        return ap < bp;
+    });
+    for (const ArchiveEntryRef& config_ref : config_candidates) {
+        std::vector<char> config_bytes;
+        try {
+            config_bytes = read_archive_ref_decoded_bytes(config_ref);
+        } catch (...) {
+            continue;
+        }
+        const std::string config_text(config_bytes.begin(), config_bytes.end());
+        const auto materials = parse_native_pbd_config_materials(config_text);
+        auto found = materials.find(normalized_key(hint.simulation_material_name));
+        if (found == materials.end()) continue;
+        NativePbdConfigMaterial config_material = found->second;
+        std::optional<ArchiveEntryRef> material_ref = resolve_archive_path_across_package(job, primary_index, config_material.filename);
+        if (!material_ref.has_value()) {
+            const std::string basename = basename_from_path(config_material.filename);
+            for (const ArchiveEntryRef& candidate : lookup_basename_candidates_across_package(job, primary_index, basename, 24)) {
+                const std::string candidate_path = lower_copy(candidate.path);
+                if (candidate.extension != ".xml") continue;
+                if (candidate_path.find("/descriptors/pbd/") == std::string::npos) continue;
+                material_ref = candidate;
+                break;
+            }
+        }
+        if (!material_ref.has_value()) {
+            fallback.material_path = config_material.filename;
+            fallback.material_name = config_material.name.empty() ? fallback.material_name : config_material.name;
+            fallback.simulation_kind = native_pbd_simulation_kind({fallback.material_name, fallback.material_path, config_material.mode, config_material.pbd_part});
+            fallback.is_cloak = fallback.is_cloak || native_cloth_token_match(fallback.material_name + " " + fallback.material_path);
+            return fallback;
+        }
+        std::vector<char> material_bytes;
+        try {
+            material_bytes = read_archive_ref_decoded_bytes(*material_ref);
+        } catch (...) {
+            fallback.material_path = config_material.filename;
+            fallback.material_name = config_material.name.empty() ? fallback.material_name : config_material.name;
+            return fallback;
+        }
+        const std::string material_text(material_bytes.begin(), material_bytes.end());
+        NativePbdMaterialSettings settings = parse_native_pbd_material_settings(material_text, config_material, material_ref->path);
+        if (settings.material_name.empty()) settings.material_name = hint.simulation_material_name;
+        if (settings.simulation_kind.empty()) settings.simulation_kind = hint.simulation_kind.empty() ? "cloth" : hint.simulation_kind;
+        settings.is_cloak = settings.is_cloak || fallback.is_cloak;
+        return settings;
+    }
+    return fallback;
+}
+
 static std::vector<std::string> extract_prefab_model_paths(const std::vector<char>& bytes) {
     std::vector<std::string> paths;
     std::set<std::string> seen;
@@ -4832,6 +5436,9 @@ static std::vector<std::string> prefab_candidate_basenames_for_model_stem(const 
         }
     };
     add_stem(model_stem);
+    if (!lower_copy(model_stem).ends_with("_v")) {
+        add_stem(model_stem + "_v");
+    }
 
     std::smatch match;
     const std::regex submesh_suffix_pattern(R"(^(.+)_sub[0-9]+$)", std::regex_constants::icase);
@@ -4877,6 +5484,34 @@ static std::vector<std::string> prefab_candidate_basenames_for_model_stem(const 
     return basenames;
 }
 
+static std::string prefab_component_match_stem(std::string stem) {
+    stem = lower_copy(stem);
+    for (const std::string& suffix : {"_op_s", "_op_v", "_v", "_s"}) {
+        if (stem.size() > suffix.size() && stem.ends_with(suffix)) {
+            return stem.substr(0, stem.size() - suffix.size());
+        }
+    }
+    return stem;
+}
+
+static bool prefab_model_path_matches_job(const std::string& model_path, const EntryJob& job) {
+    std::string normalized_model_path = model_path;
+    std::replace(normalized_model_path.begin(), normalized_model_path.end(), '\\', '/');
+    std::string normalized_job_path = job.path;
+    std::replace(normalized_job_path.begin(), normalized_job_path.end(), '\\', '/');
+    const std::string model_lower = lower_copy(normalized_model_path);
+    const std::string job_lower = lower_copy(normalized_job_path);
+    if (model_lower == job_lower) return true;
+
+    const std::string model_stem = prefab_component_match_stem(stem_from_path(model_lower));
+    const std::string job_stem = prefab_component_match_stem(stem_from_path(job_lower));
+    if (model_stem.empty() || model_stem != job_stem) return false;
+
+    const std::string model_dir = lower_copy(dirname_from_path(model_lower));
+    const std::string job_dir = lower_copy(dirname_from_path(job_lower));
+    return model_dir.empty() || job_dir.empty() || model_dir == job_dir;
+}
+
 static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
     const EntryJob& job,
     const PamtIndex& index,
@@ -4919,8 +5554,7 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
         for (const std::string& model_path : model_paths) {
             std::optional<ArchiveEntryRef> resolved = resolve_archive_path_across_package(job, index, model_path);
             if (!resolved.has_value()) continue;
-            const std::string resolved_key = lower_copy(resolved->path);
-            if (resolved_key == lower_copy(job.path)) references_selected_model = true;
+            if (prefab_model_path_matches_job(resolved->path, job)) references_selected_model = true;
             resolved_for_prefab.push_back(*resolved);
         }
         if (!references_selected_model || resolved_for_prefab.size() <= 1) continue;
@@ -4933,6 +5567,18 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
         }
     }
     return components;
+}
+
+static bool direct_sibling_sidecar_variant_allowed_for_fuzzy_match(
+    const std::string& model_stem_lower,
+    const std::string& ref_stem_lower
+) {
+    if (model_stem_lower.empty() || ref_stem_lower.empty() || ref_stem_lower == model_stem_lower) return true;
+    const std::string prefix = model_stem_lower + "_";
+    if (ref_stem_lower.rfind(prefix, 0) != 0) return true;
+    const std::string suffix = ref_stem_lower.substr(prefix.size());
+    if (suffix == "in" || suffix.rfind("in_", 0) == 0) return false;
+    return true;
 }
 
 static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
@@ -5006,6 +5652,7 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
         const std::string ref_stem = lower_copy(stem_from_path(ref.path));
         const std::string ref_path = lower_copy(ref.path);
         const std::string ref_dir = lower_copy(dirname_from_path(ref.path));
+        if (!direct_sibling_sidecar_variant_allowed_for_fuzzy_match(model_stem_lower, ref_stem)) continue;
         int score = 0;
         if (!model_stem_lower.empty() && ref_stem == model_stem_lower) score += 100;
         if (!model_stem_lower.empty() && ref_path.find(model_stem_lower) != std::string::npos) score += 40;
@@ -5106,12 +5753,21 @@ static std::vector<TextureBinding> build_material_bindings(
             "; float_params=" + std::to_string(parameter_summary.float_params) +
             "; color_params=" + std::to_string(parameter_summary.color_params) +
             "; byte4_params=" + std::to_string(parameter_summary.byte4_params) +
-            "; flags=" + std::to_string(parameter_summary.bit_flags)
+            "; flags=" + std::to_string(parameter_summary.bit_flags) +
+            "; pbd_hints=" + std::to_string(parsed_sidecar->pbd_hints.size())
         );
         const std::vector<SidecarTextureRef>& refs = parsed_sidecar->refs;
+        int sidecar_scoped_mesh_count = 0;
+        const std::string sidecar_component_key = material_component_key_from_path(sidecar.path);
+        for (const NativeSubmesh& mesh : meshes) {
+            const std::string mesh_source_key = material_component_key_from_path(mesh.source_model_path);
+            if (sidecar_component_key.empty() || mesh_source_key.empty() || sidecar_component_key == mesh_source_key || material_keys_overlap(sidecar_component_key, mesh_source_key)) {
+                ++sidecar_scoped_mesh_count;
+            }
+        }
         const bool wrapper_order_authoritative =
             parsed_sidecar->material_wrapper_count > 0
-            && parsed_sidecar->material_wrapper_count == static_cast<int>(meshes.size());
+            && parsed_sidecar->material_wrapper_count == sidecar_scoped_mesh_count;
         int refs_considered = 0;
         const std::string model_family_key = normalized_material_key(stem_from_path(job.path));
         for (const SidecarTextureRef& texture_ref : refs) {
@@ -5122,11 +5778,15 @@ static std::vector<TextureBinding> build_material_bindings(
                 if (
                     wrapper_order_authoritative
                     && texture_ref.material_wrapper_index >= 0
-                    && texture_ref.material_wrapper_index < static_cast<int>(meshes.size())
+                    && texture_ref.material_wrapper_index < sidecar_scoped_mesh_count
                 ) {
                     matched_mesh = true;
                 }
                 for (const NativeSubmesh& mesh : meshes) {
+                    const std::string mesh_source_key = material_component_key_from_path(mesh.source_model_path);
+                    if (!sidecar_component_key.empty() && !mesh_source_key.empty() && sidecar_component_key != mesh_source_key && !material_keys_overlap(sidecar_component_key, mesh_source_key)) {
+                        continue;
+                    }
                     const std::string mesh_material_key = normalized_material_key(mesh.material);
                     const std::string mesh_name_key = normalized_material_key(mesh.name);
                     if (
@@ -5168,7 +5828,8 @@ static std::vector<TextureBinding> build_material_bindings(
             const bool keep_layer_stack_aux =
                 pre_shader_rule.find("standard") != std::string::npos
                 || pre_shader_rule.find("cloth") != std::string::npos
-                || pre_shader_rule.find("multitextured") != std::string::npos;
+                || pre_shader_rule.find("multitextured") != std::string::npos
+                || (pre_shader_rule.find("generic") != std::string::npos && native_pbd_hints_have_cloth(parsed_sidecar->pbd_hints));
             if (
                 mode == "mesh_base_first"
                 && !keep_layer_stack_aux
@@ -5241,6 +5902,17 @@ static std::vector<TextureBinding> build_material_bindings(
             }
             binding.sidecar_path = sidecar.path;
             binding.sidecar_kind = sidecar.extension;
+            if (const NativePbdSidecarHint* pbd_hint = best_native_pbd_hint_for_binding(
+                parsed_sidecar->pbd_hints,
+                binding.material_name,
+                texture_ref.material_name,
+                binding.parameter_name
+            )) {
+                binding.pbd_simulation_material_name = pbd_hint->simulation_material_name;
+                binding.pbd_simulation_kind = pbd_hint->simulation_kind;
+                binding.pbd_material_name = pbd_hint->material_name;
+                binding.pbd_submesh_name = pbd_hint->submesh_name;
+            }
             binding.linked_mesh_path = parameter_summary.linked_mesh_path;
             binding.packed_channels = packed_channels_for_role(binding.role, base, parameter_lower);
             binding.srgb_mode = srgb_mode_for_role(binding.role, technique_parameter);
@@ -5257,6 +5929,13 @@ static std::vector<TextureBinding> build_material_bindings(
             binding.tint_color = tint_for_layer(texture_ref.material_parameters, binding.layer_role, binding.layer_channel);
             binding.blend_flags = normalized_key(binding.parameter_name).find("colorblending") != std::string::npos ? "color_blending_mask" : "";
             binding.material_parameter_names = joined_parameter_names(texture_ref.material_parameters);
+            binding.alpha_test_enabled = material_parameters_enable_flag(texture_ref.material_parameters, {
+                "AlphaTest",
+                "AlphaClip",
+                "AlphaCutout",
+                "Cutout",
+                "_alphaTest"
+            });
             binding.roughness_hint = std::clamp(scalar_parameter_hint(texture_ref.material_parameters, {"roughness", "scratchRoughness"}, 0.0f), 0.0f, 1.0f);
             binding.metalness_hint = std::clamp(scalar_parameter_hint(texture_ref.material_parameters, {"metallic", "metalness", "scratchMetallic"}, 0.0f), 0.0f, 1.0f);
             binding.specular_hint = std::clamp(scalar_parameter_hint(texture_ref.material_parameters, {"specular", "specularAmount"}, 0.0f), 0.0f, 1.0f);
@@ -5368,7 +6047,8 @@ static void append_mesh_reference_bindings(
             if (candidates.empty()) continue;
             const ArchiveEntryRef* selected = nullptr;
             int best_score = -100000;
-            const std::string model_dir = lower_copy(dirname_from_path(job.path));
+            const std::string mesh_source_path = mesh.source_model_path.empty() ? job.path : mesh.source_model_path;
+            const std::string model_dir = lower_copy(dirname_from_path(mesh_source_path));
             for (const ArchiveEntryRef& ref : candidates) {
                 int score = 20;
                 const std::string ref_path = lower_copy(ref.path);
@@ -5398,7 +6078,7 @@ static void append_mesh_reference_bindings(
             binding.material_name = mesh.material.empty() ? mesh.name : mesh.material;
             binding.sidecar_path = "";
             binding.sidecar_kind = "embedded_mesh";
-            binding.linked_mesh_path = job.path;
+            binding.linked_mesh_path = mesh_source_path;
             binding.packed_channels = packed_channels_for_role(binding.role, binding.texture_name, binding.parameter_name);
             binding.srgb_mode = srgb_mode_for_role(binding.role, nullptr);
             binding.parameter_declared_by = "mesh";
@@ -5554,6 +6234,248 @@ static void write_geometry_blob(
     write_binary(identity_path, identity);
 }
 
+static float native_distance(const Vec3& a, const Vec3& b) {
+    const float dx = a.x - b.x;
+    const float dy = a.y - b.y;
+    const float dz = a.z - b.z;
+    return std::sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+static std::optional<NativePbdSidecarHint> native_pbd_hint_for_mesh(
+    const NativeSubmesh& mesh,
+    const std::vector<const TextureBinding*>& batch_bindings
+) {
+    std::optional<NativePbdSidecarHint> best;
+    int best_score = 0;
+    const std::string mesh_material_key = normalized_material_key(mesh.material);
+    const std::string mesh_name_key = normalized_material_key(mesh.name);
+    const std::string mesh_scope_text = mesh.material.empty() ? mesh.name : mesh.material;
+    const bool mesh_looks_like_cloth = native_cloth_token_match(mesh_scope_text);
+    if (!mesh_looks_like_cloth) {
+        return std::nullopt;
+    }
+    for (const TextureBinding* binding : batch_bindings) {
+        if (binding == nullptr || binding->pbd_simulation_material_name.empty()) continue;
+        const std::string kind = lower_copy(binding->pbd_simulation_kind.empty() ? "unknown" : binding->pbd_simulation_kind);
+        if (kind != "cloth") continue;
+        NativePbdSidecarHint hint;
+        hint.simulation_material_name = binding->pbd_simulation_material_name;
+        hint.simulation_kind = kind;
+        hint.material_name = binding->pbd_material_name.empty() ? binding->material_name : binding->pbd_material_name;
+        hint.submesh_name = binding->pbd_submesh_name;
+        hint.parameter_name = binding->parameter_name;
+        hint.sidecar_path = binding->sidecar_path;
+        if (!native_pbd_hint_is_cloth(hint)) continue;
+        const std::string hint_material_key = normalized_material_key(hint.material_name);
+        const std::string hint_submesh_key = normalized_material_key(hint.submesh_name);
+        const bool hint_has_scope = !hint_material_key.empty() || !hint_submesh_key.empty();
+        const bool material_scope_match = !hint_material_key.empty() && (
+            hint_material_key == mesh_material_key ||
+            hint_material_key == mesh_name_key ||
+            material_keys_match_for_identity(hint_material_key, mesh_material_key) ||
+            material_keys_match_for_identity(hint_material_key, mesh_name_key)
+        );
+        const bool submesh_scope_match = !hint_submesh_key.empty() && (
+            hint_submesh_key == mesh_material_key ||
+            hint_submesh_key == mesh_name_key ||
+            material_keys_match_for_identity(hint_submesh_key, mesh_material_key) ||
+            material_keys_match_for_identity(hint_submesh_key, mesh_name_key)
+        );
+        const int identity_score = material_identity_match_score(*binding, mesh);
+        const bool strong_identity_match = identity_score >= 180;
+        if (hint_has_scope && !material_scope_match && !submesh_scope_match && !strong_identity_match) {
+            continue;
+        }
+        int score = 0;
+        if (material_scope_match) score += 120;
+        if (submesh_scope_match) score += 120;
+        if (mesh_looks_like_cloth) score += 80;
+        if (strong_identity_match) score += 40;
+        if (material_binding_matches_mesh_source(*binding, mesh)) score += 10;
+        if (score > best_score) {
+            best_score = score;
+            best = hint;
+        }
+    }
+    return best_score >= 80 ? best : std::nullopt;
+}
+
+static std::vector<NativeClothConstraint> build_native_cloth_constraints(
+    const std::vector<Vec3>& positions,
+    const std::vector<std::uint32_t>& indices,
+    const NativePbdMaterialSettings& settings,
+    size_t max_constraints = 60000
+) {
+    std::vector<std::array<int, 3>> triangles;
+    triangles.reserve(indices.size() / 3u);
+    std::map<std::pair<int, int>, std::vector<int>> edge_faces;
+    std::set<std::pair<int, int>> structural_edges;
+    auto add_edge = [&](int a, int b, int face_index) {
+        if (a == b) return;
+        if (a > b) std::swap(a, b);
+        std::pair<int, int> edge{a, b};
+        structural_edges.insert(edge);
+        edge_faces[edge].push_back(face_index);
+    };
+    for (size_t offset = 0; offset + 2 < indices.size(); offset += 3) {
+        const int a = static_cast<int>(indices[offset]);
+        const int b = static_cast<int>(indices[offset + 1]);
+        const int c = static_cast<int>(indices[offset + 2]);
+        if (a < 0 || b < 0 || c < 0) continue;
+        if (static_cast<size_t>(a) >= positions.size() || static_cast<size_t>(b) >= positions.size() || static_cast<size_t>(c) >= positions.size()) continue;
+        if (a == b || b == c || c == a) continue;
+        const int face_index = static_cast<int>(triangles.size());
+        triangles.push_back({a, b, c});
+        add_edge(a, b, face_index);
+        add_edge(b, c, face_index);
+        add_edge(c, a, face_index);
+    }
+    std::vector<NativeClothConstraint> constraints;
+    constraints.reserve(std::min<size_t>(max_constraints, structural_edges.size() * 2u));
+    for (const auto& edge : structural_edges) {
+        NativeClothConstraint constraint;
+        constraint.a = edge.first;
+        constraint.b = edge.second;
+        constraint.rest_length = native_distance(positions[static_cast<size_t>(constraint.a)], positions[static_cast<size_t>(constraint.b)]);
+        constraint.stiffness = settings.stretching_stiffness;
+        constraints.push_back(constraint);
+        if (constraints.size() >= max_constraints) return constraints;
+    }
+    std::set<std::pair<int, int>> bend_seen;
+    for (const auto& [edge, face_indices] : edge_faces) {
+        if (face_indices.size() < 2) continue;
+        const auto& first = triangles[static_cast<size_t>(face_indices[0])];
+        const auto& second = triangles[static_cast<size_t>(face_indices[1])];
+        std::vector<int> opposite;
+        for (int value : first) {
+            if (value != edge.first && value != edge.second) opposite.push_back(value);
+        }
+        for (int value : second) {
+            if (value != edge.first && value != edge.second) opposite.push_back(value);
+        }
+        if (opposite.size() < 2 || opposite[0] == opposite[1]) continue;
+        int a = opposite[0];
+        int b = opposite[1];
+        if (a > b) std::swap(a, b);
+        std::pair<int, int> bend{a, b};
+        if (!bend_seen.insert(bend).second) continue;
+        NativeClothConstraint constraint;
+        constraint.a = bend.first;
+        constraint.b = bend.second;
+        constraint.rest_length = native_distance(positions[static_cast<size_t>(constraint.a)], positions[static_cast<size_t>(constraint.b)]);
+        constraint.stiffness = settings.bending_stiffness;
+        constraints.push_back(constraint);
+        if (constraints.size() >= max_constraints) break;
+    }
+    return constraints;
+}
+
+static std::vector<float> build_native_cloth_pin_weights(
+    const std::vector<Vec3>& positions,
+    bool cloak_bias
+) {
+    std::vector<float> weights(positions.size(), 0.0f);
+    if (positions.empty()) return weights;
+    float y_min = positions.front().y;
+    float y_max = positions.front().y;
+    for (const Vec3& position : positions) {
+        y_min = std::min(y_min, position.y);
+        y_max = std::max(y_max, position.y);
+    }
+    const float span = std::max(1.0e-6f, y_max - y_min);
+    const float hard_height = cloak_bias ? 0.16f : 0.12f;
+    const float fade_height = cloak_bias ? 0.36f : 0.28f;
+    const float hard_line = y_max - span * hard_height;
+    const float fade_line = y_max - span * fade_height;
+    for (size_t index = 0; index < positions.size(); ++index) {
+        const float y = positions[index].y;
+        if (y >= hard_line) {
+            weights[index] = 1.0f;
+        } else if (y >= fade_line) {
+            weights[index] = std::clamp((y - fade_line) / std::max(1.0e-6f, hard_line - fade_line), 0.0f, 1.0f);
+        }
+    }
+    const float max_weight = weights.empty() ? 0.0f : *std::max_element(weights.begin(), weights.end());
+    if (max_weight <= 0.0f) {
+        std::vector<size_t> order(positions.size());
+        for (size_t index = 0; index < order.size(); ++index) order[index] = index;
+        std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+            return positions[a].y > positions[b].y;
+        });
+        const size_t count = std::max<size_t>(3, std::min<size_t>(8, order.size()));
+        for (size_t index = 0; index < count; ++index) weights[order[index]] = 1.0f;
+    }
+    return weights;
+}
+
+static NativeClothRuntimeBatch build_native_cloth_runtime_batch(
+    const EntryJob& job,
+    const PamtIndex& primary_index,
+    const NativeSubmesh& mesh,
+    const std::vector<const TextureBinding*>& batch_bindings,
+    const fs::path& package_dir,
+    const fs::path& geometry_dir,
+    const std::string& stem,
+    const Vec3& center,
+    float scale
+) {
+    NativeClothRuntimeBatch runtime;
+    std::optional<NativePbdSidecarHint> hint = native_pbd_hint_for_mesh(mesh, batch_bindings);
+    if (!hint.has_value()) return runtime;
+    runtime.hint = *hint;
+    runtime.settings = resolve_native_pbd_material_settings(job, primary_index, runtime.hint);
+    if (lower_copy(runtime.settings.simulation_kind) != "cloth") return runtime;
+    if (!native_cloth_token_match(
+        runtime.hint.simulation_material_name + " " +
+        runtime.hint.material_name + " " +
+        runtime.hint.submesh_name + " " +
+        (mesh.material.empty() ? mesh.name : mesh.material)
+    )) return runtime;
+    if (mesh.positions.size() < 3 || mesh.indices.size() < 3) return runtime;
+    std::vector<Vec3> normalized_positions;
+    normalized_positions.reserve(mesh.positions.size());
+    for (const Vec3& raw_position : mesh.positions) {
+        normalized_positions.push_back(vec_mul(vec_sub(raw_position, center), scale));
+    }
+    std::vector<NativeClothConstraint> constraints = build_native_cloth_constraints(normalized_positions, mesh.indices, runtime.settings);
+    if (constraints.empty()) return runtime;
+    const std::vector<float> pins = build_native_cloth_pin_weights(
+        normalized_positions,
+        runtime.settings.is_cloak || native_cloth_token_match(runtime.hint.simulation_material_name + " " + mesh.material + " " + mesh.name)
+    );
+    runtime.particle_path = geometry_dir / (stem + "_cloth_particles.bin");
+    runtime.pin_path = geometry_dir / (stem + "_cloth_pins.bin");
+    runtime.constraint_path = geometry_dir / (stem + "_cloth_constraints.bin");
+
+    std::vector<char> particle_blob;
+    particle_blob.reserve(normalized_positions.size() * sizeof(float) * 3u);
+    for (const Vec3& position : normalized_positions) {
+        append_float(particle_blob, position.x);
+        append_float(particle_blob, position.y);
+        append_float(particle_blob, position.z);
+    }
+    std::vector<char> pin_blob;
+    pin_blob.reserve(pins.size() * sizeof(float));
+    for (float weight : pins) append_float(pin_blob, std::clamp(weight, 0.0f, 1.0f));
+
+    std::vector<char> constraint_blob;
+    constraint_blob.reserve(constraints.size() * (sizeof(std::int32_t) * 2u + sizeof(float) * 2u));
+    for (const NativeClothConstraint& constraint : constraints) {
+        append_int32(constraint_blob, static_cast<std::int32_t>(constraint.a));
+        append_int32(constraint_blob, static_cast<std::int32_t>(constraint.b));
+        append_float(constraint_blob, constraint.rest_length);
+        append_float(constraint_blob, std::clamp(constraint.stiffness, 0.0f, 1.0f));
+    }
+    write_binary(runtime.particle_path, particle_blob);
+    write_binary(runtime.pin_path, pin_blob);
+    write_binary(runtime.constraint_path, constraint_blob);
+    runtime.particle_count = static_cast<int>(normalized_positions.size());
+    runtime.constraint_count = static_cast<int>(constraints.size());
+    runtime.active = true;
+    (void)package_dir;
+    return runtime;
+}
+
 static std::string dds_entry_json(const TextureBinding* binding, const std::string& slot) {
     if (binding == nullptr || binding->source_path.empty()) return "";
     std::ostringstream out;
@@ -5606,16 +6528,21 @@ static std::vector<const TextureBinding*> relevant_bindings_for_mesh(
             if (!key.empty()) scoped_materials.insert(key);
         }
         if (scoped_materials.size() <= 1) {
-            for (const TextureBinding& binding : bindings) add(&binding);
+            for (const TextureBinding& binding : bindings) {
+                if (!material_binding_matches_mesh_source(binding, mesh)) continue;
+                add(&binding);
+            }
             return result;
         }
         for (const TextureBinding& binding : bindings) {
+            if (!material_binding_matches_mesh_source(binding, mesh)) continue;
             if (material_identity_match_score(binding, mesh) >= 120) add(&binding);
         }
         return result;
     }
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty()) continue;
+        if (!material_binding_matches_mesh_source(binding, mesh)) continue;
         const int score = material_identity_match_score(binding, mesh);
         const int threshold = normalized_material_key(binding.material_name).empty() ? 42 : 120;
         if (score >= threshold) add(&binding);
@@ -5680,6 +6607,8 @@ static NativeMaterialHints material_hints_for_bindings(const std::vector<const T
 static bool binding_is_layer_diffuse(const TextureBinding& binding, const TextureBinding* selected_base) {
     if (binding.role != "base") return false;
     if (&binding == selected_base) return false;
+    if (placeholder_visible_base_path(binding.archive_path) || placeholder_visible_base_path(binding.texture_name)) return false;
+    if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) return false;
     const std::string role = lower_copy(binding.layer_role);
     if (role == "overlay") return false;
     if (role == "detail" || role == "grime" || role == "damage" || role == "layer") return true;
@@ -5720,6 +6649,19 @@ static bool shader_rule_supports_conservative_layer_stack(const std::vector<cons
             rule.find("standard") != std::string::npos
             || rule.find("cloth") != std::string::npos
             || rule.find("multitextured") != std::string::npos
+        ) {
+            return true;
+        }
+        if (
+            rule.find("generic") != std::string::npos
+            && !binding->pbd_simulation_material_name.empty()
+            && (
+                binding->layer_role == "detail"
+                || binding->layer_role == "grime"
+                || binding->layer_role == "damage"
+                || binding->layer_role == "layer"
+                || binding->role == "detail"
+            )
         ) {
             return true;
         }
@@ -5847,7 +6789,7 @@ static std::vector<MaterialLayer> compile_material_layers(
             || binding_shader_family.find("skinnedmeshhair") != std::string::npos
             || binding_shader_family.find("skinnedmeshskin") != std::string::npos
             || binding_shader_family.find("wrinkle") != std::string::npos;
-        if (binding_shader_rule.find("generic") != std::string::npos || held_shader) {
+        if ((binding_shader_rule.find("generic") != std::string::npos && binding->pbd_simulation_material_name.empty()) || held_shader) {
             continue;
         }
         const std::string layer_key =
@@ -5874,6 +6816,9 @@ static std::vector<MaterialLayer> compile_material_layers(
         const TextureBinding* layer_material = find_layer_aux_binding(bindings, "material", layer.layer_role, layer.layer_channel);
         const TextureBinding* layer_height = find_layer_aux_binding(bindings, "height", layer.layer_role, layer.layer_channel);
         if (mask == nullptr) {
+            continue;
+        }
+        if (placeholder_layer_mask_path(mask->archive_path) || placeholder_layer_mask_path(mask->texture_name)) {
             continue;
         }
         layer.mask_source = mask->source_path;
@@ -6070,12 +7015,16 @@ static NativePackage write_d3d11_package(
     const Vec3 center{(min_v.x + max_v.x) * 0.5f, (min_v.y + max_v.y) * 0.5f, (min_v.z + max_v.z) * 0.5f};
     const float max_dim = std::max({max_v.x - min_v.x, max_v.y - min_v.y, max_v.z - min_v.z, 1.0e-6f});
     const float scale = 2.0f / max_dim;
+    const PamtIndex& package_index_for_family = cached_pamt_index(job.entry.pamt_path);
 
     std::ostringstream batches_json;
     std::ostringstream material_slots_json;
     std::ostringstream selection_decisions_json;
     int emitted_batch_count = 0;
     int emitted_vertex_count = 0;
+    int cloth_runtime_batch_count = 0;
+    int cloth_runtime_particle_count = 0;
+    int cloth_runtime_constraint_count = 0;
     for (size_t batch_index = 0; batch_index < submeshes.size(); ++batch_index) {
         const NativeSubmesh& mesh = submeshes[batch_index];
         if (mesh.indices.size() < 3) continue;
@@ -6100,10 +7049,15 @@ static NativePackage write_d3d11_package(
         const TextureBinding* detail = job_allows_texture_role(job, "detail") ? best_binding_for_role(bindings, mesh, "detail", &detail_score, &package.rejected_texture_examples) : nullptr;
         const int base_identity_score = base == nullptr ? 0 : material_identity_match_score(*base, mesh);
         const int base_largest_dimension = base == nullptr ? 0 : std::max(base->dds_width, base->dds_height);
-        const bool base_technical = base != nullptr && technical_for_visible_base(base->parameter_name, base->archive_path, base->role);
+        const bool base_technical = base != nullptr
+            && (
+                technical_for_visible_base(base->parameter_name, base->archive_path, base->role)
+                || dds_format_is_data_only_for_visible_base(base->dds_format)
+            );
         const bool base_authoritative_wrapper_visible = base != nullptr && authoritative_wrapper_visible_base_for_mesh(*base, mesh);
         const bool base_low_authority = base != nullptr
             && !base_authoritative_wrapper_visible
+            && !(parameter_is_authoritative_visible_base(base->parameter_name) && base_identity_score >= 120)
             && (low_authority_base_path(base->archive_path) || low_authority_base_path(base->texture_name));
         const bool base_layer_visible = base != nullptr && base->visible_class == "layer_visible";
         const bool base_authoritative_small_slot =
@@ -6138,13 +7092,41 @@ static NativePackage write_d3d11_package(
             mesh,
             {base, normal, material, height, specular, detail}
         );
+        NativeClothRuntimeBatch cloth_runtime = build_native_cloth_runtime_batch(
+            job,
+            package_index_for_family,
+            mesh,
+            batch_bindings,
+            package_dir,
+            geometry_dir,
+            stem,
+            center,
+            scale
+        );
+        if (cloth_runtime.active) {
+            ++cloth_runtime_batch_count;
+            cloth_runtime_particle_count += cloth_runtime.particle_count;
+            cloth_runtime_constraint_count += cloth_runtime.constraint_count;
+            package.notes.push_back(
+                "native tool-side PBD cloth runtime: batch " + std::to_string(batch_index) +
+                "; material=" + cloth_runtime.hint.simulation_material_name +
+                "; particles=" + std::to_string(cloth_runtime.particle_count) +
+                "; constraints=" + std::to_string(cloth_runtime.constraint_count)
+            );
+        }
         bool batch_is_hair = false;
         bool batch_has_alpha_test = false;
         for (const TextureBinding* binding_ptr : batch_bindings) {
             if (binding_ptr == nullptr) continue;
             const std::string rule = lower_copy(binding_ptr->shader_rule + " " + binding_ptr->shader_family + " " + binding_ptr->material_parameter_names);
             if (rule.find("hair") != std::string::npos || rule.find("fur") != std::string::npos) batch_is_hair = true;
-            if (rule.find("alphatest") != std::string::npos) batch_has_alpha_test = true;
+            if (binding_ptr->alpha_test_enabled
+                || rule.find("alphatest") != std::string::npos
+                || rule.find("alphaclip") != std::string::npos
+                || rule.find("alphacutout") != std::string::npos
+                || rule.find("cutout") != std::string::npos) {
+                batch_has_alpha_test = true;
+            }
         }
         const NativeMaterialHints material_hints = material_hints_for_bindings(batch_bindings);
         if (base == nullptr) {
@@ -6239,6 +7221,12 @@ static NativePackage write_d3d11_package(
             << "\"vertex_file\":\"" << json_escape(geometry_path.lexically_relative(package_dir).generic_string()) << "\","
             << "\"vertex_count\":" << vertex_count << ","
             << "\"editor_identity\":{\"source_submesh_index\":" << mesh.source_submesh_index
+            << ",\"source_local_submesh_index\":" << mesh.source_local_submesh_index
+            << ",\"source_component_index\":" << mesh.source_component_index
+            << ",\"source_model_path\":\"" << json_escape(mesh.source_model_path) << "\""
+            << ",\"source_component_label\":\"" << json_escape(mesh.source_component_label) << "\""
+            << ",\"prefab_component\":" << (mesh.source_prefab_component ? "true" : "false")
+            << ",\"part_label\":\"" << json_escape(mesh.source_component_label.empty() ? mesh.material : mesh.source_component_label) << "\""
             << ",\"identity_file\":\"" << json_escape(identity_path.lexically_relative(package_dir).generic_string()) << "\"},"
             << "\"base_color\":[" << color[0] << "," << color[1] << "," << color[2] << "],"
             << "\"textures\":{},"
@@ -6290,6 +7278,11 @@ static NativePackage write_d3d11_package(
                     << "\"layer_weight\":" << binding.layer_weight << ","
                     << "\"blend_flags\":\"" << json_escape(binding.blend_flags) << "\","
                     << "\"material_parameter_names\":\"" << json_escape(binding.material_parameter_names) << "\","
+                    << "\"alpha_test_enabled\":" << (binding.alpha_test_enabled ? "true" : "false") << ","
+                    << "\"pbd_simulation_material\":\"" << json_escape(binding.pbd_simulation_material_name) << "\","
+                    << "\"pbd_simulation_kind\":\"" << json_escape(binding.pbd_simulation_kind) << "\","
+                    << "\"pbd_material_name\":\"" << json_escape(binding.pbd_material_name) << "\","
+                    << "\"pbd_submesh_name\":\"" << json_escape(binding.pbd_submesh_name) << "\","
                     << "\"visible_class\":\"" << json_escape(binding.visible_class) << "\","
                     << "\"source_authority\":\"" << json_escape(binding.source_authority) << "\","
                     << "\"material_wrapper_index\":" << binding.material_wrapper_index << ","
@@ -6308,12 +7301,26 @@ static NativePackage write_d3d11_package(
             batches_json << "]";
         }
         batches_json << "},"
-            << "\"texture_flip_vertical\":false,"
-            << "\"uv_flip_policy\":\"legacy_no_flip\","
+            << "\"texture_flip_vertical\":" << (job.flip_texture_v ? "true" : "false") << ","
+            << "\"uv_flip_policy\":\"" << (job.flip_texture_v ? "user_flip_v" : "legacy_no_flip") << "\","
             << "\"normal_y_policy\":\"shader_invert_legacy_compat\","
             << "\"alpha_mode\":\"" << (batch_is_hair || batch_has_alpha_test ? "alpha_cutout" : "opaque") << "\","
             << "\"alpha_threshold\":" << (batch_is_hair ? 0.18f : (batch_has_alpha_test ? 0.08f : 0.0f)) << ","
             << "\"two_sided\":" << (batch_is_hair ? "true" : "false") << ","
+            << "\"cloth_enabled\":" << (cloth_runtime.active ? "true" : "false") << ","
+            << "\"cloth_kind\":\"" << json_escape(cloth_runtime.active ? cloth_runtime.settings.simulation_kind : "") << "\","
+            << "\"cloth_material_name\":\"" << json_escape(cloth_runtime.active ? cloth_runtime.hint.simulation_material_name : "") << "\","
+            << "\"cloth_particle_file\":\"" << json_escape(cloth_runtime.active ? cloth_runtime.particle_path.lexically_relative(package_dir).generic_string() : "") << "\","
+            << "\"cloth_pin_file\":\"" << json_escape(cloth_runtime.active ? cloth_runtime.pin_path.lexically_relative(package_dir).generic_string() : "") << "\","
+            << "\"cloth_constraint_file\":\"" << json_escape(cloth_runtime.active ? cloth_runtime.constraint_path.lexically_relative(package_dir).generic_string() : "") << "\","
+            << "\"cloth_particle_count\":" << (cloth_runtime.active ? cloth_runtime.particle_count : 0) << ","
+            << "\"cloth_constraint_count\":" << (cloth_runtime.active ? cloth_runtime.constraint_count : 0) << ","
+            << "\"cloth_gravity\":" << (cloth_runtime.active ? cloth_runtime.settings.gravity : -10.0f) << ","
+            << "\"cloth_damping\":" << (cloth_runtime.active ? cloth_runtime.settings.damping : 0.65f) << ","
+            << "\"cloth_air_resistance\":" << (cloth_runtime.active ? cloth_runtime.settings.air_resistance : 1.0f) << ","
+            << "\"cloth_wind_response\":" << (cloth_runtime.active ? cloth_runtime.settings.wind_response : 0.4f) << ","
+            << "\"cloth_solver_iterations\":" << (cloth_runtime.active ? cloth_runtime.settings.solver_iterations : 30) << ","
+            << "\"cloth_collision_enabled\":false,"
             << "\"geometry_quality\":{"
             << "\"safe\":" << (mesh.geometry_safe ? "true" : "false") << ","
             << "\"layout\":\"" << json_escape(mesh.vertex_layout_name) << "\","
@@ -6415,6 +7422,7 @@ static NativePackage write_d3d11_package(
             << "\"native_material_hints\":{\"shader_family\":\"" << json_escape(batch_bindings.empty() ? "" : batch_bindings.front()->shader_family) << "\",\"roughness\":" << material_hints.roughness << ",\"metalness\":" << material_hints.metalness << ",\"specular\":" << material_hints.specular << ",\"height_scale\":" << material_hints.height_scale << "},"
             << "\"notes\":[\"generated by cdmw-preview-core " << json_escape(package.mesh_parse) << " path\",\"native material inputs scoped to this batch: " << batch_bindings.size() << "\""
             << (held_layer_albedo ? ",\"skin/hair visible layer albedo held until mask semantics are validated\"" : "")
+            << (cloth_runtime.active ? ",\"tool-side PBD cloth runtime emitted from native material PBD metadata\"" : "")
             << "],"
             << "\"material_combiner_active\":false,"
             << "\"material_combiner_outputs\":[],"
@@ -6447,7 +7455,6 @@ static NativePackage write_d3d11_package(
         "",
         ""
     });
-    const PamtIndex& package_index_for_family = cached_pamt_index(job.entry.pamt_path);
     const std::string model_stem = stem_from_path(job.path);
     const std::vector<std::pair<std::string, std::pair<std::string, std::string>>> related_exact_basenames = {
         {model_stem + ".meshinfo", {"MeshInfo", "Meshinfo"}},
@@ -6553,6 +7560,12 @@ static NativePackage write_d3d11_package(
     }
     manifest << "],"
         << "\"dds_upload_policy\":{\"default\":\"direct_dds\",\"png_fallback\":\"generated_or_non_dds_only\",\"base_srgb\":\"from_technique_or_role\",\"data_maps\":\"linear\",\"normal_y_policy\":\"per_batch\"},"
+        << "\"cloth_runtime_schema\":1,"
+        << "\"cloth_batch_count\":" << cloth_runtime_batch_count << ","
+        << "\"cloth_particle_count\":" << cloth_runtime_particle_count << ","
+        << "\"cloth_constraint_count\":" << cloth_runtime_constraint_count << ","
+        << "\"cloth_collider_file\":\"\","
+        << "\"cloth_collider_count\":0,"
         << "\"batches\":[" << batches_json.str() << "]"
         << "}";
     write_text(package_dir / "manifest.json", manifest.str());
@@ -6566,6 +7579,15 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     if (job.extension == ".pac") {
         parsed.meshes = parse_pac_submeshes(data);
         parsed.parser = "native_pac_par_sections";
+        for (size_t mesh_index = 0; mesh_index < parsed.meshes.size(); ++mesh_index) {
+            NativeSubmesh& mesh = parsed.meshes[mesh_index];
+            mesh.source_model_path = job.path;
+            mesh.source_component_label = job.entry.basename.empty() ? basename_from_path(job.path) : job.entry.basename;
+            mesh.source_component_index = 0;
+            mesh.source_prefab_component = false;
+            if (mesh.source_local_submesh_index < 0) mesh.source_local_submesh_index = mesh.source_submesh_index;
+            mesh.source_submesh_index = static_cast<int>(mesh_index);
+        }
         int component_models_added = 0;
         int component_batches_added = 0;
         for (const ArchiveEntryRef& component : prefab_model_component_refs_for_job(job, index, 8)) {
@@ -6582,6 +7604,17 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
                     component_parse = parse_pamlod_submeshes(component_data);
                 }
                 if (component_parse.meshes.empty()) continue;
+                const int component_index = component_models_added + 1;
+                const int global_submesh_offset = static_cast<int>(parsed.meshes.size());
+                for (size_t mesh_index = 0; mesh_index < component_parse.meshes.size(); ++mesh_index) {
+                    NativeSubmesh& mesh = component_parse.meshes[mesh_index];
+                    mesh.source_model_path = component.path;
+                    mesh.source_component_label = component.basename.empty() ? basename_from_path(component.path) : component.basename;
+                    mesh.source_component_index = component_index;
+                    mesh.source_prefab_component = true;
+                    if (mesh.source_local_submesh_index < 0) mesh.source_local_submesh_index = mesh.source_submesh_index;
+                    mesh.source_submesh_index = global_submesh_offset + static_cast<int>(mesh_index);
+                }
                 component_batches_added += static_cast<int>(component_parse.meshes.size());
                 parsed.meshes.insert(
                     parsed.meshes.end(),
@@ -6631,6 +7664,13 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     }
     if (parsed.meshes.empty()) {
         throw std::runtime_error("native model parser found no renderable geometry");
+    }
+    for (size_t mesh_index = 0; mesh_index < parsed.meshes.size(); ++mesh_index) {
+        NativeSubmesh& mesh = parsed.meshes[mesh_index];
+        if (mesh.source_model_path.empty()) mesh.source_model_path = job.path;
+        if (mesh.source_component_label.empty()) mesh.source_component_label = job.entry.basename.empty() ? basename_from_path(job.path) : job.entry.basename;
+        if (mesh.source_local_submesh_index < 0) mesh.source_local_submesh_index = mesh.source_submesh_index;
+        if (mesh.source_submesh_index < 0) mesh.source_submesh_index = static_cast<int>(mesh_index);
     }
     package.mesh_parse = parsed.parser;
     package.lod_count = parsed.lod_count;
@@ -7065,13 +8105,10 @@ int run_service() {
                     {"report_path", report_path},
                     {"service_job_count", std::to_string(g_service_job_count)}
                 });
-            run_preview_job(fs::path(job_path), fs::path(report_path));
-            try {
-                std::cout << read_text(fs::path(report_path)) << std::endl;
-            } catch (...) {
-                cdmw_native_diag::event("service_report_readback_failed", {{"report_path", report_path}});
-                std::cout << "{\"status\":\"error\",\"backend\":\"cdmw_preview_core_0.1\",\"message\":\"report readback failed\"}" << std::endl;
-            }
+            const int exit_code = run_preview_job(fs::path(job_path), fs::path(report_path));
+            std::cout << "{\"status\":\"" << (exit_code == 0 ? "ok" : "error")
+                      << "\",\"backend\":\"cdmw_preview_core_0.1\",\"report_path\":\""
+                      << json_escape(report_path) << "\",\"exit_code\":" << exit_code << "}" << std::endl;
             continue;
         }
         cdmw_native_diag::event("service_unknown_command");

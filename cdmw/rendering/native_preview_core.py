@@ -20,6 +20,8 @@ NATIVE_PREVIEW_CORE_BACKEND_ID = "cdmw_preview_core_0.1"
 NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS = 32
 NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES = 192 * 1024 * 1024
 NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES = 768 * 1024 * 1024
+NATIVE_PREVIEW_CORE_DDS_CACHE_MAX_BYTES = 96 * 1024 * 1024
+NATIVE_PREVIEW_CORE_DDS_CACHE_TARGET_BYTES = 64 * 1024 * 1024
 
 
 def _repo_root() -> Path:
@@ -51,6 +53,53 @@ def find_native_preview_core_binary() -> Optional[Path]:
         if candidate.is_file():
             return candidate
     return None
+
+
+def prune_native_preview_core_cache(
+    cache_root: Path,
+    *,
+    max_bytes: int = NATIVE_PREVIEW_CORE_DDS_CACHE_MAX_BYTES,
+    target_bytes: int = NATIVE_PREVIEW_CORE_DDS_CACHE_TARGET_BYTES,
+) -> Dict[str, int]:
+    dds_root = Path(cache_root) / "dds"
+    if max_bytes <= 0 or target_bytes < 0 or not dds_root.is_dir():
+        return {"files": 0, "bytes": 0, "removed_files": 0, "removed_bytes": 0}
+    files: list[tuple[float, int, Path]] = []
+    total_bytes = 0
+    try:
+        iterator = tuple(dds_root.glob("*.dds"))
+    except OSError:
+        return {"files": 0, "bytes": 0, "removed_files": 0, "removed_bytes": 0}
+    for path in iterator:
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        if not path.is_file():
+            continue
+        size = max(0, int(stat.st_size))
+        total_bytes += size
+        files.append((float(stat.st_mtime), size, path))
+    if total_bytes <= max_bytes:
+        return {"files": len(files), "bytes": total_bytes, "removed_files": 0, "removed_bytes": 0}
+    removed_files = 0
+    removed_bytes = 0
+    for _mtime, size, path in sorted(files, key=lambda item: item[0]):
+        if total_bytes <= target_bytes:
+            break
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        total_bytes -= size
+        removed_files += 1
+        removed_bytes += size
+    return {
+        "files": max(0, len(files) - removed_files),
+        "bytes": max(0, total_bytes),
+        "removed_files": removed_files,
+        "removed_bytes": removed_bytes,
+    }
 
 
 @dataclass(frozen=True)
@@ -126,11 +175,20 @@ class NativePreviewCoreServiceClient:
         diagnostic_log: Optional[Path] = None,
     ) -> None:
         self.binary = Path(binary)
+        self.binary_signature = self.resolve_binary_signature(self.binary)
         self.crash_dir = Path(crash_dir) if crash_dir else None
         self.diagnostic_log = Path(diagnostic_log) if diagnostic_log else None
         self._lock = threading.RLock()
         self._process: Optional[subprocess.Popen[str]] = None
         self._jobs_completed = 0
+
+    @staticmethod
+    def resolve_binary_signature(binary: Path) -> tuple[int, int]:
+        try:
+            stat_result = Path(binary).stat()
+        except OSError:
+            return (0, 0)
+        return (int(getattr(stat_result, "st_mtime_ns", 0) or 0), int(getattr(stat_result, "st_size", 0) or 0))
 
     @property
     def process_id(self) -> int:
@@ -299,6 +357,12 @@ class NativePreviewCoreServiceClient:
             try:
                 response = json.loads(response_line)
             except json.JSONDecodeError as exc:
+                report = self._read_report_for_recycle(report_path)
+                if report_path.is_file() and report:
+                    self._jobs_completed += 1
+                    self._mark_report_recycle_reason(report_path, report, "invalid_stdout_response")
+                    self.shutdown()
+                    return
                 self._kill_locked()
                 raise RuntimeError(f"native preview-core service sent invalid response: {response_line}") from exc
             response_status = str(response.get("status") or response.get("event") or "").strip().lower()
@@ -325,16 +389,19 @@ def _get_native_preview_core_service(
 ) -> NativePreviewCoreServiceClient:
     global _native_preview_core_service
     with _native_preview_core_service_lock:
+        resolved_binary = Path(binary)
+        binary_signature = NativePreviewCoreServiceClient.resolve_binary_signature(resolved_binary)
         if (
             _native_preview_core_service is None
-            or _native_preview_core_service.binary != Path(binary)
+            or _native_preview_core_service.binary != resolved_binary
+            or _native_preview_core_service.binary_signature != binary_signature
             or _native_preview_core_service.crash_dir != (Path(crash_dir) if crash_dir else None)
             or _native_preview_core_service.diagnostic_log != (Path(diagnostic_log) if diagnostic_log else None)
         ):
             if _native_preview_core_service is not None:
                 _native_preview_core_service.shutdown()
             _native_preview_core_service = NativePreviewCoreServiceClient(
-                Path(binary),
+                resolved_binary,
                 crash_dir=crash_dir,
                 diagnostic_log=diagnostic_log,
             )
@@ -364,6 +431,7 @@ def render_settings_to_native_preview_core_dict(settings: Optional[ModelPreviewR
         "disable_normal_map",
         "disable_material_map",
         "disable_height_map",
+        "flip_texture_v",
         "normal_strength_floor",
         "normal_strength_cap",
         "height_effect_max",
@@ -470,6 +538,7 @@ def run_native_preview_core_preview_job(
     output_root = job_root / "package"
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
+    cache_prune_report = prune_native_preview_core_cache(cache_root)
     job = build_native_preview_core_job(
         entry,
         cache_root=cache_root,
@@ -531,8 +600,16 @@ def run_native_preview_core_preview_job(
         report = {"status": "error", "message": "native preview-core report was not an object"}
     else:
         report = dict(report)
+    binary_signature = NativePreviewCoreServiceClient.resolve_binary_signature(binary)
+    report.setdefault("native_preview_core_binary_mtime_ns", binary_signature[0])
+    report.setdefault("native_preview_core_binary_size", binary_signature[1])
     if use_service and service_pid > 0:
         report.setdefault("native_preview_core_process_pid", service_pid)
+    if cache_prune_report.get("removed_files"):
+        report.setdefault("native_preview_core_cache_pruned_files", cache_prune_report.get("removed_files", 0))
+        report.setdefault("native_preview_core_cache_pruned_bytes", cache_prune_report.get("removed_bytes", 0))
+    report.setdefault("native_preview_core_dds_cache_bytes", cache_prune_report.get("bytes", 0))
+    report.setdefault("native_preview_core_dds_cache_files", cache_prune_report.get("files", 0))
     status = str(report.get("status") or "error").strip().lower()
     package_path = str(report.get("package_path") or "").strip()
     fallback_reason = str(report.get("fallback_reason") or report.get("message") or "").strip()
@@ -550,6 +627,8 @@ __all__ = [
     "NATIVE_PREVIEW_CORE_BACKEND_ID",
     "NATIVE_PREVIEW_CORE_BINARY_NAME",
     "NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES",
+    "NATIVE_PREVIEW_CORE_DDS_CACHE_MAX_BYTES",
+    "NATIVE_PREVIEW_CORE_DDS_CACHE_TARGET_BYTES",
     "NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS",
     "NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES",
     "NativePreviewCoreAttempt",
@@ -557,6 +636,7 @@ __all__ = [
     "build_native_preview_core_job",
     "default_native_preview_core_path",
     "find_native_preview_core_binary",
+    "prune_native_preview_core_cache",
     "render_settings_to_native_preview_core_dict",
     "run_native_preview_core_preview_job",
     "shutdown_native_preview_core_service",

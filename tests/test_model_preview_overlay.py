@@ -18,6 +18,8 @@ from cdmw.models import (
     ModelPreviewData,
     ModelPreviewMesh,
     ModelPreviewRenderSettings,
+    HkxPhysicsOverlayConstraint,
+    HkxPhysicsOverlayShape,
     clamp_archive_performance_settings,
     clamp_model_preview_render_settings,
 )
@@ -748,7 +750,10 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertIn("physics_overlay_target_selected = Signal", source)
         self.assertIn("_set_physics_overlay_selected_target", source)
         self.assertIn("_physics_overlay_anchor_is_context_skeleton", source)
+        self.assertIn("_physics_overlay_shape_is_context_skeleton", source)
         self.assertIn("_physics_overlay_constraint_is_context_skeleton", source)
+        self.assertIn("_physics_simulation_shape_is_dynamic", source)
+        self.assertIn("_physics_simulation_constraint_is_dynamic", source)
         self.assertIn("context skeleton hidden", source)
         self.assertIn("Click/Ctrl-click overlay: show linked HKX rows", source)
         self.assertIn("Qt.PointingHandCursor", source)
@@ -764,7 +769,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertIn("shape:" , source)
         self.assertIn("Physics Animation Preview", source)
         self.assertIn("dynamic_shapes", source)
-        self.assertIn("disabled: animation checkbox off", source)
+        self.assertIn("disabled: approximate animation off", source)
         self.assertIn("disabled: overlay hidden", source)
         self.assertIn("wind_scale * 2.4", source)
         self.assertIn("live sim", source)
@@ -782,6 +787,46 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertIn("Native Texture Backend", source)
         self.assertIn("_load_native_texture_report", source)
         self.assertIn("native_texture_backend", source)
+
+    def test_hkx_skeleton_context_is_static_for_approx_motion_preview(self) -> None:
+        widget = ModelPreviewWidget.__new__(ModelPreviewWidget)
+
+        self.assertFalse(
+            widget._physics_simulation_constraint_is_dynamic(
+                HkxPhysicsOverlayConstraint(simulation_role="cloth", confidence="skeleton_context")
+            )
+        )
+        self.assertTrue(
+            widget._physics_simulation_constraint_is_dynamic(
+                HkxPhysicsOverlayConstraint(simulation_role="cloth", confidence="descriptor_context")
+            )
+        )
+        self.assertFalse(
+            widget._physics_simulation_shape_is_dynamic(
+                HkxPhysicsOverlayShape(simulation_role="cloth", placement_source="skeleton_socket")
+            )
+        )
+        self.assertTrue(widget._physics_simulation_shape_is_dynamic(HkxPhysicsOverlayShape(simulation_role="cloth")))
+
+    def test_referenced_hkx_previews_disable_legacy_guide_motion(self) -> None:
+        source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
+        reference_start = source.index("def _show_archive_reference_preview_dialog")
+        reference_end = source.index("def _update_archive_texture_reference_action_controls", reference_start)
+        reference_source = source[reference_start:reference_end]
+        embedded_start = source.index("def _enable_hkx_preview_overlay")
+        embedded_end = source.index("def _current_hkx_link_preview_model", embedded_start)
+        embedded_source = source[embedded_start:embedded_end]
+        main_apply_start = source.index("model_preview_widget.set_prepared_model(")
+        main_apply_end = source.index("self._sync_archive_isolated_renderer_if_running(result)", main_apply_start)
+        main_apply_source = source[main_apply_start:main_apply_end]
+
+        self.assertIn('str(entry.extension or "").lower() in {".hkx", ".hkt"}', reference_source)
+        self.assertIn("show_physics_overlay=True", reference_source)
+        self.assertIn("show_physics_simulation_preview=False", reference_source)
+        self.assertIn("show_physics_simulation_preview", embedded_source)
+        self.assertIn("show_physics_simulation_preview=False", embedded_source)
+        self.assertIn('str(getattr(selected_entry, "extension", "") or "").lower() in {".hkx", ".hkt"}', main_apply_source)
+        self.assertIn("show_physics_simulation_preview=False", main_apply_source)
 
     def test_framebuffer_visibility_probe_is_throttled(self) -> None:
         source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")

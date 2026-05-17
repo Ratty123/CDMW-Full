@@ -150,6 +150,8 @@ class NativeTextureBackendTests(unittest.TestCase):
             run_commands = []
 
             def fake_run(command, **_kwargs):
+                self.assertIn("timeout_seconds", _kwargs)
+                self.assertNotIn("timeout", _kwargs)
                 run_commands.append(command)
                 job_path = Path(command[2])
                 report_path = Path(command[3])
@@ -267,6 +269,8 @@ class NativeTextureBackendTests(unittest.TestCase):
             dds_path.write_bytes(_minimal_bc_dds(b"DXT1"))
 
             def fake_run(command, **_kwargs):
+                self.assertIn("timeout_seconds", _kwargs)
+                self.assertNotIn("timeout", _kwargs)
                 job_path = Path(command[2])
                 report_path = Path(command[3])
                 job = json.loads(job_path.read_text(encoding="utf-8"))

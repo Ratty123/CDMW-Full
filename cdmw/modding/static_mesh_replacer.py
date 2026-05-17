@@ -154,6 +154,7 @@ class StaticMeshReplacementOptions:
     allow_merge_source_submeshes: bool = True
     allow_empty_target_submeshes: bool = True
     rebuild_material_sidecar: bool = False
+    neutralize_inherited_material_layers: bool = False
     enable_missing_base_color_parameters: bool = False
     texture_slot_overrides: list[StaticTextureSlotOverride] = field(default_factory=list)
     texture_output_size_mode: str = "source"
@@ -169,6 +170,9 @@ class StaticMeshReplacementOptions:
     source_material_texture_overrides: list[StaticSourceMaterialTextureOverride] = field(default_factory=list)
     donor_material_plans: list[StaticDonorMaterialPlan] = field(default_factory=list)
     dense_export_mode: str = "preserve_split"
+    removed_target_submesh_indices: list[int] = field(default_factory=list)
+    prune_removed_target_texture_parameters: bool = False
+    prune_unmapped_original_texture_parameters: bool = False
 
 
 @dataclass
@@ -245,6 +249,49 @@ _TOKEN_STOP_WORDS = {
 _GRIP_MARKER_NAMES = ("cdmw_anchor", "cdmw_grip_anchor", "cft_anchor", "cft_grip_anchor")
 _TIP_MARKER_NAMES = ("cdmw_tip_anchor", "cft_tip_anchor")
 _MARKER_NAMES = {*_GRIP_MARKER_NAMES, *_TIP_MARKER_NAMES}
+
+
+def _clone_submesh_fast(submesh: SubMesh) -> SubMesh:
+    return SubMesh(
+        name=str(submesh.name or ""),
+        material=str(submesh.material or ""),
+        texture=str(submesh.texture or ""),
+        vertices=list(submesh.vertices or []),
+        uvs=list(submesh.uvs or []),
+        normals=list(submesh.normals or []),
+        faces=list(submesh.faces or []),
+        bone_indices=list(submesh.bone_indices or []),
+        bone_weights=list(submesh.bone_weights or []),
+        source_vertex_map=list(submesh.source_vertex_map or []),
+        vertex_count=int(submesh.vertex_count or 0),
+        face_count=int(submesh.face_count or 0),
+        source_vertex_offsets=list(submesh.source_vertex_offsets or []),
+        source_index_offset=int(submesh.source_index_offset or -1),
+        source_index_count=int(submesh.source_index_count or 0),
+        source_vertex_stride=int(submesh.source_vertex_stride or 0),
+        source_descriptor_offset=int(submesh.source_descriptor_offset or -1),
+        source_bbox_min=tuple(submesh.source_bbox_min or (0.0, 0.0, 0.0)),
+        source_bbox_extent=tuple(submesh.source_bbox_extent or (0.0, 0.0, 0.0)),
+        source_lod_count=int(submesh.source_lod_count or 0),
+    )
+
+
+def _clone_parsed_mesh_fast(mesh: ParsedMesh) -> ParsedMesh:
+    return ParsedMesh(
+        path=str(mesh.path or ""),
+        format=str(mesh.format or ""),
+        bbox_min=tuple(mesh.bbox_min or (0.0, 0.0, 0.0)),
+        bbox_max=tuple(mesh.bbox_max or (0.0, 0.0, 0.0)),
+        submeshes=[_clone_submesh_fast(submesh) for submesh in mesh.submeshes],
+        lod_levels=[
+            [_clone_submesh_fast(submesh) for submesh in lod_level]
+            for lod_level in (mesh.lod_levels or [])
+        ],
+        total_vertices=int(mesh.total_vertices or 0),
+        total_faces=int(mesh.total_faces or 0),
+        has_uvs=bool(mesh.has_uvs),
+        has_bones=bool(mesh.has_bones),
+    )
 
 
 def _replacement_mesh_from_options(
@@ -911,7 +958,7 @@ def _replacement_mesh_with_original_part_copies(
     if not copies:
         return replacement_mesh, set()
 
-    effective_mesh = copy.deepcopy(replacement_mesh)
+    effective_mesh = _clone_parsed_mesh_fast(replacement_mesh)
     preserve_source_indices: set[int] = set()
     for copy_request in copies:
         try:
@@ -920,7 +967,7 @@ def _replacement_mesh_with_original_part_copies(
             continue
         if original_index < 0 or original_index >= len(original_mesh.submeshes):
             continue
-        copied_submesh = copy.deepcopy(original_mesh.submeshes[original_index])
+        copied_submesh = _clone_submesh_fast(original_mesh.submeshes[original_index])
         original_label = copied_submesh.material or copied_submesh.name or f"original {original_index}"
         copy_label = str(copy_request.label or "").strip() or f"{original_label} (original copy)"
         copied_submesh.name = copy_label
@@ -1190,7 +1237,7 @@ def _build_mapped_replacement_mesh(
             continue
         target = original_mesh.submeshes[target_index]
         source_parts = [
-            copy.deepcopy(transformed_sources[source_index])
+            _clone_submesh_fast(transformed_sources[source_index])
             for source_index in section.source_submesh_indices
             if (
                 0 <= source_index < len(transformed_sources)
@@ -1221,7 +1268,7 @@ def _build_mapped_replacement_mesh(
         adjustment = adjustments_by_index.get(source_index, StaticSourcePartAdjustment(source_index))
         if not bool(adjustment.enabled):
             continue
-        independent_submesh = copy.deepcopy(source_submesh)
+        independent_submesh = _clone_submesh_fast(source_submesh)
         label = str(independent_part.label or "").strip()
         material_name = str(independent_part.material_name or "").strip()
         if label:
@@ -1279,7 +1326,7 @@ def _transformed_replacement_sources(
     sources: list[SubMesh] = []
     for source_index, submesh in enumerate(replacement_mesh.submeshes):
         if source_index in indices_to_copy:
-            sources.append(copy.deepcopy(submesh))
+            sources.append(_clone_submesh_fast(submesh))
             continue
         sources.append(
             SubMesh(
@@ -1496,16 +1543,16 @@ def _merge_source_submeshes(submeshes: list[SubMesh], target: SubMesh) -> SubMes
     wants_normals = any(len(submesh.normals) == len(submesh.vertices) for submesh in submeshes)
     for submesh in submeshes:
         base = len(merged.vertices)
-        merged.vertices.extend(copy.deepcopy(submesh.vertices))
+        merged.vertices.extend(list(submesh.vertices or []))
         if wants_uvs:
             merged.uvs.extend(
-                copy.deepcopy(submesh.uvs)
+                list(submesh.uvs or [])
                 if len(submesh.uvs) == len(submesh.vertices)
                 else [(0.0, 0.0)] * len(submesh.vertices)
             )
         if wants_normals:
             merged.normals.extend(
-                copy.deepcopy(submesh.normals)
+                list(submesh.normals or [])
                 if len(submesh.normals) == len(submesh.vertices)
                 else [(0.0, 1.0, 0.0)] * len(submesh.vertices)
             )
@@ -1567,7 +1614,7 @@ def _decimate_submesh_for_preview(submesh: SubMesh, max_faces: int) -> SubMesh:
         source_index
         for source_index, _preview_index in sorted(source_to_preview.items(), key=lambda item: item[1])
     ]
-    preview = copy.deepcopy(submesh)
+    preview = _clone_submesh_fast(submesh)
     preview.vertices = preview_vertices
     preview.faces = preview_faces
     preview.uvs = (
@@ -2013,15 +2060,17 @@ def _compute_anchor_alignment(
 ) -> dict[str, tuple[float, float, float] | float]:
     alignment_mode = str(transform.alignment_mode or "").strip().lower()
     if alignment_mode in {"manual", "none", "off"}:
+        source_axis = transform.source_axis or (0.0, 0.0, 1.0)
+        target_axis = transform.target_axis or source_axis
         return {
             "source_anchor": transform.source_anchor or (0.0, 0.0, 0.0),
             "target_anchor": transform.target_anchor or (0.0, 0.0, 0.0),
-            "source_axis": _normalize(transform.source_axis or _axis_vector(_dominant_axis(replacement_mesh))),
-            "target_axis": _normalize(transform.target_axis or _axis_vector(_dominant_axis(original_mesh))),
+            "source_axis": _normalize(source_axis),
+            "target_axis": _normalize(target_axis),
             "scale": 1.0,
             "roll_angle": 0.0,
         }
-    if alignment_mode in {"auto_fit", "auto_fit_original", "preserve_original", "bbox_center", "center"}:
+    if alignment_mode in {"auto_fit", "auto_fit_original", "preserve_original", "bbox_center", "center", "auto_flat_original", "flat_original", "grid_flat"}:
         source_anchor = transform.source_anchor or _mesh_center_anchor(replacement_mesh)
         target_anchor = transform.target_anchor or _mesh_center_anchor(original_mesh)
         source_axis = transform.source_axis or _axis_vector(_dominant_axis(replacement_mesh))
@@ -2045,7 +2094,15 @@ def _compute_anchor_alignment(
             "source_axis": source_axis_normalized,
             "target_axis": target_axis_normalized,
             "scale": scale,
-            "roll_angle": _auto_roll_angle(replacement_mesh, original_mesh, source_axis_normalized, target_axis_normalized),
+            "roll_angle": _auto_roll_angle(
+                replacement_mesh,
+                original_mesh,
+                source_axis_normalized,
+                target_axis_normalized,
+                prefer_flat_normal=alignment_mode in {"auto_flat_original", "flat_original", "grid_flat"},
+                fallback_to_grid=alignment_mode in {"auto_flat_original", "grid_flat"},
+                force_grid_flat=alignment_mode == "grid_flat",
+            ),
         }
 
     source_anchor = transform.source_anchor or _find_marker_anchor_any(replacement_mesh, _GRIP_MARKER_NAMES) or _infer_grip_anchor(replacement_mesh)
@@ -2087,7 +2144,21 @@ def _auto_roll_angle(
     original_mesh: ParsedMesh,
     source_axis: tuple[float, float, float],
     target_axis: tuple[float, float, float],
+    *,
+    prefer_flat_normal: bool = False,
+    fallback_to_grid: bool = False,
+    force_grid_flat: bool = False,
 ) -> float:
+    if prefer_flat_normal:
+        source_flat_normal = _axis_aligned_flat_normal_vector(replacement_mesh, source_axis)
+        if source_flat_normal is None:
+            source_flat_normal = _flat_normal_axis_vector(replacement_mesh, source_axis)
+        target_flat_normal = None if force_grid_flat else _flat_normal_axis_vector(original_mesh, target_axis)
+        if target_flat_normal is None and (fallback_to_grid or force_grid_flat):
+            target_flat_normal = _grid_flat_normal_for_axis(target_axis)
+        if source_flat_normal is not None and target_flat_normal is not None:
+            rotated_source_flat_normal = _rotate_between(source_flat_normal, source_axis, target_axis)
+            return _signed_angle_around_axis(rotated_source_flat_normal, target_flat_normal, target_axis)
     source_secondary = _secondary_axis_vector(replacement_mesh, source_axis)
     target_secondary = _secondary_axis_vector(original_mesh, target_axis)
     rotated_source_secondary = _rotate_between(source_secondary, source_axis, target_axis)
@@ -2124,10 +2195,10 @@ def _canonical_axis_sign(axis: tuple[float, float, float]) -> tuple[float, float
     return axis
 
 
-def _projected_principal_secondary_axis(
+def _projected_principal_plane_axes(
     vertices: list[tuple[float, float, float]],
     primary_axis: tuple[float, float, float],
-) -> tuple[float, float, float] | None:
+) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
     if len(vertices) < 3:
         return None
     primary = _normalize(primary_axis)
@@ -2171,7 +2242,59 @@ def _projected_principal_secondary_axis(
     )
     if _dot(secondary, secondary) <= 1e-12:
         return None
-    return _canonical_axis_sign(secondary)
+    flat_normal = _normalize(_cross(primary, secondary))
+    if _dot(flat_normal, flat_normal) <= 1e-12:
+        return None
+    return _canonical_axis_sign(secondary), _canonical_axis_sign(flat_normal)
+
+
+def _projected_principal_secondary_axis(
+    vertices: list[tuple[float, float, float]],
+    primary_axis: tuple[float, float, float],
+) -> tuple[float, float, float] | None:
+    axes = _projected_principal_plane_axes(vertices, primary_axis)
+    return axes[0] if axes is not None else None
+
+
+def _flat_normal_axis_vector(
+    mesh: ParsedMesh,
+    primary_axis: tuple[float, float, float],
+) -> tuple[float, float, float] | None:
+    vertices = _renderable_mesh_vertices(mesh)
+    if not vertices:
+        return None
+    axes = _projected_principal_plane_axes(vertices, primary_axis)
+    return axes[1] if axes is not None else None
+
+
+def _axis_aligned_flat_normal_vector(
+    mesh: ParsedMesh,
+    primary_axis: tuple[float, float, float],
+) -> tuple[float, float, float] | None:
+    vertices = _renderable_mesh_vertices(mesh)
+    if not vertices:
+        return None
+    bmin, bmax = _bbox(vertices)
+    dims = _dims(bmin, bmax)
+    primary_index = max(range(3), key=lambda index: abs(primary_axis[index]))
+    candidates = [index for index in range(3) if index != primary_index]
+    if not candidates:
+        return None
+    thin_index = min(candidates, key=lambda index: dims[index])
+    wide_index = max(candidates, key=lambda index: dims[index])
+    if dims[wide_index] <= 1e-8:
+        return None
+    if dims[thin_index] > dims[wide_index] * 0.9:
+        return None
+    return ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))[thin_index]
+
+
+def _grid_flat_normal_for_axis(primary_axis: tuple[float, float, float]) -> tuple[float, float, float]:
+    primary = _normalize(primary_axis)
+    grid_normal = (0.0, 1.0, 0.0)
+    if abs(_dot(primary, grid_normal)) < 0.85:
+        return grid_normal
+    return (0.0, 0.0, 1.0)
 
 
 def _secondary_axis_vector(mesh: ParsedMesh, primary_axis: tuple[float, float, float]) -> tuple[float, float, float]:

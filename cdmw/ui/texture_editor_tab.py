@@ -1826,7 +1826,7 @@ class TextureEditorTab(QWidget):
         self.save_png_button = QPushButton("Export PNG")
         self.send_replace_button = QPushButton("To Replace")
         self.send_workflow_button = QPushButton("To Workflow")
-        self.send_item_icons_button = QPushButton("To Icon creator")
+        self.send_item_icons_button = QPushButton("To Icon Creator")
         self.undo_button = QPushButton("Undo")
         self.redo_button = QPushButton("Redo")
         self.shortcuts_button = QPushButton("Shortcuts")
@@ -1883,7 +1883,7 @@ class TextureEditorTab(QWidget):
         self.action_export_png = QAction("Export PNG", self)
         self.action_send_replace = QAction("Send To Texture Replacer", self)
         self.action_send_workflow = QAction("Send To Texture Workflow", self)
-        self.action_send_item_icons = QAction("Send To Icon creator", self)
+        self.action_send_item_icons = QAction("Send To Icon Creator", self)
         for action in (
             self.action_open_file,
             self.action_open_archive,
@@ -3627,7 +3627,7 @@ class TextureEditorTab(QWidget):
             "save_png": "Save flattened PNG",
             "send_replace": "Send to Texture Replacer",
             "send_workflow": "Send to Texture Workflow",
-            "send_item_icons": "Send to Icon creator",
+            "send_item_icons": "Send to Icon Creator",
             "undo": "Undo",
             "redo": "Redo",
             "clear_selection": "Clear selection",
@@ -8835,7 +8835,7 @@ class TextureEditorTab(QWidget):
 
         def _handle_ready(output_path: Path) -> None:
             self.send_to_item_icons_requested.emit(str(output_path), source_binding)
-            self._set_status(f"Sent flattened PNG to Icon creator: {output_path.name}", False)
+            self._set_status(f"Sent flattened PNG to Icon Creator: {output_path.name}", False)
             self._refresh_ui()
 
         self._export_workspace_png("item_icons", on_ready=_handle_ready)

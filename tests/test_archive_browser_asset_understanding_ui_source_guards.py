@@ -104,6 +104,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("def _open_modify_original_mesh_setup(", source)
         self.assertIn("selection = self._prompt_archive_modify_original_workspace_options(entry)", source)
         self.assertIn("create_workspace = bool(selection.create_workspace)", source)
+        self.assertIn("resolve_skeleton_for_obj=create_workspace", source)
         self.assertIn("session_root = self.settings_file_path.parent / \"modify_original_sessions\"", source)
         self.assertIn("def _cleanup_stale_modify_original_sessions(", source)
         self.assertNotIn("modify_original_auto", source)
@@ -113,6 +114,14 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("self._start_archive_mesh_patch(", source)
         self.assertIn("MODIFY_ORIGINAL_README.txt", source)
         self.assertIn("find_available_output_path(parent_root / workspace_name)", source)
+
+    def test_modify_original_in_app_clone_skips_obj_skeleton_resolution(self) -> None:
+        archive_modding_source = (REPO_ROOT / "cdmw" / "core" / "archive_modding.py").read_text(encoding="utf-8")
+        main_window_source = MAIN_WINDOW.read_text(encoding="utf-8")
+
+        self.assertIn("resolve_skeleton_for_obj: bool = True", archive_modding_source)
+        self.assertIn('export_kind == "fbx" or bool(resolve_skeleton_for_obj)', archive_modding_source)
+        self.assertIn("resolve_skeleton_for_obj=create_workspace", main_window_source)
 
     def test_roles_name_evidence_and_grouping_are_user_facing(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")

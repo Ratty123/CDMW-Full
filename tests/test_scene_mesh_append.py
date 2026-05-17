@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from cdmw.core.archive_modding import attach_scene_preview_textures, parsed_mesh_to_preview_model
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.scene_importer import (
     SceneImportResult,
@@ -251,6 +252,7 @@ class SceneMeshAppendTests(unittest.TestCase):
 
             result = import_scene_mesh_with_report(obj_path)
 
+            self.assertEqual("obj", result.mesh.format)
             self.assertIn(texture_path.resolve(), result.discovered_texture_files)
             self.assertEqual("defaultMat_Base_Color.png", result.mesh.submeshes[0].texture)
 
@@ -296,6 +298,124 @@ class SceneMeshAppendTests(unittest.TestCase):
 
             self.assertIn(base_texture.resolve(), discovered)
             self.assertIn(normal_texture.resolve(), discovered)
+
+    def test_obj_mtl_suffixless_map_kd_sets_submesh_texture(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            texture_dir = root / "textures"
+            texture_dir.mkdir()
+            base_texture = texture_dir / "wood.png"
+            base_texture.write_bytes(b"base")
+            obj_path = root / "panel.obj"
+            obj_path.write_text(
+                "\n".join(
+                    [
+                        "mtllib panel.mtl",
+                        "o panel",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "vt 0 0",
+                        "vt 1 0",
+                        "vt 0 1",
+                        "usemtl WoodMaterial",
+                        "f 1/1 2/2 3/3",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (root / "panel.mtl").write_text(
+                "\n".join(
+                    [
+                        "newmtl WoodMaterial",
+                        "map_Kd textures/wood.png",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(obj_path)
+
+            self.assertIn(base_texture.resolve(), result.discovered_texture_files)
+            self.assertEqual("textures/wood.png", result.mesh.submeshes[0].texture)
+
+    def test_obj_missing_mtl_prefers_unique_base_color_over_support_maps(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            texture_dir = root / "textures"
+            texture_dir.mkdir()
+            base_texture = texture_dir / "all.001_Base_color.png"
+            base_texture.write_bytes(b"base")
+            for name in (
+                "all.001_Emissive.png",
+                "all.001_Metallic.png",
+                "all.001_Mixed_AO.png",
+                "all.001_Normal_OpenGL.png",
+                "all.001_Roughness.png",
+            ):
+                (texture_dir / name).write_bytes(b"support")
+            obj_path = root / "sword.obj"
+            obj_path.write_text(
+                "\n".join(
+                    [
+                        "mtllib sword.mtl",
+                        "o sword",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "vt 0 0",
+                        "vt 1 0",
+                        "vt 0 1",
+                        "usemtl all.001",
+                        "f 1/1 2/2 3/3",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(obj_path)
+
+            self.assertIn(base_texture.resolve(), result.discovered_texture_files)
+            self.assertEqual("all.001_Base_color.png", result.mesh.submeshes[0].texture)
+
+    def test_attach_scene_preview_textures_keeps_basecolor_when_material_name_contains_rma(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            gltf_path = root / "scene.gltf"
+            gltf_path.write_text("{}", encoding="utf-8")
+            texture_dir = root / "textures"
+            texture_dir.mkdir()
+            base = texture_dir / "BusterMat_baseColor.png"
+            normal = texture_dir / "BusterMat_normal.png"
+            material = texture_dir / "BusterMat_metallicRoughness.png"
+            for texture_path in (base, normal, material):
+                texture_path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+
+            parsed = _mesh(
+                str(gltf_path),
+                [
+                    SubMesh(
+                        name="Buster",
+                        material="BusterMat",
+                        texture=str(base),
+                        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                        uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                        faces=[(0, 1, 2)],
+                    )
+                ],
+            )
+            preview_model = parsed_mesh_to_preview_model(parsed)
+            assigned = attach_scene_preview_textures(
+                preview_model,
+                SceneImportResult(mesh=parsed, discovered_texture_files=(base, normal, material)),
+                gltf_path,
+            )
+
+            self.assertGreaterEqual(assigned, 3)
+            preview_mesh = preview_model.meshes[0]
+            self.assertEqual(str(base), preview_mesh.preview_texture_path)
+            self.assertEqual(str(normal), preview_mesh.preview_normal_texture_path)
+            self.assertEqual(str(material), preview_mesh.preview_material_texture_path)
 
 
 if __name__ == "__main__":

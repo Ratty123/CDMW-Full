@@ -21,6 +21,7 @@ from cdmw.core.archive_modding import (
     build_hkx_editable_geometry_json,
     build_hkx_editable_geometry_xml,
     build_hkx_havok_xml_view_xml,
+    build_hkx_model_preview_from_document,
     build_hkx_physics_overlay_from_document,
     build_hkx_preview,
     load_hkx_corpus_evidence_json,
@@ -1223,6 +1224,46 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertEqual("Bip01 Pelvis", shape.placement_target)
         self.assertEqual((10.0, -0.5, 0.0), shape.capsule_start)
         self.assertEqual((10.0, 0.5, 0.0), shape.capsule_end)
+
+    def test_hkx_model_preview_turns_collision_and_skeleton_context_into_render_batches(self) -> None:
+        data = self._modern_hkx_bytes()
+        document = build_hkx_editable_geometry_document(data, "object/test.hkx")
+
+        preview = build_hkx_model_preview_from_document(
+            document,
+            source_path="object/test.hkx",
+            skeleton_bone_positions={
+                "Root": {
+                    "name": "Root",
+                    "index": 0,
+                    "parent_index": -1,
+                    "position": (0.0, 0.0, 0.0),
+                    "source_path": "character/model/test.pab",
+                },
+                "Spine": {
+                    "name": "Spine",
+                    "index": 1,
+                    "parent_index": 0,
+                    "parent_name": "Root",
+                    "position": (0.0, 2.0, 0.0),
+                    "source_path": "character/model/test.pab",
+                },
+            },
+        )
+
+        self.assertIsNotNone(preview)
+        assert preview is not None
+        self.assertEqual("hkx", preview.format)
+        self.assertGreaterEqual(preview.mesh_count, 2)
+        self.assertGreater(preview.vertex_count, 0)
+        self.assertGreater(preview.face_count, 0)
+        self.assertIn("HKX collision/skeleton preview", preview.summary)
+        self.assertTrue(any(mesh.preview_role == "hkx_collision_shape" for mesh in preview.meshes))
+        self.assertTrue(any(mesh.preview_role == "hkx_skeleton_bone" for mesh in preview.meshes))
+        self.assertIsNotNone(preview.physics_overlay)
+        assert preview.physics_overlay is not None
+        self.assertEqual(1, len(preview.physics_overlay.shapes))
+        self.assertEqual(2, len(preview.physics_overlay.bones))
 
     def test_hkx_converter_exports_material_simulation_context_for_cloth_and_hair(self) -> None:
         data = self._modern_hkx_bytes()

@@ -34,15 +34,18 @@ The app still keeps archive mutation explicit and separate from normal browsing.
 
 ## At A Glance
 
-### Main tabs
+### Main navigation
 
-- `Texture Workflow`: loose DDS scanning, optional DDS-to-PNG staging, optional upscaling, DDS rebuild, and compare review
-- `Texture Workflow` can also emit an additional ready mod package after rebuild without changing the normal `dds_final` output
-- `Texture Replacer`: import edited `PNG` / `DDS`, match them to the original game texture, optionally upscale with direct `NCNN`, rebuild corrected DDS output, and write a mod-ready loose package
-- `Texture Editor`: open visible textures from loose files, Archive Browser, Compare, or Texture Replacer, edit them in layers with selections, masks, adjustments, channel-aware brush/retouch tools, and custom brush presets, then save/export the flattened PNG back into the rebuild pipeline
-- `Archive Browser`: scan archives, switch between flat or tree view, preview supported assets, extract files, inspect referenced mesh textures, export/import supported meshes, and run supported archive patch/restore flows
-- `Research`: group related textures, resolve references, inspect DDS QA results, preview archive files, export analysis reports, and store notes
-- `Text Search`: search archive or loose text-like files, preview results with syntax colors, and export matched files
+- `Dashboard`: launch common tasks, inspect workspace paths/tool health, see recent work, and review the latest run result
+- `Textures > Workflow`: loose DDS scanning, optional DDS-to-PNG staging, optional upscaling, DDS rebuild, and compare review
+- `Textures > Workflow` can also emit an additional ready mod package after rebuild without changing the normal `dds_final` output
+- `Textures > Replacer`: import edited `PNG` / `DDS`, match them to the original game texture, optionally upscale with direct `NCNN`, rebuild corrected DDS output, and write a mod-ready loose package
+- `Textures > Editor`: open visible textures from loose files, Archive Browser, Compare, or Texture Replacer, edit them in layers with selections, masks, adjustments, channel-aware brush/retouch tools, and custom brush presets, then save/export the flattened PNG back into the rebuild pipeline
+- `Assets > Archive Browser`: scan archives, switch between flat or tree view, preview supported assets, extract files, inspect referenced mesh textures, export/import supported meshes, and run supported archive patch/restore flows
+- `Assets > Model Library`: scan local/importable models, use mirror catalogue metadata, preview supported models, and route model imports into Archive Browser workflows
+- `Assets > Icon Creator`: manage icon source images and generate compatible item-icon packages from archive targets
+- `Research > Research`: group related textures, resolve references, inspect DDS QA results, preview archive files, export analysis reports, and store notes
+- `Research > Text Search`: search archive or loose text-like files, preview results with syntax colors, and export matched files
 - `Settings`: persistent theme, font, density, startup, layout, log/code, and safety preferences
 
 ### Main workflow features

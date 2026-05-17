@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from cdmw.core import archive as archive_core
 from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings
 from cdmw.rendering import native_preview_core
 from cdmw.rendering.native_preview_core import (
@@ -14,6 +16,7 @@ from cdmw.rendering.native_preview_core import (
     NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES,
     NativePreviewCoreServiceClient,
     build_native_preview_core_job,
+    prune_native_preview_core_cache,
     run_native_preview_core_preview_job,
 )
 
@@ -29,6 +32,30 @@ def _entry() -> ArchiveEntry:
         flags=0,
         paz_index=1,
     )
+
+
+def _minimal_dds_header(
+    *,
+    compressed_size: int,
+    decompressed_size: int,
+    width: int = 4,
+    height: int = 4,
+    fourcc: bytes = b"DXT1",
+) -> bytes:
+    header = bytearray(128)
+    header[:4] = b"DDS "
+    header[4:8] = (124).to_bytes(4, "little")
+    header[12:16] = int(height).to_bytes(4, "little")
+    header[16:20] = int(width).to_bytes(4, "little")
+    header[20:24] = int(decompressed_size).to_bytes(4, "little")
+    header[24:28] = (1).to_bytes(4, "little")
+    header[28:32] = (1).to_bytes(4, "little")
+    header[32:36] = int(compressed_size).to_bytes(4, "little")
+    header[36:40] = int(decompressed_size).to_bytes(4, "little")
+    header[76:80] = (32).to_bytes(4, "little")
+    header[80:84] = (4).to_bytes(4, "little")
+    header[84:88] = fourcc
+    return bytes(header)
 
 
 class _FakeServiceStdin:
@@ -97,6 +124,15 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertFalse(attempt.succeeded)
         self.assertIn("unavailable", attempt.diagnostic_line())
 
+    def test_partial_dds_reconstruction_prefers_payload_chunk_table_when_pathc_is_stale(self) -> None:
+        entry = _entry()
+        pathc_header = _minimal_dds_header(compressed_size=64, decompressed_size=4)
+        payload_header = _minimal_dds_header(compressed_size=4, decompressed_size=4)
+        with patch.object(archive_core, "get_archive_partial_dds_header", return_value=pathc_header):
+            rebuilt = archive_core.reconstruct_partial_dds(entry, payload_header + b"ABCD")
+
+        self.assertEqual(pathc_header + b"ABCD", rebuilt)
+
     def test_report_success_returns_package_path(self) -> None:
         def fake_run_process(cmd, **_kwargs):
             report_path = Path(cmd[3])
@@ -149,6 +185,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("preview-job", source_text)
         self.assertIn("name-index-job", source_text)
         self.assertIn("--service", source_text)
+        self.assertIn('\\"exit_code\\"', source_text)
+        self.assertIn('\\"report_path\\"', source_text)
+        self.assertNotIn("std::cout << read_text(fs::path(report_path))", source_text)
         self.assertIn("native_diagnostics.h", source_text)
         self.assertIn("--diagnostic-log", source_text)
         self.assertIn("--crash-dir", source_text)
@@ -167,6 +206,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("role_from_parameter_shader_and_name", source_text)
         self.assertIn("packed_channels_for_role", source_text)
         self.assertIn("texture_flip_vertical", source_text)
+        self.assertIn("job.flip_texture_v", source_text)
+        self.assertIn("user_flip_v", source_text)
+        self.assertIn('"flip_texture_v"', Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8"))
         self.assertIn("legacy_no_flip", source_text)
         self.assertIn("support_role_requires_material_scope", source_text)
         self.assertIn("rejected_texture_examples", source_text)
@@ -220,6 +262,30 @@ class NativePreviewCoreTests(unittest.TestCase):
             self.assertEqual("job_count", report["service_recycle_reason"])
             self.assertEqual(NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS, report["service_job_count"])
             self.assertTrue(any('"shutdown"' in write for write in fake_process.stdin.writes))
+
+    def test_preview_core_service_recycles_when_binary_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            binary = temp_path / "cdmw-preview-core.exe"
+            binary.write_text("old", encoding="utf-8")
+            old_client = NativePreviewCoreServiceClient(binary)
+            old_client._process = _FakeServiceProcess()
+
+            previous_service = native_preview_core._native_preview_core_service
+            try:
+                native_preview_core._native_preview_core_service = old_client
+                binary.write_text("new-build", encoding="utf-8")
+
+                new_client = native_preview_core._get_native_preview_core_service(binary)
+
+                self.assertIsNot(new_client, old_client)
+                self.assertIsNone(old_client._process)
+                self.assertEqual(
+                    NativePreviewCoreServiceClient.resolve_binary_signature(binary),
+                    new_client.binary_signature,
+                )
+            finally:
+                native_preview_core._native_preview_core_service = previous_service
 
     def test_preview_core_service_recycles_after_decoded_cache_threshold(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -287,6 +353,34 @@ class NativePreviewCoreTests(unittest.TestCase):
             self.assertIsNone(client._process)
             self.assertEqual("process_private_bytes", report["service_recycle_reason"])
 
+    def test_preview_core_service_recovers_invalid_stdout_when_report_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            client = NativePreviewCoreServiceClient(temp_path / "cdmw-preview-core.exe")
+            fake_process = _FakeServiceProcess()
+            report_path = temp_path / "report.json"
+
+            def fake_start(*_args, **_kwargs) -> None:
+                client._process = fake_process
+
+            def fake_read(*_args, **_kwargs) -> str:
+                report_path.write_text(
+                    json.dumps({"status": "ok", "package_path": "C:/cache/package"}),
+                    encoding="utf-8",
+                )
+                return '-wrapper candidate cd_texturelayer_001_0018_n.dds"],"notes":[]}'
+
+            with (
+                patch.object(client, "_start_locked", side_effect=fake_start),
+                patch.object(client, "_read_stdout_line_locked", side_effect=fake_read),
+            ):
+                client.preview_job(temp_path / "job.json", report_path, timeout_seconds=0.5)
+
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertIsNone(client._process)
+            self.assertEqual("invalid_stdout_response", report["service_recycle_reason"])
+            self.assertTrue(any('"shutdown"' in write for write in fake_process.stdin.writes))
+
     def test_archive_preview_worker_owns_native_preview_core_helpers(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
         archive_worker_start = source.index("class ArchivePreviewWorker(QObject):")
@@ -304,6 +398,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
 
         self.assertIn("class ArchiveNativePreviewPrefetchWorker(QObject):", source)
+        self.assertIn('NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS = {".pac", ".pam", ".pamlod"}', source)
+        self.assertNotIn('not in ARCHIVE_MODEL_EXTENSIONS:\n                return None', source)
         self.assertIn("archive_native_prefetch_timer", source)
         self.assertIn("def _archive_native_prefetch_candidate_entries", source)
         self.assertIn("def _start_archive_native_preview_prefetch", source)
@@ -311,6 +407,29 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("archive_native_prefetch_thread", source)
         self.assertIn("timeout_seconds=5.0", source)
         self.assertIn("run_native_preview_core_preview_job", source)
+        self.assertIn("Avoid speculative neighbor prefetch", source)
+
+    def test_native_preview_core_prunes_extracted_dds_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "native_preview_core"
+            dds_root = cache_root / "dds"
+            dds_root.mkdir(parents=True)
+            old_file = dds_root / "old.dds"
+            new_file = dds_root / "new.dds"
+            old_file.write_bytes(b"DDS " + (b"a" * 80))
+            new_file.write_bytes(b"DDS " + (b"b" * 80))
+            old_time = 1000
+            new_time = 2000
+            old_file.touch()
+            new_file.touch()
+            os.utime(old_file, (old_time, old_time))
+            os.utime(new_file, (new_time, new_time))
+
+            report = prune_native_preview_core_cache(cache_root, max_bytes=120, target_bytes=90)
+
+            self.assertEqual(1, report["removed_files"])
+            self.assertFalse(old_file.exists())
+            self.assertTrue(new_file.exists())
 
     def test_static_native_material_index_prefers_exact_sidecars(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
@@ -337,8 +456,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
 
         self.assertIn("parsed_sidecar->material_wrapper_count > 0", source)
-        self.assertIn("parsed_sidecar->material_wrapper_count == static_cast<int>(meshes.size())", source)
-        self.assertIn("texture_ref.material_wrapper_index < static_cast<int>(meshes.size())", source)
+        self.assertIn("parsed_sidecar->material_wrapper_count == sidecar_scoped_mesh_count", source)
+        self.assertIn("texture_ref.material_wrapper_index < sidecar_scoped_mesh_count", source)
         self.assertIn("matched_mesh = true;", source)
         self.assertIn("rejected cross-wrapper candidate", source)
         self.assertIn('desired_role == "normal"', source)
@@ -356,6 +475,26 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("srgb_mode", source)
         self.assertIn("parameter_declared_by", source)
         self.assertIn("native technique index: files=", source)
+
+    def test_native_material_index_keeps_uint_alpha_test_flags(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn('{"MaterialParameterUint", "uint"}', source)
+        self.assertIn("material_parameters_enable_flag", source)
+        self.assertIn("binding.alpha_test_enabled = material_parameters_enable_flag", source)
+        self.assertIn('"AlphaTest"', source)
+        self.assertIn('"\\"alpha_test_enabled\\":"', source)
+        self.assertIn("binding_ptr->alpha_test_enabled", source)
+        self.assertIn('rule.find("alphaclip")', source)
+        self.assertIn('rule.find("cutout")', source)
+
+    def test_native_material_index_blocks_unsafe_direct_sibling_variants(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("direct_sibling_sidecar_variant_allowed_for_fuzzy_match", source)
+        self.assertIn('const std::string prefix = model_stem_lower + "_"', source)
+        self.assertIn('suffix == "in"', source)
+        self.assertIn("direct_sibling_sidecar_variant_allowed_for_fuzzy_match(model_stem_lower, ref_stem)", source)
 
     def test_native_preview_core_reports_material_quality_gate(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
@@ -383,6 +522,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("material_slots_json", source)
         self.assertIn("selection_decisions_json", source)
         self.assertIn('\\"dds_upload_policy\\"', source)
+        self.assertIn("dds_format_is_data_only_for_visible_base", source)
         self.assertIn("collect_xml_tag_blocks", source)
         self.assertIn("add_layer_family_sibling_refs", source)
         self.assertIn("cached_parsed_material_sidecar", source)
@@ -433,12 +573,17 @@ class NativePreviewCoreTests(unittest.TestCase):
         authoritative_end = source.index("static bool support_role_requires_material_scope", authoritative_start)
         authoritative = source[authoritative_start:authoritative_end]
         self.assertNotIn("largest_dimension < 512", authoritative)
-        self.assertIn("if (low_authority && has_non_low_authority_visible_base && !authoritative_wrapper_visible_base_for_mesh(binding, mesh))", selector)
+        self.assertIn("if (!authoritative_wrapper_visible_base && low_authority && !(authoritative_visible_base && identity_score >= 120)) continue;", selector)
+        self.assertIn("if (", selector)
+        self.assertIn("low_authority", selector)
+        self.assertIn("has_non_low_authority_visible_base", selector)
+        self.assertIn("!(authoritative_visible_base && identity_score >= 120)", selector)
         self.assertIn("(has_non_low_authority_visible_base || has_authoritative_sidecar_base_for_mesh)", selector)
         self.assertIn('parameter_key.find("detaildiffuse")', selector)
         self.assertIn("score += 260", selector)
         self.assertIn("score -= authoritative_wrapper_visible_base_for_mesh(binding, mesh) ? 36 : 220", selector)
         self.assertIn("material_identity_text_match_score", source)
+        self.assertIn('"hel", "helmet", "mask"', source)
         self.assertIn("submesh_specific_match", source)
         self.assertIn("return 220 + std::min(std::max(text_score, 0), 180)", source)
         self.assertIn("!base_low_authority", source)
@@ -464,8 +609,47 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('mode == "mesh_base_first" && !shader_rule_supports_conservative_layer_stack', compiler)
         self.assertIn("seen_layer_keys", compiler)
         self.assertIn('role == "overlay") return false', source)
+        self.assertIn("placeholder_layer_mask_path", source)
+        self.assertIn("placeholder_visible_base_path(binding.archive_path)", source)
+        self.assertIn("placeholder_layer_mask_path(mask->archive_path)", compiler)
         self.assertIn("keep_layer_stack_aux", source)
         self.assertIn('parameter_key.find("heighttexture")', source)
+
+    def test_native_core_emits_tool_side_pbd_cloth_payloads(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("pbd_xml_sidecar", source)
+        self.assertIn("_pbdSimulationMaterialName", source)
+        self.assertIn("extract_native_pbd_sidecar_hints", source)
+        self.assertIn("parse_native_pbd_config_materials", source)
+        self.assertIn("resolve_native_pbd_material_settings", source)
+        self.assertIn("build_native_cloth_runtime_batch", source)
+        self.assertIn("build_native_cloth_constraints", source)
+        self.assertIn("build_native_cloth_pin_weights", source)
+        self.assertIn("binding.pbd_simulation_material_name = pbd_hint->simulation_material_name", source)
+        self.assertIn('return "spline";', source)
+        self.assertIn("native_pbd_hint_is_cloth", source)
+        self.assertIn("return best_score >= 80 ? best : nullptr;", source)
+        self.assertNotIn("hints.size() == 1 && !hints.front().simulation_material_name.empty()", source)
+        self.assertIn('stem + "_cloth_particles.bin"', source)
+        self.assertIn('stem + "_cloth_pins.bin"', source)
+        self.assertIn('stem + "_cloth_constraints.bin"', source)
+        self.assertIn('\\"cloth_runtime_schema\\":1', source)
+        self.assertIn('\\"cloth_particle_file\\":\\"', source)
+        self.assertIn('\\"cloth_collision_enabled\\":false', source)
+        self.assertIn("native tool-side PBD cloth runtime", source)
+
+    def test_native_core_allows_pbd_generic_layer_stack_for_cloaks(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        layer_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
+        layer_end = source.index("static std::string material_layer_json", layer_start)
+        layer_source = source[layer_start:layer_end]
+
+        self.assertIn('rule == "generic"', source)
+        self.assertIn('pre_shader_rule.find("generic") != std::string::npos && native_pbd_hints_have_cloth(parsed_sidecar->pbd_hints)', source)
+        self.assertIn('rule.find("generic") != std::string::npos', source)
+        self.assertIn('!binding->pbd_simulation_material_name.empty()', source)
+        self.assertIn('binding_shader_rule.find("generic") != std::string::npos && binding->pbd_simulation_material_name.empty()', layer_source)
 
     def test_d3d11_host_does_not_use_rich_material_inputs_as_base_override(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
@@ -483,6 +667,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("parse_material_layers", source)
         self.assertIn("json_object_array_field", source)
         self.assertIn("parse_primary_material_layer", source)
+        self.assertIn("material_layer_active_batches", source)
+        self.assertIn('\\"material_layer_roles\\"', source)
         self.assertIn("Texture2D layer0_diffuse_tex : register(t9)", source)
         self.assertIn("Texture2D layer3_diffuse_tex : register(t12)", source)
         self.assertIn("Texture2D layer0_mask_tex : register(t13)", source)
@@ -549,6 +735,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertLess(role_source.index('p.find("flow")'), role_source.index('t.find("_n.dds")'))
         self.assertIn('return "flow";', role_source)
         self.assertIn('name.find("_flow")', source)
+        self.assertIn('name.find("_dr.dds")', source)
+        self.assertIn('p.find("ssdm")', role_source)
+        self.assertIn('p.find("direction")', role_source)
+        self.assertIn('path_has_suffix_stem(raw_path, "_dr")', source)
         self.assertIn('mode == "mesh_base_first" && !shader_rule_supports_conservative_layer_stack', layer_source)
         self.assertIn('if (mask == nullptr)', layer_source)
         self.assertIn('layer.weight <= 0.001f ? 0.14f : layer.weight', layer_source)
@@ -567,8 +757,13 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("int material_wrapper_index = -1", source)
         self.assertIn("int material_wrapper_count = 0", source)
         self.assertIn("material_wrapper_order_authoritative", source)
-        self.assertIn("parsed_sidecar->material_wrapper_count == static_cast<int>(meshes.size())", source)
-        self.assertIn("binding.material_wrapper_index == mesh.source_submesh_index", source)
+        self.assertIn("int sidecar_scoped_mesh_count = 0", source)
+        self.assertIn("parsed_sidecar->material_wrapper_count == sidecar_scoped_mesh_count", source)
+        self.assertIn("material_sidecar_matches_mesh_source", source)
+        self.assertIn("binding.material_wrapper_index == mesh.source_local_submesh_index", source)
+        self.assertIn("material_wrapper_matches_mesh_local_index", source)
+        self.assertIn("!authoritative_wrapper_match && material_identity_has_conflicting_specific_part", source)
+        self.assertIn("if (authoritative_wrapper_match) score += 210;", source)
         self.assertIn("binding.material_wrapper_order_authoritative && identity_score < 120", source)
         self.assertIn("submesh_specific_match && text_score >= 120", source)
         self.assertIn("extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_index++", source)
@@ -596,10 +791,13 @@ class NativePreviewCoreTests(unittest.TestCase):
 
         self.assertIn("material_identity_specific_part_tokens", source)
         self.assertIn('"hand", "head", "foot"', source)
+        self.assertIn('"uw", "underwear", "nude"', source)
         self.assertIn('"blade", "guard", "handle", "acc"', source)
         self.assertIn("material_identity_has_conflicting_specific_part", source)
         self.assertIn("conflicting_specific_part", support_selector)
         self.assertIn("rejected cross-part candidate", support_selector)
+        self.assertIn("rejected cross-component candidate", support_selector)
+        self.assertIn("material_binding_matches_mesh_source", source)
         self.assertNotIn("!embedded && material_identity_has_conflicting_specific_part", base_selector)
         self.assertIn("material_identity_has_conflicting_specific_part", base_selector)
 
@@ -610,6 +808,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("prefab_candidate_basenames_for_model_stem", source)
         self.assertIn("prefab_model_component_refs_for_job", source)
         self.assertIn('stem + "_s.prefab"', source)
+        self.assertIn('stem + "_v"', source)
+        self.assertIn("prefab_component_match_stem", source)
+        self.assertIn("prefab_model_path_matches_job", source)
+        self.assertIn('"_op_s", "_op_v", "_v", "_s"', source)
         self.assertIn("_sub[0-9]+", source)
         self.assertIn("body|head|hair|chain|cloth|acc|belt", source)
         self.assertIn("compound_part_pattern", source)
@@ -620,6 +822,14 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("native prefab composite: added", source)
         self.assertIn('parsed.parser += "+prefab_composite"', source)
         self.assertIn('component_stem + ".pac_xml"', source)
+        self.assertIn("mesh.source_model_path = component.path", source)
+        self.assertIn("mesh.source_component_label", source)
+        self.assertIn("mesh.source_prefab_component = true", source)
+        self.assertIn("const std::string mesh_source_path = mesh.source_model_path.empty() ? job.path : mesh.source_model_path", source)
+        self.assertIn("binding.linked_mesh_path = mesh_source_path", source)
+        self.assertIn("prefab_component", source)
+        self.assertIn("source_component_label", source)
+        self.assertIn("source_model_path", source)
 
     def test_native_core_mesh_base_first_keeps_exact_embedded_base_over_layers(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
@@ -633,6 +843,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("allow_authoritative_mesh_base", selection_source)
         self.assertIn("has_authoritative_sidecar_base_for_mesh", selection_source)
         self.assertIn("authoritative_visible_base", selection_source)
+        self.assertIn("authoritative_visible_base && identity_score >= 120", selection_source)
+        self.assertIn("!(authoritative_visible_base && identity_score >= 120)", selection_source)
         self.assertIn('hint.find("grime")', source)
         self.assertIn('hint.find("detail")', source)
         self.assertIn("material_identity_extra_part_penalty", source)
@@ -656,6 +868,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('return "opacity";', role_source)
         self.assertIn('role == "opacity"', source)
         self.assertIn('t.find("_f.dds")', role_source)
+        self.assertIn('t.find("_dr.dds")', role_source)
+        self.assertIn('dds_format_is_data_only_for_visible_base(binding.dds_format)', source)
         self.assertIn('binding_layer_role == "damage"', source)
 
 

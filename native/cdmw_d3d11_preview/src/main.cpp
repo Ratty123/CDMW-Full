@@ -35,6 +35,9 @@ static constexpr float kDefaultYawDegrees = -35.0f;
 static constexpr float kDefaultPitchDegrees = 20.0f;
 static constexpr float kFitDistance = 3.25f;
 static constexpr float kVerticalFovDegrees = 45.0f;
+static constexpr float kAlignmentAxisExtent = 0.95f;
+static constexpr float kAlignmentAxisMarkerSize = 0.055f;
+static constexpr float kAlignmentAxisLabelSize = 0.075f;
 static constexpr float kZoomSteps[] = {0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f, 12.0f, 16.0f};
 static constexpr UINT kCdmwSetZoomMessage = WM_APP + 0x431u;
 static constexpr UINT kCdmwSetFitMessage = WM_APP + 0x432u;
@@ -44,6 +47,9 @@ static constexpr ULONG_PTR kCdmwEventCopyData = 0x44334431u; // "D3D1"
 static constexpr size_t kSrvCacheSoftMaxEntries = 512;
 static constexpr std::uint64_t kSrvCacheSoftMaxBytes = 384ull * 1024ull * 1024ull;
 static constexpr DWORD kIdleWaitMs = 50;
+static constexpr double kParentHealthCheckMs = 500.0;
+static constexpr double kParentHangExitMs = 2500.0;
+static constexpr UINT kParentHealthTimeoutMs = 100;
 
 struct Args {
     std::wstring backend = L"d3d11";
@@ -72,6 +78,21 @@ struct SlotCounts {
 static constexpr int kMaxMaterialLayers = 4;
 static constexpr int kBaseSrvCount = 9;
 static constexpr int kLayerSrvCount = kMaxMaterialLayers * 5;
+
+struct ComInitScope {
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    bool needs_uninit = (hr == S_OK || hr == S_FALSE);
+
+    ~ComInitScope() {
+        if (needs_uninit) {
+            CoUninitialize();
+        }
+    }
+
+    bool ok() const {
+        return SUCCEEDED(hr) || hr == RPC_E_CHANGED_MODE;
+    }
+};
 static constexpr int kTotalSrvCount = kBaseSrvCount + kLayerSrvCount;
 
 struct PreviewMaterialLayer {
@@ -94,6 +115,52 @@ struct PreviewMaterialLayer {
     ComPtr<ID3D11ShaderResourceView> material_srv;
     ComPtr<ID3D11ShaderResourceView> normal_srv;
     ComPtr<ID3D11ShaderResourceView> height_srv;
+};
+
+struct ClothConstraint {
+    int a = 0;
+    int b = 0;
+    float rest_length = 0.0f;
+    float stiffness = 0.0f;
+};
+
+struct ClothRuntime {
+    bool available = false;
+    bool initialized = false;
+    bool collision_enabled = true;
+    std::string kind = "cloth";
+    std::string material_name;
+    std::wstring particle_file;
+    std::wstring pin_file;
+    std::wstring constraint_file;
+    int particle_count = 0;
+    int constraint_count = 0;
+    float gravity = -10.0f;
+    float damping = 0.65f;
+    float air_resistance = 1.0f;
+    float wind_response = 0.4f;
+    int solver_iterations = 30;
+    std::vector<DirectX::XMFLOAT3> rest_positions;
+    std::vector<DirectX::XMFLOAT3> positions;
+    std::vector<DirectX::XMFLOAT3> previous_positions;
+    std::vector<float> pin_weights;
+    std::vector<ClothConstraint> constraints;
+};
+
+struct ClothCollider {
+    int type = 0;
+    DirectX::XMFLOAT3 a{0.0f, 0.0f, 0.0f};
+    DirectX::XMFLOAT3 b{0.0f, 0.0f, 0.0f};
+    float radius = 0.0f;
+};
+
+struct ClothPreviewState {
+    bool enabled = false;
+    bool paused = false;
+    bool show_pins = false;
+    bool show_colliders = false;
+    float wind_strength = 0.0f;
+    float wind_direction_degrees = 35.0f;
 };
 
 struct PreviewBatch {
@@ -145,13 +212,21 @@ struct PreviewBatch {
     std::array<PreviewMaterialLayer, kMaxMaterialLayers> material_layers;
     int material_layer_count = 0;
     int source_submesh_index = -1;
+    int source_local_submesh_index = -1;
+    int source_component_index = 0;
     std::wstring identity_file;
+    std::string source_model_path;
+    std::string source_component_label;
+    std::string part_label;
     std::string editor_role;
     bool editor_editable = true;
+    bool prefab_component = false;
     float highlight_strength = 0.0f;
     std::vector<DirectX::XMFLOAT3> cpu_positions;
     std::vector<int> cpu_source_submeshes;
     std::vector<int> cpu_source_vertices;
+    std::vector<float> cpu_vertices;
+    ClothRuntime cloth;
     ComPtr<ID3D11Buffer> vertex_buffer;
     ComPtr<ID3D11ShaderResourceView> base_srv;
     ComPtr<ID3D11ShaderResourceView> normal_srv;
@@ -213,6 +288,15 @@ struct AlignmentState {
     int last_y = 0;
     DirectX::XMFLOAT3 translation_total{0.0f, 0.0f, 0.0f};
     DirectX::XMFLOAT3 rotation_total{0.0f, 0.0f, 0.0f};
+    DirectX::XMFLOAT3 scale_total{1.0f, 1.0f, 1.0f};
+    DirectX::XMFLOAT3 translation_drag_base{0.0f, 0.0f, 0.0f};
+    DirectX::XMFLOAT3 translation_drag_delta{0.0f, 0.0f, 0.0f};
+    DirectX::XMFLOAT3 rotation_drag_base{0.0f, 0.0f, 0.0f};
+    DirectX::XMFLOAT3 rotation_drag_delta{0.0f, 0.0f, 0.0f};
+    std::chrono::steady_clock::time_point last_translation_change_sent{};
+    std::chrono::steady_clock::time_point last_rotation_change_sent{};
+    mutable bool origin_cache_valid = false;
+    mutable DirectX::XMFLOAT3 origin_cache{0.0f, 0.0f, 0.0f};
 };
 
 struct SourcePartInteractionState {
@@ -233,6 +317,18 @@ enum class PreviewViewRole {
     Reference,
     Replacement,
 };
+
+static const char* preview_view_role_name(PreviewViewRole role) {
+    switch (role) {
+    case PreviewViewRole::Reference:
+        return "reference";
+    case PreviewViewRole::Replacement:
+        return "replacement";
+    case PreviewViewRole::All:
+    default:
+        return "all";
+    }
+}
 
 struct PreviewRenderView {
     D3D11_VIEWPORT viewport{};
@@ -274,8 +370,16 @@ struct RendererStats {
     SlotCounts png_uploaded;
     SlotCounts textures_loaded;
     int material_combiner_active_batches = 0;
+    int material_layer_active_batches = 0;
+    int material_layer_count = 0;
+    int cloth_batch_count = 0;
+    int cloth_particle_count = 0;
+    int cloth_constraint_count = 0;
+    int cloth_collider_count = 0;
+    std::uint64_t cloth_simulation_steps = 0;
     std::map<std::string, int> material_combiner_outputs;
     std::map<std::string, int> material_combiner_decode_modes;
+    std::map<std::string, int> material_layer_roles;
     std::map<std::string, int> dds_upload_formats;
     std::vector<std::string> texture_details;
     double manifest_ms = 0.0;
@@ -287,6 +391,11 @@ struct RendererStats {
     std::uint64_t estimated_texture_bytes = 0;
     std::uint64_t process_working_set_bytes = 0;
     std::uint64_t process_private_bytes = 0;
+    std::uint64_t frame_count = 0;
+    std::uint64_t render_request_count = 0;
+    std::uint64_t render_suppressed_count = 0;
+    std::uint64_t parent_unresponsive_count = 0;
+    std::string parent_health = "ok";
     int sampler_max_anisotropy = 1;
     float sampler_mip_lod_bias = 0.0f;
     int sampler_recreate_count = 0;
@@ -307,6 +416,17 @@ struct ViewSettings {
     bool invert_orbit_y = false;
     bool invert_pan_x = false;
     bool invert_pan_y = false;
+};
+
+struct PreviewCameraState {
+    float yaw = kDefaultYawDegrees;
+    float pitch = kDefaultPitchDegrees;
+    bool fit_to_view = true;
+    float zoom_factor = 1.0f;
+    float distance = kFitDistance;
+    float pan_x = 0.0f;
+    float pan_y = 0.0f;
+    float pan_z = 0.0f;
 };
 
 struct RenderTuning {
@@ -670,6 +790,18 @@ static std::string lower_copy(std::string value) {
     return value;
 }
 
+static std::string normalize_display_mode(std::string value, const std::string& fallback = "replacement_only") {
+    value = lower_copy(std::move(value));
+    if (value == "side_by_side" || value == "overlay" || value == "replacement_only") {
+        return value;
+    }
+    return fallback == "side_by_side" || fallback == "overlay" || fallback == "replacement_only" ? fallback : "replacement_only";
+}
+
+static std::string parse_display_mode(const std::string& manifest, const std::string& fallback = "replacement_only") {
+    return normalize_display_mode(json_string_field(manifest, "display_mode", fallback), fallback);
+}
+
 static bool contains_text(const std::string& haystack, const std::string& needle) {
     return haystack.find(needle) != std::string::npos;
 }
@@ -994,9 +1126,34 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         parse_primary_material_layer(batch, object);
         std::string editor_identity = json_object_field(object, "editor_identity");
         batch.source_submesh_index = json_int_field(editor_identity, "source_submesh_index", -1);
+        batch.source_local_submesh_index = json_int_field(editor_identity, "source_local_submesh_index", batch.source_submesh_index);
+        batch.source_component_index = json_int_field(editor_identity, "source_component_index", 0);
         batch.identity_file = absolute_from_manifest_path(package_dir, json_string_field(editor_identity, "identity_file"));
+        batch.source_model_path = json_string_field(editor_identity, "source_model_path");
+        batch.source_component_label = json_string_field(editor_identity, "source_component_label");
+        batch.part_label = json_string_field(editor_identity, "part_label");
+        batch.prefab_component = json_bool_field(editor_identity, "prefab_component", false);
         batch.editor_role = lower_copy(json_string_field(editor_identity, "role"));
         batch.editor_editable = json_bool_field(editor_identity, "editable", batch.source_submesh_index >= 0);
+        batch.cloth.available = json_bool_field(object, "cloth_enabled", false);
+        if (batch.cloth.available) {
+            batch.cloth.kind = lower_copy(json_string_field(object, "cloth_kind", "cloth"));
+            batch.cloth.material_name = json_string_field(object, "cloth_material_name");
+            batch.cloth.particle_file = absolute_from_manifest_path(package_dir, json_string_field(object, "cloth_particle_file"));
+            batch.cloth.pin_file = absolute_from_manifest_path(package_dir, json_string_field(object, "cloth_pin_file"));
+            batch.cloth.constraint_file = absolute_from_manifest_path(package_dir, json_string_field(object, "cloth_constraint_file"));
+            batch.cloth.particle_count = std::max(0, json_int_field(object, "cloth_particle_count", 0));
+            batch.cloth.constraint_count = std::max(0, json_int_field(object, "cloth_constraint_count", 0));
+            batch.cloth.gravity = std::clamp(json_float_field(object, "cloth_gravity", -10.0f), -50.0f, 50.0f);
+            batch.cloth.damping = std::clamp(json_float_field(object, "cloth_damping", 0.65f), 0.0f, 4.0f);
+            batch.cloth.air_resistance = std::clamp(json_float_field(object, "cloth_air_resistance", 1.0f), 0.0f, 8.0f);
+            batch.cloth.wind_response = std::clamp(json_float_field(object, "cloth_wind_response", 0.4f), 0.0f, 4.0f);
+            batch.cloth.solver_iterations = std::clamp(json_int_field(object, "cloth_solver_iterations", 30), 1, 64);
+            batch.cloth.collision_enabled = json_bool_field(object, "cloth_collision_enabled", true);
+            ++stats.cloth_batch_count;
+            stats.cloth_particle_count += batch.cloth.particle_count;
+            stats.cloth_constraint_count += batch.cloth.constraint_count;
+        }
         if (!batch.base_dds.empty()) increment_slot(stats.dds_candidates, "base");
         if (!batch.normal_dds.empty()) increment_slot(stats.dds_candidates, "normal");
         if (!batch.material_dds.empty()) increment_slot(stats.dds_candidates, "material");
@@ -1013,6 +1170,11 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
             if (!layer.material_dds.empty()) increment_slot(stats.dds_candidates, "material");
             if (!layer.normal_dds.empty()) increment_slot(stats.dds_candidates, "normal");
             if (!layer.height_dds.empty()) increment_slot(stats.dds_candidates, "height");
+            ++stats.material_layer_count;
+            ++stats.material_layer_roles[layer.role.empty() ? "layer" : lower_copy(layer.role)];
+        }
+        if (batch.material_layer_count > 0) {
+            ++stats.material_layer_active_batches;
         }
         if (json_bool_field(object, "material_combiner_active", false)) {
             ++stats.material_combiner_active_batches;
@@ -1029,6 +1191,7 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
     }
     stats.batch_count = static_cast<int>(batches.size());
     stats.vertex_count = json_int_field(manifest, "vertex_count", 0);
+    stats.cloth_collider_count = std::max(0, json_int_field(manifest, "cloth_collider_count", 0));
     return batches;
 }
 
@@ -1054,6 +1217,43 @@ static RenderTuning parse_render_tuning(const std::string& manifest) {
     tuning.shininess_min = std::clamp(json_float_field(manifest, "shininess_min", tuning.shininess_min), 1.0f, 128.0f);
     tuning.shininess_max = std::clamp(json_float_field(manifest, "shininess_max", tuning.shininess_max), tuning.shininess_min, 256.0f);
     return tuning;
+}
+
+static std::vector<ClothCollider> parse_cloth_colliders(const fs::path& package_dir, const std::string& manifest) {
+    std::vector<ClothCollider> colliders;
+    std::wstring path = absolute_from_manifest_path(package_dir, json_string_field(manifest, "cloth_collider_file"));
+    if (path.empty() || !fs::is_regular_file(fs::path(path))) return colliders;
+    std::vector<uint8_t> data = read_binary(path);
+    constexpr size_t kRecordFloats = 11u;
+    constexpr size_t kRecordBytes = kRecordFloats * sizeof(float);
+    const size_t record_count = data.size() / kRecordBytes;
+    colliders.reserve(record_count);
+    for (size_t index = 0; index < record_count; ++index) {
+        const float* values = reinterpret_cast<const float*>(data.data() + index * kRecordBytes);
+        ClothCollider collider;
+        collider.type = static_cast<int>(std::round(values[0]));
+        if (collider.type == 1) {
+            collider.a = DirectX::XMFLOAT3(values[1], values[2], values[3]);
+            collider.radius = std::max(0.0f, values[4]);
+        } else if (collider.type == 2) {
+            collider.a = DirectX::XMFLOAT3(values[1], values[2], values[3]);
+            collider.b = DirectX::XMFLOAT3(values[4], values[5], values[6]);
+            collider.radius = std::max(0.0f, values[7]);
+        } else if (collider.type == 3) {
+            collider.a = DirectX::XMFLOAT3(
+                std::min(values[1], values[4]),
+                std::min(values[2], values[5]),
+                std::min(values[3], values[6]));
+            collider.b = DirectX::XMFLOAT3(
+                std::max(values[1], values[4]),
+                std::max(values[2], values[5]),
+                std::max(values[3], values[6]));
+        } else {
+            continue;
+        }
+        colliders.push_back(collider);
+    }
+    return colliders;
 }
 
 static DirectX::XMFLOAT4 parse_hex_color(const std::string& hex, DirectX::XMFLOAT4 fallback) {
@@ -1120,6 +1320,14 @@ static std::string loaded_payload(const RendererStats& stats) {
            << "\"material_combiner_active\":" << stats.material_combiner_active_batches << ","
            << "\"material_combiner_outputs\":" << string_int_map_json(stats.material_combiner_outputs) << ","
            << "\"material_combiner_decode_modes\":" << string_int_map_json(stats.material_combiner_decode_modes) << ","
+           << "\"material_layer_active\":" << stats.material_layer_active_batches << ","
+           << "\"material_layer_count\":" << stats.material_layer_count << ","
+           << "\"material_layer_roles\":" << string_int_map_json(stats.material_layer_roles) << ","
+           << "\"cloth_batch_count\":" << stats.cloth_batch_count << ","
+           << "\"cloth_particle_count\":" << stats.cloth_particle_count << ","
+           << "\"cloth_constraint_count\":" << stats.cloth_constraint_count << ","
+           << "\"cloth_collider_count\":" << stats.cloth_collider_count << ","
+           << "\"cloth_simulation_steps\":" << stats.cloth_simulation_steps << ","
            << "\"manifest_read_ms\":" << stats.manifest_ms << ","
            << "\"texture_bind_ms\":" << stats.texture_ms << ","
            << "\"geometry_upload_ms\":" << stats.geometry_ms << ","
@@ -1129,6 +1337,11 @@ static std::string loaded_payload(const RendererStats& stats) {
            << "\"estimated_texture_bytes\":" << stats.estimated_texture_bytes << ","
            << "\"process_working_set_bytes\":" << stats.process_working_set_bytes << ","
            << "\"process_private_bytes\":" << stats.process_private_bytes << ","
+           << "\"frame_count\":" << stats.frame_count << ","
+           << "\"render_request_count\":" << stats.render_request_count << ","
+           << "\"render_suppressed_count\":" << stats.render_suppressed_count << ","
+           << "\"parent_unresponsive_count\":" << stats.parent_unresponsive_count << ","
+           << "\"parent_health\":\"" << json_escape(stats.parent_health) << "\","
            << "\"sampler_max_anisotropy\":" << stats.sampler_max_anisotropy << ","
            << "\"sampler_mip_lod_bias\":" << stats.sampler_mip_lod_bias << ","
            << "\"sampler_recreate_count\":" << stats.sampler_recreate_count << ","
@@ -1148,7 +1361,32 @@ static std::string cleared_payload(const RendererStats& stats) {
         << "\"texture_cache_releases\":" << stats.texture_cache_releases << ","
         << "\"estimated_texture_bytes\":" << stats.estimated_texture_bytes << ","
         << "\"process_working_set_bytes\":" << stats.process_working_set_bytes << ","
-        << "\"process_private_bytes\":" << stats.process_private_bytes
+        << "\"process_private_bytes\":" << stats.process_private_bytes << ","
+        << "\"frame_count\":" << stats.frame_count << ","
+        << "\"render_request_count\":" << stats.render_request_count << ","
+        << "\"render_suppressed_count\":" << stats.render_suppressed_count << ","
+        << "\"parent_unresponsive_count\":" << stats.parent_unresponsive_count << ","
+        << "\"parent_health\":\"" << json_escape(stats.parent_health) << "\""
+        << "}";
+    return out.str();
+}
+
+static std::string closed_payload(const RendererStats& stats, const std::string& reason) {
+    std::ostringstream out;
+    out << "{"
+        << "\"event\":\"closed\","
+        << "\"backend\":\"D3D11\","
+        << "\"reason\":\"" << json_escape(reason) << "\","
+        << "\"texture_cache_entries\":" << stats.texture_cache_entries << ","
+        << "\"texture_cache_releases\":" << stats.texture_cache_releases << ","
+        << "\"estimated_texture_bytes\":" << stats.estimated_texture_bytes << ","
+        << "\"process_working_set_bytes\":" << stats.process_working_set_bytes << ","
+        << "\"process_private_bytes\":" << stats.process_private_bytes << ","
+        << "\"frame_count\":" << stats.frame_count << ","
+        << "\"render_request_count\":" << stats.render_request_count << ","
+        << "\"render_suppressed_count\":" << stats.render_suppressed_count << ","
+        << "\"parent_unresponsive_count\":" << stats.parent_unresponsive_count << ","
+        << "\"parent_health\":\"" << json_escape(stats.parent_health) << "\""
         << "}";
     return out.str();
 }
@@ -1457,8 +1695,23 @@ float4 ps_main(VSOut input) : SV_TARGET {
 
 class Renderer {
 public:
-    Renderer(HWND hwnd, const Args& args, std::vector<PreviewBatch> batches, RendererStats& stats, ViewSettings view_settings, RenderTuning render_tuning)
-        : hwnd_(hwnd), args_(args), batches_(std::move(batches)), stats_(stats), view_settings_(view_settings), render_tuning_(render_tuning) {}
+    Renderer(
+        HWND hwnd,
+        const Args& args,
+        std::vector<PreviewBatch> batches,
+        std::vector<ClothCollider> cloth_colliders,
+        RendererStats& stats,
+        ViewSettings view_settings,
+        RenderTuning render_tuning,
+        std::string display_mode)
+        : hwnd_(hwnd),
+          args_(args),
+          batches_(std::move(batches)),
+          cloth_colliders_(std::move(cloth_colliders)),
+          stats_(stats),
+          view_settings_(view_settings),
+          render_tuning_(render_tuning),
+          display_mode_(normalize_display_mode(std::move(display_mode), "replacement_only")) {}
 
     ~Renderer() {
         if (!batches_.empty() || !srv_cache_.empty() || !texture_info_cache_.empty() || estimated_texture_bytes_ > 0) {
@@ -1505,11 +1758,38 @@ public:
     }
 
     void request_render() {
+        ++render_request_count_;
+        stats_.render_request_count = render_request_count_;
         render_requested_ = true;
     }
 
     bool should_render() const {
-        return render_requested_ || !first_frame_reported_;
+        return render_requested_ || !first_frame_reported_ || cloth_preview_active();
+    }
+
+    void note_render_suppressed(const char* reason) {
+        ++render_suppressed_count_;
+        stats_.render_suppressed_count = render_suppressed_count_;
+        if (reason && reason[0]) {
+            stats_.parent_health = reason;
+        }
+        if (render_suppressed_count_ == 1 || render_suppressed_count_ % 120 == 0) {
+            cdmw_native_diag::event(
+                "render_suppressed",
+                {
+                    {"reason", reason && reason[0] ? reason : "not_visible"},
+                    {"render_suppressed_count", std::to_string(render_suppressed_count_)},
+                    {"render_request_count", std::to_string(render_request_count_)},
+                    {"frame_count", std::to_string(frame_count_)}
+                });
+        }
+    }
+
+    void set_parent_health(const std::string& health, std::uint64_t unresponsive_count) {
+        parent_health_ = health.empty() ? "ok" : health;
+        parent_unresponsive_count_ = unresponsive_count;
+        stats_.parent_health = parent_health_;
+        stats_.parent_unresponsive_count = parent_unresponsive_count_;
     }
 
     void prune_srv_cache_if_needed(const char* reason) {
@@ -1535,7 +1815,11 @@ public:
     void release_model_resources(const char* reason) {
         const std::string reason_text = reason && reason[0] ? reason : "release";
         const size_t released_batches = batches_.size();
-        const bool release_texture_cache = reason_text == "shutdown" || reason_text == "destructor";
+        const bool release_texture_cache =
+            reason_text == "shutdown"
+            || reason_text == "destructor"
+            || reason_text == "parent_unresponsive"
+            || reason_text == "parent_window_gone";
         const size_t released_srv_entries = release_texture_cache ? srv_cache_.size() : 0;
         const size_t released_texture_info_entries = release_texture_cache ? texture_info_cache_.size() : 0;
         const std::uint64_t released_texture_bytes = release_texture_cache ? estimated_texture_bytes_ : 0;
@@ -1550,6 +1834,7 @@ public:
             context_->Flush();
         }
         batches_.clear();
+        cloth_colliders_.clear();
         if (release_texture_cache) {
             srv_cache_.clear();
             texture_info_cache_.clear();
@@ -1592,13 +1877,18 @@ public:
         std::string manifest;
         RendererStats next_stats;
         std::vector<PreviewBatch> next_batches;
+        std::vector<ClothCollider> next_cloth_colliders;
         ViewSettings next_view_settings;
         RenderTuning next_render_tuning;
+        std::string next_display_mode;
         try {
             manifest = read_text(args_.preview_package / L"manifest.json");
             next_batches = parse_manifest_batches(args_.preview_package, manifest, next_stats);
+            next_cloth_colliders = parse_cloth_colliders(args_.preview_package, manifest);
+            next_stats.cloth_collider_count = static_cast<int>(next_cloth_colliders.size());
             next_view_settings = parse_view_settings(manifest);
             next_render_tuning = parse_render_tuning(manifest);
+            next_display_mode = parse_display_mode(manifest, display_mode_);
         } catch (const std::exception& exc) {
             request_render();
             if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
@@ -1623,6 +1913,11 @@ public:
             require_path(batch.height_dds, "height_dds");
             require_path(batch.base_png, "base_png");
             require_path(batch.height_png, "height_png");
+            if (batch.cloth.available) {
+                require_path(batch.cloth.particle_file, "cloth_particles");
+                require_path(batch.cloth.pin_file, "cloth_pins");
+                require_path(batch.cloth.constraint_file, "cloth_constraints");
+            }
             for (int layer_index = 0; layer_index < batch.material_layer_count; ++layer_index) {
                 const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
                 require_path(layer.diffuse_dds, "layer_diffuse");
@@ -1650,14 +1945,22 @@ public:
         }
         next_stats.manifest_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
         batches_ = std::move(next_batches);
+        cloth_colliders_ = std::move(next_cloth_colliders);
+        hidden_source_submeshes_.clear();
         stats_ = next_stats;
-        view_settings_ = next_view_settings;
-        render_tuning_ = next_render_tuning;
+        if (!view_settings_overridden_) {
+            view_settings_ = next_view_settings;
+        }
+        if (!render_tuning_overridden_) {
+            render_tuning_ = next_render_tuning;
+        }
+        display_mode_ = normalize_display_mode(next_display_mode, display_mode_);
         first_frame_started_ = false;
         first_frame_reported_ = false;
         mesh_edit_.drag_active = false;
         mesh_edit_.drag_candidates.clear();
         mesh_edit_.selected_vertices.clear();
+        hidden_source_submeshes_.clear();
         alignment_.drag_active = false;
         alignment_.rotation_drag_active = false;
         alignment_.hover_axis.clear();
@@ -1665,6 +1968,12 @@ public:
         alignment_.selected_source_submeshes.clear();
         alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.scale_total = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f);
+        alignment_.translation_drag_base = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.translation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.rotation_drag_base = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.rotation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.origin_cache_valid = false;
         source_part_.hovered_source_submesh = -1;
         source_part_.click_pending = false;
         source_part_.click_source_submesh = -1;
@@ -1686,6 +1995,7 @@ public:
                 {"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)},
                 {"batches", std::to_string(stats_.batch_count)},
                 {"vertices", std::to_string(stats_.vertex_count)},
+                {"display_mode", display_mode_},
                 {"dds_uploaded_base", std::to_string(stats_.dds_uploaded.base)},
                 {"png_fallback", std::to_string(stats_.png_fallback)},
                 {"texture_cache_entries", std::to_string(stats_.texture_cache_entries)},
@@ -1714,6 +2024,12 @@ public:
         alignment_.selected_source_submeshes.clear();
         alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.scale_total = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f);
+        alignment_.translation_drag_base = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.translation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.rotation_drag_base = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.rotation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.origin_cache_valid = false;
         source_part_.hovered_source_submesh = -1;
         source_part_.click_pending = false;
         source_part_.click_source_submesh = -1;
@@ -1740,9 +2056,17 @@ public:
             request_render();
             return true;
         case WM_SIZE:
-        case WM_PAINT:
             request_render();
             return false;
+        case WM_PAINT:
+        {
+            PAINTSTRUCT ps{};
+            BeginPaint(hwnd_, &ps);
+            EndPaint(hwnd_, &ps);
+            request_render();
+            result = 0;
+            return true;
+        }
         case kCdmwSetZoomMessage:
             set_zoom_factor(static_cast<float>(wparam) / 1000.0f);
             request_render();
@@ -1759,10 +2083,14 @@ public:
             result = 0;
             return true;
         case WM_LBUTTONDBLCLK:
-            reset_view();
+        {
+            const PreviewViewRole reset_role = input_view_role_at(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+            reset_camera_for_role(reset_role);
+            send_view_event("reset_role", reset_role);
             request_render();
             result = 0;
             return true;
+        }
         case WM_LBUTTONDOWN:
             if (begin_mesh_edit_drag(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
                 request_render();
@@ -1824,13 +2152,18 @@ public:
             source_part_.click_pending = false;
             drag_mode_ = 0;
             drag_button_ = 0;
+            drag_view_role_ = PreviewViewRole::All;
             request_render();
             return false;
         case WM_MOUSEWHEEL:
-            apply_wheel_delta(GET_WHEEL_DELTA_WPARAM(wparam));
+        {
+            POINT point{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+            ScreenToClient(hwnd_, &point);
+            apply_wheel_delta(GET_WHEEL_DELTA_WPARAM(wparam), point.x, point.y);
             request_render();
             result = 0;
             return true;
+        }
         default:
             return false;
         }
@@ -1838,7 +2171,11 @@ public:
 
     void render() {
         if (!context_ || !swap_chain_) return;
-        resize_if_needed();
+        if (!resize_if_needed()) {
+            render_requested_ = false;
+            return;
+        }
+        step_cloth_simulation();
         if (!first_frame_started_) {
             first_frame_timer_ = std::chrono::steady_clock::now();
             first_frame_started_ = true;
@@ -1856,7 +2193,10 @@ public:
             draw_render_view(view);
         }
         swap_chain_->Present(1, 0);
+        ValidateRect(hwnd_, nullptr);
         draw_alignment_overlay_gdi();
+        ++frame_count_;
+        stats_.frame_count = frame_count_;
         render_requested_ = false;
         if (!first_frame_reported_) {
             stats_.first_frame_ms = std::chrono::duration<double, std::milli>(
@@ -1935,7 +2275,7 @@ private:
             PreviewRenderView left;
             left.viewport = viewport_rect(0.0f, 0.0f, left_width, static_cast<float>(height_));
             left.role = PreviewViewRole::Reference;
-            left.reference_tint_alpha = 0.18f;
+            left.reference_tint_alpha = 0.0f;
             views.push_back(left);
             PreviewRenderView right;
             right.viewport = viewport_rect(left_width + 1.0f, 0.0f, static_cast<float>(width_) - left_width - 1.0f, static_cast<float>(height_));
@@ -1944,17 +2284,15 @@ private:
             return views;
         }
         if (display_mode_ == "overlay" && has_reference) {
+            PreviewRenderView reference_overlay;
+            reference_overlay.viewport = full_viewport();
+            reference_overlay.role = PreviewViewRole::Reference;
+            reference_overlay.reference_tint_alpha = 0.0f;
+            views.push_back(reference_overlay);
             PreviewRenderView replacement;
             replacement.viewport = full_viewport();
             replacement.role = PreviewViewRole::Replacement;
             views.push_back(replacement);
-            PreviewRenderView reference_overlay;
-            reference_overlay.viewport = full_viewport();
-            reference_overlay.role = PreviewViewRole::Reference;
-            reference_overlay.wireframe = true;
-            reference_overlay.no_depth = true;
-            reference_overlay.reference_tint_alpha = 0.72f;
-            views.push_back(reference_overlay);
             return views;
         }
         PreviewRenderView only;
@@ -1965,6 +2303,9 @@ private:
     }
 
     bool batch_visible_in_view(const PreviewBatch& batch, PreviewViewRole role) const {
+        if (batch.source_submesh_index >= 0 && hidden_source_submeshes_.find(batch.source_submesh_index) != hidden_source_submeshes_.end()) {
+            return false;
+        }
         if (role == PreviewViewRole::All) return true;
         const bool reference = batch_is_reference(batch);
         if (role == PreviewViewRole::Reference) return reference;
@@ -1972,9 +2313,73 @@ private:
         return true;
     }
 
-    DirectX::XMMATRIX view_projection_matrix_for_viewport(const D3D11_VIEWPORT& viewport) const {
+    bool side_by_side_workspace_active() const {
+        return display_mode_ == "side_by_side" && has_reference_batches() && width_ > 4;
+    }
+
+    PreviewViewRole input_view_role_at(int x, int /*y*/) const {
+        if (!side_by_side_workspace_active()) return PreviewViewRole::All;
+        const float left_width = std::floor(static_cast<float>(width_) * 0.5f);
+        return static_cast<float>(x) <= left_width ? PreviewViewRole::Reference : PreviewViewRole::Replacement;
+    }
+
+    const PreviewCameraState& reference_camera() const {
+        return reference_camera_;
+    }
+
+    PreviewCameraState& reference_camera() {
+        return reference_camera_;
+    }
+
+    PreviewCameraState replacement_camera() const {
+        PreviewCameraState camera;
+        camera.yaw = yaw_;
+        camera.pitch = pitch_;
+        camera.fit_to_view = fit_to_view_;
+        camera.zoom_factor = zoom_factor_;
+        camera.distance = distance_;
+        camera.pan_x = pan_x_;
+        camera.pan_y = pan_y_;
+        camera.pan_z = pan_z_;
+        return camera;
+    }
+
+    void set_replacement_camera(const PreviewCameraState& camera) {
+        yaw_ = camera.yaw;
+        pitch_ = camera.pitch;
+        fit_to_view_ = camera.fit_to_view;
+        zoom_factor_ = camera.zoom_factor;
+        distance_ = camera.distance;
+        pan_x_ = camera.pan_x;
+        pan_y_ = camera.pan_y;
+        pan_z_ = camera.pan_z;
+        reference_camera_ = camera;
+    }
+
+    PreviewCameraState camera_for_view_role(PreviewViewRole role) const {
+        (void)role;
+        return replacement_camera();
+    }
+
+    DirectX::XMMATRIX world_matrix_for_camera(const PreviewCameraState& camera) const {
+        return DirectX::XMMatrixRotationRollPitchYaw(
+                DirectX::XMConvertToRadians(camera.pitch),
+                DirectX::XMConvertToRadians(camera.yaw),
+                0.0f)
+            * DirectX::XMMatrixTranslation(camera.pan_x, camera.pan_y, camera.pan_z);
+    }
+
+    DirectX::XMMATRIX world_matrix_for_view_role(PreviewViewRole role) const {
+        return world_matrix_for_camera(camera_for_view_role(role));
+    }
+
+    float distance_for_view_role(PreviewViewRole role) const {
+        return camera_for_view_role(role).distance;
+    }
+
+    DirectX::XMMATRIX view_projection_matrix_for_viewport(const D3D11_VIEWPORT& viewport, float distance) const {
         DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(
-            DirectX::XMVectorSet(0.0f, 0.0f, -distance_, 1.0f),
+            DirectX::XMVectorSet(0.0f, 0.0f, -distance, 1.0f),
             DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
             DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
         DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(
@@ -1992,10 +2397,17 @@ private:
             || std::abs(alignment_.translation_total.z) > kEpsilon
             || std::abs(alignment_.rotation_total.x) > kEpsilon
             || std::abs(alignment_.rotation_total.y) > kEpsilon
-            || std::abs(alignment_.rotation_total.z) > kEpsilon;
+            || std::abs(alignment_.rotation_total.z) > kEpsilon
+            || std::abs(alignment_.scale_total.x - 1.0f) > kEpsilon
+            || std::abs(alignment_.scale_total.y - 1.0f) > kEpsilon
+            || std::abs(alignment_.scale_total.z - 1.0f) > kEpsilon;
     }
 
     bool alignment_handle_origin_base(DirectX::XMFLOAT3& origin) const {
+        if (alignment_.origin_cache_valid) {
+            origin = alignment_.origin_cache;
+            return true;
+        }
         bool found = false;
         float min_x = 0.0f;
         float min_y = 0.0f;
@@ -2026,6 +2438,8 @@ private:
             (min_x + max_x) * 0.5f,
             (min_y + max_y) * 0.5f,
             (min_z + max_z) * 0.5f);
+        alignment_.origin_cache = origin;
+        alignment_.origin_cache_valid = true;
         return true;
     }
 
@@ -2038,6 +2452,10 @@ private:
             origin = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         }
         return DirectX::XMMatrixTranslation(-origin.x, -origin.y, -origin.z)
+            * DirectX::XMMatrixScaling(
+                std::max(0.001f, alignment_.scale_total.x),
+                std::max(0.001f, alignment_.scale_total.y),
+                std::max(0.001f, alignment_.scale_total.z))
             * DirectX::XMMatrixRotationRollPitchYaw(
                 DirectX::XMConvertToRadians(alignment_.rotation_total.x),
                 DirectX::XMConvertToRadians(alignment_.rotation_total.y),
@@ -2055,6 +2473,308 @@ private:
         DirectX::XMFLOAT3 output{};
         DirectX::XMStoreFloat3(&output, transformed);
         return output;
+    }
+
+    static void append_line_vertex(
+        std::vector<float>& vertices,
+        float x,
+        float y,
+        float z,
+        float r,
+        float g,
+        float b
+    ) {
+        vertices.insert(
+            vertices.end(),
+            {
+                x, y, z,
+                0.0f, 1.0f, 0.0f,
+                r, g, b,
+                0.0f, 0.0f,
+                1.0f, 0.0f, 0.0f,
+                0.0f, 0.0f, 1.0f,
+                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
+            });
+    }
+
+    void draw_colored_lines(const std::vector<float>& vertices, const DirectX::XMMATRIX& mvp, bool no_depth) {
+        if (vertices.empty() || vertices.size() % 23u != 0u) return;
+        D3D11_BUFFER_DESC desc{};
+        desc.ByteWidth = static_cast<UINT>(vertices.size() * sizeof(float));
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        D3D11_SUBRESOURCE_DATA init{};
+        init.pSysMem = vertices.data();
+        ComPtr<ID3D11Buffer> buffer;
+        if (FAILED(device_->CreateBuffer(&desc, &init, buffer.GetAddressOf()))) return;
+        UINT stride = kVertexStrideBytes;
+        UINT offset = 0;
+        context_->IASetVertexBuffers(0, 1, buffer.GetAddressOf(), &stride, &offset);
+        context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+        context_->OMSetDepthStencilState(no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
+        ConstantBuffer constants{};
+        DirectX::XMStoreFloat4x4(&constants.mvp, mvp);
+        constants.light_dir = DirectX::XMFLOAT4(-0.35f, 0.45f, -0.82f, 0.0f);
+        constants.base_color_flip = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+        constants.render_tuning = DirectX::XMFLOAT4(0.85f, 0.15f, 0.0f, 0.0f);
+        constants.render_tuning2 = DirectX::XMFLOAT4(8.0f, 16.0f, 0.0f, 0.0f);
+        constants.editor_tint = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+        context_->UpdateSubresource(constants_.Get(), 0, nullptr, &constants, 0, 0);
+        context_->VSSetConstantBuffers(0, 1, constants_.GetAddressOf());
+        context_->PSSetConstantBuffers(0, 1, constants_.GetAddressOf());
+        ID3D11ShaderResourceView* clear_srvs[kTotalSrvCount] = {};
+        context_->PSSetShaderResources(0, kTotalSrvCount, clear_srvs);
+        context_->Draw(static_cast<UINT>(vertices.size() / 23u), 0);
+        context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    }
+
+    void draw_colored_triangles(const std::vector<float>& vertices, const DirectX::XMMATRIX& mvp, bool no_depth) {
+        if (vertices.empty() || vertices.size() % 23u != 0u) return;
+        D3D11_BUFFER_DESC desc{};
+        desc.ByteWidth = static_cast<UINT>(vertices.size() * sizeof(float));
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        D3D11_SUBRESOURCE_DATA init{};
+        init.pSysMem = vertices.data();
+        ComPtr<ID3D11Buffer> buffer;
+        if (FAILED(device_->CreateBuffer(&desc, &init, buffer.GetAddressOf()))) return;
+        UINT stride = kVertexStrideBytes;
+        UINT offset = 0;
+        context_->IASetVertexBuffers(0, 1, buffer.GetAddressOf(), &stride, &offset);
+        context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        context_->OMSetDepthStencilState(no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
+        ConstantBuffer constants{};
+        DirectX::XMStoreFloat4x4(&constants.mvp, mvp);
+        constants.light_dir = DirectX::XMFLOAT4(-0.35f, 0.45f, -0.82f, 0.0f);
+        constants.base_color_flip = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+        constants.render_tuning = DirectX::XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
+        constants.render_tuning2 = DirectX::XMFLOAT4(8.0f, 16.0f, 0.0f, 0.0f);
+        constants.editor_tint = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+        context_->UpdateSubresource(constants_.Get(), 0, nullptr, &constants, 0, 0);
+        context_->VSSetConstantBuffers(0, 1, constants_.GetAddressOf());
+        context_->PSSetConstantBuffers(0, 1, constants_.GetAddressOf());
+        ID3D11ShaderResourceView* clear_srvs[kTotalSrvCount] = {};
+        context_->PSSetShaderResources(0, kTotalSrvCount, clear_srvs);
+        context_->Draw(static_cast<UINT>(vertices.size() / 23u), 0);
+    }
+
+    void draw_workspace_grid(const PreviewRenderView& view, const DirectX::XMMATRIX& world_view_projection) {
+        std::vector<float> vertices;
+        vertices.reserve(23u * 4u * 41u);
+        constexpr int kGridHalfSteps = 12;
+        constexpr float kGridStep = 0.25f;
+        constexpr float kMajorEvery = 4.0f;
+        for (int index = -kGridHalfSteps; index <= kGridHalfSteps; ++index) {
+            const float value = static_cast<float>(index) * kGridStep;
+            const bool major = std::fmod(std::abs(static_cast<float>(index)), kMajorEvery) < 0.001f;
+            float r = major ? 0.24f : 0.14f;
+            float g = major ? 0.28f : 0.17f;
+            float b = major ? 0.34f : 0.22f;
+            if (index == 0) {
+                append_line_vertex(vertices, -kGridHalfSteps * kGridStep, 0.0f, value, 0.55f, 0.12f, 0.12f);
+                append_line_vertex(vertices,  kGridHalfSteps * kGridStep, 0.0f, value, 0.55f, 0.12f, 0.12f);
+                append_line_vertex(vertices, value, 0.0f, -kGridHalfSteps * kGridStep, 0.10f, 0.48f, 0.24f);
+                append_line_vertex(vertices, value, 0.0f,  kGridHalfSteps * kGridStep, 0.10f, 0.48f, 0.24f);
+                continue;
+            }
+            append_line_vertex(vertices, -kGridHalfSteps * kGridStep, 0.0f, value, r, g, b);
+            append_line_vertex(vertices,  kGridHalfSteps * kGridStep, 0.0f, value, r, g, b);
+            append_line_vertex(vertices, value, 0.0f, -kGridHalfSteps * kGridStep, r, g, b);
+            append_line_vertex(vertices, value, 0.0f,  kGridHalfSteps * kGridStep, r, g, b);
+        }
+        draw_colored_lines(vertices, world_view_projection, false);
+    }
+
+    void draw_alignment_axes(const PreviewRenderView& view, const DirectX::XMMATRIX& world_view_projection) {
+        if (!alignment_.enabled || view.role == PreviewViewRole::Reference) return;
+        (void)world_view_projection;
+        auto axis_points = alignment_axis_points();
+        if (axis_points.empty()) return;
+
+        std::vector<float> vertices;
+        vertices.reserve(23u * 512u);
+        DirectX::XMMATRIX identity = DirectX::XMMatrixIdentity();
+
+        auto append_screen_vertex = [&](float x, float y, float r, float g, float b) {
+            const float local_x = x - view.viewport.TopLeftX;
+            const float local_y = y - view.viewport.TopLeftY;
+            const float clip_x = (local_x / std::max(1.0f, view.viewport.Width)) * 2.0f - 1.0f;
+            const float clip_y = 1.0f - (local_y / std::max(1.0f, view.viewport.Height)) * 2.0f;
+            append_line_vertex(vertices, clip_x, clip_y, 0.0f, r, g, b);
+        };
+        auto add_triangle = [&](ScreenPoint a, ScreenPoint b, ScreenPoint c, float r, float g, float blue) {
+            append_screen_vertex(a.x, a.y, r, g, blue);
+            append_screen_vertex(b.x, b.y, r, g, blue);
+            append_screen_vertex(c.x, c.y, r, g, blue);
+        };
+        auto add_thick_line = [&](ScreenPoint start, ScreenPoint end, float width_pixels, float r, float g, float blue) {
+            const float dx = end.x - start.x;
+            const float dy = end.y - start.y;
+            const float length = std::max(1.0f, std::hypot(dx, dy));
+            const float px = -dy / length * width_pixels * 0.5f;
+            const float py = dx / length * width_pixels * 0.5f;
+            ScreenPoint a{start.x + px, start.y + py};
+            ScreenPoint b{end.x + px, end.y + py};
+            ScreenPoint c{end.x - px, end.y - py};
+            ScreenPoint d{start.x - px, start.y - py};
+            add_triangle(a, b, c, r, g, blue);
+            add_triangle(a, c, d, r, g, blue);
+        };
+        auto add_disc = [&](ScreenPoint center, float radius, float r, float g, float blue) {
+            constexpr int kSegments = 28;
+            constexpr float kPi = 3.14159265358979323846f;
+            for (int index = 0; index < kSegments; ++index) {
+                const float a0 = (2.0f * kPi * static_cast<float>(index)) / static_cast<float>(kSegments);
+                const float a1 = (2.0f * kPi * static_cast<float>(index + 1)) / static_cast<float>(kSegments);
+                add_triangle(
+                    center,
+                    ScreenPoint{center.x + std::cos(a0) * radius, center.y + std::sin(a0) * radius},
+                    ScreenPoint{center.x + std::cos(a1) * radius, center.y + std::sin(a1) * radius},
+                    r, g, blue);
+            }
+        };
+        auto add_ring = [&](ScreenPoint center, float radius, float width_pixels, float r, float g, float blue) {
+            constexpr int kSegments = 64;
+            constexpr float kPi = 3.14159265358979323846f;
+            const float inner = std::max(1.0f, radius - width_pixels * 0.5f);
+            const float outer = radius + width_pixels * 0.5f;
+            for (int index = 0; index < kSegments; ++index) {
+                const float a0 = (2.0f * kPi * static_cast<float>(index)) / static_cast<float>(kSegments);
+                const float a1 = (2.0f * kPi * static_cast<float>(index + 1)) / static_cast<float>(kSegments);
+                ScreenPoint o0{center.x + std::cos(a0) * outer, center.y + std::sin(a0) * outer};
+                ScreenPoint o1{center.x + std::cos(a1) * outer, center.y + std::sin(a1) * outer};
+                ScreenPoint i0{center.x + std::cos(a0) * inner, center.y + std::sin(a0) * inner};
+                ScreenPoint i1{center.x + std::cos(a1) * inner, center.y + std::sin(a1) * inner};
+                add_triangle(o0, o1, i1, r, g, blue);
+                add_triangle(o0, i1, i0, r, g, blue);
+            }
+        };
+        auto axis_color = [](const std::string& axis) -> DirectX::XMFLOAT3 {
+            if (axis == "x") return DirectX::XMFLOAT3(1.0f, 0.20f, 0.20f);
+            if (axis == "y") return DirectX::XMFLOAT3(0.30f, 0.62f, 1.0f);
+            return DirectX::XMFLOAT3(0.08f, 0.92f, 0.40f);
+        };
+
+        ScreenPoint origin = axis_points.begin()->second.first;
+        for (const auto& [axis, segment] : axis_points) {
+            const bool active = alignment_.drag_axis == axis || alignment_.hover_axis == axis;
+            DirectX::XMFLOAT3 color = axis_color(axis);
+            add_thick_line(segment.first, segment.second, active ? 9.0f : 7.0f, 0.0f, 0.0f, 0.0f);
+            add_thick_line(segment.first, segment.second, active ? 6.0f : 5.0f, color.x, color.y, color.z);
+            add_disc(segment.second, active ? 14.0f : 12.0f, 0.0f, 0.0f, 0.0f);
+            add_disc(segment.second, active ? 11.0f : 9.5f, color.x, color.y, color.z);
+        }
+
+        const bool screen_active = alignment_.drag_axis == "screen" || alignment_.hover_axis == "screen";
+        add_disc(origin, screen_active ? 13.0f : 11.0f, 0.0f, 0.0f, 0.0f);
+        add_disc(origin, screen_active ? 10.0f : 8.5f, 1.0f, 0.86f, 0.36f);
+        const bool rotate_active = (alignment_.rotation_drag_active && !alignment_.rotation_drag_roll) || alignment_.hover_axis == "rotate";
+        const bool roll_active = (alignment_.rotation_drag_active && alignment_.rotation_drag_roll) || alignment_.hover_axis == "roll";
+        add_ring(origin, rotate_active ? 50.0f : 48.0f, rotate_active ? 7.0f : 5.5f, 0.0f, 0.0f, 0.0f);
+        add_ring(origin, rotate_active ? 50.0f : 48.0f, rotate_active ? 4.5f : 3.5f, 1.0f, 0.86f, 0.36f);
+        add_ring(origin, roll_active ? 76.0f : 74.0f, roll_active ? 7.0f : 5.5f, 0.0f, 0.0f, 0.0f);
+        add_ring(origin, roll_active ? 76.0f : 74.0f, roll_active ? 4.5f : 3.5f, 0.84f, 0.52f, 1.0f);
+        add_disc(ScreenPoint{origin.x + 48.0f, origin.y}, rotate_active ? 8.0f : 6.5f, 1.0f, 0.86f, 0.36f);
+        add_disc(ScreenPoint{origin.x + 74.0f, origin.y}, roll_active ? 8.0f : 6.5f, 0.84f, 0.52f, 1.0f);
+        draw_colored_triangles(vertices, identity, true);
+    }
+
+    static DirectX::XMFLOAT3 transform_coord(const DirectX::XMFLOAT3& point, const DirectX::XMMATRIX& matrix) {
+        DirectX::XMFLOAT3 output{};
+        DirectX::XMStoreFloat3(&output, DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&point), matrix));
+        return output;
+    }
+
+    static void append_debug_line(
+        std::vector<float>& vertices,
+        const DirectX::XMFLOAT3& a,
+        const DirectX::XMFLOAT3& b,
+        float r,
+        float g,
+        float blue
+    ) {
+        append_line_vertex(vertices, a.x, a.y, a.z, r, g, blue);
+        append_line_vertex(vertices, b.x, b.y, b.z, r, g, blue);
+    }
+
+    static void append_debug_cross(
+        std::vector<float>& vertices,
+        const DirectX::XMFLOAT3& point,
+        float size,
+        float r,
+        float g,
+        float blue
+    ) {
+        const float s = std::max(0.0025f, size);
+        append_debug_line(vertices, DirectX::XMFLOAT3(point.x - s, point.y, point.z), DirectX::XMFLOAT3(point.x + s, point.y, point.z), r, g, blue);
+        append_debug_line(vertices, DirectX::XMFLOAT3(point.x, point.y - s, point.z), DirectX::XMFLOAT3(point.x, point.y + s, point.z), r, g, blue);
+        append_debug_line(vertices, DirectX::XMFLOAT3(point.x, point.y, point.z - s), DirectX::XMFLOAT3(point.x, point.y, point.z + s), r, g, blue);
+    }
+
+    static void append_debug_aabb(
+        std::vector<float>& vertices,
+        const DirectX::XMFLOAT3& min_corner,
+        const DirectX::XMFLOAT3& max_corner,
+        float r,
+        float g,
+        float blue
+    ) {
+        DirectX::XMFLOAT3 corners[8] = {
+            {min_corner.x, min_corner.y, min_corner.z},
+            {max_corner.x, min_corner.y, min_corner.z},
+            {max_corner.x, max_corner.y, min_corner.z},
+            {min_corner.x, max_corner.y, min_corner.z},
+            {min_corner.x, min_corner.y, max_corner.z},
+            {max_corner.x, min_corner.y, max_corner.z},
+            {max_corner.x, max_corner.y, max_corner.z},
+            {min_corner.x, max_corner.y, max_corner.z},
+        };
+        constexpr int edges[12][2] = {
+            {0, 1}, {1, 2}, {2, 3}, {3, 0},
+            {4, 5}, {5, 6}, {6, 7}, {7, 4},
+            {0, 4}, {1, 5}, {2, 6}, {3, 7},
+        };
+        for (const auto& edge : edges) {
+            append_debug_line(vertices, corners[edge[0]], corners[edge[1]], r, g, blue);
+        }
+    }
+
+    void draw_cloth_debug_overlays(const PreviewRenderView& view, const DirectX::XMMATRIX& world_view_projection) {
+        if (!cloth_state_.show_pins && !cloth_state_.show_colliders) return;
+        std::vector<float> vertices;
+        vertices.reserve(23u * 256u);
+        if (cloth_state_.show_colliders) {
+            for (const ClothCollider& collider : cloth_colliders_) {
+                if (collider.type == 1) {
+                    const float radius = std::max(0.012f, collider.radius);
+                    append_debug_cross(vertices, collider.a, radius, 0.25f, 0.82f, 1.0f);
+                    append_debug_line(vertices, DirectX::XMFLOAT3(collider.a.x - radius, collider.a.y, collider.a.z), DirectX::XMFLOAT3(collider.a.x + radius, collider.a.y, collider.a.z), 0.25f, 0.82f, 1.0f);
+                    append_debug_line(vertices, DirectX::XMFLOAT3(collider.a.x, collider.a.y - radius, collider.a.z), DirectX::XMFLOAT3(collider.a.x, collider.a.y + radius, collider.a.z), 0.25f, 0.82f, 1.0f);
+                    append_debug_line(vertices, DirectX::XMFLOAT3(collider.a.x, collider.a.y, collider.a.z - radius), DirectX::XMFLOAT3(collider.a.x, collider.a.y, collider.a.z + radius), 0.25f, 0.82f, 1.0f);
+                } else if (collider.type == 2) {
+                    append_debug_line(vertices, collider.a, collider.b, 0.25f, 0.82f, 1.0f);
+                    append_debug_cross(vertices, collider.a, std::max(0.012f, collider.radius), 0.25f, 0.82f, 1.0f);
+                    append_debug_cross(vertices, collider.b, std::max(0.012f, collider.radius), 0.25f, 0.82f, 1.0f);
+                } else if (collider.type == 3) {
+                    append_debug_aabb(vertices, collider.a, collider.b, 0.25f, 0.82f, 1.0f);
+                }
+            }
+        }
+        if (cloth_state_.show_pins) {
+            for (PreviewBatch& batch : batches_) {
+                if (!batch_visible_in_view(batch, view.role) || !batch.cloth.initialized) continue;
+                const DirectX::XMMATRIX alignment_transform =
+                    view.role == PreviewViewRole::Reference ? DirectX::XMMatrixIdentity() : alignment_preview_transform_for_batch(batch);
+                const ClothRuntime& cloth = batch.cloth;
+                for (size_t index = 0; index < cloth.positions.size(); ++index) {
+                    const float pin = index < cloth.pin_weights.size() ? std::clamp(cloth.pin_weights[index], 0.0f, 1.0f) : 0.0f;
+                    if (pin <= 0.02f) continue;
+                    const DirectX::XMFLOAT3 point = transform_coord(cloth.positions[index], alignment_transform);
+                    append_debug_cross(vertices, point, 0.010f + pin * 0.020f, 1.0f, 0.42f, 0.86f);
+                }
+            }
+        }
+        draw_colored_lines(vertices, world_view_projection, true);
     }
 
     void draw_preview_batch(PreviewBatch& batch, const DirectX::XMMATRIX& mvp, const DirectX::XMFLOAT4& editor_tint) {
@@ -2162,7 +2882,14 @@ private:
         context_->RSSetViewports(1, &view.viewport);
         context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : rasterizer_.Get());
         context_->OMSetDepthStencilState(view.no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
-        const DirectX::XMMATRIX world_view_projection = current_world_matrix() * view_projection_matrix_for_viewport(view.viewport);
+        const DirectX::XMMATRIX world_view_projection =
+            world_matrix_for_view_role(view.role) * view_projection_matrix_for_viewport(view.viewport, distance_for_view_role(view.role));
+        if (!view.wireframe) {
+            draw_workspace_grid(view, world_view_projection);
+        }
+        context_->RSSetViewports(1, &view.viewport);
+        context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : rasterizer_.Get());
+        context_->OMSetDepthStencilState(view.no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
         for (PreviewBatch& batch : batches_) {
             if (!batch_visible_in_view(batch, view.role)) continue;
             const bool reference = batch_is_reference(batch);
@@ -2178,14 +2905,23 @@ private:
                     1.0f,
                     std::max(view.reference_tint_alpha, std::clamp(batch.highlight_strength, 0.0f, 0.42f)));
             }
-            draw_preview_batch(batch, alignment_preview_transform_for_batch(batch) * world_view_projection, tint);
+            const DirectX::XMMATRIX alignment_transform =
+                view.role == PreviewViewRole::Reference ? DirectX::XMMatrixIdentity() : alignment_preview_transform_for_batch(batch);
+            draw_preview_batch(batch, alignment_transform * world_view_projection, tint);
         }
+        draw_cloth_debug_overlays(view, world_view_projection);
+        draw_alignment_axes(view, world_view_projection);
     }
 
     void update_runtime_stats() {
         stats_.texture_cache_entries = static_cast<int>(srv_cache_.size());
         stats_.texture_cache_releases = texture_cache_releases_;
         stats_.estimated_texture_bytes = estimated_texture_bytes_;
+        stats_.frame_count = frame_count_;
+        stats_.render_request_count = render_request_count_;
+        stats_.render_suppressed_count = render_suppressed_count_;
+        stats_.parent_unresponsive_count = parent_unresponsive_count_;
+        stats_.parent_health = parent_health_;
         const cdmw_native_diag::ProcessMemorySnapshot memory = cdmw_native_diag::current_process_memory();
         if (memory.ok) {
             stats_.process_working_set_bytes = memory.working_set_bytes;
@@ -2198,9 +2934,16 @@ private:
     }
 
     float world_units_per_pixel() const {
+        return world_units_per_pixel_for_role(PreviewViewRole::Replacement);
+    }
+
+    float world_units_per_pixel_for_role(PreviewViewRole role) const {
         D3D11_VIEWPORT viewport = replacement_editor_viewport();
+        if (role == PreviewViewRole::Reference && side_by_side_workspace_active()) {
+            viewport = viewport_rect(0.0f, 0.0f, std::floor(static_cast<float>(width_) * 0.5f), static_cast<float>(height_));
+        }
         float viewport_height = std::max(1.0f, viewport.Height);
-        float visible_height = 2.0f * std::max(distance_, 0.1f) * std::tan(DirectX::XMConvertToRadians(kVerticalFovDegrees) * 0.5f);
+        float visible_height = 2.0f * std::max(distance_for_view_role(role), 0.1f) * std::tan(DirectX::XMConvertToRadians(kVerticalFovDegrees) * 0.5f);
         return visible_height / viewport_height;
     }
 
@@ -2213,7 +2956,7 @@ private:
     }
 
     DirectX::XMMATRIX current_view_projection_matrix() const {
-        return view_projection_matrix_for_viewport(replacement_editor_viewport());
+        return view_projection_matrix_for_viewport(replacement_editor_viewport(), distance_);
     }
 
     DirectX::XMMATRIX current_mvp_matrix() const {
@@ -2270,11 +3013,10 @@ private:
         float origin_x = 0.0f;
         float origin_y = 0.0f;
         if (!project_position(origin, origin_x, origin_y)) return points;
-        constexpr float kAxisExtent = 0.72f;
         const std::pair<const char*, DirectX::XMFLOAT3> axes[] = {
-            {"x", DirectX::XMFLOAT3(origin.x + kAxisExtent, origin.y, origin.z)},
-            {"y", DirectX::XMFLOAT3(origin.x, origin.y + kAxisExtent, origin.z)},
-            {"z", DirectX::XMFLOAT3(origin.x, origin.y, origin.z + kAxisExtent)},
+            {"x", DirectX::XMFLOAT3(origin.x + kAlignmentAxisExtent, origin.y, origin.z)},
+            {"y", DirectX::XMFLOAT3(origin.x, origin.y + kAlignmentAxisExtent, origin.z)},
+            {"z", DirectX::XMFLOAT3(origin.x, origin.y, origin.z + kAlignmentAxisExtent)},
         };
         for (const auto& axis : axes) {
             float end_x = 0.0f;
@@ -2306,12 +3048,12 @@ private:
         if (alignment_handle_origin(origin)) {
             float origin_x = 0.0f;
             float origin_y = 0.0f;
-            if (project_position(origin, origin_x, origin_y) && std::hypot(static_cast<float>(x) - origin_x, static_cast<float>(y) - origin_y) <= 18.0f) {
+            if (project_position(origin, origin_x, origin_y) && std::hypot(static_cast<float>(x) - origin_x, static_cast<float>(y) - origin_y) <= 26.0f) {
                 return "screen";
             }
         }
         std::string best_axis;
-        float best_distance = 20.0f;
+        float best_distance = 30.0f;
         for (const auto& [axis, segment] : alignment_axis_points()) {
             float distance = distance_to_segment(static_cast<float>(x), static_cast<float>(y), segment.first, segment.second);
             if (distance < best_distance) {
@@ -2320,6 +3062,19 @@ private:
             }
         }
         return best_axis;
+    }
+
+    std::string alignment_rotation_handle_at(int x, int y) const {
+        if (!alignment_.enabled) return "";
+        DirectX::XMFLOAT3 origin{};
+        if (!alignment_handle_origin(origin)) return "";
+        float origin_x = 0.0f;
+        float origin_y = 0.0f;
+        if (!project_position(origin, origin_x, origin_y)) return "";
+        const float distance = std::hypot(static_cast<float>(x) - origin_x, static_cast<float>(y) - origin_y);
+        if (distance >= 34.0f && distance <= 58.0f) return "rotate";
+        if (distance >= 62.0f && distance <= 84.0f) return "roll";
+        return "";
     }
 
     DirectX::XMFLOAT3 alignment_screen_drag_delta(int delta_x, int delta_y, float units_per_pixel) const {
@@ -2349,6 +3104,19 @@ private:
         send_json_event(out.str());
     }
 
+    bool alignment_drag_change_due(std::chrono::steady_clock::time_point& last_sent) const {
+        auto now = std::chrono::steady_clock::now();
+        if (last_sent.time_since_epoch().count() == 0) {
+            last_sent = now;
+            return true;
+        }
+        if (std::chrono::duration<double, std::milli>(now - last_sent).count() < 50.0) {
+            return false;
+        }
+        last_sent = now;
+        return true;
+    }
+
     void send_alignment_started_event(const char* mode, const char* axis) const {
         std::ostringstream out;
         out << "{\"event\":\"alignment_drag_started\""
@@ -2360,12 +3128,30 @@ private:
 
     bool begin_alignment_drag(WPARAM wparam, int x, int y) {
         if (!alignment_.enabled || mesh_edit_.enabled) return false;
+        if (input_view_role_at(x, y) == PreviewViewRole::Reference && side_by_side_workspace_active()) {
+            return false;
+        }
         bool alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
         bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
         if (alt_down) {
             alignment_.rotation_drag_active = true;
             alignment_.rotation_drag_roll = shift_down;
-            alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+            alignment_.rotation_drag_base = alignment_.rotation_total;
+            alignment_.rotation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+            alignment_.last_rotation_change_sent = std::chrono::steady_clock::time_point{};
+            alignment_.last_x = x;
+            alignment_.last_y = y;
+            SetCapture(hwnd_);
+            send_alignment_started_event("rotation", alignment_.rotation_drag_roll ? "roll" : "orbit");
+            return true;
+        }
+        std::string rotation_handle = alignment_rotation_handle_at(x, y);
+        if (!rotation_handle.empty()) {
+            alignment_.rotation_drag_active = true;
+            alignment_.rotation_drag_roll = rotation_handle == "roll" || shift_down;
+            alignment_.rotation_drag_base = alignment_.rotation_total;
+            alignment_.rotation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+            alignment_.last_rotation_change_sent = std::chrono::steady_clock::time_point{};
             alignment_.last_x = x;
             alignment_.last_y = y;
             SetCapture(hwnd_);
@@ -2377,7 +3163,9 @@ private:
         alignment_.drag_axis = axis;
         alignment_.hover_axis = axis;
         alignment_.drag_active = true;
-        alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.translation_drag_base = alignment_.translation_total;
+        alignment_.translation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.last_translation_change_sent = std::chrono::steady_clock::time_point{};
         alignment_.last_x = x;
         alignment_.last_y = y;
         SetCapture(hwnd_);
@@ -2412,10 +3200,16 @@ private:
             else if (alignment_.drag_axis == "y") delta.y = movement;
             else if (alignment_.drag_axis == "z") delta.z = movement;
         }
-        alignment_.translation_total.x += delta.x;
-        alignment_.translation_total.y += delta.y;
-        alignment_.translation_total.z += delta.z;
-        send_alignment_vector_event("alignment_drag_changed", alignment_.translation_total);
+        alignment_.translation_drag_delta.x += delta.x;
+        alignment_.translation_drag_delta.y += delta.y;
+        alignment_.translation_drag_delta.z += delta.z;
+        alignment_.translation_total = DirectX::XMFLOAT3(
+            alignment_.translation_drag_base.x + alignment_.translation_drag_delta.x,
+            alignment_.translation_drag_base.y + alignment_.translation_drag_delta.y,
+            alignment_.translation_drag_base.z + alignment_.translation_drag_delta.z);
+        if (alignment_drag_change_due(alignment_.last_translation_change_sent)) {
+            send_alignment_vector_event("alignment_drag_changed", alignment_.translation_drag_delta);
+        }
         return true;
     }
 
@@ -2438,10 +3232,16 @@ private:
             delta.x = static_cast<float>(delta_y) * degrees_per_pixel;
             delta.y = static_cast<float>(delta_x) * degrees_per_pixel;
         }
-        alignment_.rotation_total.x += delta.x;
-        alignment_.rotation_total.y += delta.y;
-        alignment_.rotation_total.z += delta.z;
-        send_alignment_vector_event("alignment_rotation_changed", alignment_.rotation_total);
+        alignment_.rotation_drag_delta.x += delta.x;
+        alignment_.rotation_drag_delta.y += delta.y;
+        alignment_.rotation_drag_delta.z += delta.z;
+        alignment_.rotation_total = DirectX::XMFLOAT3(
+            alignment_.rotation_drag_base.x + alignment_.rotation_drag_delta.x,
+            alignment_.rotation_drag_base.y + alignment_.rotation_drag_delta.y,
+            alignment_.rotation_drag_base.z + alignment_.rotation_drag_delta.z);
+        if (alignment_drag_change_due(alignment_.last_rotation_change_sent)) {
+            send_alignment_vector_event("alignment_rotation_changed", alignment_.rotation_drag_delta);
+        }
         return true;
     }
 
@@ -2455,7 +3255,10 @@ private:
         if (!alignment_.enabled || mesh_edit_.enabled || alignment_.drag_active || alignment_.rotation_drag_active) {
             return;
         }
-        std::string next_axis = alignment_axis_at(x, y);
+        std::string next_axis = alignment_rotation_handle_at(x, y);
+        if (next_axis.empty()) {
+            next_axis = alignment_axis_at(x, y);
+        }
         if (next_axis != alignment_.hover_axis) {
             alignment_.hover_axis = next_axis;
             request_render();
@@ -2465,7 +3268,7 @@ private:
     bool finish_alignment_drag(int x, int y, WPARAM wparam) {
         if (alignment_.rotation_drag_active) {
             update_alignment_rotation_drag(x, y, wparam);
-            send_alignment_vector_event("alignment_rotation_finished", alignment_.rotation_total);
+            send_alignment_vector_event("alignment_rotation_finished", alignment_.rotation_drag_delta);
             alignment_.rotation_drag_active = false;
             alignment_.rotation_drag_roll = false;
             if (GetCapture() == hwnd_) ReleaseCapture();
@@ -2473,7 +3276,7 @@ private:
         }
         if (alignment_.drag_active) {
             update_alignment_translation_drag(x, y, wparam);
-            send_alignment_vector_event("alignment_drag_finished", alignment_.translation_total);
+            send_alignment_vector_event("alignment_drag_finished", alignment_.translation_drag_delta);
             alignment_.drag_active = false;
             alignment_.drag_axis.clear();
             if (GetCapture() == hwnd_) ReleaseCapture();
@@ -2484,65 +3287,24 @@ private:
 
     bool cancel_alignment_drag() {
         bool was_active = alignment_.drag_active || alignment_.rotation_drag_active;
+        if (alignment_.drag_active) {
+            alignment_.translation_total = alignment_.translation_drag_base;
+        }
+        if (alignment_.rotation_drag_active) {
+            alignment_.rotation_total = alignment_.rotation_drag_base;
+        }
         alignment_.drag_active = false;
         alignment_.rotation_drag_active = false;
         alignment_.rotation_drag_roll = false;
         alignment_.drag_axis.clear();
-        alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
-        alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.translation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.rotation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         return was_active;
     }
 
     void draw_alignment_overlay_gdi() const {
-        if (!alignment_.enabled || width_ <= 1 || height_ <= 1) return;
-        auto points = alignment_axis_points();
-        if (points.empty()) return;
-        HDC dc = GetDC(hwnd_);
-        if (!dc) return;
-        int old_bk_mode = SetBkMode(dc, TRANSPARENT);
-        COLORREF old_text_color = SetTextColor(dc, RGB(226, 232, 240));
-        HPEN old_pen = reinterpret_cast<HPEN>(SelectObject(dc, GetStockObject(DC_PEN)));
-        HBRUSH old_brush = reinterpret_cast<HBRUSH>(SelectObject(dc, GetStockObject(NULL_BRUSH)));
-        const auto draw_axis = [&](const char* axis, COLORREF color, const ScreenPoint& start, const ScreenPoint& end) {
-            bool active = alignment_.drag_axis == axis || alignment_.hover_axis == axis;
-            SetDCPenColor(dc, color);
-            SelectObject(dc, GetStockObject(DC_PEN));
-            MoveToEx(dc, static_cast<int>(std::round(start.x)), static_cast<int>(std::round(start.y)), nullptr);
-            LineTo(dc, static_cast<int>(std::round(end.x)), static_cast<int>(std::round(end.y)));
-            int radius = active ? 8 : 6;
-            Ellipse(
-                dc,
-                static_cast<int>(std::round(end.x)) - radius,
-                static_cast<int>(std::round(end.y)) - radius,
-                static_cast<int>(std::round(end.x)) + radius,
-                static_cast<int>(std::round(end.y)) + radius);
-            TextOutA(dc, static_cast<int>(std::round(end.x)) + 8, static_cast<int>(std::round(end.y)) - 8, axis, 1);
-        };
-        for (const auto& [axis, segment] : points) {
-            COLORREF color = RGB(239, 68, 68);
-            if (axis == "y") color = RGB(59, 130, 246);
-            else if (axis == "z") color = RGB(34, 197, 94);
-            draw_axis(axis.c_str(), color, segment.first, segment.second);
-        }
-        const ScreenPoint& origin = points.begin()->second.first;
-        bool screen_active = alignment_.drag_axis == "screen" || alignment_.hover_axis == "screen";
-        SetDCPenColor(dc, RGB(255, 244, 179));
-        int radius = screen_active ? 10 : 8;
-        Ellipse(
-            dc,
-            static_cast<int>(std::round(origin.x)) - radius,
-            static_cast<int>(std::round(origin.y)) - radius,
-            static_cast<int>(std::round(origin.x)) + radius,
-            static_cast<int>(std::round(origin.y)) + radius);
-        MoveToEx(dc, static_cast<int>(std::round(origin.x)) - radius + 3, static_cast<int>(std::round(origin.y)), nullptr);
-        LineTo(dc, static_cast<int>(std::round(origin.x)) + radius - 3, static_cast<int>(std::round(origin.y)));
-        MoveToEx(dc, static_cast<int>(std::round(origin.x)), static_cast<int>(std::round(origin.y)) - radius + 3, nullptr);
-        LineTo(dc, static_cast<int>(std::round(origin.x)), static_cast<int>(std::round(origin.y)) + radius - 3);
-        SelectObject(dc, old_pen);
-        SelectObject(dc, old_brush);
-        SetTextColor(dc, old_text_color);
-        SetBkMode(dc, old_bk_mode);
-        ReleaseDC(hwnd_, dc);
+        // Text labels are omitted in the native path to keep interaction fully
+        // inside the D3D frame. The visible handles are rendered before Present.
     }
 
     int source_part_at(int x, int y, float radius_pixels) const {
@@ -2914,14 +3676,16 @@ private:
         SendMessageW(parent, WM_COPYDATA, reinterpret_cast<WPARAM>(hwnd_), reinterpret_cast<LPARAM>(&cds));
     }
 
-    void send_view_event(const char* reason) const {
+    void send_view_event(const char* reason, PreviewViewRole role = PreviewViewRole::Replacement) const {
+        const PreviewCameraState camera = camera_for_view_role(role);
         std::ostringstream out;
         out << "{\"event\":\"view_state\",\"reason\":\"" << json_escape(reason ? reason : "") << "\""
-            << ",\"zoom_factor\":" << zoom_factor_
-            << ",\"fit_to_view\":" << (fit_to_view_ ? "true" : "false")
-            << ",\"yaw\":" << yaw_
-            << ",\"pitch\":" << pitch_
-            << ",\"pan\":[" << pan_x_ << "," << pan_y_ << "," << pan_z_ << "]"
+            << ",\"role\":\"" << preview_view_role_name(role) << "\""
+            << ",\"zoom_factor\":" << camera.zoom_factor
+            << ",\"fit_to_view\":" << (camera.fit_to_view ? "true" : "false")
+            << ",\"yaw\":" << camera.yaw
+            << ",\"pitch\":" << camera.pitch
+            << ",\"pan\":[" << camera.pan_x << "," << camera.pan_y << "," << camera.pan_z << "]"
             << "}";
         send_json_event(out.str());
     }
@@ -2950,10 +3714,7 @@ private:
             return true;
         }
         if (command == "set_display_mode") {
-            std::string mode = lower_copy(json_string_field(payload, "mode", display_mode_));
-            if (mode != "side_by_side" && mode != "overlay" && mode != "replacement_only") {
-                mode = "replacement_only";
-            }
+            std::string mode = normalize_display_mode(json_string_field(payload, "mode", display_mode_), display_mode_);
             display_mode_ = mode;
             request_render();
             cdmw_native_diag::event("command_set_display_mode", {{"mode", display_mode_}});
@@ -2968,6 +3729,17 @@ private:
         if (command == "set_render_tuning") {
             render_tuning_ = parse_render_tuning(payload);
             view_settings_ = parse_view_settings(payload);
+            cloth_state_.enabled = json_bool_field(payload, "enable_tool_pbd_cloth_preview", cloth_state_.enabled);
+            cloth_state_.paused = json_bool_field(payload, "pause_tool_pbd_cloth_preview", cloth_state_.paused);
+            cloth_state_.show_pins = json_bool_field(payload, "show_tool_pbd_cloth_pins", cloth_state_.show_pins);
+            cloth_state_.show_colliders = json_bool_field(payload, "show_tool_pbd_cloth_colliders", cloth_state_.show_colliders);
+            cloth_state_.wind_strength = std::clamp(json_float_field(payload, "tool_pbd_cloth_wind_strength", cloth_state_.wind_strength), 0.0f, 2.0f);
+            cloth_state_.wind_direction_degrees = std::clamp(json_float_field(payload, "tool_pbd_cloth_wind_direction_degrees", cloth_state_.wind_direction_degrees), -180.0f, 180.0f);
+            if (json_bool_field(payload, "reset_tool_pbd_cloth_preview", false)) {
+                reset_cloth_runtime();
+            }
+            render_tuning_overridden_ = true;
+            view_settings_overridden_ = true;
             const bool sampler_ok = create_sampler_state();
             request_render();
             cdmw_native_diag::event(
@@ -2987,8 +3759,15 @@ private:
                   << ",\"ambient_strength\":" << render_tuning_.ambient_strength
                   << ",\"diffuse_light_scale\":" << render_tuning_.diffuse_light_scale
                   << ",\"specular_max\":" << render_tuning_.specular_max
+                  << ",\"cloth_enabled\":" << (cloth_state_.enabled ? "true" : "false")
                   << "}";
             send_json_event(event.str());
+            return true;
+        }
+        if (command == "reset_tool_pbd_cloth_preview") {
+            reset_cloth_runtime();
+            request_render();
+            send_json_event("{\"event\":\"cloth_preview_reset\",\"ok\":true}");
             return true;
         }
         if (command == "set_highlights") {
@@ -2996,15 +3775,50 @@ private:
             for (int value : json_int_array_field(payload, "source_submesh_indices")) {
                 highlighted.insert(value);
             }
+            std::set<int> highlighted_replacement;
+            for (int value : json_int_array_field(payload, "replacement_submesh_indices")) {
+                highlighted_replacement.insert(value);
+            }
+            std::set<int> highlighted_original;
+            for (int value : json_int_array_field(payload, "original_submesh_indices")) {
+                highlighted_original.insert(value);
+            }
+            const bool role_scoped = !highlighted_replacement.empty() || !highlighted_original.empty();
             int highlighted_batches = 0;
             for (PreviewBatch& batch : batches_) {
-                bool active = highlighted.find(batch.source_submesh_index) != highlighted.end();
+                std::string role = lower_copy(batch.editor_role);
+                bool active = false;
+                if (role_scoped && role == "original_reference") {
+                    active = highlighted_original.find(batch.source_submesh_index) != highlighted_original.end();
+                } else if (role_scoped && role == "replacement_preview") {
+                    active = highlighted_replacement.find(batch.source_submesh_index) != highlighted_replacement.end();
+                } else {
+                    active = highlighted.find(batch.source_submesh_index) != highlighted.end();
+                }
                 batch.highlight_strength = active ? 0.34f : 0.0f;
                 if (active) ++highlighted_batches;
             }
             request_render();
             std::ostringstream event;
             event << "{\"event\":\"highlight_state\",\"highlighted_batches\":" << highlighted_batches << "}";
+            send_json_event(event.str());
+            return true;
+        }
+        if (command == "set_hidden_source_submeshes") {
+            hidden_source_submeshes_.clear();
+            for (int value : json_int_array_field(payload, "source_submesh_indices")) {
+                if (value >= 0) hidden_source_submeshes_.insert(value);
+            }
+            int visible_batches = 0;
+            for (const PreviewBatch& batch : batches_) {
+                if (batch.source_submesh_index < 0 || hidden_source_submeshes_.find(batch.source_submesh_index) == hidden_source_submeshes_.end()) {
+                    ++visible_batches;
+                }
+            }
+            request_render();
+            std::ostringstream event;
+            event << "{\"event\":\"part_visibility\",\"hidden_parts\":" << hidden_source_submeshes_.size()
+                  << ",\"visible_batches\":" << visible_batches << "}";
             send_json_event(event.str());
             return true;
         }
@@ -3037,12 +3851,30 @@ private:
             for (int value : json_int_array_field(payload, "source_submesh_indices")) {
                 if (value >= 0) alignment_.selected_source_submeshes.insert(value);
             }
+            alignment_.origin_cache_valid = false;
             if (!alignment_.enabled) {
                 cancel_alignment_drag();
                 alignment_.hover_axis.clear();
             }
             request_render();
             send_json_event("{\"event\":\"alignment_state\",\"ok\":true}");
+            return true;
+        }
+        if (command == "set_alignment_transform") {
+            alignment_.translation_total = DirectX::XMFLOAT3(
+                json_float_field(payload, "translation_x", alignment_.translation_total.x),
+                json_float_field(payload, "translation_y", alignment_.translation_total.y),
+                json_float_field(payload, "translation_z", alignment_.translation_total.z));
+            alignment_.rotation_total = DirectX::XMFLOAT3(
+                json_float_field(payload, "rotation_x", alignment_.rotation_total.x),
+                json_float_field(payload, "rotation_y", alignment_.rotation_total.y),
+                json_float_field(payload, "rotation_z", alignment_.rotation_total.z));
+            alignment_.scale_total = DirectX::XMFLOAT3(
+                std::clamp(json_float_field(payload, "scale_x", alignment_.scale_total.x), 0.001f, 1000.0f),
+                std::clamp(json_float_field(payload, "scale_y", alignment_.scale_total.y), 0.001f, 1000.0f),
+                std::clamp(json_float_field(payload, "scale_z", alignment_.scale_total.z), 0.001f, 1000.0f));
+            request_render();
+            send_json_event("{\"event\":\"alignment_transform\",\"ok\":true}");
             return true;
         }
         if (command == "clear_mesh_edit_selection") {
@@ -3066,12 +3898,24 @@ private:
             return true;
         }
         if (command == "set_view") {
-            yaw_ = json_float_field(payload, "yaw", yaw_);
-            pitch_ = std::clamp(json_float_field(payload, "pitch", pitch_), -89.0f, 89.0f);
-            zoom_factor_ = std::clamp(json_float_field(payload, "zoom_factor", zoom_factor_), 0.1f, 16.0f);
-            fit_to_view_ = json_bool_field(payload, "fit_to_view", fit_to_view_);
-            distance_ = fit_to_view_ ? kFitDistance : kFitDistance / std::max(zoom_factor_, 0.1f);
-            send_view_event("set_view");
+            std::string role_name = lower_copy(json_string_field(payload, "role", "replacement"));
+            PreviewViewRole role = PreviewViewRole::Replacement;
+            if (role_name == "reference") {
+                role = PreviewViewRole::Reference;
+            } else if (role_name == "all") {
+                role = PreviewViewRole::All;
+            }
+            PreviewCameraState camera = camera_for_view_role(role);
+            camera.yaw = json_float_field(payload, "yaw", camera.yaw);
+            camera.pitch = std::clamp(json_float_field(payload, "pitch", camera.pitch), -89.0f, 89.0f);
+            camera.zoom_factor = std::clamp(json_float_field(payload, "zoom_factor", camera.zoom_factor), 0.1f, 16.0f);
+            camera.fit_to_view = json_bool_field(payload, "fit_to_view", camera.fit_to_view);
+            camera.distance = camera.fit_to_view ? kFitDistance : kFitDistance / std::max(camera.zoom_factor, 0.1f);
+            camera.pan_x = json_float_field(payload, "pan_x", camera.pan_x);
+            camera.pan_y = json_float_field(payload, "pan_y", camera.pan_y);
+            camera.pan_z = json_float_field(payload, "pan_z", camera.pan_z);
+            set_replacement_camera(camera);
+            send_view_event("set_view", PreviewViewRole::Replacement);
             request_render();
             return true;
         }
@@ -3079,32 +3923,43 @@ private:
         return false;
     }
 
+    static void reset_camera(PreviewCameraState& camera) {
+        camera = PreviewCameraState{};
+    }
+
+    void reset_replacement_camera() {
+        PreviewCameraState camera;
+        reset_camera(camera);
+        set_replacement_camera(camera);
+    }
+
+    void reset_camera_for_role(PreviewViewRole role) {
+        (void)role;
+        reset_replacement_camera();
+    }
+
     void reset_view() {
-        yaw_ = kDefaultYawDegrees;
-        pitch_ = kDefaultPitchDegrees;
-        fit_to_view_ = true;
-        zoom_factor_ = 1.0f;
-        distance_ = kFitDistance;
-        pan_x_ = 0.0f;
-        pan_y_ = 0.0f;
-        pan_z_ = 0.0f;
+        reset_replacement_camera();
+        reset_camera(reference_camera_);
         drag_mode_ = 0;
         drag_button_ = 0;
         if (GetCapture() == hwnd_) ReleaseCapture();
-        send_view_event("reset");
+        send_view_event("reset", PreviewViewRole::Replacement);
     }
 
     void set_zoom_factor(float zoom_factor) {
         zoom_factor_ = std::clamp(zoom_factor, 0.1f, 16.0f);
         fit_to_view_ = false;
         distance_ = kFitDistance / zoom_factor_;
-        send_view_event("zoom");
+        reference_camera_ = replacement_camera();
+        send_view_event("zoom", PreviewViewRole::Replacement);
     }
 
     void set_fit_to_view(bool fit_to_view) {
         fit_to_view_ = fit_to_view;
         distance_ = fit_to_view_ ? kFitDistance : kFitDistance / std::max(zoom_factor_, 0.1f);
-        send_view_event("fit");
+        reference_camera_ = replacement_camera();
+        send_view_event("fit", PreviewViewRole::Replacement);
     }
 
     void begin_mouse_drag(UINT msg, WPARAM wparam, int x, int y) {
@@ -3112,6 +3967,7 @@ private:
         bool pan_requested = msg == WM_MBUTTONDOWN || msg == WM_RBUTTONDOWN || (msg == WM_LBUTTONDOWN && shift_down);
         drag_mode_ = pan_requested ? 2 : (msg == WM_LBUTTONDOWN ? 1 : 0);
         drag_button_ = msg;
+        drag_view_role_ = PreviewViewRole::Replacement;
         last_mouse_x_ = x;
         last_mouse_y_ = y;
         if (drag_mode_ != 0) SetCapture(hwnd_);
@@ -3124,21 +3980,23 @@ private:
         last_mouse_x_ = x;
         last_mouse_y_ = y;
         if (delta_x == 0 && delta_y == 0) return;
+        PreviewCameraState camera = camera_for_view_role(drag_view_role_);
         if (drag_mode_ == 1) {
             float orbit_sign_x = view_settings_.invert_orbit_x ? -1.0f : 1.0f;
             float orbit_sign_y = view_settings_.invert_orbit_y ? -1.0f : 1.0f;
-            yaw_ += static_cast<float>(delta_x) * view_settings_.orbit_sensitivity * orbit_sign_x;
-            pitch_ = std::clamp(
-                pitch_ + static_cast<float>(delta_y) * view_settings_.orbit_sensitivity * orbit_sign_y,
+            camera.yaw += static_cast<float>(delta_x) * view_settings_.orbit_sensitivity * orbit_sign_x;
+            camera.pitch = std::clamp(
+                camera.pitch + static_cast<float>(delta_y) * view_settings_.orbit_sensitivity * orbit_sign_y,
                 -89.0f,
                 89.0f);
         } else if (drag_mode_ == 2) {
-            float units_per_pixel = world_units_per_pixel();
+            float units_per_pixel = world_units_per_pixel_for_role(drag_view_role_);
             float horizontal_sign = view_settings_.invert_pan_x ? -1.0f : 1.0f;
             float vertical_sign = view_settings_.invert_pan_y ? 1.0f : -1.0f;
-            pan_x_ += static_cast<float>(delta_x) * units_per_pixel * view_settings_.pan_sensitivity * horizontal_sign;
-            pan_y_ += static_cast<float>(delta_y) * units_per_pixel * view_settings_.pan_sensitivity * vertical_sign;
+            camera.pan_x += static_cast<float>(delta_x) * units_per_pixel * view_settings_.pan_sensitivity * horizontal_sign;
+            camera.pan_y += static_cast<float>(delta_y) * units_per_pixel * view_settings_.pan_sensitivity * vertical_sign;
         }
+        set_replacement_camera(camera);
     }
 
     void end_mouse_drag(UINT msg) {
@@ -3149,14 +4007,18 @@ private:
         if (!release) return;
         drag_mode_ = 0;
         drag_button_ = 0;
+        const PreviewViewRole completed_role = drag_view_role_;
+        drag_view_role_ = PreviewViewRole::All;
         if (GetCapture() == hwnd_) ReleaseCapture();
-        send_view_event("drag");
+        send_view_event("drag", completed_role);
     }
 
-    void apply_wheel_delta(int wheel_delta) {
+    void apply_wheel_delta(int wheel_delta, int x, int y) {
         if (wheel_delta == 0) return;
+        const PreviewViewRole role = PreviewViewRole::Replacement;
+        PreviewCameraState camera = camera_for_view_role(role);
         int step = wheel_delta > 0 ? 1 : -1;
-        float current_zoom = fit_to_view_ ? current_display_scale(distance_) : zoom_factor_;
+        float current_zoom = camera.fit_to_view ? current_display_scale(camera.distance) : camera.zoom_factor;
         size_t closest = 0;
         float best_distance = std::abs(kZoomSteps[0] - current_zoom);
         for (size_t index = 1; index < ARRAYSIZE(kZoomSteps); ++index) {
@@ -3167,10 +4029,11 @@ private:
             }
         }
         int next_index = std::clamp(static_cast<int>(closest) + step, 0, static_cast<int>(ARRAYSIZE(kZoomSteps)) - 1);
-        fit_to_view_ = false;
-        zoom_factor_ = kZoomSteps[next_index];
-        distance_ = kFitDistance / zoom_factor_;
-        send_view_event("wheel");
+        camera.fit_to_view = false;
+        camera.zoom_factor = kZoomSteps[next_index];
+        camera.distance = kFitDistance / camera.zoom_factor;
+        set_replacement_camera(camera);
+        send_view_event("wheel", role);
     }
 
     bool create_render_targets() {
@@ -3291,6 +4154,304 @@ private:
         return false;
     }
 
+    static DirectX::XMFLOAT3 add3(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b) {
+        return DirectX::XMFLOAT3(a.x + b.x, a.y + b.y, a.z + b.z);
+    }
+
+    static DirectX::XMFLOAT3 sub3(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b) {
+        return DirectX::XMFLOAT3(a.x - b.x, a.y - b.y, a.z - b.z);
+    }
+
+    static DirectX::XMFLOAT3 mul3(const DirectX::XMFLOAT3& a, float scale) {
+        return DirectX::XMFLOAT3(a.x * scale, a.y * scale, a.z * scale);
+    }
+
+    static float dot3(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b) {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+    }
+
+    static float length3(const DirectX::XMFLOAT3& value) {
+        return std::sqrt(std::max(0.0f, dot3(value, value)));
+    }
+
+    static DirectX::XMFLOAT3 normalize3(
+        const DirectX::XMFLOAT3& value,
+        const DirectX::XMFLOAT3& fallback = DirectX::XMFLOAT3(0.0f, 0.0f, 1.0f)) {
+        float length = length3(value);
+        if (length <= 1e-8f || !std::isfinite(length)) return fallback;
+        return mul3(value, 1.0f / length);
+    }
+
+    bool load_cloth_runtime(PreviewBatch& batch) {
+        ClothRuntime& cloth = batch.cloth;
+        cloth.initialized = false;
+        if (!cloth.available) return false;
+        std::vector<uint8_t> particle_data = read_binary(cloth.particle_file);
+        std::vector<uint8_t> pin_data = read_binary(cloth.pin_file);
+        std::vector<uint8_t> constraint_data = read_binary(cloth.constraint_file);
+        const size_t particle_count = static_cast<size_t>(std::max(0, cloth.particle_count));
+        if (particle_count == 0 || particle_data.size() < particle_count * sizeof(float) * 3u) {
+            stats_.skipped.push_back("cloth particles missing/truncated:" + std::to_string(batch.index));
+            cloth.available = false;
+            return false;
+        }
+        cloth.rest_positions.clear();
+        cloth.positions.clear();
+        cloth.previous_positions.clear();
+        cloth.pin_weights.clear();
+        cloth.constraints.clear();
+        cloth.rest_positions.reserve(particle_count);
+        const float* particles = reinterpret_cast<const float*>(particle_data.data());
+        for (size_t index = 0; index < particle_count; ++index) {
+            DirectX::XMFLOAT3 position(particles[index * 3u], particles[index * 3u + 1u], particles[index * 3u + 2u]);
+            cloth.rest_positions.push_back(position);
+            cloth.positions.push_back(position);
+            cloth.previous_positions.push_back(position);
+        }
+        if (pin_data.size() >= particle_count * sizeof(float)) {
+            const float* pins = reinterpret_cast<const float*>(pin_data.data());
+            for (size_t index = 0; index < particle_count; ++index) {
+                cloth.pin_weights.push_back(std::clamp(pins[index], 0.0f, 1.0f));
+            }
+        } else {
+            cloth.pin_weights.assign(particle_count, 0.0f);
+        }
+        constexpr size_t kConstraintBytes = sizeof(int32_t) * 2u + sizeof(float) * 2u;
+        const size_t constraint_count = constraint_data.size() / kConstraintBytes;
+        cloth.constraints.reserve(constraint_count);
+        for (size_t index = 0; index < constraint_count; ++index) {
+            const uint8_t* ptr = constraint_data.data() + index * kConstraintBytes;
+            const int32_t* ints = reinterpret_cast<const int32_t*>(ptr);
+            const float* floats = reinterpret_cast<const float*>(ptr + sizeof(int32_t) * 2u);
+            ClothConstraint constraint;
+            constraint.a = static_cast<int>(ints[0]);
+            constraint.b = static_cast<int>(ints[1]);
+            constraint.rest_length = std::max(0.0f, floats[0]);
+            constraint.stiffness = std::clamp(floats[1], 0.0f, 1.0f);
+            if (
+                constraint.a >= 0
+                && constraint.b >= 0
+                && static_cast<size_t>(constraint.a) < particle_count
+                && static_cast<size_t>(constraint.b) < particle_count
+                && constraint.a != constraint.b
+            ) {
+                cloth.constraints.push_back(constraint);
+            }
+        }
+        cloth.constraint_count = static_cast<int>(cloth.constraints.size());
+        cloth.initialized = true;
+        return true;
+    }
+
+    bool cloth_preview_active() const {
+        if (!cloth_state_.enabled || cloth_state_.paused) return false;
+        for (const PreviewBatch& batch : batches_) {
+            if (batch.cloth.initialized) return true;
+        }
+        return false;
+    }
+
+    static void collide_point_with_sphere(DirectX::XMFLOAT3& point, const DirectX::XMFLOAT3& center, float radius) {
+        if (radius <= 0.0f) return;
+        DirectX::XMFLOAT3 delta = sub3(point, center);
+        float length = length3(delta);
+        if (length >= radius || length <= 1e-8f) return;
+        DirectX::XMFLOAT3 normal = length > 1e-8f ? mul3(delta, 1.0f / length) : DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f);
+        point = add3(center, mul3(normal, radius + 0.004f));
+    }
+
+    static void collide_point_with_capsule(DirectX::XMFLOAT3& point, const ClothCollider& collider) {
+        DirectX::XMFLOAT3 segment = sub3(collider.b, collider.a);
+        float denom = dot3(segment, segment);
+        float t = denom > 1e-8f ? std::clamp(dot3(sub3(point, collider.a), segment) / denom, 0.0f, 1.0f) : 0.0f;
+        collide_point_with_sphere(point, add3(collider.a, mul3(segment, t)), collider.radius);
+    }
+
+    static void collide_point_with_aabb(DirectX::XMFLOAT3& point, const ClothCollider& collider) {
+        if (
+            point.x < collider.a.x || point.x > collider.b.x
+            || point.y < collider.a.y || point.y > collider.b.y
+            || point.z < collider.a.z || point.z > collider.b.z
+        ) {
+            return;
+        }
+        float distances[6] = {
+            point.x - collider.a.x,
+            collider.b.x - point.x,
+            point.y - collider.a.y,
+            collider.b.y - point.y,
+            point.z - collider.a.z,
+            collider.b.z - point.z,
+        };
+        int best = 0;
+        for (int index = 1; index < 6; ++index) {
+            if (distances[index] < distances[best]) best = index;
+        }
+        constexpr float kMargin = 0.006f;
+        if (best == 0) point.x = collider.a.x - kMargin;
+        else if (best == 1) point.x = collider.b.x + kMargin;
+        else if (best == 2) point.y = collider.a.y - kMargin;
+        else if (best == 3) point.y = collider.b.y + kMargin;
+        else if (best == 4) point.z = collider.a.z - kMargin;
+        else point.z = collider.b.z + kMargin;
+    }
+
+    void collide_cloth_particle(DirectX::XMFLOAT3& point) const {
+        for (const ClothCollider& collider : cloth_colliders_) {
+            if (collider.type == 1) collide_point_with_sphere(point, collider.a, collider.radius);
+            else if (collider.type == 2) collide_point_with_capsule(point, collider);
+            else if (collider.type == 3) collide_point_with_aabb(point, collider);
+        }
+    }
+
+    void solve_cloth_constraint(ClothRuntime& cloth, const ClothConstraint& constraint) {
+        DirectX::XMFLOAT3& a = cloth.positions[static_cast<size_t>(constraint.a)];
+        DirectX::XMFLOAT3& b = cloth.positions[static_cast<size_t>(constraint.b)];
+        DirectX::XMFLOAT3 delta = sub3(b, a);
+        float length = length3(delta);
+        if (length <= 1e-8f) return;
+        float pin_a = constraint.a < static_cast<int>(cloth.pin_weights.size()) ? cloth.pin_weights[static_cast<size_t>(constraint.a)] : 0.0f;
+        float pin_b = constraint.b < static_cast<int>(cloth.pin_weights.size()) ? cloth.pin_weights[static_cast<size_t>(constraint.b)] : 0.0f;
+        float inv_a = std::max(0.0f, 1.0f - pin_a);
+        float inv_b = std::max(0.0f, 1.0f - pin_b);
+        float inv_sum = inv_a + inv_b;
+        if (inv_sum <= 1e-6f) return;
+        DirectX::XMFLOAT3 correction = mul3(delta, ((length - constraint.rest_length) / length) * constraint.stiffness);
+        a = add3(a, mul3(correction, inv_a / inv_sum));
+        b = sub3(b, mul3(correction, inv_b / inv_sum));
+    }
+
+    static void pin_cloth_particles(ClothRuntime& cloth) {
+        for (size_t index = 0; index < cloth.positions.size(); ++index) {
+            float pin = index < cloth.pin_weights.size() ? std::clamp(cloth.pin_weights[index], 0.0f, 1.0f) : 0.0f;
+            if (pin <= 0.0f) continue;
+            const DirectX::XMFLOAT3& rest = cloth.rest_positions[index];
+            DirectX::XMFLOAT3& point = cloth.positions[index];
+            point.x = point.x * (1.0f - pin) + rest.x * pin;
+            point.y = point.y * (1.0f - pin) + rest.y * pin;
+            point.z = point.z * (1.0f - pin) + rest.z * pin;
+        }
+    }
+
+    void apply_cloth_to_batch_vertices(PreviewBatch& batch) {
+        ClothRuntime& cloth = batch.cloth;
+        if (!cloth.initialized || batch.cpu_vertices.size() < static_cast<size_t>(batch.vertex_count) * 23u) return;
+        for (int vertex_index = 0; vertex_index < batch.vertex_count; ++vertex_index) {
+            int source_vertex = vertex_index < static_cast<int>(batch.cpu_source_vertices.size())
+                ? batch.cpu_source_vertices[static_cast<size_t>(vertex_index)]
+                : vertex_index;
+            if (source_vertex < 0 || static_cast<size_t>(source_vertex) >= cloth.positions.size()) continue;
+            const DirectX::XMFLOAT3& point = cloth.positions[static_cast<size_t>(source_vertex)];
+            size_t offset = static_cast<size_t>(vertex_index) * 23u;
+            batch.cpu_vertices[offset] = point.x;
+            batch.cpu_vertices[offset + 1u] = point.y;
+            batch.cpu_vertices[offset + 2u] = point.z;
+            if (static_cast<size_t>(vertex_index) < batch.cpu_positions.size()) {
+                batch.cpu_positions[static_cast<size_t>(vertex_index)] = point;
+            }
+        }
+        for (int vertex_index = 0; vertex_index + 2 < batch.vertex_count; vertex_index += 3) {
+            size_t a_offset = static_cast<size_t>(vertex_index) * 23u;
+            size_t b_offset = static_cast<size_t>(vertex_index + 1) * 23u;
+            size_t c_offset = static_cast<size_t>(vertex_index + 2) * 23u;
+            DirectX::XMFLOAT3 a(batch.cpu_vertices[a_offset], batch.cpu_vertices[a_offset + 1u], batch.cpu_vertices[a_offset + 2u]);
+            DirectX::XMFLOAT3 b(batch.cpu_vertices[b_offset], batch.cpu_vertices[b_offset + 1u], batch.cpu_vertices[b_offset + 2u]);
+            DirectX::XMFLOAT3 c(batch.cpu_vertices[c_offset], batch.cpu_vertices[c_offset + 1u], batch.cpu_vertices[c_offset + 2u]);
+            DirectX::XMFLOAT3 ab = sub3(b, a);
+            DirectX::XMFLOAT3 ac = sub3(c, a);
+            DirectX::XMFLOAT3 normal = normalize3(DirectX::XMFLOAT3(
+                ab.y * ac.z - ab.z * ac.y,
+                ab.z * ac.x - ab.x * ac.z,
+                ab.x * ac.y - ab.y * ac.x));
+            for (int corner = 0; corner < 3; ++corner) {
+                size_t offset = static_cast<size_t>(vertex_index + corner) * 23u;
+                batch.cpu_vertices[offset + 3u] = normal.x;
+                batch.cpu_vertices[offset + 4u] = normal.y;
+                batch.cpu_vertices[offset + 5u] = normal.z;
+                batch.cpu_vertices[offset + 17u] = normal.x;
+                batch.cpu_vertices[offset + 18u] = normal.y;
+                batch.cpu_vertices[offset + 19u] = normal.z;
+            }
+        }
+        if (context_ && batch.vertex_buffer) {
+            D3D11_MAPPED_SUBRESOURCE mapped{};
+            HRESULT hr = context_->Map(batch.vertex_buffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+            if (SUCCEEDED(hr)) {
+                std::memcpy(mapped.pData, batch.cpu_vertices.data(), batch.cpu_vertices.size() * sizeof(float));
+                context_->Unmap(batch.vertex_buffer.Get(), 0);
+            }
+        }
+    }
+
+    void reset_cloth_runtime() {
+        for (PreviewBatch& batch : batches_) {
+            ClothRuntime& cloth = batch.cloth;
+            if (!cloth.initialized || cloth.rest_positions.empty()) continue;
+            cloth.positions = cloth.rest_positions;
+            cloth.previous_positions = cloth.rest_positions;
+            apply_cloth_to_batch_vertices(batch);
+        }
+        cloth_last_step_ = std::chrono::steady_clock::now();
+    }
+
+    void step_cloth_simulation() {
+        if (!cloth_preview_active()) {
+            cloth_last_step_ = std::chrono::steady_clock::now();
+            return;
+        }
+        auto now = std::chrono::steady_clock::now();
+        if (cloth_last_step_.time_since_epoch().count() == 0) {
+            cloth_last_step_ = now;
+            return;
+        }
+        float dt = static_cast<float>(std::chrono::duration<double>(now - cloth_last_step_).count());
+        dt = std::clamp(dt, 1.0f / 240.0f, 1.0f / 30.0f);
+        cloth_last_step_ = now;
+        const float direction_radians = cloth_state_.wind_direction_degrees * 3.1415926535f / 180.0f;
+        DirectX::XMFLOAT3 wind(
+            std::cos(direction_radians) * cloth_state_.wind_strength,
+            0.0f,
+            std::sin(direction_radians) * cloth_state_.wind_strength);
+        bool stepped = false;
+        for (PreviewBatch& batch : batches_) {
+            ClothRuntime& cloth = batch.cloth;
+            if (!cloth.initialized || cloth.positions.empty()) continue;
+            for (size_t index = 0; index < cloth.positions.size(); ++index) {
+                float pin = index < cloth.pin_weights.size() ? std::clamp(cloth.pin_weights[index], 0.0f, 1.0f) : 0.0f;
+                if (pin >= 0.999f) {
+                    cloth.positions[index] = cloth.rest_positions[index];
+                    cloth.previous_positions[index] = cloth.rest_positions[index];
+                    continue;
+                }
+                DirectX::XMFLOAT3 current = cloth.positions[index];
+                DirectX::XMFLOAT3 previous = cloth.previous_positions[index];
+                DirectX::XMFLOAT3 velocity = mul3(sub3(current, previous), std::clamp(1.0f - cloth.damping * dt * 0.35f, 0.0f, 0.995f));
+                cloth.previous_positions[index] = current;
+                DirectX::XMFLOAT3 acceleration(wind.x * cloth.wind_response, cloth.gravity, wind.z * cloth.wind_response);
+                cloth.positions[index] = add3(add3(current, velocity), mul3(acceleration, dt * dt));
+            }
+            const int iterations = std::clamp(cloth.solver_iterations, 1, 64);
+            for (int iteration = 0; iteration < iterations; ++iteration) {
+                for (const ClothConstraint& constraint : cloth.constraints) {
+                    solve_cloth_constraint(cloth, constraint);
+                }
+                pin_cloth_particles(cloth);
+                if (cloth.collision_enabled && !cloth_colliders_.empty()) {
+                    for (size_t index = 0; index < cloth.positions.size(); ++index) {
+                        float pin = index < cloth.pin_weights.size() ? cloth.pin_weights[index] : 0.0f;
+                        if (pin >= 0.999f) continue;
+                        collide_cloth_particle(cloth.positions[index]);
+                    }
+                }
+            }
+            apply_cloth_to_batch_vertices(batch);
+            stepped = true;
+        }
+        if (stepped) {
+            ++stats_.cloth_simulation_steps;
+        }
+    }
+
     bool upload_batches() {
         prune_srv_cache_if_needed("pre_upload_soft_cap");
         auto geometry_start = std::chrono::steady_clock::now();
@@ -3302,6 +4463,8 @@ private:
                 stats_.skipped.push_back("geometry missing/truncated:" + wide_to_utf8(batch.vertex_file));
                 continue;
             }
+            batch.cpu_vertices.resize(expected / sizeof(float));
+            std::memcpy(batch.cpu_vertices.data(), data.data(), expected);
             batch.cpu_positions.clear();
             batch.cpu_source_submeshes.clear();
             batch.cpu_source_vertices.clear();
@@ -3326,12 +4489,14 @@ private:
                     batch.cpu_source_vertices.push_back(vertex_index);
                 }
             }
+            const bool cloth_loaded = load_cloth_runtime(batch);
             D3D11_BUFFER_DESC desc{};
             desc.ByteWidth = static_cast<UINT>(expected);
-            desc.Usage = D3D11_USAGE_DEFAULT;
+            desc.Usage = cloth_loaded ? D3D11_USAGE_DYNAMIC : D3D11_USAGE_DEFAULT;
             desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+            desc.CPUAccessFlags = cloth_loaded ? D3D11_CPU_ACCESS_WRITE : 0;
             D3D11_SUBRESOURCE_DATA init{};
-            init.pSysMem = data.data();
+            init.pSysMem = batch.cpu_vertices.data();
             HRESULT hr = device_->CreateBuffer(&desc, &init, batch.vertex_buffer.GetAddressOf());
             if (FAILED(hr)) {
                 stats_.skipped.push_back("vertex buffer upload failed:" + std::to_string(batch.index));
@@ -3457,17 +4622,27 @@ private:
             ? DirectX::LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, &metadata, image)
             : DirectX::LoadFromWICFile(path.c_str(), DirectX::WIC_FLAGS_NONE, &metadata, image);
         if (FAILED(hr)) return false;
-        hr = DirectX::CreateShaderResourceViewEx(
-            device_.Get(),
-            image.GetImages(),
-            image.GetImageCount(),
-            metadata,
-            D3D11_USAGE_DEFAULT,
-            D3D11_BIND_SHADER_RESOURCE,
-            0,
-            0,
-            create_flags,
-            target.ReleaseAndGetAddressOf());
+        auto create_srv = [&](DirectX::CREATETEX_FLAGS flags) -> HRESULT {
+            return DirectX::CreateShaderResourceViewEx(
+                device_.Get(),
+                image.GetImages(),
+                image.GetImageCount(),
+                metadata,
+                D3D11_USAGE_DEFAULT,
+                D3D11_BIND_SHADER_RESOURCE,
+                0,
+                0,
+                flags,
+                target.ReleaseAndGetAddressOf());
+        };
+        hr = create_srv(create_flags);
+        if (FAILED(hr) && !dds && create_flags != static_cast<DirectX::CREATETEX_FLAGS>(0)) {
+            // Some WIC-decoded PNGs from external model archives fail SRGB/linear
+            // coercion even though the decoded image itself is valid. Retry with
+            // default texture creation so the preview keeps the visible base map
+            // instead of falling back to the white material color.
+            hr = create_srv(static_cast<DirectX::CREATETEX_FLAGS>(0));
+        }
         if (SUCCEEDED(hr)) {
             TextureLoadInfo loaded_info{};
             loaded_info.format_name = dxgi_format_name(metadata.format);
@@ -3487,9 +4662,13 @@ private:
     HWND hwnd_{};
     Args args_;
     std::vector<PreviewBatch> batches_;
+    std::vector<ClothCollider> cloth_colliders_;
+    ClothPreviewState cloth_state_;
     RendererStats& stats_;
     ViewSettings view_settings_;
     RenderTuning render_tuning_;
+    bool view_settings_overridden_ = false;
+    bool render_tuning_overridden_ = false;
     LONG width_ = 1;
     LONG height_ = 1;
     float yaw_ = kDefaultYawDegrees;
@@ -3500,18 +4679,27 @@ private:
     float pan_x_ = 0.0f;
     float pan_y_ = 0.0f;
     float pan_z_ = 0.0f;
+    PreviewCameraState reference_camera_;
     std::string display_mode_ = "replacement_only";
+    std::set<int> hidden_source_submeshes_;
     AlignmentState alignment_;
     SourcePartInteractionState source_part_;
     MeshEditState mesh_edit_;
     int drag_mode_ = 0;
     UINT drag_button_ = 0;
+    PreviewViewRole drag_view_role_ = PreviewViewRole::All;
     int last_mouse_x_ = 0;
     int last_mouse_y_ = 0;
     bool first_frame_started_ = false;
     bool first_frame_reported_ = false;
     bool render_requested_ = true;
+    std::uint64_t frame_count_ = 0;
+    std::uint64_t render_request_count_ = 0;
+    std::uint64_t render_suppressed_count_ = 0;
+    std::uint64_t parent_unresponsive_count_ = 0;
+    std::string parent_health_ = "ok";
     std::chrono::steady_clock::time_point first_frame_timer_{};
+    std::chrono::steady_clock::time_point cloth_last_step_{};
     D3D_FEATURE_LEVEL feature_level_{};
     DirectX::XMFLOAT4 clear_color_{0.03f, 0.04f, 0.05f, 1.0f};
     ComPtr<ID3D11Device> device_;
@@ -3555,6 +4743,12 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM l
 static int run_host(const Args& args) {
     auto start = std::chrono::steady_clock::now();
     cdmw_native_diag::event("startup", {{"backend", "D3D11"}, {"package_dir", cdmw_native_diag::path_to_utf8(args.preview_package)}, {"status_file", cdmw_native_diag::path_to_utf8(args.status_file)}});
+    ComInitScope com;
+    if (!com.ok()) {
+        write_status(args.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"native D3D11 COM initialization failed\"}");
+        cdmw_native_diag::event("startup_error", {{"reason", "COM initialization failed"}, {"hresult", std::to_string(static_cast<unsigned int>(com.hr))}});
+        return 5;
+    }
     if (args.preview_package.empty() || !fs::is_directory(args.preview_package)) {
         write_status(args.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"preview package directory is missing\"}");
         cdmw_native_diag::event("startup_error", {{"reason", "preview package directory is missing"}});
@@ -3564,8 +4758,11 @@ static int run_host(const Args& args) {
     std::string manifest = read_text(args.preview_package / L"manifest.json");
     RendererStats stats;
     std::vector<PreviewBatch> batches = parse_manifest_batches(args.preview_package, manifest, stats);
+    std::vector<ClothCollider> cloth_colliders = parse_cloth_colliders(args.preview_package, manifest);
+    stats.cloth_collider_count = static_cast<int>(cloth_colliders.size());
     ViewSettings view_settings = parse_view_settings(manifest);
     RenderTuning render_tuning = parse_render_tuning(manifest);
+    std::string display_mode = parse_display_mode(manifest, "replacement_only");
     stats.manifest_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 
     WNDCLASSW wc{};
@@ -3614,7 +4811,7 @@ static int run_host(const Args& args) {
     }
 
     write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
-    Renderer renderer(hwnd, args, std::move(batches), stats, view_settings, render_tuning);
+    Renderer renderer(hwnd, args, std::move(batches), std::move(cloth_colliders), stats, view_settings, render_tuning, display_mode);
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&renderer));
     if (!renderer.initialize()) {
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
@@ -3623,13 +4820,18 @@ static int run_host(const Args& args) {
         return 4;
     }
     write_status(args.status_file, loaded_payload(stats));
-    cdmw_native_diag::event("loaded", {{"batches", std::to_string(stats.batch_count)}, {"vertices", std::to_string(stats.vertex_count)}});
+    cdmw_native_diag::event("loaded", {{"batches", std::to_string(stats.batch_count)}, {"vertices", std::to_string(stats.vertex_count)}, {"display_mode", display_mode}});
 
     MSG msg{};
     bool running = true;
+    std::string close_reason = "shutdown";
     auto last_parent_sync = std::chrono::steady_clock::now();
+    auto last_parent_health_check = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point parent_unresponsive_since{};
+    std::uint64_t parent_unresponsive_count = 0;
     int last_parent_width = window_width;
     int last_parent_height = window_height;
+    bool parent_renderable = true;
     while (running) {
         while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
             if (msg.message == WM_QUIT) {
@@ -3645,32 +4847,86 @@ static int run_host(const Args& args) {
                 last_parent_sync = now;
                 RECT rect{};
                 if (!IsWindow(parent_hwnd)) {
+                    close_reason = "parent_window_gone";
+                    cdmw_native_diag::event("parent_window_gone");
                     running = false;
                 } else if (GetClientRect(parent_hwnd, &rect)) {
-                    int width = std::max<LONG>(1, rect.right - rect.left);
-                    int height = std::max<LONG>(1, rect.bottom - rect.top);
+                    const LONG raw_width = rect.right - rect.left;
+                    const LONG raw_height = rect.bottom - rect.top;
+                    parent_renderable = raw_width > 0 && raw_height > 0 && IsWindowVisible(parent_hwnd) && !IsIconic(parent_hwnd);
+                    int width = std::max<LONG>(1, raw_width);
+                    int height = std::max<LONG>(1, raw_height);
                     if (width != last_parent_width || height != last_parent_height) {
                         last_parent_width = width;
                         last_parent_height = height;
                         SetWindowPos(hwnd, nullptr, 0, 0, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
                         renderer.request_render();
                     }
+                } else {
+                    parent_renderable = false;
+                }
+            }
+            if (running && std::chrono::duration<double, std::milli>(now - last_parent_health_check).count() >= kParentHealthCheckMs) {
+                last_parent_health_check = now;
+                DWORD_PTR ping_result = 0;
+                const BOOL responsive = SendMessageTimeoutW(
+                    parent_hwnd,
+                    WM_NULL,
+                    0,
+                    0,
+                    SMTO_ABORTIFHUNG | SMTO_BLOCK,
+                    kParentHealthTimeoutMs,
+                    &ping_result);
+                if (!responsive) {
+                    if (parent_unresponsive_since.time_since_epoch().count() == 0) {
+                        parent_unresponsive_since = now;
+                    }
+                    ++parent_unresponsive_count;
+                    renderer.set_parent_health("parent_unresponsive", parent_unresponsive_count);
+                    const double unresponsive_ms = std::chrono::duration<double, std::milli>(now - parent_unresponsive_since).count();
+                    if (unresponsive_ms >= kParentHangExitMs) {
+                        close_reason = "parent_unresponsive";
+                        cdmw_native_diag::event(
+                            "parent_unresponsive_exit",
+                            {
+                                {"parent_unresponsive_ms", std::to_string(unresponsive_ms)},
+                                {"parent_unresponsive_count", std::to_string(parent_unresponsive_count)},
+                                {"frame_count", std::to_string(stats.frame_count)},
+                                {"render_request_count", std::to_string(stats.render_request_count)}
+                            });
+                        running = false;
+                    }
+                } else {
+                    if (parent_unresponsive_count > 0) {
+                        cdmw_native_diag::event(
+                            "parent_responsive",
+                            {{"parent_unresponsive_count", std::to_string(parent_unresponsive_count)}});
+                    }
+                    parent_unresponsive_count = 0;
+                    parent_unresponsive_since = std::chrono::steady_clock::time_point{};
+                    renderer.set_parent_health("ok", 0);
                 }
             }
         }
         if (running) {
             renderer.process_pending_commands();
             if (renderer.should_render()) {
-                renderer.render();
+                const bool window_renderable = IsWindowVisible(hwnd) && !IsIconic(hwnd);
+                if (parent_renderable && window_renderable) {
+                    renderer.render();
+                } else {
+                    renderer.note_render_suppressed(parent_renderable ? "window_not_visible" : "parent_not_renderable");
+                    MsgWaitForMultipleObjects(0, nullptr, FALSE, kIdleWaitMs, QS_ALLINPUT);
+                }
             } else {
                 MsgWaitForMultipleObjects(0, nullptr, FALSE, kIdleWaitMs, QS_ALLINPUT);
             }
         }
     }
-    renderer.release_model_resources("shutdown");
+    renderer.release_model_resources(close_reason.c_str());
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-    write_status(args.status_file, "{\"event\":\"closed\",\"backend\":\"D3D11\"}");
-    cdmw_native_diag::event("clean_shutdown");
+    write_status(args.status_file, closed_payload(stats, close_reason));
+    cdmw_native_diag::event("clean_shutdown", {{"reason", close_reason}});
     return 0;
 }
 

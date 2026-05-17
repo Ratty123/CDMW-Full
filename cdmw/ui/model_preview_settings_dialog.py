@@ -118,6 +118,7 @@ class ModelPreviewSettingsDialog(QDialog):
     archive_performance_changed = Signal(object)
     archive_renderer_backend_changed = Signal(str)
     clear_preview_cache_requested = Signal()
+    cloth_preview_reset_requested = Signal()
 
     ARCHIVE_RENDERER_D3D11 = "d3d11_native"
     ARCHIVE_RENDERER_LEGACY_OPENGL = "legacy_opengl"
@@ -189,6 +190,10 @@ class ModelPreviewSettingsDialog(QDialog):
         self.disable_normal_map_checkbox = QCheckBox("Disable normal map")
         self.disable_material_map_checkbox = QCheckBox("Disable material map")
         self.disable_height_map_checkbox = QCheckBox("Disable height map")
+        self.flip_texture_v_checkbox = QCheckBox("Flip texture V")
+        self.flip_texture_v_checkbox.setToolTip(
+            "Toggle the preview texture V orientation for D3D11 packages. Use this when a model's resolved textures appear vertically flipped."
+        )
         self.visible_texture_mode_combo = QComboBox()
         for mode in MODEL_PREVIEW_VISIBLE_TEXTURE_MODES:
             self.visible_texture_mode_combo.addItem(
@@ -208,8 +213,42 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.addRow("", self.disable_normal_map_checkbox)
         general_form.addRow("", self.disable_material_map_checkbox)
         general_form.addRow("", self.disable_height_map_checkbox)
+        general_form.addRow("", self.flip_texture_v_checkbox)
         general_form.addRow("Visible texture mode", self.visible_texture_mode_combo)
         general_form.addRow("Diagnostic render mode", self.render_diagnostic_mode_combo)
+        self.enable_tool_pbd_cloth_preview_checkbox = QCheckBox("Enable tool-side PBD cloth preview")
+        self.enable_tool_pbd_cloth_preview_checkbox.setToolTip(
+            "Runs a free local CPU PBD approximation for detected cloak/skirt mesh batches. "
+            "This is not the game solver and does not enable hair or body jiggle."
+        )
+        self.pause_tool_pbd_cloth_preview_checkbox = QCheckBox("Pause PBD cloth preview")
+        self.pause_tool_pbd_cloth_preview_checkbox.setToolTip("Freezes the tool-side cloth simulation without changing the camera.")
+        self.show_tool_pbd_cloth_pins_checkbox = QCheckBox("Show PBD cloth pins")
+        self.show_tool_pbd_cloth_pins_checkbox.setToolTip("Requests debug pin display from renderers that support it.")
+        self.show_tool_pbd_cloth_colliders_checkbox = QCheckBox("Show PBD cloth colliders")
+        self.show_tool_pbd_cloth_colliders_checkbox.setToolTip("Requests debug collider display from renderers that support it.")
+        self.reset_tool_pbd_cloth_button = QPushButton("Reset cloth simulation")
+        self.reset_tool_pbd_cloth_button.setToolTip("Returns simulated cloth particles to the recovered mesh rest pose.")
+        general_form.addRow("", self.enable_tool_pbd_cloth_preview_checkbox)
+        general_form.addRow("", self.pause_tool_pbd_cloth_preview_checkbox)
+        self._add_slider_row(
+            general_form,
+            "Cloth wind",
+            "tool_pbd_cloth_wind_strength",
+            step=0.05,
+            decimals=2,
+        )
+        self._add_slider_row(
+            general_form,
+            "Wind direction",
+            "tool_pbd_cloth_wind_direction_degrees",
+            step=5.0,
+            decimals=0,
+            suffix=" deg",
+        )
+        general_form.addRow("", self.show_tool_pbd_cloth_pins_checkbox)
+        general_form.addRow("", self.show_tool_pbd_cloth_colliders_checkbox)
+        general_form.addRow("", self.reset_tool_pbd_cloth_button)
         general_layout.addLayout(general_form)
         general_hint = QLabel(
             "Use textures applies resolved preview DDS files when available. Support-map preview shading can sample resolved normal, material, or height maps for an approximate asset-dependent preview. Visible texture mode controls how aggressively sidecar-visible layers are allowed to replace the mesh-derived base texture."
@@ -218,7 +257,7 @@ class ModelPreviewSettingsDialog(QDialog):
         general_hint.setWordWrap(True)
         general_layout.addWidget(general_hint)
         self.d3d11_hint_label = QLabel(
-            "Native D3D11 supports texture on/off, support-map shading on/off, visible layer selection, camera controls, zoom, fit, and native DDS diagnostics. Legacy-only probe modes, Flip V overrides, HKX overlays, alpha modes, and shader debug strips are hidden while D3D11 is selected."
+            "Native D3D11 supports texture on/off, Flip texture V, support-map shading on/off, visible layer selection, camera controls, zoom, fit, tool-side PBD cloth preview, static HKX context when present, and native DDS diagnostics. Legacy-only probe modes, alpha modes, and shader debug strips are hidden while D3D11 is selected."
         )
         self.d3d11_hint_label.setObjectName("HintLabel")
         self.d3d11_hint_label.setWordWrap(True)
@@ -328,12 +367,13 @@ class ModelPreviewSettingsDialog(QDialog):
         self.show_physics_overlay_checkbox = QCheckBox("Show HKX physics overlay")
         self.show_physics_overlay_checkbox.setToolTip(
             "Draws decoded HKX collision bodies over the model when a related Crimson Desert HKX file is resolved. "
-            "The preview can also run the local spring simulation for decoded dynamic guides."
+            "The overlay is static inspection geometry and does not run Havok cloth or ragdoll simulation."
         )
-        self.show_physics_simulation_preview_checkbox = QCheckBox("Animate HKX physics preview")
+        self.show_physics_simulation_preview_checkbox = QCheckBox("Animate legacy HKX guide motion")
         self.show_physics_simulation_preview_checkbox.setToolTip(
-            "Runs the local spring preview for decoded cloth, hair, body-soft, and attachment guides. "
-            "When a matching cloth-like mesh batch is visible, this also enables a preview-only cloak/cloth mesh sway."
+            "Runs the older local spring/sway diagnostic for decoded HKX guide shapes. "
+            "Skeleton context stays fixed unless a real pose source drives it. "
+            "Use Tool-side PBD cloth preview for real mesh-cloth movement; neither path is Havok/game-exact."
         )
         for checkbox in (
             self.disable_tint_checkbox,
@@ -500,6 +540,10 @@ class ModelPreviewSettingsDialog(QDialog):
             self.invert_orbit_y_checkbox,
             self.invert_pan_x_checkbox,
             self.invert_pan_y_checkbox,
+            self.enable_tool_pbd_cloth_preview_checkbox,
+            self.pause_tool_pbd_cloth_preview_checkbox,
+            self.show_tool_pbd_cloth_pins_checkbox,
+            self.show_tool_pbd_cloth_colliders_checkbox,
         ):
             checkbox.toggled.connect(self._emit_settings_changed)
         self.archive_renderer_backend_combo.currentIndexChanged.connect(self._handle_archive_renderer_backend_changed)
@@ -520,6 +564,7 @@ class ModelPreviewSettingsDialog(QDialog):
             self.disable_normal_map_checkbox,
             self.disable_material_map_checkbox,
             self.disable_height_map_checkbox,
+            self.flip_texture_v_checkbox,
             self.disable_all_support_maps_checkbox,
             self.disable_lighting_checkbox,
             self.disable_depth_test_checkbox,
@@ -538,6 +583,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self.quick_then_full_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.maximum_indexing_priority_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.clear_preview_cache_button.clicked.connect(self.clear_preview_cache_requested.emit)
+        self.reset_tool_pbd_cloth_button.clicked.connect(self.cloth_preview_reset_requested.emit)
         self.reset_button.clicked.connect(self._reset_defaults)
         self.close_button.clicked.connect(self.close)
 
@@ -619,6 +665,7 @@ class ModelPreviewSettingsDialog(QDialog):
         if diagnostics_index >= 0:
             self.tabs.setTabVisible(diagnostics_index, legacy)
         self._set_form_field_visible(self.render_diagnostic_mode_combo, legacy)
+        self._set_form_field_visible(self.flip_texture_v_checkbox, d3d11)
         for widget in (
             self.alpha_handling_combo,
             self.texture_probe_source_combo,
@@ -663,12 +710,17 @@ class ModelPreviewSettingsDialog(QDialog):
         current.disable_normal_map = self.disable_normal_map_checkbox.isChecked()
         current.disable_material_map = self.disable_material_map_checkbox.isChecked()
         current.disable_height_map = self.disable_height_map_checkbox.isChecked()
+        current.flip_texture_v = self.flip_texture_v_checkbox.isChecked()
         current.disable_all_support_maps = self.disable_all_support_maps_checkbox.isChecked()
         current.disable_lighting = self.disable_lighting_checkbox.isChecked()
         current.disable_depth_test = self.disable_depth_test_checkbox.isChecked()
         current.show_texture_debug_strip = self.show_texture_debug_strip_checkbox.isChecked()
         current.show_physics_overlay = self.show_physics_overlay_checkbox.isChecked()
         current.show_physics_simulation_preview = self.show_physics_simulation_preview_checkbox.isChecked()
+        current.enable_tool_pbd_cloth_preview = self.enable_tool_pbd_cloth_preview_checkbox.isChecked()
+        current.pause_tool_pbd_cloth_preview = self.pause_tool_pbd_cloth_preview_checkbox.isChecked()
+        current.show_tool_pbd_cloth_pins = self.show_tool_pbd_cloth_pins_checkbox.isChecked()
+        current.show_tool_pbd_cloth_colliders = self.show_tool_pbd_cloth_colliders_checkbox.isChecked()
         current.solo_batch_index = self.solo_batch_spin.value()
         current.orbit_sensitivity = self._slider_controls["orbit_sensitivity"].value()
         current.pan_sensitivity = self._slider_controls["pan_sensitivity"].value()
@@ -719,12 +771,17 @@ class ModelPreviewSettingsDialog(QDialog):
             self.disable_normal_map_checkbox.setChecked(clamped.disable_normal_map)
             self.disable_material_map_checkbox.setChecked(clamped.disable_material_map)
             self.disable_height_map_checkbox.setChecked(clamped.disable_height_map)
+            self.flip_texture_v_checkbox.setChecked(clamped.flip_texture_v)
             self.disable_all_support_maps_checkbox.setChecked(clamped.disable_all_support_maps)
             self.disable_lighting_checkbox.setChecked(clamped.disable_lighting)
             self.disable_depth_test_checkbox.setChecked(clamped.disable_depth_test)
             self.show_texture_debug_strip_checkbox.setChecked(clamped.show_texture_debug_strip)
             self.show_physics_overlay_checkbox.setChecked(clamped.show_physics_overlay)
             self.show_physics_simulation_preview_checkbox.setChecked(clamped.show_physics_simulation_preview)
+            self.enable_tool_pbd_cloth_preview_checkbox.setChecked(clamped.enable_tool_pbd_cloth_preview)
+            self.pause_tool_pbd_cloth_preview_checkbox.setChecked(clamped.pause_tool_pbd_cloth_preview)
+            self.show_tool_pbd_cloth_pins_checkbox.setChecked(clamped.show_tool_pbd_cloth_pins)
+            self.show_tool_pbd_cloth_colliders_checkbox.setChecked(clamped.show_tool_pbd_cloth_colliders)
             self.solo_batch_spin.setValue(clamped.solo_batch_index)
             self.invert_orbit_x_checkbox.setChecked(clamped.invert_orbit_x)
             self.invert_orbit_y_checkbox.setChecked(clamped.invert_orbit_y)
@@ -831,6 +888,15 @@ class ModelPreviewSettingsDialog(QDialog):
             if control is not None:
                 control.setEnabled(relief_controls_enabled)
                 control.setToolTip(relief_tooltip)
+        cloth_enabled = self.enable_tool_pbd_cloth_preview_checkbox.isChecked()
+        self.pause_tool_pbd_cloth_preview_checkbox.setEnabled(cloth_enabled)
+        self.show_tool_pbd_cloth_pins_checkbox.setEnabled(cloth_enabled)
+        self.show_tool_pbd_cloth_colliders_checkbox.setEnabled(cloth_enabled)
+        self.reset_tool_pbd_cloth_button.setEnabled(cloth_enabled)
+        for key in ("tool_pbd_cloth_wind_strength", "tool_pbd_cloth_wind_direction_degrees"):
+            control = self._slider_controls.get(key)
+            if control is not None:
+                control.setEnabled(cloth_enabled)
 
     def _handle_archive_performance_changed(self, *_args) -> None:
         manual = int(self.sidecar_worker_mode_combo.currentData() or 0) == 1

@@ -48,9 +48,15 @@ from cdmw.core.model_preview import (
     build_pamlod_model_preview,
     ensure_model_preview_is_reasonable,
 )
+from cdmw.core.pbd_cloth import (
+    PbdConfigMaterial,
+    build_cloth_preview_from_sidecars,
+    collect_pbd_sidecar_hints,
+)
 from cdmw.core.archive_modding import (
     build_hkx_descriptor_hint_from_xml_text,
     build_hkx_editable_geometry_document,
+    build_hkx_model_preview_from_document,
     build_hkx_physics_overlay_from_document,
     build_hkx_preview,
     build_mesh_preview_from_bytes,
@@ -5761,6 +5767,7 @@ def reconstruct_partial_dds(entry: ArchiveEntry, data: bytes) -> bytes:
     header = get_archive_partial_dds_header(entry)
     if len(header) < 0x80 or header[:4] != DDS_MAGIC:
         raise ValueError("Partial DDS header is missing or invalid.")
+    payload_header = bytes(data[: len(header)])
     (
         _header_size,
         _flags,
@@ -5808,6 +5815,33 @@ def reconstruct_partial_dds(entry: ArchiveEntry, data: bytes) -> bytes:
             )
             current_width = max(1, current_width >> 1)
             current_height = max(1, current_height >> 1)
+
+    if len(payload_header) >= header_size and payload_header[:4] == DDS_MAGIC:
+        payload_reserved = list(struct.unpack_from("<11I", payload_header, 32))
+        if use_single_chunk:
+            payload_compressed = [payload_reserved[0]]
+            payload_decompressed = [payload_reserved[1]]
+        else:
+            payload_compressed = list(payload_reserved[: len(compressed_block_sizes)])
+            payload_decompressed = decompressed_block_sizes
+        payload_bytes_needed = sum(int(value) for value in payload_compressed if int(value) > 0)
+        payload_decompressed_needed = sum(int(value) for value in payload_decompressed if int(value) > 0)
+        current_bytes_needed = sum(int(value) for value in compressed_block_sizes if int(value) > 0)
+        payload_chunk_table_is_plausible = (
+            payload_bytes_needed > 0
+            and header_size + payload_bytes_needed <= len(data)
+            and payload_decompressed_needed > 0
+            and payload_bytes_needed <= payload_decompressed_needed
+            and (
+                current_bytes_needed <= 0
+                or header_size + current_bytes_needed > len(data)
+                or payload_bytes_needed < current_bytes_needed
+            )
+        )
+        if payload_chunk_table_is_plausible:
+            compressed_block_sizes = payload_compressed
+            if use_single_chunk:
+                decompressed_block_sizes = payload_decompressed
 
     current_data_offset = header_size
     output_data = bytearray(header[:header_size])
@@ -6868,6 +6902,13 @@ def _classify_model_sidecar_visible_binding(semantic_hint: str, texture_path: st
         "mra",
         "arm",
         "ao",
+        "flow",
+        "direction",
+        "vector",
+        "velocity",
+        "position",
+        "pivot",
+        "ssdm",
     )
     technical_suffixes = (
         "_n",
@@ -6894,6 +6935,14 @@ def _classify_model_sidecar_visible_binding(semantic_hint: str, texture_path: st
         "_specular",
         "_roughness",
         "_metallic",
+        "_dr",
+        "_flow",
+        "_velocity",
+        "_vector",
+        "_pos",
+        "_position",
+        "_pivot",
+        "_pivotpos",
     )
     if any(token in normalized_hint for token in technical_tokens):
         return "technical"
@@ -8192,6 +8241,163 @@ def _extract_archive_model_sidecar_texture_references(
     return result
 
 
+def _read_archive_text_entry(
+    entry: ArchiveEntry,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> str:
+    data, _decompressed, _note = read_archive_entry_data(entry, stop_event=stop_event)
+    return try_decode_text_like_archive_data(data) or ""
+
+
+def _collect_archive_model_pbd_sidecar_texts(
+    source_entry: ArchiveEntry,
+    *,
+    archive_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]],
+    stop_event: Optional[threading.Event] = None,
+) -> Tuple[Tuple[str, str], ...]:
+    if archive_entries_by_basename is None:
+        return ()
+    texts: List[Tuple[str, str]] = []
+    for sidecar_entry in _find_archive_model_sidecar_entries(source_entry, archive_entries_by_basename):
+        raise_if_cancelled(stop_event)
+        try:
+            text = _read_archive_text_entry(sidecar_entry, stop_event=stop_event)
+        except RunCancelled:
+            raise
+        except Exception:
+            continue
+        if "_pbdSimulationMaterialName" not in text and "pbdSimulationMaterialName" not in text:
+            continue
+        texts.append((sidecar_entry.path, text))
+    return tuple(texts)
+
+
+def _archive_entry_by_preferred_suffix(
+    entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]],
+    basename: str,
+    suffixes: Sequence[str],
+) -> Optional[ArchiveEntry]:
+    if entries_by_basename is None:
+        return None
+    candidates = tuple(entries_by_basename.get(str(basename or "").strip().lower(), ()) or ())
+    if not candidates:
+        return None
+    normalized_suffixes = tuple(str(suffix or "").replace("\\", "/").strip().lower() for suffix in suffixes if str(suffix or "").strip())
+    scored: List[Tuple[int, ArchiveEntry]] = []
+    for candidate in candidates:
+        path = str(getattr(candidate, "path", "") or "").replace("\\", "/").lower()
+        score = 0
+        for index, suffix in enumerate(normalized_suffixes):
+            if suffix and path.endswith(suffix):
+                score = max(score, 100 - index)
+        if "/character/descriptors/pbd/" in path:
+            score += 20
+        scored.append((score, candidate))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return scored[0][1] if scored else None
+
+
+def _read_archive_pbd_config_text(
+    entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> str:
+    entry = _archive_entry_by_preferred_suffix(
+        entries_by_basename,
+        "pbdconfig.xml",
+        ("character/descriptors/pbd/pbdconfig.xml", "descriptors/pbd/pbdconfig.xml", "pbdconfig.xml"),
+    )
+    if entry is None:
+        return ""
+    try:
+        return _read_archive_text_entry(entry, stop_event=stop_event)
+    except RunCancelled:
+        raise
+    except Exception:
+        return ""
+
+
+def _read_archive_pbd_material_text(
+    config_material: PbdConfigMaterial,
+    entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> Tuple[str, str]:
+    filename = str(getattr(config_material, "filename", "") or "").replace("\\", "/").strip()
+    basename = PurePosixPath(filename).name.lower()
+    if not basename:
+        return "", ""
+    normalized_filename = filename.lower()
+    entry = _archive_entry_by_preferred_suffix(
+        entries_by_basename,
+        basename,
+        (
+            f"character/descriptors/pbd/{normalized_filename}",
+            f"descriptors/pbd/{normalized_filename}",
+            normalized_filename,
+            basename,
+        ),
+    )
+    if entry is None:
+        return filename, ""
+    try:
+        return entry.path, _read_archive_text_entry(entry, stop_event=stop_event)
+    except RunCancelled:
+        raise
+    except Exception:
+        return getattr(entry, "path", filename), ""
+
+
+def _attach_pbd_cloth_preview_to_model_preview(
+    entry: ArchiveEntry,
+    model_preview: Optional[ModelPreviewData],
+    parsed_mesh: Optional[object],
+    *,
+    archive_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]],
+    stop_event: Optional[threading.Event] = None,
+) -> List[str]:
+    if model_preview is None or parsed_mesh is None or entry.extension != ".pac":
+        return []
+    sidecar_texts = _collect_archive_model_pbd_sidecar_texts(
+        entry,
+        archive_entries_by_basename=archive_entries_by_basename,
+        stop_event=stop_event,
+    )
+    if not sidecar_texts:
+        return []
+    hints = collect_pbd_sidecar_hints(sidecar_texts)
+    if not any(str(getattr(hint, "simulation_kind", "") or "") == "cloth" for hint in hints):
+        return []
+    pbd_config_text = _read_archive_pbd_config_text(archive_entries_by_basename, stop_event=stop_event)
+
+    def resolve_material(config_material: PbdConfigMaterial) -> Tuple[str, str]:
+        return _read_archive_pbd_material_text(
+            config_material,
+            archive_entries_by_basename,
+            stop_event=stop_event,
+        )
+
+    cloth_preview = build_cloth_preview_from_sidecars(
+        model_preview,
+        parsed_mesh,
+        sidecar_texts,
+        pbd_config_text,
+        resolve_material,
+    )
+    if cloth_preview is None or not cloth_preview.batches:
+        return [
+            "Detected PBD cloth sidecar metadata, but no recovered PAC submesh could be matched for tool-side cloth preview."
+        ]
+    model_preview.cloth_preview = cloth_preview
+    return [
+        (
+            f"{cloth_preview.summary} Enable Tool-side PBD cloth preview in 3D Preview Settings to simulate it; "
+            "this is not game-exact Havok/Pearl Abyss cloth."
+        )
+    ]
+
+
 def _iter_parsed_model_submeshes(parsed_mesh: Optional[object]) -> List[object]:
     if parsed_mesh is None:
         return []
@@ -8500,6 +8706,10 @@ def _refine_model_texture_semantic_from_hint(
         return "mask", "opacity_mask"
     if "material" in normalized_hint and normalized_subtype in {"unknown", "mask"}:
         return "mask", "material_mask"
+    if any(token in normalized_hint for token in ("basecolor", "basecolour", "overlaycolor", "diffuse", "albedo", "colortexture")):
+        return "color", "albedo"
+    if "emissive" in normalized_hint:
+        return "emissive", "emissive"
     return normalized_type, normalized_subtype
 
 
@@ -9495,6 +9705,11 @@ def _attach_model_sidecar_texture_preview_paths(
                 texture_entry.path,
                 sidecar_texts=sidecar_texts,
             )
+        texture_type, semantic_subtype = _refine_model_texture_semantic_from_hint(
+            texture_type,
+            semantic_subtype,
+            binding.parameter_name,
+        )
         if not _is_visible_model_texture_type(texture_type):
             continue
         binding_class = _classify_model_sidecar_visible_binding(binding.parameter_name, texture_entry.path)
@@ -17115,7 +17330,7 @@ def describe_archive_binary_content(extension: str, data: bytes) -> str:
     if head4 == b"PARC":
         return "Detected PARC structured container data."
     if len(data) >= 16 and data[4:8] == b"TAG0" and data[12:16] == b"SDKV":
-        return "Detected Havok tagfile data. Visual animation or skeleton preview is not available yet."
+        return "Detected Havok tagfile data. Collision geometry and related skeleton context are shown when decoded."
     if data.startswith(b"RIFF") and data[8:12] == b"WAVE":
         return "Detected RIFF/WAVE audio data, likely Wwise `.wem`."
     if b"EmitterData" in data[:4096]:
@@ -17206,6 +17421,116 @@ def _build_model_preview_summary_text(path: str, model_preview: ModelPreviewData
         f"{model_preview.vertex_count:,} vertices\n"
         f"{model_preview.face_count:,} faces"
     )
+
+
+def _build_hkx_preview_context_from_related_references(
+    references: Sequence[ArchiveModelTextureReference],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> Tuple[List[Mapping[str, object]], Dict[str, Mapping[str, object]], List[str]]:
+    descriptor_hints: List[Mapping[str, object]] = []
+    skeleton_bone_positions: Dict[str, Mapping[str, object]] = {}
+    notes: List[str] = []
+    seen_descriptor_paths: set[str] = set()
+    seen_skeleton_paths: set[str] = set()
+
+    def _finite_tuple3(value: object) -> Tuple[float, float, float]:
+        if not isinstance(value, (list, tuple)) or len(value) < 3:
+            return ()
+        try:
+            point = (float(value[0]), float(value[1]), float(value[2]))
+        except (TypeError, ValueError, OverflowError):
+            return ()
+        return point if all(math.isfinite(component) for component in point) else ()
+
+    def _bone_preview_position(bone: object) -> Tuple[Tuple[float, float, float], str]:
+        matrix = tuple(getattr(bone, "bind_matrix", ()) or ())
+        candidates: List[Tuple[float, Tuple[float, float, float], str]] = []
+        if len(matrix) >= 16:
+            for indexes, source in (((12, 13, 14), "bind_matrix_row_translation"), ((3, 7, 11), "bind_matrix_column_translation")):
+                point = _finite_tuple3(tuple(matrix[index] for index in indexes))
+                if point:
+                    magnitude = math.sqrt((point[0] * point[0]) + (point[1] * point[1]) + (point[2] * point[2]))
+                    if magnitude > 1e-6:
+                        candidates.append((magnitude, point, source))
+        if candidates:
+            _magnitude, point, source = max(candidates, key=lambda item: item[0])
+            return point, source
+        point = _finite_tuple3(tuple(getattr(bone, "position", ()) or ()))
+        return (point, "local_position") if point else ((), "")
+
+    for reference in references:
+        raise_if_cancelled(stop_event)
+        resolved_entry = getattr(reference, "resolved_entry", None)
+        resolved_extension = str(getattr(resolved_entry, "extension", "") or "").lower()
+        if resolved_entry is None or resolved_extension not in _ARCHIVE_XML_LIKE_EXTENSIONS | {".xml"}:
+            continue
+        normalized_path = str(getattr(resolved_entry, "path", "") or "").replace("\\", "/").strip().lower()
+        if not normalized_path or normalized_path in seen_descriptor_paths:
+            continue
+        if not any(token in normalized_path for token in ("physics", "attachment", "havok", "modelproperty", "material")):
+            continue
+        seen_descriptor_paths.add(normalized_path)
+        try:
+            descriptor_data, _decompressed, _note = read_archive_entry_data(resolved_entry, stop_event=stop_event)
+            descriptor_text = descriptor_data.decode("utf-8", errors="ignore")
+            descriptor_hint = build_hkx_descriptor_hint_from_xml_text(descriptor_text, resolved_entry.path)
+            if descriptor_hint is not None:
+                descriptor_hints.append(descriptor_hint)
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            notes.append(f"HKX descriptor context skipped for {getattr(resolved_entry, 'path', 'unknown')}: {exc}")
+
+    for reference in references:
+        raise_if_cancelled(stop_event)
+        resolved_entry = getattr(reference, "resolved_entry", None)
+        if resolved_entry is None or str(getattr(resolved_entry, "extension", "") or "").lower() != ".pab":
+            continue
+        normalized_path = str(getattr(resolved_entry, "path", "") or "").replace("\\", "/").strip().lower()
+        if not normalized_path or normalized_path in seen_skeleton_paths:
+            continue
+        seen_skeleton_paths.add(normalized_path)
+        try:
+            skeleton_data, _decompressed, _note = read_archive_entry_data(resolved_entry, stop_event=stop_event)
+            skeleton = parse_pab(skeleton_data, resolved_entry.path)
+            bones_by_index = {
+                int(getattr(bone, "index", -1)): bone
+                for bone in getattr(skeleton, "bones", []) or []
+                if int(getattr(bone, "index", -1)) >= 0
+            }
+            loaded_count = 0
+            for bone in getattr(skeleton, "bones", []) or []:
+                bone_name = str(getattr(bone, "name", "") or "").strip()
+                position, position_source = _bone_preview_position(bone)
+                if not bone_name or len(position) < 3:
+                    continue
+                try:
+                    parent_index = int(getattr(bone, "parent_index", -1))
+                except (TypeError, ValueError, OverflowError):
+                    parent_index = -1
+                try:
+                    bone_index = int(getattr(bone, "index", -1))
+                except (TypeError, ValueError, OverflowError):
+                    bone_index = -1
+                parent_bone = bones_by_index.get(parent_index)
+                skeleton_bone_positions[bone_name] = {
+                    "name": bone_name,
+                    "index": bone_index,
+                    "parent_index": parent_index,
+                    "parent_name": str(getattr(parent_bone, "name", "") or "") if parent_bone is not None else "",
+                    "position": position,
+                    "position_source": position_source,
+                    "source_path": resolved_entry.path,
+                }
+                loaded_count += 1
+            if loaded_count > 0:
+                notes.append(f"HKX skeleton context loaded from {resolved_entry.path}: {loaded_count:,} bone(s).")
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            notes.append(f"HKX skeleton context skipped for {getattr(resolved_entry, 'path', 'unknown')}: {exc}")
+    return descriptor_hints, skeleton_bone_positions, notes
 
 
 def _attach_hkx_physics_overlay_to_model_preview(
@@ -18130,12 +18455,46 @@ def build_archive_preview_result(
                 archive_entries_by_normalized_path=texture_entries_by_normalized_path,
                 archive_entries_by_basename=texture_entries_by_basename,
             )
+            descriptor_hints, skeleton_bone_positions, hkx_visual_notes = _build_hkx_preview_context_from_related_references(
+                related_references,
+                stop_event=stop_event,
+            )
+            hkx_model_preview: Optional[ModelPreviewData] = None
+            try:
+                hkx_document = build_hkx_editable_geometry_document(data, entry.path, descriptor_hints)
+                hkx_model_preview = build_hkx_model_preview_from_document(
+                    hkx_document,
+                    source_path=entry.path,
+                    skeleton_bone_positions=skeleton_bone_positions,
+                )
+                if hkx_model_preview is not None:
+                    shape_count = len(getattr(getattr(hkx_model_preview, "physics_overlay", None), "shapes", ()) or ())
+                    bone_count = len(getattr(getattr(hkx_model_preview, "physics_overlay", None), "bones", ()) or ())
+                    hkx_visual_notes.append(
+                        "HKX visual preview generated "
+                        f"{hkx_model_preview.mesh_count:,} D3D11-ready batch(es) from "
+                        f"{shape_count:,} decoded shape(s)"
+                        + (f" and {bone_count:,} skeleton bone(s)" if bone_count else "")
+                        + "."
+                    )
+            except RunCancelled:
+                raise
+            except Exception as exc:
+                hkx_visual_notes.append(f"HKX visual preview generation skipped: {exc}")
+            if hkx_model_preview is not None:
+                metadata_summary = (
+                    f"{metadata_summary} | Havok | {hkx_model_preview.mesh_count:,} preview batch(es)"
+                    f" | {hkx_model_preview.face_count:,} faces"
+                )
+            else:
+                metadata_summary = f"{metadata_summary} | Havok"
             detail_extra = "\n\n".join(
                 part
                 for part in [
                     ("Archive entry uses non-DDS Partial storage; preview is based on raw stored bytes." if "PartialRaw" in note_flags else ""),
                     ("Decrypted via deterministic ChaCha20 filename derivation." if "ChaCha20" in note_flags else ""),
                     "\n".join(hkx_preview.detail_lines),
+                    "\n".join(hkx_visual_notes),
                     ("Companion and related files are listed below." if related_references else ""),
                 ]
                 if part
@@ -18143,12 +18502,13 @@ def build_archive_preview_result(
             return ArchivePreviewResult(
                 status="ok",
                 title=entry.basename,
-                metadata_summary=f"{metadata_summary} | Havok",
+                metadata_summary=metadata_summary,
                 detail_text=build_archive_entry_detail_text(entry, detail_extra),
                 preview_text=hkx_preview.preview_text,
+                preview_model=hkx_model_preview,
                 model_texture_references=related_references,
                 asset_family_graph=build_archive_asset_family_graph(entry, related_references),
-                preferred_view="text",
+                preferred_view="model" if hkx_model_preview is not None else "text",
                 loose_file_path=loose_file_path,
                 loose_preview_image_path=loose_preview_image_path,
                 loose_preview_media_path=loose_preview_media_path,
@@ -18555,6 +18915,18 @@ def build_archive_preview_result(
                         )
                     )
                     add_timing("model_support_texture_attach_s", attach_started_at)
+                if extension == ".pac" and parsed_mesh_for_references is not None:
+                    cloth_started_at = time.perf_counter()
+                    info_extra_parts.extend(
+                        _attach_pbd_cloth_preview_to_model_preview(
+                            entry,
+                            model_preview,
+                            parsed_mesh_for_references,
+                            archive_entries_by_basename=texture_entries_by_basename,
+                            stop_event=stop_event,
+                        )
+                    )
+                    add_timing("model_pbd_cloth_s", cloth_started_at)
         if extension in ARCHIVE_MODEL_EXTENSIONS and parsed_mesh_for_references is None:
             try:
                 from cdmw.modding.mesh_parser import parse_mesh
