@@ -1698,7 +1698,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
         return float4(saturate(ao), saturate(roughness), saturate(specular), 1.0);
     }
     roughness = saturate(roughness + roughness_bias);
-    specular = min(specular, max(max(render_tuning.w, render_tuning.z), lerp(0.34, 0.92, metalness)));
+    specular = min(specular, max(max(render_tuning.w, render_tuning.z), lerp(0.30, 0.74, metalness)));
     float height_value = 0.5;
     if (flags.w > 0.5) {
         height_value = height_tex.Sample(preview_sampler, uv).r;
@@ -1736,16 +1736,18 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float smoothness = saturate(1.0 - roughness);
     float shine_power = lerp(render_tuning2.y, render_tuning2.x, roughness);
     float fresnel = pow(1.0 - saturate(abs(dot(n, view_dir))), 5.0);
-    float highlight = pow(saturate(dot(n, h)), shine_power) * lerp(specular, max(specular, 0.78), metalness);
-    float broad_highlight = pow(saturate(dot(n, h)), max(2.0, shine_power * 0.20)) * smoothness * (0.04 + specular * 0.22 + metalness * 0.30);
-    float rim = pow(1.0 - saturate(abs(dot(n, view_dir))), 2.0) * (0.03 + specular * 0.28 + metalness * 0.24);
+    float metal_reflectance = saturate(metalness * (0.35 + smoothness * 0.65));
+    float nonmetal_sheen = saturate((specular - 0.35) * 1.55) * smoothness;
+    float highlight = pow(saturate(dot(n, h)), shine_power) * specular * (0.34 + metal_reflectance * 0.66);
+    float broad_highlight = pow(saturate(dot(n, h)), max(2.0, shine_power * 0.20)) * (metal_reflectance * 0.16 + nonmetal_sheen * 0.035);
+    float rim = pow(1.0 - saturate(abs(dot(n, view_dir))), 2.0) * (0.012 + metal_reflectance * 0.085 + nonmetal_sheen * 0.020);
     float env_lobe = saturate((n.y * 0.42) + (n.z * -0.18) + 0.58);
-    float3 env_color = lerp(float3(0.045, 0.050, 0.058), float3(0.62, 0.68, 0.75), env_lobe);
+    float3 env_color = lerp(float3(0.035, 0.040, 0.048), float3(0.20, 0.22, 0.25), env_lobe);
     float height_light = lerp(1.0 - material_params.y, 1.0 + material_params.y, height_value);
     float3 diffuse = albedo * (render_tuning.x + ndotl * render_tuning.y) * ao * height_light * lerp(1.0, 0.48, metalness);
-    float3 specular_color = lerp(highlight.xxx, highlight.xxx * max(albedo, float3(0.12, 0.12, 0.12)), metalness);
-    float3 env_reflection = env_color * (fresnel + smoothness * 0.45) * (0.02 + specular * 0.34 + metalness * 0.62);
-    env_reflection = lerp(env_reflection, env_reflection * max(albedo, float3(0.16, 0.16, 0.16)), metalness);
+    float3 specular_color = lerp(highlight.xxx * 0.34, highlight.xxx * max(albedo, float3(0.12, 0.12, 0.12)), metal_reflectance);
+    float3 env_reflection = env_color * (fresnel * (0.018 + metal_reflectance * 0.28) + smoothness * (0.006 + metal_reflectance * 0.12 + nonmetal_sheen * 0.016));
+    env_reflection = lerp(env_reflection * 0.35, env_reflection * max(albedo, float3(0.16, 0.16, 0.16)), metal_reflectance);
     float3 color = diffuse + specular_color + env_reflection + broad_highlight.xxx + rim.xxx;
     color = lerp(color, editor_tint.rgb, saturate(editor_tint.a));
     return float4(linear_to_srgb(color), 1.0);
