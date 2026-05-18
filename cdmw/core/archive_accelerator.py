@@ -1,0 +1,543 @@
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import tempfile
+import time
+from pathlib import Path
+from typing import Any, Callable, Mapping, Optional, Sequence
+
+from cdmw.core.archive import (
+    archive_browser_sort_is_active,
+    load_archive_scan_cache,
+    prepare_archive_browser_state,
+    resolve_archive_scan_cache_path,
+    save_archive_scan_cache,
+)
+from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
+from cdmw.models import ArchiveEntry
+
+
+ARCHIVE_ACCELERATOR_PROTOCOL = 1
+ARCHIVE_ACCELERATOR_BACKEND_ID = "cdmw_archive_accelerator_0.1"
+
+
+def find_native_archive_accelerator() -> Path | None:
+    override = os.environ.get("CDMW_ARCHIVE_ACCELERATOR_BIN", "").strip()
+    candidates = []
+    if override:
+        candidates.append(Path(override))
+    repo_root = Path(__file__).resolve().parents[2]
+    candidates.extend(
+        [
+            repo_root / "native" / "cdmw_archive_accelerator" / "build" / "Release" / "cdmw-archive-accelerator.exe",
+            repo_root / "native" / "cdmw_archive_accelerator" / "build" / "cdmw-archive-accelerator.exe",
+        ]
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _native_diagnostic_args() -> list[str]:
+    args: list[str] = []
+    crash_dir = str(os.environ.get("CDMW_CRASH_DIR", "") or "").strip()
+    diagnostic_log = str(os.environ.get("CDMW_NATIVE_DIAGNOSTIC_LOG", "") or "").strip()
+    if crash_dir:
+        args.extend(["--crash-dir", crash_dir])
+    if diagnostic_log:
+        args.extend(["--diagnostic-log", diagnostic_log])
+    return args
+
+
+def _archive_accelerator_version(binary: Path, *, timeout_seconds: float = 2.0) -> Optional[int]:
+    try:
+        completed = subprocess.run(
+            [str(binary), "--version", *_native_diagnostic_args()],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=max(0.5, float(timeout_seconds)),
+            check=False,
+            **hidden_subprocess_kwargs(),
+        )
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    if completed.returncode != 0 or not completed.stdout:
+        return None
+    text = completed.stdout.decode("utf-8", errors="replace")
+    marker = "protocol="
+    if marker not in text:
+        return None
+    try:
+        return int(text.split(marker, 1)[1].split()[0].strip())
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def _native_archive_accelerator_ready(binary: Optional[Path]) -> bool:
+    if binary is None:
+        return False
+    protocol = _archive_accelerator_version(binary)
+    return protocol == ARCHIVE_ACCELERATOR_PROTOCOL
+
+
+def _entry_from_native_row(row: Mapping[str, object]) -> Optional[ArchiveEntry]:
+    try:
+        return ArchiveEntry(
+            path=str(row.get("path") or ""),
+            pamt_path=Path(str(row.get("pamt_path") or "")),
+            paz_file=Path(str(row.get("paz_file") or "")),
+            offset=int(row.get("offset") or 0),
+            comp_size=int(row.get("comp_size") or 0),
+            orig_size=int(row.get("orig_size") or 0),
+            flags=int(row.get("flags") or 0),
+            paz_index=int(row.get("paz_index") or 0),
+        )
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def scan_archive_entries_native(
+    package_root: Path,
+    *,
+    on_log: Optional[Callable[[str], None]] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    stop_event: object = None,
+    timeout_seconds: float = 120.0,
+) -> Optional[list[ArchiveEntry]]:
+    binary = find_native_archive_accelerator()
+    if not _native_archive_accelerator_ready(binary):
+        return None
+    assert binary is not None
+    raise_if_cancelled(stop_event)
+    started_at = time.perf_counter()
+    with tempfile.TemporaryDirectory(prefix="cdmw_archive_accelerator_scan_") as temp_dir:
+        temp_path = Path(temp_dir)
+        job_path = temp_path / "scan_job.json"
+        report_path = temp_path / "scan_report.json"
+        progress_path = temp_path / "scan_progress.json"
+        job_path.write_text(
+            json.dumps(
+                {
+                    "protocol": ARCHIVE_ACCELERATOR_PROTOCOL,
+                    "package_root": str(Path(package_root)),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        if on_log:
+            on_log("Native archive accelerator: scanning archive indexes...")
+        try:
+            completed = subprocess.run(
+                [
+                    str(binary),
+                    "scan-job",
+                    str(job_path),
+                    str(report_path),
+                    str(progress_path),
+                    *_native_diagnostic_args(),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=max(1.0, float(timeout_seconds)),
+                check=False,
+                **hidden_subprocess_kwargs(),
+            )
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
+            if on_log:
+                on_log(f"Native archive accelerator scan unavailable; using Python fallback ({exc}).")
+            return None
+        raise_if_cancelled(stop_event)
+        if completed.returncode != 0 or not report_path.is_file():
+            if on_log:
+                stderr = completed.stderr.decode("utf-8", errors="replace").strip()
+                on_log(f"Native archive accelerator scan failed; using Python fallback ({stderr[:300]}).")
+            return None
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+    if not isinstance(report, dict) or report.get("status") != "ok":
+        return None
+    rows = report.get("entries")
+    if not isinstance(rows, list):
+        return None
+    entries: list[ArchiveEntry] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            return None
+        entry = _entry_from_native_row(row)
+        if entry is None or not entry.path:
+            return None
+        entries.append(entry)
+    if on_progress:
+        on_progress(len(entries), max(len(entries), 1), f"Native archive scan loaded {len(entries):,} entries")
+    if on_log:
+        elapsed = time.perf_counter() - started_at
+        on_log(f"Native archive accelerator scanned {len(entries):,} entries in {elapsed:.1f}s.")
+    return entries
+
+
+def scan_archive_entries_cached_accelerated(
+    package_root: Path,
+    cache_root: Path,
+    *,
+    force_refresh: bool = False,
+    on_log: Optional[Callable[[str], None]] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_breadcrumb: Optional[Callable[[Mapping[str, object]], None]] = None,
+    stop_event: object = None,
+) -> tuple[list[ArchiveEntry], str, Optional[Path], dict[str, float]]:
+    from cdmw.core.archive import scan_archive_entries_cached
+
+    started_at = time.perf_counter()
+    timings: dict[str, float] = {}
+    cache_path = resolve_archive_scan_cache_path(package_root, cache_root)
+    if not force_refresh:
+        cache_started_at = time.perf_counter()
+        cached_entries = load_archive_scan_cache(
+            package_root,
+            cache_root,
+            on_log=on_log,
+            on_progress=on_progress,
+            stop_event=stop_event,
+            timings=timings,
+        )
+        timings.setdefault("cache_check_s", max(0.0, float(time.perf_counter() - cache_started_at)))
+        if cached_entries is not None:
+            timings.setdefault("archive_scan_s", 0.0)
+            timings.setdefault("cache_write_s", 0.0)
+            timings["total_s"] = max(0.0, float(time.perf_counter() - started_at))
+            return cached_entries, "cache", cache_path, timings
+    native_started_at = time.perf_counter()
+    entries = scan_archive_entries_native(
+        package_root,
+        on_log=on_log,
+        on_progress=on_progress,
+        stop_event=stop_event,
+    )
+    if entries is None:
+        return scan_archive_entries_cached(
+            package_root,
+            cache_root,
+            force_refresh=True,
+            on_log=on_log,
+            on_progress=on_progress,
+            on_breadcrumb=on_breadcrumb,
+            stop_event=stop_event,
+        )
+    timings["archive_scan_s"] = max(0.0, float(time.perf_counter() - native_started_at))
+    try:
+        cache_path = save_archive_scan_cache(
+            package_root,
+            cache_root,
+            entries,
+            on_log=on_log,
+            on_progress=on_progress,
+            stop_event=stop_event,
+            timings=timings,
+        )
+    except Exception as exc:
+        if on_log:
+            on_log(f"Warning: archive cache could not be written after native scan: {exc}")
+        cache_path = None
+        timings.setdefault("cache_write_s", 0.0)
+    timings["total_s"] = max(0.0, float(time.perf_counter() - started_at))
+    return entries, "native_scan", cache_path, timings
+
+
+def read_archive_entry_data_native(
+    entry: ArchiveEntry,
+    *,
+    stop_event: object = None,
+    timeout_seconds: float = 30.0,
+) -> Optional[tuple[bytes, bool, str]]:
+    binary = find_native_archive_accelerator()
+    if not _native_archive_accelerator_ready(binary):
+        return None
+    assert binary is not None
+    raise_if_cancelled(stop_event)
+    with tempfile.TemporaryDirectory(prefix="cdmw_archive_accelerator_entry_") as temp_dir:
+        temp_path = Path(temp_dir)
+        job_path = temp_path / "entry_job.json"
+        output_path = temp_path / "entry_output.bin"
+        report_path = temp_path / "entry_report.json"
+        job_path.write_text(
+            json.dumps(
+                {
+                    "protocol": ARCHIVE_ACCELERATOR_PROTOCOL,
+                    "path": str(entry.path or ""),
+                    "paz_file": str(entry.paz_file),
+                    "offset": int(entry.offset),
+                    "comp_size": int(entry.comp_size),
+                    "orig_size": int(entry.orig_size),
+                    "flags": int(entry.flags),
+                    "paz_index": int(entry.paz_index),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        try:
+            completed = subprocess.run(
+                [
+                    str(binary),
+                    "entry-read-job",
+                    str(job_path),
+                    str(output_path),
+                    str(report_path),
+                    *_native_diagnostic_args(),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=max(1.0, float(timeout_seconds)),
+                check=False,
+                **hidden_subprocess_kwargs(),
+            )
+        except (OSError, subprocess.SubprocessError, ValueError):
+            return None
+        raise_if_cancelled(stop_event)
+        if completed.returncode != 0 or not report_path.is_file():
+            return None
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        if not isinstance(report, Mapping):
+            return None
+        if report.get("status") != "ok" or report.get("supported") is not True:
+            return None
+        if not output_path.is_file():
+            return None
+        try:
+            data = output_path.read_bytes()
+        except OSError:
+            return None
+    bytes_written = report.get("bytes_written")
+    try:
+        if int(bytes_written) != len(data):
+            return None
+    except (TypeError, ValueError):
+        return None
+    return data, bool(report.get("decompressed", False)), str(report.get("note") or "NativeRaw")
+
+
+def _native_browser_state_supported(
+    entries: Sequence[ArchiveEntry],
+    *,
+    filter_text: str,
+    exclude_filter_text: str,
+    item_search_aliases: Optional[Mapping[str, str]],
+    archive_name_search_index: object,
+    sort_column: object,
+    role_filter: str,
+) -> bool:
+    if not entries:
+        return False
+    if item_search_aliases or archive_name_search_index is not None:
+        return False
+    if archive_browser_sort_is_active(sort_column):
+        return False
+    for text in (filter_text, exclude_filter_text):
+        if any(char in str(text or "") for char in '"|:-[]?*'):
+            return False
+    normalized_role = str(role_filter or "all").strip().lower()
+    if normalized_role not in {"", "all"}:
+        return False
+    return True
+
+
+def _write_browser_entries_tsv(path: Path, entries: Sequence[ArchiveEntry]) -> None:
+    def clean(value: object) -> str:
+        return str(value or "").replace("\t", " ").replace("\r", " ").replace("\n", " ")
+
+    with path.open("w", encoding="utf-8", newline="\n") as stream:
+        for index, entry in enumerate(entries):
+            stream.write(
+                "\t".join(
+                    (
+                        str(index),
+                        clean(entry.path),
+                        clean(entry.pamt_path),
+                        clean(entry.paz_file),
+                        str(int(entry.offset)),
+                        str(int(entry.comp_size)),
+                        str(int(entry.orig_size)),
+                        str(int(entry.flags)),
+                        str(int(entry.paz_index)),
+                    )
+                )
+                + "\n"
+            )
+
+
+def _tuple_key(value: object) -> tuple[str, ...]:
+    if isinstance(value, list):
+        return tuple(str(item) for item in value)
+    if isinstance(value, str):
+        return tuple(part for part in value.split("/") if part)
+    return ()
+
+
+def _decode_native_browser_state(report: Mapping[str, object], entries: Sequence[ArchiveEntry]) -> Optional[dict]:
+    raw_indexes = report.get("filtered_indexes")
+    if not isinstance(raw_indexes, list):
+        return None
+    filtered_indexes: list[int] = []
+    for raw_index in raw_indexes:
+        try:
+            entry_index = int(raw_index)
+        except (TypeError, ValueError):
+            return None
+        if entry_index < 0 or entry_index >= len(entries):
+            return None
+        filtered_indexes.append(entry_index)
+    filtered_entries = [entries[index] for index in filtered_indexes]
+
+    structure_children: dict[str, list[tuple[str, int]]] = {}
+    for row in report.get("structure_children", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        parent = str(row.get("parent") or "")
+        children: list[tuple[str, int]] = []
+        for child in row.get("children", []) or []:
+            if isinstance(child, list) and len(child) >= 2:
+                children.append((str(child[0]), int(child[1])))
+        structure_children[parent] = children
+
+    tree_child_folders: dict[tuple[str, ...], list[tuple[str, tuple[str, ...]]]] = {}
+    for row in report.get("tree_child_folders", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        parent = _tuple_key(row.get("parent"))
+        children: list[tuple[str, tuple[str, ...]]] = []
+        for child in row.get("children", []) or []:
+            if isinstance(child, list) and len(child) >= 2:
+                children.append((str(child[0]), _tuple_key(child[1])))
+        tree_child_folders[parent] = children
+
+    tree_direct_files: dict[tuple[str, ...], list[int]] = {}
+    for row in report.get("tree_direct_files", []) or []:
+        if isinstance(row, Mapping):
+            tree_direct_files[_tuple_key(row.get("folder"))] = [int(value) for value in row.get("indexes", []) or []]
+
+    folder_entry_indexes: dict[tuple[str, ...], list[int]] = {}
+    for row in report.get("tree_folder_entry_indexes", []) or []:
+        if isinstance(row, Mapping):
+            folder_entry_indexes[_tuple_key(row.get("folder"))] = [int(value) for value in row.get("indexes", []) or []]
+
+    folder_preview_stats: dict[tuple[str, ...], tuple[int, int, int]] = {}
+    for row in report.get("tree_folder_preview_stats", []) or []:
+        if isinstance(row, Mapping):
+            stats = row.get("stats", []) or []
+            if isinstance(stats, list) and len(stats) >= 3:
+                folder_preview_stats[_tuple_key(row.get("folder"))] = (int(stats[0]), int(stats[1]), int(stats[2]))
+
+    return {
+        "structure_children": structure_children,
+        "filtered_entries": filtered_entries,
+        "tree_child_folders": tree_child_folders,
+        "tree_direct_files": tree_direct_files,
+        "tree_folder_entry_indexes": folder_entry_indexes,
+        "tree_folder_preview_stats": folder_preview_stats,
+        "tree_index_ready": bool(report.get("tree_index_ready", False)),
+        "dds_count": int(report.get("dds_count") or 0),
+        "archive_accelerator": {
+            "backend": str(report.get("backend") or ARCHIVE_ACCELERATOR_BACKEND_ID),
+            "native_requested": True,
+            "native_used": True,
+            "protocol": int(report.get("protocol") or ARCHIVE_ACCELERATOR_PROTOCOL),
+        },
+    }
+
+
+def _try_prepare_archive_browser_state_native(
+    entries: Sequence[ArchiveEntry],
+    **kwargs: Any,
+) -> Optional[dict]:
+    binary = find_native_archive_accelerator()
+    if not _native_archive_accelerator_ready(binary):
+        return None
+    assert binary is not None
+    if not _native_browser_state_supported(
+        entries,
+        filter_text=str(kwargs.get("filter_text", "") or ""),
+        exclude_filter_text=str(kwargs.get("exclude_filter_text", "") or ""),
+        item_search_aliases=kwargs.get("item_search_aliases"),
+        archive_name_search_index=kwargs.get("archive_name_search_index"),
+        sort_column=kwargs.get("sort_column", -1),
+        role_filter=str(kwargs.get("role_filter", "all") or "all"),
+    ):
+        return None
+    stop_event = kwargs.get("stop_event")
+    raise_if_cancelled(stop_event)
+    with tempfile.TemporaryDirectory(prefix="cdmw_archive_accelerator_browser_") as temp_dir:
+        temp_path = Path(temp_dir)
+        entries_path = temp_path / "entries.tsv"
+        job_path = temp_path / "browser_job.json"
+        report_path = temp_path / "browser_report.json"
+        progress_path = temp_path / "browser_progress.json"
+        _write_browser_entries_tsv(entries_path, entries)
+        job_path.write_text(
+            json.dumps(
+                {
+                    "protocol": ARCHIVE_ACCELERATOR_PROTOCOL,
+                    "entries_tsv": str(entries_path),
+                    "filter_text": str(kwargs.get("filter_text", "") or ""),
+                    "exclude_filter_text": str(kwargs.get("exclude_filter_text", "") or ""),
+                    "extension_filter": str(kwargs.get("extension_filter", "*") or "*"),
+                    "package_filter_text": str(kwargs.get("package_filter_text", "") or ""),
+                    "structure_filter": str(kwargs.get("structure_filter", "") or ""),
+                    "exclude_common_technical_suffixes": bool(kwargs.get("exclude_common_technical_suffixes", False)),
+                    "min_size_kb": int(kwargs.get("min_size_kb", 0) or 0),
+                    "previewable_only": bool(kwargs.get("previewable_only", False)),
+                    "build_structure_children": bool(kwargs.get("build_structure_children", True)),
+                    "build_tree_index": bool(kwargs.get("build_tree_index", True)),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        try:
+            completed = subprocess.run(
+                [str(binary), "browser-state-job", str(job_path), str(report_path), str(progress_path), *_native_diagnostic_args()],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=60.0,
+                check=False,
+                **hidden_subprocess_kwargs(),
+            )
+        except (OSError, subprocess.SubprocessError, ValueError):
+            return None
+        raise_if_cancelled(stop_event)
+        if completed.returncode != 0 or not report_path.is_file():
+            return None
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+    if not isinstance(report, Mapping) or report.get("status") != "ok":
+        return None
+    return _decode_native_browser_state(report, entries)
+
+
+def prepare_archive_browser_state_accelerated(*args: Any, native_enabled: bool = True, resource_profile: str = "balanced_60fps", **kwargs: Any) -> dict:
+    native_path = find_native_archive_accelerator() if native_enabled else None
+    if native_enabled and args:
+        native_state = _try_prepare_archive_browser_state_native(args[0], **kwargs)
+        if native_state is not None:
+            native_state["archive_accelerator"]["native_path"] = str(native_path or "")
+            native_state["archive_accelerator"]["resource_profile"] = str(resource_profile or "balanced_60fps")
+            return native_state
+    state = prepare_archive_browser_state(*args, **kwargs)
+    state["archive_accelerator"] = {
+        "backend": "python_fallback",
+        "native_requested": bool(native_enabled),
+        "native_path": str(native_path or ""),
+        "native_used": False,
+        "resource_profile": str(resource_profile or "balanced_60fps"),
+    }
+    return state

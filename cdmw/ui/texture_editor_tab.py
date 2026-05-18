@@ -1719,8 +1719,12 @@ class TextureEditorTab(QWidget):
         self._busy_task_label = ""
         self._adjustment_preview_timer = QTimer(self)
         self._adjustment_preview_timer.setSingleShot(True)
-        self._adjustment_preview_timer.setInterval(40)
+        self._adjustment_preview_timer.setInterval(16)
         self._adjustment_preview_timer.timeout.connect(self.preview_selected_adjustment_properties)
+        self._coalesced_ui_refresh_timer = QTimer(self)
+        self._coalesced_ui_refresh_timer.setSingleShot(True)
+        self._coalesced_ui_refresh_timer.setInterval(16)
+        self._coalesced_ui_refresh_timer.timeout.connect(self._flush_coalesced_ui_refresh)
         self._applying_brush_preset = False
         self._custom_brush_presets: Dict[str, Dict[str, object]] = self._load_custom_brush_presets()
         self.current_tool_settings = TextureEditorToolSettings()
@@ -3101,8 +3105,8 @@ class TextureEditorTab(QWidget):
         self.show_guides_checkbox.toggled.connect(self._handle_navigation_overlay_changed)
         self.apply_guides_button.clicked.connect(self._handle_navigation_overlay_changed)
         self.clear_guides_button.clicked.connect(self.clear_guides)
-        self.vertical_guides_edit.textChanged.connect(lambda *_args: self._refresh_ui())
-        self.horizontal_guides_edit.textChanged.connect(lambda *_args: self._refresh_ui())
+        self.vertical_guides_edit.textChanged.connect(lambda *_args: self._schedule_coalesced_ui_refresh())
+        self.horizontal_guides_edit.textChanged.connect(lambda *_args: self._schedule_coalesced_ui_refresh())
         self.vertical_guides_edit.editingFinished.connect(self._handle_navigation_overlay_changed)
         self.horizontal_guides_edit.editingFinished.connect(self._handle_navigation_overlay_changed)
         self.paint_color_button.clicked.connect(lambda: self._pick_color_into(self.paint_color_edit))
@@ -7032,6 +7036,12 @@ class TextureEditorTab(QWidget):
             self._refresh_canvas_status_strip()
         if tool_visibility:
             self._refresh_tool_visibility()
+
+    def _schedule_coalesced_ui_refresh(self) -> None:
+        self._coalesced_ui_refresh_timer.start()
+
+    def _flush_coalesced_ui_refresh(self) -> None:
+        self._refresh_ui()
 
     def _refresh_ui(self) -> None:
         sidebar_scroll = self._capture_left_sidebar_scroll()

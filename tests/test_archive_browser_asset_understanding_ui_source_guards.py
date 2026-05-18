@@ -193,6 +193,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("self._flush_archive_scan_progress()", source)
         self.assertIn("self.archive_tree_population_time_budget_ms = 6.0", source)
         self.assertIn("return 420, 130", source)
+        self.assertIn("current_item is not None and not defer_default_selection", source)
 
     def test_placement_workspace_and_loose_overlay_review_are_present(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import threading
 from pathlib import Path
@@ -23,6 +24,12 @@ def default_cd_hkx_binary_path() -> Path:
 def find_cd_hkx_binary() -> Optional[Path]:
     env_path = os.environ.get("CDMW_CD_HKX_BIN", "").strip()
     candidates = [Path(env_path)] if env_path else []
+    frozen_root = Path(str(getattr(sys, "_MEIPASS", ""))) if getattr(sys, "_MEIPASS", "") else None
+    exe_root = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else None
+    if frozen_root is not None:
+        candidates.append(frozen_root / "native" / ("cd-hkx.exe" if os.name == "nt" else "cd-hkx"))
+    if exe_root is not None:
+        candidates.append(exe_root / "native" / ("cd-hkx.exe" if os.name == "nt" else "cd-hkx"))
     candidates.append(default_cd_hkx_binary_path())
     for candidate in candidates:
         if candidate.is_file():

@@ -28,6 +28,20 @@ def _make_cdmw_mei(root: Path, name: str, *, marker_pid: int | None = None) -> P
 
 
 class PyInstallerTempCleanupTests(unittest.TestCase):
+    def test_startup_maintenance_scheduler_runs_cleanup_asynchronously(self) -> None:
+        with (
+            mock.patch.object(cdmw_app, "_prepare_pyinstaller_runtime_temp_cleanup") as runtime_cleanup,
+            mock.patch.object(cdmw_app, "_prepare_app_temp_cache_cleanup") as cache_cleanup,
+        ):
+            cdmw_app._startup_maintenance_thread = None
+            cdmw_app._schedule_startup_maintenance(delay_seconds=0)
+            thread = cdmw_app._startup_maintenance_thread
+            self.assertIsNotNone(thread)
+            thread.join(timeout=5)
+
+        runtime_cleanup.assert_called_once()
+        cache_cleanup.assert_called_once()
+
     def test_dead_marked_runtime_dir_is_removed_without_touching_current_dir(self) -> None:
         with tempfile.TemporaryDirectory() as temp_text:
             temp_root = Path(temp_text)

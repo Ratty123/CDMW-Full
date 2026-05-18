@@ -2,20 +2,23 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 import re
-import tempfile
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-from cdmw.constants import APP_NAME
 from cdmw.core.archive_modding import (
+    ARCHIVE_MESH_EXTENSIONS,
+    MESH_IMPORT_COMPANION_EXTENSIONS,
     MESH_IMPORT_SIDECAR_EXTENSIONS,
     MeshImportPreviewResult,
     MeshImportSupplementalFileSpec,
     _mesh_loose_export_payload_path,
     parsed_mesh_to_preview_model,
 )
+from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
 from cdmw.core.upscale_profiles import (
     normalize_texture_reference_for_sidecar_lookup,
     parse_texture_sidecar_bindings,
@@ -36,6 +39,13 @@ FINAL_PREVIEW_BINDING_GENERATED = "generated"
 FINAL_PREVIEW_BINDING_ORIGINAL = "original"
 FINAL_PREVIEW_BINDING_BASENAME_DIAGNOSTIC = "basename_diagnostic"
 FINAL_PREVIEW_BINDING_MISSING = "missing"
+
+FINAL_PREVIEW_PACKAGE_SIDE_EFFECT_EXTENSIONS = (
+    ".json",
+    ".txt",
+    ".md",
+    ".ini",
+)
 
 
 TEXTURE_PLAN_STATUS_READY = "Ready"
@@ -103,11 +113,13 @@ class FinalPackagePreviewResult:
     preview_model: ModelPreviewData
     binding_rows: Tuple[FinalPackageBindingRow, ...] = ()
     warnings: List[str] = field(default_factory=list)
+    preflight_errors: List[str] = field(default_factory=list)
     likely_grey_materials: List[str] = field(default_factory=list)
     missing_texture_paths: List[str] = field(default_factory=list)
     summary_lines: List[str] = field(default_factory=list)
     material_statuses: Tuple[FinalPackageMaterialStatus, ...] = ()
     texture_resolution_manifest: TextureResolutionManifest = field(default_factory=TextureResolutionManifest)
+    package_root: str = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -475,11 +487,12 @@ def _payload_preview_file(payload: _FinalPayload) -> Path:
     target_name = PurePosixPath(payload.final_path).name or payload.source_path.name or "texture.dds"
     if not target_name.lower().endswith(".dds"):
         target_name = f"{Path(target_name).stem}.dds"
-    output_dir = Path(tempfile.gettempdir()) / APP_NAME / "final_package_preview"
+    output_dir = app_temp_cache_path("final_package_preview")
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{Path(target_name).stem}_{digest}.dds"
     if not output_path.exists() or output_path.stat().st_size != len(payload.payload_data):
         output_path.write_bytes(payload.payload_data)
+        request_app_temp_cache_prune()
     return output_path
 
 
@@ -840,6 +853,242 @@ def _looks_like_normal_source_path(source_path: object) -> bool:
     return _looks_like_normal_texture_path(source_path.name)
 
 
+def _package_spec_kind_for_path(path_value: object) -> str:
+    suffix = PurePosixPath(str(path_value or "").replace("\\", "/")).suffix.lower()
+    if suffix in ARCHIVE_MESH_EXTENSIONS:
+        return "mesh"
+    if suffix == ".dds":
+        return "texture_generated"
+    if suffix in MESH_IMPORT_SIDECAR_EXTENSIONS:
+        return "sidecar_generated"
+    if suffix in MESH_IMPORT_COMPANION_EXTENSIONS:
+        return "companion"
+    return "file"
+
+
+def _is_final_preview_payload_file(path: Path) -> bool:
+    suffix = path.suffix.lower()
+    if suffix in ARCHIVE_MESH_EXTENSIONS:
+        return True
+    if suffix == ".dds":
+        return True
+    if suffix in MESH_IMPORT_SIDECAR_EXTENSIONS:
+        return True
+    if suffix in MESH_IMPORT_COMPANION_EXTENSIONS:
+        return True
+    return False
+
+
+def _is_mesh_payload_spec(spec: MeshImportSupplementalFileSpec) -> bool:
+    kind = str(getattr(spec, "kind", "") or "").strip().lower()
+    target_suffix = PurePosixPath(str(getattr(spec, "target_path", "") or "")).suffix.lower()
+    source_suffix = getattr(getattr(spec, "source_path", None), "suffix", "").lower()
+    return kind == "mesh" or target_suffix in ARCHIVE_MESH_EXTENSIONS or source_suffix in ARCHIVE_MESH_EXTENSIONS
+
+
+def _spec_payload_raw_bytes(spec: MeshImportSupplementalFileSpec) -> bytes:
+    payload_data = bytes(getattr(spec, "payload_data", b"") or b"")
+    if payload_data:
+        return payload_data
+    source_path = getattr(spec, "source_path", None)
+    if isinstance(source_path, Path):
+        try:
+            resolved = source_path.expanduser().resolve()
+            if resolved.is_file():
+                return resolved.read_bytes()
+        except OSError:
+            return b""
+    return b""
+
+
+def _package_rebuilt_mesh_data(
+    specs: Sequence[MeshImportSupplementalFileSpec],
+    preview_result: MeshImportPreviewResult,
+    export_options: object = None,
+) -> bytes:
+    parsed_path = str(getattr(getattr(preview_result, "parsed_mesh", None), "path", "") or "").replace("\\", "/").strip()
+    model_path = str(getattr(getattr(preview_result, "preview_model", None), "path", "") or "").replace("\\", "/").strip()
+    expected_keys = {
+        _normalize_final_path(_final_payload_path(path, export_options))
+        for path in (parsed_path, model_path)
+        if path
+    }
+    mesh_specs = [spec for spec in tuple(specs or ()) if isinstance(spec, MeshImportSupplementalFileSpec) and _is_mesh_payload_spec(spec)]
+    if not mesh_specs:
+        return b""
+    for spec in mesh_specs:
+        target_key = _normalize_final_path(str(getattr(spec, "target_path", "") or ""))
+        if target_key and target_key in expected_keys:
+            return _spec_payload_raw_bytes(spec)
+    if len(mesh_specs) == 1:
+        return _spec_payload_raw_bytes(mesh_specs[0])
+    return b""
+
+
+def _package_specs_from_manifest(package_root: Path, manifest_payload: Mapping[str, object]) -> Tuple[MeshImportSupplementalFileSpec, ...]:
+    files_root = str(manifest_payload.get("files_root") or manifest_payload.get("files_dir") or "").strip().strip("/\\")
+    if files_root in {"", "."}:
+        payload_root = package_root
+    else:
+        payload_root = package_root / files_root
+    specs: List[MeshImportSupplementalFileSpec] = []
+    for row in tuple(manifest_payload.get("files", ()) or ()):
+        if not isinstance(row, Mapping):
+            continue
+        target_path = _display_path(row.get("path"))
+        if not target_path:
+            continue
+        source_path = payload_root.joinpath(*PurePosixPath(target_path).parts)
+        if not source_path.is_file() or not _is_final_preview_payload_file(source_path):
+            continue
+        specs.append(
+            MeshImportSupplementalFileSpec(
+                source_path=source_path,
+                target_path=target_path,
+                kind=_package_spec_kind_for_path(target_path),
+                used_for_preview=True,
+                payload_data=b"",
+                note="Scanned from exact final loose package manifest.",
+            )
+        )
+    return tuple(specs)
+
+
+def build_final_package_specs_from_package_root(package_root: Path) -> Tuple[MeshImportSupplementalFileSpec, ...]:
+    """Return preview specs from files that actually exist in a written loose package."""
+
+    root = package_root.expanduser().resolve()
+    if not root.is_dir():
+        return ()
+    manifest_path = root / "manifest.json"
+    if manifest_path.is_file():
+        try:
+            manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            manifest_payload = {}
+        if isinstance(manifest_payload, Mapping):
+            manifest_specs = _package_specs_from_manifest(root, manifest_payload)
+            if manifest_specs:
+                return manifest_specs
+
+    candidate_roots: List[Tuple[Path, PurePosixPath]] = []
+    files_root = root / "files"
+    if files_root.is_dir():
+        candidate_roots.append((files_root, PurePosixPath()))
+    candidate_roots.append((root, PurePosixPath()))
+    specs_by_key: Dict[str, MeshImportSupplementalFileSpec] = {}
+    ignored_names = {
+        ".no_encrypt",
+        "manifest.json",
+        "mod.json",
+        "modinfo.json",
+        "info.json",
+        "readme.txt",
+        "cdmw_texture_resolution_manifest.json",
+    }
+    for physical_root, virtual_prefix in candidate_roots:
+        try:
+            files = tuple(path for path in physical_root.rglob("*") if path.is_file())
+        except OSError:
+            continue
+        for path in files:
+            if path.name.lower() in ignored_names or not _is_final_preview_payload_file(path):
+                continue
+            try:
+                relative = path.relative_to(physical_root)
+            except ValueError:
+                continue
+            target_path = PurePosixPath(virtual_prefix, *relative.parts).as_posix()
+            normalized_target = _normalize_final_path(target_path)
+            if not normalized_target or normalized_target in specs_by_key:
+                continue
+            specs_by_key[normalized_target] = MeshImportSupplementalFileSpec(
+                source_path=path,
+                target_path=target_path,
+                kind=_package_spec_kind_for_path(target_path),
+                used_for_preview=True,
+                payload_data=b"",
+                note="Scanned from exact final loose package files.",
+            )
+    return tuple(specs_by_key[key] for key in sorted(specs_by_key))
+
+
+def stage_final_package_preview_payloads(
+    preview_result: MeshImportPreviewResult,
+    *,
+    supplemental_file_specs: Sequence[MeshImportSupplementalFileSpec],
+    export_options: object = None,
+    label: str = "test_build_preview",
+) -> Path:
+    """Write an in-memory final package candidate to the app temp cache and return its package root."""
+
+    hasher = hashlib.sha1()
+    hasher.update(bytes(getattr(preview_result, "rebuilt_data", b"") or b""))
+    for spec in tuple(supplemental_file_specs or ()):
+        if not isinstance(spec, MeshImportSupplementalFileSpec):
+            continue
+        hasher.update(str(getattr(spec, "target_path", "") or "").encode("utf-8", errors="ignore"))
+        payload = bytes(getattr(spec, "payload_data", b"") or b"")
+        if payload:
+            hasher.update(payload[:4096])
+            hasher.update(str(len(payload)).encode("ascii"))
+        else:
+            source_path = getattr(spec, "source_path", None)
+            if isinstance(source_path, Path):
+                hasher.update(source_path.as_posix().encode("utf-8", errors="ignore"))
+    digest = hasher.hexdigest()[:16]
+    safe_label = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(label or "test_build_preview")).strip("._") or "test_build_preview"
+    package_root = app_temp_cache_path("final_package_preview_stage") / f"{safe_label}_{digest}"
+    if package_root.exists():
+        shutil.rmtree(package_root)
+    package_root.mkdir(parents=True, exist_ok=True)
+    manifest_files: List[dict] = []
+
+    parsed_path = str(getattr(getattr(preview_result, "parsed_mesh", None), "path", "") or "").strip()
+    rebuilt_data = bytes(getattr(preview_result, "rebuilt_data", b"") or b"")
+    if parsed_path and rebuilt_data:
+        target_path = _final_payload_path(parsed_path, export_options)
+        if target_path:
+            output_path = package_root.joinpath(*PurePosixPath(target_path).parts)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(rebuilt_data)
+            manifest_files.append({"path": target_path, "format": output_path.suffix.lstrip(".").lower()})
+
+    seen: set[str] = {str(row["path"]).lower() for row in manifest_files}
+    for spec in tuple(supplemental_file_specs or ()):
+        if not isinstance(spec, MeshImportSupplementalFileSpec):
+            continue
+        target_path = _final_payload_path(str(getattr(spec, "target_path", "") or ""), export_options)
+        if not target_path:
+            continue
+        key = target_path.lower()
+        if key in seen:
+            continue
+        payload = _spec_payload_raw_bytes(spec)
+        if not payload:
+            continue
+        output_path = package_root.joinpath(*PurePosixPath(target_path).parts)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(payload)
+        manifest_files.append({"path": target_path, "format": output_path.suffix.lstrip(".").lower()})
+        seen.add(key)
+
+    (package_root / "manifest.json").write_text(
+        json.dumps(
+            {
+                "format": "v1",
+                "kind": "mesh_loose_mod_preview_stage",
+                "files_root": ".",
+                "files": manifest_files,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    request_app_temp_cache_prune()
+    return package_root
+
+
 def build_final_package_preview(
     preview_result: MeshImportPreviewResult,
     *,
@@ -848,14 +1097,37 @@ def build_final_package_preview(
     texconv_path: Optional[Path] = None,
     original_dds_resolver: Optional[Callable[[str], Optional[Path]]] = None,
     original_dds_basename_resolver: Optional[Callable[[str], Sequence[Path]]] = None,
+    package_root: Optional[Path] = None,
+    require_source_owned_colors: bool = False,
 ) -> FinalPackagePreviewResult:
     """Build the texture-authoritative mesh preview for the package payloads that would be exported."""
 
     warnings: List[str] = []
-    preview_model = _rebuilt_preview_model(preview_result, warnings)
+    package_root_text = ""
+    if package_root is not None:
+        try:
+            resolved_package_root = package_root.expanduser().resolve()
+            package_root_text = resolved_package_root.as_posix()
+        except Exception:
+            resolved_package_root = package_root
+            package_root_text = str(package_root)
+        package_specs = build_final_package_specs_from_package_root(resolved_package_root)
+        if package_specs:
+            specs = package_specs
+        else:
+            specs = tuple(supplemental_file_specs if supplemental_file_specs is not None else getattr(preview_result, "supplemental_file_specs", ()) or ())
+            warnings.append(f"Final package preview could not scan package payloads from {package_root_text}; using in-memory payload specs.")
+    else:
+        specs = tuple(supplemental_file_specs if supplemental_file_specs is not None else getattr(preview_result, "supplemental_file_specs", ()) or ())
+
+    effective_preview_result = preview_result
+    package_mesh_data = _package_rebuilt_mesh_data(specs, preview_result, export_options)
+    if package_mesh_data:
+        effective_preview_result = dataclasses.replace(preview_result, rebuilt_data=package_mesh_data)
+
+    preview_model = _rebuilt_preview_model(effective_preview_result, warnings)
     _clear_texture_slots(preview_model)
-    warnings.extend(_preview_result_texture_contract_warnings(preview_result))
-    specs = tuple(supplemental_file_specs if supplemental_file_specs is not None else getattr(preview_result, "supplemental_file_specs", ()) or ())
+    warnings.extend(_preview_result_texture_contract_warnings(effective_preview_result))
 
     sidecars: Dict[str, Tuple[str, MeshImportSupplementalFileSpec]] = {}
     dds_by_path: Dict[str, _FinalPayload] = {}
@@ -1109,7 +1381,7 @@ def build_final_package_preview(
         material_name = material_display_by_key.get(material_key, material_key or "Material")
         rows = rows_by_material.get(material_key, [])
         visible_rows = [row for row in rows if row.role in {"Base / Color", "Emissive"}]
-        support_rows = [row for row in rows if row.role in {"Normal", "Height", "Material / Mask"}]
+        support_rows = [row for row in rows if row.role in {"Normal", "Height", "Material / Mask", "Detail Mask"}]
         ready_visible = [row for row in visible_rows if row.status == FINAL_PREVIEW_READY and row.confidence == "exact"]
         missing_visible = [row for row in visible_rows if row.status == FINAL_PREVIEW_MISSING_DDS]
         decode_failed_visible = [row for row in visible_rows if row.status == FINAL_PREVIEW_DECODE_FAILED]
@@ -1160,25 +1432,108 @@ def build_final_package_preview(
     contract_base_count = sum(1 for row in binding_rows if row.role in {"Base / Color", "Emissive"})
     contract_normal_count = sum(1 for row in binding_rows if row.role == "Normal")
     contract_material_count = sum(1 for row in binding_rows if row.role == "Material / Mask")
+    ready_binding_count = sum(1 for row in binding_rows if row.status == FINAL_PREVIEW_READY)
+    missing_binding_count = sum(1 for row in binding_rows if row.status == FINAL_PREVIEW_MISSING_DDS)
+    visible_mesh_parts = len(tuple(getattr(preview_model, "meshes", ()) or ()))
+    source_owned_color_count = sum(
+        1
+        for row in binding_rows
+        if row.role in {"Base / Color", "Emissive"}
+        and row.binding_source == FINAL_PREVIEW_BINDING_GENERATED
+        and row.status == FINAL_PREVIEW_READY
+    )
+    inherited_color_count = sum(
+        1
+        for row in binding_rows
+        if row.role in {"Base / Color", "Emissive"}
+        and row.binding_source == FINAL_PREVIEW_BINDING_ORIGINAL
+        and row.status == FINAL_PREVIEW_READY
+    )
+    missing_color_count = sum(
+        1
+        for row in binding_rows
+        if row.role in {"Base / Color", "Emissive"}
+        and row.status != FINAL_PREVIEW_READY
+    )
+    unresolved_stock_count = sum(
+        1
+        for row in binding_rows
+        if _is_stock_or_shared_texture_path(row.texture_path)
+        and row.status != FINAL_PREVIEW_READY
+    )
     stock_preserved_count = sum(
         1
         for row in binding_rows
         if _is_stock_or_shared_texture_path(row.texture_path)
         and row.binding_source == FINAL_PREVIEW_BINDING_ORIGINAL
     )
+    preflight_errors: List[str] = []
+    for row in binding_rows:
+        basename = PurePosixPath(str(row.texture_path or "").replace("\\", "/")).name.lower()
+        stem = PurePosixPath(basename).stem.lower()
+        parameter_key = re.sub(r"[^a-z0-9]+", "", str(row.parameter_name or "").lower())
+        if row.binding_source == FINAL_PREVIEW_BINDING_BASENAME_DIAGNOSTIC:
+            preflight_errors.append(
+                f"Exact texture path mismatch: {row.sidecar_path} -> {row.texture_path}. A same-basename DDS exists, but the packaged path does not match."
+            )
+        if row.role in {"Base / Color", "Emissive"} and row.status in {FINAL_PREVIEW_MISSING_DDS, FINAL_PREVIEW_DECODE_FAILED}:
+            preflight_errors.append(
+                f"Visible color texture is not package-resolved: {row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
+            )
+        if row.role == "Base / Color" and stem.endswith(("_mg", "_sp", "_n", "_normal", "_disp", "_height")):
+            preflight_errors.append(
+                f"Support map is bound as visible base color: {row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
+            )
+        if (
+            any(token in parameter_key for token in ("basecolor", "overlaycolor", "diffuse", "albedo", "colortexture"))
+            and stem.endswith(("_mg", "_sp", "_n", "_normal", "_disp", "_height"))
+        ):
+            preflight_errors.append(
+                f"Support map path is assigned to a visible color parameter: {row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
+            )
+        if (
+            require_source_owned_colors
+            and row.role in {"Base / Color", "Emissive"}
+            and row.status == FINAL_PREVIEW_READY
+            and row.binding_source != FINAL_PREVIEW_BINDING_GENERATED
+        ):
+            preflight_errors.append(
+                f"Complete source-owned swap still inherits visible color from the game archive: {row.material_name} -> {row.texture_path}."
+            )
+    if orphan_payload_paths:
+        preflight_errors.append(
+            "Generated/copied DDS payloads are not referenced by parsed material sidecars: "
+            + ", ".join(orphan_payload_paths[:8])
+            + (" ..." if len(orphan_payload_paths) > 8 else "")
+        )
+    if require_source_owned_colors and not sidecars:
+        preflight_errors.append("Complete source-owned swap has no packaged material sidecar payload to control visible color.")
+    if require_source_owned_colors and source_visible_texture_count > final_visible_texture_count:
+        preflight_errors.append(
+            "Complete source-owned swap lost visible texture coverage in the final package contract "
+            f"({final_visible_texture_count:,}/{source_visible_texture_count:,})."
+        )
+    preflight_errors = _dedupe(preflight_errors)
+
     summary_lines = [
         "Final Output Preview",
+        f"Package root: {package_root_text or '-'}",
+        f"Visible mesh parts: {visible_mesh_parts:,}",
         f"Parsed sidecar payloads: {len(sidecars):,}" + ("; using kept original sidecar bindings" if binding_sources and not sidecars else ""),
         f"Patched sidecar payloads: {generated_sidecar_count:,}",
         f"Generated/copied DDS payloads: {len(dds_by_path):,}",
         f"Ready material(s): {ready_materials:,}/{len(material_statuses):,}",
+        f"Sidecar texture refs used: {len(binding_rows):,}; found {ready_binding_count:,}; missing {missing_binding_count:,}",
+        f"Color authority: source-owned {source_owned_color_count:,}, inherited {inherited_color_count:,}, missing {missing_color_count:,}",
         (
             "Texture Contract: "
             f"base/color {contract_base_count:,}, normal {contract_normal_count:,}, "
             f"material/mask {contract_material_count:,}, stock/shared preserved {stock_preserved_count:,}, "
-            f"orphan DDS {len(orphan_payload_paths):,}"
+            f"unresolved stock {unresolved_stock_count:,}, orphan DDS {len(orphan_payload_paths):,}"
         ),
     ]
+    if preflight_errors:
+        summary_lines.append(f"Preflight blocker(s): {len(preflight_errors):,}")
     if likely_grey_materials:
         summary_lines.append(f"Likely grey material(s): {', '.join(likely_grey_materials[:8])}" + (" ..." if len(likely_grey_materials) > 8 else ""))
     if missing_paths:
@@ -1191,11 +1546,13 @@ def build_final_package_preview(
         preview_model=preview_model,
         binding_rows=tuple(binding_rows),
         warnings=_dedupe(warnings),
+        preflight_errors=preflight_errors,
         likely_grey_materials=_dedupe(likely_grey_materials),
         missing_texture_paths=_dedupe(missing_paths),
         summary_lines=summary_lines,
         material_statuses=tuple(material_statuses),
         texture_resolution_manifest=texture_resolution_manifest,
+        package_root=package_root_text,
     )
 
 

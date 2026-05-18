@@ -20,7 +20,7 @@ import bisect
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Iterator, Mapping
 from collections import Counter, OrderedDict, defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, BinaryIO, Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -64,6 +64,7 @@ from cdmw.core.archive_modding import (
     merge_hkx_physics_overlays,
 )
 from cdmw.core.pipeline import ensure_dds_display_preview_png, inspect_crimson_dds, parse_dds
+from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
 from cdmw.core.upscale_profiles import (
     classify_texture_type,
     derive_texture_group_key,
@@ -101,6 +102,10 @@ _MODEL_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION = _INITIAL_MODEL_PREVIEW_RENDER_SET
 _MODEL_SUPPORT_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION = min(
     256,
     max(128, int(_INITIAL_MODEL_PREVIEW_RENDER_SETTINGS.low_quality_texture_max_dimension)),
+)
+_FAST_ARCHIVE_PREVIEW_MAX_FACES = 35_000
+_FAST_ARCHIVE_PREVIEW_TEXTURE_NOTE = (
+    "Fast preview skips high-resolution texture preparation while the full-quality preview builds in the background."
 )
 _MODEL_TEXTURE_VISIBLE_FAMILY_SUFFIXES: Tuple[str, ...] = (
     "",
@@ -6057,6 +6062,16 @@ def read_archive_entry_data(
     entry: ArchiveEntry,
     stop_event: Optional[threading.Event] = None,
 ) -> Tuple[bytes, bool, str]:
+    try:
+        from cdmw.core.archive_accelerator import read_archive_entry_data_native
+
+        native_result = read_archive_entry_data_native(entry, stop_event=stop_event)
+        if native_result is not None:
+            return native_result
+    except RunCancelled:
+        raise
+    except Exception:
+        pass
     data = read_archive_entry_raw_data(entry, stop_event=stop_event)
     return _decode_archive_entry_data(entry, data, stop_event=stop_event)
 
@@ -6623,7 +6638,7 @@ def ensure_archive_preview_source(
     ).hexdigest()
     suffix = Path(entry.path).suffix or ".bin"
     filename = sanitize_cache_filename(f"{Path(entry.path).stem}{suffix}")
-    cache_dir = Path(tempfile.gettempdir()) / APP_NAME / "archive_preview_cache" / cache_key
+    cache_dir = app_temp_cache_path("archive_preview_cache", cache_key)
     target_path = cache_dir / filename
     if target_path.exists() and target_path.stat().st_size > 0:
         note_path = cache_dir / ".note"
@@ -6635,6 +6650,7 @@ def ensure_archive_preview_source(
     target_path.write_bytes(data)
     if note:
         (cache_dir / ".note").write_text(note, encoding="utf-8")
+    request_app_temp_cache_prune()
     return target_path, note
 
 
@@ -8367,8 +8383,6 @@ def _attach_pbd_cloth_preview_to_model_preview(
     if not sidecar_texts:
         return []
     hints = collect_pbd_sidecar_hints(sidecar_texts)
-    if not any(str(getattr(hint, "simulation_kind", "") or "") == "cloth" for hint in hints):
-        return []
     pbd_config_text = _read_archive_pbd_config_text(archive_entries_by_basename, stop_event=stop_event)
 
     def resolve_material(config_material: PbdConfigMaterial) -> Tuple[str, str]:
@@ -8387,13 +8401,13 @@ def _attach_pbd_cloth_preview_to_model_preview(
     )
     if cloth_preview is None or not cloth_preview.batches:
         return [
-            "Detected PBD cloth sidecar metadata, but no recovered PAC submesh could be matched for tool-side cloth preview."
+            "Detected PBD soft-physics sidecar metadata, but no recovered PAC submesh could be matched for tool-side PBD physics preview."
         ]
     model_preview.cloth_preview = cloth_preview
     return [
         (
-            f"{cloth_preview.summary} Enable Tool-side PBD cloth preview in 3D Preview Settings to simulate it; "
-            "this is not game-exact Havok/Pearl Abyss cloth."
+            f"{cloth_preview.summary} Enable Tool-side PBD physics preview in 3D Preview Settings to simulate it; "
+            "this is not game-exact Havok/Pearl Abyss physics."
         )
     ]
 
@@ -17791,14 +17805,110 @@ def _pam_preview_looks_incomplete(data: bytes, model_preview: ModelPreviewData) 
     return False
 
 
+def _normalize_archive_preview_quality_tier(value: object) -> str:
+    return "fast" if str(value or "").strip().lower() == "fast" else "full"
+
+
+def _archive_preview_fast_lod_index() -> int:
+    return -1
+
+
+def _reduce_archive_preview_model_geometry(
+    model_preview: ModelPreviewData,
+    *,
+    max_faces: int = _FAST_ARCHIVE_PREVIEW_MAX_FACES,
+) -> ModelPreviewData:
+    face_count = int(getattr(model_preview, "face_count", 0) or 0)
+    if face_count <= max_faces or max_faces <= 0:
+        return model_preview
+    ratio = max_faces / max(1, face_count)
+    reduced_meshes: List[ModelPreviewMesh] = []
+    for mesh in tuple(getattr(model_preview, "meshes", ()) or ()):
+        if not isinstance(mesh, ModelPreviewMesh):
+            reduced_meshes.append(mesh)
+            continue
+        indices = list(getattr(mesh, "indices", ()) or ())
+        mesh_face_count = len(indices) // 3
+        if mesh_face_count <= 0:
+            reduced_meshes.append(mesh)
+            continue
+        target_faces = max(1, int(mesh_face_count * ratio))
+        step = max(1, math.ceil(mesh_face_count / target_faces))
+        selected_triangles: List[Tuple[int, int, int]] = []
+        for face_index in range(0, mesh_face_count, step):
+            base = face_index * 3
+            if base + 2 >= len(indices):
+                continue
+            selected_triangles.append((indices[base], indices[base + 1], indices[base + 2]))
+            if len(selected_triangles) >= target_faces:
+                break
+        used_indices: List[int] = []
+        seen_indices: set[int] = set()
+        position_count = len(getattr(mesh, "positions", ()) or ())
+        for triangle in selected_triangles:
+            for vertex_index in triangle:
+                if vertex_index < 0 or vertex_index >= position_count or vertex_index in seen_indices:
+                    continue
+                seen_indices.add(vertex_index)
+                used_indices.append(vertex_index)
+        if len(used_indices) < 3:
+            reduced_meshes.append(mesh)
+            continue
+        index_map = {old_index: new_index for new_index, old_index in enumerate(used_indices)}
+        reduced_indices: List[int] = []
+        for triangle in selected_triangles:
+            if all(vertex_index in index_map for vertex_index in triangle):
+                reduced_indices.extend(index_map[vertex_index] for vertex_index in triangle)
+        if len(reduced_indices) < 3:
+            reduced_meshes.append(mesh)
+            continue
+
+        def remap(values: Sequence[object]) -> list[object]:
+            return [values[index] for index in used_indices] if len(values) == position_count else list(values)
+
+        mesh_values = {field_info.name: getattr(mesh, field_info.name) for field_info in fields(ModelPreviewMesh)}
+        mesh_values["positions"] = remap(getattr(mesh, "positions", ()) or ())
+        mesh_values["texture_coordinates"] = remap(getattr(mesh, "texture_coordinates", ()) or ())
+        mesh_values["normals"] = remap(getattr(mesh, "normals", ()) or ())
+        mesh_values["source_vertex_indices"] = remap(getattr(mesh, "source_vertex_indices", ()) or ())
+        mesh_values["indices"] = reduced_indices
+        reduced_meshes.append(ModelPreviewMesh(**mesh_values))
+
+    reduced_face_count = sum(len(getattr(mesh, "indices", ()) or ()) // 3 for mesh in reduced_meshes)
+    reduced_vertex_count = sum(len(getattr(mesh, "positions", ()) or ()) for mesh in reduced_meshes)
+    summary = str(getattr(model_preview, "summary", "") or "")
+    if summary:
+        summary = f"{summary}\nFast preview: {reduced_face_count:,} sampled faces shown while full preview builds."
+    else:
+        summary = f"Fast preview: {reduced_face_count:,} sampled faces shown while full preview builds."
+    return ModelPreviewData(
+        **{
+            field_info.name: (
+                reduced_meshes
+                if field_info.name == "meshes"
+                else reduced_vertex_count
+                if field_info.name == "vertex_count"
+                else reduced_face_count
+                if field_info.name == "face_count"
+                else summary
+                if field_info.name == "summary"
+                else getattr(model_preview, field_info.name)
+            )
+            for field_info in fields(ModelPreviewData)
+        }
+    )
+
+
 def _build_pam_model_preview_with_fallback(
     entry: ArchiveEntry,
     data: bytes,
     note_flags: set[str],
     *,
     companion_entry: Optional[ArchiveEntry] = None,
+    quality_tier: str = "full",
     stop_event: Optional[threading.Event] = None,
 ) -> Tuple[ModelPreviewData, List[str]]:
+    normalized_quality_tier = _normalize_archive_preview_quality_tier(quality_tier)
     info_extra_parts: List[str] = []
     recovery_errors: List[str] = []
     raw_model_preview: Optional[ModelPreviewData] = None
@@ -17817,6 +17927,9 @@ def _build_pam_model_preview_with_fallback(
                 "Stored PAM geometry recovery looks incomplete for this Partial entry; a companion PAMLOD preview will be preferred when available."
             )
         else:
+            if normalized_quality_tier == "fast":
+                raw_model_preview = _reduce_archive_preview_model_geometry(raw_model_preview)
+                info_extra_parts.append("Fast preview uses sampled PAM geometry while the full preview builds.")
             return raw_model_preview, info_extra_parts
     except RunCancelled:
         raise
@@ -17832,7 +17945,12 @@ def _build_pam_model_preview_with_fallback(
                 companion_entry,
                 stop_event=stop_event,
             )
-            model_preview = build_pamlod_model_preview(companion_entry, companion_data, stop_event=stop_event)
+            model_preview = build_pamlod_model_preview(
+                companion_entry,
+                companion_data,
+                lod_index=_archive_preview_fast_lod_index() if normalized_quality_tier == "fast" else None,
+                stop_event=stop_event,
+            )
             ensure_model_preview_is_reasonable(model_preview, stop_event=stop_event)
             _retarget_model_preview(model_preview, entry.path)
             info_extra_parts.append(
@@ -17841,6 +17959,8 @@ def _build_pam_model_preview_with_fallback(
             companion_note_flags = parse_archive_note_flags(companion_note)
             if "ChaCha20" in companion_note_flags:
                 info_extra_parts.append("Companion PAMLOD geometry was decrypted via deterministic ChaCha20 filename derivation.")
+            if normalized_quality_tier == "fast" and getattr(model_preview, "lod_count", 0) > 1:
+                info_extra_parts.append("Fast preview uses a lower-detail companion PAMLOD level while the full preview builds.")
             return model_preview, info_extra_parts
         except RunCancelled:
             raise
@@ -17852,6 +17972,9 @@ def _build_pam_model_preview_with_fallback(
             padded_data = data + (b"\x00" * (entry.orig_size - len(data)))
             model_preview = build_pam_model_preview(entry, padded_data, stop_event=stop_event)
             ensure_model_preview_is_reasonable(model_preview, stop_event=stop_event)
+            if normalized_quality_tier == "fast":
+                model_preview = _reduce_archive_preview_model_geometry(model_preview)
+                info_extra_parts.append("Fast preview uses sampled PAM geometry while the full preview builds.")
             info_extra_parts.append(
                 "Visual model preview uses zero-padded Partial reconstruction because the stored PAM payload is incomplete."
             )
@@ -17865,6 +17988,9 @@ def _build_pam_model_preview_with_fallback(
         info_extra_parts.append(
             "Stored PAM geometry preview is being shown even though the recovered mesh set appears incomplete."
         )
+        if normalized_quality_tier == "fast":
+            raw_model_preview = _reduce_archive_preview_model_geometry(raw_model_preview)
+            info_extra_parts.append("Fast preview uses sampled PAM geometry while the full preview builds.")
         return raw_model_preview, info_extra_parts
 
     if "PartialRaw" in note_flags and len(data) < entry.orig_size:
@@ -17878,14 +18004,23 @@ def _build_pamlod_model_preview_with_fallback(
     note_flags: set[str],
     *,
     companion_entry: Optional[ArchiveEntry] = None,
+    quality_tier: str = "full",
     stop_event: Optional[threading.Event] = None,
 ) -> Tuple[ModelPreviewData, List[str]]:
+    normalized_quality_tier = _normalize_archive_preview_quality_tier(quality_tier)
     info_extra_parts: List[str] = []
     recovery_errors: List[str] = []
 
     try:
-        model_preview = build_pamlod_model_preview(entry, data, stop_event=stop_event)
+        model_preview = build_pamlod_model_preview(
+            entry,
+            data,
+            lod_index=_archive_preview_fast_lod_index() if normalized_quality_tier == "fast" else None,
+            stop_event=stop_event,
+        )
         ensure_model_preview_is_reasonable(model_preview, stop_event=stop_event)
+        if normalized_quality_tier == "fast" and getattr(model_preview, "lod_count", 0) > 1:
+            info_extra_parts.append("Fast preview uses a lower-detail PAMLOD level while the full preview builds.")
         return model_preview, info_extra_parts
     except RunCancelled:
         raise
@@ -17900,6 +18035,9 @@ def _build_pamlod_model_preview_with_fallback(
             )
             model_preview = build_pam_model_preview(companion_entry, companion_data, stop_event=stop_event)
             ensure_model_preview_is_reasonable(model_preview, stop_event=stop_event)
+            if normalized_quality_tier == "fast":
+                model_preview = _reduce_archive_preview_model_geometry(model_preview)
+                info_extra_parts.append("Fast preview uses sampled companion PAM geometry while the full preview builds.")
             _retarget_model_preview(model_preview, entry.path)
             info_extra_parts.append(
                 f"Visual model preview uses companion {companion_entry.basename} geometry because the selected PAMLOD payload did not yield a complete renderable LOD preview."
@@ -17916,8 +18054,15 @@ def _build_pamlod_model_preview_with_fallback(
     if "PartialRaw" in note_flags and len(data) < entry.orig_size:
         try:
             padded_data = data + (b"\x00" * (entry.orig_size - len(data)))
-            model_preview = build_pamlod_model_preview(entry, padded_data, stop_event=stop_event)
+            model_preview = build_pamlod_model_preview(
+                entry,
+                padded_data,
+                lod_index=_archive_preview_fast_lod_index() if normalized_quality_tier == "fast" else None,
+                stop_event=stop_event,
+            )
             ensure_model_preview_is_reasonable(model_preview, stop_event=stop_event)
+            if normalized_quality_tier == "fast" and getattr(model_preview, "lod_count", 0) > 1:
+                info_extra_parts.append("Fast preview uses a lower-detail PAMLOD level while the full preview builds.")
             info_extra_parts.append(
                 "Visual model preview uses zero-padded Partial reconstruction because the stored PAMLOD payload is incomplete."
             )
@@ -17936,13 +18081,18 @@ def _build_pac_model_preview_with_fallback(
     data: bytes,
     note_flags: set[str],
     *,
+    quality_tier: str = "full",
     stop_event: Optional[threading.Event] = None,
 ) -> Tuple[ModelPreviewData, ParsedMesh, List[str]]:
+    normalized_quality_tier = _normalize_archive_preview_quality_tier(quality_tier)
     info_extra_parts: List[str] = []
     recovery_errors: List[str] = []
 
     try:
         model_preview, parsed_mesh = build_mesh_preview_from_bytes(data, entry.path)
+        if normalized_quality_tier == "fast":
+            model_preview = _reduce_archive_preview_model_geometry(model_preview)
+            info_extra_parts.append("Fast preview uses sampled PAC geometry while the full preview builds.")
         return model_preview, parsed_mesh, info_extra_parts
     except RunCancelled:
         raise
@@ -17953,6 +18103,9 @@ def _build_pac_model_preview_with_fallback(
         try:
             padded_data = data + (b"\x00" * (entry.orig_size - len(data)))
             model_preview, parsed_mesh = build_mesh_preview_from_bytes(padded_data, entry.path)
+            if normalized_quality_tier == "fast":
+                model_preview = _reduce_archive_preview_model_geometry(model_preview)
+                info_extra_parts.append("Fast preview uses sampled PAC geometry while the full preview builds.")
             info_extra_parts.append(
                 "Visual model preview uses zero-padded Partial reconstruction because the stored PAC payload is incomplete."
             )
@@ -17980,14 +18133,17 @@ def build_archive_preview_result(
     semantic_sidecar_texts: Sequence[str] = (),
     visible_texture_mode: str = "mesh_base_first",
     support_texture_slots: Sequence[str] = ("normal", "material", "height"),
+    quality_tier: str = "full",
     stop_event: Optional[threading.Event] = None,
 ) -> ArchivePreviewResult:
+    normalized_quality_tier = _normalize_archive_preview_quality_tier(quality_tier)
     if entry is None:
         return ArchivePreviewResult(
             status="missing",
             title="Archive Preview",
             metadata_summary="Nothing selected.",
             detail_text="Select an archive file or folder to preview it here.",
+            quality_tier=normalized_quality_tier,
             preferred_view="info",
         )
 
@@ -18660,6 +18816,7 @@ def build_archive_preview_result(
                     data,
                     note_flags,
                     companion_entry=companion_entry,
+                    quality_tier=normalized_quality_tier,
                     stop_event=stop_event,
                 )
                 if getattr(model_preview, "format", "").lower() == "pamlod":
@@ -18699,6 +18856,7 @@ def build_archive_preview_result(
                     data,
                     note_flags,
                     companion_entry=companion_entry,
+                    quality_tier=normalized_quality_tier,
                     stop_event=stop_event,
                 )
                 if getattr(model_preview, "format", "").lower() == "pam":
@@ -18736,6 +18894,7 @@ def build_archive_preview_result(
                     entry,
                     data,
                     note_flags,
+                    quality_tier=normalized_quality_tier,
                     stop_event=stop_event,
                 )
                 parsed_mesh_for_references = parsed_mesh
@@ -18805,7 +18964,9 @@ def build_archive_preview_result(
                 parsed_mesh_for_references = None
         if model_preview is not None:
             if model_preview.meshes:
-                if normalized_visible_texture_mode == "mesh_base_first":
+                if normalized_quality_tier == "fast":
+                    info_extra_parts.append(_FAST_ARCHIVE_PREVIEW_TEXTURE_NOTE)
+                elif normalized_visible_texture_mode == "mesh_base_first":
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_model_texture_preview_paths(
@@ -18820,7 +18981,7 @@ def build_archive_preview_result(
                         )
                     )
                     add_timing("model_base_texture_attach_s", attach_started_at)
-                if sidecar_texture_references:
+                if normalized_quality_tier != "fast" and sidecar_texture_references:
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_model_sidecar_texture_preview_paths(
@@ -18838,7 +18999,7 @@ def build_archive_preview_result(
                         )
                     )
                     add_timing("model_sidecar_texture_attach_s", attach_started_at)
-                if normalized_visible_texture_mode != "mesh_base_first":
+                if normalized_quality_tier != "fast" and normalized_visible_texture_mode != "mesh_base_first":
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_model_texture_preview_paths(
@@ -18853,7 +19014,11 @@ def build_archive_preview_result(
                         )
                     )
                     add_timing("model_base_texture_attach_s", attach_started_at)
-                if sidecar_texture_references and normalized_visible_texture_mode == "mesh_base_first":
+                if (
+                    normalized_quality_tier != "fast"
+                    and sidecar_texture_references
+                    and normalized_visible_texture_mode == "mesh_base_first"
+                ):
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_model_sidecar_texture_preview_paths(
@@ -18897,7 +19062,7 @@ def build_archive_preview_result(
                     for slot in ("normal", "material", "height")
                     if slot in requested_support_texture_slots
                 )
-                if normalized_support_texture_slots:
+                if normalized_quality_tier != "fast" and normalized_support_texture_slots:
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_model_support_texture_preview_paths(
@@ -18915,7 +19080,11 @@ def build_archive_preview_result(
                         )
                     )
                     add_timing("model_support_texture_attach_s", attach_started_at)
-                if extension == ".pac" and parsed_mesh_for_references is not None:
+                if (
+                    normalized_quality_tier != "fast"
+                    and extension == ".pac"
+                    and parsed_mesh_for_references is not None
+                ):
                     cloth_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_pbd_cloth_preview_to_model_preview(
@@ -18991,6 +19160,7 @@ def build_archive_preview_result(
             title=entry.basename,
             metadata_summary=metadata_summary,
             detail_text=detail_text,
+            quality_tier=normalized_quality_tier,
             timings=timings,
             preview_text=preview_text,
             preview_model=model_preview,
@@ -19038,6 +19208,7 @@ def build_archive_preview_result(
                 entry,
                 "\n\n".join(part for part in [*raw_extra_parts, f"Binary header preview:\n{raw_header_preview}"] if part),
             ),
+            quality_tier=normalized_quality_tier,
             preview_text=preview_text,
             preferred_view=preferred_view,
             warning_badge="Raw bytes",

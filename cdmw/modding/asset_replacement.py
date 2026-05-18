@@ -104,9 +104,14 @@ def infer_cd_texture_role_from_path(texture_path: str) -> str:
     if normalized.endswith(("detailmask", "detailmaterial")):
         return "detail_mask"
 
-    if last in {"orm", "rma", "mra", "arm", "sp", "spec", "specular", "metallicroughness", "metalrough", "roughmetal"}:
+    if last in {"emi", "em", "emissive", "emission", "glow", "illum", "illumination"}:
+        return "emissive"
+    if normalized.endswith(("emissive", "emission", "glow", "illumination")):
+        return "emissive"
+
+    if last in {"orm", "rma", "mra", "arm", "sp", "spec", "specular", "specularglossiness", "metallicroughness", "metalrough", "roughmetal", "clearcoat"}:
         return "material"
-    if normalized.endswith(("metallicroughness", "metalrough", "roughmetal", "roughnessmetallic")):
+    if normalized.endswith(("metallicroughness", "metalrough", "roughmetal", "roughnessmetallic", "specularglossiness", "clearcoat")):
         return "material"
 
     if last in {
@@ -352,6 +357,8 @@ def classify_texture_binding(
         return result("detail_mask", "Detail mask", "mask", "detail_mask", False, "DDS filename suffix identifies this as a shader detail mask; it is exported but not fully reproduced by the alignment preview.", ("detail", "mask"))
     if path_role == "material":
         return result("material", "Material / mask", "mask", "material_mask", True, "DDS filename suffix identifies this as packed material/support data.")
+    if path_role == "emissive":
+        return result("emissive", "Emissive", "emissive", "emissive", True, "DDS filename suffix identifies this as emissive/glow data.")
     if path_role == "flow":
         return result("material", "Vector / flow", "vector", "flow_vector", False, "DDS filename suffix identifies this as vector/flow data; it is preserved for export but not used as visible color.")
     if any(token in normalized for token in ("wrinklecolortexture", "wrinklediffuse", "wrinklealbedo")):
@@ -414,8 +421,8 @@ def classify_texture_binding(
             "Vector, flow, SSDM, pivot, and position maps are preserved for export but are not represented by the alignment preview shader.",
             ("vector",),
         )
-    if "emissive" in normalized or "glow" in normalized or "illum" in normalized:
-        return result("base", "Emissive", "emissive", "emissive", True, "Emissive-like shader parameter is shown as a visible texture layer.")
+    if "emissive" in normalized or "emission" in normalized or "glow" in normalized or "illum" in normalized:
+        return result("emissive", "Emissive", "emissive", "emissive", True, "Emissive-like shader parameter is shown as a visible texture layer.")
     if any(token in normalized for token in ("basecolor", "basecolour", "overlaycolor", "diffuse", "albedo", "colortexture", "basetexture", "tintcolor", "decalbasecolor")):
         return result("base", "Base / diffuse", "color", "albedo", True, "Color-like shader parameter is shown as the visible base texture.")
     if "normal" in normalized:

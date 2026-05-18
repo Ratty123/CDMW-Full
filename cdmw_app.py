@@ -8,7 +8,10 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import subprocess
 import sys
+import tempfile
+import threading
 import time
 import traceback
 from typing import Callable, Mapping, Optional, Sequence
@@ -16,6 +19,13 @@ from typing import Callable, Mapping, Optional, Sequence
 
 PYINSTALLER_RUNTIME_MARKER = "cdmw_pyinstaller_runtime.json"
 PYINSTALLER_STALE_UNMARKED_MIN_AGE_SECONDS = 30 * 60
+APP_SINGLE_INSTANCE_MUTEX_NAME = "Local\\CrimsonDesertModWorkbench.SingleInstance"
+STARTUP_SPLASH_COMMAND_FILE_ENV = "CDMW_STARTUP_SPLASH_COMMAND_FILE"
+
+_single_instance_mutex_handle: Optional[int] = None
+_startup_maintenance_thread: Optional[threading.Thread] = None
+_startup_splash_command_file: Optional[Path] = None
+_startup_splash_process: Optional[subprocess.Popen[object]] = None
 
 
 def _bootstrap_root() -> Path:
@@ -202,9 +212,182 @@ def _prepare_pyinstaller_runtime_temp_cleanup() -> None:
     _cleanup_stale_pyinstaller_runtime_dirs(current_meipass=current_meipass)
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
-    _prepare_pyinstaller_runtime_temp_cleanup()
+def _prepare_app_temp_cache_cleanup() -> None:
+    try:
+        from cdmw.constants import ARCHIVE_SCAN_CACHE_DIRNAME
+        from cdmw.core.temp_cache import APP_TEMP_CACHE_ROOT_ENV, app_temp_root, prune_app_temp_cache
 
+        legacy_temp_root = app_temp_root()
+        os.environ.setdefault(APP_TEMP_CACHE_ROOT_ENV, str(_bootstrap_root() / ARCHIVE_SCAN_CACHE_DIRNAME))
+        prune_app_temp_cache()
+        prune_app_temp_cache(root=legacy_temp_root)
+    except Exception:
+        pass
+
+
+def _run_startup_maintenance() -> None:
+    _prepare_pyinstaller_runtime_temp_cleanup()
+    _prepare_app_temp_cache_cleanup()
+
+
+def _schedule_startup_maintenance(*, delay_seconds: float = 6.0) -> None:
+    global _startup_maintenance_thread
+    if _startup_maintenance_thread is not None and _startup_maintenance_thread.is_alive():
+        return
+
+    def _worker() -> None:
+        try:
+            delay = max(0.0, float(delay_seconds))
+            if delay:
+                time.sleep(delay)
+            _run_startup_maintenance()
+        except Exception:
+            pass
+
+    thread = threading.Thread(target=_worker, name="CDMWStartupMaintenance", daemon=True)
+    _startup_maintenance_thread = thread
+    thread.start()
+
+
+def _acquire_single_instance_guard() -> bool:
+    global _single_instance_mutex_handle
+    if os.name != "nt":
+        return True
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
+        kernel32.CreateMutexW.restype = ctypes.c_void_p
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        kernel32.CloseHandle.restype = ctypes.c_bool
+
+        handle = kernel32.CreateMutexW(None, True, APP_SINGLE_INSTANCE_MUTEX_NAME)
+        if not handle:
+            return True
+        if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+            kernel32.CloseHandle(handle)
+            return False
+        _single_instance_mutex_handle = int(handle)
+        return True
+    except Exception:
+        return True
+
+
+def _release_single_instance_guard() -> None:
+    global _single_instance_mutex_handle
+    handle = _single_instance_mutex_handle
+    if not handle or os.name != "nt":
+        _single_instance_mutex_handle = None
+        return
+    try:
+        ctypes.windll.kernel32.CloseHandle(ctypes.c_void_p(handle))
+    except Exception:
+        pass
+    _single_instance_mutex_handle = None
+
+
+def _update_pyinstaller_boot_splash(text: str) -> None:
+    try:
+        import pyi_splash  # type: ignore[import-not-found]
+
+        if pyi_splash.is_alive():
+            pyi_splash.update_text(str(text))
+    except Exception:
+        pass
+
+
+def _write_startup_splash_command(
+    path: Path,
+    *,
+    detail: str,
+    current: int = 0,
+    total: int = 0,
+    closed: bool = False,
+) -> None:
+    try:
+        payload = {
+            "detail": str(detail or "Starting application..."),
+            "current": max(0, int(current or 0)),
+            "total": max(0, int(total or 0)),
+            "closed": bool(closed),
+            "updated_at": time.time(),
+        }
+        temp_path = path.with_suffix(path.suffix + ".tmp")
+        temp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+        temp_path.replace(path)
+    except Exception:
+        pass
+
+
+def _startup_splash_host_command(command_file: Path) -> list[str]:
+    if getattr(sys, "frozen", False):
+        return [
+            str(Path(sys.executable).resolve()),
+            "--startup-splash-host",
+            str(command_file),
+            "--parent-pid",
+            str(os.getpid()),
+        ]
+    return [
+        str(Path(sys.executable).resolve()),
+        str(Path(__file__).resolve()),
+        "--startup-splash-host",
+        str(command_file),
+        "--parent-pid",
+        str(os.getpid()),
+    ]
+
+
+def _start_external_startup_splash() -> Optional[Path]:
+    global _startup_splash_command_file, _startup_splash_process
+    if os.environ.get("CDMW_GUI_STARTUP_SMOKE") == "1":
+        return None
+    try:
+        splash_dir = Path(tempfile.gettempdir()) / "CrimsonDesertModWorkbench" / "startup_splash"
+        splash_dir.mkdir(parents=True, exist_ok=True)
+        command_file = splash_dir / f"splash_{os.getpid()}_{int(time.time() * 1000)}.json"
+        _write_startup_splash_command(command_file, detail="Starting application...")
+        creationflags = 0
+        startupinfo = None
+        if os.name == "nt":
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 0
+        _startup_splash_process = subprocess.Popen(
+            _startup_splash_host_command(command_file),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            creationflags=creationflags,
+            startupinfo=startupinfo,
+        )
+        _startup_splash_command_file = command_file
+        os.environ[STARTUP_SPLASH_COMMAND_FILE_ENV] = str(command_file)
+        ready_path = command_file.with_suffix(".ready")
+        deadline = time.monotonic() + 1.25
+        while time.monotonic() < deadline:
+            if ready_path.exists():
+                break
+            if _startup_splash_process.poll() is not None:
+                break
+            time.sleep(0.025)
+        return command_file if _startup_splash_process.poll() is None else None
+    except Exception:
+        os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)
+        return None
+
+
+def _close_external_startup_splash() -> None:
+    global _startup_splash_command_file
+    command_file = _startup_splash_command_file
+    if command_file is None:
+        return
+    _write_startup_splash_command(command_file, detail="Opening workspace...", closed=True)
+    os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Crimson Desert Mod Workbench")
     parser.add_argument("--cli", action="store_true", help="Run the command-line workflow using the top-level defaults.")
     parser.add_argument("--gui", action="store_true", help="Force the GUI workflow.")
@@ -215,12 +398,31 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--theme-background", default="", help=argparse.SUPPRESS)
     parser.add_argument("--theme-text", default="", help=argparse.SUPPRESS)
     parser.add_argument("--self-test", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--startup-splash-host", default="", help=argparse.SUPPRESS)
+    parser.add_argument("--parent-pid", type=int, default=0, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+
+    if args.startup_splash_host:
+        from cdmw.ui.startup_splash_host import run_startup_splash_host
+
+        return run_startup_splash_host(Path(args.startup_splash_host), parent_pid=int(args.parent_pid or 0))
 
     if args.cli and args.gui:
         parser.error("Choose only one of --cli or --gui.")
     if args.isolated_renderer_host and (args.cli or args.gui):
         parser.error("Choose isolated renderer host without --cli or --gui.")
+
+    run_gui_mode = not args.cli and not args.isolated_renderer_host
+    if run_gui_mode:
+        if not _acquire_single_instance_guard():
+            _update_pyinstaller_boot_splash("Already running.")
+            return 0
+        _write_current_pyinstaller_runtime_marker()
+        _start_external_startup_splash()
+        _schedule_startup_maintenance()
+        _update_pyinstaller_boot_splash("Loading...")
+    elif args.cli:
+        _run_startup_maintenance()
 
     try:
         if args.isolated_renderer_host:
@@ -254,6 +456,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             traceback.format_exc(),
         )
         raise
+    finally:
+        if run_gui_mode:
+            _close_external_startup_splash()
+            _release_single_instance_guard()
 
 
 if __name__ == "__main__":

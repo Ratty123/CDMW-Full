@@ -402,6 +402,17 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
                 shininess_max=999.0,
                 specular_min=0.8,
                 shininess_min=300.0,
+                d3d11_mip_lod_bias=-99.0,
+                d3d11_light_azimuth_degrees=999.0,
+                d3d11_light_elevation_degrees=-999.0,
+                d3d11_ao_strength=99.0,
+                d3d11_roughness_bias=-99.0,
+                d3d11_metalness_scale=99.0,
+                d3d11_environment_strength=99.0,
+                d3d11_emissive_gain=99.0,
+                d3d11_view_mode="bad",
+                d3d11_normal_y_mode="bad",
+                d3d11_texture_address_mode="bad",
             )
         )
 
@@ -410,6 +421,17 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertLessEqual(settings.shininess_max, 256.0)
         self.assertLessEqual(settings.specular_min, settings.specular_max)
         self.assertLessEqual(settings.shininess_min, settings.shininess_max)
+        self.assertGreaterEqual(settings.d3d11_mip_lod_bias, -2.0)
+        self.assertLessEqual(settings.d3d11_light_azimuth_degrees, 180.0)
+        self.assertGreaterEqual(settings.d3d11_light_elevation_degrees, -80.0)
+        self.assertLessEqual(settings.d3d11_ao_strength, 2.0)
+        self.assertGreaterEqual(settings.d3d11_roughness_bias, -0.5)
+        self.assertLessEqual(settings.d3d11_metalness_scale, 2.0)
+        self.assertLessEqual(settings.d3d11_environment_strength, 2.0)
+        self.assertLessEqual(settings.d3d11_emissive_gain, 4.0)
+        self.assertEqual("lit", settings.d3d11_view_mode)
+        self.assertEqual("asset", settings.d3d11_normal_y_mode)
+        self.assertEqual("wrap", settings.d3d11_texture_address_mode)
 
     def test_depth_shine_and_rough_settings_survive_clamping(self) -> None:
         settings = clamp_model_preview_render_settings(
@@ -701,7 +723,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
         self.assertIn("def set_use_textures", source)
         self.assertIn("previous != self._use_textures", source)
-        self.assertIn("self._render_mode_uses_derived_relief(self._render_settings)", source)
+        self.assertIn("self._gl_ready", source)
         self.assertIn("self._clear_gl_textures()", source)
         self.assertIn("self._rebuild_gl_textures()", source)
 

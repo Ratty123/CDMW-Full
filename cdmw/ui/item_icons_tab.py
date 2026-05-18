@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Callable, Optional, Sequence
 
-from PySide6.QtCore import QSettings, Qt, QUrl, Signal
+from PySide6.QtCore import QSettings, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QImageReader
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -98,6 +98,8 @@ class ItemIconLibraryTab(QWidget):
     status_message_requested = Signal(str, bool)
     open_in_texture_editor_requested = Signal(str, object)
     open_target_in_archive_requested = Signal(str)
+    RECORD_FILTER_DEBOUNCE_MS = 120
+    RECORD_POPULATION_BATCH_SIZE = 250
 
     def __init__(
         self,
@@ -127,6 +129,27 @@ class ItemIconLibraryTab(QWidget):
         self._target_entries: list[object] = []
         self._loading_record = False
         self._temp_preview_dir = tempfile.TemporaryDirectory(prefix="cdmw_item_icon_tab_")
+        self._pending_record_rows: list[ItemIconLibraryRecord] = []
+        self._pending_record_select_key = ""
+        self._pending_record_total = 0
+        self._record_filter_timer = QTimer(self)
+        self._record_filter_timer.setSingleShot(True)
+        self._record_filter_timer.setInterval(self.RECORD_FILTER_DEBOUNCE_MS)
+        self._record_filter_timer.timeout.connect(self._populate_records_tree)
+        self._record_population_timer = QTimer(self)
+        self._record_population_timer.setSingleShot(True)
+        self._record_population_timer.setInterval(0)
+        self._record_population_timer.timeout.connect(self._flush_record_population_batch)
+        self._target_filter_timer = QTimer(self)
+        self._target_filter_timer.setSingleShot(True)
+        self._target_filter_timer.setInterval(self.RECORD_FILTER_DEBOUNCE_MS)
+        self._target_filter_timer.timeout.connect(self._handle_target_filter_changed)
+        self._target_refresh_timer = QTimer(self)
+        self._target_refresh_timer.setSingleShot(True)
+        self._target_refresh_timer.setInterval(80)
+        self._target_refresh_timer.timeout.connect(self._flush_scheduled_target_refresh)
+        self._target_entries_signature: tuple[object, ...] = ()
+        self._pending_target_refresh_update_preview = False
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(10, 10, 10, 10)
@@ -162,7 +185,7 @@ class ItemIconLibraryTab(QWidget):
 
         self._refresh_roots_list()
         self.scan_library(show_status=False)
-        self.refresh_targets()
+        self.refresh_targets(force=True)
 
     def _build_roots_panel(self) -> QWidget:
         panel = QWidget()
@@ -230,8 +253,8 @@ class ItemIconLibraryTab(QWidget):
         self.library_status_label.setWordWrap(True)
         layout.addWidget(self.library_status_label)
 
-        self.filter_edit.textChanged.connect(lambda _text="": self._populate_records_tree())
-        self.favorite_only_checkbox.toggled.connect(lambda _checked=False: self._populate_records_tree())
+        self.filter_edit.textChanged.connect(lambda _text="": self._schedule_records_tree_population())
+        self.favorite_only_checkbox.toggled.connect(lambda _checked=False: self._schedule_records_tree_population())
         self.records_tree.currentItemChanged.connect(lambda current, _previous: self._handle_record_selection(current))
         self.records_tree.itemDoubleClicked.connect(lambda _item, _column: self.open_selected_in_texture_editor())
         self.records_tree.customContextMenuRequested.connect(self._show_records_context_menu)
@@ -346,8 +369,8 @@ class ItemIconLibraryTab(QWidget):
         self.save_metadata_button.clicked.connect(self.save_selected_metadata)
         self.open_editor_button.clicked.connect(self.open_selected_in_texture_editor)
         self.delete_source_button.clicked.connect(self.delete_selected_source)
-        self.refresh_targets_button.clicked.connect(self.refresh_targets)
-        self.target_filter_edit.textChanged.connect(lambda _text="": self._handle_target_filter_changed())
+        self.refresh_targets_button.clicked.connect(lambda _checked=False: self.refresh_targets(force=True))
+        self.target_filter_edit.textChanged.connect(lambda _text="": self._target_filter_timer.start())
         self.target_combo.currentIndexChanged.connect(lambda _index=0: self.update_final_preview())
         self.background_mode_combo.currentIndexChanged.connect(lambda _index=0: self._handle_background_mode_changed())
         self.use_archive_selection_button.clicked.connect(self.use_archive_selection_as_target)
@@ -462,32 +485,83 @@ class ItemIconLibraryTab(QWidget):
         ).casefold()
         return all(part in haystack for part in text.casefold().split())
 
+    def _schedule_records_tree_population(self, *, select_path: Optional[Path] = None) -> None:
+        if select_path is not None:
+            self._pending_record_select_key = str(select_path).casefold()
+        self._record_filter_timer.start()
+
     def _populate_records_tree(self, *, select_path: Optional[Path] = None) -> None:
-        self.records_tree.blockSignals(True)
-        self.records_tree.clear()
+        self._record_filter_timer.stop()
+        self._record_population_timer.stop()
+        if select_path is not None:
+            self._pending_record_select_key = str(select_path).casefold()
+        selected_key = self._pending_record_select_key
+        self._pending_record_select_key = ""
         filter_text = self.filter_edit.text().strip()
-        selected_key = str(select_path).casefold() if select_path is not None else ""
-        item_to_select: Optional[QTreeWidgetItem] = None
-        shown = 0
-        for record in self.records:
-            if not self._record_matches_filter(record, filter_text):
-                continue
-            shown += 1
-            size_text = f"{record.width}x{record.height}" if record.width and record.height else "-"
-            name = ("* " if record.favorite else "") + record.path.name
-            item = QTreeWidgetItem([name, size_text, ", ".join(record.tags), record.source_kind, record.relative_path])
-            item.setData(0, Qt.ItemDataRole.UserRole, str(record.path))
-            item.setToolTip(0, str(record.path))
-            item.setToolTip(4, str(record.path))
-            self.records_tree.addTopLevelItem(item)
-            if selected_key and str(record.path).casefold() == selected_key:
-                item_to_select = item
+        self._pending_record_rows = [
+            record
+            for record in self.records
+            if self._record_matches_filter(record, filter_text)
+        ]
+        self._pending_record_total = len(self._pending_record_rows)
+        self.records_tree.blockSignals(True)
+        self.records_tree.setUpdatesEnabled(False)
+        sort_column = self.records_tree.sortColumn()
+        sort_order = self.records_tree.header().sortIndicatorOrder()
+        self.records_tree.setSortingEnabled(False)
+        self.records_tree.clear()
+        self.records_tree.header().setSortIndicator(sort_column, sort_order)
+        self.records_tree.setUpdatesEnabled(True)
         self.records_tree.blockSignals(False)
-        if item_to_select is not None:
-            self.records_tree.setCurrentItem(item_to_select)
-        elif self.records_tree.topLevelItemCount() > 0 and self.records_tree.currentItem() is None:
-            self.records_tree.setCurrentItem(self.records_tree.topLevelItem(0))
-        self.library_status_label.setText(f"{shown:,}/{len(self.records):,} icon source(s) shown.")
+        self._pending_record_select_key = selected_key
+        self.library_status_label.setText(
+            f"Populating icon sources... 0/{self._pending_record_total:,} shown."
+        )
+        self._flush_record_population_batch()
+
+    def _build_record_item(self, record: ItemIconLibraryRecord) -> QTreeWidgetItem:
+        size_text = f"{record.width}x{record.height}" if record.width and record.height else "-"
+        name = ("* " if record.favorite else "") + record.path.name
+        item = QTreeWidgetItem([name, size_text, ", ".join(record.tags), record.source_kind, record.relative_path])
+        item.setData(0, Qt.ItemDataRole.UserRole, str(record.path))
+        item.setToolTip(0, str(record.path))
+        item.setToolTip(4, str(record.path))
+        return item
+
+    def _flush_record_population_batch(self) -> None:
+        if not self._pending_record_rows:
+            self.records_tree.setSortingEnabled(True)
+            selected_key = self._pending_record_select_key
+            target_item: Optional[QTreeWidgetItem] = None
+            if selected_key:
+                for index in range(self.records_tree.topLevelItemCount()):
+                    item = self.records_tree.topLevelItem(index)
+                    if str(item.data(0, Qt.ItemDataRole.UserRole) or "").casefold() == selected_key:
+                        target_item = item
+                        break
+            if target_item is None and self.records_tree.topLevelItemCount() > 0:
+                target_item = self.records_tree.topLevelItem(0)
+            self._pending_record_select_key = ""
+            if target_item is not None:
+                self.records_tree.setCurrentItem(target_item)
+            self.library_status_label.setText(
+                f"{self._pending_record_total:,}/{len(self.records):,} icon source(s) shown."
+            )
+            return
+        batch = self._pending_record_rows[: self.RECORD_POPULATION_BATCH_SIZE]
+        del self._pending_record_rows[: self.RECORD_POPULATION_BATCH_SIZE]
+        items = [self._build_record_item(record) for record in batch]
+        self.records_tree.setUpdatesEnabled(False)
+        self.records_tree.addTopLevelItems(items)
+        self.records_tree.setUpdatesEnabled(True)
+        shown = self._pending_record_total - len(self._pending_record_rows)
+        self.library_status_label.setText(
+            f"Populating icon sources... {shown:,}/{self._pending_record_total:,} shown."
+        )
+        if self._pending_record_rows:
+            self._record_population_timer.start()
+            return
+        self._flush_record_population_batch()
 
     def _handle_record_selection(self, item: Optional[QTreeWidgetItem]) -> None:
         path = self.current_source_path(item)
@@ -633,18 +707,43 @@ class ItemIconLibraryTab(QWidget):
             self.target_match_label.setText(f"{len(matches):,} matching existing icon target(s).")
 
     def _handle_target_filter_changed(self) -> None:
+        self._target_filter_timer.stop()
         self._populate_target_combo(select_path=self.target_filter_edit.text().strip())
         self.update_final_preview()
 
-    def refresh_targets(self) -> None:
+    def _archive_target_signature(self, entries: Sequence[object]) -> tuple[object, ...]:
+        first_path = str(getattr(entries[0], "path", "") or "") if entries else ""
+        last_path = str(getattr(entries[-1], "path", "") or "") if entries else ""
+        return (id(entries), len(entries), first_path, last_path)
+
+    def schedule_targets_refresh(self, *, update_preview: bool = False) -> None:
+        self._pending_target_refresh_update_preview = self._pending_target_refresh_update_preview or bool(update_preview)
+        self._target_refresh_timer.start()
+
+    def _flush_scheduled_target_refresh(self) -> None:
+        update_preview = self._pending_target_refresh_update_preview
+        self._pending_target_refresh_update_preview = False
+        if not self.isVisible():
+            return
+        self.refresh_targets(update_preview=update_preview)
+
+    def refresh_targets(self, *, force: bool = False, update_preview: bool = True) -> None:
         current_entry = self._current_target_entry()
         current_path = str(getattr(current_entry, "path", "") or "") if current_entry is not None else ""
+        archive_entries = self.get_archive_entries()
+        signature = self._archive_target_signature(archive_entries)
+        if not force and signature == self._target_entries_signature:
+            if update_preview:
+                self.update_final_preview()
+            return
+        self._target_entries_signature = signature
         self._target_entries = sorted(
-            (entry for entry in self.get_archive_entries() if _is_probable_item_icon_entry(entry)),
+            (entry for entry in archive_entries if _is_probable_item_icon_entry(entry)),
             key=lambda entry: str(getattr(entry, "path", "") or "").casefold(),
         )
         self._populate_target_combo(select_path=current_path)
-        self.update_final_preview()
+        if update_preview:
+            self.update_final_preview()
 
     def _current_target_entry(self) -> Optional[object]:
         typed_entry = self._target_entry_for_path(self.target_filter_edit.text().strip())

@@ -67,6 +67,10 @@ class RuntimeDependencySourceGuardTests(unittest.TestCase):
         self.assertIn("pathex=[str(ROOT)]", source)
         self.assertIn("CDMW_PYINSTALLER_MODE", source)
         self.assertIn("CDMW_PYINSTALLER_PROFILE", source)
+        self.assertNotIn("splash = Splash(", source)
+        self.assertNotIn("splash.binaries", source)
+        self.assertNotIn("text_pos=", source)
+        self.assertNotIn("text_default=", source)
         self.assertNotIn("C:\\Users\\Ratrider", source)
         self.assertNotIn("Desktop\\app", source)
 

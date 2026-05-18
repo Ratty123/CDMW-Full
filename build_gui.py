@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import queue
 import re
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import threading
 import textwrap
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import END, DISABLED, NORMAL, BooleanVar, StringVar, Tk, messagebox
@@ -18,27 +20,28 @@ ROOT = Path(__file__).resolve().parent
 APP_NAME = "CrimsonDesertModWorkbench"
 
 COLORS = {
-    "bg": "#050808",
-    "panel": "#081010",
-    "panel_alt": "#0c1514",
-    "void": "#020404",
-    "line": "#28433d",
-    "line_hot": "#78ff9e",
-    "text": "#d7ffe6",
-    "muted": "#789089",
-    "green": "#61ff92",
-    "green_dim": "#173b27",
-    "cyan": "#93fff6",
-    "red": "#ff4d6d",
-    "amber": "#ffe08a",
-    "disabled": "#27302c",
+    "bg": "#06090a",
+    "panel": "#0b1012",
+    "panel_alt": "#0f1517",
+    "void": "#030506",
+    "line": "#24363b",
+    "line_hot": "#7cffb1",
+    "text": "#e7f4f0",
+    "muted": "#718285",
+    "green": "#63ff9f",
+    "green_dim": "#173426",
+    "cyan": "#83dfff",
+    "red": "#ff5f78",
+    "amber": "#ffd166",
+    "disabled": "#3a4444",
 }
 
-FONT_TITLE = ("Consolas", 21, "bold")
-FONT_HEAD = ("Consolas", 10, "bold")
-FONT_BODY = ("Consolas", 10)
-FONT_SMALL = ("Consolas", 8)
-FONT_LOG = ("Consolas", 9)
+FONT_TITLE = ("Segoe UI", 17, "bold")
+FONT_HEAD = ("Segoe UI", 9, "bold")
+FONT_BODY = ("Segoe UI", 9)
+FONT_SMALL = ("Segoe UI", 7)
+FONT_CHOICE = ("Segoe UI", 8, "bold")
+FONT_LOG = ("Cascadia Mono", 8)
 
 MODES = {
     "onefile": {
@@ -87,6 +90,8 @@ PROGRESS_MARKERS = (
     (re.compile(r"Validated all .* archive members", re.IGNORECASE), 98),
     (re.compile(r"Build complete\.", re.IGNORECASE), 100),
 )
+
+STRUCTURED_PROGRESS_RE = re.compile(r"^::progress::(\d{1,3})::(.*)$")
 
 
 @dataclass(frozen=True)
@@ -158,6 +163,10 @@ def build_command(selection: BuildSelection) -> list[str]:
 
 
 def progress_from_line(current: int, line: str) -> int:
+    structured = STRUCTURED_PROGRESS_RE.match(line.strip())
+    if structured:
+        return max(current, min(100, int(structured.group(1))))
+
     for pattern, value in PROGRESS_MARKERS:
         if pattern.search(line):
             return max(current, value)
@@ -171,6 +180,24 @@ def progress_from_line(current: int, line: str) -> int:
     if "Processing standard module hook" in line:
         return min(68, current + 1)
     return current
+
+
+def structured_stage_from_line(line: str) -> str | None:
+    structured = STRUCTURED_PROGRESS_RE.match(line.strip())
+    if not structured:
+        return None
+    return structured.group(2).strip().upper() or None
+
+
+def format_elapsed(started_at: float | None) -> str:
+    if started_at is None:
+        return "00:00"
+    elapsed = max(0, int(time.monotonic() - started_at))
+    minutes, seconds = divmod(elapsed, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes:02d}:{seconds:02d}"
 
 
 class PixelChoice(tk.Frame):
@@ -187,7 +214,7 @@ class PixelChoice(tk.Frame):
         super().__init__(
             master,
             bg=COLORS["panel_alt"],
-            highlightthickness=2,
+            highlightthickness=1,
             highlightbackground=COLORS["line"],
             bd=0,
         )
@@ -196,14 +223,15 @@ class PixelChoice(tk.Frame):
         self.disabled = False
         self.compact = compact
 
-        self.marker = tk.Canvas(self, width=18, height=18, bg=COLORS["panel_alt"], highlightthickness=0, bd=0)
+        marker_size = 14 if compact else 18
+        self.marker = tk.Canvas(self, width=marker_size, height=marker_size, bg=COLORS["panel_alt"], highlightthickness=0, bd=0)
         self.marker.grid(
             row=0,
             column=0,
             rowspan=1 if compact else 2,
             sticky="n",
-            padx=(10, 8),
-            pady=(8, 8 if compact else 0),
+            padx=(8, 6) if compact else (12, 9),
+            pady=(10, 10) if compact else (8, 0),
         )
 
         self.title_label = tk.Label(
@@ -211,15 +239,15 @@ class PixelChoice(tk.Frame):
             text=title,
             bg=COLORS["panel_alt"],
             fg=COLORS["text"],
-            font=FONT_HEAD,
+            font=FONT_CHOICE if compact else FONT_HEAD,
             anchor="w",
         )
         self.title_label.grid(
             row=0,
             column=1,
             sticky="ew",
-            padx=(0, 10),
-            pady=(8, 8) if compact else (8, 0),
+            padx=(0, 4) if compact else (0, 10),
+            pady=(8, 8) if compact else (9, 0),
         )
 
         self.subtitle_label = tk.Label(
@@ -232,7 +260,7 @@ class PixelChoice(tk.Frame):
         )
         if compact:
             if subtitle:
-                self.subtitle_label.grid(row=0, column=2, sticky="e", padx=(0, 10), pady=(8, 8))
+                self.subtitle_label.grid(row=0, column=2, sticky="e", padx=(0, 8), pady=(8, 8))
             else:
                 self.title_label.grid_configure(columnspan=2)
         else:
@@ -282,7 +310,7 @@ class PixelChoice(tk.Frame):
     def render(self, selected: bool) -> None:
         self.selected = selected
         border = COLORS["line_hot"] if selected else COLORS["line"]
-        bg = "#0d1d17" if selected else COLORS["panel_alt"]
+        bg = "#101b18" if selected else COLORS["panel_alt"]
         fg = COLORS["green"] if selected else COLORS["text"]
         if self.disabled and not selected:
             fg = COLORS["disabled"]
@@ -298,15 +326,16 @@ class PixelChoice(tk.Frame):
 
         self.marker.delete("all")
         self.marker.configure(bg=bg)
-        self.marker.create_rectangle(2, 2, 15, 15, outline=border, fill=COLORS["void"], width=2)
+        size = 14 if self.compact else 18
+        self.marker.create_oval(2, 2, size - 2, size - 2, outline=border, fill=COLORS["void"], width=1)
         if selected:
-            self.marker.create_rectangle(5, 5, 12, 12, outline="", fill=COLORS["green"])
-            self.marker.create_rectangle(8, 2, 15, 5, outline="", fill=COLORS["cyan"])
+            center = size // 2
+            self.marker.create_oval(center - 2, center - 2, center + 2, center + 2, outline="", fill=COLORS["green"])
 
 
 class PixelProgress(tk.Canvas):
     def __init__(self, master: tk.Misc) -> None:
-        super().__init__(master, height=38, bg=COLORS["panel"], highlightthickness=0, bd=0)
+        super().__init__(master, height=24, bg=COLORS["panel"], highlightthickness=0, bd=0)
         self.value = 0
         self.running = False
         self.phase = 0
@@ -327,46 +356,67 @@ class PixelProgress(tk.Canvas):
         self.delete("all")
         width = max(1, self.winfo_width())
         height = max(1, self.winfo_height())
-        x0, y0 = 3, 9
-        x1, y1 = width - 3, height - 7
+        x0, y0 = 1, 7
+        x1, y1 = width - 1, height - 5
         track_width = max(1, x1 - x0)
         fill_width = int(track_width * (self.value / 100))
 
-        self.create_rectangle(x0, y0, x1, y1, outline=COLORS["line"], fill=COLORS["void"], width=2)
+        self.create_rectangle(x0, y0, x1, y1, outline=COLORS["line"], fill=COLORS["void"], width=1)
         if fill_width > 0:
-            self.create_rectangle(x0 + 2, y0 + 2, x0 + fill_width, y1 - 2, outline="", fill=COLORS["green_dim"])
-            block = 10
-            for x in range(x0 + 4, x0 + fill_width, block):
-                shade = COLORS["green"] if ((x // block) + self.phase) % 3 else COLORS["cyan"]
-                self.create_rectangle(x, y0 + 5, min(x + 6, x0 + fill_width), y1 - 5, outline="", fill=shade)
+            fill_right = min(x1, x0 + fill_width)
+            self.create_rectangle(x0 + 1, y0 + 1, fill_right, y1 - 1, outline="", fill=COLORS["green_dim"])
+            self.create_rectangle(x0 + 1, y0 + 1, fill_right, y0 + 2, outline="", fill=COLORS["green"])
+            if self.running:
+                stripe_width = 42
+                offset = (self.phase * 3) % stripe_width
+                for x in range(x0 - stripe_width + offset, fill_right, stripe_width):
+                    self.create_rectangle(
+                        max(x0 + 1, x),
+                        y0 + 3,
+                        min(fill_right, x + 18),
+                        y1 - 2,
+                        outline="",
+                        fill=COLORS["cyan"],
+                        stipple="gray50",
+                    )
 
+
+class ActivitySpinner(tk.Canvas):
+    def __init__(self, master: tk.Misc) -> None:
+        super().__init__(master, width=24, height=24, bg=COLORS["panel"], highlightthickness=0, bd=0)
+        self.running = False
+        self.phase = 0
+
+    def set_running(self, running: bool) -> None:
+        self.running = running
+        self.draw()
+
+    def tick(self) -> None:
         if self.running:
-            usable = max(16, track_width - 20)
-            runner_x = x0 + 10 + int(((self.phase * 7) % usable))
-            for offset, color in ((-18, "#143328"), (-11, "#1f6840"), (-5, COLORS["green"]), (2, COLORS["cyan"])):
-                left = runner_x + offset
-                if x0 + 4 <= left <= x1 - 10:
-                    self.create_rectangle(left, y0 - 5, left + 8, y0 - 1, outline="", fill=color)
-            self.create_polygon(
-                runner_x,
-                y1 + 2,
-                runner_x + 8,
-                y1 + 2,
-                runner_x + 4,
-                y1 + 7,
-                outline="",
-                fill=COLORS["amber"],
-            )
-        elif self.value >= 100:
-            self.create_text(width - 10, y0 - 3, text="OK", fill=COLORS["green"], font=FONT_SMALL, anchor="ne")
+            self.phase = (self.phase + 1) % 60
+        self.draw()
+
+    def draw(self) -> None:
+        self.delete("all")
+        cx, cy, radius = 12, 12, 7
+        self.create_oval(cx - radius, cy - radius, cx + radius, cy + radius, outline=COLORS["line"], width=1)
+        if not self.running:
+            self.create_oval(cx - 2, cy - 2, cx + 2, cy + 2, outline="", fill=COLORS["muted"])
+            return
+        for index in range(8):
+            angle = ((self.phase / 60) * math.tau) + (index * math.tau / 8)
+            x = cx + math.cos(angle) * radius
+            y = cy + math.sin(angle) * radius
+            color = COLORS["cyan"] if index == 0 else COLORS["green"] if index < 3 else COLORS["line"]
+            self.create_oval(x - 2, y - 2, x + 2, y + 2, outline="", fill=color)
 
 
 class BuilderGui:
     def __init__(self, root: Tk) -> None:
         self.root = root
         self.root.title("Crimson Builder")
-        self.root.geometry("1080x640")
-        self.root.minsize(960, 600)
+        self.root.geometry("1160x700")
+        self.root.minsize(980, 620)
         self.root.configure(bg=COLORS["bg"])
         self._set_window_icon()
 
@@ -379,6 +429,8 @@ class BuilderGui:
         self._queue: queue.Queue[tuple[str, str | int]] = queue.Queue()
         self._process: subprocess.Popen[str] | None = None
         self._progress = 0
+        self._started_at: float | None = None
+        self._last_output_at: float | None = None
         self._mode_cards: dict[str, PixelChoice] = {}
         self._profile_cards: dict[str, PixelChoice] = {}
 
@@ -404,32 +456,19 @@ class BuilderGui:
                 pass
 
     def _pixel_logo(self, master: tk.Misc) -> tk.Canvas:
-        canvas = tk.Canvas(master, width=46, height=42, bg=COLORS["bg"], highlightthickness=0, bd=0)
-        pixels = (
-            (1, 2, COLORS["red"]),
-            (2, 1, COLORS["red"]),
-            (2, 2, COLORS["red"]),
-            (2, 3, COLORS["amber"]),
-            (3, 1, COLORS["red"]),
-            (3, 2, COLORS["amber"]),
-            (3, 3, COLORS["green"]),
-            (4, 2, COLORS["green"]),
-            (4, 3, COLORS["cyan"]),
-            (5, 3, COLORS["cyan"]),
-        )
-        size = 6
-        for x, y, color in pixels:
-            canvas.create_rectangle(x * size, y * size, x * size + size - 1, y * size + size - 1, outline="", fill=color)
-        canvas.create_rectangle(5, 6, 40, 34, outline=COLORS["line"], width=2)
+        canvas = tk.Canvas(master, width=34, height=34, bg=COLORS["bg"], highlightthickness=0, bd=0)
+        canvas.create_rectangle(5, 5, 29, 29, outline=COLORS["line"], width=1)
+        canvas.create_line(10, 22, 16, 12, 22, 22, fill=COLORS["green"], width=2)
+        canvas.create_line(16, 12, 26, 12, fill=COLORS["cyan"], width=2)
         return canvas
 
     def _build_layout(self) -> None:
         shell = tk.Frame(self.root, bg=COLORS["bg"])
-        shell.pack(fill="both", expand=True, padx=18, pady=10)
+        shell.pack(fill="both", expand=True, padx=20, pady=16)
 
         header = tk.Frame(shell, bg=COLORS["bg"])
-        header.pack(fill="x", pady=(0, 10))
-        self._pixel_logo(header).pack(side="left", padx=(0, 12))
+        header.pack(fill="x", pady=(0, 14))
+        self._pixel_logo(header).pack(side="left", padx=(0, 12), pady=(1, 0))
 
         title_block = tk.Frame(header, bg=COLORS["bg"])
         title_block.pack(side="left", fill="x", expand=True)
@@ -443,10 +482,10 @@ class BuilderGui:
         ).pack(anchor="w")
         tk.Label(
             title_block,
-            text="PyInstaller build deck // choose target, profile, launch",
+            text="PyInstaller build console",
             bg=COLORS["bg"],
             fg=COLORS["muted"],
-            font=FONT_SMALL,
+            font=FONT_BODY,
             anchor="w",
         ).pack(anchor="w", pady=(2, 0))
 
@@ -456,27 +495,27 @@ class BuilderGui:
             bg=COLORS["void"],
             fg=COLORS["cyan"],
             font=FONT_HEAD,
-            padx=14,
-            pady=8,
-            highlightthickness=2,
+            padx=16,
+            pady=7,
+            highlightthickness=1,
             highlightbackground=COLORS["line"],
         )
         self.status_chip.pack(side="right", anchor="n")
 
         body = tk.Frame(shell, bg=COLORS["bg"])
         body.pack(fill="both", expand=True)
-        body.columnconfigure(0, weight=0, minsize=390)
+        body.columnconfigure(0, weight=0, minsize=400)
         body.columnconfigure(1, weight=1)
         body.rowconfigure(0, weight=1)
 
         controls = self._panel(body)
-        controls.configure(width=390)
+        controls.configure(width=400)
         controls.grid_propagate(False)
         controls.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
         controls.columnconfigure(0, weight=1)
         controls.rowconfigure(4, weight=1)
 
-        self._section_label(controls, "PACKAGE").grid(row=0, column=0, sticky="ew", padx=16, pady=(12, 6))
+        self._section_label(controls, "PACKAGE").grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 6))
         modes_frame = tk.Frame(controls, bg=COLORS["panel"])
         modes_frame.grid(row=1, column=0, sticky="ew", padx=14)
         modes_frame.columnconfigure(0, weight=1)
@@ -493,7 +532,7 @@ class BuilderGui:
             card.grid(row=0, column=index, sticky="ew", padx=(0, 6) if index == 0 else (6, 0))
             self._mode_cards[key] = card
 
-        self._section_label(controls, "PROFILE").grid(row=2, column=0, sticky="ew", padx=16, pady=(14, 6))
+        self._section_label(controls, "PROFILE").grid(row=2, column=0, sticky="ew", padx=16, pady=(16, 6))
         profile_frame = tk.Frame(controls, bg=COLORS["panel"])
         profile_frame.grid(row=3, column=0, sticky="ew", padx=14)
         for index in range(3):
@@ -510,8 +549,8 @@ class BuilderGui:
             card.grid(row=0, column=index, sticky="ew", padx=(0 if index == 0 else 4, 0 if index == 2 else 4))
             self._profile_cards[key] = card
 
-        summary_frame = tk.Frame(controls, bg=COLORS["panel"], highlightthickness=2, highlightbackground=COLORS["line"])
-        summary_frame.grid(row=4, column=0, sticky="nsew", padx=14, pady=(14, 10))
+        summary_frame = tk.Frame(controls, bg=COLORS["panel"], highlightthickness=1, highlightbackground=COLORS["line"])
+        summary_frame.grid(row=4, column=0, sticky="nsew", padx=14, pady=(16, 10))
         summary_frame.columnconfigure(0, weight=1)
         self.summary_title = tk.Label(
             summary_frame,
@@ -530,9 +569,10 @@ class BuilderGui:
             font=FONT_SMALL,
             anchor="nw",
             justify="left",
-            wraplength=350,
+            wraplength=340,
         )
         self.summary.grid(row=1, column=0, sticky="ew", padx=12, pady=(7, 0))
+        self.summary.bind("<Configure>", lambda event: self.summary.configure(wraplength=max(220, event.width - 4)))
         self.path_label = tk.Label(
             summary_frame,
             textvariable=self.output_path,
@@ -541,9 +581,10 @@ class BuilderGui:
             font=FONT_SMALL,
             anchor="nw",
             justify="left",
-            wraplength=350,
+            wraplength=340,
         )
         self.path_label.grid(row=2, column=0, sticky="ew", padx=12, pady=(8, 10))
+        self.path_label.bind("<Configure>", lambda event: self.path_label.configure(wraplength=max(220, event.width - 4)))
 
         action_frame = tk.Frame(controls, bg=COLORS["panel"])
         action_frame.grid(row=5, column=0, sticky="ew", padx=14, pady=(0, 12))
@@ -561,7 +602,7 @@ class BuilderGui:
             relief="flat",
             bd=0,
             padx=18,
-            pady=11,
+            pady=12,
             cursor="hand2",
         )
         self.build_button.grid(row=0, column=0, sticky="ew", padx=(0, 8))
@@ -578,10 +619,10 @@ class BuilderGui:
             relief="flat",
             bd=0,
             padx=18,
-            pady=11,
+            pady=12,
             cursor="hand2",
             state=DISABLED,
-            highlightthickness=2,
+            highlightthickness=1,
             highlightbackground=COLORS["line"],
         )
         self.cancel_button.grid(row=0, column=1, sticky="ew")
@@ -592,7 +633,7 @@ class BuilderGui:
         terminal.rowconfigure(3, weight=1)
 
         top_line = tk.Frame(terminal, bg=COLORS["panel"])
-        top_line.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
+        top_line.grid(row=0, column=0, sticky="ew", padx=16, pady=(15, 0))
         tk.Label(
             top_line,
             text="BUILD STREAM",
@@ -601,6 +642,8 @@ class BuilderGui:
             font=FONT_HEAD,
             anchor="w",
         ).pack(side="left")
+        self.spinner = ActivitySpinner(top_line)
+        self.spinner.pack(side="left", padx=(12, 0))
         self.percent_label = tk.Label(
             top_line,
             text="0%",
@@ -612,19 +655,31 @@ class BuilderGui:
         self.percent_label.pack(side="right")
 
         self.progress = PixelProgress(terminal)
-        self.progress.grid(row=1, column=0, sticky="ew", padx=14, pady=(8, 7))
+        self.progress.grid(row=1, column=0, sticky="ew", padx=16, pady=(8, 7))
+        stage_row = tk.Frame(terminal, bg=COLORS["panel"])
+        stage_row.grid(row=2, column=0, sticky="ew", padx=16, pady=(0, 9))
+        stage_row.columnconfigure(0, weight=1)
         self.stage_label = tk.Label(
-            terminal,
+            stage_row,
             text="STANDBY",
             bg=COLORS["panel"],
             fg=COLORS["muted"],
             font=FONT_SMALL,
             anchor="w",
         )
-        self.stage_label.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 8))
+        self.stage_label.grid(row=0, column=0, sticky="ew")
+        self.elapsed_label = tk.Label(
+            stage_row,
+            text="00:00",
+            bg=COLORS["panel"],
+            fg=COLORS["muted"],
+            font=FONT_SMALL,
+            anchor="e",
+        )
+        self.elapsed_label.grid(row=0, column=1, sticky="e")
 
-        log_frame = tk.Frame(terminal, bg=COLORS["void"], highlightthickness=2, highlightbackground=COLORS["line"])
-        log_frame.grid(row=3, column=0, sticky="nsew", padx=14, pady=(0, 14))
+        log_frame = tk.Frame(terminal, bg=COLORS["void"], highlightthickness=1, highlightbackground=COLORS["line"])
+        log_frame.grid(row=3, column=0, sticky="nsew", padx=16, pady=(0, 16))
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
         self.log = tk.Text(
@@ -637,8 +692,8 @@ class BuilderGui:
             borderwidth=0,
             font=FONT_LOG,
             wrap="word",
-            padx=10,
-            pady=10,
+            padx=12,
+            pady=12,
         )
         self.log.grid(row=0, column=0, sticky="nsew")
         self.log.tag_configure("prompt", foreground=COLORS["cyan"])
@@ -650,13 +705,13 @@ class BuilderGui:
         return tk.Frame(
             master,
             bg=COLORS["panel"],
-            highlightthickness=2,
+            highlightthickness=1,
             highlightbackground=COLORS["line"],
             bd=0,
         )
 
     def _section_label(self, master: tk.Misc, text: str) -> tk.Label:
-        return tk.Label(master, text=f"// {text}", bg=COLORS["panel"], fg=COLORS["cyan"], font=FONT_HEAD, anchor="w")
+        return tk.Label(master, text=text, bg=COLORS["panel"], fg=COLORS["cyan"], font=FONT_HEAD, anchor="w")
 
     def _selection(self) -> BuildSelection:
         return BuildSelection(self.mode.get(), self.profile.get())
@@ -700,13 +755,17 @@ class BuilderGui:
             return
         selection = self._selection()
         self.running.set(True)
+        self._started_at = time.monotonic()
+        self._last_output_at = self._started_at
         self.build_button.configure(state=DISABLED, bg="#122018")
         self.cancel_button.configure(state=NORMAL)
         self._refresh_summary()
+        self._progress = 0
         self._set_progress(0)
-        self.status.set(f"RUNNING :: {selection.label}")
+        self.status.set("RUNNING")
         self.stage_label.configure(text="SPAWNING POWERSHELL BUILD PROCESS", fg=COLORS["amber"])
         self.progress.set(0, running=True)
+        self.spinner.set_running(True)
         self._append_log(f"\n> launch {selection.mode}/{selection.profile}\n", "prompt")
 
         worker = threading.Thread(target=self._run_build, args=(selection,), daemon=True)
@@ -751,10 +810,15 @@ class BuilderGui:
                 kind, payload = self._queue.get_nowait()
                 if kind == "line":
                     line = str(payload)
-                    self._append_log(line)
+                    self._last_output_at = time.monotonic()
+                    structured_stage = structured_stage_from_line(line)
+                    if structured_stage is None:
+                        self._append_log(line)
                     next_progress = progress_from_line(self._progress, line)
                     self._set_progress(next_progress)
-                    self._update_stage(line, next_progress)
+                    self._update_stage(line, next_progress, structured_stage=structured_stage)
+                    if self.running.get():
+                        self.status.set("RUNNING")
                 elif kind == "done":
                     return_code = int(payload)
                     if return_code == 0:
@@ -776,7 +840,10 @@ class BuilderGui:
             pass
         self.root.after(80, self._drain_queue)
 
-    def _update_stage(self, line: str, progress: int) -> None:
+    def _update_stage(self, line: str, progress: int, *, structured_stage: str | None = None) -> None:
+        if structured_stage:
+            self.stage_label.configure(text=structured_stage, fg=COLORS["amber"] if self.running.get() else COLORS["muted"])
+            return
         lower = line.lower()
         stage = None
         if "running analysis" in lower or "analyzing" in lower:
@@ -811,12 +878,20 @@ class BuilderGui:
     def _finish_build(self) -> None:
         self.running.set(False)
         self.progress.set(self._progress, running=False)
+        self.spinner.set_running(False)
+        self.elapsed_label.configure(text=format_elapsed(self._started_at))
         self.build_button.configure(state=NORMAL, bg=COLORS["green"])
         self.cancel_button.configure(state=DISABLED)
         self._refresh_summary()
 
     def _animate(self) -> None:
         self.progress.tick()
+        self.spinner.tick()
+        if self.running.get() and self._last_output_at is not None:
+            self.elapsed_label.configure(text=format_elapsed(self._started_at))
+            idle_seconds = int(time.monotonic() - self._last_output_at)
+            if idle_seconds >= 20:
+                self.status.set("RUNNING")
         self.root.after(70, self._animate)
 
     def on_close(self) -> None:
@@ -828,6 +903,13 @@ class BuilderGui:
 
 
 def run_gui() -> int:
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            pass
     root = Tk()
     app = BuilderGui(root)
     root.protocol("WM_DELETE_WINDOW", app.on_close)
@@ -841,6 +923,8 @@ def self_test() -> int:
         (ROOT / "build_pyside6_app.ps1").exists(),
         build_command(BuildSelection("onedir", "fast"))[-4:] == ["-Mode", "onedir", "-BuildProfile", "fast"],
         expected_output_path(BuildSelection("onefile", "release")).name.endswith("windows-portable.exe"),
+        progress_from_line(0, "::progress::42::Packing payload") == 42,
+        structured_stage_from_line("::progress::42::Packing payload") == "PACKING PAYLOAD",
         progress_from_line(0, "Building EXE from EXE-00.toc") >= 90,
     ]
     if not all(checks):

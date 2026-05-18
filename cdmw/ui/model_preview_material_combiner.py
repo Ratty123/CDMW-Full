@@ -799,7 +799,7 @@ def _generate_synthesized_albedo_map(
     prepared_base = _support_source_image(base_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
     source_layers: list[Tuple[PreviewMaterialTextureInput, QImage]] = []
     for item in layer_inputs:
-        image = _image_reader(str(getattr(item, "preview_texture_path", "") or ""))
+        image = _image_reader(str(getattr(item, "preview_texture_path", "") or ""), max_dimension=max_dimension)
         if image.isNull():
             continue
         prepared = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
@@ -833,7 +833,7 @@ def _generate_synthesized_albedo_map(
 
     prepared_masks: dict[str, QImage] = {}
     for role, item in mask_inputs.items():
-        image = _image_reader(str(getattr(item, "preview_texture_path", "") or ""))
+        image = _image_reader(str(getattr(item, "preview_texture_path", "") or ""), max_dimension=max_dimension)
         if image.isNull():
             continue
         prepared = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
@@ -924,11 +924,20 @@ def _material_layer_mask_for_input(
     return None, "", ""
 
 
-def _image_reader(source_url: str) -> QImage:
+def _image_reader(source_url: str, *, max_dimension: int = 0) -> QImage:
     source_path = _source_url_local_path(source_url)
     if not source_path:
         return QImage()
-    return QImageReader(source_path).read()
+    reader = QImageReader(source_path)
+    reader.setAutoTransform(True)
+    limit = max(0, int(max_dimension or 0))
+    if limit > 0:
+        size = reader.size()
+        if size.isValid() and max(int(size.width()), int(size.height())) > limit:
+            target = size.scaled(limit, limit, Qt.KeepAspectRatio)
+            if target.width() > 0 and target.height() > 0:
+                reader.setScaledSize(target)
+    return reader.read()
 
 
 def _prepare_image(
@@ -1085,6 +1094,8 @@ def _decode_mode_for_input(input_item: PreviewMaterialTextureInput) -> str:
         return "detail_mask"
     if subtype in {"opacity", "opacity_mask", "alpha"}:
         return "opacity"
+    if subtype in {"metallic_roughness", "gltf_metallic_roughness"} or channels[:2] == ("roughness", "metallic"):
+        return "metallic_roughness"
     if channels[:3] == ("ao", "roughness", "metallic"):
         return "orm"
     if channels[:3] == ("roughness", "metallic", "ao"):
@@ -1147,6 +1158,8 @@ def _material_decode_output_flags(decode_mode: str) -> Tuple[bool, bool, bool, b
         return False, True, False, True
     if mode == "metallic":
         return False, True, True, True
+    if mode == "metallic_roughness":
+        return False, True, True, True
     if mode in {"orm", "arm", "rma", "mra", "material_mask", "material_response"}:
         return True, True, True, True
     if mode in {"detail_mask", "packed_mask", "generic"}:
@@ -1172,6 +1185,7 @@ def _material_slot_priority(decode_mode: str, slot_name: str) -> int:
         },
         "roughness": {
             "roughness": 100,
+            "metallic_roughness": 98,
             "standard_v2_material": 92,
             "standard_v2_mask": 88,
             "standard_v2_specular": 82,
@@ -1194,6 +1208,7 @@ def _material_slot_priority(decode_mode: str, slot_name: str) -> int:
         },
         "metalness": {
             "metallic": 100,
+            "metallic_roughness": 98,
             "orm": 96,
             "arm": 96,
             "rma": 96,
@@ -1221,6 +1236,7 @@ def _material_slot_priority(decode_mode: str, slot_name: str) -> int:
             "rma": 50,
             "mra": 50,
             "metallic": 46,
+            "metallic_roughness": 54,
             "roughness": 36,
             "packed_mask": 28,
             "detail_mask": 20,
@@ -1378,6 +1394,11 @@ def decode_material_sample(
         metalness = _clamp(max(r, average), 0.0, 1.0)
         roughness = _clamp(0.18 + ((1.0 - max(g, average)) * 0.62), 0.08, 0.92)
         specular = _clamp(0.16 + (metalness * 0.48), 0.06, 0.72)
+    elif mode == "metallic_roughness":
+        roughness = _clamp(g, 0.04, 0.98)
+        metalness = _clamp(b, 0.0, 1.0)
+        ao = 1.0
+        specular = _clamp((0.10 + (metalness * 0.62)) * (1.0 - (roughness * 0.32)), 0.05, 0.78)
     elif mode == "material_mask":
         ao = _clamp(1.0 - (r * 0.30), 0.65, 1.0)
         roughness = _clamp(0.28 + (g * 0.56), 0.10, 0.96)
@@ -1491,6 +1512,22 @@ def _generate_material_maps(
     rough_image = QImage(width, height, QImage.Format.Format_RGB888) if emit_roughness else QImage()
     metal_image = QImage(width, height, QImage.Format.Format_RGB888) if emit_metalness else QImage()
     spec_image = QImage(width, height, QImage.Format.Format_RGB888) if emit_specular else QImage()
+    mode = str(decode_mode or "").strip().lower()
+    shader_rule = _texture_rule_for_input(input_item) if input_item is not None else ""
+    force_nonmetal_skin = bool(shader_rule == "skin" or mode in {"skin_material", "skin_detail_mask"})
+    apply_sidecar_hints = bool(
+        input_item is not None
+        and not force_nonmetal_skin
+        and shader_rule in {"standard_v2", "emissive_v2", "cloth_v2", "cloth", "standard", "static_multitextured", "static_standard"}
+    )
+    metallic_hint = 0.0
+    roughness_hint = 0.0
+    specular_hint = 0.0
+    if apply_sidecar_hints and input_item is not None:
+        channel = _layer_channel(input_item)
+        metallic_hint = _material_parameter_channel_hint(input_item, channel, "metallic", "metalness", "scratchmetallic")
+        roughness_hint = _material_parameter_channel_hint(input_item, channel, "roughness", "scratchroughness")
+        specular_hint = _material_parameter_hint(input_item, "specular", "specularamount")
     metal_peak = 0.0
     spec_peak = 0.0
     contribution_peak = 1.0 if mask_source.isNull() else 0.0
@@ -1504,15 +1541,21 @@ def _generate_material_maps(
                 color.alphaF(),
                 decode_mode,
             )
-            if input_item is not None:
-                ao, roughness, metalness, specular = _apply_sidecar_material_hints(
-                    input_item,
-                    decode_mode,
-                    ao,
-                    roughness,
-                    metalness,
-                    specular,
-                )
+            if force_nonmetal_skin:
+                metalness = 0.0
+                specular = min(specular, 0.42)
+            elif apply_sidecar_hints:
+                if metallic_hint > 0.02:
+                    metalness = max(metalness, metallic_hint * 0.42)
+                    specular = max(specular, 0.14 + metallic_hint * 0.32)
+                if roughness_hint > 0.02:
+                    roughness = _clamp((roughness * 0.72) + (roughness_hint * 0.28), 0.04, 0.98)
+                if specular_hint > 0.02:
+                    specular = max(specular, specular_hint * 0.58)
+                ao = _clamp(ao, 0.45, 1.0)
+                roughness = _clamp(roughness, 0.04, 1.0)
+                metalness = _clamp(metalness)
+                specular = _clamp(specular)
             if not mask_source.isNull():
                 layer_alpha = _clamp(_mask_alpha(mask_source, x, y, channel=mask_channel) * effective_layer_weight)
                 contribution_peak = max(contribution_peak, layer_alpha)
@@ -1936,7 +1979,7 @@ def combine_qtquick3d_material(
         if not _looks_like_visible_base(item):
             notes.append(f"non-color base rejected:{_texture_label(item.source_texture_path, item.texture_name)}")
             continue
-        image = _image_reader(str(item.preview_texture_path or ""))
+        image = _image_reader(str(item.preview_texture_path or ""), max_dimension=base_map_max_dimension)
         if image.isNull():
             notes.append(f"base unreadable:{_texture_label(item.preview_texture_path, item.texture_name)}")
             continue
@@ -1992,7 +2035,7 @@ def combine_qtquick3d_material(
         notes.append("missing tangents")
     if tangents_usable:
         for item in normal_candidates:
-            image = _image_reader(str(item.preview_texture_path or ""))
+            image = _image_reader(str(item.preview_texture_path or ""), max_dimension=support_map_max_dimension)
             if image.isNull():
                 notes.append(f"normal unreadable:{_texture_label(item.preview_texture_path, item.texture_name)}")
                 continue
@@ -2045,7 +2088,7 @@ def combine_qtquick3d_material(
         if mode == "opacity":
             notes.append(f"opacity ignored:{_texture_label(item.source_texture_path, item.texture_name)}")
             continue
-        image = _image_reader(str(item.preview_texture_path or ""))
+        image = _image_reader(str(item.preview_texture_path or ""), max_dimension=support_map_max_dimension)
         if image.isNull():
             notes.append(f"material unreadable:{_texture_label(item.preview_texture_path, item.texture_name)}")
             continue
@@ -2072,7 +2115,10 @@ def combine_qtquick3d_material(
             layer_weight = _layer_weight_from_parameters(item, has_base=bool(base_source))
             if layer_weight <= 0.001:
                 notes.append(f"material layer disabled by colorBlendingFlag:{mask_label}")
-            layer_mask_image = _image_reader(str(getattr(mask_item, "preview_texture_path", "") or ""))
+            layer_mask_image = _image_reader(
+                str(getattr(mask_item, "preview_texture_path", "") or ""),
+                max_dimension=support_map_max_dimension,
+            )
             if layer_mask_image.isNull():
                 notes.append(f"material layer mask unreadable:{mask_label}")
             else:
@@ -2177,7 +2223,7 @@ def combine_qtquick3d_material(
     selected_height_source = ""
     selected_height_item: Optional[PreviewMaterialTextureInput] = None
     for height_index, item in enumerate(height_candidates):
-        image = _image_reader(str(item.preview_texture_path or ""))
+        image = _image_reader(str(item.preview_texture_path or ""), max_dimension=support_map_max_dimension)
         if image.isNull():
             notes.append(f"height unreadable:{_texture_label(item.preview_texture_path, item.texture_name)}")
             continue

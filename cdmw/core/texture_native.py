@@ -10,9 +10,9 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
-from cdmw.constants import APP_NAME
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled, run_process_with_cancellation
 from cdmw.core.dds_native import dds_native_report_dict, inspect_dds_native_path
+from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
 from cdmw.models import RunCancelled
 
 NATIVE_TEXTURE_BACKEND_ID = "cd_texture_rust_0.1"
@@ -243,7 +243,7 @@ def _directxtex_preview_cache_path(
         normal_space=normal_space,
         binary=binary,
     )
-    cache_dir = Path(tempfile.gettempdir()) / APP_NAME / "directxtex_texture_preview" / cache_key
+    cache_dir = app_temp_cache_path("directxtex_texture_preview", cache_key)
     return cache_dir / f"{dds_path.stem}.png"
 
 
@@ -426,6 +426,8 @@ def ensure_directxtex_dds_preview_pngs(
                         normal_space=str(item.get("normal_space") or "auto"),
                     )
                 results[result_key] = output_path
+    if results:
+        request_app_temp_cache_prune()
     return results
 
 
@@ -460,7 +462,7 @@ def ensure_native_dds_preview_png(
         normal_space=normal_space,
         binary=binary,
     )
-    cache_dir = Path(tempfile.gettempdir()) / APP_NAME / "native_texture_preview" / cache_key
+    cache_dir = app_temp_cache_path("native_texture_preview", cache_key)
     preview_path = cache_dir / f"{dds_path.stem}.png"
     report_path = native_texture_report_sidecar_path(preview_path)
     try:
@@ -508,6 +510,7 @@ def ensure_native_dds_preview_png(
         report_path.write_text(json.dumps(parsed, indent=2, sort_keys=True), encoding="utf-8")
     except OSError:
         return None
+    request_app_temp_cache_prune()
     return preview_path if preview_path.is_file() and preview_path.stat().st_size > 0 else None
 
 

@@ -36,8 +36,25 @@ def assert_mesh_topology_unchanged(before: MeshTopologySignature, mesh: ParsedMe
 
 
 def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
+    extra_submesh_attrs = (
+        "texture_slots",
+        "preview_color",
+        "preview_normal_texture_path",
+        "preview_normal_texture_name",
+        "preview_normal_texture_strength",
+        "preview_material_texture_path",
+        "preview_material_texture_name",
+        "preview_material_texture_type",
+        "preview_material_texture_subtype",
+        "preview_material_texture_packed_channels",
+        "preview_material_texture_inputs",
+        "preview_height_texture_path",
+        "preview_height_texture_name",
+        "preview_sidecar_shader_family",
+    )
+
     def clone_submesh(submesh: SubMesh) -> SubMesh:
-        return SubMesh(
+        cloned = SubMesh(
             name=str(submesh.name or ""),
             material=str(submesh.material or ""),
             texture=str(submesh.texture or ""),
@@ -59,6 +76,10 @@ def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
             source_bbox_extent=tuple(submesh.source_bbox_extent or (0.0, 0.0, 0.0)),
             source_lod_count=int(submesh.source_lod_count or 0),
         )
+        for attr_name in extra_submesh_attrs:
+            if hasattr(submesh, attr_name):
+                setattr(cloned, attr_name, getattr(submesh, attr_name))
+        return cloned
 
     return ParsedMesh(
         path=str(mesh.path or ""),

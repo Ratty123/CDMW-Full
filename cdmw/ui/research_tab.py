@@ -473,6 +473,7 @@ class ResearchTab(QWidget):
     REFRESH_POPULATION_BATCH_SIZE = 80
     REFRESH_GROUP_BATCH_SIZE = 20
     UNKNOWN_GROUP_BATCH_SIZE = 50
+    ARCHIVE_PICKER_POPULATION_BATCH_SIZE = 250
     POPULATION_TIMER_INTERVAL_MS = 1
 
     def resizeEvent(self, event: object) -> None:
@@ -546,6 +547,8 @@ class ResearchTab(QWidget):
         self.archive_picker_items_by_folder_key: Dict[tuple[str, ...], QTreeWidgetItem] = {}
         self.archive_picker_flat_render_limit = 5000
         self.archive_picker_flat_rendered_count = 0
+        self._pending_archive_picker_flat_total = 0
+        self._pending_archive_picker_flat_index = 0
         self.archive_picker_refresh_pending = False
         self.defer_archive_picker_refresh = True
         self._column_autofit_timer = QTimer(self)
@@ -572,6 +575,10 @@ class ResearchTab(QWidget):
         self._unknown_population_timer.setSingleShot(True)
         self._unknown_population_timer.setInterval(self.POPULATION_TIMER_INTERVAL_MS)
         self._unknown_population_timer.timeout.connect(self._flush_unknown_group_population_batch)
+        self._archive_picker_population_timer = QTimer(self)
+        self._archive_picker_population_timer.setSingleShot(True)
+        self._archive_picker_population_timer.setInterval(self.POPULATION_TIMER_INTERVAL_MS)
+        self._archive_picker_population_timer.timeout.connect(self._flush_archive_picker_population_batch)
         self._pending_unknown_source_groups: List[UnknownResolverGroup] = []
         self._pending_unknown_groups: List[UnknownResolverGroup] = []
         self._pending_unknown_previous_group_key = ""
@@ -803,15 +810,16 @@ class ResearchTab(QWidget):
         return "flat"
 
     def _populate_archive_picker_tree(self) -> None:
+        self._archive_picker_population_timer.stop()
         self.archive_picker_tree.blockSignals(True)
+        self.archive_picker_tree.setUpdatesEnabled(False)
         self.archive_picker_tree.clear()
         self.archive_picker_items_by_folder_key = {}
         self.archive_picker_flat_rendered_count = 0
+        self._pending_archive_picker_flat_index = 0
+        self._pending_archive_picker_flat_total = 0
         if self._archive_picker_view_mode() == "flat":
-            render_count = min(len(self.archive_picker_entries), self.archive_picker_flat_render_limit)
-            for entry_index in range(render_count):
-                self._create_archive_picker_file_item(self.archive_picker_tree, entry_index, show_full_path=True)
-            self.archive_picker_flat_rendered_count = render_count
+            self._pending_archive_picker_flat_total = min(len(self.archive_picker_entries), self.archive_picker_flat_render_limit)
             self.archive_picker_tree.setRootIsDecorated(False)
         else:
             self.archive_picker_tree.setRootIsDecorated(True)
@@ -819,7 +827,39 @@ class ResearchTab(QWidget):
                 self._create_archive_picker_folder_item(self.archive_picker_tree, child_key)
             for entry_index in self.archive_picker_direct_files.get((), []):
                 self._create_archive_picker_file_item(self.archive_picker_tree, entry_index)
+        self.archive_picker_tree.setUpdatesEnabled(True)
         self.archive_picker_tree.blockSignals(False)
+        if self._pending_archive_picker_flat_total:
+            self.archive_picker_status_label.setText(
+                f"Rendering archive files... 0 / {self._pending_archive_picker_flat_total:,}"
+            )
+            self._flush_archive_picker_population_batch()
+            return
+        if self.archive_picker_tree.topLevelItemCount() > 0:
+            first = self.archive_picker_tree.topLevelItem(0)
+            if first is not None:
+                self.archive_picker_tree.setCurrentItem(first)
+        self._column_autofit_timer.start()
+
+    def _flush_archive_picker_population_batch(self) -> None:
+        total = self._pending_archive_picker_flat_total
+        if total <= 0:
+            return
+        start = self._pending_archive_picker_flat_index
+        end = min(total, start + self.ARCHIVE_PICKER_POPULATION_BATCH_SIZE)
+        self.archive_picker_tree.setUpdatesEnabled(False)
+        for entry_index in range(start, end):
+            self._create_archive_picker_file_item(self.archive_picker_tree, entry_index, show_full_path=True)
+        self.archive_picker_tree.setUpdatesEnabled(True)
+        self._pending_archive_picker_flat_index = end
+        self.archive_picker_flat_rendered_count = end
+        self.archive_picker_status_label.setText(
+            f"Rendering archive files... {end:,} / {total:,}"
+        )
+        if end < total:
+            self._archive_picker_population_timer.start()
+            return
+        self._pending_archive_picker_flat_total = 0
         if self.archive_picker_tree.topLevelItemCount() > 0:
             first = self.archive_picker_tree.topLevelItem(0)
             if first is not None:

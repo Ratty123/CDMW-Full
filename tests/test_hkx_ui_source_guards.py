@@ -287,7 +287,14 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn('use_recommended_button = QPushButton("Use Recommended Source")', source)
         self.assertIn("finder_icon_timer = QTimer(finder)", source)
         self.assertIn("def _queue_item_finder_donor_icons_for_visible_rows() -> None:", source)
-        self.assertIn("self._cached_archive_asset_catalog_inventory_icon_pixmap(row, 78)", source)
+        self.assertIn(
+            "self._cached_archive_asset_catalog_inventory_icon_pixmap(\n"
+            "                            row,\n"
+            "                            78,\n"
+            "                            allow_sync_prepare=False,\n"
+            "                        )",
+            source,
+        )
         self.assertIn('item.setData(Qt.UserRole + 1, "thumb_loaded")', source)
         self.assertIn('loose_folder_button = QPushButton("Add Loose Donor Folder...")', source)
         self.assertIn("def _collect_indexed_candidates", source)

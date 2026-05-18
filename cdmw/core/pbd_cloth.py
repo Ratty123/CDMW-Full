@@ -1,8 +1,8 @@
-"""Tool-side PBD cloth preview helpers.
+"""Tool-side PBD soft-physics preview helpers.
 
 The game runtime is not available here, so this module builds a small,
 deterministic preview payload from resolved model sidecars and recovered mesh
-data.  The native D3D11 host consumes the result as an approximate cloth
+data.  The native D3D11 host consumes the result as an approximate PBD
 simulation, not as Havok/Pearl Abyss exact runtime behavior.
 """
 
@@ -25,10 +25,14 @@ from cdmw.models import (
 )
 
 
-_CLOTH_TOKENS = ("cloth", "cloak", "cape", "skirt", "dress", "mantle", "robe", "flap")
+_CLOTH_TOKENS = ("cloth", "cloak", "cape", "skirt", "dress", "mantle", "robe", "flap", "fabric", "textile")
+_LEATHER_TOKENS = ("leather", "hide")
 _HAIR_TOKENS = ("hair", "fur")
-_BODY_JIGGLE_TOKENS = ("breast", "belly", "body_soft", "jiggle")
-_NON_CLOTH_PBD_TOKENS = ("weapon", "spline", "blade", "guard", "handle", "hilt", "sword", "metal", "rigid")
+_ROPE_TOKENS = ("rope", "cord", "string", "thread", "tassel", "strap", "belt")
+_SPLINE_TOKENS = ("spline", "chain", "whip", "tail")
+_BODY_SOFT_TOKENS = ("breast", "belly", "body_soft", "jiggle", "softbody", "soft_body")
+_SOFT_PBD_KINDS = ("cloth", "leather", "hair", "rope", "spline", "body_soft", "unknown")
+_RIGID_PBD_TOKENS = ("weapon", "blade", "guard", "handle", "hilt", "sword", "metal", "rigid", "steel", "iron")
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,13 +111,61 @@ def classify_pbd_simulation_kind(*values: object) -> str:
     joined = " ".join(str(value or "") for value in values).lower()
     if any(token in joined for token in _HAIR_TOKENS):
         return "hair"
-    if any(token in joined for token in _BODY_JIGGLE_TOKENS):
+    if any(token in joined for token in _BODY_SOFT_TOKENS):
         return "body_soft"
+    if any(token in joined for token in _LEATHER_TOKENS):
+        return "leather"
+    if any(token in joined for token in _ROPE_TOKENS):
+        return "rope"
     if any(token in joined for token in _CLOTH_TOKENS):
         return "cloth"
-    if any(token in joined for token in _NON_CLOTH_PBD_TOKENS):
+    if any(token in joined for token in _SPLINE_TOKENS):
         return "spline"
     return "unknown"
+
+
+def _default_pbd_material_settings(
+    *,
+    material_name: str = "",
+    material_path: str = "",
+    simulation_kind: str = "unknown",
+) -> PbdMaterialSettings:
+    kind = str(simulation_kind or "unknown").strip().lower()
+    if kind not in _SOFT_PBD_KINDS:
+        kind = "unknown"
+    settings = PbdMaterialSettings(
+        material_name=str(material_name or ""),
+        material_path=str(material_path or ""),
+        simulation_kind=kind,
+    )
+    if kind == "leather":
+        settings.stretching_stiffness = 0.55
+        settings.bending_stiffness = 0.34
+        settings.damping = 0.82
+        settings.wind_response = 0.22
+    elif kind == "hair":
+        settings.stretching_stiffness = 0.24
+        settings.bending_stiffness = 0.08
+        settings.damping = 1.15
+        settings.gravity = -6.5
+        settings.air_resistance = 1.8
+        settings.wind_response = 0.75
+        settings.solver_iterations = 24
+        settings.collision_enabled = False
+    elif kind in {"rope", "spline"}:
+        settings.stretching_stiffness = 0.82
+        settings.bending_stiffness = 0.12
+        settings.damping = 0.78
+        settings.wind_response = 0.24
+        settings.solver_iterations = 36
+    elif kind == "body_soft":
+        settings.stretching_stiffness = 0.45
+        settings.bending_stiffness = 0.12
+        settings.damping = 1.35
+        settings.gravity = -4.0
+        settings.wind_response = 0.10
+        settings.solver_iterations = 20
+    return settings
 
 
 def parse_pbd_config_materials(text: str) -> Dict[str, PbdConfigMaterial]:
@@ -233,23 +285,26 @@ def parse_pbd_material_settings(
     material_path: str = "",
     config_material: Optional[PbdConfigMaterial] = None,
 ) -> PbdMaterialSettings:
-    settings = PbdMaterialSettings(
-        material_name=str(material_name or getattr(config_material, "name", "") or ""),
-        material_path=str(material_path or getattr(config_material, "filename", "") or ""),
-        simulation_kind=classify_pbd_simulation_kind(
-            material_name,
-            material_path,
-            getattr(config_material, "mode", ""),
-            getattr(config_material, "pbd_part", ""),
-        ),
+    resolved_name = str(material_name or getattr(config_material, "name", "") or "")
+    resolved_path = str(material_path or getattr(config_material, "filename", "") or "")
+    simulation_kind = classify_pbd_simulation_kind(
+        resolved_name,
+        resolved_path,
+        getattr(config_material, "mode", ""),
+        getattr(config_material, "pbd_part", ""),
     )
     root = _parse_xml(text)
-    if root is None:
-        return settings
-    values = _material_scalar_values(root)
+    values = _material_scalar_values(root) if root is not None else {}
     mode = _first_scalar(values, "SimulationMode", "Mode")
     if mode:
-        settings.simulation_kind = classify_pbd_simulation_kind(mode, settings.material_name, settings.material_path)
+        simulation_kind = classify_pbd_simulation_kind(mode, resolved_name, resolved_path)
+    settings = _default_pbd_material_settings(
+        material_name=resolved_name,
+        material_path=resolved_path,
+        simulation_kind=simulation_kind,
+    )
+    if root is None:
+        return settings
     settings.stretching_stiffness = max(
         0.0,
         min(1.0, _safe_float(_first_scalar(values, "StretchingStiffness", "StretchStiffness"), settings.stretching_stiffness)),
@@ -363,29 +418,99 @@ def build_cloth_pin_weights(
     positions: Sequence[Tuple[float, float, float]],
     *,
     cloak_bias: bool = False,
+    simulation_kind: str = "cloth",
+    triangles: Sequence[Tuple[int, int, int]] = (),
+    attachment_positions: Sequence[Tuple[float, float, float]] = (),
 ) -> Tuple[float, ...]:
     if not positions:
         return ()
-    ys = [float(position[1]) for position in positions]
-    y_min = min(ys)
-    y_max = max(ys)
-    span = max(1e-6, y_max - y_min)
-    hard_height = 0.16 if cloak_bias else 0.12
-    fade_height = 0.36 if cloak_bias else 0.28
-    hard_line = y_max - span * hard_height
-    fade_line = y_max - span * fade_height
-    weights: List[float] = []
-    for y in ys:
-        if y >= hard_line:
-            weights.append(1.0)
-        elif y >= fade_line:
-            weights.append(max(0.0, min(1.0, (y - fade_line) / max(1e-6, hard_line - fade_line))))
-        else:
-            weights.append(0.0)
-    if max(weights, default=0.0) <= 0.0:
-        top_indices = sorted(range(len(ys)), key=lambda index: ys[index], reverse=True)[: max(3, min(8, len(ys)))]
-        for index in top_indices:
-            weights[index] = 1.0
+    kind = str(simulation_kind or "cloth").strip().lower()
+    if kind in {"rope", "spline"}:
+        hard_height = 0.06
+        fade_height = 0.18
+    elif kind == "hair":
+        hard_height = 0.08
+        fade_height = 0.24
+    elif kind == "leather":
+        hard_height = 0.10
+        fade_height = 0.24
+    elif kind == "body_soft":
+        hard_height = 0.20
+        fade_height = 0.45
+    else:
+        hard_height = 0.16 if cloak_bias else 0.12
+        fade_height = 0.36 if cloak_bias else 0.28
+
+    def components() -> List[List[int]]:
+        parent = list(range(len(positions)))
+        valid_triangle_count = 0
+
+        def find(index: int) -> int:
+            while parent[index] != index:
+                parent[index] = parent[parent[index]]
+                index = parent[index]
+            return index
+
+        def union(left: int, right: int) -> None:
+            left_root = find(left)
+            right_root = find(right)
+            if left_root != right_root:
+                parent[right_root] = left_root
+
+        for tri in triangles:
+            if len(tri) < 3:
+                continue
+            a, b, c = (int(tri[0]), int(tri[1]), int(tri[2]))
+            if any(index < 0 or index >= len(positions) for index in (a, b, c)):
+                continue
+            valid_triangle_count += 1
+            union(a, b)
+            union(b, c)
+            union(c, a)
+        if valid_triangle_count <= 0:
+            return [list(range(len(positions)))]
+        grouped: Dict[int, List[int]] = defaultdict(list)
+        for index in range(len(positions)):
+            grouped[find(index)].append(index)
+        return list(grouped.values())
+
+    weights = [0.0 for _position in positions]
+    anchors = tuple(tuple(float(component) for component in anchor[:3]) for anchor in tuple(attachment_positions or ()))
+    for component in components():
+        if anchors:
+            nearest = []
+            for index in component:
+                best_distance = min(_distance(positions[index], anchor) for anchor in anchors)
+                nearest.append((best_distance, index))
+            nearest.sort()
+            hard_count = max(1, min(8, max(2, len(component) // 10)))
+            fade_count = max(hard_count, min(len(component), hard_count * 3))
+            for rank, (_distance_to_anchor, index) in enumerate(nearest[:fade_count]):
+                if rank < hard_count or hard_count == fade_count:
+                    weights[index] = 1.0
+                else:
+                    t = 1.0 - (rank - hard_count + 1) / max(1, fade_count - hard_count + 1)
+                    weights[index] = max(weights[index], max(0.0, min(1.0, t)))
+            continue
+        ys = [float(positions[index][1]) for index in component]
+        y_min = min(ys)
+        y_max = max(ys)
+        span = max(1e-6, y_max - y_min)
+        hard_line = y_max - span * hard_height
+        fade_line = y_max - span * fade_height
+        component_max = 0.0
+        for index in component:
+            y = float(positions[index][1])
+            if y >= hard_line:
+                weights[index] = 1.0
+            elif y >= fade_line:
+                weights[index] = max(0.0, min(1.0, (y - fade_line) / max(1e-6, hard_line - fade_line)))
+            component_max = max(component_max, weights[index])
+        if component_max <= 0.0:
+            count = max(1, min(3, len(component)))
+            top_indices = sorted(component, key=lambda index: float(positions[index][1]), reverse=True)[:count]
+            for index in top_indices:
+                weights[index] = 1.0
     return tuple(weights)
 
 
@@ -410,17 +535,64 @@ def _match_hint_score(
         _normalize_name(getattr(mesh, "material_name", "")),
         _normalize_name(getattr(mesh, "texture_name", "")),
     }:
-        score += 5
+        score += 50
     if hint.material_name and _normalize_name(hint.material_name) in {
         _normalize_name(getattr(submesh, "material", "")),
         _normalize_name(getattr(mesh, "material_name", "")),
     }:
-        score += 4
+        score += 40
     if hint.simulation_material_name and _contains_any_token(label, (_normalize_name(hint.simulation_material_name),)):
+        score += 10
+    kind_tokens = _tokens_for_simulation_kind(hint.simulation_kind)
+    if kind_tokens and _contains_any_token(label, kind_tokens):
         score += 2
-    if _contains_any_token(label, _CLOTH_TOKENS):
-        score += 1
     return score
+
+
+def _tokens_for_simulation_kind(simulation_kind: str) -> Tuple[str, ...]:
+    kind = str(simulation_kind or "").strip().lower()
+    if kind == "cloth":
+        return _CLOTH_TOKENS
+    if kind == "leather":
+        return _LEATHER_TOKENS
+    if kind == "hair":
+        return _HAIR_TOKENS
+    if kind == "rope":
+        return _ROPE_TOKENS
+    if kind == "spline":
+        return _SPLINE_TOKENS
+    if kind == "body_soft":
+        return _BODY_SOFT_TOKENS
+    return ()
+
+
+def _hint_context_is_soft(hint: PbdSidecarHint, mesh: ModelPreviewMesh, submesh: object) -> bool:
+    kind = str(getattr(hint, "simulation_kind", "") or "unknown").strip().lower()
+    if kind not in _SOFT_PBD_KINDS:
+        return False
+    context = " ".join(
+        str(value or "")
+        for value in (
+            hint.simulation_material_name,
+            hint.material_name,
+            hint.submesh_name,
+            hint.parameter_name,
+            getattr(mesh, "material_name", ""),
+            getattr(mesh, "texture_name", ""),
+            getattr(submesh, "name", ""),
+            getattr(submesh, "material", ""),
+            getattr(submesh, "texture", ""),
+        )
+    )
+    has_soft_token = any(
+        _contains_any_token(context, tokens)
+        for tokens in (_CLOTH_TOKENS, _LEATHER_TOKENS, _HAIR_TOKENS, _ROPE_TOKENS, _SPLINE_TOKENS, _BODY_SOFT_TOKENS)
+    )
+    if _contains_any_token(context, _RIGID_PBD_TOKENS) and not has_soft_token:
+        return False
+    if kind == "spline" and _contains_any_token(context, ("weapon", "blade", "guard", "handle", "hilt", "sword")):
+        return False
+    return True
 
 
 def build_cloth_preview_data(
@@ -431,7 +603,7 @@ def build_cloth_preview_data(
 ) -> Optional[ClothPreviewData]:
     if not isinstance(model_preview, ModelPreviewData) or not model_preview.meshes:
         return None
-    hints = tuple(hint for hint in sidecar_hints if hint.simulation_kind == "cloth")
+    hints = tuple(hint for hint in sidecar_hints if str(getattr(hint, "simulation_kind", "") or "unknown").strip().lower() in _SOFT_PBD_KINDS)
     if not hints:
         return None
     submeshes = list(getattr(parsed_mesh, "submeshes", ()) or [])
@@ -443,35 +615,32 @@ def build_cloth_preview_data(
         if source_submesh_index < 0 or source_submesh_index >= len(submeshes):
             continue
         submesh = submeshes[source_submesh_index]
-        mesh_label = " ".join(
-            str(value or "")
-            for value in (
-                getattr(mesh, "material_name", ""),
-                getattr(mesh, "texture_name", ""),
-            )
-        )
-        if not _contains_any_token(mesh_label, _CLOTH_TOKENS):
-            continue
         scored = sorted(
-            ((_match_hint_score(hint, mesh, submesh), hint) for hint in hints),
+            ((_match_hint_score(hint, mesh, submesh), hint) for hint in hints if _hint_context_is_soft(hint, mesh, submesh)),
             key=lambda item: item[0],
             reverse=True,
         )
-        if not scored or scored[0][0] <= 0:
+        if not scored or scored[0][0] < 40:
             continue
         hint = scored[0][1]
-        settings = material_settings_by_name.get(_normalize_key(hint.simulation_material_name)) or PbdMaterialSettings(
+        hint_kind = str(getattr(hint, "simulation_kind", "") or "unknown").strip().lower()
+        settings = material_settings_by_name.get(_normalize_key(hint.simulation_material_name)) or _default_pbd_material_settings(
             material_name=hint.simulation_material_name,
-            simulation_kind="cloth",
+            simulation_kind=hint_kind,
         )
-        if settings.simulation_kind != "cloth":
+        if str(settings.simulation_kind or "unknown").strip().lower() not in _SOFT_PBD_KINDS:
             continue
         positions = tuple(tuple(float(component) for component in position[:3]) for position in (mesh.positions or ()))
         triangles = _valid_triangles(tuple(int(index) for index in (mesh.indices or ())), len(positions))
         if len(positions) < 3 or not triangles:
             continue
         constraints = build_cloth_constraints(positions, triangles, settings)
-        pin_weights = build_cloth_pin_weights(positions, cloak_bias=bool(settings.is_cloak))
+        pin_weights = build_cloth_pin_weights(
+            positions,
+            cloak_bias=bool(settings.is_cloak),
+            simulation_kind=str(settings.simulation_kind or hint_kind or "unknown"),
+            triangles=triangles,
+        )
         bone_indices: Tuple[Tuple[int, ...], ...] = ()
         bone_weights: Tuple[Tuple[float, ...], ...] = ()
         raw_bone_indices = tuple(getattr(submesh, "bone_indices", ()) or ())
@@ -486,7 +655,7 @@ def build_cloth_preview_data(
                 mesh_name=str(getattr(submesh, "name", "") or getattr(mesh, "material_name", "") or ""),
                 material_name=str(getattr(mesh, "material_name", "") or getattr(submesh, "material", "") or ""),
                 simulation_material_name=hint.simulation_material_name,
-                simulation_kind="cloth",
+                simulation_kind=str(settings.simulation_kind or hint_kind or "unknown"),
                 material_settings=settings,
                 positions=positions,
                 triangles=triangles,
@@ -495,7 +664,7 @@ def build_cloth_preview_data(
                 bone_indices=bone_indices,
                 bone_weights=bone_weights,
                 notes=(
-                    "Tool-side PBD cloth approximation; not game/Havok exact.",
+                    "Tool-side PBD physics approximation; not game/Havok exact.",
                     f"Resolved from {hint.sidecar_path}" if hint.sidecar_path else "Resolved from model sidecar PBD metadata.",
                 ),
             )
@@ -507,13 +676,13 @@ def build_cloth_preview_data(
     return ClothPreviewData(
         source_path=str(getattr(model_preview, "path", "") or ""),
         summary=(
-            f"Tool-side PBD cloth preview ready for {len(batches):,} batch(es), "
+            f"Tool-side PBD physics preview ready for {len(batches):,} batch(es), "
             f"{particle_count:,} particles, {constraint_count:,} constraints."
         ),
         batches=tuple(batches),
         limitations=(
-            "Approximate CPU PBD preview only; it does not run the proprietary game cloth solver.",
-            "Hair and body jiggle descriptors are intentionally deferred.",
+            "Approximate CPU PBD preview only; it does not run the proprietary game solver.",
+            "HKX collision/physics overlays remain static inspection geometry.",
         ),
     )
 
@@ -533,7 +702,7 @@ def build_cloth_preview_from_sidecars(
     for hint in hints:
         config_material = config_materials.get(_normalize_key(hint.simulation_material_name))
         if config_material is None:
-            material_settings_by_name[_normalize_key(hint.simulation_material_name)] = PbdMaterialSettings(
+            material_settings_by_name[_normalize_key(hint.simulation_material_name)] = _default_pbd_material_settings(
                 material_name=hint.simulation_material_name,
                 simulation_kind=hint.simulation_kind,
             )

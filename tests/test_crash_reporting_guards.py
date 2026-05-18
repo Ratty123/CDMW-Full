@@ -21,6 +21,21 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def _write_bootstrap_report", source)
         self.assertIn('"bootstrap_failure"', source)
         self.assertIn("from cdmw.ui.main_window import run_gui", source)
+        self.assertIn("def _acquire_single_instance_guard", source)
+        self.assertIn("def _schedule_startup_maintenance", source)
+        self.assertIn("def _start_external_startup_splash", source)
+        self.assertIn("STARTUP_SPLASH_COMMAND_FILE_ENV", source)
+        self.assertIn("--startup-splash-host", source)
+        self.assertIn('_update_pyinstaller_boot_splash("Already running.")', source)
+        self.assertIn('_update_pyinstaller_boot_splash("Loading...")', source)
+        self.assertLess(
+            source.index("args = parser.parse_args(argv)"),
+            source.index("_schedule_startup_maintenance()"),
+        )
+        self.assertLess(
+            source.index("_schedule_startup_maintenance()"),
+            source.index("from cdmw.ui.main_window import run_gui"),
+        )
 
     def test_gui_has_heartbeat_and_hang_watchdog(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -198,9 +213,9 @@ class CrashReportingGuardTests(unittest.TestCase):
     def test_startup_splash_has_abstract_animation(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
         self.assertIn("class StartupSignalMark", source)
-        self.assertIn("_CDMW_GLYPHS", source)
         self.assertIn("def _draw_cdmw_pixel_build", source)
-        self.assertIn("build_speed = 1.62", source)
+        self.assertIn("painter.drawArc", source)
+        self.assertIn("dot_angle = (self._phase * math.tau)", source)
         self.assertIn("self._timer = QTimer(self)", source)
         self.assertIn("def paintEvent(self, event) -> None", source)
         self.assertIn("self.signal_mark = StartupSignalMark", source)
@@ -208,11 +223,20 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("remaining_minimum_visible_ms", source)
         self.assertIn("self._minimum_visible_seconds = 3.0", source)
         self.assertIn("QTimer.singleShot(remaining_ms, self._release_startup_splash)", source)
+        self.assertIn("def close_pyinstaller_boot_splash() -> None:", source)
+        self.assertIn("close_pyinstaller_boot_splash()", source)
+        self.assertIn("class ExternalStartupSplashAdapter", source)
+        self.assertIn('os.environ.get("CDMW_STARTUP_SPLASH_COMMAND_FILE"', source)
+        self.assertIn("self.setFixedSize(420, 210)", source)
+        self.assertIn("self.detail_label.setMinimumHeight(42)", source)
+        self.assertIn("font-size: 10px", source)
+        self.assertIn("def _format_startup_splash_detail(", source)
         self.assertIn("def _show_main_window_after_startup_splash(self) -> None:", source)
         self.assertIn("def _finish_startup_splash_and_show_main_window(self) -> None:", source)
         finish_start = source.index("def _finish_startup_splash_and_show_main_window(self) -> None:")
         finish_body = source[finish_start : source.index("def _release_startup_splash(self) -> None:", finish_start)]
-        self.assertLess(finish_body.index("self._show_main_window_after_startup_splash()"), finish_body.index("self._finish_startup_splash_now()"))
+        self.assertLess(finish_body.index("self._finish_startup_splash_now()"), finish_body.index("self._show_main_window_after_startup_splash()"))
+        self.assertIn('self._update_startup_splash("Opening workspace...", 1, 1)', finish_body)
         self.assertIn("app.processEvents()", finish_body)
         self.assertIn("QTimer.singleShot(0, self._finish_startup_splash_and_show_main_window)", source)
         self.assertNotIn("_show_main_window_behind_startup_splash", source)
@@ -221,6 +245,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("MainWindow(startup_splash=startup_splash)", source)
         self.assertIn('pump_startup_splash("Preparing archive browser...")', source)
         self.assertIn("#c56d43", source)
+        self.assertNotIn("build_speed = 1.62", source)
         self.assertNotIn("compass_radius", source)
         self.assertNotIn("route = QPainterPath()", source)
         self.assertNotIn("Qt.DashLine", source)
@@ -286,7 +311,7 @@ class CrashReportingGuardTests(unittest.TestCase):
             '"Setup"',
             '"Startup"',
             '"Paths"',
-            '"Archive Browser Performance"',
+            '"Performance"',
             '"Appearance"',
             '"Layout"',
             '"Safety"',
@@ -308,7 +333,10 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("\"preferences/restore_archive_filters_on_startup\"", settings_source)
         self.assertIn("restore_archive_filters = self._preference_bool(\"restore_archive_filters_on_startup\", False)", main_source)
         self.assertNotIn("QTimer.singleShot(6500, window._release_startup_splash)", main_source)
+        self.assertIn('_write_heartbeat("archive_autoload_queued")', main_source)
         self.assertIn('startup_splash.set_detail("Loading Archive Browser...")', main_source)
+        self.assertIn("window._release_startup_splash()", main_source)
+        self.assertNotIn("QTimer.singleShot(500, self._maybe_autoload_archive_on_startup)", main_source)
         self.assertIn("Startup archive auto-load skipped because the previous session did not shut down cleanly", main_source)
         self.assertIn("self.archive_startup_autoload_defer_preview = True", main_source)
         self.assertIn("defer_default_selection=defer_default_selection", main_source)
@@ -342,18 +370,22 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("category_tree.setHeaderHidden(True)", source)
         self.assertIn("item_grid.setViewMode(QListView.ViewMode.IconMode)", source)
         self.assertIn("item_grid.setIconSize(QSize(86, 86))", source)
-        self.assertIn("def _queue_catalog_row_icons_for_all_shown_rows() -> None:", source)
-        self.assertIn('"thumb_preload_pending"', source)
-        self.assertIn("QTimer.singleShot(220, _queue_catalog_row_icons_for_all_shown_rows)", source)
+        self.assertIn("catalog_filter_timer.setInterval(160)", source)
+        self.assertIn("def _queue_catalog_row_icons_for_visible_rows() -> None:", source)
+        self.assertIn("loaded_count >= 4 or (time.perf_counter() - batch_started_at) >= 0.010", source)
+        self.assertNotIn("def _queue_catalog_row_icons_for_all_shown_rows() -> None:", source)
+        self.assertNotIn('"thumb_preload_pending"', source)
         self.assertIn("icon_row_timer.timeout.connect(_load_next_catalog_row_icon)", source)
         self.assertIn("archive_item_icon_preload_timer = QTimer(self)", source)
         self.assertIn("def _schedule_archive_asset_catalog_icon_preload(self, delay_ms: int = 900) -> None:", source)
         self.assertIn("self._schedule_archive_asset_catalog_icon_preload()", source)
-        self.assertIn("self.archive_item_icon_pixmap_cache_limit = 900", source)
-        self.assertIn("self.archive_item_icon_preload_limit = 360", source)
+        self.assertIn("self.archive_item_icon_pixmap_cache_limit = 1200", source)
+        self.assertIn("self.archive_item_icon_preload_limit = 1600", source)
+        self.assertIn("self.archive_item_icon_prepared_path_cache", source)
+        self.assertIn("class ArchiveItemIconWarmupWorker(QObject):", source)
         self.assertIn("while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit", source)
-        self.assertIn("self._cached_archive_asset_catalog_inventory_icon_pixmap(row, 120)", source)
-        self.assertIn("self._cached_archive_asset_catalog_inventory_icon_pixmap(row, 86)", source)
+        self.assertIn("self._cached_archive_asset_catalog_inventory_icon_pixmap(", source)
+        self.assertIn("allow_sync_prepare=False", source)
         self.assertIn("evidence_label.setMinimumHeight(112)", source)
         self.assertIn("def _apply_archive_direct_scope(", source)
         self.assertIn("def _clear_archive_asset_catalog_scope(self) -> None:", source)
@@ -451,6 +483,9 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("not self.isMaximized()", source)
         self.assertIn('window_handle.screenChanged.connect(', source)
         self.assertIn('getattr(self, "_applying_responsive_layout", False)', source)
+        self.assertIn("def _apply_responsive_resize_adjustments(self) -> None:", source)
+        self.assertIn("restore_saved_splitters=False", source)
+        self.assertIn("schedule_column_autofit=False", source)
         self.assertIn("def resizeEvent(self, event: object) -> None:", source)
         self.assertIn("self.right_panel_stack.setMaximumWidth(16777215)", research_source)
         self.assertIn("build_bounded_splitter_sizes(total_width, [72, 28], [420, details_min], [None, None])", research_source)
@@ -487,6 +522,9 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('widget.setProperty("_cdmw_responsive_base_min_width", base_min_width)', source)
         self.assertIn("new_min_width = max(0, int(round(int(base_min_width) * scale)))", source)
         self.assertIn("widget.setMinimumWidth(new_min_width)", source)
+        self.assertIn("use_fast_widths = bool(", source)
+        self.assertIn('hasattr(self.archive_tree, "set_archive_state")', source)
+        self.assertIn("content_width = 0 if use_fast_widths else self.archive_tree.sizeHintForColumn(column) + 28", source)
         self.assertIn("def _scale_density_metrics(metrics: Dict[str, int], scale: float) -> Dict[str, int]:", theme_source)
         self.assertIn("metrics = _scale_density_metrics(_density_metrics(density_key), layout_scale)", theme_source)
 

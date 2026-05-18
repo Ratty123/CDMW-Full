@@ -22,6 +22,12 @@ from PySide6.QtWidgets import (
 
 from cdmw.models import (
     ArchivePerformanceSettings,
+    D3D11_NORMAL_Y_MODE_LABELS,
+    D3D11_NORMAL_Y_MODES,
+    D3D11_PREVIEW_VIEW_MODE_LABELS,
+    D3D11_PREVIEW_VIEW_MODES,
+    D3D11_TEXTURE_ADDRESS_MODE_LABELS,
+    D3D11_TEXTURE_ADDRESS_MODES,
     MODEL_PREVIEW_ALPHA_HANDLING_LABELS,
     MODEL_PREVIEW_ALPHA_HANDLING_MODES,
     MODEL_PREVIEW_DIFFUSE_SWIZZLE_LABELS,
@@ -172,7 +178,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self.tabs.addTab(quality_tab, "Quality / Lighting")
         self.tabs.addTab(diagnostics_tab, "Render Diagnostics")
         self.tabs.addTab(controls_tab, "Controls")
-        self.tabs.addTab(performance_tab, "Archive Performance")
+        self._archive_performance_tab = performance_tab
 
         general_form = QFormLayout()
         general_form.setContentsMargins(0, 0, 0, 0)
@@ -192,7 +198,11 @@ class ModelPreviewSettingsDialog(QDialog):
         self.disable_height_map_checkbox = QCheckBox("Disable height map")
         self.flip_texture_v_checkbox = QCheckBox("Flip texture V")
         self.flip_texture_v_checkbox.setToolTip(
-            "Toggle the preview texture V orientation for D3D11 packages. Use this when a model's resolved textures appear vertically flipped."
+            "Toggle the preview texture V orientation. Use this when a model's resolved textures appear vertically flipped."
+        )
+        self.d3d11_cull_back_faces_checkbox = QCheckBox("Cull back faces")
+        self.d3d11_cull_back_faces_checkbox.setToolTip(
+            "Draw only front-facing triangles in the native D3D11 preview to inspect flipped winding or two-sided materials."
         )
         self.visible_texture_mode_combo = QComboBox()
         for mode in MODEL_PREVIEW_VISIBLE_TEXTURE_MODES:
@@ -200,12 +210,21 @@ class ModelPreviewSettingsDialog(QDialog):
                 MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS.get(mode, mode),
                 mode,
             )
+        self.d3d11_view_mode_combo = QComboBox()
+        for mode in D3D11_PREVIEW_VIEW_MODES:
+            self.d3d11_view_mode_combo.addItem(D3D11_PREVIEW_VIEW_MODE_LABELS.get(mode, mode), mode)
         self.render_diagnostic_mode_combo = QComboBox()
         for mode in MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES:
             self.render_diagnostic_mode_combo.addItem(
                 MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS.get(mode, mode),
                 mode,
             )
+        self.d3d11_normal_y_mode_combo = QComboBox()
+        for mode in D3D11_NORMAL_Y_MODES:
+            self.d3d11_normal_y_mode_combo.addItem(D3D11_NORMAL_Y_MODE_LABELS.get(mode, mode), mode)
+        self.d3d11_texture_address_mode_combo = QComboBox()
+        for mode in D3D11_TEXTURE_ADDRESS_MODES:
+            self.d3d11_texture_address_mode_combo.addItem(D3D11_TEXTURE_ADDRESS_MODE_LABELS.get(mode, mode), mode)
         general_form.addRow("Renderer backend", self.archive_renderer_backend_combo)
         general_form.addRow("", self.use_textures_checkbox)
         general_form.addRow("", self.high_quality_checkbox)
@@ -214,26 +233,30 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.addRow("", self.disable_material_map_checkbox)
         general_form.addRow("", self.disable_height_map_checkbox)
         general_form.addRow("", self.flip_texture_v_checkbox)
+        general_form.addRow("", self.d3d11_cull_back_faces_checkbox)
         general_form.addRow("Visible texture mode", self.visible_texture_mode_combo)
+        general_form.addRow("D3D11 view mode", self.d3d11_view_mode_combo)
         general_form.addRow("Diagnostic render mode", self.render_diagnostic_mode_combo)
-        self.enable_tool_pbd_cloth_preview_checkbox = QCheckBox("Enable tool-side PBD cloth preview")
+        general_form.addRow("D3D11 normal Y", self.d3d11_normal_y_mode_combo)
+        general_form.addRow("D3D11 texture address", self.d3d11_texture_address_mode_combo)
+        self.enable_tool_pbd_cloth_preview_checkbox = QCheckBox("Enable tool-side PBD physics preview")
         self.enable_tool_pbd_cloth_preview_checkbox.setToolTip(
-            "Runs a free local CPU PBD approximation for detected cloak/skirt mesh batches. "
-            "This is not the game solver and does not enable hair or body jiggle."
+            "Runs a free local CPU PBD approximation for detected soft-physics mesh batches such as cloth, leather, hair, and ropes. "
+            "This is not the game solver."
         )
-        self.pause_tool_pbd_cloth_preview_checkbox = QCheckBox("Pause PBD cloth preview")
-        self.pause_tool_pbd_cloth_preview_checkbox.setToolTip("Freezes the tool-side cloth simulation without changing the camera.")
-        self.show_tool_pbd_cloth_pins_checkbox = QCheckBox("Show PBD cloth pins")
+        self.pause_tool_pbd_cloth_preview_checkbox = QCheckBox("Pause PBD physics preview")
+        self.pause_tool_pbd_cloth_preview_checkbox.setToolTip("Freezes the tool-side PBD simulation without changing the camera.")
+        self.show_tool_pbd_cloth_pins_checkbox = QCheckBox("Show PBD physics pins")
         self.show_tool_pbd_cloth_pins_checkbox.setToolTip("Requests debug pin display from renderers that support it.")
-        self.show_tool_pbd_cloth_colliders_checkbox = QCheckBox("Show PBD cloth colliders")
+        self.show_tool_pbd_cloth_colliders_checkbox = QCheckBox("Show PBD physics colliders")
         self.show_tool_pbd_cloth_colliders_checkbox.setToolTip("Requests debug collider display from renderers that support it.")
-        self.reset_tool_pbd_cloth_button = QPushButton("Reset cloth simulation")
-        self.reset_tool_pbd_cloth_button.setToolTip("Returns simulated cloth particles to the recovered mesh rest pose.")
+        self.reset_tool_pbd_cloth_button = QPushButton("Reset PBD simulation")
+        self.reset_tool_pbd_cloth_button.setToolTip("Returns simulated PBD particles to the recovered mesh rest pose.")
         general_form.addRow("", self.enable_tool_pbd_cloth_preview_checkbox)
         general_form.addRow("", self.pause_tool_pbd_cloth_preview_checkbox)
         self._add_slider_row(
             general_form,
-            "Cloth wind",
+            "PBD wind",
             "tool_pbd_cloth_wind_strength",
             step=0.05,
             decimals=2,
@@ -257,7 +280,7 @@ class ModelPreviewSettingsDialog(QDialog):
         general_hint.setWordWrap(True)
         general_layout.addWidget(general_hint)
         self.d3d11_hint_label = QLabel(
-            "Native D3D11 supports texture on/off, Flip texture V, support-map shading on/off, visible layer selection, camera controls, zoom, fit, tool-side PBD cloth preview, static HKX context when present, and native DDS diagnostics. Legacy-only probe modes, alpha modes, and shader debug strips are hidden while D3D11 is selected."
+            "Native D3D11 supports texture on/off, culling, D3D11 view modes, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and native DDS diagnostics. Flip texture V is available for all preview backends. Legacy-only probe modes, alpha modes, and shader debug strips are hidden while D3D11 is selected."
         )
         self.d3d11_hint_label.setObjectName("HintLabel")
         self.d3d11_hint_label.setWordWrap(True)
@@ -278,6 +301,13 @@ class ModelPreviewSettingsDialog(QDialog):
         )
         self._add_slider_row(
             quality_form,
+            "Mip LOD bias",
+            "d3d11_mip_lod_bias",
+            step=0.05,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
             "Ambient light",
             "ambient_strength",
             step=0.01,
@@ -289,6 +319,22 @@ class ModelPreviewSettingsDialog(QDialog):
             "diffuse_light_scale",
             step=0.01,
             decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Light azimuth",
+            "d3d11_light_azimuth_degrees",
+            step=5.0,
+            decimals=0,
+            suffix=" deg",
+        )
+        self._add_slider_row(
+            quality_form,
+            "Light elevation",
+            "d3d11_light_elevation_degrees",
+            step=5.0,
+            decimals=0,
+            suffix=" deg",
         )
         self._add_slider_row(
             quality_form,
@@ -324,6 +370,41 @@ class ModelPreviewSettingsDialog(QDialog):
             "shininess_max",
             step=1.0,
             decimals=0,
+        )
+        self._add_slider_row(
+            quality_form,
+            "AO strength",
+            "d3d11_ao_strength",
+            step=0.05,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Roughness bias",
+            "d3d11_roughness_bias",
+            step=0.02,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Metalness scale",
+            "d3d11_metalness_scale",
+            step=0.05,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Environment strength",
+            "d3d11_environment_strength",
+            step=0.05,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Emissive gain",
+            "d3d11_emissive_gain",
+            step=0.05,
+            decimals=2,
         )
         quality_layout.addLayout(quality_form)
         quality_hint = QLabel(
@@ -373,7 +454,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self.show_physics_simulation_preview_checkbox.setToolTip(
             "Runs the older local spring/sway diagnostic for decoded HKX guide shapes. "
             "Skeleton context stays fixed unless a real pose source drives it. "
-            "Use Tool-side PBD cloth preview for real mesh-cloth movement; neither path is Havok/game-exact."
+            "Use Tool-side PBD physics preview for real mesh soft-body movement; neither path is Havok/game-exact."
         )
         for checkbox in (
             self.disable_tint_checkbox,
@@ -544,15 +625,19 @@ class ModelPreviewSettingsDialog(QDialog):
             self.pause_tool_pbd_cloth_preview_checkbox,
             self.show_tool_pbd_cloth_pins_checkbox,
             self.show_tool_pbd_cloth_colliders_checkbox,
+            self.d3d11_cull_back_faces_checkbox,
         ):
             checkbox.toggled.connect(self._emit_settings_changed)
         self.archive_renderer_backend_combo.currentIndexChanged.connect(self._handle_archive_renderer_backend_changed)
         self.visible_texture_mode_combo.currentIndexChanged.connect(self._emit_settings_changed)
+        self.d3d11_view_mode_combo.currentIndexChanged.connect(self._emit_settings_changed)
         self.render_diagnostic_mode_combo.currentIndexChanged.connect(self._handle_render_diagnostic_mode_changed)
         for combo in (
             self.alpha_handling_combo,
             self.sampler_probe_combo,
             self.diffuse_swizzle_combo,
+            self.d3d11_normal_y_mode_combo,
+            self.d3d11_texture_address_mode_combo,
         ):
             combo.currentIndexChanged.connect(self._emit_settings_changed)
         self.texture_probe_source_combo.currentIndexChanged.connect(self._handle_texture_probe_source_changed)
@@ -665,7 +750,24 @@ class ModelPreviewSettingsDialog(QDialog):
         if diagnostics_index >= 0:
             self.tabs.setTabVisible(diagnostics_index, legacy)
         self._set_form_field_visible(self.render_diagnostic_mode_combo, legacy)
-        self._set_form_field_visible(self.flip_texture_v_checkbox, d3d11)
+        self._set_form_field_visible(self.d3d11_view_mode_combo, d3d11)
+        self._set_form_field_visible(self.flip_texture_v_checkbox, True)
+        self._set_form_field_visible(self.d3d11_cull_back_faces_checkbox, d3d11)
+        self._set_form_field_visible(self.d3d11_normal_y_mode_combo, d3d11)
+        self._set_form_field_visible(self.d3d11_texture_address_mode_combo, d3d11)
+        for key in (
+            "d3d11_mip_lod_bias",
+            "d3d11_light_azimuth_degrees",
+            "d3d11_light_elevation_degrees",
+            "d3d11_ao_strength",
+            "d3d11_roughness_bias",
+            "d3d11_metalness_scale",
+            "d3d11_environment_strength",
+            "d3d11_emissive_gain",
+        ):
+            control = self._slider_controls.get(key)
+            if control is not None:
+                self._set_form_field_visible(control, d3d11)
         for widget in (
             self.alpha_handling_combo,
             self.texture_probe_source_combo,
@@ -696,8 +798,15 @@ class ModelPreviewSettingsDialog(QDialog):
         current.use_textures_by_default = self.use_textures_checkbox.isChecked()
         current.high_quality_by_default = self.high_quality_checkbox.isChecked()
         current.visible_texture_mode = str(self.visible_texture_mode_combo.currentData() or current.visible_texture_mode)
+        current.d3d11_view_mode = str(self.d3d11_view_mode_combo.currentData() or current.d3d11_view_mode)
         current.render_diagnostic_mode = str(
             self.render_diagnostic_mode_combo.currentData() or current.render_diagnostic_mode
+        )
+        current.d3d11_normal_y_mode = str(
+            self.d3d11_normal_y_mode_combo.currentData() or current.d3d11_normal_y_mode
+        )
+        current.d3d11_texture_address_mode = str(
+            self.d3d11_texture_address_mode_combo.currentData() or current.d3d11_texture_address_mode
         )
         current.alpha_handling_mode = str(self.alpha_handling_combo.currentData() or current.alpha_handling_mode)
         current.texture_probe_source = str(self.texture_probe_source_combo.currentData() or current.texture_probe_source)
@@ -711,6 +820,7 @@ class ModelPreviewSettingsDialog(QDialog):
         current.disable_material_map = self.disable_material_map_checkbox.isChecked()
         current.disable_height_map = self.disable_height_map_checkbox.isChecked()
         current.flip_texture_v = self.flip_texture_v_checkbox.isChecked()
+        current.d3d11_cull_back_faces = self.d3d11_cull_back_faces_checkbox.isChecked()
         current.disable_all_support_maps = self.disable_all_support_maps_checkbox.isChecked()
         current.disable_lighting = self.disable_lighting_checkbox.isChecked()
         current.disable_depth_test = self.disable_depth_test_checkbox.isChecked()
@@ -754,8 +864,16 @@ class ModelPreviewSettingsDialog(QDialog):
             self.high_quality_checkbox.setChecked(clamped.high_quality_by_default)
             visible_texture_mode_index = self.visible_texture_mode_combo.findData(clamped.visible_texture_mode)
             self.visible_texture_mode_combo.setCurrentIndex(max(0, visible_texture_mode_index))
+            d3d11_view_mode_index = self.d3d11_view_mode_combo.findData(clamped.d3d11_view_mode)
+            self.d3d11_view_mode_combo.setCurrentIndex(max(0, d3d11_view_mode_index))
             render_diagnostic_mode_index = self.render_diagnostic_mode_combo.findData(clamped.render_diagnostic_mode)
             self.render_diagnostic_mode_combo.setCurrentIndex(max(0, render_diagnostic_mode_index))
+            d3d11_normal_y_mode_index = self.d3d11_normal_y_mode_combo.findData(clamped.d3d11_normal_y_mode)
+            self.d3d11_normal_y_mode_combo.setCurrentIndex(max(0, d3d11_normal_y_mode_index))
+            d3d11_texture_address_mode_index = self.d3d11_texture_address_mode_combo.findData(
+                clamped.d3d11_texture_address_mode
+            )
+            self.d3d11_texture_address_mode_combo.setCurrentIndex(max(0, d3d11_texture_address_mode_index))
             alpha_index = self.alpha_handling_combo.findData(clamped.alpha_handling_mode)
             self.alpha_handling_combo.setCurrentIndex(max(0, alpha_index))
             source_index = self.texture_probe_source_combo.findData(clamped.texture_probe_source)
@@ -772,6 +890,7 @@ class ModelPreviewSettingsDialog(QDialog):
             self.disable_material_map_checkbox.setChecked(clamped.disable_material_map)
             self.disable_height_map_checkbox.setChecked(clamped.disable_height_map)
             self.flip_texture_v_checkbox.setChecked(clamped.flip_texture_v)
+            self.d3d11_cull_back_faces_checkbox.setChecked(clamped.d3d11_cull_back_faces)
             self.disable_all_support_maps_checkbox.setChecked(clamped.disable_all_support_maps)
             self.disable_lighting_checkbox.setChecked(clamped.disable_lighting)
             self.disable_depth_test_checkbox.setChecked(clamped.disable_depth_test)

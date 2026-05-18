@@ -4,10 +4,15 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
+import json
 
 from cdmw.core.archive import ArchiveSearchTerm, filter_archive_entries, parse_archive_search_query
 from cdmw.core.archive_relationships import build_character_dependency_plan
-from cdmw.core.final_package_preview import build_final_package_preview
+from cdmw.core.final_package_preview import (
+    build_final_package_preview,
+    build_final_package_specs_from_package_root,
+    stage_final_package_preview_payloads,
+)
 from cdmw.core.pipeline import inspect_crimson_dds, validate_dds_payload_size
 from cdmw.core.structured_binary_editor import (
     PabghRow,
@@ -302,6 +307,140 @@ class ReleaseInspiredImprovementTests(unittest.TestCase):
             self.assertEqual(len(manifest.rows), 1)
             self.assertEqual(manifest.rows[0].material_name, "Blade")
             self.assertEqual(manifest.rows[0].resolved_texture_path, "character/texture/blade.dds")
+
+    def test_final_package_preview_scans_exact_written_loose_package(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_root = Path(temp_dir)
+            sidecar_path = package_root / "character" / "modelproperty" / "weapon.pac_xml"
+            texture_path = package_root / "character" / "texture" / "blade.dds"
+            sidecar_path.parent.mkdir(parents=True)
+            texture_path.parent.mkdir(parents=True)
+            sidecar_path.write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade"><Vector Name="_parameters">'
+                '<MaterialParameterTexture Name="_baseColorTexture">'
+                '<ResourceReferencePath_ITexture Name="_value" _path="character/texture/blade.dds"/>'
+                "</MaterialParameterTexture></Vector></SkinnedMeshMaterialWrapper></Root>",
+                encoding="utf-8",
+            )
+            texture_path.write_bytes(b"DDS final package payload")
+            (package_root / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "files_root": ".",
+                        "files": [
+                            {"path": "character/modelproperty/weapon.pac_xml"},
+                            {"path": "character/texture/blade.dds"},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"PAC",
+                parsed_mesh=ParsedMesh(path="weapon.pac", format="pac"),
+                preview_model=ModelPreviewData(
+                    meshes=(ModelPreviewMesh(material_name="Blade", texture_name="Blade", positions=[], indices=[]),)
+                ),
+                summary_lines=[],
+            )
+
+            specs = build_final_package_specs_from_package_root(package_root)
+            result = build_final_package_preview(preview, package_root=package_root, require_source_owned_colors=True)
+
+            self.assertEqual(len(specs), 2)
+            self.assertEqual(result.package_root, package_root.as_posix())
+            self.assertFalse(result.preflight_errors)
+            self.assertEqual(result.binding_rows[0].binding_source, "generated")
+            self.assertIn("Color authority: source-owned 1", "\n".join(result.summary_lines))
+
+    def test_test_build_stage_writes_mesh_sidecar_and_dds_payloads(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            sidecar = root / "weapon.pac_xml"
+            dds = root / "blade.dds"
+            sidecar.write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade"><Vector Name="_parameters">'
+                '<MaterialParameterTexture Name="_baseColorTexture">'
+                '<ResourceReferencePath_ITexture Name="_value" _path="character/texture/blade.dds"/>'
+                "</MaterialParameterTexture></Vector></SkinnedMeshMaterialWrapper></Root>",
+                encoding="utf-8",
+            )
+            dds.write_bytes(b"DDS final package payload")
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"PAC final bytes",
+                parsed_mesh=ParsedMesh(path="character/model/weapon.pac", format="pac"),
+                preview_model=ModelPreviewData(
+                    meshes=(ModelPreviewMesh(material_name="Blade", texture_name="Blade", positions=[], indices=[]),)
+                ),
+                summary_lines=[],
+            )
+
+            package_root = stage_final_package_preview_payloads(
+                preview,
+                supplemental_file_specs=(
+                    MeshImportSupplementalFileSpec(source_path=sidecar, target_path="character/modelproperty/weapon.pac_xml"),
+                    MeshImportSupplementalFileSpec(source_path=dds, target_path="character/texture/blade.dds"),
+                ),
+                label="unit_test",
+            )
+            specs = build_final_package_specs_from_package_root(package_root)
+
+            self.assertTrue((package_root / "character" / "model" / "weapon.pac").is_file())
+            self.assertEqual({spec.kind for spec in specs}, {"mesh", "sidecar_generated", "texture_generated"})
+
+    def test_final_package_preflight_blocks_missing_source_owned_color(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_root = Path(temp_dir)
+            sidecar_path = package_root / "character" / "modelproperty" / "weapon.pac_xml"
+            sidecar_path.parent.mkdir(parents=True)
+            sidecar_path.write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade"><Vector Name="_parameters">'
+                '<MaterialParameterTexture Name="_baseColorTexture">'
+                '<ResourceReferencePath_ITexture Name="_value" _path="character/texture/missing.dds"/>'
+                "</MaterialParameterTexture></Vector></SkinnedMeshMaterialWrapper></Root>",
+                encoding="utf-8",
+            )
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"PAC",
+                parsed_mesh=ParsedMesh(path="weapon.pac", format="pac"),
+                preview_model=ModelPreviewData(
+                    meshes=(ModelPreviewMesh(material_name="Blade", texture_name="Blade", positions=[], indices=[]),)
+                ),
+                summary_lines=[],
+            )
+
+            result = build_final_package_preview(preview, package_root=package_root, require_source_owned_colors=True)
+
+            self.assertTrue(result.preflight_errors)
+            self.assertTrue(any("Visible color texture is not package-resolved" in line for line in result.preflight_errors))
+
+    def test_final_package_preflight_rejects_support_map_as_base_color(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_root = Path(temp_dir)
+            sidecar_path = package_root / "character" / "modelproperty" / "weapon.pac_xml"
+            texture_path = package_root / "character" / "texture" / "blade_mg.dds"
+            sidecar_path.parent.mkdir(parents=True)
+            texture_path.parent.mkdir(parents=True)
+            sidecar_path.write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade"><Vector Name="_parameters">'
+                '<MaterialParameterTexture Name="_baseColorTexture">'
+                '<ResourceReferencePath_ITexture Name="_value" _path="character/texture/blade_mg.dds"/>'
+                "</MaterialParameterTexture></Vector></SkinnedMeshMaterialWrapper></Root>",
+                encoding="utf-8",
+            )
+            texture_path.write_bytes(b"DDS final package payload")
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"PAC",
+                parsed_mesh=ParsedMesh(path="weapon.pac", format="pac"),
+                preview_model=ModelPreviewData(
+                    meshes=(ModelPreviewMesh(material_name="Blade", texture_name="Blade", positions=[], indices=[]),)
+                ),
+                summary_lines=[],
+            )
+
+            result = build_final_package_preview(preview, package_root=package_root)
+
+            self.assertTrue(any("Support map" in line and "visible color" in line for line in result.preflight_errors))
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ import unittest
 from cdmw.models import (
     ModelPreviewData,
     ModelPreviewMesh,
+    ModelPreviewRenderSettings,
     PreparedModelPreviewBatch,
     PreparedModelPreviewData,
     PreviewMaterialParameterInput,
@@ -16,9 +17,11 @@ from cdmw.models import (
 )
 from cdmw.ui.model_preview_material_combiner import (
     QtQuick3DMaterialCombinerSettings,
+    _decode_mode_for_input,
     combine_qtquick3d_material,
     decode_material_sample,
 )
+from cdmw.rendering.qtquick3d_preview_package import _input_texture_kind
 from cdmw.ui.model_preview_qtquick3d import (
     ARCHIVE_MODEL_RENDERER_DEFAULT,
     ARCHIVE_MODEL_RENDERER_QTQUICK3D,
@@ -65,6 +68,34 @@ def _vertex(
 
 
 class QtQuick3DPreviewPayloadTests(unittest.TestCase):
+    def test_gltf_metallic_roughness_decodes_without_occlusion_channel(self) -> None:
+        texture_input = PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_metallicRoughnessTexture",
+            semantic_type="material",
+            semantic_subtype="metallic_roughness",
+            packed_channels=("roughness", "metallic"),
+        )
+
+        self.assertEqual("metallic_roughness", _decode_mode_for_input(texture_input))
+        ao, roughness, metalness, _specular = decode_material_sample(0.1, 0.35, 0.8, 1.0, "metallic_roughness")
+
+        self.assertAlmostEqual(1.0, ao)
+        self.assertAlmostEqual(0.35, roughness)
+        self.assertAlmostEqual(0.8, metalness)
+
+    def test_preview_package_treats_gltf_metallic_roughness_as_packed_material(self) -> None:
+        texture_input = PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_metallicRoughnessTexture",
+            semantic_type="material",
+            semantic_subtype="metallic_roughness",
+            packed_channels=("roughness", "metallic"),
+            texture_name="lambert1_metallicRoughness.png",
+        )
+
+        self.assertEqual("packed_material", _input_texture_kind(texture_input))
+
     def test_normalizes_renderer_backend(self) -> None:
         self.assertEqual(ARCHIVE_MODEL_RENDERER_QTQUICK3D, normalize_archive_model_renderer_backend("qtquick3d_experimental"))
         self.assertEqual(ARCHIVE_MODEL_RENDERER_DEFAULT, normalize_archive_model_renderer_backend("unknown"))
@@ -153,6 +184,36 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
         self.assertEqual("", payloads[0].texture_source)
         self.assertEqual((), payloads[0].material_texture_slots)
         self.assertTrue(payloads[0].texture_flip_vertical)
+
+    def test_scene_format_payload_defaults_to_unflipped_texture_v_and_flip_override_toggles(self) -> None:
+        blob = b"".join(
+            (
+                _vertex(0.0, 0.0, 0.0),
+                _vertex(1.0, 0.0, 0.0),
+                _vertex(0.0, 1.0, 0.0),
+            )
+        )
+        prepared = PreparedModelPreviewData(
+            source_path="triangle.glb",
+            format="glb",
+            batches=(
+                PreparedModelPreviewBatch(
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_flip_vertical=None,
+                    has_texture_coordinates=True,
+                ),
+            ),
+        )
+
+        payloads = build_qtquick3d_preview_payloads(prepared)
+        flipped_payloads = build_qtquick3d_preview_payloads(
+            prepared,
+            render_settings=ModelPreviewRenderSettings(flip_texture_v=True),
+        )
+
+        self.assertFalse(payloads[0].texture_flip_vertical)
+        self.assertTrue(flipped_payloads[0].texture_flip_vertical)
 
     def test_material_mask_slots_avoid_opacity_and_generic_blackout_sources(self) -> None:
         blob = b"".join(

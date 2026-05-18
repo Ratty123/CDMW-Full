@@ -166,6 +166,7 @@ def build_pamlod_model_preview(
     entry: ArchiveEntry,
     data: bytes,
     *,
+    lod_index: Optional[int] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> ModelPreviewData:
     if len(data) < _PAMLOD_ENTRY_TABLE_OFFSET:
@@ -183,13 +184,35 @@ def build_pamlod_model_preview(
         raise ValueError("PAMLOD mesh table is empty.")
 
     groups = _group_pamlod_entries(raw_meshes, lod_count)
-    lod_mesh_sets = _parse_pamlod_groups(data, groups, geom_offset, bbox_min, bbox_max, stop_event=stop_event)
+    selected_lod_index: Optional[int] = None
+    if lod_index is not None:
+        selected_lod_index = int(lod_index)
+        if selected_lod_index < 0:
+            selected_lod_index = len(groups) + selected_lod_index
+        selected_lod_index = max(0, min(max(0, len(groups) - 1), selected_lod_index))
+    lod_mesh_sets = _parse_pamlod_groups(
+        data,
+        groups,
+        geom_offset,
+        bbox_min,
+        bbox_max,
+        selected_lod_index=selected_lod_index,
+        stop_event=stop_event,
+    )
     if not lod_mesh_sets:
         raise ValueError("Renderable model geometry could not be recovered.")
 
-    preview = _build_model_preview(entry.path, "pamlod", lod_mesh_sets[0], "lod mesh", stop_event=stop_event)
-    preview.lod_index = 0
-    preview.lod_count = len(lod_mesh_sets)
+    displayed_lod_index = 0 if selected_lod_index is None else selected_lod_index
+    mesh_set_index = 0 if selected_lod_index is not None else displayed_lod_index
+    preview = _build_model_preview(
+        entry.path,
+        "pamlod",
+        lod_mesh_sets[mesh_set_index],
+        "lod mesh",
+        stop_event=stop_event,
+    )
+    preview.lod_index = displayed_lod_index
+    preview.lod_count = len(groups)
     preview.summary = _build_lod_summary(
         entry.path,
         displayed_lod_index=preview.lod_index,
@@ -417,11 +440,12 @@ def _parse_pamlod_groups(
     bbox_min: Tuple[float, float, float],
     bbox_max: Tuple[float, float, float],
     *,
+    selected_lod_index: Optional[int] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> List[List[ModelPreviewMesh]]:
     lod_mesh_sets: List[List[ModelPreviewMesh]] = []
     cursor = geom_offset
-    for group in groups:
+    for group_index, group in enumerate(groups):
         raise_if_cancelled(stop_event)
         total_vertices = sum(mesh.vertex_count for mesh in group)
         total_indices = sum(mesh.index_count for mesh in group)
@@ -433,6 +457,9 @@ def _parse_pamlod_groups(
             continue
         vertex_base, stride, index_offset = layout
 
+        if selected_lod_index is not None and group_index != selected_lod_index:
+            cursor = index_offset + total_indices * 2
+            continue
         lod_meshes: List[ModelPreviewMesh] = []
         for raw_mesh in group:
             parsed_mesh = _parse_quantized_mesh(
@@ -450,6 +477,8 @@ def _parse_pamlod_groups(
         if lod_meshes:
             lod_mesh_sets.append(lod_meshes)
         cursor = index_offset + total_indices * 2
+        if selected_lod_index is not None and group_index >= selected_lod_index:
+            break
     return lod_mesh_sets
 
 

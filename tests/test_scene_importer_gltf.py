@@ -8,6 +8,7 @@ from pathlib import Path
 from cdmw.core.archive_modding import attach_scene_preview_textures, parsed_mesh_to_preview_model
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.scene_importer import (
+    SCENE_COMPANION_SOURCE_EXTENSIONS,
     SCENE_IMPORT_EXTENSIONS,
     discover_scene_texture_files,
     discover_local_mesh_supplemental_files,
@@ -96,12 +97,14 @@ class GltfSceneImporterTests(unittest.TestCase):
             _write_glb(path, document, bin_chunk)
 
             result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
 
             self.assertIn(".glb", SCENE_IMPORT_EXTENSIONS)
             self.assertEqual(result.mesh.format, "glb")
             self.assertEqual(result.mesh.total_vertices, 3)
             self.assertEqual(result.mesh.total_faces, 1)
             self.assertTrue(result.mesh.has_uvs)
+            self.assertIs(False, preview_model.meshes[0].preview_texture_flip_vertical)
 
     def test_gltf_external_buffer_and_texture_discovery(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -111,41 +114,99 @@ class GltfSceneImporterTests(unittest.TestCase):
             (root / "body_base.png").write_bytes(b"png")
             (root / "body_normal.png").write_bytes(b"png")
             (root / "body_metallic_roughness.png").write_bytes(b"png")
+            (root / "body_emissive.png").write_bytes(b"png")
             document["buffers"][0]["uri"] = "triangle.bin"
             document["materials"][0]["pbrMetallicRoughness"] = {
                 "baseColorTexture": {"index": 0},
                 "metallicRoughnessTexture": {"index": 1},
             }
             document["materials"][0]["normalTexture"] = {"index": 2}
-            document["textures"] = [{"source": 0}, {"source": 1}, {"source": 2}]
+            document["materials"][0]["emissiveTexture"] = {"index": 3}
+            document["materials"][0]["emissiveFactor"] = [0.2, 0.6, 1.0]
+            document["materials"][0]["alphaMode"] = "MASK"
+            document["materials"][0]["doubleSided"] = True
+            document["materials"][0]["extensions"] = {
+                "KHR_materials_emissive_strength": {"emissiveStrength": 4.5}
+            }
+            document["textures"] = [{"source": 0}, {"source": 1}, {"source": 2}, {"source": 3}]
             document["images"] = [
                 {"uri": "body_base.png"},
                 {"uri": "body_metallic_roughness.png"},
                 {"uri": "body_normal.png"},
+                {"uri": "body_emissive.png"},
             ]
             path = root / "triangle.gltf"
             path.write_text(json.dumps(document), encoding="utf-8")
 
             result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
             discovered = discover_scene_texture_files(path, result.mesh)
 
             self.assertEqual(result.mesh.format, "gltf")
+            self.assertIs(False, preview_model.meshes[0].preview_texture_flip_vertical)
             self.assertIn((root / "body_base.png").resolve(), result.discovered_texture_files)
             self.assertIn((root / "body_normal.png").resolve(), result.discovered_texture_files)
             self.assertIn((root / "body_metallic_roughness.png").resolve(), result.discovered_texture_files)
+            self.assertIn((root / "body_emissive.png").resolve(), result.discovered_texture_files)
             self.assertIn((root / "body_base.png").resolve(), discovered)
             self.assertIn((root / "body_normal.png").resolve(), discovered)
             self.assertIn((root / "body_metallic_roughness.png").resolve(), discovered)
+            self.assertIn((root / "body_emissive.png").resolve(), discovered)
             self.assertEqual((root / "body_base.png").resolve().as_posix(), result.mesh.submeshes[0].texture)
             self.assertEqual(1, len(result.material_bindings))
             binding_slots = {slot for slot, _path in result.material_bindings[0].texture_slots}
             self.assertIn("base", binding_slots)
             self.assertIn("normal", binding_slots)
             self.assertIn("material", binding_slots)
+            self.assertIn("emissive", binding_slots)
             self.assertEqual("metallicRoughness", result.material_bindings[0].pbr_workflow)
+            preview_inputs = tuple(getattr(preview_model.meshes[0], "preview_material_texture_inputs", ()) or ())
+            self.assertIn("emissive", {item.slot_kind for item in preview_inputs})
+            self.assertEqual("MASK", preview_model.meshes[0].preview_alpha_mode)
+            self.assertTrue(preview_model.meshes[0].preview_double_sided)
+            material_inputs = [item for item in preview_inputs if item.parameter_name == "_metallicRoughnessTexture"]
+            self.assertTrue(material_inputs)
+            self.assertEqual("metallic_roughness", material_inputs[0].semantic_subtype)
+            emissive_inputs = [item for item in preview_inputs if item.slot_kind == "emissive"]
+            self.assertEqual("SkinnedMeshEmissive_Ver2", emissive_inputs[0].shader_family)
+            self.assertIn("_emissiveIntensity", {parameter.parameter_name for parameter in emissive_inputs[0].material_parameters})
             self.assertIsNotNone(result.external_audit)
             self.assertIn("base", result.external_audit.texture_slots)
             self.assertIn("normal", result.external_audit.texture_slots)
+
+    def test_obj_scene_preview_defaults_to_unflipped_texture_v(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "body.png").write_bytes(b"png")
+            (root / "triangle.mtl").write_text("newmtl Body\nmap_Kd body.png\n", encoding="utf-8")
+            path = root / "triangle.obj"
+            path.write_text(
+                "\n".join(
+                    (
+                        "mtllib triangle.mtl",
+                        "o Triangle",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "vt 0 0",
+                        "vt 1 0",
+                        "vt 0 1",
+                        "vn 0 0 1",
+                        "usemtl Body",
+                        "f 1/1/1 2/2/1 3/3/1",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+            attach_scene_preview_textures(preview_model, result, path)
+
+            self.assertEqual("obj", result.mesh.format)
+            self.assertTrue(result.mesh.has_uvs)
+            self.assertIs(False, preview_model.meshes[0].preview_texture_flip_vertical)
 
     def test_gltf_specular_glossiness_diffuse_texture_is_base_texture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -241,7 +302,7 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertEqual("painted_base.png", Path(preview_model.meshes[0].preview_texture_path).name)
             self.assertEqual("", preview_model.meshes[1].preview_texture_path)
             self.assertEqual("shared_metallicRoughness.png", Path(preview_model.meshes[1].preview_material_texture_path).name)
-            self.assertEqual("orm", preview_model.meshes[1].preview_material_texture_subtype)
+            self.assertEqual("metallic_roughness", preview_model.meshes[1].preview_material_texture_subtype)
 
     def test_external_model_audit_classifies_sword_and_flags_axem_character(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -384,6 +445,29 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertIn(sidecar_path.resolve(), discovered)
             self.assertIn(texture_path.resolve(), discovered)
             self.assertIn(material_path.resolve(), discovered)
+
+    def test_local_archive_mesh_package_discovers_crimson_companion_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "ModName" / "files" / "character" / "model"
+            prefab_root = Path(tmp) / "ModName" / "files" / "character" / "bin__" / "prefab"
+            root.mkdir(parents=True)
+            prefab_root.mkdir(parents=True)
+            mesh_path = root / "cd_test_sword.pac"
+            mesh_path.write_bytes(b"not parsed in this discovery test")
+            meshinfo_path = root / "cd_test_sword.meshinfo"
+            material_path = root / "cd_test_sword.material"
+            prefab_path = prefab_root / "cd_test_sword.prefab"
+            animation_meta = root / "cd_test_sword.paa_metabin"
+            for path in (meshinfo_path, material_path, prefab_path, animation_meta):
+                path.write_bytes(b"\x04\x00\x00\x00test")
+
+            discovered = discover_local_mesh_supplemental_files(mesh_path)
+
+            self.assertIn(".prefab", SCENE_COMPANION_SOURCE_EXTENSIONS)
+            self.assertIn(meshinfo_path.resolve(), discovered)
+            self.assertIn(material_path.resolve(), discovered)
+            self.assertIn(prefab_path.resolve(), discovered)
+            self.assertIn(animation_meta.resolve(), discovered)
 
 
 if __name__ == "__main__":

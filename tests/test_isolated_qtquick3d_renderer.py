@@ -12,6 +12,7 @@ from cdmw.models import (
     ClothPreviewConstraint,
     ClothPreviewData,
     HkxPhysicsOverlayData,
+    HkxPhysicsOverlayBone,
     HkxPhysicsOverlayShape,
     ModelPreviewData,
     ModelPreviewMesh,
@@ -90,17 +91,23 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             )
             manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
 
-        self.assertEqual(5, manifest["schema_version"])
+        self.assertEqual(9, manifest["schema_version"])
         self.assertEqual("empty.pac", manifest["source_path"])
-        self.assertEqual(1, manifest["material_contract_schema"])
+        self.assertEqual(2, manifest["material_contract_schema"])
+        self.assertEqual(1, manifest["material_channel_contract_schema"])
         self.assertEqual(1, manifest["texture_quality_schema"])
         self.assertEqual("preserve", manifest["texture_quality_policy"]["technical_map_default"])
+        self.assertEqual("lit", manifest["render_diagnostic_mode"])
+        self.assertEqual("neutral_studio", manifest["lighting_preset"])
         self.assertEqual("replacement_only", manifest["display_mode"])
         self.assertEqual("", manifest["editor_workspace"])
         self.assertEqual([], manifest["batches"])
         self.assertEqual(0, manifest["cloth_batch_count"])
         self.assertEqual(0, manifest["cloth_particle_count"])
         self.assertEqual(0, manifest["cloth_constraint_count"])
+        self.assertEqual(False, manifest["physics_overlays"]["cloth"])
+        self.assertEqual("not_found", manifest["skeleton_overlay"]["status"])
+        self.assertEqual([], manifest["editable_value_groups"])
 
     def test_writes_tool_side_pbd_cloth_runtime_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -164,6 +171,13 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertEqual(3, manifest["cloth_particle_count"])
             self.assertEqual(2, manifest["cloth_constraint_count"])
             self.assertEqual(1, manifest["cloth_collider_count"])
+            self.assertTrue(manifest["physics_overlays"]["cloth"])
+            self.assertEqual(3, manifest["physics_overlays"]["cloth_particle_count"])
+            self.assertEqual(1, manifest["physics_overlays"]["physics_shape_count"])
+            self.assertEqual(1, manifest["cloth_runtime_debug"]["batch_count"])
+            self.assertEqual(3, manifest["cloth_runtime_debug"]["particle_count"])
+            self.assertEqual(2, manifest["cloth_runtime_debug"]["constraint_count"])
+            self.assertEqual("pbd_cloth", manifest["editable_value_groups"][0]["kind"])
             self.assertTrue(batch["cloth_enabled"])
             self.assertEqual("hair", batch["cloth_kind"])
             self.assertEqual("LongHair", batch["cloth_material_name"])
@@ -178,6 +192,40 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertEqual(3 * 4, (package_dir / batch["cloth_pin_file"]).stat().st_size)
             self.assertEqual(2 * 16, (package_dir / batch["cloth_constraint_file"]).stat().st_size)
             self.assertEqual(11 * 4, (package_dir / manifest["cloth_collider_file"]).stat().st_size)
+
+    def test_writes_read_only_skeleton_overlay_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            model = ModelPreviewData(
+                path="body.pac",
+                physics_overlay=HkxPhysicsOverlayData(
+                    source_paths=("body.hkx",),
+                    bones=(
+                        HkxPhysicsOverlayBone(
+                            name="Spine",
+                            index=4,
+                            parent_index=1,
+                            parent_name="Root",
+                            source_path="body.hkx",
+                        ),
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                model,
+                PreparedModelPreviewData(source_path="body.pac"),
+                output_root=Path(temp_dir) / "package",
+            )
+            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+
+        skeleton = manifest["skeleton_overlay"]
+        self.assertTrue(skeleton["enabled"])
+        self.assertEqual("ok", skeleton["status"])
+        self.assertTrue(skeleton["read_only"])
+        self.assertEqual(1, skeleton["bone_count"])
+        self.assertEqual("Spine", skeleton["bones"][0]["name"])
+        self.assertEqual("hkx_physics", manifest["editable_value_groups"][0]["kind"])
+        self.assertTrue(manifest["editable_value_groups"][0]["read_only"])
 
     def test_materializes_in_memory_base_texture_for_d3d11_package(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -215,6 +263,80 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
         self.assertTrue(base_texture)
         self.assertTrue(base_texture_exists)
         self.assertNotIn("in_memory", base_texture)
+
+    def test_gltf_metallic_roughness_preview_generates_metal_support_maps(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "helmet_baseColor.png"
+            normal = temp_path / "helmet_normal.png"
+            material = temp_path / "helmet_metallicRoughness.png"
+            base_image = QImage(4, 4, QImage.Format_RGBA8888)
+            base_image.fill(QColor(120, 130, 140, 255))
+            self.assertTrue(base_image.save(str(base), "PNG"))
+            normal_image = QImage(4, 4, QImage.Format_RGBA8888)
+            normal_image.fill(QColor(128, 128, 255, 255))
+            self.assertTrue(normal_image.save(str(normal), "PNG"))
+            material_image = QImage(4, 4, QImage.Format_RGBA8888)
+            material_image.fill(QColor(240, 56, 235, 255))
+            self.assertTrue(material_image.save(str(material), "PNG"))
+            prepared = PreparedModelPreviewData(
+                source_path="helmet.gltf",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="lambert1",
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_normal_texture_path=str(normal),
+                        preview_material_texture_path=str(material),
+                        preview_material_texture_subtype="metallic_roughness",
+                        preview_material_texture_packed_channels=("roughness", "metallic"),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="base",
+                                parameter_name="_baseColorTexture",
+                                preview_texture_path=str(base),
+                                texture_name=base.name,
+                                semantic_type="color",
+                                semantic_subtype="albedo",
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="normal",
+                                parameter_name="_normalTexture",
+                                preview_texture_path=str(normal),
+                                texture_name=normal.name,
+                                semantic_type="normal",
+                                semantic_subtype="normal",
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_metallicRoughnessTexture",
+                                preview_texture_path=str(material),
+                                texture_name=material.name,
+                                semantic_type="material",
+                                semantic_subtype="metallic_roughness",
+                                packed_channels=("roughness", "metallic"),
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                ModelPreviewData(path="helmet.gltf"),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            batch = manifest["batches"][0]
+
+        self.assertEqual("shiny_metal_inspection", manifest["lighting_preset"])
+        self.assertGreaterEqual(manifest["specular_max"], 0.72)
+        self.assertTrue(batch["textures"]["roughness"])
+        self.assertTrue(batch["textures"]["metalness"])
+        self.assertTrue(batch["textures"]["specular"])
+        self.assertIn("metallic_roughness", batch["material_contract"]["decode_profile"]["decode_modes"])
 
     def test_copies_file_url_imported_base_texture_for_d3d11_package(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -283,6 +405,8 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                         preview_texture_dds_path=str(base_dds),
                         preview_normal_texture_path=str(normal),
                         preview_height_texture_path=str(height),
+                        preview_alpha_mode="MASK",
+                        preview_double_sided=True,
                         preview_material_texture_inputs=(
                             PreviewMaterialTextureInput(
                                 slot_kind="material",
@@ -348,6 +472,9 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
 
             self.assertEqual("side_by_side", manifest["display_mode"])
             self.assertEqual("mesh_alignment", manifest["editor_workspace"])
+            self.assertEqual("alpha_cutout", batch["alpha_mode"])
+            self.assertEqual("MASK", batch["source_alpha_mode"])
+            self.assertTrue(batch["double_sided"])
             self.assertEqual(3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES, geometry_path.stat().st_size)
             self.assertEqual(7, editor_identity["source_submesh_index"])
             self.assertEqual("replacement", editor_identity["role"])
@@ -366,10 +493,13 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             self.assertTrue(batch["tangents_usable"])
             self.assertEqual("standard_v2", batch["material_shader_family"])
             self.assertEqual("standard_v2", material_contract["shader_family"])
-            self.assertEqual(1, material_contract["schema_version"])
+            self.assertEqual(2, material_contract["schema_version"])
             self.assertEqual("standard_v2", material_contract["decode_policy"]["family"])
+            self.assertEqual("standard_v2", material_contract["decode_profile"]["shader_family"])
             self.assertGreater(material_contract["decode_policy"]["metalness_scale"], 0.0)
             self.assertEqual("direct_dds", material_contract["texture_slots"]["base"]["status"])
+            self.assertEqual("high", material_contract["texture_slots"]["base"]["confidence"])
+            self.assertTrue(material_contract["slot_diagnostics"])
             self.assertEqual("direct_dds", texture_quality["slots"]["base"]["status"])
             self.assertTrue(texture_quality["slots"]["base"]["safe_upscale_candidate"])
             self.assertEqual("opt-in visible/base textures only; technical maps preserved by default", texture_quality["upscale_handoff_policy"])
@@ -767,6 +897,24 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
             textures = batch["textures"]
             for slot in ("base", "occlusion", "roughness", "metalness", "specular"):
                 self.assertTrue((package_dir / textures[slot]).is_file(), slot)
+            self.assertEqual(2, manifest["material_contract_schema"])
+            self.assertEqual(1, manifest["material_channel_contract_schema"])
+            self.assertEqual(2, batch["material_contract"]["schema_version"])
+            self.assertEqual(1, batch["material_channel_contract"]["schema_version"])
+            self.assertEqual("metallic_roughness", batch["material_channel_contract"]["workflow"])
+            self.assertTrue(batch["material_channel_diagnostics"])
+            self.assertEqual("generic", batch["material_contract"]["shader_family"])
+            self.assertIn("decode_profile", batch["material_contract"])
+            self.assertIn("pbr_scalar_hints", batch["material_contract"])
+            self.assertIn("slot_diagnostics", batch["material_contract"])
+            self.assertIn("resolved_texture_slots", batch["material_contract"])
+            self.assertIn("material", batch["material_contract"]["resolved_texture_slots"])
+            self.assertEqual("ok", batch["material_contract"]["status"])
+            self.assertIn("roughness", batch)
+            self.assertIn("metalness", batch)
+            self.assertIn("specular", batch)
+            self.assertIn("height_scale", batch)
+            self.assertTrue(batch["material_diagnostics"])
             self.assertTrue(batch["material_combiner_active"])
             self.assertIn("material_mask", batch["material_combiner_decode_modes"])
             self.assertIn("occlusion", batch["material_combiner_outputs"])
@@ -846,6 +994,95 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
 
         self.assertTrue(manifest["batches"][0]["texture_flip_vertical"])
 
+    def test_scene_import_package_defaults_to_unflipped_texture_v(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "base.png"
+            base.write_bytes(b"png")
+            prepared = PreparedModelPreviewData(
+                source_path="triangle.gltf",
+                format="gltf",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="body",
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_texture_flip_vertical=None,
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                ModelPreviewData(path="triangle.gltf", format="gltf"),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+
+        self.assertFalse(manifest["batches"][0]["texture_flip_vertical"])
+
+    def test_scene_import_package_flip_texture_v_toggles_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "base.png"
+            base.write_bytes(b"png")
+            prepared = PreparedModelPreviewData(
+                source_path="triangle.glb",
+                format="glb",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="body",
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_texture_flip_vertical=None,
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                ModelPreviewData(path="triangle.glb", format="glb"),
+                prepared,
+                output_root=temp_path / "package",
+                render_settings=ModelPreviewRenderSettings(flip_texture_v=True),
+            )
+            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+
+        self.assertTrue(manifest["batches"][0]["texture_flip_vertical"])
+
+    def test_archive_explicit_unflipped_texture_v_stays_unflipped(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "base.dds"
+            base.write_bytes(_minimal_bc_dds())
+            prepared = PreparedModelPreviewData(
+                source_path="weapon.pac",
+                format="pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="blade",
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_texture_dds_path=str(base),
+                        preview_texture_flip_vertical=False,
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_qtquick3d_preview_package(
+                ModelPreviewData(path="weapon.pac", format="pac"),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+
+        self.assertFalse(manifest["batches"][0]["texture_flip_vertical"])
+
 
 class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
     def test_native_host_is_isolated_from_qtquick_and_archive_stack(self) -> None:
@@ -869,6 +1106,9 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("material_hints", source)
         self.assertIn("material_shader_family", source)
         self.assertIn("material_family_code", source)
+        self.assertIn("base_tint_strength", source)
+        self.assertIn("boosted_preview_layer_weight", source)
+        self.assertIn("tint_chroma", source)
         self.assertIn("prefer_generated_base_texture", source)
         self.assertIn("batch.base_dds.clear()", source)
         self.assertIn("env_reflection", source)
@@ -895,6 +1135,12 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("linear_to_srgb", source)
         self.assertIn("srgb_to_linear", source)
         self.assertIn("begin_mouse_drag", source)
+        self.assertIn("void cancel_mouse_interaction(bool release_capture = true)", source)
+        self.assertIn("case WM_CONTEXTMENU:", source)
+        self.assertIn("case WM_CANCELMODE:", source)
+        self.assertIn("case WM_KILLFOCUS:", source)
+        self.assertIn("if (mesh_edit_.drag_active || alignment_.drag_active || alignment_.rotation_drag_active)", source)
+        self.assertIn("if (drag_mode_ != 0)", source)
         self.assertIn("kZoomSteps", source)
         self.assertIn("WM_MOUSEWHEEL", source)
         self.assertIn("reference_camera_ = camera;", source)
@@ -984,7 +1230,7 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("--parent-hwnd", source)
         self.assertIn("--crash-dir", source)
         self.assertIn("--diagnostic-log", source)
-        self.assertIn("enable_material_combiner=False", source)
+        self.assertIn("enable_material_combiner=True", source)
         self.assertIn("prefer_direct_dds=True", source)
         self.assertIn('"preview/archive_renderer_backend"', source)
         self.assertNotIn("archive_model_preview_renderer_combo", source)
@@ -1011,6 +1257,12 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("reset_view=not bool(preserved_view_state)", source)
         self.assertIn("self.archive_d3d11_preview_host.restore_view_state(state)", source)
         self.assertIn("self.archive_d3d11_preview_host.set_render_tuning(self._current_model_preview_render_settings())", source)
+        self.assertIn("Native D3D11 Preview Contract", source)
+        self.assertIn("Material Channel Contract:", source)
+        self.assertIn("_archive_material_channel_debug_from_package", source)
+        self.assertIn("material_channel_contract", source)
+        self.assertIn("Native D3D11 Overlay Metadata", source)
+        self.assertIn("semantic_writes", source)
         self.assertIn("process.terminate()", source)
         self.assertIn("readyReadStandardError.connect(self._handle_archive_isolated_renderer_stderr)", source)
         self.assertIn("finished.connect(self._handle_archive_isolated_renderer_finished)", source)
@@ -1034,11 +1286,20 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("hidden_source_submeshes_", source)
         self.assertIn('"{\\"event\\":\\"part_visibility\\"', source)
         self.assertIn("command_set_render_tuning", source)
+        self.assertIn("d3d11_mip_lod_bias", source)
+        self.assertIn("d3d11_texture_address_mode", source)
+        self.assertIn("d3d11_cull_back_faces", source)
+        self.assertIn("d3d11_normal_y_mode", source)
         self.assertIn("view_settings_overridden_", source)
         self.assertIn("render_tuning_overridden_", source)
         self.assertIn("if (!view_settings_overridden_)", source)
         self.assertIn("if (!render_tuning_overridden_)", source)
         self.assertIn("texture_details", source)
+        self.assertIn("material_contract_schema", source)
+        self.assertIn("material_channel_contract_schema", source)
+        self.assertIn("physics_overlay_enabled", source)
+        self.assertIn("skeleton_bone_count", source)
+        self.assertIn("semantic_writes_enabled", source)
         self.assertIn("batches_.clear()", source)
         self.assertIn("Native D3D11 preview cleared", source)
         self.assertIn("native_diagnostics.h", source)
@@ -1046,6 +1307,7 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("upload_batches", source)
         self.assertIn("first_frame", source)
         self.assertIn("native_unhandled_exception", Path("native/common/native_diagnostics.h").read_text(encoding="utf-8"))
+        self.assertIn('if (contains_text(descriptor, "gloss") || contains_text(descriptor, "smoothness")) score -= 220;', source)
 
     def test_native_d3d11_host_releases_model_texture_caches(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
@@ -1136,6 +1398,9 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("diagnostic_mode_code", source)
         self.assertIn("render_diagnostic_mode", source)
         self.assertIn("uv_checker", source)
+        self.assertIn("metal_shine", source)
+        self.assertIn("roughness_response", source)
+        self.assertIn("material_response", source)
         self.assertIn("material_slot_id", source)
         self.assertIn("layer_masks", source)
         self.assertIn("flags4.y", source)

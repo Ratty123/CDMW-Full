@@ -12,9 +12,11 @@ from types import SimpleNamespace
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 from urllib.parse import unquote, urlparse
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage
 
 from cdmw.core.dds_native import dds_native_report_dict, dds_source_path_from_report, inspect_dds_native_path
+from cdmw.core.model_preview_orientation import resolve_preview_texture_flip_vertical
 from cdmw.core.texture_native import read_native_texture_report_sidecar
 from cdmw.models import (
     ClothPreviewBatch,
@@ -26,10 +28,18 @@ from cdmw.models import (
     PreviewMaterialTextureInput,
     clamp_model_preview_render_settings,
 )
+from cdmw.rendering.material_channels import (
+    MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION,
+    resolve_preview_batch_material_channels,
+)
 
 
-ISOLATED_PREVIEW_SCHEMA_VERSION = 5
-SUPPORTED_ISOLATED_PREVIEW_SCHEMA_VERSIONS = {1, 2, 3, 4, 5}
+ISOLATED_PREVIEW_SCHEMA_VERSION = 9
+SUPPORTED_ISOLATED_PREVIEW_SCHEMA_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+MATERIAL_CONTRACT_SCHEMA_VERSION = 2
+TEXTURE_QUALITY_SCHEMA_VERSION = 1
+CLOTH_RUNTIME_SCHEMA_VERSION = 1
+PREVIEW_OVERLAY_SCHEMA_VERSION = 1
 ISOLATED_PREVIEW_VERTEX_FLOATS = 23
 ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES = ISOLATED_PREVIEW_VERTEX_FLOATS * 4
 _VERTEX_STRUCT = struct.Struct("<23f")
@@ -247,6 +257,145 @@ def _write_cloth_collider_payload(
     return collider_path.relative_to(package_dir).as_posix(), collider_count
 
 
+def _physics_overlays_metadata(
+    model: object,
+    settings: ModelPreviewRenderSettings,
+    *,
+    cloth_batch_count: int,
+    cloth_particle_count: int,
+    cloth_constraint_count: int,
+    cloth_collider_count: int,
+) -> Dict[str, object]:
+    overlay = getattr(model, "physics_overlay", None)
+    return {
+        "schema_version": PREVIEW_OVERLAY_SCHEMA_VERSION,
+        "enabled": bool(getattr(settings, "show_physics_overlay", True)),
+        "mode": "read_only",
+        "cloth": bool(cloth_batch_count > 0),
+        "cloth_particle_count": cloth_particle_count,
+        "cloth_constraint_count": cloth_constraint_count,
+        "collider_count": cloth_collider_count,
+        "physics_shape_count": len(tuple(getattr(overlay, "shapes", ()) or ())),
+        "anchor_count": len(tuple(getattr(overlay, "anchors", ()) or ())),
+        "constraint_count": len(tuple(getattr(overlay, "constraints", ()) or ())),
+        "source_paths": [str(path) for path in tuple(getattr(overlay, "source_paths", ()) or ())],
+        "write_policy": "fixed_size_validated_edits_only",
+    }
+
+
+def _cloth_runtime_debug_metadata(
+    settings: ModelPreviewRenderSettings,
+    *,
+    cloth_batch_count: int,
+    cloth_particle_count: int,
+    cloth_constraint_count: int,
+    cloth_collider_count: int,
+) -> Dict[str, object]:
+    return {
+        "schema_version": CLOTH_RUNTIME_SCHEMA_VERSION,
+        "enabled": bool(getattr(settings, "enable_tool_pbd_cloth_preview", False)),
+        "read_only": True,
+        "batch_count": cloth_batch_count,
+        "particle_count": cloth_particle_count,
+        "constraint_count": cloth_constraint_count,
+        "collider_count": cloth_collider_count,
+        "show_pins": bool(getattr(settings, "show_tool_pbd_cloth_pins", False)),
+        "show_colliders": bool(getattr(settings, "show_tool_pbd_cloth_colliders", False)),
+        "paused": bool(getattr(settings, "pause_tool_pbd_cloth_preview", False)),
+        "wind_strength": _safe_float(getattr(settings, "tool_pbd_cloth_wind_strength", 0.0), 0.0),
+        "wind_direction_degrees": _safe_float(getattr(settings, "tool_pbd_cloth_wind_direction_degrees", 35.0), 35.0),
+        "display_modes": ["particles", "pinned_vertices", "constraints", "colliders", "material_settings"],
+        "write_policy": "preview_only",
+    }
+
+
+def _skeleton_overlay_metadata(model: object) -> Dict[str, object]:
+    overlay = getattr(model, "physics_overlay", None)
+    bones = tuple(getattr(overlay, "bones", ()) or ())
+    bone_payload = []
+    for bone in bones[:4096]:
+        bone_payload.append(
+            {
+                "name": str(getattr(bone, "name", "") or ""),
+                "index": _safe_int(getattr(bone, "index", -1), -1),
+                "parent_index": _safe_int(getattr(bone, "parent_index", -1), -1),
+                "parent_name": str(getattr(bone, "parent_name", "") or ""),
+                "source_path": str(getattr(bone, "source_path", "") or ""),
+                "confidence": str(getattr(bone, "confidence", "") or "skeleton_context"),
+            }
+        )
+    return {
+        "schema_version": PREVIEW_OVERLAY_SCHEMA_VERSION,
+        "enabled": bool(bone_payload),
+        "status": "ok" if bone_payload else "not_found",
+        "read_only": True,
+        "bone_count": len(bone_payload),
+        "bones": bone_payload,
+        "diagnostics": [] if bone_payload else ["related skeleton/HKX/HKT data was not resolved for this preview"],
+    }
+
+
+def _editable_value_groups_metadata(model: object, *, cloth_batch_count: int) -> list[Dict[str, object]]:
+    overlay = getattr(model, "physics_overlay", None)
+    groups: list[Dict[str, object]] = []
+    if cloth_batch_count > 0:
+        groups.append(
+            {
+                "kind": "pbd_cloth",
+                "label": "PBD cloth values",
+                "read_only": True,
+                "write_policy": "fixed_size_validated_patch_only",
+                "fields": ["gravity", "damping", "wind_response", "solver_iterations", "collision_enabled"],
+            }
+        )
+    if overlay is not None:
+        groups.append(
+            {
+                "kind": "hkx_physics",
+                "label": "HKX physics values",
+                "read_only": True,
+                "write_policy": "fixed_size_numeric_patch_only",
+                "unsafe_writes_blocked": ["references", "arrays", "strings", "topology", "class_metadata"],
+            }
+        )
+    return groups
+
+
+def _lighting_preset_for_settings(settings: ModelPreviewRenderSettings) -> str:
+    mode = str(getattr(settings, "render_diagnostic_mode", "lit") or "lit").strip().lower()
+    if mode in {"texture_probe", "base_direct", "base_no_tint", "normal_raw", "material_raw", "height_raw", "uv_checker"}:
+        return "texture_debug"
+    if mode in {"metal_shine", "roughness_response", "material_response"}:
+        return "shiny_metal_inspection"
+    if mode in {"rich_lit", "height_depth", "height_calibrated"}:
+        return "cloth_skin_inspection"
+    return "neutral_studio"
+
+
+def _batch_has_metal_preview_response(batch: Mapping[str, object]) -> bool:
+    textures = batch.get("textures")
+    dds_textures = batch.get("dds_textures")
+    if isinstance(textures, Mapping) and any(
+        str(textures.get(slot_name, "") or "").strip()
+        for slot_name in ("metalness", "specular", "roughness", "material")
+    ):
+        return True
+    if isinstance(dds_textures, Mapping) and any(
+        isinstance(dds_textures.get(slot_name), Mapping)
+        for slot_name in ("metalness", "specular", "roughness", "material")
+    ):
+        return True
+    contract = batch.get("material_contract")
+    if isinstance(contract, Mapping):
+        hints = contract.get("pbr_scalar_hints")
+        if isinstance(hints, Mapping):
+            if _safe_float(hints.get("metalness"), 0.0) >= 0.18 or _safe_float(hints.get("specular"), 0.0) >= 0.22:
+                return True
+        if "metallic_roughness" in " ".join(str(item) for item in tuple(contract.get("packed_channels", ()) or ())):
+            return True
+    return False
+
+
 def _suffix_tokens(name: str) -> Tuple[str, ...]:
     lower = str(name or "").replace("\\", "/").split("/")[-1].lower()
     stem = lower.rsplit(".", 1)[0]
@@ -261,6 +410,8 @@ def _contains_token(name: str, *tokens: str) -> bool:
 def _technical_texture_kind(name: str) -> str:
     tokens = _suffix_tokens(name)
     lower = str(name or "").lower()
+    if any(token in tokens for token in ("emi", "emissive", "glow", "illum", "emit")) or "emissive" in lower:
+        return "emissive"
     if any(token in tokens for token in ("n", "normal")) or lower.endswith("_n.dds"):
         return "normal"
     if any(token in tokens for token in ("disp", "height", "displacement")):
@@ -298,11 +449,20 @@ def _input_texture_kind(texture_input: PreviewMaterialTextureInput) -> str:
     )
     if slot_kind == "base" or semantic_type in {"base", "base_color", "diffuse", "albedo", "color"}:
         technical = _technical_texture_kind(names)
-        return "" if technical in {"normal", "height", "packed_material", "detail_mask", "opacity", "specular"} else "base"
+        return "" if technical in {"normal", "height", "packed_material", "detail_mask", "opacity", "specular", "emissive"} else "base"
+    if slot_kind == "emissive" or semantic_type == "emissive" or semantic_subtype.startswith("emissive") or _contains_token(names, "emissive", "glow", "illum"):
+        return "emissive"
     if slot_kind == "normal" or semantic_type == "normal" or _contains_token(names, "normal"):
         return "normal"
     if slot_kind == "height" or semantic_type in {"height", "displacement"} or _contains_token(names, "disp", "height"):
         return "height"
+    packed_channels = tuple(
+        str(channel or "").strip().lower()
+        for channel in getattr(texture_input, "packed_channels", ())
+        if str(channel or "").strip()
+    )
+    if semantic_subtype in {"metallic_roughness", "gltf_metallic_roughness"} or packed_channels[:2] == ("roughness", "metallic"):
+        return "packed_material"
     if semantic_subtype in {"roughness", "rough"} or _contains_token(names, "roughness"):
         return "roughness"
     if semantic_subtype in {"metal", "metallic", "metalness"} or _contains_token(names, "metallic", "metalness"):
@@ -310,7 +470,7 @@ def _input_texture_kind(texture_input: PreviewMaterialTextureInput) -> str:
     if semantic_subtype in {"specular", "spec"} or _contains_token(names, "specular"):
         return "specular"
     technical = _technical_texture_kind(names)
-    if technical in {"specular", "roughness", "metalness", "height", "normal", "opacity", "packed_material", "detail_mask"}:
+    if technical in {"specular", "roughness", "metalness", "height", "normal", "opacity", "packed_material", "detail_mask", "emissive"}:
         return technical
     return ""
 
@@ -324,6 +484,7 @@ def _copy_texture(
     slot_name: str,
     copy_cache: Dict[str, str],
     notes: list[str],
+    max_dimension: int = 0,
 ) -> str:
     raw = str(source_path or "").strip()
     if not raw:
@@ -341,17 +502,39 @@ def _copy_texture(
     if not source.is_file():
         notes.append(f"{slot_name} missing texture:{Path(raw).name}")
         return ""
+    normalized_cap = max(0, int(max_dimension or 0))
     try:
-        key = str(source.resolve()).casefold()
+        key = f"{source.resolve()}|cap:{normalized_cap}".casefold()
     except OSError:
-        key = str(source).casefold()
+        key = f"{source}|cap:{normalized_cap}".casefold()
     cached = copy_cache.get(key)
     if cached:
         return cached
     suffix = source.suffix if source.suffix else ".png"
-    target = textures_dir / f"batch_{batch_index:03d}_{slot_name}_{len(copy_cache):03d}{suffix}"
+    resize_supported = source.suffix.lower() not in {".dds"} and normalized_cap > 0
+    target_suffix = ".png" if resize_supported else suffix
+    target = textures_dir / f"batch_{batch_index:03d}_{slot_name}_{len(copy_cache):03d}{target_suffix}"
     try:
-        shutil.copy2(source, target)
+        if resize_supported:
+            image = QImage(str(source))
+            if image.isNull():
+                shutil.copy2(source, target)
+            else:
+                capped = max(int(image.width()), int(image.height())) > normalized_cap
+                if capped:
+                    image = image.scaled(
+                        normalized_cap,
+                        normalized_cap,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.FastTransformation,
+                    )
+                if image.save(str(target), "PNG"):
+                    if capped:
+                        notes.append(f"{slot_name} preview texture capped:{normalized_cap}px")
+                else:
+                    shutil.copy2(source, target)
+        else:
+            shutil.copy2(source, target)
     except OSError as exc:
         notes.append(f"{slot_name} copy failed:{exc}")
         return ""
@@ -442,6 +625,7 @@ def _split_legacy_pbr_texture(
     textures_dir: Path,
     batch_index: int,
     notes: list[str],
+    max_dimension: int = 0,
 ) -> Dict[str, str]:
     raw = str(source_path or "").strip()
     if not raw:
@@ -463,6 +647,17 @@ def _split_legacy_pbr_texture(
     if width <= 0 or height <= 0:
         notes.append(f"legacy PBR map empty:{source.name}")
         return {}
+    normalized_cap = max(0, int(max_dimension or 0))
+    if normalized_cap > 0 and max(width, height) > normalized_cap:
+        image = image.scaled(
+            normalized_cap,
+            normalized_cap,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.FastTransformation,
+        ).convertToFormat(QImage.Format.Format_RGBA8888)
+        width = int(image.width())
+        height = int(image.height())
+        notes.append(f"legacy PBR response capped:{normalized_cap}px")
     output_dir = textures_dir / "combined"
     output_dir.mkdir(parents=True, exist_ok=True)
     slot_channels = {
@@ -633,21 +828,130 @@ def _material_decode_policy(shader_family: str) -> Dict[str, object]:
 
 def _texture_slot_state(slot_name: str, textures: Mapping[str, str], dds_textures: Mapping[str, object]) -> Dict[str, object]:
     dds_entry = dds_textures.get(slot_name)
+    preview_path = str(textures.get(slot_name, "") or "")
+    source_dds_path = str(dds_entry.get("source_path", "") or "") if isinstance(dds_entry, Mapping) else ""
     direct_dds = bool(
         isinstance(dds_entry, Mapping)
         and dds_entry.get("available")
-        and dds_entry.get("source_path")
+        and source_dds_path
         and dds_entry.get("direct_upload_candidate")
     )
-    return {
+    status = "direct_dds" if direct_dds else ("preview_png" if preview_path else "missing")
+    confidence = str(dds_entry.get("confidence", "") or "").strip().lower() if isinstance(dds_entry, Mapping) else ""
+    if not confidence:
+        confidence = "high" if direct_dds else ("medium" if preview_path else "missing")
+    diagnostic = {
+        "direct_dds": "using source DDS for native upload",
+        "preview_png": "using preview texture fallback",
+        "missing": "texture slot unresolved",
+    }.get(status, status)
+    state = {
         "slot": slot_name,
-        "preview_path": str(textures.get(slot_name, "") or ""),
-        "source_dds_path": str(dds_entry.get("source_path", "") or "") if isinstance(dds_entry, Mapping) else "",
+        "preview_path": preview_path,
+        "source_dds_path": source_dds_path,
         "source_width": _safe_int(dds_entry.get("width"), 0) if isinstance(dds_entry, Mapping) else 0,
         "source_height": _safe_int(dds_entry.get("height"), 0) if isinstance(dds_entry, Mapping) else 0,
         "direct_dds": direct_dds,
-        "status": "direct_dds" if direct_dds else ("preview_png" if textures.get(slot_name) else "missing"),
+        "status": status,
+        "confidence": confidence,
+        "source_kind": "direct_dds" if direct_dds else ("preview_texture" if preview_path else "missing"),
+        "reason": str(dds_entry.get("reason", "") or "") if isinstance(dds_entry, Mapping) else "",
+        "diagnostic": diagnostic,
     }
+    if isinstance(dds_entry, Mapping):
+        for field in (
+            "archive_path",
+            "parameter_name",
+            "semantic_type",
+            "semantic_subtype",
+            "shader_family",
+            "shader_rule",
+            "sidecar_path",
+            "sidecar_kind",
+            "packed_channels",
+            "srgb_mode",
+            "parameter_declared_by",
+            "material_output_quality",
+            "layer_role",
+            "layer_channel",
+            "blend_flags",
+        ):
+            value = dds_entry.get(field)
+            if value not in (None, ""):
+                state[field] = value
+    return state
+
+
+def _material_sidecar_paths(batch: PreparedModelPreviewBatch) -> list[str]:
+    paths: list[str] = []
+    seen: set[str] = set()
+    for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ()):
+        if not isinstance(texture_input, PreviewMaterialTextureInput):
+            continue
+        for value in (getattr(texture_input, "sidecar_path", ""), getattr(texture_input, "linked_mesh_path", "")):
+            path = str(value or "").strip()
+            if path and path not in seen:
+                paths.append(path)
+                seen.add(path)
+    return paths
+
+
+def _material_lighting_preset(shader_family: str, hints: Mapping[str, object], diagnostic_mode: str = "") -> str:
+    mode = str(diagnostic_mode or "").strip().lower()
+    if mode in {"texture_probe", "base_direct", "base_no_tint", "material_raw", "normal_raw", "height_raw"}:
+        return "texture_debug"
+    family = str(shader_family or "").strip().lower()
+    if family in {"cloth", "cloth_v2", "skin", "hair"}:
+        return "cloth_skin_inspection"
+    if _safe_float(hints.get("metalness"), 0.0) >= 0.25 or _safe_float(hints.get("specular"), 0.0) >= 0.30:
+        return "shiny_metal_inspection"
+    return "neutral_studio"
+
+
+def _material_decode_profile(
+    shader_family: str,
+    hints: Mapping[str, object],
+    combiner_metadata: Mapping[str, object],
+    packed_channels: Sequence[str],
+) -> Dict[str, object]:
+    return {
+        "profile": shader_family or "generic",
+        "shader_family": shader_family or "generic",
+        "packed_channels": list(tuple(packed_channels or ())),
+        "decode_modes": list(tuple(combiner_metadata.get("decode_modes", ()) or ())),
+        "combiner_outputs": list(tuple(combiner_metadata.get("outputs", ()) or ())),
+        "pbr_scalar_hints": {
+            "roughness": _safe_float(hints.get("roughness"), 0.55),
+            "metalness": _safe_float(hints.get("metalness"), 0.0),
+            "specular": _safe_float(hints.get("specular"), 0.08),
+            "height_scale": _safe_float(hints.get("height_scale"), 0.0),
+            "emissive_intensity": _safe_float(hints.get("emissive_intensity"), 0.0),
+        },
+        "lighting_preset_hint": _material_lighting_preset(shader_family, hints),
+    }
+
+
+_MATERIAL_CONTRACT_SLOTS = ("base", "normal", "material", "occlusion", "roughness", "metalness", "specular", "height", "emissive")
+
+
+def _material_slot_diagnostics(slot_states: Mapping[str, Mapping[str, object]]) -> list[Dict[str, object]]:
+    diagnostics: list[Dict[str, object]] = []
+    for slot_name in _MATERIAL_CONTRACT_SLOTS:
+        slot = slot_states.get(slot_name, {})
+        diagnostics.append(
+            {
+                "slot": slot_name,
+                "status": str(slot.get("status", "missing") or "missing"),
+                "confidence": str(slot.get("confidence", "missing") or "missing"),
+                "source_kind": str(slot.get("source_kind", "missing") or "missing"),
+                "source_dds_path": str(slot.get("source_dds_path", "") or ""),
+                "preview_path": str(slot.get("preview_path", "") or ""),
+                "parameter_name": str(slot.get("parameter_name", "") or ""),
+                "shader_family": str(slot.get("shader_family", "") or ""),
+                "note": str(slot.get("diagnostic", "") or ""),
+            }
+        )
+    return diagnostics
 
 
 def _material_contract_for_batch(
@@ -661,15 +965,29 @@ def _material_contract_for_batch(
     hints = _native_material_hints_for_batch(batch)
     slot_states = {
         slot_name: _texture_slot_state(slot_name, textures, dds_textures)
-        for slot_name in ("base", "normal", "material", "occlusion", "roughness", "metalness", "specular", "height")
+        for slot_name in _MATERIAL_CONTRACT_SLOTS
     }
+    packed_channels = list(tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ()))
+    slot_diagnostics = _material_slot_diagnostics(slot_states)
+    present_slots = sum(1 for slot in slot_states.values() if str(slot.get("status", "")) != "missing")
     return {
-        "schema_version": 1,
+        "schema_version": MATERIAL_CONTRACT_SCHEMA_VERSION,
         "shader_family": shader_family or "generic",
         "decode_policy": _material_decode_policy(shader_family),
+        "decode_profile": _material_decode_profile(shader_family, hints, combiner_metadata, packed_channels),
+        "pbr_scalar_hints": {
+            "roughness": _safe_float(hints.get("roughness"), 0.55),
+            "metalness": _safe_float(hints.get("metalness"), 0.0),
+            "specular": _safe_float(hints.get("specular"), 0.08),
+            "height_scale": _safe_float(hints.get("height_scale"), 0.0),
+            "emissive_intensity": _safe_float(hints.get("emissive_intensity"), 0.0),
+        },
         "material_hints": hints,
         "texture_slots": slot_states,
-        "packed_channels": list(tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ())),
+        "resolved_texture_slots": slot_states,
+        "slot_diagnostics": slot_diagnostics,
+        "source_sidecar_paths": _material_sidecar_paths(batch),
+        "packed_channels": packed_channels,
         "material_input_count": sum(
             1
             for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
@@ -677,6 +995,7 @@ def _material_contract_for_batch(
         ),
         "combiner_active": bool(combiner_metadata.get("active", False)),
         "combiner_outputs": list(tuple(combiner_metadata.get("outputs", ()) or ())),
+        "status": "ok" if present_slots else "missing_textures",
         "fallback": "generic" if not shader_family else "",
     }
 
@@ -692,7 +1011,7 @@ def _texture_quality_summary(
     base_cap = int(getattr(settings, "preview_texture_max_dimension", 16384) or 16384)
     slots = {
         slot_name: _texture_slot_state(slot_name, textures, dds_textures)
-        for slot_name in ("base", "normal", "material", "occlusion", "roughness", "metalness", "specular", "height")
+        for slot_name in _MATERIAL_CONTRACT_SLOTS
     }
     for slot_name, slot in slots.items():
         cap = base_cap if slot_name == "base" else support_cap
@@ -738,6 +1057,24 @@ def _byte4_channels(value: object) -> Tuple[float, float, float, float]:
     return tuple(((integer >> (8 * index)) & 0xFF) / 255.0 for index in range(4))  # type: ignore[return-value]
 
 
+def _material_hex_color_rgb(value: object) -> Tuple[float, float, float]:
+    text = str(value or "").strip()
+    if not text:
+        return ()
+    if text.startswith("#"):
+        text = text[1:]
+    if len(text) not in {6, 8} or any(ch not in "0123456789abcdefABCDEF" for ch in text):
+        return ()
+    try:
+        return (
+            int(text[0:2], 16) / 255.0,
+            int(text[2:4], 16) / 255.0,
+            int(text[4:6], 16) / 255.0,
+        )
+    except ValueError:
+        return ()
+
+
 def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[str, object]:
     inputs = tuple(
         texture_input
@@ -755,14 +1092,24 @@ def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[s
     metalness_values: list[float] = []
     specular_values: list[float] = []
     height_values: list[float] = []
+    emissive_values: list[float] = []
+    emissive_colors: list[str] = []
     for texture_input in inputs:
         for parameter in tuple(getattr(texture_input, "material_parameters", ()) or ()):
             key = _normalized_material_key(getattr(parameter, "parameter_name", ""))
             if not key:
                 continue
+            raw_value = str(getattr(parameter, "value", "") or "").strip()
+            if "emissivecolor" in key and raw_value:
+                emissive_colors.append(raw_value)
             numeric_value = getattr(parameter, "numeric_value", None)
             if numeric_value is not None:
                 numeric = _clamp01(numeric_value)
+                if "emissiveintensity" in key:
+                    try:
+                        emissive_values.append(max(0.0, min(32.0, float(numeric_value))))
+                    except (TypeError, ValueError, OverflowError):
+                        pass
                 if "screenspacedisplacementscale" in key or "heightintensity" in key:
                     height_values.append(numeric if "heightintensity" in key else min(1.0, numeric * 8.0))
                 if "specular" in key or "sheen" in key:
@@ -794,7 +1141,10 @@ def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[s
         "metalness": round(float(max(0.0, min(1.0, metalness_hint * 0.42))), 4),
         "specular": round(float(max(0.0, min(1.0, specular_hint * 0.72))), 4),
         "height_scale": round(float(max(0.0, min(1.0, max(height_values) if height_values else 0.0))), 4),
-        "source": "sidecar_parameters" if any((roughness_values, metalness_values, specular_values, height_values)) else "",
+        "emissive_intensity": round(float(max(0.0, min(32.0, max(emissive_values) if emissive_values else 0.0))), 4),
+        "emissive_color": emissive_colors[0] if emissive_colors else "",
+        "emissive_active": bool(emissive_values and max(emissive_values) > 0.0),
+        "source": "sidecar_parameters" if any((roughness_values, metalness_values, specular_values, height_values, emissive_values)) else "",
     }
 
 
@@ -950,6 +1300,15 @@ def _dds_textures_for_batch(
         entry["semantic_type"] = str(getattr(texture_input, "semantic_type", "") or "")
         entry["semantic_subtype"] = str(getattr(texture_input, "semantic_subtype", "") or "")
         entry["material_name"] = str(getattr(texture_input, "material_name", "") or "")
+        entry["shader_family"] = str(getattr(texture_input, "shader_family", "") or "")
+        entry["shader_rule"] = str(getattr(texture_input, "shader_rule", "") or "")
+        entry["sidecar_path"] = str(getattr(texture_input, "sidecar_path", "") or "")
+        entry["sidecar_kind"] = str(getattr(texture_input, "sidecar_kind", "") or "")
+        entry["linked_mesh_path"] = str(getattr(texture_input, "linked_mesh_path", "") or "")
+        entry["packed_channels"] = list(tuple(getattr(texture_input, "packed_channels", ()) or ()))
+        entry["srgb_mode"] = str(getattr(texture_input, "srgb_mode", "") or "")
+        entry["parameter_declared_by"] = str(getattr(texture_input, "parameter_declared_by", "") or "")
+        entry["material_output_quality"] = str(getattr(texture_input, "material_output_quality", "") or "")
         input_entries.append(entry)
     if input_entries:
         output["material_inputs"] = input_entries
@@ -998,8 +1357,10 @@ def _filter_dds_textures_for_preview_settings(
             or "albedo" in descriptor
             or "diffuse" in descriptor
             or "color" in descriptor
-        ) and technical not in {"normal", "height", "packed_material", "detail_mask", "opacity", "specular"}:
+        ) and technical not in {"normal", "height", "packed_material", "detail_mask", "opacity", "specular", "emissive"}:
             return "base"
+        if technical == "emissive" or "emissive" in descriptor or "glow" in descriptor:
+            return "emissive"
         if technical == "normal" or "normal" in descriptor:
             return "normal"
         if technical == "height" or "displacement" in descriptor:
@@ -1019,7 +1380,7 @@ def _filter_dds_textures_for_preview_settings(
             if not isinstance(raw_entry, Mapping):
                 continue
             role = input_role(raw_entry)
-            if role == "base":
+            if role in {"base", "emissive"}:
                 filtered_inputs.append(dict(raw_entry))
             elif not support_enabled:
                 continue
@@ -1035,10 +1396,11 @@ def _filter_dds_textures_for_preview_settings(
                 ("normal", "normal"),
                 ("height", "height"),
                 ("material", "material"),
+                ("emissive", "emissive"),
             ):
                 if manifest_slot in output:
                     continue
-                if promoted_role != "base" and not support_enabled:
+                if promoted_role not in {"base", "emissive"} and not support_enabled:
                     continue
                 if promoted_role == "normal" and bool(getattr(render_settings, "disable_normal_map", False)):
                     continue
@@ -1067,11 +1429,14 @@ def _texture_sources_for_batch(
     render_settings: ModelPreviewRenderSettings,
     use_textures: bool,
     high_quality_textures: bool,
+    source_format: object,
+    source_path: object,
     tangents_usable: bool,
     copy_cache: Dict[str, str],
     enable_material_combiner: bool = True,
     prefer_direct_dds: bool = False,
     direct_dds_slots: Optional[Mapping[str, object]] = None,
+    legacy_pbr_cache: Optional[Dict[Tuple[str, int], Dict[str, str]]] = None,
 ) -> Tuple[Dict[str, str], Tuple[str, ...], Dict[str, object]]:
     notes: list[str] = []
     textures: Dict[str, str] = {
@@ -1082,6 +1447,7 @@ def _texture_sources_for_batch(
         "metalness": "",
         "specular": "",
         "height": "",
+        "emissive": "",
     }
     combiner_metadata: Dict[str, object] = {
         "active": False,
@@ -1099,6 +1465,9 @@ def _texture_sources_for_batch(
     if not use_textures or not has_uv:
         notes.append("textures disabled" if not use_textures else "missing UVs")
         return textures, tuple(notes), combiner_metadata
+
+    base_copy_cap = max(0, int(getattr(render_settings, "preview_texture_max_dimension", 0) or 0))
+    support_copy_cap = max(0, int(getattr(render_settings, "low_quality_texture_max_dimension", 0) or 0))
 
     direct_dds_slots = direct_dds_slots if prefer_direct_dds and isinstance(direct_dds_slots, Mapping) else (
         _dds_textures_for_batch(batch) if prefer_direct_dds else {}
@@ -1167,8 +1536,10 @@ def _texture_sources_for_batch(
                     or "albedo" in descriptor
                     or "diffuse" in descriptor
                     or "color" in descriptor
-                ) and technical not in {"normal", "height", "packed_material", "detail_mask", "opacity", "specular"}:
+                ) and technical not in {"normal", "height", "packed_material", "detail_mask", "opacity", "specular", "emissive"}:
                     return True
+            elif normalized_kind == "emissive" and (technical == "emissive" or "emissive" in descriptor or "glow" in descriptor):
+                return True
             elif normalized_kind == "normal" and technical == "normal":
                 return True
             elif normalized_kind == "height" and technical == "height":
@@ -1208,7 +1579,7 @@ def _texture_sources_for_batch(
         source_key = _source_identity(source_path)
         if not source_key:
             return False
-        for slot_name in ("base", "normal", "material", "height"):
+        for slot_name in ("base", "normal", "material", "height", "emissive"):
             entry = direct_dds_slots.get(slot_name)
             if _direct_dds_entry_available(entry) and _direct_material_source(entry) == source_key:
                 return True
@@ -1250,6 +1621,7 @@ def _texture_sources_for_batch(
                 slot_name=slot_name,
                 copy_cache=copy_cache,
                 notes=notes,
+                max_dimension=base_copy_cap if slot_name == "base" else support_copy_cap,
             )
 
     base_path = str(getattr(batch, "preview_texture_path", "") or "")
@@ -1265,6 +1637,7 @@ def _texture_sources_for_batch(
                 slot_name="base",
                 copy_cache=copy_cache,
                 notes=notes,
+                max_dimension=base_copy_cap,
             )
     else:
         notes.append("no reliable base DDS")
@@ -1281,6 +1654,7 @@ def _texture_sources_for_batch(
                 slot_name="normal",
                 copy_cache=copy_cache,
                 notes=notes,
+                max_dimension=support_copy_cap,
             )
     if support_enabled and not bool(getattr(render_settings, "disable_height_map", False)):
         if has_direct_dds("height"):
@@ -1294,6 +1668,7 @@ def _texture_sources_for_batch(
                 slot_name="height",
                 copy_cache=copy_cache,
                 notes=notes,
+                max_dimension=support_copy_cap,
             )
 
     material_path = str(getattr(batch, "preview_material_texture_path", "") or "")
@@ -1303,13 +1678,24 @@ def _texture_sources_for_batch(
         if prefer_direct_dds and _direct_material_response_available():
             notes.append("legacy PBR PNG split skipped; direct DDS material inputs available")
         else:
-            generated = _split_legacy_pbr_texture(
-                material_path,
-                package_dir=package_dir,
-                textures_dir=textures_dir,
-                batch_index=batch_index,
-                notes=notes,
-            )
+            try:
+                cache_key = (str(Path(material_path).expanduser().resolve()).casefold(), int(support_copy_cap))
+            except OSError:
+                cache_key = (str(material_path).casefold(), int(support_copy_cap))
+            generated = dict((legacy_pbr_cache or {}).get(cache_key, {}))
+            if generated:
+                notes.append("legacy PBR response reused from package cache")
+            else:
+                generated = _split_legacy_pbr_texture(
+                    material_path,
+                    package_dir=package_dir,
+                    textures_dir=textures_dir,
+                    batch_index=batch_index,
+                    notes=notes,
+                    max_dimension=support_copy_cap,
+                )
+                if generated and legacy_pbr_cache is not None:
+                    legacy_pbr_cache[cache_key] = dict(generated)
             if not bool(getattr(render_settings, "disable_material_map", False)):
                 for slot_name, relative_path in generated.items():
                     textures[slot_name] = relative_path
@@ -1334,7 +1720,11 @@ def _texture_sources_for_batch(
             combiner_payload = SimpleNamespace(
                 material_name=str(getattr(batch, "material_name", "") or ""),
                 texture_name=str(getattr(batch, "texture_name", "") or ""),
-                texture_flip_vertical=bool(getattr(batch, "preview_texture_flip_vertical", True)),
+                texture_flip_vertical=resolve_preview_texture_flip_vertical(
+                    getattr(batch, "preview_texture_flip_vertical", None),
+                    source_format=source_format,
+                    source_path=source_path,
+                ),
                 material_texture_inputs=synthesized_inputs,
                 tangents_usable=bool(tangents_usable),
                 normal_texture_strength=max(0.0, _safe_float(getattr(batch, "preview_normal_texture_strength", 0.0), 0.0)),
@@ -1398,6 +1788,24 @@ def _texture_sources_for_batch(
                 slot_name=kind,
                 copy_cache=copy_cache,
                 notes=notes,
+                max_dimension=base_copy_cap if kind == "base" else support_copy_cap,
+            )
+            return
+        if kind == "emissive":
+            if textures.get(kind):
+                return
+            if prefer_direct_dds and _preview_source_has_direct_dds_upload(source_path):
+                notes.append("emissive PNG fallback skipped; direct DDS material input available")
+                return
+            textures[kind] = _copy_texture(
+                source_path,
+                package_dir=package_dir,
+                textures_dir=textures_dir,
+                batch_index=batch_index,
+                slot_name=kind,
+                copy_cache=copy_cache,
+                notes=notes,
+                max_dimension=support_copy_cap,
             )
             return
         if kind in {"roughness", "metalness", "specular"}:
@@ -1416,6 +1824,7 @@ def _texture_sources_for_batch(
                 slot_name=kind,
                 copy_cache=copy_cache,
                 notes=notes,
+                max_dimension=support_copy_cap,
             )
             return
         if kind == "packed_material":
@@ -1498,6 +1907,7 @@ def write_isolated_qtquick3d_preview_package(
     cloth_batch_count = 0
     cloth_particle_count = 0
     cloth_constraint_count = 0
+    legacy_pbr_cache: Dict[Tuple[str, int], Dict[str, str]] = {}
     for batch_index, batch in enumerate(prepared_batches):
         if not isinstance(batch, PreparedModelPreviewBatch):
             continue
@@ -1540,11 +1950,14 @@ def write_isolated_qtquick3d_preview_package(
             render_settings=settings,
             use_textures=bool(use_textures),
             high_quality_textures=bool(high_quality_textures),
+            source_format=getattr(prepared_preview, "format", "") or getattr(model, "format", ""),
+            source_path=getattr(prepared_preview, "source_path", "") or getattr(model, "path", ""),
             tangents_usable=tangents_usable,
             copy_cache=copy_cache,
             enable_material_combiner=bool(enable_material_combiner),
             prefer_direct_dds=bool(prefer_direct_dds),
             direct_dds_slots=dds_textures,
+            legacy_pbr_cache=legacy_pbr_cache,
         )
         total_vertices += vertex_count
         normal_strength = max(
@@ -1559,7 +1972,11 @@ def write_isolated_qtquick3d_preview_package(
         height_amount = max(0.0, min(0.08, _safe_float(getattr(settings, "height_effect_max", 0.35), 0.35) * 0.08))
         if _safe_float(combiner_metadata.get("height_amount", 0.0), 0.0) > 0.0:
             height_amount = max(0.0, min(0.12, _safe_float(combiner_metadata.get("height_amount"), height_amount)))
-        texture_flip_vertical = bool(getattr(batch, "preview_texture_flip_vertical", True))
+        texture_flip_vertical = resolve_preview_texture_flip_vertical(
+            getattr(batch, "preview_texture_flip_vertical", None),
+            source_format=getattr(prepared_preview, "format", "") or getattr(model, "format", ""),
+            source_path=getattr(prepared_preview, "source_path", "") or getattr(model, "path", ""),
+        )
         if "texture_flip_vertical" in combiner_metadata:
             texture_flip_vertical = bool(combiner_metadata.get("texture_flip_vertical", texture_flip_vertical))
         if bool(getattr(settings, "flip_texture_v", False)):
@@ -1576,12 +1993,18 @@ def write_isolated_qtquick3d_preview_package(
             dds_textures=dds_textures,
             combiner_metadata=combiner_metadata,
         )
+        material_hints = _native_material_hints_for_batch(batch)
+        emissive_color = _material_hex_color_rgb(material_hints.get("emissive_color", ""))
+        if not emissive_color:
+            emissive_color = (0.35, 0.68, 1.0)
         texture_quality = _texture_quality_summary(
             textures=textures,
             dds_textures=dds_textures,
             settings=settings,
             high_quality_textures=bool(high_quality_textures),
         )
+        raw_alpha_mode = str(getattr(batch, "preview_alpha_mode", "") or "").strip()
+        native_alpha_mode = "alpha_cutout" if raw_alpha_mode.lower() == "mask" else raw_alpha_mode
         batch_payload = {
                 "index": batch_index,
                 "material_name": str(getattr(batch, "material_name", "") or ""),
@@ -1593,13 +2016,23 @@ def write_isolated_qtquick3d_preview_package(
                 "textures": textures,
                 "dds_textures": dds_textures,
                 "texture_flip_vertical": texture_flip_vertical,
+                "alpha_mode": native_alpha_mode,
+                "source_alpha_mode": raw_alpha_mode,
+                "double_sided": bool(getattr(batch, "preview_double_sided", False)),
                 "has_texture_coordinates": bool(getattr(batch, "has_texture_coordinates", False)),
                 "tangents_usable": tangents_usable,
                 "normal_strength": normal_strength,
                 "height_amount": height_amount,
-                "native_material_hints": _native_material_hints_for_batch(batch),
+                "roughness": _safe_float(material_hints.get("roughness"), 0.55),
+                "metalness": _safe_float(material_hints.get("metalness"), 0.0),
+                "specular": _safe_float(material_hints.get("specular"), 0.08),
+                "height_scale": _safe_float(material_hints.get("height_scale"), 0.0),
+                "emissive_intensity": _safe_float(material_hints.get("emissive_intensity"), 0.0),
+                "emissive_color": list(emissive_color),
+                "native_material_hints": material_hints,
                 "material_contract": material_contract,
                 "material_shader_family": str(material_contract.get("shader_family", "generic") or "generic"),
+                "material_diagnostics": list(tuple(material_contract.get("slot_diagnostics", ()) or ())),
                 "prefer_generated_base_texture": prefer_generated_base_texture,
                 "texture_quality": texture_quality,
                 "notes": list(notes),
@@ -1613,6 +2046,11 @@ def write_isolated_qtquick3d_preview_package(
                     if isinstance(texture_input, PreviewMaterialTextureInput)
                 ],
             }
+        material_channel_contract = resolve_preview_batch_material_channels(batch_payload, package_dir=package_dir).diagnostics()
+        batch_payload["material_channel_contract"] = material_channel_contract
+        batch_payload["material_channel_diagnostics"] = list(material_channel_contract.get("channels", ())) + list(
+            material_channel_contract.get("unresolved", ())
+        )
         cloth_payload = _write_cloth_runtime_payloads(
             package_dir,
             geometry_dir,
@@ -1631,6 +2069,23 @@ def write_isolated_qtquick3d_preview_package(
     normalized_display_mode = str(display_mode or "replacement_only").strip().lower()
     if normalized_display_mode not in {"side_by_side", "overlay", "replacement_only"}:
         normalized_display_mode = "replacement_only"
+    has_metal_preview_response = any(_batch_has_metal_preview_response(batch) for batch in batches)
+    lighting_preset = _lighting_preset_for_settings(settings)
+    if has_metal_preview_response and lighting_preset == "neutral_studio":
+        lighting_preset = "shiny_metal_inspection"
+    ambient_strength = _safe_float(getattr(settings, "ambient_strength", 0.55), 0.55)
+    diffuse_light_scale = _safe_float(getattr(settings, "diffuse_light_scale", 0.65), 0.65)
+    specular_base = _safe_float(getattr(settings, "specular_base", 0.05), 0.05)
+    specular_max = _safe_float(getattr(settings, "specular_max", 0.18), 0.18)
+    shininess_min = _safe_float(getattr(settings, "shininess_min", 28.0), 28.0)
+    shininess_max = _safe_float(getattr(settings, "shininess_max", 72.0), 72.0)
+    if has_metal_preview_response:
+        ambient_strength = min(ambient_strength, 0.48)
+        diffuse_light_scale = max(diffuse_light_scale, 0.72)
+        specular_base = max(specular_base, 0.08)
+        specular_max = max(specular_max, 0.72)
+        shininess_min = min(shininess_min, 18.0)
+        shininess_max = max(shininess_max, 176.0)
     manifest = {
         "schema_version": ISOLATED_PREVIEW_SCHEMA_VERSION,
         "backend": str(backend or "d3d11").strip().lower(),
@@ -1655,20 +2110,65 @@ def write_isolated_qtquick3d_preview_package(
         "invert_pan_y": bool(getattr(settings, "invert_pan_y", False)),
         "use_textures": bool(use_textures),
         "high_quality_textures": bool(high_quality_textures),
-        "material_contract_schema": 1,
-        "texture_quality_schema": 1,
+        "render_diagnostic_mode": str(getattr(settings, "render_diagnostic_mode", "lit") or "lit"),
+        "d3d11_view_mode": str(getattr(settings, "d3d11_view_mode", "lit") or "lit"),
+        "d3d11_mip_lod_bias": _safe_float(getattr(settings, "d3d11_mip_lod_bias", -0.85), -0.85),
+        "d3d11_cull_back_faces": bool(getattr(settings, "d3d11_cull_back_faces", False)),
+        "d3d11_light_azimuth_degrees": _safe_float(
+            getattr(settings, "d3d11_light_azimuth_degrees", -52.0),
+            -52.0,
+        ),
+        "d3d11_light_elevation_degrees": _safe_float(
+            getattr(settings, "d3d11_light_elevation_degrees", 27.0),
+            27.0,
+        ),
+        "d3d11_normal_y_mode": str(getattr(settings, "d3d11_normal_y_mode", "asset") or "asset"),
+        "d3d11_ao_strength": _safe_float(getattr(settings, "d3d11_ao_strength", 1.0), 1.0),
+        "d3d11_roughness_bias": _safe_float(getattr(settings, "d3d11_roughness_bias", 0.0), 0.0),
+        "d3d11_metalness_scale": _safe_float(getattr(settings, "d3d11_metalness_scale", 1.0), 1.0),
+        "d3d11_environment_strength": _safe_float(getattr(settings, "d3d11_environment_strength", 1.0), 1.0),
+        "d3d11_emissive_gain": _safe_float(getattr(settings, "d3d11_emissive_gain", 1.0), 1.0),
+        "d3d11_texture_address_mode": str(getattr(settings, "d3d11_texture_address_mode", "wrap") or "wrap"),
+        "lighting_preset": lighting_preset,
+        "max_anisotropy": int(getattr(settings, "max_anisotropy", 16) or 16),
+        "ambient_strength": ambient_strength,
+        "diffuse_light_scale": diffuse_light_scale,
+        "specular_base": specular_base,
+        "specular_max": specular_max,
+        "shininess_min": shininess_min,
+        "shininess_max": shininess_max,
+        "material_contract_schema": MATERIAL_CONTRACT_SCHEMA_VERSION,
+        "material_channel_contract_schema": MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION,
+        "texture_quality_schema": TEXTURE_QUALITY_SCHEMA_VERSION,
         "texture_quality_policy": {
             "preview_texture_max_dimension": int(getattr(settings, "preview_texture_max_dimension", 16384) or 16384),
             "support_texture_max_dimension": int(getattr(settings, "low_quality_texture_max_dimension", 2048) or 2048),
             "upscale_handoff": "opt-in visible/base textures only",
             "technical_map_default": "preserve",
         },
-        "cloth_runtime_schema": 1,
+        "cloth_runtime_schema": CLOTH_RUNTIME_SCHEMA_VERSION,
         "cloth_batch_count": cloth_batch_count,
         "cloth_particle_count": cloth_particle_count,
         "cloth_constraint_count": cloth_constraint_count,
         "cloth_collider_file": cloth_collider_file,
         "cloth_collider_count": cloth_collider_count,
+        "physics_overlays": _physics_overlays_metadata(
+            model,
+            settings,
+            cloth_batch_count=cloth_batch_count,
+            cloth_particle_count=cloth_particle_count,
+            cloth_constraint_count=cloth_constraint_count,
+            cloth_collider_count=cloth_collider_count,
+        ),
+        "cloth_runtime_debug": _cloth_runtime_debug_metadata(
+            settings,
+            cloth_batch_count=cloth_batch_count,
+            cloth_particle_count=cloth_particle_count,
+            cloth_constraint_count=cloth_constraint_count,
+            cloth_collider_count=cloth_collider_count,
+        ),
+        "skeleton_overlay": _skeleton_overlay_metadata(model),
+        "editable_value_groups": _editable_value_groups_metadata(model, cloth_batch_count=cloth_batch_count),
         "batches": batches,
     }
     (package_dir / "manifest.json").write_text(json.dumps(manifest, separators=(",", ":")), encoding="utf-8")

@@ -887,6 +887,7 @@ class ArchivePreviewResult:
     title: str = ""
     metadata_summary: str = ""
     detail_text: str = ""
+    quality_tier: str = "full"
     timings: Dict[str, float] = field(default_factory=dict)
     timing_summary: str = ""
     sidecar_generation: int = 0
@@ -1002,6 +1003,8 @@ class ModelPreviewMesh:
     preview_texture_uv_scale: Tuple[float, float] = ()
     preview_texture_approximation_note: str = ""
     preview_material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
+    preview_alpha_mode: str = ""
+    preview_double_sided: bool = False
     preview_debug_flip_base_v: bool = False
     preview_debug_disable_support_maps: bool = False
     preview_role: str = ""
@@ -1217,6 +1220,8 @@ class PreparedModelPreviewBatch:
     preview_material_texture_subtype: str = ""
     preview_material_texture_packed_channels: Tuple[str, ...] = ()
     preview_material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
+    preview_alpha_mode: str = ""
+    preview_double_sided: bool = False
     has_texture_coordinates: bool = False
     texture_wrap_repeat: bool = False
     preview_debug_flip_base_v: bool = False
@@ -1278,9 +1283,17 @@ MODEL_PREVIEW_RENDER_LIMITS: Dict[str, Tuple[float, float]] = {
     "preview_texture_max_dimension": (1024.0, 16384.0),
     "low_quality_texture_max_dimension": (128.0, 4096.0),
     "max_anisotropy": (1.0, 16.0),
+    "d3d11_mip_lod_bias": (-2.0, 1.0),
     "ambient_strength": (0.35, 1.0),
     "diffuse_wrap_bias": (0.20, 1.0),
     "diffuse_light_scale": (0.20, 1.0),
+    "d3d11_light_azimuth_degrees": (-180.0, 180.0),
+    "d3d11_light_elevation_degrees": (-80.0, 80.0),
+    "d3d11_ao_strength": (0.0, 2.0),
+    "d3d11_roughness_bias": (-0.5, 0.5),
+    "d3d11_metalness_scale": (0.0, 2.0),
+    "d3d11_environment_strength": (0.0, 2.0),
+    "d3d11_emissive_gain": (0.0, 4.0),
     "orbit_sensitivity": (0.05, 1.0),
     "pan_sensitivity": (0.05, 3.0),
     "normal_strength_cap": (0.0, 1.0),
@@ -1441,6 +1454,50 @@ MODEL_PREVIEW_DIFFUSE_SWIZZLE_LABELS: Dict[str, str] = {
     "alpha_forced_opaque": "Alpha Forced Opaque",
 }
 
+D3D11_PREVIEW_VIEW_MODES: Tuple[str, ...] = (
+    "lit",
+    "base_direct",
+    "uv_checker",
+    "base_alpha",
+    "part_id",
+    "normal",
+    "material_response",
+    "layer_mask",
+)
+
+D3D11_PREVIEW_VIEW_MODE_LABELS: Dict[str, str] = {
+    "lit": "Lit",
+    "base_direct": "Base Texture",
+    "uv_checker": "UV Checker",
+    "base_alpha": "Alpha",
+    "part_id": "Part ID",
+    "normal": "Normals",
+    "material_response": "Material Response",
+    "layer_mask": "Layer Mask",
+}
+
+D3D11_NORMAL_Y_MODES: Tuple[str, ...] = (
+    "asset",
+    "force_flip",
+    "force_no_flip",
+)
+
+D3D11_NORMAL_Y_MODE_LABELS: Dict[str, str] = {
+    "asset": "Asset default",
+    "force_flip": "Force flip Y",
+    "force_no_flip": "Force no flip Y",
+}
+
+D3D11_TEXTURE_ADDRESS_MODES: Tuple[str, ...] = (
+    "wrap",
+    "clamp",
+)
+
+D3D11_TEXTURE_ADDRESS_MODE_LABELS: Dict[str, str] = {
+    "wrap": "Wrap",
+    "clamp": "Clamp",
+}
+
 
 @dataclass(slots=True)
 class ModelPreviewRenderSettings:
@@ -1477,6 +1534,18 @@ class ModelPreviewRenderSettings:
     preview_texture_max_dimension: int = 16384
     low_quality_texture_max_dimension: int = 2048
     max_anisotropy: int = 16
+    d3d11_mip_lod_bias: float = -0.85
+    d3d11_view_mode: str = "lit"
+    d3d11_cull_back_faces: bool = False
+    d3d11_light_azimuth_degrees: float = -52.0
+    d3d11_light_elevation_degrees: float = 27.0
+    d3d11_normal_y_mode: str = "asset"
+    d3d11_ao_strength: float = 1.0
+    d3d11_roughness_bias: float = 0.0
+    d3d11_metalness_scale: float = 1.0
+    d3d11_environment_strength: float = 1.0
+    d3d11_emissive_gain: float = 1.0
+    d3d11_texture_address_mode: str = "wrap"
     ambient_strength: float = 0.55
     diffuse_wrap_bias: float = 0.60
     diffuse_light_scale: float = 0.65
@@ -1502,6 +1571,12 @@ class ModelPreviewRenderSettings:
 
 @dataclass(slots=True)
 class ArchivePerformanceSettings:
+    resource_profile: str = "balanced_60fps"
+    archive_view_backend: str = "virtual_model"
+    ui_frame_budget_ms: int = 12
+    archive_fetch_batch_size: int = 0
+    background_worker_limit: int = 0
+    native_archive_acceleration: bool = True
     enable_sidecar_indexing: bool = False
     sidecar_worker_count: int = 0
     preview_cache_limit: int = 64
@@ -1521,7 +1596,31 @@ def clamp_archive_performance_settings(
         preview_cache_limit = int(current.preview_cache_limit)
     except (TypeError, ValueError):
         preview_cache_limit = 64
+    resource_profile = str(getattr(current, "resource_profile", "balanced_60fps") or "balanced_60fps")
+    if resource_profile not in {"balanced_60fps", "maximum_throughput", "quiet_laptop"}:
+        resource_profile = "balanced_60fps"
+    archive_view_backend = str(getattr(current, "archive_view_backend", "virtual_model") or "virtual_model")
+    if archive_view_backend not in {"virtual_model", "legacy_widget"}:
+        archive_view_backend = "virtual_model"
+    try:
+        ui_frame_budget_ms = int(getattr(current, "ui_frame_budget_ms", 12))
+    except (TypeError, ValueError):
+        ui_frame_budget_ms = 12
+    try:
+        archive_fetch_batch_size = int(getattr(current, "archive_fetch_batch_size", 0))
+    except (TypeError, ValueError):
+        archive_fetch_batch_size = 0
+    try:
+        background_worker_limit = int(getattr(current, "background_worker_limit", 0))
+    except (TypeError, ValueError):
+        background_worker_limit = 0
     return ArchivePerformanceSettings(
+        resource_profile=resource_profile,
+        archive_view_backend=archive_view_backend,
+        ui_frame_budget_ms=max(4, min(16, ui_frame_budget_ms)),
+        archive_fetch_batch_size=max(0, min(5000, archive_fetch_batch_size)),
+        background_worker_limit=max(0, min(16, background_worker_limit)),
+        native_archive_acceleration=bool(getattr(current, "native_archive_acceleration", True)),
         enable_sidecar_indexing=bool(current.enable_sidecar_indexing),
         sidecar_worker_count=max(0, min(16, sidecar_worker_count)),
         preview_cache_limit=max(12, min(256, preview_cache_limit)),
@@ -1589,6 +1688,20 @@ def clamp_model_preview_render_settings(
     if normalized_swizzle not in MODEL_PREVIEW_DIFFUSE_SWIZZLE_MODES:
         normalized_swizzle = ModelPreviewRenderSettings().diffuse_swizzle_mode
     value.diffuse_swizzle_mode = normalized_swizzle
+    normalized_d3d11_view_mode = str(getattr(value, "d3d11_view_mode", "") or "").strip().lower()
+    if normalized_d3d11_view_mode not in D3D11_PREVIEW_VIEW_MODES:
+        normalized_d3d11_view_mode = ModelPreviewRenderSettings().d3d11_view_mode
+    value.d3d11_view_mode = normalized_d3d11_view_mode
+    normalized_d3d11_normal_y_mode = str(getattr(value, "d3d11_normal_y_mode", "") or "").strip().lower()
+    if normalized_d3d11_normal_y_mode not in D3D11_NORMAL_Y_MODES:
+        normalized_d3d11_normal_y_mode = ModelPreviewRenderSettings().d3d11_normal_y_mode
+    value.d3d11_normal_y_mode = normalized_d3d11_normal_y_mode
+    normalized_d3d11_texture_address_mode = str(
+        getattr(value, "d3d11_texture_address_mode", "") or ""
+    ).strip().lower()
+    if normalized_d3d11_texture_address_mode not in D3D11_TEXTURE_ADDRESS_MODES:
+        normalized_d3d11_texture_address_mode = ModelPreviewRenderSettings().d3d11_texture_address_mode
+    value.d3d11_texture_address_mode = normalized_d3d11_texture_address_mode
     try:
         value.solo_batch_index = max(-1, min(4096, int(value.solo_batch_index)))
     except (TypeError, ValueError):

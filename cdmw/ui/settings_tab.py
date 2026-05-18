@@ -44,6 +44,12 @@ from cdmw.constants import (
 )
 from cdmw.models import (
     ArchivePerformanceSettings,
+    D3D11_NORMAL_Y_MODE_LABELS,
+    D3D11_NORMAL_Y_MODES,
+    D3D11_PREVIEW_VIEW_MODE_LABELS,
+    D3D11_PREVIEW_VIEW_MODES,
+    D3D11_TEXTURE_ADDRESS_MODE_LABELS,
+    D3D11_TEXTURE_ADDRESS_MODES,
     MODEL_PREVIEW_ALPHA_HANDLING_LABELS,
     MODEL_PREVIEW_ALPHA_HANDLING_MODES,
     MODEL_PREVIEW_DIFFUSE_SWIZZLE_LABELS,
@@ -154,9 +160,9 @@ class SettingsTab(QWidget):
             "Workflow, archive, game package, and extraction paths in one place.",
         )
         self.archive_performance_page_layout = _add_settings_page(
-            "archive_performance",
-            "Archive Browser Performance",
-            "Archive preview cache, sidecar indexing, and scan responsiveness settings.",
+            "performance",
+            "Performance",
+            "Resource profile, archive browser rendering, cache, and worker settings.",
         )
         self.appearance_page_layout = _add_settings_page(
             "appearance",
@@ -313,11 +319,47 @@ class SettingsTab(QWidget):
         startup_layout.addWidget(startup_hint)
         self.startup_page_layout.addWidget(startup_group)
 
-        archive_performance_group = QGroupBox("Archive Browser Performance")
+        archive_performance_group = QGroupBox("Performance")
         archive_performance_layout = QFormLayout(archive_performance_group)
         archive_performance_layout.setContentsMargins(12, 14, 12, 12)
         archive_performance_layout.setHorizontalSpacing(12)
         archive_performance_layout.setVerticalSpacing(10)
+        self.archive_resource_profile_combo = QComboBox()
+        self.archive_resource_profile_combo.addItem("Balanced 60fps", "balanced_60fps")
+        self.archive_resource_profile_combo.addItem("Maximum Throughput", "maximum_throughput")
+        self.archive_resource_profile_combo.addItem("Quiet Laptop", "quiet_laptop")
+        self.archive_resource_profile_combo.setToolTip(
+            "Controls archive browser batch sizes, worker pressure, and preview aggressiveness."
+        )
+        archive_performance_layout.addRow("Resource profile", self.archive_resource_profile_combo)
+        self.archive_view_backend_combo = QComboBox()
+        self.archive_view_backend_combo.addItem("Virtual model", "virtual_model")
+        self.archive_view_backend_combo.addItem("Legacy widget (diagnostics)", "legacy_widget")
+        self.archive_view_backend_combo.setToolTip(
+            "Virtual model renders only visible archive rows and is the recommended high-performance backend."
+        )
+        archive_performance_layout.addRow("Archive view backend", self.archive_view_backend_combo)
+        self.archive_ui_frame_budget_spin = QSpinBox()
+        self.archive_ui_frame_budget_spin.setRange(4, 16)
+        self.archive_ui_frame_budget_spin.setSuffix(" ms")
+        self.archive_ui_frame_budget_spin.setToolTip("Soft per-frame budget for interactive archive UI work.")
+        archive_performance_layout.addRow("UI frame budget (4-16 ms)", self.archive_ui_frame_budget_spin)
+        self.archive_fetch_batch_spin = QSpinBox()
+        self.archive_fetch_batch_spin.setRange(0, 5000)
+        self.archive_fetch_batch_spin.setSingleStep(100)
+        self.archive_fetch_batch_spin.setSpecialValueText("Auto")
+        self.archive_fetch_batch_spin.setToolTip("Rows fetched per lazy folder/category expansion batch. Auto follows the selected profile.")
+        archive_performance_layout.addRow("Archive fetch batch", self.archive_fetch_batch_spin)
+        self.archive_background_worker_limit_spin = QSpinBox()
+        self.archive_background_worker_limit_spin.setRange(0, 16)
+        self.archive_background_worker_limit_spin.setSpecialValueText("Auto")
+        self.archive_background_worker_limit_spin.setToolTip("Global background worker pressure for archive-related jobs. Auto follows the selected profile.")
+        archive_performance_layout.addRow("Background worker limit", self.archive_background_worker_limit_spin)
+        self.archive_native_acceleration_checkbox = QCheckBox("Use native archive acceleration when available")
+        self.archive_native_acceleration_checkbox.setToolTip(
+            "Uses a native helper for expensive archive filter/sort/index preparation when the helper is present; Python fallback remains automatic."
+        )
+        archive_performance_layout.addRow("", self.archive_native_acceleration_checkbox)
         self.archive_sidecar_indexing_checkbox = QCheckBox("Index texture sidecars for DDS related-file discovery")
         self.archive_sidecar_indexing_checkbox.setToolTip(
             "Builds a whole-archive .pami/.pac_xml lookup used for DDS reverse references and richer related-file lists. "
@@ -387,6 +429,18 @@ class SettingsTab(QWidget):
         for mode in MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES:
             self.render_diagnostic_mode_combo.addItem(MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS.get(mode, mode), mode)
         preview_layout.addRow("Diagnostic render mode", self.render_diagnostic_mode_combo)
+        self.d3d11_view_mode_combo = QComboBox()
+        for mode in D3D11_PREVIEW_VIEW_MODES:
+            self.d3d11_view_mode_combo.addItem(D3D11_PREVIEW_VIEW_MODE_LABELS.get(mode, mode), mode)
+        preview_layout.addRow("D3D11 view mode", self.d3d11_view_mode_combo)
+        self.d3d11_normal_y_mode_combo = QComboBox()
+        for mode in D3D11_NORMAL_Y_MODES:
+            self.d3d11_normal_y_mode_combo.addItem(D3D11_NORMAL_Y_MODE_LABELS.get(mode, mode), mode)
+        preview_layout.addRow("D3D11 normal Y", self.d3d11_normal_y_mode_combo)
+        self.d3d11_texture_address_mode_combo = QComboBox()
+        for mode in D3D11_TEXTURE_ADDRESS_MODES:
+            self.d3d11_texture_address_mode_combo.addItem(D3D11_TEXTURE_ADDRESS_MODE_LABELS.get(mode, mode), mode)
+        preview_layout.addRow("D3D11 texture address", self.d3d11_texture_address_mode_combo)
         self.alpha_handling_combo = QComboBox()
         for mode in MODEL_PREVIEW_ALPHA_HANDLING_MODES:
             self.alpha_handling_combo.addItem(MODEL_PREVIEW_ALPHA_HANDLING_LABELS.get(mode, mode), mode)
@@ -414,6 +468,7 @@ class SettingsTab(QWidget):
         self.disable_lighting_checkbox = QCheckBox("Disable lighting")
         self.disable_depth_test_checkbox = QCheckBox("Disable depth test")
         self.show_texture_debug_strip_checkbox = QCheckBox("Show texture debug strip")
+        self.d3d11_cull_back_faces_checkbox = QCheckBox("D3D11 cull back faces")
         for checkbox in (
             self.disable_tint_checkbox,
             self.disable_brightness_checkbox,
@@ -426,6 +481,7 @@ class SettingsTab(QWidget):
             self.disable_lighting_checkbox,
             self.disable_depth_test_checkbox,
             self.show_texture_debug_strip_checkbox,
+            self.d3d11_cull_back_faces_checkbox,
         ):
             preview_layout.addRow("", checkbox)
         self.solo_batch_spin = QSpinBox()
@@ -533,6 +589,29 @@ class SettingsTab(QWidget):
             decimals=2,
         )
         shading_layout.addRow("Diffuse light scale", self.diffuse_light_scale_spin)
+        self.d3d11_mip_lod_bias_spin = self._create_float_spin(
+            minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_mip_lod_bias"][0],
+            maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_mip_lod_bias"][1],
+            step=0.05,
+            decimals=2,
+        )
+        shading_layout.addRow("D3D11 mip LOD bias", self.d3d11_mip_lod_bias_spin)
+        self.d3d11_light_azimuth_spin = self._create_float_spin(
+            minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_azimuth_degrees"][0],
+            maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_azimuth_degrees"][1],
+            step=5.0,
+            decimals=0,
+            suffix=" deg",
+        )
+        shading_layout.addRow("D3D11 light azimuth", self.d3d11_light_azimuth_spin)
+        self.d3d11_light_elevation_spin = self._create_float_spin(
+            minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_elevation_degrees"][0],
+            maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_elevation_degrees"][1],
+            step=5.0,
+            decimals=0,
+            suffix=" deg",
+        )
+        shading_layout.addRow("D3D11 light elevation", self.d3d11_light_elevation_spin)
         self.normal_strength_cap_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["normal_strength_cap"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["normal_strength_cap"][1],
@@ -617,6 +696,41 @@ class SettingsTab(QWidget):
             decimals=1,
         )
         shading_layout.addRow("Height shininess boost", self.height_shininess_boost_spin)
+        self.d3d11_ao_strength_spin = self._create_float_spin(
+            minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_ao_strength"][0],
+            maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_ao_strength"][1],
+            step=0.05,
+            decimals=2,
+        )
+        shading_layout.addRow("D3D11 AO strength", self.d3d11_ao_strength_spin)
+        self.d3d11_roughness_bias_spin = self._create_float_spin(
+            minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_roughness_bias"][0],
+            maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_roughness_bias"][1],
+            step=0.02,
+            decimals=2,
+        )
+        shading_layout.addRow("D3D11 roughness bias", self.d3d11_roughness_bias_spin)
+        self.d3d11_metalness_scale_spin = self._create_float_spin(
+            minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_metalness_scale"][0],
+            maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_metalness_scale"][1],
+            step=0.05,
+            decimals=2,
+        )
+        shading_layout.addRow("D3D11 metalness scale", self.d3d11_metalness_scale_spin)
+        self.d3d11_environment_strength_spin = self._create_float_spin(
+            minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_environment_strength"][0],
+            maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_environment_strength"][1],
+            step=0.05,
+            decimals=2,
+        )
+        shading_layout.addRow("D3D11 environment strength", self.d3d11_environment_strength_spin)
+        self.d3d11_emissive_gain_spin = self._create_float_spin(
+            minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_emissive_gain"][0],
+            maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_emissive_gain"][1],
+            step=0.05,
+            decimals=2,
+        )
+        shading_layout.addRow("D3D11 emissive gain", self.d3d11_emissive_gain_spin)
         reset_row = QHBoxLayout()
         reset_row.setContentsMargins(0, 0, 0, 0)
         reset_row.setSpacing(8)
@@ -691,6 +805,12 @@ class SettingsTab(QWidget):
             self.verbose_archive_logs_checkbox,
         ):
             checkbox.toggled.connect(self.schedule_settings_save)
+        self.archive_resource_profile_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
+        self.archive_view_backend_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
+        self.archive_ui_frame_budget_spin.valueChanged.connect(self._handle_archive_performance_changed)
+        self.archive_fetch_batch_spin.valueChanged.connect(self._handle_archive_performance_changed)
+        self.archive_background_worker_limit_spin.valueChanged.connect(self._handle_archive_performance_changed)
+        self.archive_native_acceleration_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.archive_sidecar_indexing_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.archive_sidecar_worker_mode_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
         self.archive_sidecar_worker_spin.valueChanged.connect(self._handle_archive_performance_changed)
@@ -840,6 +960,9 @@ class SettingsTab(QWidget):
             self.model_preview_high_quality_checkbox,
             self.visible_texture_mode_combo,
             self.render_diagnostic_mode_combo,
+            self.d3d11_view_mode_combo,
+            self.d3d11_normal_y_mode_combo,
+            self.d3d11_texture_address_mode_combo,
             self.alpha_handling_combo,
             self.texture_probe_source_combo,
             self.sampler_probe_combo,
@@ -855,6 +978,7 @@ class SettingsTab(QWidget):
             self.disable_lighting_checkbox,
             self.disable_depth_test_checkbox,
             self.show_texture_debug_strip_checkbox,
+            self.d3d11_cull_back_faces_checkbox,
             self.solo_batch_spin,
             self.preview_texture_max_dimension_spin,
             self.low_quality_texture_max_dimension_spin,
@@ -868,6 +992,9 @@ class SettingsTab(QWidget):
             self.ambient_strength_spin,
             self.diffuse_wrap_bias_spin,
             self.diffuse_light_scale_spin,
+            self.d3d11_mip_lod_bias_spin,
+            self.d3d11_light_azimuth_spin,
+            self.d3d11_light_elevation_spin,
             self.normal_strength_cap_spin,
             self.normal_strength_floor_spin,
             self.height_effect_max_spin,
@@ -880,6 +1007,11 @@ class SettingsTab(QWidget):
             self.shininess_min_spin,
             self.shininess_max_spin,
             self.height_shininess_boost_spin,
+            self.d3d11_ao_strength_spin,
+            self.d3d11_roughness_bias_spin,
+            self.d3d11_metalness_scale_spin,
+            self.d3d11_environment_strength_spin,
+            self.d3d11_emissive_gain_spin,
         )
 
     def _read_bool(self, key: str, default: bool) -> bool:
@@ -894,6 +1026,14 @@ class SettingsTab(QWidget):
             return int(value)
         except (TypeError, ValueError):
             return int(default)
+
+    @staticmethod
+    def _set_combo_by_value(combo: QComboBox, value: str) -> None:
+        index = combo.findData(value)
+        if index < 0:
+            index = combo.findText(value)
+        if index >= 0:
+            combo.setCurrentIndex(index)
 
     def _read_float(self, key: str, default: float) -> float:
         value = self.settings.value(key, default)
@@ -983,6 +1123,12 @@ class SettingsTab(QWidget):
             self.verbose_archive_logs_checkbox.isChecked(),
         )
         archive_performance_settings = self.current_archive_performance_settings()
+        self.settings.setValue("performance/resource_profile", archive_performance_settings.resource_profile)
+        self.settings.setValue("performance/archive_view_backend", archive_performance_settings.archive_view_backend)
+        self.settings.setValue("performance/ui_frame_budget_ms", archive_performance_settings.ui_frame_budget_ms)
+        self.settings.setValue("performance/archive_fetch_batch_size", archive_performance_settings.archive_fetch_batch_size)
+        self.settings.setValue("performance/background_worker_limit", archive_performance_settings.background_worker_limit)
+        self.settings.setValue("performance/native_archive_acceleration", archive_performance_settings.native_archive_acceleration)
         self.settings.setValue("archive/enable_sidecar_indexing", archive_performance_settings.enable_sidecar_indexing)
         self.settings.setValue("archive/sidecar_worker_count", archive_performance_settings.sidecar_worker_count)
         self.settings.setValue("archive/preview_cache_limit", archive_performance_settings.preview_cache_limit)
@@ -994,6 +1140,9 @@ class SettingsTab(QWidget):
         self.settings.setValue("archive/model_high_quality_textures", preview_settings.high_quality_by_default)
         self.settings.setValue("preview/visible_texture_mode", preview_settings.visible_texture_mode)
         self.settings.setValue("preview/render_diagnostic_mode", preview_settings.render_diagnostic_mode)
+        self.settings.setValue("preview/d3d11_view_mode", preview_settings.d3d11_view_mode)
+        self.settings.setValue("preview/d3d11_normal_y_mode", preview_settings.d3d11_normal_y_mode)
+        self.settings.setValue("preview/d3d11_texture_address_mode", preview_settings.d3d11_texture_address_mode)
         self.settings.setValue("preview/alpha_handling_mode", preview_settings.alpha_handling_mode)
         self.settings.setValue("preview/texture_probe_source", preview_settings.texture_probe_source)
         self.settings.setValue("preview/sampler_probe_mode", preview_settings.sampler_probe_mode)
@@ -1009,13 +1158,17 @@ class SettingsTab(QWidget):
         self.settings.setValue("preview/disable_lighting", preview_settings.disable_lighting)
         self.settings.setValue("preview/disable_depth_test", preview_settings.disable_depth_test)
         self.settings.setValue("preview/show_texture_debug_strip", preview_settings.show_texture_debug_strip)
+        self.settings.setValue("preview/d3d11_cull_back_faces", preview_settings.d3d11_cull_back_faces)
         self.settings.setValue("preview/solo_batch_index", preview_settings.solo_batch_index)
         self.settings.setValue("preview/texture_max_dimension", preview_settings.preview_texture_max_dimension)
         self.settings.setValue("preview/low_quality_texture_max_dimension", preview_settings.low_quality_texture_max_dimension)
         self.settings.setValue("preview/max_anisotropy", preview_settings.max_anisotropy)
+        self.settings.setValue("preview/d3d11_mip_lod_bias", preview_settings.d3d11_mip_lod_bias)
         self.settings.setValue("preview/ambient_strength", preview_settings.ambient_strength)
         self.settings.setValue("preview/diffuse_wrap_bias", preview_settings.diffuse_wrap_bias)
         self.settings.setValue("preview/diffuse_light_scale", preview_settings.diffuse_light_scale)
+        self.settings.setValue("preview/d3d11_light_azimuth_degrees", preview_settings.d3d11_light_azimuth_degrees)
+        self.settings.setValue("preview/d3d11_light_elevation_degrees", preview_settings.d3d11_light_elevation_degrees)
         self.settings.setValue("preview/orbit_sensitivity", preview_settings.orbit_sensitivity)
         self.settings.setValue("preview/pan_sensitivity", preview_settings.pan_sensitivity)
         self.settings.setValue("preview/invert_orbit_x", preview_settings.invert_orbit_x)
@@ -1034,6 +1187,11 @@ class SettingsTab(QWidget):
         self.settings.setValue("preview/shininess_min", preview_settings.shininess_min)
         self.settings.setValue("preview/shininess_max", preview_settings.shininess_max)
         self.settings.setValue("preview/height_shininess_boost", preview_settings.height_shininess_boost)
+        self.settings.setValue("preview/d3d11_ao_strength", preview_settings.d3d11_ao_strength)
+        self.settings.setValue("preview/d3d11_roughness_bias", preview_settings.d3d11_roughness_bias)
+        self.settings.setValue("preview/d3d11_metalness_scale", preview_settings.d3d11_metalness_scale)
+        self.settings.setValue("preview/d3d11_environment_strength", preview_settings.d3d11_environment_strength)
+        self.settings.setValue("preview/d3d11_emissive_gain", preview_settings.d3d11_emissive_gain)
         self.settings.sync()
         self._apply_checkbox_states()
         if previous_capture_value != current_capture_value:
@@ -1100,6 +1258,30 @@ class SettingsTab(QWidget):
         defaults = clamp_archive_performance_settings()
         return clamp_archive_performance_settings(
             ArchivePerformanceSettings(
+                resource_profile=str(
+                    self.settings.value("performance/resource_profile", defaults.resource_profile)
+                    or defaults.resource_profile
+                ),
+                archive_view_backend=str(
+                    self.settings.value("performance/archive_view_backend", defaults.archive_view_backend)
+                    or defaults.archive_view_backend
+                ),
+                ui_frame_budget_ms=self._read_int(
+                    "performance/ui_frame_budget_ms",
+                    defaults.ui_frame_budget_ms,
+                ),
+                archive_fetch_batch_size=self._read_int(
+                    "performance/archive_fetch_batch_size",
+                    defaults.archive_fetch_batch_size,
+                ),
+                background_worker_limit=self._read_int(
+                    "performance/background_worker_limit",
+                    defaults.background_worker_limit,
+                ),
+                native_archive_acceleration=self._read_bool(
+                    "performance/native_archive_acceleration",
+                    defaults.native_archive_acceleration,
+                ),
                 enable_sidecar_indexing=self._read_bool(
                     "archive/enable_sidecar_indexing",
                     defaults.enable_sidecar_indexing,
@@ -1125,6 +1307,12 @@ class SettingsTab(QWidget):
 
     def _archive_performance_setting_widgets(self) -> tuple[QWidget, ...]:
         return (
+            self.archive_resource_profile_combo,
+            self.archive_view_backend_combo,
+            self.archive_ui_frame_budget_spin,
+            self.archive_fetch_batch_spin,
+            self.archive_background_worker_limit_spin,
+            self.archive_native_acceleration_checkbox,
             self.archive_sidecar_indexing_checkbox,
             self.archive_sidecar_worker_mode_combo,
             self.archive_sidecar_worker_spin,
@@ -1152,6 +1340,12 @@ class SettingsTab(QWidget):
         for widget in self._archive_performance_setting_widgets():
             widget.blockSignals(True)
         try:
+            self._set_combo_by_value(self.archive_resource_profile_combo, clamped.resource_profile)
+            self._set_combo_by_value(self.archive_view_backend_combo, clamped.archive_view_backend)
+            self.archive_ui_frame_budget_spin.setValue(clamped.ui_frame_budget_ms)
+            self.archive_fetch_batch_spin.setValue(clamped.archive_fetch_batch_size)
+            self.archive_background_worker_limit_spin.setValue(clamped.background_worker_limit)
+            self.archive_native_acceleration_checkbox.setChecked(clamped.native_archive_acceleration)
             self.archive_sidecar_indexing_checkbox.setChecked(clamped.enable_sidecar_indexing)
             self.archive_sidecar_worker_mode_combo.setCurrentIndex(1 if clamped.sidecar_worker_count > 0 else 0)
             self.archive_sidecar_worker_spin.setValue(max(1, clamped.sidecar_worker_count or 4))
@@ -1173,6 +1367,12 @@ class SettingsTab(QWidget):
         )
         return clamp_archive_performance_settings(
             ArchivePerformanceSettings(
+                resource_profile=str(self.archive_resource_profile_combo.currentData() or "balanced_60fps"),
+                archive_view_backend=str(self.archive_view_backend_combo.currentData() or "virtual_model"),
+                ui_frame_budget_ms=self.archive_ui_frame_budget_spin.value(),
+                archive_fetch_batch_size=self.archive_fetch_batch_spin.value(),
+                background_worker_limit=self.archive_background_worker_limit_spin.value(),
+                native_archive_acceleration=self.archive_native_acceleration_checkbox.isChecked(),
                 enable_sidecar_indexing=self.archive_sidecar_indexing_checkbox.isChecked(),
                 sidecar_worker_count=worker_count,
                 preview_cache_limit=self.archive_preview_cache_limit_spin.value(),
@@ -1291,6 +1491,18 @@ class SettingsTab(QWidget):
                     self.settings.value("preview/render_diagnostic_mode", defaults.render_diagnostic_mode)
                     or defaults.render_diagnostic_mode
                 ),
+                d3d11_view_mode=str(
+                    self.settings.value("preview/d3d11_view_mode", defaults.d3d11_view_mode)
+                    or defaults.d3d11_view_mode
+                ),
+                d3d11_normal_y_mode=str(
+                    self.settings.value("preview/d3d11_normal_y_mode", defaults.d3d11_normal_y_mode)
+                    or defaults.d3d11_normal_y_mode
+                ),
+                d3d11_texture_address_mode=str(
+                    self.settings.value("preview/d3d11_texture_address_mode", defaults.d3d11_texture_address_mode)
+                    or defaults.d3d11_texture_address_mode
+                ),
                 alpha_handling_mode=str(
                     self.settings.value("preview/alpha_handling_mode", defaults.alpha_handling_mode)
                     or defaults.alpha_handling_mode
@@ -1327,6 +1539,10 @@ class SettingsTab(QWidget):
                     "preview/show_texture_debug_strip",
                     defaults.show_texture_debug_strip,
                 ),
+                d3d11_cull_back_faces=self._read_bool(
+                    "preview/d3d11_cull_back_faces",
+                    defaults.d3d11_cull_back_faces,
+                ),
                 solo_batch_index=self._read_int("preview/solo_batch_index", defaults.solo_batch_index),
                 preview_texture_max_dimension=self._read_int(
                     "preview/texture_max_dimension",
@@ -1337,9 +1553,18 @@ class SettingsTab(QWidget):
                     defaults.low_quality_texture_max_dimension,
                 ),
                 max_anisotropy=self._read_int("preview/max_anisotropy", defaults.max_anisotropy),
+                d3d11_mip_lod_bias=self._read_float("preview/d3d11_mip_lod_bias", defaults.d3d11_mip_lod_bias),
                 ambient_strength=self._read_float("preview/ambient_strength", defaults.ambient_strength),
                 diffuse_wrap_bias=self._read_float("preview/diffuse_wrap_bias", defaults.diffuse_wrap_bias),
                 diffuse_light_scale=self._read_float("preview/diffuse_light_scale", defaults.diffuse_light_scale),
+                d3d11_light_azimuth_degrees=self._read_float(
+                    "preview/d3d11_light_azimuth_degrees",
+                    defaults.d3d11_light_azimuth_degrees,
+                ),
+                d3d11_light_elevation_degrees=self._read_float(
+                    "preview/d3d11_light_elevation_degrees",
+                    defaults.d3d11_light_elevation_degrees,
+                ),
                 orbit_sensitivity=self._read_float("preview/orbit_sensitivity", defaults.orbit_sensitivity),
                 pan_sensitivity=self._read_float("preview/pan_sensitivity", defaults.pan_sensitivity),
                 invert_orbit_x=self._read_bool("preview/invert_orbit_x", defaults.invert_orbit_x),
@@ -1361,6 +1586,17 @@ class SettingsTab(QWidget):
                     "preview/height_shininess_boost",
                     defaults.height_shininess_boost,
                 ),
+                d3d11_ao_strength=self._read_float("preview/d3d11_ao_strength", defaults.d3d11_ao_strength),
+                d3d11_roughness_bias=self._read_float("preview/d3d11_roughness_bias", defaults.d3d11_roughness_bias),
+                d3d11_metalness_scale=self._read_float(
+                    "preview/d3d11_metalness_scale",
+                    defaults.d3d11_metalness_scale,
+                ),
+                d3d11_environment_strength=self._read_float(
+                    "preview/d3d11_environment_strength",
+                    defaults.d3d11_environment_strength,
+                ),
+                d3d11_emissive_gain=self._read_float("preview/d3d11_emissive_gain", defaults.d3d11_emissive_gain),
             )
         )
 
@@ -1375,6 +1611,12 @@ class SettingsTab(QWidget):
             self.visible_texture_mode_combo.setCurrentIndex(max(0, visible_texture_mode_index))
             render_index = self.render_diagnostic_mode_combo.findData(clamped.render_diagnostic_mode)
             self.render_diagnostic_mode_combo.setCurrentIndex(max(0, render_index))
+            d3d11_view_index = self.d3d11_view_mode_combo.findData(clamped.d3d11_view_mode)
+            self.d3d11_view_mode_combo.setCurrentIndex(max(0, d3d11_view_index))
+            d3d11_normal_y_index = self.d3d11_normal_y_mode_combo.findData(clamped.d3d11_normal_y_mode)
+            self.d3d11_normal_y_mode_combo.setCurrentIndex(max(0, d3d11_normal_y_index))
+            d3d11_address_index = self.d3d11_texture_address_mode_combo.findData(clamped.d3d11_texture_address_mode)
+            self.d3d11_texture_address_mode_combo.setCurrentIndex(max(0, d3d11_address_index))
             alpha_index = self.alpha_handling_combo.findData(clamped.alpha_handling_mode)
             self.alpha_handling_combo.setCurrentIndex(max(0, alpha_index))
             source_index = self.texture_probe_source_combo.findData(clamped.texture_probe_source)
@@ -1394,10 +1636,12 @@ class SettingsTab(QWidget):
             self.disable_lighting_checkbox.setChecked(clamped.disable_lighting)
             self.disable_depth_test_checkbox.setChecked(clamped.disable_depth_test)
             self.show_texture_debug_strip_checkbox.setChecked(clamped.show_texture_debug_strip)
+            self.d3d11_cull_back_faces_checkbox.setChecked(clamped.d3d11_cull_back_faces)
             self.solo_batch_spin.setValue(clamped.solo_batch_index)
             self.preview_texture_max_dimension_spin.setValue(clamped.preview_texture_max_dimension)
             self.low_quality_texture_max_dimension_spin.setValue(clamped.low_quality_texture_max_dimension)
             self.max_anisotropy_spin.setValue(clamped.max_anisotropy)
+            self.d3d11_mip_lod_bias_spin.setValue(clamped.d3d11_mip_lod_bias)
             self.orbit_sensitivity_spin.setValue(clamped.orbit_sensitivity)
             self.pan_sensitivity_spin.setValue(clamped.pan_sensitivity)
             self.invert_orbit_x_checkbox.setChecked(clamped.invert_orbit_x)
@@ -1407,6 +1651,8 @@ class SettingsTab(QWidget):
             self.ambient_strength_spin.setValue(clamped.ambient_strength)
             self.diffuse_wrap_bias_spin.setValue(clamped.diffuse_wrap_bias)
             self.diffuse_light_scale_spin.setValue(clamped.diffuse_light_scale)
+            self.d3d11_light_azimuth_spin.setValue(clamped.d3d11_light_azimuth_degrees)
+            self.d3d11_light_elevation_spin.setValue(clamped.d3d11_light_elevation_degrees)
             self.normal_strength_cap_spin.setValue(clamped.normal_strength_cap)
             self.normal_strength_floor_spin.setValue(clamped.normal_strength_floor)
             self.height_effect_max_spin.setValue(clamped.height_effect_max)
@@ -1419,6 +1665,11 @@ class SettingsTab(QWidget):
             self.shininess_min_spin.setValue(clamped.shininess_min)
             self.shininess_max_spin.setValue(clamped.shininess_max)
             self.height_shininess_boost_spin.setValue(clamped.height_shininess_boost)
+            self.d3d11_ao_strength_spin.setValue(clamped.d3d11_ao_strength)
+            self.d3d11_roughness_bias_spin.setValue(clamped.d3d11_roughness_bias)
+            self.d3d11_metalness_scale_spin.setValue(clamped.d3d11_metalness_scale)
+            self.d3d11_environment_strength_spin.setValue(clamped.d3d11_environment_strength)
+            self.d3d11_emissive_gain_spin.setValue(clamped.d3d11_emissive_gain)
         finally:
             for widget in self._model_preview_setting_widgets():
                 widget.blockSignals(False)
@@ -1452,6 +1703,16 @@ class SettingsTab(QWidget):
                     self.render_diagnostic_mode_combo.currentData()
                     or ModelPreviewRenderSettings().render_diagnostic_mode
                 ),
+                d3d11_view_mode=str(
+                    self.d3d11_view_mode_combo.currentData() or ModelPreviewRenderSettings().d3d11_view_mode
+                ),
+                d3d11_normal_y_mode=str(
+                    self.d3d11_normal_y_mode_combo.currentData() or ModelPreviewRenderSettings().d3d11_normal_y_mode
+                ),
+                d3d11_texture_address_mode=str(
+                    self.d3d11_texture_address_mode_combo.currentData()
+                    or ModelPreviewRenderSettings().d3d11_texture_address_mode
+                ),
                 alpha_handling_mode=str(
                     self.alpha_handling_combo.currentData() or ModelPreviewRenderSettings().alpha_handling_mode
                 ),
@@ -1475,13 +1736,17 @@ class SettingsTab(QWidget):
                 disable_lighting=self.disable_lighting_checkbox.isChecked(),
                 disable_depth_test=self.disable_depth_test_checkbox.isChecked(),
                 show_texture_debug_strip=self.show_texture_debug_strip_checkbox.isChecked(),
+                d3d11_cull_back_faces=self.d3d11_cull_back_faces_checkbox.isChecked(),
                 solo_batch_index=self.solo_batch_spin.value(),
                 preview_texture_max_dimension=self.preview_texture_max_dimension_spin.value(),
                 low_quality_texture_max_dimension=self.low_quality_texture_max_dimension_spin.value(),
                 max_anisotropy=self.max_anisotropy_spin.value(),
+                d3d11_mip_lod_bias=self.d3d11_mip_lod_bias_spin.value(),
                 ambient_strength=self.ambient_strength_spin.value(),
                 diffuse_wrap_bias=self.diffuse_wrap_bias_spin.value(),
                 diffuse_light_scale=self.diffuse_light_scale_spin.value(),
+                d3d11_light_azimuth_degrees=self.d3d11_light_azimuth_spin.value(),
+                d3d11_light_elevation_degrees=self.d3d11_light_elevation_spin.value(),
                 orbit_sensitivity=self.orbit_sensitivity_spin.value(),
                 pan_sensitivity=self.pan_sensitivity_spin.value(),
                 invert_orbit_x=self.invert_orbit_x_checkbox.isChecked(),
@@ -1500,6 +1765,11 @@ class SettingsTab(QWidget):
                 shininess_min=self.shininess_min_spin.value(),
                 shininess_max=self.shininess_max_spin.value(),
                 height_shininess_boost=self.height_shininess_boost_spin.value(),
+                d3d11_ao_strength=self.d3d11_ao_strength_spin.value(),
+                d3d11_roughness_bias=self.d3d11_roughness_bias_spin.value(),
+                d3d11_metalness_scale=self.d3d11_metalness_scale_spin.value(),
+                d3d11_environment_strength=self.d3d11_environment_strength_spin.value(),
+                d3d11_emissive_gain=self.d3d11_emissive_gain_spin.value(),
             )
         )
 

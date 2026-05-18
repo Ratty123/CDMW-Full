@@ -255,6 +255,40 @@ function Get-BuildProfileDescription {
     }
 }
 
+function Write-BuildProgress {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(0, 100)]
+        [int]$Percent,
+        [Parameter(Mandatory = $true)]
+        [string]$Stage
+    )
+
+    Write-Host "::progress::$Percent::$Stage"
+}
+
+function Test-NativeOutputsPresent {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("Release", "Debug")]
+        [string]$Configuration
+    )
+
+    $required = @(
+        "native\cd_texture_dx\build\$Configuration\cd-texture-dx.exe",
+        "native\cdmw_preview_core\build\$Configuration\cdmw-preview-core.exe",
+        "native\cdmw_d3d11_preview\build\$Configuration\cdmw-d3d11-preview.exe",
+        "native\cdmw_archive_accelerator\build\$Configuration\cdmw-archive-accelerator.exe"
+    )
+
+    foreach ($relativePath in $required) {
+        if (-not (Test-Path -LiteralPath (Join-Path $scriptDir $relativePath))) {
+            return $false
+        }
+    }
+    return $true
+}
+
 function Write-BuildSummary {
     param(
         [Parameter(Mandatory = $true)]
@@ -304,15 +338,18 @@ $finalOutputPath = if ($Mode -eq "onefile") {
 }
 
 Write-BuildSummary -BuildMode $Mode -Profile $BuildProfile -OutputPath $finalOutputPath
+Write-BuildProgress -Percent 2 -Stage "Build plan ready"
 
 if ($DescribeOnly) {
     return
 }
 
+Write-BuildProgress -Percent 5 -Stage "Preparing output folders"
 Stop-AppProcesses -NamePrefixes @($appName, $legacyAppNames)
 New-Item -ItemType Directory -Path $stableDistDir -Force | Out-Null
 New-Item -ItemType Directory -Path $stableBuildDir -Force | Out-Null
 
+Write-BuildProgress -Percent 8 -Stage "Checking bundled runtimes"
 $resolvedVgmstreamRuntimeDir = Ensure-VgmstreamRuntime -RuntimeDir $vgmstreamRuntimeDir
 if (-not (Test-Path -LiteralPath (Join-Path $resolvedVgmstreamRuntimeDir "vgmstream-cli.exe"))) {
     throw "vgmstream runtime is incomplete: $resolvedVgmstreamRuntimeDir"
@@ -320,13 +357,21 @@ if (-not (Test-Path -LiteralPath (Join-Path $resolvedVgmstreamRuntimeDir "vgmstr
 
 if (-not $SkipNativeBuild) {
     $nativeConfig = if ($BuildProfile -eq "debug") { "Debug" } else { "Release" }
-    Write-Host "Building native texture and D3D11 preview helpers ($nativeConfig)..."
-    & (Join-Path $scriptDir "build_native_windows.ps1") -Configuration $nativeConfig
-    if ($LASTEXITCODE -ne 0) {
-        throw "Native helper build failed with exit code $LASTEXITCODE."
+    if ($BuildProfile -eq "fast" -and (Test-NativeOutputsPresent -Configuration $nativeConfig)) {
+        Write-BuildProgress -Percent 16 -Stage "Native helpers already built"
+        Write-Host "Skipping native helper build for fast profile; existing $nativeConfig binaries found."
+    } else {
+        Write-BuildProgress -Percent 12 -Stage "Building native helpers"
+        Write-Host "Building native texture and D3D11 preview helpers ($nativeConfig)..."
+        & (Join-Path $scriptDir "build_native_windows.ps1") -Configuration $nativeConfig
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native helper build failed with exit code $LASTEXITCODE."
+        }
+        Write-BuildProgress -Percent 20 -Stage "Native helpers ready"
     }
 } else {
     Write-Warning "Skipping native helper build. Release packaging still requires existing native binaries."
+    Write-BuildProgress -Percent 16 -Stage "Native helper build skipped"
 }
 
 $pyInstallerArgs = @(
@@ -347,6 +392,7 @@ if ($BuildProfile -ne "fast") {
 }
 
 if ($BuildProfile -ne "fast") {
+    Write-BuildProgress -Percent 24 -Stage "Cleaning PyInstaller cache"
     Remove-PathWithRetries -LiteralPath (Join-Path $stableBuildDir $appName) -Recurse
     foreach ($legacyAppName in $legacyAppNames) {
         Remove-PathWithRetries -LiteralPath (Join-Path $stableBuildDir $legacyAppName) -Recurse
@@ -355,10 +401,12 @@ if ($BuildProfile -ne "fast") {
 }
 Remove-PathWithRetries -LiteralPath $pyInstallerDistDir -Recurse
 
+Write-BuildProgress -Percent 28 -Stage "Starting PyInstaller"
 Write-Host "Building $appName in $Mode/$BuildProfile mode..."
 Invoke-PyInstallerBuild -PythonExe $pythonExe -Arguments $pyInstallerArgs -BuildMode $Mode -Profile $BuildProfile
 
 if ($Mode -eq "onefile" -and $BuildProfile -ne "fast") {
+    Write-BuildProgress -Percent 92 -Stage "Validating onefile archive"
     $candidateOnefileExe = Join-Path $pyInstallerDistDir "$appName.exe"
     try {
         Test-OnefileArchiveIntegrity -PythonExe $pythonExe -ExePath $candidateOnefileExe
@@ -372,8 +420,10 @@ if ($Mode -eq "onefile" -and $BuildProfile -ne "fast") {
     }
 } elseif ($Mode -eq "onefile") {
     Write-Host "Skipping onefile archive validation for fast profile."
+    Write-BuildProgress -Percent 94 -Stage "Onefile validation skipped"
 }
 
+Write-BuildProgress -Percent 97 -Stage "Publishing build output"
 if ($Mode -eq "onefile") {
     $builtExe = Join-Path $pyInstallerDistDir "$appName.exe"
     if (-not (Test-Path -LiteralPath $builtExe)) {
@@ -403,6 +453,7 @@ if ($Mode -eq "onefile") {
     Move-PathWithRetries -SourcePath $builtDir -DestinationPath $finalOutputPath
 }
 
+Write-BuildProgress -Percent 100 -Stage "Build complete"
 Write-Host "Build complete."
 if ($Mode -eq "onefile") {
     Write-Host "Output file: $finalOutputPath"

@@ -28,6 +28,35 @@ if (-not (Test-Path -LiteralPath $cmake)) {
     $cmake = "cmake"
 }
 
+function Clear-StaleCMakeBuildDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BuildDir
+    )
+
+    $cachePath = Join-Path $BuildDir "CMakeCache.txt"
+    if (-not (Test-Path -LiteralPath $cachePath)) {
+        return
+    }
+
+    $cache = Get-Content -LiteralPath $cachePath -Raw
+    $generatorMatch = [regex]::Match($cache, '(?m)^CMAKE_GENERATOR:INTERNAL=(.*)$')
+    $platformMatch = [regex]::Match($cache, '(?m)^CMAKE_GENERATOR_PLATFORM:INTERNAL=(.*)$')
+    $generator = if ($generatorMatch.Success) { $generatorMatch.Groups[1].Value.Trim() } else { "" }
+    $platform = if ($platformMatch.Success) { $platformMatch.Groups[1].Value.Trim() } else { "" }
+    if ($generator -eq "Visual Studio 17 2022" -and $platform -eq "x64") {
+        return
+    }
+
+    $buildDirName = Split-Path -Leaf $BuildDir
+    if ($buildDirName -ne "build") {
+        throw "Refusing to remove unexpected CMake build directory: $BuildDir"
+    }
+
+    Write-Host "Removing stale CMake build directory for generator/platform change: $BuildDir (generator='$generator', platform='$platform')"
+    Remove-Item -LiteralPath $BuildDir -Recurse -Force
+}
+
 function Invoke-NativeBuild {
     param(
         [Parameter(Mandatory = $true)]
@@ -39,6 +68,9 @@ function Invoke-NativeBuild {
     $buildDir = Join-Path $ProjectDir "build"
     if ($Clean -and (Test-Path -LiteralPath $buildDir)) {
         Remove-Item -LiteralPath $buildDir -Recurse -Force
+    }
+    if (Test-Path -LiteralPath $buildDir) {
+        Clear-StaleCMakeBuildDirectory -BuildDir $buildDir
     }
     New-Item -ItemType Directory -Path $buildDir -Force | Out-Null
 
@@ -71,3 +103,22 @@ Invoke-NativeBuild `
 Invoke-NativeBuild `
     -ProjectDir (Join-Path $scriptDir "native\cdmw_d3d11_preview") `
     -ExeRelativePath ("build\$Configuration\cdmw-d3d11-preview.exe")
+
+Invoke-NativeBuild `
+    -ProjectDir (Join-Path $scriptDir "native\cdmw_archive_accelerator") `
+    -ExeRelativePath ("build\$Configuration\cdmw-archive-accelerator.exe")
+
+$cargo = Get-Command cargo -ErrorAction SilentlyContinue
+if ($cargo) {
+    Push-Location (Join-Path $scriptDir "native\cd_hkx")
+    try {
+        & $cargo.Source build --release
+        if ($LASTEXITCODE -ne 0) {
+            throw "Rust HKX native build failed with exit code $LASTEXITCODE."
+        }
+    } finally {
+        Pop-Location
+    }
+} else {
+    Write-Host "cargo was not found; skipping optional native cd-hkx build."
+}

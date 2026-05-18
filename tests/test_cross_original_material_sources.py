@@ -290,6 +290,76 @@ class CrossOriginalMaterialSourceTests(unittest.TestCase):
         self.assertNotIn("character/texture/donor_n.dds", patched)
         self.assertTrue(any("Donor material profile grafted" in warning for warning in report.warnings))
 
+    def test_authoritative_donor_recipe_replaces_old_target_material_bindings(self) -> None:
+        target_entry = SimpleNamespace(path="character/model/target.pac_xml")
+        target_sidecar = """
+<SkinnedMeshMaterialWrapper _subMeshName="target_horn" ItemID="10">
+  <Material _materialName="TargetShader">
+    <Vector Name="_parameters">
+      <MaterialParameterTexture StringItemID="_normalTexture" _name="_normalTexture" Index="0">
+        <ResourceReferencePath_ITexture Name="_value" _path="character/texture/old_target_n.dds"/>
+      </MaterialParameterTexture>
+      <MaterialParameterTexture StringItemID="_overlayColorTexture" _name="_overlayColorTexture" Index="1">
+        <ResourceReferencePath_ITexture Name="_value" _path="character/texture/old_target_base.dds"/>
+      </MaterialParameterTexture>
+    </Vector>
+  </Material>
+</SkinnedMeshMaterialWrapper>
+"""
+        donor_sidecar = """
+<SkinnedMeshMaterialWrapper _subMeshName="donor_eye" ItemID="90">
+  <Material _materialName="DonorStandardShader">
+    <Vector Name="_parameters">
+      <MaterialParameterTexture StringItemID="_normalTexture" _name="_normalTexture" Index="0">
+        <ResourceReferencePath_ITexture Name="_value" _path="character/texture/donor_n.dds"/>
+      </MaterialParameterTexture>
+      <MaterialParameterTexture StringItemID="_overlayColorTexture" _name="_overlayColorTexture" Index="1">
+        <ResourceReferencePath_ITexture Name="_value" _path="character/texture/donor_base.dds"/>
+      </MaterialParameterTexture>
+      <MaterialParameterTexture StringItemID="_colorBlendingMaskTexture" _name="_colorBlendingMaskTexture" Index="2">
+        <ResourceReferencePath_ITexture Name="_value" _path="character/texture/donor_ma.dds"/>
+      </MaterialParameterTexture>
+    </Vector>
+  </Material>
+</SkinnedMeshMaterialWrapper>
+"""
+        plan = StaticDonorMaterialPlan(
+            target_material_name="target_horn",
+            donor_sidecar_path="character/model/donor.pac_xml",
+            donor_sidecar_text=donor_sidecar,
+            donor_sidecar_kind="pac_xml",
+            donor_material_name="donor_eye",
+            donor_submesh_name="donor_eye",
+            donor_shader_family="DonorStandardShader",
+            patch_mode="authoritative_recipe",
+        )
+
+        payloads, report = build_texture_replacement_payloads(
+            obj_mesh=_mesh(),
+            rebuilt_mesh=_mesh(),
+            texture_files=(),
+            original_texture_refs=(),
+            original_sidecars=((target_entry, target_sidecar),),
+            submesh_mappings=[StaticSubmeshMapping(0, "target_horn", [0], 0)],
+            texconv_path=None,
+            read_original_texture_bytes=lambda _entry: b"",
+            original_texture_source_path=lambda _entry: SimpleNamespace(),
+            donor_material_plans=(plan,),
+            pac_driven_sidecar=True,
+        )
+
+        self.assertEqual(["sidecar_generated"], [payload.kind for payload in payloads])
+        patched = payloads[0].payload_data.decode("utf-8")
+        self.assertIn('_subMeshName="target_horn"', patched)
+        self.assertNotIn('_subMeshName="donor_eye"', patched)
+        self.assertIn("DonorStandardShader", patched)
+        self.assertIn("character/texture/donor_base.dds", patched)
+        self.assertIn("character/texture/donor_n.dds", patched)
+        self.assertIn("character/texture/donor_ma.dds", patched)
+        self.assertNotIn("character/texture/old_target_base.dds", patched)
+        self.assertNotIn("character/texture/old_target_n.dds", patched)
+        self.assertTrue(any("Authoritative donor material recipe grafted" in warning for warning in report.warnings))
+
     def test_donor_original_dds_reference_stays_sidecar_only(self) -> None:
         target_entry = SimpleNamespace(path="character/model/target.pac_xml")
         plan = StaticDonorMaterialPlan(

@@ -25,6 +25,7 @@ from urllib.parse import unquote, urlparse
 from .logging import get_logger
 from .mesh_importer import import_obj
 from .mesh_parser import ParsedMesh, SubMesh, _compute_smooth_normals, parse_mesh
+from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
 
 logger = get_logger("core.scene_importer")
 
@@ -39,6 +40,12 @@ SCENE_SIDECAR_SOURCE_EXTENSIONS = {
     ".pamlod_xml",
     ".app_xml",
     ".prefabdata_xml",
+}
+SCENE_COMPANION_SOURCE_EXTENSIONS = {
+    ".prefab",
+    ".meshinfo",
+    ".material",
+    ".paa_metabin",
 }
 _GLTF_COMPONENT_FORMATS = {
     5120: ("b", 1, True),
@@ -658,7 +665,16 @@ def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
             raise ValueError(f"{source_path.suffix.upper().lstrip('.')} source did not contain recoverable mesh geometry: {source_path}")
         discovered_files = discover_local_mesh_supplemental_files(source_path, mesh)
         discovered_textures = tuple(path for path in discovered_files if path.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS)
-        discovered_sidecars = tuple(path for path in discovered_files if path.suffix.lower() in SCENE_SIDECAR_SOURCE_EXTENSIONS)
+        discovered_supplemental = tuple(
+            path
+            for path in discovered_files
+            if path.suffix.lower() in SCENE_SIDECAR_SOURCE_EXTENSIONS
+            or path.suffix.lower() in SCENE_COMPANION_SOURCE_EXTENSIONS
+        )
+        discovered_sidecars = tuple(path for path in discovered_supplemental if path.suffix.lower() in SCENE_SIDECAR_SOURCE_EXTENSIONS)
+        discovered_companions = tuple(
+            path for path in discovered_supplemental if path.suffix.lower() in SCENE_COMPANION_SOURCE_EXTENSIONS
+        )
         diagnostics = [
             f"Parsed local {source_path.suffix.upper().lstrip('.')} mesh source for Mesh Replacement.",
         ]
@@ -668,6 +684,8 @@ def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
             )
         if discovered_sidecars:
             diagnostics.append(f"Discovered {len(discovered_sidecars):,} local material sidecar file(s).")
+        if discovered_companions:
+            diagnostics.append(f"Discovered {len(discovered_companions):,} local Crimson companion metadata file(s).")
         if discovered_textures:
             diagnostics.append(f"Discovered {len(discovered_textures):,} local DDS/texture file(s).")
         return _result_with_external_audit(
@@ -676,7 +694,7 @@ def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
                 mesh=mesh,
                 diagnostics=tuple(diagnostics),
                 discovered_texture_files=discovered_textures,
-                discovered_supplemental_files=discovered_sidecars,
+                discovered_supplemental_files=discovered_supplemental,
             ),
         )
     raise ValueError(f"Unsupported mesh import format: {source_path.suffix or source_path.name}")
@@ -891,6 +909,7 @@ def import_gltf(path: str | Path) -> SceneImportResult:
         material_texture_slots,
         material_workflows,
         material_flags,
+        material_preview_parameters,
     ) = _gltf_material_info(payload)
     submeshes: list[SubMesh] = []
     material_bindings: list[ImportedMaterialBinding] = []
@@ -942,6 +961,8 @@ def import_gltf(path: str | Path) -> SceneImportResult:
                 material_index,
                 material_colors=material_colors,
                 material_texture_slots=material_texture_slots,
+                material_flags=material_flags,
+                material_preview_parameters=material_preview_parameters,
             )
             submeshes.append(copied)
             slots = tuple(
@@ -1191,6 +1212,7 @@ def discover_local_mesh_supplemental_files(path: str | Path, mesh: Optional[Pars
     discovered: list[Path] = []
     sidecars = _discover_local_mesh_sidecars(source_path)
     discovered.extend(sidecars)
+    discovered.extend(_discover_local_mesh_companion_files(source_path))
     for texture_reference in _local_sidecar_texture_references(sidecars):
         texture_path = _resolve_local_texture_reference(source_path, texture_reference)
         if texture_path is not None:
@@ -1257,7 +1279,7 @@ def _discover_material_named_texture_files(scene_path: Path, material_names: set
             if not candidate.is_file() or candidate.suffix.lower() not in SCENE_TEXTURE_SOURCE_EXTENSIONS:
                 continue
             stem = candidate.stem.lower()
-            if any(stem.startswith(material_name) for material_name in names):
+            if any(stem.startswith(material_name) or material_name in stem for material_name in names):
                 discovered.append(candidate)
         if search_limited:
             break
@@ -1276,6 +1298,8 @@ def _nearby_scene_texture_roots(scene_path: Path) -> list[Path]:
         scene_path.parent / "textures",
         scene_path.parent / "texture",
         scene_path.parent,
+        scene_path.parent.parent / "textures",
+        scene_path.parent.parent / "texture",
     ]
     seen: set[str] = set()
     roots: list[Path] = []
@@ -1362,6 +1386,50 @@ def _discover_local_mesh_sidecars(source_path: Path) -> tuple[Path, ...]:
                 discovered.append(candidate)
     except OSError:
         pass
+    return tuple(_dedupe_paths(discovered))
+
+
+def _discover_local_mesh_companion_files(source_path: Path) -> tuple[Path, ...]:
+    """Find non-texture Crimson companion files that may affect a complete swap."""
+    if source_path.suffix.lower() not in LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS:
+        return ()
+    stem_key = source_path.stem.lower()
+    discovered: list[Path] = []
+    for extension in SCENE_COMPANION_SOURCE_EXTENSIONS:
+        candidate = source_path.with_suffix(extension)
+        if candidate.is_file():
+            discovered.append(candidate)
+
+    search_roots = [source_path.parent]
+    package_root = _local_package_root(source_path)
+    if package_root != source_path.parent:
+        search_roots.append(package_root)
+    seen_roots: set[str] = set()
+    scanned = 0
+    for root in search_roots:
+        if not root.is_dir():
+            continue
+        root_key = str(root).lower()
+        if root_key in seen_roots:
+            continue
+        seen_roots.add(root_key)
+        try:
+            iterator = root.rglob("*") if root == package_root else root.iterdir()
+            for candidate in iterator:
+                scanned += 1
+                if scanned > _SCENE_TEXTURE_DISCOVERY_MAX_FILES:
+                    logger.info(
+                        "Stopped local Crimson companion discovery for %s after scanning %d filesystem entries.",
+                        source_path,
+                        _SCENE_TEXTURE_DISCOVERY_MAX_FILES,
+                    )
+                    return tuple(_dedupe_paths(discovered))
+                if not candidate.is_file() or candidate.suffix.lower() not in SCENE_COMPANION_SOURCE_EXTENSIONS:
+                    continue
+                if candidate.stem.lower().startswith(stem_key):
+                    discovered.append(candidate)
+        except OSError:
+            continue
     return tuple(_dedupe_paths(discovered))
 
 
@@ -1579,6 +1647,7 @@ def _gltf_material_info(
     dict[int, dict[str, str]],
     dict[int, str],
     dict[int, dict[str, object]],
+    dict[int, tuple[PreviewMaterialParameterInput, ...]],
 ]:
     material_names: dict[int, str] = {}
     material_textures: dict[int, str] = {}
@@ -1586,6 +1655,7 @@ def _gltf_material_info(
     material_texture_slots: dict[int, dict[str, str]] = {}
     material_workflows: dict[int, str] = {}
     material_flags: dict[int, dict[str, object]] = {}
+    material_preview_parameters: dict[int, tuple[PreviewMaterialParameterInput, ...]] = {}
     textures = payload.document.get("textures", []) or []
     images = payload.document.get("images", []) or []
     for material_index, material in enumerate(payload.document.get("materials", []) or []):
@@ -1596,6 +1666,25 @@ def _gltf_material_info(
             "alpha_mode": str(material.get("alphaMode", "") or ""),
             "double_sided": bool(material.get("doubleSided", False)),
         }
+        preview_parameters: list[PreviewMaterialParameterInput] = []
+        alpha_mode = str(material.get("alphaMode", "") or "").strip()
+        if alpha_mode:
+            preview_parameters.append(
+                PreviewMaterialParameterInput(
+                    parameter_kind="string",
+                    parameter_name="_gltfAlphaMode",
+                    value=alpha_mode,
+                )
+            )
+        if bool(material.get("doubleSided", False)):
+            preview_parameters.append(
+                PreviewMaterialParameterInput(
+                    parameter_kind="bool",
+                    parameter_name="_gltfDoubleSided",
+                    value="true",
+                    numeric_value=1.0,
+                )
+            )
         pbr = material.get("pbrMetallicRoughness", {})
         material_slots: dict[str, str] = {}
         texture_infos: list[tuple[str, object]] = []
@@ -1614,6 +1703,23 @@ def _gltf_material_info(
                 material_colors[material_index] = (1.0, 1.0, 1.0)
             texture_infos.append(("base", pbr.get("baseColorTexture")))
             texture_infos.append(("material", pbr.get("metallicRoughnessTexture")))
+            for key, parameter_name in (
+                ("metallicFactor", "_metallicFactor"),
+                ("roughnessFactor", "_roughnessFactor"),
+            ):
+                if key in pbr:
+                    try:
+                        numeric = float(pbr.get(key))
+                    except (TypeError, ValueError, OverflowError):
+                        continue
+                    preview_parameters.append(
+                        PreviewMaterialParameterInput(
+                            parameter_kind="float",
+                            parameter_name=parameter_name,
+                            value=f"{numeric:.6f}",
+                            numeric_value=numeric,
+                        )
+                    )
         else:
             material_colors[material_index] = (1.0, 1.0, 1.0)
         extensions = material.get("extensions", {})
@@ -1642,6 +1748,43 @@ def _gltf_material_info(
                 ("emissive", material.get("emissiveTexture")),
             )
         )
+        emissive_factor = material.get("emissiveFactor")
+        if isinstance(emissive_factor, Sequence) and len(emissive_factor) >= 3:
+            try:
+                rgb = tuple(max(0.0, min(1.0, float(value))) for value in emissive_factor[:3])
+            except (TypeError, ValueError, OverflowError):
+                rgb = ()
+            if rgb:
+                preview_parameters.append(
+                    PreviewMaterialParameterInput(
+                        parameter_kind="color",
+                        parameter_name="_emissiveColor",
+                        value="#" + "".join(f"{int(round(component * 255)):02x}" for component in rgb),
+                        color_value=rgb,
+                    )
+                )
+        emissive_strength = 0.0
+        emissive_extension = (
+            extensions.get("KHR_materials_emissive_strength")
+            if isinstance(extensions, dict)
+            else None
+        )
+        if isinstance(emissive_extension, dict):
+            try:
+                emissive_strength = max(0.0, float(emissive_extension.get("emissiveStrength", 0.0)))
+            except (TypeError, ValueError, OverflowError):
+                emissive_strength = 0.0
+        if emissive_strength <= 0.0 and material.get("emissiveTexture") is not None:
+            emissive_strength = 1.0
+        if emissive_strength > 0.0:
+            preview_parameters.append(
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_emissiveIntensity",
+                    value=f"{emissive_strength:.6f}",
+                    numeric_value=emissive_strength,
+                )
+            )
         for slot_kind, texture_info in texture_infos:
             image_path = _gltf_texture_image_path(payload, textures, images, texture_info)
             if image_path is None:
@@ -1653,7 +1796,17 @@ def _gltf_material_info(
                 payload.discovered_texture_files.append(image_path)
         if material_slots:
             material_texture_slots[material_index] = material_slots
-    return material_names, material_textures, material_colors, material_texture_slots, material_workflows, material_flags
+        if preview_parameters:
+            material_preview_parameters[material_index] = tuple(preview_parameters)
+    return (
+        material_names,
+        material_textures,
+        material_colors,
+        material_texture_slots,
+        material_workflows,
+        material_flags,
+        material_preview_parameters,
+    )
 
 
 def _apply_gltf_preview_material_metadata(
@@ -1662,18 +1815,69 @@ def _apply_gltf_preview_material_metadata(
     *,
     material_colors: Mapping[int, tuple[float, float, float]],
     material_texture_slots: Mapping[int, Mapping[str, str]],
+    material_flags: Mapping[int, Mapping[str, object]] = {},
+    material_preview_parameters: Mapping[int, tuple[PreviewMaterialParameterInput, ...]] = {},
 ) -> None:
     if material_index < 0:
         return
+    flags = material_flags.get(material_index, {})
+    alpha_mode = str(flags.get("alpha_mode", "") or "").strip()
+    if alpha_mode:
+        submesh.preview_alpha_mode = alpha_mode
+    if bool(flags.get("double_sided", False)):
+        submesh.preview_double_sided = True
     color = material_colors.get(material_index)
     if color is not None:
         submesh.preview_color = tuple(float(component) for component in color[:3])
     slots = material_texture_slots.get(material_index, {})
+    preview_parameters = tuple(material_preview_parameters.get(material_index, ()) or ())
+    material_inputs: list[PreviewMaterialTextureInput] = []
+
+    def add_material_input(
+        slot_kind: str,
+        path_text: str,
+        *,
+        semantic_type: str,
+        semantic_subtype: str,
+        packed_channels: Sequence[str] = (),
+        shader_family: str = "",
+    ) -> None:
+        normalized_path = str(path_text or "").strip()
+        if not normalized_path:
+            return
+        material_inputs.append(
+            PreviewMaterialTextureInput(
+                slot_kind=slot_kind,
+                parameter_name={
+                    "base": "_baseColorTexture",
+                    "normal": "_normalTexture",
+                    "material": "_metallicRoughnessTexture",
+                    "ao": "_occlusionTexture",
+                    "emissive": "_emissiveIntensityTexture",
+                }.get(slot_kind, ""),
+                source_texture_path=normalized_path,
+                texture_name=Path(normalized_path).name,
+                preview_texture_path=normalized_path,
+                semantic_type=semantic_type,
+                semantic_subtype=semantic_subtype,
+                packed_channels=tuple(packed_channels),
+                material_name=str(submesh.material or submesh.name or "").strip(),
+                shader_family=shader_family,
+                confidence="gltf",
+                visualized=True,
+                material_parameters=preview_parameters,
+            )
+        )
+
+    base_path = str(slots.get("base", "") or "").strip()
+    if base_path:
+        add_material_input("base", base_path, semantic_type="color", semantic_subtype="albedo")
     normal_path = str(slots.get("normal", "") or "").strip()
     if normal_path:
         submesh.preview_normal_texture_path = normal_path
         submesh.preview_normal_texture_name = Path(normal_path).name
         submesh.preview_normal_texture_strength = 0.75
+        add_material_input("normal", normal_path, semantic_type="normal", semantic_subtype="normal")
     specular_gloss_path = str(slots.get("specular_glossiness", "") or "").strip()
     material_path = str(slots.get("material", "") or specular_gloss_path or "").strip()
     if material_path:
@@ -1683,16 +1887,42 @@ def _apply_gltf_preview_material_metadata(
             submesh.preview_material_texture_type = "specular"
             submesh.preview_material_texture_subtype = "specular"
             submesh.preview_material_texture_packed_channels = ("specular", "glossiness")
+            add_material_input(
+                "material",
+                material_path,
+                semantic_type="specular",
+                semantic_subtype="specular_glossiness",
+                packed_channels=("specular", "glossiness"),
+            )
         else:
             submesh.preview_material_texture_type = "material"
-            submesh.preview_material_texture_subtype = "orm"
-            submesh.preview_material_texture_packed_channels = ("ao", "roughness", "metallic")
+            submesh.preview_material_texture_subtype = "metallic_roughness"
+            submesh.preview_material_texture_packed_channels = ("roughness", "metallic")
+            add_material_input(
+                "material",
+                material_path,
+                semantic_type="material",
+                semantic_subtype="metallic_roughness",
+                packed_channels=("roughness", "metallic"),
+            )
     elif str(slots.get("ao", "") or "").strip():
         ao_path = str(slots.get("ao", "") or "").strip()
         submesh.preview_material_texture_path = ao_path
         submesh.preview_material_texture_name = Path(ao_path).name
         submesh.preview_material_texture_type = "ao"
         submesh.preview_material_texture_subtype = "ao"
+        add_material_input("ao", ao_path, semantic_type="ao", semantic_subtype="ao", packed_channels=("ao",))
+    emissive_path = str(slots.get("emissive", "") or "").strip()
+    if emissive_path:
+        add_material_input(
+            "emissive",
+            emissive_path,
+            semantic_type="emissive",
+            semantic_subtype="emissive",
+            shader_family="SkinnedMeshEmissive_Ver2",
+        )
+    if material_inputs:
+        submesh.preview_material_texture_inputs = tuple(material_inputs)
 
 
 def _gltf_texture_image_path(
@@ -2238,6 +2468,26 @@ def _copy_submesh_with_transform(
         vertex_count=len(vertices),
         face_count=len(submesh.faces),
     )
+    for attr_name in (
+        "texture_slots",
+        "preview_color",
+        "preview_alpha_mode",
+        "preview_double_sided",
+        "preview_normal_texture_path",
+        "preview_normal_texture_name",
+        "preview_normal_texture_strength",
+        "preview_material_texture_path",
+        "preview_material_texture_name",
+        "preview_material_texture_type",
+        "preview_material_texture_subtype",
+        "preview_material_texture_packed_channels",
+        "preview_material_texture_inputs",
+        "preview_height_texture_path",
+        "preview_height_texture_name",
+        "preview_sidecar_shader_family",
+    ):
+        if hasattr(submesh, attr_name):
+            setattr(copied, attr_name, getattr(submesh, attr_name))
     return copied
 
 

@@ -91,6 +91,49 @@ class PbdClothPreviewTests(unittest.TestCase):
         self.assertEqual({0.0, 1.0}, set(pin_weights))
         self.assertEqual((0.0, 0.0, 1.0, 1.0), pin_weights)
 
+    def test_pin_weights_anchor_each_detached_hair_island(self) -> None:
+        positions = (
+            (-0.5, 10.0, 0.0),
+            (0.5, 10.0, 0.0),
+            (-0.5, 11.0, 0.0),
+            (0.5, 11.0, 0.0),
+            (-0.5, 0.0, 0.0),
+            (0.5, 0.0, 0.0),
+            (-0.5, 1.0, 0.0),
+            (0.5, 1.0, 0.0),
+        )
+        triangles = ((0, 1, 2), (2, 1, 3), (4, 5, 6), (6, 5, 7))
+
+        pin_weights = build_cloth_pin_weights(positions, simulation_kind="hair", triangles=triangles)
+
+        self.assertEqual((0.0, 0.0, 1.0, 1.0), pin_weights[:4])
+        self.assertEqual((0.0, 0.0, 1.0, 1.0), pin_weights[4:])
+
+    def test_attachment_anchors_pin_horizontal_weapon_flag_near_rigid_mesh(self) -> None:
+        positions = (
+            (-2.0, 0.0, 0.0),
+            (-2.0, 0.4, 0.0),
+            (-1.0, 0.0, 0.0),
+            (-1.0, 0.4, 0.0),
+            (0.0, 0.0, 0.0),
+            (0.0, 0.4, 0.0),
+            (1.0, 0.0, 0.0),
+            (1.0, 0.4, 0.0),
+        )
+        triangles = ((0, 1, 2), (2, 1, 3), (2, 3, 4), (4, 3, 5), (4, 5, 6), (6, 5, 7))
+
+        pin_weights = build_cloth_pin_weights(
+            positions,
+            simulation_kind="spline",
+            triangles=triangles,
+            attachment_positions=((0.0, 0.2, 0.0),),
+        )
+
+        self.assertGreater(pin_weights[4], 0.0)
+        self.assertGreater(pin_weights[5], 0.0)
+        self.assertEqual(0.0, pin_weights[0])
+        self.assertEqual(0.0, pin_weights[1])
+
     def test_builds_cloth_preview_data_for_matching_cloth_mesh(self) -> None:
         positions = _square_positions()
         mesh = ModelPreviewMesh(
@@ -134,25 +177,43 @@ class PbdClothPreviewTests(unittest.TestCase):
         self.assertEqual(((1, 2), (1, 2), (3, 4), (3, 4)), batch.bone_indices)
         self.assertIn("not game/Havok exact", " ".join(batch.notes))
 
-    def test_non_pbd_hair_and_standalone_hkx_do_not_emit_cloth_runtime(self) -> None:
-        positions = _square_positions()
-        model = ModelPreviewData(
-            path="character/model/test_hair.pac",
-            meshes=[
-                ModelPreviewMesh(
-                    material_name="hair_mat",
-                    positions=list(positions),
-                    indices=[0, 1, 2, 2, 1, 3],
-                    source_submesh_index=0,
+    def test_soft_pbd_hair_leather_and_rope_emit_runtime_batches(self) -> None:
+        cases = (
+            ("LongHair", "hair_mat", "hair_cards", "hair"),
+            ("ArmorLeather", "leather_mat", "leather_panel", "leather"),
+            ("HangingRope", "rope_mat", "rope_strand", "rope"),
+        )
+        for pbd_name, material_name, submesh_name, expected_kind in cases:
+            with self.subTest(expected_kind=expected_kind):
+                positions = _square_positions()
+                model = ModelPreviewData(
+                    path=f"character/model/test_{expected_kind}.pac",
+                    meshes=[
+                        ModelPreviewMesh(
+                            material_name=material_name,
+                            positions=list(positions),
+                            indices=[0, 1, 2, 2, 1, 3],
+                            source_submesh_index=0,
+                        )
+                    ],
                 )
-            ],
-        )
-        parsed_mesh = SimpleNamespace(submeshes=[SimpleNamespace(name="hair_cards", material="hair_mat")])
-        hair_hints = collect_pbd_sidecar_hints(
-            ('<ModelProperty><Part _pbdSimulationMaterialName="LongHair" _materialName="hair_mat" _subMeshName="hair_cards" /></ModelProperty>',)
-        )
+                parsed_mesh = SimpleNamespace(submeshes=[SimpleNamespace(name=submesh_name, material=material_name)])
+                hints = collect_pbd_sidecar_hints(
+                    (
+                        f'<ModelProperty><Part _pbdSimulationMaterialName="{pbd_name}" '
+                        f'_materialName="{material_name}" _subMeshName="{submesh_name}" /></ModelProperty>',
+                    )
+                )
 
-        self.assertIsNone(build_cloth_preview_data(model, parsed_mesh, hair_hints, {}))
+                preview = build_cloth_preview_data(model, parsed_mesh, hints, {})
+
+                self.assertIsNotNone(preview)
+                assert preview is not None
+                self.assertEqual(expected_kind, preview.batches[0].simulation_kind)
+                self.assertEqual(expected_kind, preview.batches[0].material_settings.simulation_kind)
+                self.assertIn("PBD physics", preview.summary)
+
+    def test_standalone_hkx_does_not_emit_pbd_runtime(self) -> None:
         self.assertIsNone(
             build_cloth_preview_from_sidecars(
                 ModelPreviewData(path="character/bin__/meshphysics/body.hkx"),
@@ -187,6 +248,16 @@ class PbdClothPreviewTests(unittest.TestCase):
         self.assertEqual("spline", classify_pbd_simulation_kind("WeaponSpline"))
         self.assertEqual("spline", weapon_hints[0].simulation_kind)
         self.assertIsNone(build_cloth_preview_data(model, parsed_mesh, weapon_hints, {}))
+
+    def test_native_d3d11_pbd_runtime_tracks_root_motion(self) -> None:
+        from pathlib import Path
+
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("root_motion_initialized", source)
+        self.assertIn("cloth_root_translation_for_batch", source)
+        self.assertIn("apply_cloth_root_motion(batch)", source)
+        self.assertIn("alignment_non_translation_transform_active", source)
 
     def test_prepare_model_preview_preserves_cloth_for_source_submesh_zero(self) -> None:
         from cdmw.ui.widgets import ModelPreviewWidget

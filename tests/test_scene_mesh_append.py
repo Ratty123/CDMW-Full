@@ -299,6 +299,41 @@ class SceneMeshAppendTests(unittest.TestCase):
             self.assertIn(base_texture.resolve(), discovered)
             self.assertIn(normal_texture.resolve(), discovered)
 
+    def test_obj_texture_discovery_checks_sibling_texture_folder_from_source_subdir(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_dir = root / "source"
+            texture_dir = root / "textures"
+            source_dir.mkdir()
+            texture_dir.mkdir()
+            base_texture = texture_dir / "DragonSlaye_Bake_lambert1_BaseColor.png"
+            normal_texture = texture_dir / "DragonSlaye_Bake_lambert1_Normal.png"
+            base_texture.write_bytes(b"base")
+            normal_texture.write_bytes(b"normal")
+            obj_path = source_dir / "DragonSlayer_Substance.obj"
+            obj_path.write_text(
+                "\n".join(
+                    [
+                        "o blade",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "vt 0 0",
+                        "vt 1 0",
+                        "vt 0 1",
+                        "usemtl lambert1",
+                        "f 1/1 2/2 3/3",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(obj_path)
+            discovered = discover_scene_texture_files(obj_path, result.mesh)
+
+            self.assertIn(base_texture.resolve(), discovered)
+            self.assertIn(normal_texture.resolve(), discovered)
+
     def test_obj_mtl_suffixless_map_kd_sets_submesh_texture(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -196,7 +196,9 @@ class TextSearchPreviewWorker(QObject):
 
 class TextSearchTab(QWidget):
     status_message_requested = Signal(str, bool)
-    SYNTAX_HIGHLIGHT_CHAR_LIMIT = 2_000_000
+    PREVIEW_DISPLAY_CHAR_LIMIT = 750_000
+    SYNTAX_HIGHLIGHT_CHAR_LIMIT = 250_000
+    MATCH_HIGHLIGHT_CHAR_LIMIT = 250_000
     AUTO_PREVIEW_RESULT_LIMIT = 4000
     RESULT_POPULATION_BATCH_SIZE = 300
 
@@ -1168,6 +1170,18 @@ class TextSearchTab(QWidget):
                 ]
                 if part
             )
+        if len(preview.preview_text) > self.PREVIEW_DISPLAY_CHAR_LIMIT:
+            preview_detail_text = "\n".join(
+                part
+                for part in [
+                    preview_detail_text.strip(),
+                    (
+                        f"Preview truncated to {self.PREVIEW_DISPLAY_CHAR_LIMIT:,} characters "
+                        "to keep scrolling and selection responsive."
+                    ),
+                ]
+                if part
+            )
         self.preview_detail_label.setText(preview_detail_text)
         self.preview_text_edit.set_language_for_extension(syntax_extension)
         self._apply_preview_content(preview)
@@ -1199,9 +1213,17 @@ class TextSearchTab(QWidget):
         self._start_preview_worker(request_id, result)
 
     def _apply_preview_content(self, preview: TextSearchPreview) -> None:
-        self.preview_text_edit.setPlainText(preview.preview_text)
-        self.preview_text_cache = preview.preview_text
-        self.preview_search_spans = list(preview.match_spans)
+        preview_text = preview.preview_text
+        display_text = preview_text
+        truncated = len(preview_text) > self.PREVIEW_DISPLAY_CHAR_LIMIT
+        if truncated:
+            display_text = preview_text[: self.PREVIEW_DISPLAY_CHAR_LIMIT] + "\n\n[Preview truncated for UI responsiveness.]"
+        self.preview_text_edit.setPlainText(display_text)
+        self.preview_text_cache = display_text
+        if truncated or len(display_text) > self.MATCH_HIGHLIGHT_CHAR_LIMIT:
+            self.preview_search_spans = []
+        else:
+            self.preview_search_spans = list(preview.match_spans)
         self.preview_find_active_index = -1
         self._handle_preview_find_changed(reset_focus=True)
         if not self.preview_find_spans and self.preview_search_spans:

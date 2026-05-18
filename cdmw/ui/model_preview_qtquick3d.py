@@ -37,6 +37,7 @@ from cdmw.models import (
     PreviewMaterialTextureInput,
     clamp_model_preview_render_settings,
 )
+from cdmw.core.model_preview_orientation import resolve_preview_texture_flip_vertical
 from cdmw.ui.model_preview_material_combiner import (
     QtQuick3DMaterialCombinerSettings,
     combine_qtquick3d_material,
@@ -254,9 +255,12 @@ def _vector_length(values: Sequence[float]) -> float:
 
 def build_qtquick3d_preview_payloads(
     prepared_preview: Optional[PreparedModelPreviewData],
+    *,
+    render_settings: Optional[ModelPreviewRenderSettings] = None,
 ) -> Tuple[QtQuick3DPreviewBatchPayload, ...]:
     if not isinstance(prepared_preview, PreparedModelPreviewData):
         return ()
+    settings = clamp_model_preview_render_settings(render_settings)
     payloads: list[QtQuick3DPreviewBatchPayload] = []
     fallback_palette = (
         (201 / 255.0, 111 / 255.0, 81 / 255.0),
@@ -324,7 +328,12 @@ def build_qtquick3d_preview_payloads(
                 normal_texture_source=_texture_source_url(str(getattr(batch, "preview_normal_texture_path", "") or "")),
                 material_texture_source=material_texture_source,
                 height_texture_source=_texture_source_url(str(getattr(batch, "preview_height_texture_path", "") or "")),
-                texture_flip_vertical=True if texture_flip_value is None else bool(texture_flip_value),
+                texture_flip_vertical=resolve_preview_texture_flip_vertical(
+                    texture_flip_value,
+                    source_format=prepared_preview.format,
+                    source_path=prepared_preview.source_path,
+                    flip_texture_v=settings.flip_texture_v,
+                ),
                 normal_texture_strength=max(0.0, _finite_float(getattr(batch, "preview_normal_texture_strength", 0.0), 0.0)),
                 material_texture_type=material_texture_type,
                 material_texture_subtype=material_texture_subtype,
@@ -1118,7 +1127,9 @@ Item {
             self.set_model(model)
             return
         payload_started = time.perf_counter()
-        payloads = self._prepare_payload_textures(build_qtquick3d_preview_payloads(prepared_preview))
+        payloads = self._prepare_payload_textures(
+            build_qtquick3d_preview_payloads(prepared_preview, render_settings=self.render_settings())
+        )
         self._last_payload_ms = max(0.0, (time.perf_counter() - payload_started) * 1000.0)
         self._current_model = self._clone_model_preview(model)
         self._prepared_preview = prepared_preview
@@ -1163,7 +1174,19 @@ Item {
         return self._current_model
 
     def set_render_settings(self, settings: Optional[ModelPreviewRenderSettings]) -> None:
+        previous = self.render_settings()
         self._render_settings = clamp_model_preview_render_settings(settings)
+        if previous.flip_texture_v != self._render_settings.flip_texture_v and isinstance(
+            self._prepared_preview,
+            PreparedModelPreviewData,
+        ):
+            payload_started = time.perf_counter()
+            payloads = self._prepare_payload_textures(
+                build_qtquick3d_preview_payloads(self._prepared_preview, render_settings=self._render_settings)
+            )
+            self._last_payload_ms = max(0.0, (time.perf_counter() - payload_started) * 1000.0)
+            self._payloads = payloads
+            self._bridge.set_payloads(payloads)
         self._sync_texture_options_to_bridge()
         self._refresh_debug_details()
 

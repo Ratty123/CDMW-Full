@@ -35,6 +35,7 @@ from cdmw.core.mod_package import (
     write_mod_package_manifest,
 )
 from cdmw.core.realesrgan_ncnn import *
+from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
 from cdmw.core.upscale_postprocess import (
     build_source_match_plan_for_decision,
     describe_post_upscale_correction_mode,
@@ -4153,7 +4154,7 @@ def ensure_dds_preview_png(
             f"::{texconv_path.resolve()}::{texconv_stat.st_size}::{texconv_stat.st_mtime_ns}"
         ).encode("utf-8")
     ).hexdigest()
-    cache_dir = Path(tempfile.gettempdir()) / APP_NAME / "preview_cache" / cache_key
+    cache_dir = app_temp_cache_path("preview_cache", cache_key)
     preview_path = cache_dir / f"{dds_path.stem}.png"
     preview_lock = _get_preview_cache_lock(cache_key)
 
@@ -4184,6 +4185,7 @@ def ensure_dds_preview_png(
                         )
                     except Exception:
                         pass
+                    request_app_temp_cache_prune()
                     return preview_path
             except OSError:
                 pass
@@ -4205,6 +4207,7 @@ def ensure_dds_preview_png(
                 )
             except Exception:
                 pass
+            request_app_temp_cache_prune()
             return candidates[0]
 
     raise ValueError(f"texconv did not produce a PNG preview for {dds_path.name}.")
@@ -4307,7 +4310,7 @@ def ensure_dds_display_preview_png(
             f"::{target_width}x{target_height}"
         ).encode("utf-8")
     ).hexdigest()
-    cache_dir = Path(tempfile.gettempdir()) / APP_NAME / "preview_cache_display" / cache_key
+    cache_dir = app_temp_cache_path("preview_cache_display", cache_key)
     preview_path = cache_dir / f"{dds_path.stem}.png"
     preview_lock = _get_preview_cache_lock(cache_key)
 
@@ -4345,6 +4348,7 @@ def ensure_dds_display_preview_png(
                         )
                     except Exception:
                         pass
+                    request_app_temp_cache_prune()
                     return preview_path
             except OSError:
                 pass
@@ -4361,6 +4365,7 @@ def ensure_dds_display_preview_png(
                         )
                     except Exception:
                         pass
+                    request_app_temp_cache_prune()
                     return candidate
             except OSError:
                 continue

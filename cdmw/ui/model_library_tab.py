@@ -12,7 +12,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Callable, Optional
 
-from PySide6.QtCore import QObject, QSettings, Qt, QThread, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QProcess, QSettings, Qt, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices, QImage
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSpinBox,
+    QStackedWidget,
     QSplitter,
     QTreeWidget,
     QTreeWidgetItem,
@@ -68,6 +69,10 @@ from cdmw.core.model_catalogue import (
 )
 from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.scene_importer import SceneImportResult
+from cdmw.rendering.material_channels import resolve_preview_batch_material_channels
+from cdmw.rendering.qtquick3d_preview_package import write_isolated_qtquick3d_preview_package
+from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame, native_d3d11_renderer_command
+from cdmw.ui.themes import get_theme
 from cdmw.ui.widgets import responsive_sidebar_bounds
 from cdmw.ui.widgets import ModelPreviewWidget
 
@@ -97,6 +102,8 @@ class ModelLibraryTab(QWidget):
     import_mesh_requested = Signal(str, object)
     preview_mesh_requested = Signal(str, object)
     item_icon_source_generated = Signal(str, object)
+    RESULTS_FILTER_DEBOUNCE_MS = 140
+    RESULTS_POPULATION_BATCH_SIZE = 200
 
     def __init__(
         self,
@@ -119,6 +126,10 @@ class ModelLibraryTab(QWidget):
         self._inline_preview_request_id = 0
         self._inline_preview_loaded_import_path: Optional[Path] = None
         self._inline_preview_loaded_payload: Optional[dict[str, object]] = None
+        self._inline_d3d11_process: Optional[QProcess] = None
+        self._inline_d3d11_active_package: Optional[Path] = None
+        self._inline_d3d11_status_file: Optional[Path] = None
+        self._inline_d3d11_status_mtime = 0.0
         self._pending_icon_generation_request_id = 0
         self._task_status_active = False
         self._result_sort_column = int(self.settings.value("model_library/result_sort_column", 1) or 1)
@@ -136,6 +147,26 @@ class ModelLibraryTab(QWidget):
         self._auto_preview_timer.setSingleShot(True)
         self._auto_preview_timer.setInterval(350)
         self._auto_preview_timer.timeout.connect(self._preview_current_model_if_auto_enabled)
+        self._results_filter_timer = QTimer(self)
+        self._results_filter_timer.setSingleShot(True)
+        self._results_filter_timer.setInterval(self.RESULTS_FILTER_DEBOUNCE_MS)
+        self._results_filter_timer.timeout.connect(self._flush_debounced_results_filter)
+        self._results_population_timer = QTimer(self)
+        self._results_population_timer.setSingleShot(True)
+        self._results_population_timer.setInterval(0)
+        self._results_population_timer.timeout.connect(self._flush_results_population_batch)
+        self._pending_results_rows: list[dict[str, object]] = []
+        self._pending_results_total_count = 0
+        self._pending_results_visible_count = 0
+        self._pending_results_selected_payload: Optional[dict[str, object]] = None
+        self._populating_results = False
+        self._activation_preview_timer = QTimer(self)
+        self._activation_preview_timer.setSingleShot(True)
+        self._activation_preview_timer.setInterval(90)
+        self._activation_preview_timer.timeout.connect(self._schedule_auto_inline_preview)
+        self._inline_d3d11_status_timer = QTimer(self)
+        self._inline_d3d11_status_timer.setInterval(200)
+        self._inline_d3d11_status_timer.timeout.connect(self._poll_inline_d3d11_status)
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(10, 10, 10, 10)
@@ -538,9 +569,26 @@ class ModelLibraryTab(QWidget):
             "Select a downloaded or local model to preview it here.",
             theme_key=self.theme_key,
         )
+        inline_render_settings = self.inline_preview_widget.render_settings()
+        inline_render_settings.visible_texture_mode = "sidecar_visible_first"
+        inline_render_settings.render_diagnostic_mode = "base_direct"
+        inline_render_settings.disable_tint = True
+        inline_render_settings.disable_brightness = True
+        inline_render_settings.disable_all_support_maps = True
+        inline_render_settings.disable_normal_map = True
+        inline_render_settings.disable_material_map = True
+        inline_render_settings.disable_height_map = True
+        self.inline_preview_widget.set_render_settings(inline_render_settings)
+        self.inline_preview_widget.set_use_textures(True)
+        self.inline_preview_widget.set_high_quality_textures(True)
         self.inline_preview_widget.setMinimumHeight(280)
-        preview_layout.addWidget(self.inline_preview_widget, stretch=1)
-        self.inline_preview_status_label = QLabel("Local preview resolves glTF/GLB/OBJ/DAE textures from the model folder.")
+        self.inline_preview_stack = QStackedWidget()
+        self.inline_preview_stack.addWidget(self.inline_preview_widget)
+        self.inline_d3d11_preview_host = NativeD3D11PreviewHostFrame()
+        self.inline_d3d11_preview_host.setMinimumHeight(280)
+        self.inline_preview_stack.addWidget(self.inline_d3d11_preview_host)
+        preview_layout.addWidget(self.inline_preview_stack, stretch=1)
+        self.inline_preview_status_label = QLabel("Local preview resolves glTF/GLB/OBJ/DAE textures from the model folder and uses native D3D11 when available.")
         self.inline_preview_status_label.setObjectName("HintLabel")
         self.inline_preview_status_label.setWordWrap(True)
         preview_layout.addWidget(self.inline_preview_status_label)
@@ -554,6 +602,8 @@ class ModelLibraryTab(QWidget):
 
     def _handle_results_current_item_changed(self, _current: Optional[QTreeWidgetItem], _previous: Optional[QTreeWidgetItem]) -> None:
         self._update_selection_state()
+        if self._populating_results:
+            return
         self._schedule_auto_inline_preview()
 
     def _handle_auto_preview_toggled(self, checked: bool) -> None:
@@ -579,7 +629,7 @@ class ModelLibraryTab(QWidget):
             return
         if self._active_results_view == "local":
             self.settings.setValue("model_library/local_search_query", str(text))
-            self._populate_results(self.local_models)
+            self._schedule_results_filter()
             self._update_results_view_label()
             return
         self.settings.setValue("model_library/search_query", str(text))
@@ -589,8 +639,15 @@ class ModelLibraryTab(QWidget):
         key = "model_library/local_search_field" if self._active_results_view == "local" else "model_library/search_field"
         self.settings.setValue(key, str(self.results_filter_field_combo.currentData() or "all"))
         if self._active_results_view == "local":
-            self._populate_results(self.local_models)
+            self._schedule_results_filter()
             self._update_results_view_label()
+
+    def _schedule_results_filter(self) -> None:
+        self._results_filter_timer.start()
+
+    def _flush_debounced_results_filter(self) -> None:
+        if self._active_results_view == "local":
+            self._populate_results(self.local_models)
 
     def _set_results_query_text(self, text: str) -> None:
         self._updating_results_query = True
@@ -611,7 +668,7 @@ class ModelLibraryTab(QWidget):
             self._populate_results(self.local_models)
             self._update_results_view_label()
             self._set_status(
-                f"Showing Local Library: {self.results_tree.topLevelItemCount():,}/{len(self.local_models):,} matching model file(s)."
+                f"Showing Local Library: {self._pending_results_visible_count:,}/{len(self.local_models):,} matching model file(s)."
             )
             return
         self.search_mirror()
@@ -657,10 +714,15 @@ class ModelLibraryTab(QWidget):
     def _schedule_auto_inline_preview(self) -> None:
         if not hasattr(self, "auto_preview_checkbox") or not self.auto_preview_checkbox.isChecked():
             return
+        if not self.isVisible():
+            return
         payload = self._selected_payload()
         if not self._payload_can_preview_here(payload):
             return
         self._auto_preview_timer.start()
+
+    def handle_activated(self) -> None:
+        self._activation_preview_timer.start()
 
     def _preview_current_model_if_auto_enabled(self) -> None:
         if hasattr(self, "auto_preview_checkbox") and self.auto_preview_checkbox.isChecked():
@@ -1128,6 +1190,129 @@ class ModelLibraryTab(QWidget):
             return
         self._load_inline_model_preview(import_path, payload)
 
+    def _inline_preview_renderer_backend(self) -> str:
+        value = str(self.settings.value("preview/archive_renderer_backend", "") or "").strip().lower()
+        if value in {"legacy", "opengl", "legacy_opengl"}:
+            return "inline_opengl"
+        return "native_d3d11"
+
+    def _inline_d3d11_theme_payload(self) -> dict[str, str]:
+        theme = get_theme(self.theme_key)
+        return {
+            "background": str(theme.get("preview_bg", "#0d0f11")),
+            "text": str(theme.get("text_muted", theme.get("text", "#c8d3df"))),
+        }
+
+    def _inline_d3d11_process_running(self) -> bool:
+        process = self._inline_d3d11_process
+        try:
+            return process is not None and process.state() != QProcess.NotRunning
+        except RuntimeError:
+            return False
+
+    def _start_inline_d3d11_process(self, package_dir: Path, *, render_settings: object) -> bool:
+        package_dir = Path(package_dir)
+        status_file = package_dir / "host_status.json"
+        try:
+            status_file.unlink(missing_ok=True)
+        except OSError:
+            pass
+        self._inline_d3d11_active_package = package_dir
+        self._inline_d3d11_status_file = status_file
+        self._inline_d3d11_status_mtime = 0.0
+        if self._inline_d3d11_process_running():
+            self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
+            self.inline_d3d11_preview_host.clear_preview(status_file)
+            if self.inline_d3d11_preview_host.load_package(package_dir, status_file, reset_view=True):
+                self.inline_d3d11_preview_host.set_render_tuning(render_settings)
+                self._inline_d3d11_status_timer.start()
+                return True
+            self._stop_inline_d3d11_process()
+        try:
+            program, arguments = native_d3d11_renderer_command(
+                package_dir,
+                status_file,
+                host_widget=self.inline_d3d11_preview_host,
+                theme_payload=self._inline_d3d11_theme_payload(),
+            )
+        except Exception as exc:
+            self._set_inline_preview_status(f"Native D3D11 preview unavailable: {exc}", error=True)
+            return False
+        process = QProcess(self)
+        process.setProgram(program)
+        process.setArguments(arguments)
+        try:
+            process.setWorkingDirectory(str(Path(__file__).resolve().parents[2]))
+        except Exception:
+            pass
+        process.setProcessChannelMode(QProcess.SeparateChannels)
+        process.readyReadStandardError.connect(lambda process=process: self._handle_inline_d3d11_stderr(process))
+        process.finished.connect(lambda _exit_code, _exit_status, process=process: self._handle_inline_d3d11_finished(process))
+        process.errorOccurred.connect(lambda error, process=process: self._handle_inline_d3d11_error(process, error))
+        self._inline_d3d11_process = process
+        self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
+        self._inline_d3d11_status_timer.start()
+        process.start()
+        return True
+
+    def _handle_inline_d3d11_stderr(self, process: QProcess) -> None:
+        if process is not self._inline_d3d11_process:
+            return
+        try:
+            message = bytes(process.readAllStandardError()).decode("utf-8", errors="replace").strip()
+        except RuntimeError:
+            return
+        if message:
+            self._set_inline_preview_status(f"Native D3D11 preview stderr: {message[-600:]}", error=True)
+
+    def _handle_inline_d3d11_error(self, process: QProcess, error: object) -> None:
+        if process is self._inline_d3d11_process:
+            self._set_inline_preview_status(f"Native D3D11 preview process error: {error}", error=True)
+
+    def _handle_inline_d3d11_finished(self, process: QProcess) -> None:
+        if process is self._inline_d3d11_process:
+            self._inline_d3d11_process = None
+            self._inline_d3d11_status_timer.stop()
+
+    def _poll_inline_d3d11_status(self) -> None:
+        status_file = self._inline_d3d11_status_file
+        if status_file is None:
+            return
+        try:
+            stat = status_file.stat()
+        except OSError:
+            return
+        mtime = float(getattr(stat, "st_mtime", 0.0) or 0.0)
+        if mtime <= float(self._inline_d3d11_status_mtime):
+            return
+        self._inline_d3d11_status_mtime = mtime
+        try:
+            payload = json.loads(status_file.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        if not isinstance(payload, dict):
+            return
+        event = str(payload.get("event", "") or "").strip().lower()
+        if event == "loaded":
+            batch_count = int(payload.get("batch_count", 0) or 0)
+            vertex_count = int(payload.get("vertex_count", 0) or 0)
+            self._set_inline_preview_status(f"Native D3D11 Model Library preview ready: {batch_count:,} batch(es), {vertex_count:,} vertices.")
+        elif event == "error":
+            self._set_inline_preview_status(str(payload.get("message", "Native D3D11 preview failed.") or ""), error=True)
+
+    def _stop_inline_d3d11_process(self) -> None:
+        process = self._inline_d3d11_process
+        self._inline_d3d11_process = None
+        self._inline_d3d11_status_timer.stop()
+        if process is None:
+            return
+        try:
+            if process.state() != QProcess.NotRunning:
+                process.terminate()
+                QTimer.singleShot(1200, lambda process=process: process.kill() if process.state() != QProcess.NotRunning else None)
+        except RuntimeError:
+            return
+
     def _load_inline_model_preview(self, import_path: Path, payload: dict[str, object]) -> None:
         if self._task_thread is not None and self._task_thread.isRunning():
             self._set_inline_preview_status("A model library task is already running.", error=True)
@@ -1135,29 +1320,59 @@ class ModelLibraryTab(QWidget):
         self._inline_preview_request_id += 1
         request_id = self._inline_preview_request_id
         model_name = str(payload.get("name", "") or import_path.stem or "model")
+        renderer_backend = self._inline_preview_renderer_backend()
         self._set_inline_preview_status(f"Preparing preview for {model_name}...")
         self.inline_preview_widget.clear_model(f"Preparing preview for {model_name}...")
+        self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
         self._inline_preview_loaded_import_path = None
         self._inline_preview_loaded_payload = None
+        preview_render_settings = self.inline_preview_widget.render_settings()
 
         def task(progress: Callable[[str], None]) -> object:
             progress(f"Reading model file: {import_path}")
             scene_result = import_scene_mesh_with_report(import_path)
             preview_model = parsed_mesh_to_preview_model(scene_result.mesh)
             texture_count = self._attach_inline_preview_textures(preview_model, scene_result, import_path)
-            prepared_model, prepared_preview = ModelPreviewWidget.prepare_model_preview(preview_model)
+            prepared_model, prepared_preview = ModelPreviewWidget.prepare_model_preview(
+                preview_model,
+                render_settings=preview_render_settings,
+                enable_material_combiner=False,
+            )
+            package_dir = ""
+            package_ms = 0.0
+            if renderer_backend == "native_d3d11":
+                package_started = time.perf_counter()
+                package_dir = str(
+                    write_isolated_qtquick3d_preview_package(
+                        prepared_model,
+                        prepared_preview,
+                        render_settings=preview_render_settings,
+                        use_textures=True,
+                        high_quality_textures=True,
+                        backend="d3d11",
+                        enable_material_combiner=False,
+                        prefer_direct_dds=True,
+                        editor_workspace="model_library",
+                    )
+                )
+                package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
+            material_channel_summary = self._inline_preview_material_channel_summary(prepared_preview)
             mesh_count = len(getattr(preview_model, "meshes", ()) or ())
             audit = getattr(scene_result, "external_audit", None)
             return {
                 "request_id": request_id,
                 "model_name": model_name,
                 "import_path": str(import_path),
+                "renderer_backend": renderer_backend,
                 "preview_model": prepared_model,
                 "prepared_preview": prepared_preview,
+                "d3d11_package_dir": package_dir,
+                "d3d11_package_ms": package_ms,
                 "vertices": int(scene_result.mesh.total_vertices),
                 "faces": int(scene_result.mesh.total_faces),
                 "meshes": int(mesh_count),
                 "textures": int(texture_count),
+                "material_channel_summary": material_channel_summary,
                 "diagnostics": tuple(scene_result.diagnostics or ()),
                 "audit_category": str(getattr(audit, "verified_category", "") or ""),
                 "audit_confidence": float(getattr(audit, "confidence", 0.0) or 0.0),
@@ -1176,7 +1391,19 @@ class ModelLibraryTab(QWidget):
                 return
             preview_model = result.get("preview_model")
             prepared_preview = result.get("prepared_preview")
-            self.inline_preview_widget.set_prepared_model(preview_model, prepared_preview)
+            active_renderer = str(result.get("renderer_backend", "") or "").strip().lower()
+            renderer_note = " | renderer: inline OpenGL"
+            if active_renderer == "native_d3d11" and str(result.get("d3d11_package_dir", "") or "").strip():
+                package_dir = Path(str(result.get("d3d11_package_dir", "") or ""))
+                if self._start_inline_d3d11_process(package_dir, render_settings=preview_render_settings):
+                    renderer_note = f" | renderer: native D3D11 package ({float(result.get('d3d11_package_ms', 0.0) or 0.0):.1f} ms)"
+                else:
+                    self.inline_preview_widget.set_prepared_model(preview_model, prepared_preview)
+                    self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
+                    renderer_note = " | renderer: inline OpenGL fallback"
+            else:
+                self.inline_preview_widget.set_prepared_model(preview_model, prepared_preview)
+                self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
             self._inline_preview_loaded_import_path = Path(str(result.get("import_path", "") or import_path))
             self._inline_preview_loaded_payload = dict(payload)
             texture_count = int(result.get("textures", 0) or 0)
@@ -1194,10 +1421,12 @@ class ModelLibraryTab(QWidget):
             audit_text = ""
             if audit_category:
                 audit_text = f" | audit: {audit_category} {float(result.get('audit_confidence', 0.0) or 0.0):.0%}"
+            material_channel_summary = str(result.get("material_channel_summary", "") or "").strip()
+            material_channel_text = f" | channels: {material_channel_summary}" if material_channel_summary else ""
             self._set_inline_preview_status(
                 f"{result.get('model_name', 'Model')} | {int(result.get('meshes', 0)):,} mesh(es), "
                 f"{int(result.get('vertices', 0)):,} vertices, {int(result.get('faces', 0)):,} faces, "
-                f"{texture_count:,} resolved texture slot(s){audit_text}."
+                f"{texture_count:,} resolved texture slot(s){audit_text}{material_channel_text}{renderer_note}."
             )
             self._update_selection_state()
             if int(self._pending_icon_generation_request_id) == int(request_id):
@@ -1252,6 +1481,21 @@ class ModelLibraryTab(QWidget):
         if current_import_path is None or not self._inline_preview_matches(current_import_path):
             self._set_inline_preview_status("The selected model preview is no longer active.", error=True)
             return
+        if self.inline_preview_stack.currentWidget() is self.inline_d3d11_preview_host:
+            output_dir = self.catalogue_dir() / "generated_icons"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_stem = self._generated_icon_stem(payload, loaded_path)
+            output_path = output_dir / f"{output_stem}.png"
+            counter = 1
+            while output_path.exists():
+                counter += 1
+                output_path = output_dir / f"{output_stem}_{counter}.png"
+            if not self.inline_d3d11_preview_host.capture_replacement_icon(output_path):
+                self._set_inline_preview_status("Icon capture failed: native D3D11 preview framebuffer is empty.", error=True)
+                return
+            self._set_inline_preview_status(f"Generated native D3D11 model preview icon: {output_path.name}")
+            self.item_icon_source_generated.emit(str(output_path), dict(self._inline_preview_loaded_payload or payload))
+            return
         if int(getattr(self.inline_preview_widget, "_vertex_count", 0) or 0) <= 0:
             self._set_inline_preview_status("The preview is not render-ready yet.", error=True)
             return
@@ -1278,6 +1522,13 @@ class ModelLibraryTab(QWidget):
             return
         self._set_inline_preview_status(f"Generated model preview icon: {output_path.name}")
         self.item_icon_source_generated.emit(str(output_path), dict(self._inline_preview_loaded_payload or payload))
+
+    def closeEvent(self, event: object) -> None:  # type: ignore[override]
+        self._stop_inline_d3d11_process()
+        try:
+            super().closeEvent(event)  # type: ignore[arg-type]
+        except TypeError:
+            return
 
     def _model_preview_icon_image(self, image: QImage, *, size: int = 512) -> QImage:
         source = image.convertToFormat(QImage.Format.Format_RGBA8888)
@@ -1464,6 +1715,7 @@ class ModelLibraryTab(QWidget):
         if deleted:
             self._texture_status_cache.clear()
             self.inline_preview_widget.clear_model("Select a downloaded or local model to preview it here.")
+            self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
             self._inline_preview_loaded_import_path = None
             self._inline_preview_loaded_payload = None
             self._pending_icon_generation_request_id = 0
@@ -1833,58 +2085,123 @@ class ModelLibraryTab(QWidget):
         self.empty_results_label.setVisible(bool(message))
 
     def _populate_results(self, rows: list[dict[str, object]]) -> None:
+        self._results_filter_timer.stop()
+        self._results_population_timer.stop()
+        self._auto_preview_timer.stop()
+        selected_payload = self._selected_payload()
         total_count = len(rows)
-        rows = self._sort_result_rows(self._filtered_result_rows(rows))
+        visible_rows = self._sort_result_rows(self._filtered_result_rows(rows))
+        self._pending_results_rows = list(visible_rows)
+        self._pending_results_total_count = total_count
+        self._pending_results_visible_count = len(visible_rows)
+        self._pending_results_selected_payload = selected_payload
+        self._populating_results = True
         self.results_tree.setSortingEnabled(False)
+        self.results_tree.blockSignals(True)
+        self.results_tree.setUpdatesEnabled(False)
         self.results_tree.clear()
         self._result_payloads_by_item.clear()
-        for payload in rows:
-            kind = str(payload.get("kind", "") or "")
-            if kind == "mirror":
-                self._apply_mirror_local_state(payload)
-                formats = ", ".join(candidate.format for candidate in self._mirror_candidates_for_payload(payload)) or "-"
-                size_bytes = self._mirror_size_bytes(payload)
-                size = self._format_size(size_bytes) if size_bytes > 0 else "-"
-                location = str(payload.get("viewer_url", "") or payload.get("metadata_url", "") or "")
-                source = "Mirror"
-                local_status = self._mirror_local_status(payload)
-                texture_status = self._texture_status_for_payload(payload)
-                license_label = str(payload.get("license_label", "") or "")
-                creator = str(payload.get("creator_name", "") or payload.get("creator_username", "") or "")
-            else:
-                formats = str(payload.get("extension", "") or "")
-                size_bytes = int(payload.get("size", 0) or 0)
-                size = self._format_size(size_bytes)
-                location = str(payload.get("relative_path", "") or payload.get("path", "") or "")
-                source = str(payload.get("source", "") or "Local")
-                local_status = self._local_payload_status(payload)
-                texture_status = self._texture_status_for_payload(payload)
-                license_label = str(payload.get("license_label", "") or "")
-                creator = str(payload.get("creator_name", "") or payload.get("creator_username", "") or "")
-            item = QTreeWidgetItem(
-                [
-                    "",
-                    str(payload.get("name", "") or "Untitled model"),
-                    source,
-                    local_status,
-                    texture_status,
-                    formats,
-                    size,
-                    license_label,
-                    creator,
-                    location,
-                ]
+        self.results_tree.setUpdatesEnabled(True)
+        self.results_tree.blockSignals(False)
+        self._update_empty_results_message(len(visible_rows), total_count)
+        if visible_rows:
+            self.results_status_label.setText(
+                f"Populating results... 0 / {len(visible_rows):,}"
             )
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(0, Qt.CheckState.Unchecked)
-            item.setData(0, Qt.ItemDataRole.UserRole, payload)
-            item.setData(1, Qt.ItemDataRole.UserRole, payload)
-            self._result_payloads_by_item[id(item)] = payload
-            self.results_tree.addTopLevelItem(item)
-        self._update_empty_results_message(len(rows), total_count)
-        if rows:
-            self.results_tree.setCurrentItem(self.results_tree.topLevelItem(0))
+        self._flush_results_population_batch()
+
+    def _build_result_item(self, payload: dict[str, object]) -> QTreeWidgetItem:
+        kind = str(payload.get("kind", "") or "")
+        if kind == "mirror":
+            self._apply_mirror_local_state(payload)
+            formats = ", ".join(candidate.format for candidate in self._mirror_candidates_for_payload(payload)) or "-"
+            size_bytes = self._mirror_size_bytes(payload)
+            size = self._format_size(size_bytes) if size_bytes > 0 else "-"
+            location = str(payload.get("viewer_url", "") or payload.get("metadata_url", "") or "")
+            source = "Mirror"
+            local_status = self._mirror_local_status(payload)
+            texture_status = self._texture_status_for_payload(payload)
+            license_label = str(payload.get("license_label", "") or "")
+            creator = str(payload.get("creator_name", "") or payload.get("creator_username", "") or "")
+        else:
+            formats = str(payload.get("extension", "") or "")
+            size_bytes = int(payload.get("size", 0) or 0)
+            size = self._format_size(size_bytes)
+            location = str(payload.get("relative_path", "") or payload.get("path", "") or "")
+            source = str(payload.get("source", "") or "Local")
+            local_status = self._local_payload_status(payload)
+            texture_status = self._texture_status_for_payload(payload)
+            license_label = str(payload.get("license_label", "") or "")
+            creator = str(payload.get("creator_name", "") or payload.get("creator_username", "") or "")
+        item = QTreeWidgetItem(
+            [
+                "",
+                str(payload.get("name", "") or "Untitled model"),
+                source,
+                local_status,
+                texture_status,
+                formats,
+                size,
+                license_label,
+                creator,
+                location,
+            ]
+        )
+        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        item.setCheckState(0, Qt.CheckState.Unchecked)
+        item.setData(0, Qt.ItemDataRole.UserRole, payload)
+        item.setData(1, Qt.ItemDataRole.UserRole, payload)
+        self._result_payloads_by_item[id(item)] = payload
+        return item
+
+    def _payload_population_key(self, payload: Optional[dict[str, object]]) -> tuple[str, str, str]:
+        if not isinstance(payload, dict):
+            return ("", "", "")
+        return (
+            str(payload.get("kind", "") or ""),
+            str(payload.get("uid", "") or payload.get("id", "") or ""),
+            str(payload.get("import_path", "") or payload.get("path", "") or payload.get("relative_path", "") or payload.get("name", "") or ""),
+        )
+
+    def _finish_results_population(self) -> None:
+        self.results_tree.setSortingEnabled(False)
+        target_item: Optional[QTreeWidgetItem] = None
+        selected_key = self._payload_population_key(self._pending_results_selected_payload)
+        if any(selected_key):
+            for index in range(self.results_tree.topLevelItemCount()):
+                item = self.results_tree.topLevelItem(index)
+                payload = self._payload_from_item(item)
+                if payload is self._pending_results_selected_payload or self._payload_population_key(payload) == selected_key:
+                    target_item = item
+                    break
+        if target_item is None and self.results_tree.topLevelItemCount() > 0:
+            target_item = self.results_tree.topLevelItem(0)
+        if target_item is not None:
+            self.results_tree.setCurrentItem(target_item)
+        self._pending_results_rows = []
+        self._pending_results_selected_payload = None
+        self._populating_results = False
         self._update_selection_state()
+        self._schedule_auto_inline_preview()
+
+    def _flush_results_population_batch(self) -> None:
+        if not self._pending_results_rows:
+            self._finish_results_population()
+            return
+        batch = self._pending_results_rows[: self.RESULTS_POPULATION_BATCH_SIZE]
+        del self._pending_results_rows[: self.RESULTS_POPULATION_BATCH_SIZE]
+        items = [self._build_result_item(payload) for payload in batch]
+        self.results_tree.setUpdatesEnabled(False)
+        self.results_tree.addTopLevelItems(items)
+        self.results_tree.setUpdatesEnabled(True)
+        populated = self._pending_results_visible_count - len(self._pending_results_rows)
+        self.results_status_label.setText(
+            f"Populating results... {populated:,} / {self._pending_results_visible_count:,}"
+        )
+        if self._pending_results_rows:
+            self._results_population_timer.start()
+            return
+        self._finish_results_population()
 
     def _update_selection_state(self) -> None:
         payload = self._selected_payload()
@@ -2373,6 +2690,53 @@ class ModelLibraryTab(QWidget):
         if not isinstance(scene_result, SceneImportResult):
             return 0
         return attach_scene_preview_textures(preview_model, scene_result, scene_path)
+
+    def _inline_preview_material_channel_summary(self, prepared_preview: object) -> str:
+        batches = tuple(getattr(prepared_preview, "batches", ()) or ())
+        if not batches:
+            return ""
+        channel_counts: dict[str, int] = defaultdict(int)
+        unresolved_counts: dict[str, int] = defaultdict(int)
+        for batch in batches:
+            textures = {
+                "base": str(getattr(batch, "preview_texture_path", "") or ""),
+                "normal": str(getattr(batch, "preview_normal_texture_path", "") or ""),
+                "material": str(getattr(batch, "preview_material_texture_path", "") or ""),
+                "height": str(getattr(batch, "preview_height_texture_path", "") or ""),
+            }
+            dds_textures = {
+                "base": {"source_path": str(getattr(batch, "preview_texture_dds_path", "") or ""), "confidence": "exact"},
+                "normal": {"source_path": str(getattr(batch, "preview_normal_texture_dds_path", "") or ""), "confidence": "exact"},
+                "material": {"source_path": str(getattr(batch, "preview_material_texture_dds_path", "") or ""), "confidence": "unresolved"},
+                "height": {"source_path": str(getattr(batch, "preview_height_texture_dds_path", "") or ""), "confidence": "unresolved"},
+            }
+            payload = {
+                "material_name": str(getattr(batch, "material_name", "") or ""),
+                "texture_name": str(getattr(batch, "texture_name", "") or ""),
+                "textures": {slot: value for slot, value in textures.items() if value},
+                "dds_textures": {slot: value for slot, value in dds_textures.items() if str(value.get("source_path", "") or "")},
+                "material_contract": {
+                    "texture_slots": {
+                        slot: {
+                            "confidence": dds_textures.get(slot, {}).get("confidence", "inferred"),
+                            "diagnostic": "Model Library resolved preview texture",
+                        }
+                        for slot, value in textures.items()
+                        if value or str(dds_textures.get(slot, {}).get("source_path", "") or "")
+                    },
+                    "packed_channels": tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ()),
+                },
+            }
+            contract = resolve_preview_batch_material_channels(payload)
+            for channel in contract.channels.values():
+                channel_counts[channel.sketchfab_channel or channel.channel] += 1
+            for unresolved in contract.unresolved:
+                slot = str(unresolved.get("slot", "") or "").strip()
+                if slot:
+                    unresolved_counts[slot] += 1
+        channel_text = ", ".join(f"{name}:{count}" for name, count in sorted(channel_counts.items())[:8]) or "none"
+        unresolved_text = ", ".join(f"{name}:{count}" for name, count in sorted(unresolved_counts.items())[:6])
+        return f"{channel_text}; unresolved {unresolved_text}" if unresolved_text else channel_text
 
     def _resolve_payload_import_path(self, payload: dict[str, object]) -> Optional[Path]:
         if payload.get("kind") == "mirror":

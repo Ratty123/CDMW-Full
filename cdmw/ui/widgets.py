@@ -100,6 +100,7 @@ from cdmw.core.dds_native import (
     dds_source_path_from_report,
     inspect_dds_native_path,
 )
+from cdmw.core.model_preview_orientation import resolve_preview_texture_flip_vertical
 from cdmw.ui.themes import get_theme
 
 _GL_COLOR_BUFFER_BIT = 0x00004000
@@ -1102,7 +1103,7 @@ class PreviewLabel(QLabel):
         self._drag_start_v = 0
         self._interactive_scale_timer = QTimer(self)
         self._interactive_scale_timer.setSingleShot(True)
-        self._interactive_scale_timer.setInterval(20)
+        self._interactive_scale_timer.setInterval(16)
         self._interactive_scale_timer.timeout.connect(self._flush_interactive_scale)
         self._idle_scale_timer = QTimer(self)
         self._idle_scale_timer.setSingleShot(True)
@@ -1671,8 +1672,21 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._pan_poll_timer.setInterval(16)
         self._pan_poll_timer.timeout.connect(self._poll_pan_drag)
         self._physics_simulation_timer = QTimer(self)
-        self._physics_simulation_timer.setInterval(33)
+        self._physics_simulation_timer.setInterval(16)
         self._physics_simulation_timer.timeout.connect(self._step_physics_simulation_preview)
+
+    def pause_interactive_timers(self) -> None:
+        self._physics_simulation_timer.stop()
+        self._pan_poll_timer.stop()
+
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        super().showEvent(event)
+        self._sync_physics_simulation_timer()
+        self.update()
+
+    def hideEvent(self, event) -> None:  # type: ignore[override]
+        self.pause_interactive_timers()
+        super().hideEvent(event)
 
     def set_theme(self, theme_key: str) -> None:
         self._theme_key = theme_key
@@ -2152,10 +2166,11 @@ class ModelPreviewWidget(QOpenGLWidget):
                         support_maps_disabled=bool(batch.preview_debug_disable_support_maps),
                         has_texture_coordinates=bool(batch.has_texture_coordinates),
                         texture_wrap_repeat=bool(batch.texture_wrap_repeat),
-                        texture_flip_vertical=(
-                            True
-                            if batch.preview_texture_flip_vertical is None
-                            else bool(batch.preview_texture_flip_vertical)
+                        texture_flip_vertical=resolve_preview_texture_flip_vertical(
+                            batch.preview_texture_flip_vertical,
+                            source_format=prepared_preview.format,
+                            source_path=prepared_preview.source_path,
+                            flip_texture_v=self.render_settings().flip_texture_v,
                         ),
                         base_texture_quality=str(batch.preview_base_texture_quality or "").strip().lower(),
                         texture_brightness=float(batch.preview_texture_brightness or 1.0),
@@ -2281,6 +2296,13 @@ class ModelPreviewWidget(QOpenGLWidget):
             cloth_batch = cloth_by_mesh_index.get(int(getattr(batch, "mesh_index", -1)))
             if cloth_batch is None:
                 cloth_batch = cloth_by_source_submesh.get(mesh_source_submesh_index)
+            editor_role = str(getattr(mesh, "preview_role", "") or "").strip()
+            editor_role_key = editor_role.lower()
+            editor_editable = mesh_source_submesh_index >= 0 or (
+                "replacement" in editor_role_key
+                and "reference" not in editor_role_key
+                and "original" not in editor_role_key
+            )
             prepared_batches.append(
                 PreparedModelPreviewBatch(
                     material_name=str(getattr(mesh, "material_name", "") or "").strip(),
@@ -2311,6 +2333,8 @@ class ModelPreviewWidget(QOpenGLWidget):
                     preview_material_texture_subtype=batch.material_texture_subtype,
                     preview_material_texture_packed_channels=tuple(batch.material_texture_packed_channels or ()),
                     preview_material_texture_inputs=cls._preview_material_texture_inputs_for_prepared_batch(mesh, batch),
+                    preview_alpha_mode=str(getattr(mesh, "preview_alpha_mode", "") or "").strip(),
+                    preview_double_sided=bool(getattr(mesh, "preview_double_sided", False)),
                     has_texture_coordinates=bool(batch.has_texture_coordinates),
                     texture_wrap_repeat=bool(batch.texture_wrap_repeat),
                     preview_debug_flip_base_v=False,
@@ -2319,14 +2343,14 @@ class ModelPreviewWidget(QOpenGLWidget):
                     position_y_max=float(getattr(batch, "position_y_max", 0.0) or 0.0),
                     source_submesh_index=mesh_source_submesh_index,
                     source_vertex_indices=emitted_source_vertices,
-                    editor_role=str(getattr(mesh, "preview_role", "") or "").strip(),
+                    editor_role=editor_role,
                     editor_part_name=str(
                         getattr(mesh, "material_name", "")
                         or getattr(mesh, "texture_name", "")
                         or getattr(mesh, "source_submesh_index", "")
                         or ""
                     ).strip(),
-                    editor_editable=mesh_source_submesh_index >= 0,
+                    editor_editable=editor_editable,
                     cloth_preview=cloth_batch,
                 )
             )
@@ -2422,13 +2446,7 @@ class ModelPreviewWidget(QOpenGLWidget):
     def set_use_textures(self, use_textures: bool) -> None:
         previous = bool(self._use_textures)
         self._use_textures = bool(use_textures)
-        if (
-            previous != self._use_textures
-            and self._use_textures
-            and self._render_mode_uses_derived_relief(self._render_settings)
-            and self._gl_ready
-            and self.context() is not None
-        ):
+        if previous != self._use_textures and self._gl_ready and self.context() is not None:
             self.makeCurrent()
             self._clear_gl_textures()
             self._rebuild_gl_textures()
@@ -2732,7 +2750,10 @@ class ModelPreviewWidget(QOpenGLWidget):
         self._rebuild_preview_batches()
 
     def _rebuild_preview_batches(self) -> None:
-        self._vertex_blob, self._vertex_count, self._mesh_batches = self._build_vertex_blob(self._current_model)
+        self._vertex_blob, self._vertex_count, self._mesh_batches = self._build_vertex_blob(
+            self._current_model,
+            flip_texture_v=self.render_settings().flip_texture_v,
+        )
         if not self._mesh_edit_drag_active:
             self._mesh_edit_screen_cache_key = ()
             self._mesh_edit_screen_cache_entries = ()
@@ -3341,6 +3362,72 @@ class ModelPreviewWidget(QOpenGLWidget):
         except Exception:
             return
         output_root = cls._material_combiner_cache_dir(model)
+        combined_result_cache: Dict[Tuple[object, ...], object] = {}
+
+        def _material_combiner_signature(
+            inputs: Sequence[PreviewMaterialTextureInput],
+            *,
+            tangents_usable: bool,
+            normal_strength: float,
+        ) -> Tuple[object, ...]:
+            parts: List[object] = [
+                bool(tangents_usable),
+                round(float(normal_strength or 0.0), 6),
+                round(float(getattr(settings, "normal_strength_floor", 0.5) or 0.5), 6),
+                round(float(getattr(settings, "normal_strength_cap", 1.0) or 1.0), 6),
+                round(float(getattr(settings, "height_effect_max", 0.35) or 0.35), 6),
+                int(getattr(settings, "low_quality_texture_max_dimension", 192) or 192),
+            ]
+            for item in tuple(inputs or ()):
+                parts.append(
+                    (
+                        str(getattr(item, "slot_kind", "") or ""),
+                        str(getattr(item, "parameter_name", "") or ""),
+                        str(getattr(item, "preview_texture_path", "") or ""),
+                        str(getattr(item, "source_texture_path", "") or ""),
+                        str(getattr(item, "texture_name", "") or ""),
+                        str(getattr(item, "semantic_type", "") or ""),
+                        str(getattr(item, "semantic_subtype", "") or ""),
+                        str(getattr(item, "shader_family", "") or ""),
+                        tuple(str(channel or "") for channel in tuple(getattr(item, "packed_channels", ()) or ())),
+                        tuple(
+                            (
+                                str(getattr(parameter, "parameter_name", "") or ""),
+                                str(getattr(parameter, "value", "") or ""),
+                                str(getattr(parameter, "texture_path", "") or ""),
+                                str(getattr(parameter, "numeric_value", "") or ""),
+                                tuple(getattr(parameter, "color_value", ()) or ()),
+                            )
+                            for parameter in tuple(getattr(item, "material_parameters", ()) or ())
+                        ),
+                    )
+                )
+            return tuple(parts)
+
+        def _apply_combined_material(mesh: ModelPreviewMesh, combined: object) -> None:
+            legacy_material_source = cls._local_texture_source_path(getattr(combined, "legacy_material_source", ""))
+            if legacy_material_source:
+                mesh.preview_material_texture_path = legacy_material_source
+                mesh.preview_material_texture_image = None
+                mesh.preview_material_texture_name = Path(legacy_material_source).name
+                mesh.preview_material_texture_type = "material"
+                mesh.preview_material_texture_subtype = "pbr_combined"
+                mesh.preview_material_texture_packed_channels = ("ao", "roughness", "metallic", "specular")
+            base_source = cls._local_texture_source_path(getattr(combined, "base_source", ""))
+            if base_source:
+                mesh.preview_texture_path = base_source
+                mesh.preview_texture_image = None
+            height_source = cls._local_texture_source_path(getattr(combined, "height_source", ""))
+            if height_source and not bool(getattr(settings, "disable_height_map", False)):
+                mesh.preview_height_texture_path = height_source
+                mesh.preview_height_texture_image = None
+                mesh.preview_height_texture_name = Path(height_source).name
+            notes = tuple(str(note) for note in tuple(getattr(combined, "notes", ()) or ()) if str(note))
+            if notes:
+                existing_note = str(getattr(mesh, "preview_texture_approximation_note", "") or "").strip()
+                suffix = "Material combiner: " + "; ".join(notes[:6])
+                mesh.preview_texture_approximation_note = f"{existing_note}; {suffix}" if existing_note else suffix
+
         for mesh_index, mesh in enumerate(meshes):
             if stop_event is not None and stop_event.is_set():
                 raise RunCancelled("Model preview preparation cancelled.")
@@ -3368,6 +3455,18 @@ class ModelPreviewWidget(QOpenGLWidget):
                 tangents_usable=has_usable_tangents,
                 normal_texture_strength=max(0.0, cls._finite_float(getattr(mesh, "preview_normal_texture_strength", 0.0), 0.0)),
             )
+            signature = _material_combiner_signature(
+                inputs,
+                tangents_usable=has_usable_tangents,
+                normal_strength=float(payload.normal_texture_strength or 0.0),
+            )
+            cached_combined = combined_result_cache.get(signature)
+            if cached_combined is not None:
+                _apply_combined_material(mesh, cached_combined)
+                existing_note = str(getattr(mesh, "preview_texture_approximation_note", "") or "").strip()
+                suffix = "Material combiner: shared material cache hit"
+                mesh.preview_texture_approximation_note = f"{existing_note}; {suffix}" if existing_note else suffix
+                continue
             mesh_output_dir = output_root / f"mesh_{mesh_index:03d}"
             cached_legacy_material = mesh_output_dir / f"batch_{mesh_index:03d}_combined_legacy_pbr.png"
             if cached_legacy_material.is_file():
@@ -3401,28 +3500,8 @@ class ModelPreviewWidget(QOpenGLWidget):
                 )
             except Exception:
                 continue
-            legacy_material_source = cls._local_texture_source_path(getattr(combined, "legacy_material_source", ""))
-            if legacy_material_source:
-                mesh.preview_material_texture_path = legacy_material_source
-                mesh.preview_material_texture_image = None
-                mesh.preview_material_texture_name = Path(legacy_material_source).name
-                mesh.preview_material_texture_type = "material"
-                mesh.preview_material_texture_subtype = "pbr_combined"
-                mesh.preview_material_texture_packed_channels = ("ao", "roughness", "metallic", "specular")
-            base_source = cls._local_texture_source_path(getattr(combined, "base_source", ""))
-            if base_source:
-                mesh.preview_texture_path = base_source
-                mesh.preview_texture_image = None
-            height_source = cls._local_texture_source_path(getattr(combined, "height_source", ""))
-            if height_source and not bool(getattr(settings, "disable_height_map", False)):
-                mesh.preview_height_texture_path = height_source
-                mesh.preview_height_texture_image = None
-                mesh.preview_height_texture_name = Path(height_source).name
-            notes = tuple(str(note) for note in tuple(getattr(combined, "notes", ()) or ()) if str(note))
-            if notes:
-                existing_note = str(getattr(mesh, "preview_texture_approximation_note", "") or "").strip()
-                suffix = "Material combiner: " + "; ".join(notes[:6])
-                mesh.preview_texture_approximation_note = f"{existing_note}; {suffix}" if existing_note else suffix
+            combined_result_cache[signature] = combined
+            _apply_combined_material(mesh, combined)
 
     @staticmethod
     def _derive_relief_image_from_base(texture_image: QImage, *, max_dimension: int = 512) -> Optional[QImage]:
@@ -4339,6 +4418,7 @@ class ModelPreviewWidget(QOpenGLWidget):
             self._render_mode_uses_derived_relief(previous)
             != self._render_mode_uses_derived_relief(clamped)
         )
+        flip_texture_v_changed = previous.flip_texture_v != clamped.flip_texture_v
         textures_changed = (
             previous.preview_texture_max_dimension != clamped.preview_texture_max_dimension
             or previous.low_quality_texture_max_dimension != clamped.low_quality_texture_max_dimension
@@ -4346,12 +4426,15 @@ class ModelPreviewWidget(QOpenGLWidget):
             or previous.force_nearest_no_mipmaps != clamped.force_nearest_no_mipmaps
             or previous.disable_all_support_maps != clamped.disable_all_support_maps
             or derived_relief_need_changed
+            or flip_texture_v_changed
         )
         if render_response_changed:
             self._batch_render_diagnostics = {}
             self._framebuffer_visibility_diagnostic = _FramebufferVisibilitySample()
         if previous.visible_texture_mode != clamped.visible_texture_mode or render_response_changed:
             self._refresh_debug_overlay_lines()
+        if flip_texture_v_changed and self._current_model is not None:
+            self._rebuild_preview_batches()
         if textures_changed and self._gl_ready and self.context() is not None:
             self.makeCurrent()
             self._clear_gl_textures()
@@ -4470,6 +4553,11 @@ class ModelPreviewWidget(QOpenGLWidget):
         self.update()
 
     def _poll_pan_drag(self) -> None:
+        if not self.isVisible():
+            self._pan_drag_active = False
+            self._pan_drag_button = Qt.NoButton
+            self._pan_poll_timer.stop()
+            return
         if not self._pan_drag_active:
             self._pan_poll_timer.stop()
             return
@@ -6773,8 +6861,10 @@ class ModelPreviewWidget(QOpenGLWidget):
         was_active = self._physics_simulation_timer.isActive()
         simulation_enabled = bool(getattr(self.render_settings(), "show_physics_simulation_preview", False))
         overlay_enabled = bool(getattr(self.render_settings(), "show_physics_overlay", True))
+        visible = self.isVisible() and (self.window() is None or self.window().isVisible())
         enabled = (
-            simulation_enabled
+            visible
+            and simulation_enabled
             and (
                 (overlay_enabled and self._physics_overlay_has_dynamic_guides())
                 or self._cloth_deformation_preview_batch_count() > 0
@@ -6899,7 +6989,8 @@ class ModelPreviewWidget(QOpenGLWidget):
         simulation_enabled = bool(getattr(self.render_settings(), "show_physics_simulation_preview", False))
         overlay_enabled = bool(getattr(self.render_settings(), "show_physics_overlay", True))
         if (
-            not simulation_enabled
+            not self.isVisible()
+            or not simulation_enabled
             or not isinstance(overlay, HkxPhysicsOverlayData)
             or not overlay.shapes
             or (not overlay_enabled and self._cloth_deformation_preview_batch_count() <= 0)
@@ -9418,7 +9509,12 @@ class ModelPreviewWidget(QOpenGLWidget):
         return smoothed, changed / float(max(1, vertex_count))
 
     @classmethod
-    def _build_vertex_blob(cls, model) -> Tuple[bytes, int, List[_ModelPreviewDrawBatch]]:
+    def _build_vertex_blob(
+        cls,
+        model,
+        *,
+        flip_texture_v: bool = False,
+    ) -> Tuple[bytes, int, List[_ModelPreviewDrawBatch]]:
         meshes = getattr(model, "meshes", None)
         if not meshes:
             return b"", 0, []
@@ -9590,8 +9686,14 @@ class ModelPreviewWidget(QOpenGLWidget):
             height_texture_key = str(getattr(mesh, "preview_height_texture_path", "") or "").strip()
             if not height_texture_key and getattr(mesh, "preview_height_texture_image", None) is not None:
                 height_texture_key = f"in_memory_height:{mesh_index}"
-            texture_flip_vertical = cls._should_flip_texture_vertically(mesh)
+            texture_flip_vertical = cls._should_flip_texture_vertically(
+                mesh,
+                source_format=getattr(model, "format", ""),
+                source_path=getattr(model, "path", ""),
+            )
             if bool(getattr(mesh, "preview_debug_flip_base_v", False)):
+                texture_flip_vertical = not texture_flip_vertical
+            if bool(flip_texture_v):
                 texture_flip_vertical = not texture_flip_vertical
             material_texture_type = str(getattr(mesh, "preview_material_texture_type", "") or "").strip().lower()
             material_texture_subtype = str(getattr(mesh, "preview_material_texture_subtype", "") or "").strip().lower()
@@ -9721,10 +9823,23 @@ class ModelPreviewWidget(QOpenGLWidget):
         return opaque_black, transparent, colored, total
 
     @classmethod
-    def _should_flip_texture_vertically(cls, mesh) -> bool:
+    def _should_flip_texture_vertically(
+        cls,
+        mesh,
+        *,
+        source_format: object = "",
+        source_path: object = "",
+    ) -> bool:
         flip_override = getattr(mesh, "preview_texture_flip_vertical", None)
         if flip_override is not None:
             return bool(flip_override)
+        resolved = resolve_preview_texture_flip_vertical(
+            None,
+            source_format=source_format,
+            source_path=source_path,
+        )
+        if not resolved:
+            return False
         texture_image = getattr(mesh, "preview_texture_image", None)
         if not isinstance(texture_image, QImage) or texture_image.isNull():
             texture_image = cls._load_gl_texture_image(str(getattr(mesh, "preview_texture_path", "") or "").strip())

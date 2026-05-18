@@ -42,7 +42,7 @@ class StaticReplacementTransform:
     fit_to_original_bbox: bool = False
     preserve_aspect_ratio: bool = True
     scale_to_original_length: bool = True
-    alignment_mode: str = "auto_anchor"
+    alignment_mode: str = "grid_flat"
     source_anchor: tuple[float, float, float] | None = None
     target_anchor: tuple[float, float, float] | None = None
     source_axis: tuple[float, float, float] | None = None
@@ -94,6 +94,7 @@ class StaticDonorMaterialTextureBinding:
     texture_path: str = ""
     slot_kind: str = ""
     semantic_subtype: str = ""
+    source_path: str = ""
 
 
 @dataclass
@@ -154,7 +155,9 @@ class StaticMeshReplacementOptions:
     allow_merge_source_submeshes: bool = True
     allow_empty_target_submeshes: bool = True
     rebuild_material_sidecar: bool = False
+    complete_external_swap: bool = False
     neutralize_inherited_material_layers: bool = False
+    complete_external_material_reset: bool = False
     enable_missing_base_color_parameters: bool = False
     texture_slot_overrides: list[StaticTextureSlotOverride] = field(default_factory=list)
     texture_output_size_mode: str = "source"
@@ -252,7 +255,7 @@ _MARKER_NAMES = {*_GRIP_MARKER_NAMES, *_TIP_MARKER_NAMES}
 
 
 def _clone_submesh_fast(submesh: SubMesh) -> SubMesh:
-    return SubMesh(
+    cloned = SubMesh(
         name=str(submesh.name or ""),
         material=str(submesh.material or ""),
         texture=str(submesh.texture or ""),
@@ -274,6 +277,25 @@ def _clone_submesh_fast(submesh: SubMesh) -> SubMesh:
         source_bbox_extent=tuple(submesh.source_bbox_extent or (0.0, 0.0, 0.0)),
         source_lod_count=int(submesh.source_lod_count or 0),
     )
+    for attr_name in (
+        "texture_slots",
+        "preview_color",
+        "preview_normal_texture_path",
+        "preview_normal_texture_name",
+        "preview_normal_texture_strength",
+        "preview_material_texture_path",
+        "preview_material_texture_name",
+        "preview_material_texture_type",
+        "preview_material_texture_subtype",
+        "preview_material_texture_packed_channels",
+        "preview_material_texture_inputs",
+        "preview_height_texture_path",
+        "preview_height_texture_name",
+        "preview_sidecar_shader_family",
+    ):
+        if hasattr(submesh, attr_name):
+            setattr(cloned, attr_name, getattr(submesh, attr_name))
+    return cloned
 
 
 def _clone_parsed_mesh_fast(mesh: ParsedMesh) -> ParsedMesh:

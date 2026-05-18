@@ -30,6 +30,8 @@ from cdmw.constants import APP_NAME, DDS_MAGIC
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled, run_process_with_cancellation
 from cdmw.core.mesh_baseline import read_archive_entry_baseline_data
 from cdmw.core.model_preview import _build_lod_summary, _build_model_preview
+from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
+from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
 from cdmw.core.skeleton_resolver import (
     SkeletonResolveReport,
     build_skin_binding_map,
@@ -50,6 +52,8 @@ from cdmw.models import (
     ModelPreviewData,
     ModelPreviewMesh,
     ModPackageInfo,
+    PreviewMaterialParameterInput,
+    PreviewMaterialTextureInput,
     RunCancelled,
 )
 from cdmw.modding.mesh_exporter import export_fbx, export_fbx_with_skeleton, export_obj, write_roundtrip_manifest
@@ -105,6 +109,12 @@ MESH_IMPORT_SIDECAR_EXTENSIONS = {
     ".pamlod_xml",
     ".app_xml",
     ".prefabdata_xml",
+}
+MESH_IMPORT_COMPANION_EXTENSIONS = {
+    ".prefab",
+    ".meshinfo",
+    ".material",
+    ".paa_metabin",
 }
 
 
@@ -194,7 +204,7 @@ def _mesh_loose_export_payload_path(path_value: str | Path, export_options: Opti
     if not parts or parts[0].lower() != "character" or len(parts) <= 2:
         return normalized_path
     suffix = pure_path.suffix.lower()
-    if suffix in ARCHIVE_MESH_EXTENSIONS or suffix in MESH_IMPORT_SIDECAR_EXTENSIONS:
+    if suffix in ARCHIVE_MESH_EXTENSIONS or suffix in MESH_IMPORT_SIDECAR_EXTENSIONS or suffix in MESH_IMPORT_COMPANION_EXTENSIONS:
         return PurePosixPath("character", pure_path.name).as_posix()
     return normalized_path
 
@@ -2517,6 +2527,8 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
             note = f"Generated replacement texture for {primary_entry.path}"
         elif spec.kind == "texture":
             note = f"Selected local texture override included for {primary_entry.path}"
+        elif spec.kind == "companion":
+            note = f"Selected Crimson companion metadata included for {primary_entry.path}"
         else:
             note = f"Selected local file included for {primary_entry.path}"
         package_group = ""
@@ -3284,6 +3296,8 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
         preview_color = tuple(getattr(submesh, "preview_color", ()) or ())
         if len(preview_color) >= 3:
             preview_mesh.preview_color = tuple(float(component) for component in preview_color[:3])
+        preview_mesh.preview_alpha_mode = str(getattr(submesh, "preview_alpha_mode", "") or "").strip()
+        preview_mesh.preview_double_sided = bool(getattr(submesh, "preview_double_sided", False))
         preview_normal_texture_path = str(getattr(submesh, "preview_normal_texture_path", "") or "").strip()
         if preview_normal_texture_path:
             preview_mesh.preview_normal_texture_path = preview_normal_texture_path
@@ -3314,6 +3328,15 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
             preview_mesh.preview_height_texture_name = str(
                 getattr(submesh, "preview_height_texture_name", "") or Path(preview_height_texture_path).name
             )
+        preview_material_texture_inputs = tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ())
+        if preview_material_texture_inputs:
+            preview_mesh.preview_material_texture_inputs = preview_material_texture_inputs
+            if any(
+                "emissive" in str(getattr(item, "shader_family", "") or "").lower()
+                or str(getattr(item, "slot_kind", "") or "").lower() == "emissive"
+                for item in preview_material_texture_inputs
+            ):
+                preview_mesh.preview_sidecar_shader_family = "SkinnedMeshEmissive_Ver2"
         preview_meshes.append(preview_mesh)
     return preview_meshes
 
@@ -3335,7 +3358,12 @@ def parsed_mesh_to_preview_model(parsed_mesh: ParsedMesh) -> ModelPreviewData:
 
     source_submeshes = parsed_mesh.submeshes
     label = "submesh" if parsed_mesh.format != "pac" else "mesh"
-    return _build_model_preview(parsed_mesh.path, parsed_mesh.format, _preview_meshes_from_submeshes(source_submeshes), label)
+    preview_model = _build_model_preview(parsed_mesh.path, parsed_mesh.format, _preview_meshes_from_submeshes(source_submeshes), label)
+    if scene_import_normalizes_texture_v(parsed_mesh.format, parsed_mesh.path):
+        for mesh in getattr(preview_model, "meshes", ()) or ():
+            if getattr(mesh, "preview_texture_flip_vertical", None) is None:
+                mesh.preview_texture_flip_vertical = False
+    return preview_model
 
 
 def attach_scene_preview_textures(
@@ -3391,6 +3419,8 @@ def attach_scene_preview_textures(
 
     def slot_kind(path: Path) -> str:
         stem = compact(path.stem)
+        if any(token in stem for token in ("emissive", "emission", "glow", "illumination", "illum")):
+            return "emissive"
         if any(token in stem for token in ("normalmap", "normalgl", "normaldx", "normal", "nrm", "bump")):
             return "normal"
         if any(token in stem for token in ("heightmap", "height", "displacement", "disp", "depth")):
@@ -3425,8 +3455,10 @@ def attach_scene_preview_textures(
 
     def material_subtype(path: Path) -> str:
         stem = compact(path.stem)
-        if "metallicroughness" in stem or "occlusionroughnessmetallic" in stem or "orm" in stem:
+        if "occlusionroughnessmetallic" in stem or "orm" in stem:
             return "orm"
+        if "metallicroughness" in stem or "metalrough" in stem or "metallicrough" in stem:
+            return "metallic_roughness"
         if "roughnessmetallic" in stem or "rma" in stem:
             return "rma"
         if "metallic" in stem or "metalness" in stem:
@@ -3442,6 +3474,8 @@ def attach_scene_preview_textures(
     def material_channels(subtype: str) -> Tuple[str, ...]:
         if subtype == "specular":
             return ("specular", "glossiness")
+        if subtype == "metallic_roughness":
+            return ("roughness", "metallic")
         if subtype == "orm":
             return ("ao", "roughness", "metallic")
         if subtype == "rma":
@@ -3477,6 +3511,11 @@ def attach_scene_preview_textures(
             "displacement",
             "disp",
             "depth",
+            "emissive",
+            "emission",
+            "glow",
+            "illumination",
+            "illum",
             "opacity",
             "alpha",
             "orm",
@@ -3540,6 +3579,82 @@ def attach_scene_preview_textures(
         mesh.preview_material_texture_default_packed_channels = mesh.preview_material_texture_packed_channels
         return 1
 
+    def assign_material_input(
+        mesh: ModelPreviewMesh,
+        *,
+        slot_kind: str,
+        path: Path,
+        semantic_type: str,
+        semantic_subtype: str,
+        packed_channels: Sequence[str] = (),
+        shader_family: str = "",
+        parameters: Sequence[PreviewMaterialParameterInput] = (),
+    ) -> int:
+        existing = list(getattr(mesh, "preview_material_texture_inputs", ()) or ())
+        path_text = str(path)
+        normalized_path_text = path_text.replace("\\", "/").lower()
+        if any(
+            str(getattr(item, "slot_kind", "") or "").lower() == slot_kind
+            and (
+                str(getattr(item, "texture_name", "") or "").lower() == path.name.lower()
+                or str(
+                    getattr(item, "preview_texture_path", "")
+                    or getattr(item, "source_texture_path", "")
+                    or ""
+                ).replace("\\", "/").lower()
+                == normalized_path_text
+            )
+            for item in existing
+        ):
+            return 0
+        parameter_name = {
+            "base": "_baseColorTexture",
+            "normal": "_normalTexture",
+            "material": "_metallicRoughnessTexture",
+            "ao": "_occlusionTexture",
+            "emissive": "_emissiveIntensityTexture",
+            "height": "_heightTexture",
+        }.get(slot_kind, "")
+        existing.append(
+            PreviewMaterialTextureInput(
+                slot_kind=slot_kind,
+                parameter_name=parameter_name,
+                source_texture_path=path_text,
+                texture_name=path.name,
+                preview_texture_path=path_text,
+                semantic_type=semantic_type,
+                semantic_subtype=semantic_subtype,
+                packed_channels=tuple(str(channel) for channel in packed_channels if str(channel)),
+                material_name=str(getattr(mesh, "material_name", "") or "").strip(),
+                shader_family=shader_family,
+                confidence="scene",
+                visualized=True,
+                material_parameters=tuple(parameters),
+            )
+        )
+        mesh.preview_material_texture_inputs = tuple(existing)
+        if slot_kind == "emissive":
+            mesh.preview_sidecar_shader_family = "SkinnedMeshEmissive_Ver2"
+        return 1
+
+    def assign_emissive(mesh: ModelPreviewMesh, path: Path) -> int:
+        return assign_material_input(
+            mesh,
+            slot_kind="emissive",
+            path=path,
+            semantic_type="emissive",
+            semantic_subtype="emissive",
+            shader_family="SkinnedMeshEmissive_Ver2",
+            parameters=(
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_emissiveIntensity",
+                    value="1.000000",
+                    numeric_value=1.0,
+                ),
+            ),
+        )
+
     def assign_height(mesh: ModelPreviewMesh, path: Path) -> int:
         path_text = str(path)
         mesh.preview_height_texture_path = path_text
@@ -3574,6 +3689,17 @@ def attach_scene_preview_textures(
                 resolved_paths.setdefault("height", named_texture)
             else:
                 resolved_paths.setdefault("material", named_texture)
+        for item in tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ()):
+            slot_name = str(getattr(item, "slot_kind", "") or "").strip().lower()
+            if slot_name not in {"base", "normal", "material", "ao", "emissive", "height"}:
+                continue
+            existing = resolve_texture(
+                str(getattr(item, "preview_texture_path", "") or "")
+                or str(getattr(item, "source_texture_path", "") or "")
+                or str(getattr(item, "texture_name", "") or "")
+            )
+            if existing is not None:
+                resolved_paths.setdefault(slot_name, existing)
 
         sibling_group: Mapping[str, Path] = {}
         group_source = resolved_paths.get("base") or resolved_paths.get("material") or resolved_paths.get("normal") or resolved_paths.get("height")
@@ -3602,11 +3728,32 @@ def attach_scene_preview_textures(
         if sibling_group:
             resolved_paths.setdefault("normal", sibling_group.get("normal"))
             resolved_paths.setdefault("material", sibling_group.get("material"))
+            resolved_paths.setdefault("emissive", sibling_group.get("emissive"))
             resolved_paths.setdefault("height", sibling_group.get("height"))
         if resolved_paths.get("normal") is not None:
             resolved_count += assign_normal(mesh, resolved_paths["normal"])
         if resolved_paths.get("material") is not None:
             resolved_count += assign_material(mesh, resolved_paths["material"])
+            subtype = material_subtype(resolved_paths["material"])
+            resolved_count += assign_material_input(
+                mesh,
+                slot_kind="material",
+                path=resolved_paths["material"],
+                semantic_type="material",
+                semantic_subtype=subtype,
+                packed_channels=material_channels(subtype),
+            )
+        if resolved_paths.get("ao") is not None:
+            resolved_count += assign_material_input(
+                mesh,
+                slot_kind="ao",
+                path=resolved_paths["ao"],
+                semantic_type="ao",
+                semantic_subtype="ao",
+                packed_channels=("ao",),
+            )
+        if resolved_paths.get("emissive") is not None:
+            resolved_count += assign_emissive(mesh, resolved_paths["emissive"])
         if resolved_paths.get("height") is not None:
             resolved_count += assign_height(mesh, resolved_paths["height"])
     return resolved_count
@@ -3813,6 +3960,8 @@ def _build_mesh_import_supplemental_file_specs(
             preferred_paths.extend(
                 _mesh_import_sidecar_preferred_paths(entry, resolved_source, related_entries_by_extension)
             )
+        elif extension in MESH_IMPORT_COMPANION_EXTENSIONS:
+            preferred_paths.extend(_mesh_import_candidate_virtual_paths(resolved_source))
         target_entry, target_path = _resolve_supplemental_target_entry(
             resolved_source,
             archive_entries_by_normalized_path=archive_entries_by_normalized_path,
@@ -3821,14 +3970,22 @@ def _build_mesh_import_supplemental_file_specs(
         )
         if extension == ".dds" and target_entry is None and not preferred_paths:
             continue
-        kind = "texture" if extension == ".dds" else "sidecar" if extension in MESH_IMPORT_SIDECAR_EXTENSIONS else "file"
+        kind = (
+            "texture"
+            if extension == ".dds"
+            else "sidecar"
+            if extension in MESH_IMPORT_SIDECAR_EXTENSIONS
+            else "companion"
+            if extension in MESH_IMPORT_COMPANION_EXTENSIONS
+            else "file"
+        )
         specs.append(
             MeshImportSupplementalFileSpec(
                 source_path=resolved_source,
                 target_path=target_path or (target_entry.path if isinstance(target_entry, ArchiveEntry) else ""),
                 kind=kind,
                 target_entry=target_entry if isinstance(target_entry, ArchiveEntry) else None,
-                used_for_preview=kind in {"texture", "sidecar"},
+                used_for_preview=kind in {"texture", "sidecar", "companion"},
             )
         )
     return tuple(specs)
@@ -3866,6 +4023,84 @@ def _collect_original_mesh_sidecar_texts(
         if sidecar_text:
             sidecars.append((sidecar_entry, sidecar_text))
     return tuple(sidecars)
+
+
+def _decode_text_payload(data: bytes) -> str:
+    for encoding in ("utf-8-sig", "utf-16", "utf-8", "cp1252"):
+        try:
+            return bytes(data or b"").decode(encoding).replace("\ufeff", "")
+        except UnicodeError:
+            continue
+    return bytes(data or b"").decode("utf-8", errors="replace").replace("\ufeff", "")
+
+
+def _summarize_crimson_companion_supplemental_files(supplemental_files: Sequence[Path]) -> Tuple[str, ...]:
+    companion_files = [
+        path
+        for path in tuple(supplemental_files or ())
+        if isinstance(path, Path) and path.suffix.lower() in (MESH_IMPORT_COMPANION_EXTENSIONS | {".pami"})
+    ]
+    if not companion_files:
+        return ()
+    try:
+        from cdmw.core.crimson_formats import (
+            complete_swap_file_policy,
+            decode_meshinfo,
+            decode_paa_metabin,
+            decode_prefab,
+            parse_pami_material_instances,
+        )
+    except Exception:
+        return ()
+    try:
+        from cdmw.rendering.material_channels import parse_crimson_material_definition_text
+    except Exception:
+        parse_crimson_material_definition_text = None  # type: ignore[assignment]
+
+    lines: List[str] = ["Crimson companion metadata:"]
+    for path in companion_files[:12]:
+        extension = path.suffix.lower()
+        policy = complete_swap_file_policy(extension)
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            lines.append(f"  {path.name}: unreadable ({exc})")
+            continue
+        if extension == ".prefab":
+            decoded = decode_prefab(data)
+            roles = Counter(reference.role for reference in decoded.references)
+            role_text = _summarize_compact([f"{role}={count}" for role, count in sorted(roles.items())]) or "no resource refs"
+            lines.append(
+                f"  {path.name}: prefab refs {role_text}; patchable={decoded.patchable_reference_count}; policy={policy}"
+            )
+        elif extension == ".meshinfo":
+            decoded = decode_meshinfo(data)
+            roles = Counter(reference.role for reference in decoded.references)
+            role_text = _summarize_compact([f"{role}={count}" for role, count in sorted(roles.items())]) or "no visible refs"
+            lines.append(f"  {path.name}: meshinfo refs {role_text}; policy={decoded.material_policy}")
+        elif extension == ".paa_metabin":
+            decoded = decode_paa_metabin(data)
+            declared = decoded.declared_type or "AnimationMetaData"
+            lines.append(f"  {path.name}: {declared}; policy={decoded.material_policy}")
+        elif extension == ".pami":
+            instances = parse_pami_material_instances(_decode_text_payload(data))
+            texture_count = sum(len(instance.texture_parameters) for instance in instances)
+            lines.append(
+                f"  {path.name}: pami material instances={len(instances)}, texture params={texture_count}; policy={policy}"
+            )
+        elif extension == ".material" and parse_crimson_material_definition_text is not None:
+            try:
+                definition = parse_crimson_material_definition_text(_decode_text_payload(data), source_path=str(path))
+                lines.append(
+                    f"  {path.name}: material technique={definition.technique or '-'}, params={len(definition.parameters)}, groups={len(definition.parameter_groups)}; policy={policy}"
+                )
+            except Exception as exc:
+                lines.append(f"  {path.name}: material definition parse failed ({exc}); policy={policy}")
+        else:
+            lines.append(f"  {path.name}: policy={policy}")
+    if len(companion_files) > 12:
+        lines.append(f"  ... {len(companion_files) - 12:,} more companion file(s)")
+    return tuple(lines)
 
 
 def _mesh_texture_original_source_path(texture_entry: object) -> Path:
@@ -3918,11 +4153,12 @@ def _generated_texture_preview_file(payload: TextureReplacementPayload) -> Path:
         target_name = payload.source_path.with_suffix(".dds").name
     if not target_name.lower().endswith(".dds"):
         target_name = f"{Path(target_name).stem}.dds"
-    output_dir = Path(tempfile.gettempdir()) / APP_NAME / "static_mesh_texture_previews"
+    output_dir = app_temp_cache_path("static_mesh_texture_previews")
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{Path(target_name).stem}_{digest}.dds"
     if not output_path.is_file():
         output_path.write_bytes(payload.payload_data)
+        request_app_temp_cache_prune()
     return output_path
 
 
@@ -4252,6 +4488,7 @@ def build_mesh_import_preview(
                 )
     if resolved_supplemental_files:
         summary_lines.append(f"Selected supplemental files: {len(resolved_supplemental_files):,}")
+        summary_lines.extend(_summarize_crimson_companion_supplemental_files(resolved_supplemental_files))
     sidecar_texture_references: Tuple[object, ...] = ()
     sidecar_reference_paths: Tuple[str, ...] = ()
     sidecar_texts_by_normalized_path: Dict[str, Tuple[str, ...]] = {}
@@ -4449,12 +4686,19 @@ def build_mesh_import_preview(
     prune_unmapped_original_texture_parameters = bool(
         getattr(static_replacement_options, "prune_unmapped_original_texture_parameters", False)
     )
+    complete_external_material_reset = bool(
+        getattr(static_replacement_options, "complete_external_material_reset", False)
+    )
     if (
         normalized_import_mode == "static_replacement"
         and bool(getattr(static_replacement_options, "neutralize_inherited_material_layers", False))
     ):
         summary_lines.append(
             "Source-color faithful material mode: enabled; generated material sidecars will neutralize inherited tint/grime/detail/color-blend layers on rebuilt draw sections."
+        )
+    if normalized_import_mode == "static_replacement" and complete_external_material_reset:
+        summary_lines.append(
+            "Complete external swap material reset: enabled; generated material sidecars will reset inherited target shader response on rebuilt draw sections."
         )
     if (
         normalized_import_mode == "static_replacement"
@@ -4503,6 +4747,7 @@ def build_mesh_import_preview(
                     neutralize_inherited_material_layers=bool(
                         getattr(static_replacement_options, "neutralize_inherited_material_layers", False)
                     ),
+                    complete_external_material_reset=complete_external_material_reset,
                     removed_target_material_names=tuple(
                         str(getattr(original_mesh.submeshes[int(index)], "material", "") or getattr(original_mesh.submeshes[int(index)], "name", "") or f"target {int(index)}")
                         for index in tuple(getattr(static_replacement_options, "removed_target_submesh_indices", ()) or ())
