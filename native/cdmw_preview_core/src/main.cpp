@@ -78,6 +78,14 @@ void write_text(const fs::path& path, const std::string& text) {
     out.write(text.data(), static_cast<std::streamsize>(text.size()));
 }
 
+std::vector<char> read_binary_file(const fs::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        throw std::runtime_error("could not open " + path.string());
+    }
+    return std::vector<char>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+}
+
 std::string find_string_value(const std::string& json, const std::string& key) {
     const std::string needle = "\"" + key + "\"";
     size_t pos = json.find(needle);
@@ -320,6 +328,18 @@ struct EntryJob {
     float normal_strength_cap = 1.0f;
     float height_effect_max = 0.35f;
     int max_anisotropy = 16;
+    float d3d11_mip_lod_bias = -0.85f;
+    std::string d3d11_view_mode = "lit";
+    bool d3d11_cull_back_faces = false;
+    float d3d11_light_azimuth_degrees = -52.0f;
+    float d3d11_light_elevation_degrees = 27.0f;
+    std::string d3d11_normal_y_mode = "asset";
+    float d3d11_ao_strength = 1.0f;
+    float d3d11_roughness_bias = 0.0f;
+    float d3d11_metalness_scale = 1.0f;
+    float d3d11_environment_strength = 1.0f;
+    float d3d11_emissive_gain = 1.0f;
+    std::string d3d11_texture_address_mode = "wrap";
     float ambient_strength = 0.55f;
     float diffuse_light_scale = 0.65f;
     float specular_base = 0.05f;
@@ -699,6 +719,13 @@ EntryJob parse_job(const fs::path& job_path) {
         if (!native_visible_mode.empty()) job.visible_texture_mode = normalize_visible_texture_mode(native_visible_mode);
         const std::string diagnostic_mode = lower_copy(find_string_value(render_settings, "render_diagnostic_mode"));
         if (!diagnostic_mode.empty()) job.render_diagnostic_mode = diagnostic_mode;
+        const std::string d3d11_view_mode = lower_copy(find_string_value(render_settings, "d3d11_view_mode"));
+        if (!d3d11_view_mode.empty()) job.d3d11_view_mode = d3d11_view_mode;
+        const std::string d3d11_normal_y_mode = lower_copy(find_string_value(render_settings, "d3d11_normal_y_mode"));
+        if (!d3d11_normal_y_mode.empty()) job.d3d11_normal_y_mode = d3d11_normal_y_mode;
+        const std::string d3d11_texture_address_mode = lower_copy(find_string_value(render_settings, "d3d11_texture_address_mode"));
+        if (d3d11_texture_address_mode == "clamp") job.d3d11_texture_address_mode = "clamp";
+        else if (d3d11_texture_address_mode == "wrap") job.d3d11_texture_address_mode = "wrap";
         job.use_textures = find_bool_value(render_settings, "use_textures_by_default", job.use_textures);
         job.high_quality_textures = find_bool_value(render_settings, "high_quality_by_default", job.high_quality_textures);
         job.disable_all_support_maps = find_bool_value(render_settings, "disable_all_support_maps", job.disable_all_support_maps);
@@ -709,6 +736,15 @@ EntryJob parse_job(const fs::path& job_path) {
         job.normal_strength_cap = std::clamp(find_float_value(render_settings, "normal_strength_cap", job.normal_strength_cap), 0.0f, 2.0f);
         job.height_effect_max = std::clamp(find_float_value(render_settings, "height_effect_max", job.height_effect_max), 0.0f, 1.5f);
         job.max_anisotropy = static_cast<int>(std::clamp<long long>(find_int_value(render_settings, "max_anisotropy", job.max_anisotropy), 1, 16));
+        job.d3d11_mip_lod_bias = std::clamp(find_float_value(render_settings, "d3d11_mip_lod_bias", job.d3d11_mip_lod_bias), -2.0f, 1.0f);
+        job.d3d11_cull_back_faces = find_bool_value(render_settings, "d3d11_cull_back_faces", job.d3d11_cull_back_faces);
+        job.d3d11_light_azimuth_degrees = std::clamp(find_float_value(render_settings, "d3d11_light_azimuth_degrees", job.d3d11_light_azimuth_degrees), -180.0f, 180.0f);
+        job.d3d11_light_elevation_degrees = std::clamp(find_float_value(render_settings, "d3d11_light_elevation_degrees", job.d3d11_light_elevation_degrees), -80.0f, 80.0f);
+        job.d3d11_ao_strength = std::clamp(find_float_value(render_settings, "d3d11_ao_strength", job.d3d11_ao_strength), 0.0f, 2.0f);
+        job.d3d11_roughness_bias = std::clamp(find_float_value(render_settings, "d3d11_roughness_bias", job.d3d11_roughness_bias), -0.5f, 0.5f);
+        job.d3d11_metalness_scale = std::clamp(find_float_value(render_settings, "d3d11_metalness_scale", job.d3d11_metalness_scale), 0.0f, 2.0f);
+        job.d3d11_environment_strength = std::clamp(find_float_value(render_settings, "d3d11_environment_strength", job.d3d11_environment_strength), 0.0f, 2.0f);
+        job.d3d11_emissive_gain = std::clamp(find_float_value(render_settings, "d3d11_emissive_gain", job.d3d11_emissive_gain), 0.0f, 4.0f);
         job.ambient_strength = std::clamp(find_float_value(render_settings, "ambient_strength", job.ambient_strength), 0.05f, 1.2f);
         job.diffuse_light_scale = std::clamp(find_float_value(render_settings, "diffuse_light_scale", job.diffuse_light_scale), 0.05f, 1.5f);
         job.specular_base = std::clamp(find_float_value(render_settings, "specular_base", job.specular_base), 0.0f, 0.5f);
@@ -1806,14 +1842,73 @@ static std::vector<ParSection> parse_par_sections(const std::vector<char>& data)
         if (decomp_size == 0) continue;
         if (offset + stored_size > data.size()) return {};
         if (comp_size > 0 && comp_size < decomp_size) {
-            // A compressed PAR section needs LZ4 reconstruction. Keep this
-            // path conservative and report unsupported until native recovery is proven.
+            // Callers that need compressed internal PAR sections should
+            // normalize the container before using this table parser.
             return {};
         }
         sections.push_back(ParSection{i, offset, decomp_size});
         offset += stored_size;
     }
     return sections;
+}
+
+static std::vector<char> decompress_internal_par_sections(const std::vector<char>& data) {
+    if (data.size() < 0x50 || std::string(data.data(), data.data() + 4) != "PAR ") return {};
+    struct Slot {
+        int index = 0;
+        std::uint32_t comp_size = 0;
+        std::uint32_t decomp_size = 0;
+        size_t offset = 0;
+    };
+    std::vector<Slot> slots;
+    size_t file_offset = 0x50u;
+    size_t rebuilt_size = 0x50u;
+    bool saw_compressed = false;
+    for (int i = 0; i < 8; ++i) {
+        const size_t slot_off = 0x10u + static_cast<size_t>(i) * 8u;
+        const std::uint32_t comp_size = read_u32(data, slot_off);
+        const std::uint32_t decomp_size = read_u32(data, slot_off + 4);
+        if (decomp_size == 0) continue;
+        const std::uint32_t stored_size = comp_size > 0 ? comp_size : decomp_size;
+        if (stored_size == 0 || file_offset + stored_size > data.size()) return {};
+        if (comp_size > 0) saw_compressed = true;
+        slots.push_back(Slot{i, comp_size, decomp_size, file_offset});
+        file_offset += stored_size;
+        rebuilt_size += decomp_size;
+    }
+    if (!saw_compressed || slots.empty() || file_offset != data.size()) return {};
+    std::vector<char> rebuilt;
+    rebuilt.reserve(rebuilt_size);
+    rebuilt.insert(rebuilt.end(), data.begin(), data.begin() + 0x50);
+    for (const Slot& slot : slots) {
+        const size_t stored_size = slot.comp_size > 0 ? slot.comp_size : slot.decomp_size;
+        std::vector<char> chunk(
+            data.begin() + static_cast<std::ptrdiff_t>(slot.offset),
+            data.begin() + static_cast<std::ptrdiff_t>(slot.offset + stored_size)
+        );
+        if (slot.comp_size > 0) {
+            chunk = lz4_decompress_block(chunk, slot.decomp_size);
+            if (chunk.size() != slot.decomp_size) return {};
+        } else if (chunk.size() != slot.decomp_size) {
+            return {};
+        }
+        rebuilt.insert(rebuilt.end(), chunk.begin(), chunk.end());
+    }
+    if (rebuilt.size() != rebuilt_size) return {};
+    for (int i = 0; i < 8; ++i) {
+        const size_t slot_off = 0x10u + static_cast<size_t>(i) * 8u;
+        if (slot_off + 8u > rebuilt.size()) return {};
+        const std::uint32_t decomp_size = read_u32(rebuilt, slot_off + 4);
+        rebuilt[slot_off + 0] = 0;
+        rebuilt[slot_off + 1] = 0;
+        rebuilt[slot_off + 2] = 0;
+        rebuilt[slot_off + 3] = 0;
+        rebuilt[slot_off + 4] = static_cast<char>(decomp_size & 0xFFu);
+        rebuilt[slot_off + 5] = static_cast<char>((decomp_size >> 8) & 0xFFu);
+        rebuilt[slot_off + 6] = static_cast<char>((decomp_size >> 16) & 0xFFu);
+        rebuilt[slot_off + 7] = static_cast<char>((decomp_size >> 24) & 0xFFu);
+    }
+    return rebuilt;
 }
 
 static int find_bytes(const std::vector<char>& data, const std::vector<unsigned char>& pattern, size_t start, size_t end) {
@@ -2327,19 +2422,21 @@ static std::vector<NativeSubmesh> parse_pac_submeshes(const std::vector<char>& d
     if (data.size() < 0x50 || std::string(data.data(), data.data() + 4) != "PAR ") {
         throw std::runtime_error("selected PAC is missing a PAR header");
     }
-    const std::vector<ParSection> sections = parse_par_sections(data);
+    std::vector<char> decompressed_par = decompress_internal_par_sections(data);
+    const std::vector<char>& parse_data = decompressed_par.empty() ? data : decompressed_par;
+    const std::vector<ParSection> sections = parse_par_sections(parse_data);
     if (sections.empty()) {
-        throw std::runtime_error("native PAC parser does not yet support compressed PAR sections");
+        throw std::runtime_error("native PAC parser found no valid PAR sections");
     }
     std::map<int, ParSection> by_index;
     for (const ParSection& section : sections) by_index[section.index] = section;
     auto sec0_it = by_index.find(0);
     if (sec0_it == by_index.end()) throw std::runtime_error("PAC section 0 is missing");
     const ParSection& sec0 = sec0_it->second;
-    if (static_cast<size_t>(sec0.offset) + 5 > data.size()) throw std::runtime_error("PAC section 0 is truncated");
-    const int n_lods = static_cast<unsigned char>(data[sec0.offset + 4]);
+    if (static_cast<size_t>(sec0.offset) + 5 > parse_data.size()) throw std::runtime_error("PAC section 0 is truncated");
+    const int n_lods = static_cast<unsigned char>(parse_data[sec0.offset + 4]);
     if (n_lods <= 0 || n_lods > 10) throw std::runtime_error("PAC LOD count is unsupported");
-    const std::vector<PacDescriptor> descriptors = find_pac_descriptors(data, sec0, n_lods);
+    const std::vector<PacDescriptor> descriptors = find_pac_descriptors(parse_data, sec0, n_lods);
     if (descriptors.empty()) throw std::runtime_error("native PAC parser found no submesh descriptors");
 
     struct Candidate {
@@ -2391,11 +2488,11 @@ static std::vector<NativeSubmesh> parse_pac_submeshes(const std::vector<char>& d
     auto collect_candidates_for_layouts = [&](const std::vector<PacVertexLayout>& layouts) {
         for (int geom_section_idx : {4, 3, 2, 1}) {
             auto it = by_index.find(geom_section_idx);
-            if (it == by_index.end()) continue;
-            const int lod = 4 - geom_section_idx;
-            if (lod < 0 || lod >= n_lods) continue;
+                if (it == by_index.end()) continue;
+                const int lod = 4 - geom_section_idx;
+                if (lod < 0 || lod >= n_lods) continue;
             for (const PacVertexLayout& layout : layouts) {
-                std::vector<NativeSubmesh> meshes = parse_pac_geometry_section(data, descriptors, it->second, lod, layout);
+                std::vector<NativeSubmesh> meshes = parse_pac_geometry_section(parse_data, descriptors, it->second, lod, layout);
                 int faces = 0;
                 int vertices = 0;
                 float quality = 0.0f;
@@ -2557,6 +2654,13 @@ static void finalize_native_meshes(std::vector<NativeSubmesh>& meshes) {
     meshes = std::move(filtered);
 }
 
+static void complete_native_meshes_without_filtering(std::vector<NativeSubmesh>& meshes) {
+    for (NativeSubmesh& mesh : meshes) {
+        compute_missing_normals(mesh);
+        evaluate_native_submesh_quality(mesh);
+    }
+}
+
 struct RawPamEntry {
     int index = 0;
     std::uint32_t vertex_count = 0;
@@ -2664,9 +2768,11 @@ static NativeSubmesh parse_quantized_pam_mesh(
     }
     std::unordered_map<std::uint32_t, std::uint32_t> source_to_local;
     for (std::uint32_t source_index : unique_indices) {
+        source_to_local[source_index] = static_cast<std::uint32_t>(source_to_local.size());
+    }
+    for (std::uint32_t source_index : unique_indices) {
         const size_t voff = vertex_base + static_cast<size_t>(source_index) * static_cast<size_t>(stride);
-        if (voff + 6 > data.size()) continue;
-        source_to_local[source_index] = static_cast<std::uint32_t>(mesh.positions.size());
+        if (voff + 6 > data.size()) break;
         mesh.positions.push_back(Vec3{
             dequantize_u16(read_u16(data, voff), bbox_min.x, bbox_max.x),
             dequantize_u16(read_u16(data, voff + 2), bbox_min.y, bbox_max.y),
@@ -2687,7 +2793,6 @@ static NativeSubmesh parse_quantized_pam_mesh(
         auto b = source_to_local.find(source_indices[i + 1]);
         auto c = source_to_local.find(source_indices[i + 2]);
         if (a == source_to_local.end() || b == source_to_local.end() || c == source_to_local.end()) continue;
-        if (a->second == b->second || b->second == c->second || a->second == c->second) continue;
         mesh.indices.push_back(a->second);
         mesh.indices.push_back(b->second);
         mesh.indices.push_back(c->second);
@@ -2720,11 +2825,13 @@ static NativeSubmesh parse_global_pam_mesh_at(
     }
     std::unordered_map<std::uint32_t, std::uint32_t> source_to_local;
     for (std::uint32_t source_index : unique_indices) {
+        source_to_local[source_index] = static_cast<std::uint32_t>(source_to_local.size());
+    }
+    for (std::uint32_t source_index : unique_indices) {
         const int vertex_index = static_cast<int>(source_index) - global_vertex_base;
         if (vertex_index < 0) continue;
         const size_t voff = static_cast<size_t>(geom_offset) + static_cast<size_t>(vertex_index) * 6u;
-        if (voff + 6 > data.size()) continue;
-        source_to_local[source_index] = static_cast<std::uint32_t>(mesh.positions.size());
+        if (voff + 6 > data.size()) break;
         mesh.positions.push_back(Vec3{
             dequantize_i16(read_i16(data, voff), bbox_min.x, bbox_max.x),
             dequantize_i16(read_i16(data, voff + 2), bbox_min.y, bbox_max.y),
@@ -2738,7 +2845,6 @@ static NativeSubmesh parse_global_pam_mesh_at(
         auto b = source_to_local.find(source_indices[i + 1]);
         auto c = source_to_local.find(source_indices[i + 2]);
         if (a == source_to_local.end() || b == source_to_local.end() || c == source_to_local.end()) continue;
-        if (a->second == b->second || b->second == c->second || a->second == c->second) continue;
         mesh.indices.push_back(a->second);
         mesh.indices.push_back(b->second);
         mesh.indices.push_back(c->second);
@@ -2843,6 +2949,150 @@ static NativeSubmesh parse_best_global_pam_mesh(
     return best;
 }
 
+static NativeSubmesh parse_scan_pam_mesh(
+    const std::vector<char>& data,
+    const RawPamEntry& raw,
+    size_t vertex_base,
+    size_t index_offset,
+    int stride,
+    const Vec3& bbox_min,
+    const Vec3& bbox_max
+) {
+    NativeSubmesh mesh = parse_quantized_pam_mesh(data, raw, vertex_base, index_offset, stride, bbox_min, bbox_max);
+    mesh.name = "mesh_" + (raw.index < 10 ? std::string("0") : std::string()) + std::to_string(raw.index) + "_" + (raw.material_name.empty() ? std::to_string(raw.index) : raw.material_name);
+    mesh.material = raw.material_name;
+    return mesh;
+}
+
+static std::vector<NativeSubmesh> parse_pam_scan_fallback(
+    const std::vector<char>& data,
+    const std::vector<RawPamEntry>& entries,
+    int geom_offset,
+    const Vec3& bbox_min,
+    const Vec3& bbox_max,
+    std::string& parser_name
+) {
+    std::vector<NativeSubmesh> output;
+    std::uint64_t total_vertices = 0;
+    std::uint64_t total_indices = 0;
+    for (const RawPamEntry& entry : entries) {
+        total_vertices += entry.vertex_count;
+        total_indices += entry.index_count;
+    }
+    if (total_vertices < 3 || total_indices < 3 || geom_offset < 0 || static_cast<size_t>(geom_offset) >= data.size()) return output;
+    const int search_limit = std::min<int>(
+        static_cast<int>(data.size()) - 100,
+        geom_offset + std::min<int>(static_cast<int>(data.size() / 2u), 2000000)
+    );
+    const int step = (search_limit - geom_offset) < 500000 ? 2 : 4;
+    for (int scan_start = geom_offset; scan_start < search_limit; scan_start += step) {
+        if (scan_start + 60 > static_cast<int>(data.size())) break;
+        std::uint16_t min_value = 65535;
+        std::uint16_t max_value = 0;
+        for (int j = 0; j < 30; ++j) {
+            const std::uint16_t value = read_u16(data, static_cast<size_t>(scan_start) + static_cast<size_t>(j) * 2u);
+            min_value = std::min(min_value, value);
+            max_value = std::max(max_value, value);
+        }
+        if (static_cast<int>(max_value) - static_cast<int>(min_value) < 5000) continue;
+        for (int stride : {6, 8, 10, 12, 14, 16, 20, 24, 28, 32}) {
+            const size_t index_base = static_cast<size_t>(scan_start) + static_cast<size_t>(total_vertices) * static_cast<size_t>(stride);
+            if (index_base + static_cast<size_t>(total_indices) * 2u > data.size()) continue;
+            bool valid = true;
+            for (size_t j = 0; j < std::min<std::uint64_t>(50, total_indices); ++j) {
+                if (read_u16(data, index_base + j * 2u) >= total_vertices) {
+                    valid = false;
+                    break;
+                }
+            }
+            if (!valid) continue;
+            for (size_t j = 0; j < std::min<std::uint64_t>(500, total_indices); ++j) {
+                if (read_u16(data, index_base + j * 2u) >= total_vertices) {
+                    valid = false;
+                    break;
+                }
+            }
+            if (!valid) continue;
+            for (const RawPamEntry& raw : entries) {
+                if (raw.vertex_count == 0 || raw.index_count < 3) continue;
+                output.push_back(parse_scan_pam_mesh(
+                    data,
+                    raw,
+                    static_cast<size_t>(scan_start) + static_cast<size_t>(raw.vertex_element_offset) * static_cast<size_t>(stride),
+                    index_base + static_cast<size_t>(raw.index_element_offset) * 2u,
+                    stride,
+                    bbox_min,
+                    bbox_max
+                ));
+            }
+            complete_native_meshes_without_filtering(output);
+            if (!output.empty()) {
+                parser_name = "native_pam_scan_combined";
+                return output;
+            }
+        }
+    }
+
+    for (int scan_end = static_cast<int>(data.size()) - 2; scan_end > geom_offset + static_cast<int>(total_vertices) * 6; scan_end -= 2) {
+        const int test_start = scan_end - static_cast<int>(total_indices) * 2 + 2;
+        if (test_start < geom_offset) break;
+        if (read_u16(data, static_cast<size_t>(test_start)) >= total_vertices) continue;
+        bool valid = true;
+        for (size_t j = 0; j < std::min<std::uint64_t>(30, total_indices); ++j) {
+            if (read_u16(data, static_cast<size_t>(test_start) + j * 2u) >= total_vertices) {
+                valid = false;
+                break;
+            }
+        }
+        if (!valid) continue;
+        for (size_t j = 0; j < std::min<std::uint64_t>(300, total_indices); ++j) {
+            if (read_u16(data, static_cast<size_t>(test_start) + j * 2u) >= total_vertices) {
+                valid = false;
+                break;
+            }
+        }
+        if (!valid) continue;
+        for (size_t j = 0; j < total_indices; ++j) {
+            if (read_u16(data, static_cast<size_t>(test_start) + j * 2u) >= total_vertices) {
+                valid = false;
+                break;
+            }
+        }
+        if (!valid) continue;
+        const int vertex_region = test_start - geom_offset;
+        int best_stride = 0;
+        for (int stride : {6, 8, 10, 12, 14, 16, 20, 24, 28, 32}) {
+            const int expected_end = geom_offset + static_cast<int>(total_vertices) * stride;
+            if (expected_end <= test_start && (test_start - expected_end) < 16384) {
+                best_stride = stride;
+                break;
+            }
+        }
+        if (best_stride == 0) {
+            best_stride = static_cast<int>(vertex_region / static_cast<int>(std::max<std::uint64_t>(1, total_vertices)));
+            if (best_stride < 6) best_stride = 6;
+        }
+        for (const RawPamEntry& raw : entries) {
+            if (raw.vertex_count == 0 || raw.index_count < 3) continue;
+            output.push_back(parse_scan_pam_mesh(
+                data,
+                raw,
+                static_cast<size_t>(geom_offset) + static_cast<size_t>(raw.vertex_element_offset) * static_cast<size_t>(best_stride),
+                static_cast<size_t>(test_start) + static_cast<size_t>(raw.index_element_offset) * 2u,
+                best_stride,
+                bbox_min,
+                bbox_max
+            ));
+        }
+        complete_native_meshes_without_filtering(output);
+        if (!output.empty()) {
+            parser_name = "native_pam_backward_scan_combined";
+            return output;
+        }
+    }
+    return {};
+}
+
 static std::optional<std::pair<int, size_t>> find_combined_pam_layout(
     const std::vector<char>& data,
     const std::vector<RawPamEntry>& entries,
@@ -2863,14 +3113,7 @@ static std::optional<std::pair<int, size_t>> find_combined_pam_layout(
     for (int stride : strides) {
         const size_t index_block = static_cast<size_t>(geom_offset) + static_cast<size_t>(total_vertices) * static_cast<size_t>(stride);
         if (index_block + static_cast<size_t>(total_indices) * 2u > data.size()) continue;
-        bool ok = true;
-        for (const RawPamEntry& entry : entries) {
-            if (!indices_fit_vertex_count(data, index_block + static_cast<size_t>(entry.index_element_offset) * 2u, entry.index_count, entry.vertex_count)) {
-                ok = false;
-                break;
-            }
-        }
-        if (ok) return std::make_pair(stride, index_block);
+        return std::make_pair(stride, index_block);
     }
     return std::nullopt;
 }
@@ -2905,6 +3148,13 @@ static NativeMeshParseResult parse_pam_submeshes(const std::vector<char>& data) 
     std::vector<RawPamEntry> entries = read_pam_entries(data, mesh_count);
     if (entries.empty()) throw std::runtime_error("PAM submesh table is empty");
 
+    auto scan_fallback = [&]() -> NativeMeshParseResult {
+        std::string parser;
+        std::vector<NativeSubmesh> meshes = parse_pam_scan_fallback(data, entries, geom_offset, bbox_min, bbox_max, parser);
+        if (meshes.empty()) throw std::runtime_error("native PAM parser found no renderable geometry");
+        return NativeMeshParseResult{std::move(meshes), parser.empty() ? "native_pam_scan_combined" : parser, 0};
+    };
+
     if (pam_uses_combined_layout(entries)) {
         auto layout = find_combined_pam_layout(data, entries, geom_offset);
         if (layout.has_value()) {
@@ -2921,7 +3171,7 @@ static NativeMeshParseResult parse_pam_submeshes(const std::vector<char>& data) 
                     bbox_max
                 ));
             }
-            finalize_native_meshes(meshes);
+            complete_native_meshes_without_filtering(meshes);
             if (!meshes.empty()) return NativeMeshParseResult{std::move(meshes), "native_pam_combined", 0};
         }
     }
@@ -2949,7 +3199,24 @@ static NativeMeshParseResult parse_pam_submeshes(const std::vector<char>& data) 
             local_meshes.push_back(parse_best_global_pam_mesh(data, raw, geom_offset, bbox_min, bbox_max));
         }
     }
-    finalize_native_meshes(local_meshes);
+    complete_native_meshes_without_filtering(local_meshes);
+    if (local_meshes.empty() || used_global) {
+        try {
+            NativeMeshParseResult scanned = scan_fallback();
+            if (!used_global || local_meshes.empty()) return scanned;
+            int scanned_faces = 0;
+            int local_faces = 0;
+            int scanned_vertices = 0;
+            int local_vertices = 0;
+            for (const NativeSubmesh& mesh : scanned.meshes) scanned_faces += static_cast<int>(mesh.indices.size() / 3u);
+            for (const NativeSubmesh& mesh : local_meshes) local_faces += static_cast<int>(mesh.indices.size() / 3u);
+            for (const NativeSubmesh& mesh : scanned.meshes) scanned_vertices += static_cast<int>(mesh.positions.size());
+            for (const NativeSubmesh& mesh : local_meshes) local_vertices += static_cast<int>(mesh.positions.size());
+            if (scanned_faces > local_faces || (scanned_faces == local_faces && scanned_vertices > local_vertices)) return scanned;
+        } catch (...) {
+            if (local_meshes.empty()) throw;
+        }
+    }
     if (local_meshes.empty()) throw std::runtime_error("native PAM parser found no renderable geometry");
     return NativeMeshParseResult{std::move(local_meshes), used_global ? "native_pam_global" : "native_pam_local", 0};
 }
@@ -3038,6 +3305,35 @@ static std::optional<std::tuple<size_t, int, size_t>> find_pamlod_group_layout(
     return std::nullopt;
 }
 
+static NativeSubmesh combine_pamlod_group_meshes(const std::vector<NativeSubmesh>& parts, int lod_index) {
+    NativeSubmesh combined;
+    if (parts.empty()) return combined;
+    combined.name = "lod" + std::to_string(lod_index);
+    combined.material = parts.front().material.empty() ? combined.name : parts.front().material;
+    combined.source_submesh_index = lod_index;
+    combined.source_local_submesh_index = lod_index;
+    combined.vertex_layout_name = parts.front().vertex_layout_name;
+    combined.vertex_stride = parts.front().vertex_stride;
+    combined.uv_offset = parts.front().uv_offset;
+    combined.normal_offset = parts.front().normal_offset;
+    std::uint32_t vertex_base = 0;
+    for (const NativeSubmesh& part : parts) {
+        if (combined.name == "lod" + std::to_string(lod_index) && !part.name.empty()) {
+            combined.name = "lod" + std::to_string(lod_index) + "_" + part.name;
+        }
+        combined.positions.insert(combined.positions.end(), part.positions.begin(), part.positions.end());
+        combined.uvs.insert(combined.uvs.end(), part.uvs.begin(), part.uvs.end());
+        combined.normals.insert(combined.normals.end(), part.normals.begin(), part.normals.end());
+        combined.source_vertex_indices.insert(combined.source_vertex_indices.end(), part.source_vertex_indices.begin(), part.source_vertex_indices.end());
+        for (std::uint32_t index : part.indices) {
+            combined.indices.push_back(vertex_base + index);
+        }
+        vertex_base += static_cast<std::uint32_t>(part.positions.size());
+    }
+    evaluate_native_submesh_quality(combined);
+    return combined;
+}
+
 static NativeMeshParseResult parse_pamlod_submeshes(const std::vector<char>& data) {
     if (data.size() < kPamlodEntryTableOffset) {
         throw std::runtime_error("selected PAMLOD is too small");
@@ -3053,15 +3349,19 @@ static NativeMeshParseResult parse_pamlod_submeshes(const std::vector<char>& dat
     if (entries.empty()) throw std::runtime_error("PAMLOD mesh table is empty");
     std::vector<std::vector<RawPamEntry>> groups = group_pamlod_entries(entries, lod_count);
     size_t cursor = static_cast<size_t>(geom_offset);
+    int lod_index = 0;
     for (const std::vector<RawPamEntry>& group : groups) {
         auto layout = find_pamlod_group_layout(data, cursor, group);
-        if (!layout.has_value()) continue;
+        if (!layout.has_value()) {
+            ++lod_index;
+            continue;
+        }
         const size_t vertex_base = std::get<0>(*layout);
         const int stride = std::get<1>(*layout);
         const size_t index_offset = std::get<2>(*layout);
-        std::vector<NativeSubmesh> meshes;
+        std::vector<NativeSubmesh> parts;
         for (const RawPamEntry& raw : group) {
-            meshes.push_back(parse_quantized_pam_mesh(
+            parts.push_back(parse_quantized_pam_mesh(
                 data,
                 raw,
                 vertex_base + static_cast<size_t>(raw.vertex_element_offset) * static_cast<size_t>(stride),
@@ -3071,11 +3371,14 @@ static NativeMeshParseResult parse_pamlod_submeshes(const std::vector<char>& dat
                 bbox_max
             ));
         }
-        finalize_native_meshes(meshes);
+        std::vector<NativeSubmesh> meshes;
+        meshes.push_back(combine_pamlod_group_meshes(parts, lod_index));
+        complete_native_meshes_without_filtering(meshes);
         if (!meshes.empty()) return NativeMeshParseResult{std::move(meshes), "native_pamlod_lod0", static_cast<int>(groups.size())};
         std::uint64_t total_indices = 0;
         for (const RawPamEntry& raw : group) total_indices += raw.index_count;
         cursor = index_offset + static_cast<size_t>(total_indices) * 2u;
+        ++lod_index;
     }
     throw std::runtime_error("native PAMLOD parser found no renderable LOD geometry");
 }
@@ -3119,6 +3422,11 @@ static bool low_authority_base_path(const std::string& raw_path) {
     if (stem == "cd_common_default_overlay" || stem == "cd_common_default_overlay_old") return true;
     if (path_has_suffix_stem(raw_path, "_o") || stem.find("_overlay") != std::string::npos) return true;
     return false;
+}
+
+static bool base_binding_is_low_authority_overlay(const TextureBinding* binding) {
+    return binding != nullptr
+        && (low_authority_base_path(binding->archive_path) || low_authority_base_path(binding->texture_name));
 }
 
 static bool placeholder_visible_base_path(const std::string& raw_path) {
@@ -3576,28 +3884,95 @@ static bool native_cloth_token_match(const std::string& value) {
         || text.find("flap") != std::string::npos;
 }
 
-static bool native_non_cloth_pbd_token_match(const std::string& value) {
+static bool native_leather_token_match(const std::string& value) {
+    const std::string text = lower_copy(value);
+    return text.find("leather") != std::string::npos
+        || text.find("hide") != std::string::npos;
+}
+
+static bool native_hair_token_match(const std::string& value) {
+    const std::string text = lower_copy(value);
+    return text.find("hair") != std::string::npos
+        || text.find("fur") != std::string::npos;
+}
+
+static bool native_rope_token_match(const std::string& value) {
+    const std::string text = lower_copy(value);
+    return text.find("rope") != std::string::npos
+        || text.find("cord") != std::string::npos
+        || text.find("string") != std::string::npos
+        || text.find("thread") != std::string::npos
+        || text.find("tassel") != std::string::npos
+        || text.find("strap") != std::string::npos
+        || text.find("belt") != std::string::npos;
+}
+
+static bool native_spline_token_match(const std::string& value) {
+    const std::string text = lower_copy(value);
+    return text.find("spline") != std::string::npos
+        || text.find("chain") != std::string::npos
+        || text.find("whip") != std::string::npos
+        || text.find("tail") != std::string::npos;
+}
+
+static bool native_body_soft_token_match(const std::string& value) {
+    const std::string text = lower_copy(value);
+    return text.find("breast") != std::string::npos
+        || text.find("belly") != std::string::npos
+        || text.find("body_soft") != std::string::npos
+        || text.find("softbody") != std::string::npos
+        || text.find("soft_body") != std::string::npos
+        || text.find("jiggle") != std::string::npos;
+}
+
+static bool native_rigid_pbd_token_match(const std::string& value) {
     const std::string text = lower_copy(value);
     return text.find("weapon") != std::string::npos
-        || text.find("spline") != std::string::npos
         || text.find("blade") != std::string::npos
         || text.find("guard") != std::string::npos
         || text.find("handle") != std::string::npos
         || text.find("hilt") != std::string::npos
         || text.find("sword") != std::string::npos
         || text.find("metal") != std::string::npos
+        || text.find("steel") != std::string::npos
+        || text.find("iron") != std::string::npos
         || text.find("rigid") != std::string::npos;
 }
 
-static bool native_pbd_hint_is_cloth(const NativePbdSidecarHint& hint) {
-    const std::string kind = lower_copy(hint.simulation_kind);
+static bool native_soft_pbd_kind(const std::string& kind_value) {
+    const std::string kind = lower_copy(kind_value.empty() ? "unknown" : kind_value);
     return kind == "cloth"
-        && native_cloth_token_match(
-            hint.simulation_material_name + " " +
-            hint.material_name + " " +
-            hint.submesh_name + " " +
-            hint.parameter_name
-        );
+        || kind == "leather"
+        || kind == "hair"
+        || kind == "rope"
+        || kind == "spline"
+        || kind == "body_soft"
+        || kind == "unknown";
+}
+
+static bool native_soft_pbd_token_match(const std::string& value) {
+    return native_cloth_token_match(value)
+        || native_leather_token_match(value)
+        || native_hair_token_match(value)
+        || native_rope_token_match(value)
+        || native_spline_token_match(value)
+        || native_body_soft_token_match(value);
+}
+
+static bool native_pbd_hint_is_soft_physics(const NativePbdSidecarHint& hint) {
+    const std::string kind = lower_copy(hint.simulation_kind);
+    const std::string context = hint.simulation_material_name + " " +
+        hint.material_name + " " +
+        hint.submesh_name + " " +
+        hint.parameter_name;
+    if (!native_soft_pbd_kind(kind)) return false;
+    if (kind == "spline" && native_rigid_pbd_token_match(context) && !native_rope_token_match(context)) return false;
+    if (native_rigid_pbd_token_match(context) && !native_soft_pbd_token_match(context)) return false;
+    return true;
+}
+
+static bool native_pbd_hint_is_cloth(const NativePbdSidecarHint& hint) {
+    return lower_copy(hint.simulation_kind) == "cloth" && native_pbd_hint_is_soft_physics(hint);
 }
 
 static bool native_pbd_hints_have_cloth(const std::vector<NativePbdSidecarHint>& hints) {
@@ -3607,23 +3982,31 @@ static bool native_pbd_hints_have_cloth(const std::vector<NativePbdSidecarHint>&
     return false;
 }
 
+static bool native_pbd_hints_have_soft_physics(const std::vector<NativePbdSidecarHint>& hints) {
+    for (const NativePbdSidecarHint& hint : hints) {
+        if (native_pbd_hint_is_soft_physics(hint)) return true;
+    }
+    return false;
+}
+
 static std::string native_pbd_simulation_kind(std::initializer_list<std::string> values) {
     const std::string joined = native_joined_lower(values);
-    if (joined.find("hair") != std::string::npos || joined.find("fur") != std::string::npos) {
+    if (native_hair_token_match(joined)) {
         return "hair";
     }
-    if (
-        joined.find("breast") != std::string::npos ||
-        joined.find("belly") != std::string::npos ||
-        joined.find("body_soft") != std::string::npos ||
-        joined.find("jiggle") != std::string::npos
-    ) {
+    if (native_body_soft_token_match(joined)) {
         return "body_soft";
+    }
+    if (native_leather_token_match(joined)) {
+        return "leather";
+    }
+    if (native_rope_token_match(joined)) {
+        return "rope";
     }
     if (native_cloth_token_match(joined)) {
         return "cloth";
     }
-    if (native_non_cloth_pbd_token_match(joined)) {
+    if (native_spline_token_match(joined)) {
         return "spline";
     }
     return "unknown";
@@ -3789,6 +4172,35 @@ static NativePbdMaterialSettings parse_native_pbd_material_settings(
     const std::string mode = native_first_scalar(values, {"SimulationMode", "Mode"});
     if (!mode.empty()) {
         settings.simulation_kind = native_pbd_simulation_kind({mode, settings.material_name, settings.material_path});
+    }
+    const std::string kind = lower_copy(settings.simulation_kind);
+    if (kind == "leather") {
+        settings.stretching_stiffness = 0.55f;
+        settings.bending_stiffness = 0.34f;
+        settings.damping = 0.82f;
+        settings.wind_response = 0.22f;
+    } else if (kind == "hair") {
+        settings.stretching_stiffness = 0.24f;
+        settings.bending_stiffness = 0.08f;
+        settings.damping = 1.15f;
+        settings.gravity = -6.5f;
+        settings.air_resistance = 1.8f;
+        settings.wind_response = 0.75f;
+        settings.solver_iterations = 24;
+        settings.collision_enabled = false;
+    } else if (kind == "rope" || kind == "spline") {
+        settings.stretching_stiffness = 0.82f;
+        settings.bending_stiffness = 0.12f;
+        settings.damping = 0.78f;
+        settings.wind_response = 0.24f;
+        settings.solver_iterations = 36;
+    } else if (kind == "body_soft") {
+        settings.stretching_stiffness = 0.45f;
+        settings.bending_stiffness = 0.12f;
+        settings.damping = 1.35f;
+        settings.gravity = -4.0f;
+        settings.wind_response = 0.10f;
+        settings.solver_iterations = 20;
     }
     settings.stretching_stiffness = std::clamp(native_safe_float(native_first_scalar(values, {"StretchingStiffness", "StretchStiffness"}), settings.stretching_stiffness), 0.0f, 1.0f);
     settings.bending_stiffness = std::clamp(native_safe_float(native_first_scalar(values, {"BendingStiffness", "BendStiffness"}), settings.bending_stiffness), 0.0f, 1.0f);
@@ -4617,6 +5029,7 @@ static bool authoritative_wrapper_visible_base_for_mesh(const TextureBinding& bi
     if (!parameter_is_authoritative_visible_base(binding.parameter_name)) return false;
     if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) return false;
     if (placeholder_visible_base_path(binding.archive_path) || placeholder_visible_base_path(binding.texture_name)) return false;
+    if (base_binding_is_low_authority_overlay(&binding)) return false;
     return material_wrapper_matches_mesh_local_index(binding, mesh) || material_identity_match_score(binding, mesh) >= 300;
 }
 
@@ -4648,8 +5061,7 @@ static const TextureBinding* best_binding_for_role(
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty()) continue;
         if (binding.role != desired_role) {
-            const bool compatible_material_response = desired_role == "material" && (binding.role == "detail" || binding.role == "specular");
-            if (!compatible_material_response) continue;
+            continue;
         }
         if (
             binding.material_wrapper_order_authoritative
@@ -4777,7 +5189,7 @@ static const TextureBinding* best_base_binding_for_mode(
             parameter_is_authoritative_visible_base(binding.parameter_name)
             || binding.visible_class == "primary_visible";
         const bool authoritative_wrapper_visible_base = authoritative_wrapper_visible_base_for_mesh(binding, mesh);
-        const bool low_authority = low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name);
+        const bool low_authority = base_binding_is_low_authority_overlay(&binding);
         if (!authoritative_wrapper_visible_base && low_authority && !(authoritative_visible_base && identity_score >= 120)) continue;
         if (
             authoritative_wrapper_visible_base
@@ -4794,10 +5206,9 @@ static const TextureBinding* best_base_binding_for_mode(
             || binding.visible_class == "primary_visible"
             || (
                 authoritative_visible_base
-                && !low_authority_base_path(binding.archive_path)
-                && !low_authority_base_path(binding.texture_name)
+                && !base_binding_is_low_authority_overlay(&binding)
             );
-        if (identity_score >= 120 && stable_visible_base) {
+        if (identity_score >= 120 && (stable_visible_base || binding.visible_class == "layer_visible")) {
             has_non_low_authority_visible_base = true;
             break;
         }
@@ -4840,7 +5251,7 @@ static const TextureBinding* best_base_binding_for_mode(
                 || binding_layer_role == "damage"
                 || binding_layer_role == "layer"
             );
-        const bool low_authority = low_authority_base_path(binding.archive_path) || low_authority_base_path(binding.texture_name);
+        const bool low_authority = base_binding_is_low_authority_overlay(&binding);
         if (!embedded && !normalized_material_key(binding.material_name).empty() && identity_score <= 0) {
             continue;
         }
@@ -4850,8 +5261,7 @@ static const TextureBinding* best_base_binding_for_mode(
         if (
             low_authority
             && has_non_low_authority_visible_base
-            && !authoritative_wrapper_visible_base_for_mesh(binding, mesh)
-            && !(authoritative_visible_base && identity_score >= 120)
+            && !(authoritative_visible_base && identity_score >= 120 && binding.visible_class != "visible_generic")
         ) {
             continue;
         }
@@ -4884,7 +5294,7 @@ static const TextureBinding* best_base_binding_for_mode(
             }
             if (!embedded && binding.visible_class == "visible_generic") score -= 54;
             if (low_authority) {
-                score -= authoritative_wrapper_visible_base_for_mesh(binding, mesh) ? 36 : 220;
+                score -= 220;
             }
         } else if (mode == "layer_aware_visible") {
             if (binding.visible_class == "layer_visible") score += 35;
@@ -5014,15 +5424,17 @@ static const NativePbdSidecarHint* best_native_pbd_hint_for_binding(
     const std::string material_key = normalized_material_key(binding_material_name);
     const std::string ref_material_key = normalized_material_key(texture_ref_material_name);
     const std::string parameter_key = normalized_key(texture_parameter_name);
+    const std::string binding_context = binding_material_name + " " + texture_ref_material_name + " " + texture_parameter_name;
+    const bool binding_looks_like_soft_physics = native_soft_pbd_token_match(binding_context);
+    if (native_rigid_pbd_token_match(binding_context) && !binding_looks_like_soft_physics) {
+        return nullptr;
+    }
     const bool binding_looks_like_cloth = native_cloth_token_match(
         binding_material_name + " " + texture_ref_material_name + " " + texture_parameter_name
     );
-    if (!binding_looks_like_cloth) {
-        return nullptr;
-    }
     for (const NativePbdSidecarHint& hint : hints) {
         if (hint.simulation_material_name.empty()) continue;
-        if (!native_pbd_hint_is_cloth(hint)) continue;
+        if (!native_pbd_hint_is_soft_physics(hint)) continue;
         int score = 0;
         const std::string hint_material_key = normalized_material_key(hint.material_name);
         const std::string hint_submesh_key = normalized_material_key(hint.submesh_name);
@@ -5030,9 +5442,9 @@ static const NativePbdSidecarHint* best_native_pbd_hint_for_binding(
         if (!hint_material_key.empty() && (hint_material_key == material_key || hint_material_key == ref_material_key)) score += 100;
         if (!hint_submesh_key.empty() && (hint_submesh_key == material_key || hint_submesh_key == ref_material_key)) score += 90;
         if (!hint_pbd_key.empty() && (material_key.find(hint_pbd_key) != std::string::npos || ref_material_key.find(hint_pbd_key) != std::string::npos)) score += 40;
-        if (binding_looks_like_cloth) score += 80;
-        if (!parameter_key.empty() && (parameter_key.find("cloth") != std::string::npos || parameter_key.find("cloak") != std::string::npos)) score += 20;
-        if (hint_material_key.empty() && hint_submesh_key.empty() && binding_looks_like_cloth) score += 20;
+        if (binding_looks_like_soft_physics) score += 20;
+        if (binding_looks_like_cloth) score += 20;
+        if (!parameter_key.empty() && native_soft_pbd_token_match(parameter_key)) score += 20;
         if (score > best_score) {
             best_score = score;
             best = &hint;
@@ -5043,18 +5455,31 @@ static const NativePbdSidecarHint* best_native_pbd_hint_for_binding(
 
 static std::string packed_channels_for_role(const std::string& role, const std::string& name, const std::string& parameter_name) {
     const std::string lower = lower_copy(name + " " + parameter_name);
+    const std::string parameter_key = normalized_key(parameter_name);
     if (role == "material") {
         if (lower.find("orm") != std::string::npos) return "r=occlusion,g=roughness,b=metalness";
         if (lower.find("rma") != std::string::npos) return "r=roughness,g=metalness,b=occlusion";
         if (lower.find("mra") != std::string::npos) return "r=metalness,g=roughness,b=occlusion";
         if (lower.find("arm") != std::string::npos) return "r=occlusion,g=roughness,b=metalness";
-        if (lower.find("_ma") != std::string::npos || lower.find("material") != std::string::npos) {
-            return "approx:r=occlusion,g=roughness,b=metalness,a=specular";
+        if (parameter_key == "colorblendingmasktexture" && lower.find("_ma") != std::string::npos) {
+            return "r=occlusion,g=roughness,b=metalness,a=specular_response";
         }
-        if (lower.find("_m") != std::string::npos) return "approx:packed_material_mask";
+        if (parameter_key == "detailmasktexture" || lower.find("_mg") != std::string::npos) {
+            return "layer:detail_grime_dye_mask";
+        }
+        if (
+            lower.find("_sp") != std::string::npos
+            || parameter_key.find("grimematerialtexture") != std::string::npos
+            || parameter_key.find("detailmaterialmask") != std::string::npos
+            || parameter_key == "materialtexture"
+        ) {
+            return "layer:material_response";
+        }
+        if (lower.find("_ma") != std::string::npos) return "diagnostic:crimson_material_mask";
+        if (lower.find("_m") != std::string::npos) return "diagnostic:packed_material_mask";
     }
-    if (role == "detail") return "approx:detail/grime/dye mask weights";
-    if (role == "specular") return "approx:specular/roughness response";
+    if (role == "detail") return "layer:detail_grime_dye_mask";
+    if (role == "specular") return "layer:material_response";
     if (role == "height") return "height";
     if (role == "normal") return "normal_xy";
     return "";
@@ -5334,6 +5759,35 @@ static NativePbdMaterialSettings default_native_pbd_material_settings(const Nati
     NativePbdMaterialSettings settings;
     settings.material_name = hint.simulation_material_name;
     settings.simulation_kind = hint.simulation_kind.empty() ? "unknown" : hint.simulation_kind;
+    const std::string kind = lower_copy(settings.simulation_kind);
+    if (kind == "leather") {
+        settings.stretching_stiffness = 0.55f;
+        settings.bending_stiffness = 0.34f;
+        settings.damping = 0.82f;
+        settings.wind_response = 0.22f;
+    } else if (kind == "hair") {
+        settings.stretching_stiffness = 0.24f;
+        settings.bending_stiffness = 0.08f;
+        settings.damping = 1.15f;
+        settings.gravity = -6.5f;
+        settings.air_resistance = 1.8f;
+        settings.wind_response = 0.75f;
+        settings.solver_iterations = 24;
+        settings.collision_enabled = false;
+    } else if (kind == "rope" || kind == "spline") {
+        settings.stretching_stiffness = 0.82f;
+        settings.bending_stiffness = 0.12f;
+        settings.damping = 0.78f;
+        settings.wind_response = 0.24f;
+        settings.solver_iterations = 36;
+    } else if (kind == "body_soft") {
+        settings.stretching_stiffness = 0.45f;
+        settings.bending_stiffness = 0.12f;
+        settings.damping = 1.35f;
+        settings.gravity = -4.0f;
+        settings.wind_response = 0.10f;
+        settings.solver_iterations = 20;
+    }
     settings.is_cloak = native_cloth_token_match(
         hint.simulation_material_name + " " + hint.material_name + " " + hint.submesh_name
     );
@@ -5829,7 +6283,7 @@ static std::vector<TextureBinding> build_material_bindings(
                 pre_shader_rule.find("standard") != std::string::npos
                 || pre_shader_rule.find("cloth") != std::string::npos
                 || pre_shader_rule.find("multitextured") != std::string::npos
-                || (pre_shader_rule.find("generic") != std::string::npos && native_pbd_hints_have_cloth(parsed_sidecar->pbd_hints));
+                || (pre_shader_rule.find("generic") != std::string::npos && native_pbd_hints_have_soft_physics(parsed_sidecar->pbd_hints));
             if (
                 mode == "mesh_base_first"
                 && !keep_layer_stack_aux
@@ -6250,14 +6704,13 @@ static std::optional<NativePbdSidecarHint> native_pbd_hint_for_mesh(
     const std::string mesh_material_key = normalized_material_key(mesh.material);
     const std::string mesh_name_key = normalized_material_key(mesh.name);
     const std::string mesh_scope_text = mesh.material.empty() ? mesh.name : mesh.material;
-    const bool mesh_looks_like_cloth = native_cloth_token_match(mesh_scope_text);
-    if (!mesh_looks_like_cloth) {
+    const bool mesh_looks_like_soft_physics = native_soft_pbd_token_match(mesh_scope_text);
+    if (native_rigid_pbd_token_match(mesh_scope_text) && !mesh_looks_like_soft_physics) {
         return std::nullopt;
     }
     for (const TextureBinding* binding : batch_bindings) {
         if (binding == nullptr || binding->pbd_simulation_material_name.empty()) continue;
         const std::string kind = lower_copy(binding->pbd_simulation_kind.empty() ? "unknown" : binding->pbd_simulation_kind);
-        if (kind != "cloth") continue;
         NativePbdSidecarHint hint;
         hint.simulation_material_name = binding->pbd_simulation_material_name;
         hint.simulation_kind = kind;
@@ -6265,7 +6718,7 @@ static std::optional<NativePbdSidecarHint> native_pbd_hint_for_mesh(
         hint.submesh_name = binding->pbd_submesh_name;
         hint.parameter_name = binding->parameter_name;
         hint.sidecar_path = binding->sidecar_path;
-        if (!native_pbd_hint_is_cloth(hint)) continue;
+        if (!native_pbd_hint_is_soft_physics(hint)) continue;
         const std::string hint_material_key = normalized_material_key(hint.material_name);
         const std::string hint_submesh_key = normalized_material_key(hint.submesh_name);
         const bool hint_has_scope = !hint_material_key.empty() || !hint_submesh_key.empty();
@@ -6289,7 +6742,7 @@ static std::optional<NativePbdSidecarHint> native_pbd_hint_for_mesh(
         int score = 0;
         if (material_scope_match) score += 120;
         if (submesh_scope_match) score += 120;
-        if (mesh_looks_like_cloth) score += 80;
+        if (mesh_looks_like_soft_physics) score += 20;
         if (strong_identity_match) score += 40;
         if (material_binding_matches_mesh_source(*binding, mesh)) score += 10;
         if (score > best_score) {
@@ -6372,45 +6825,177 @@ static std::vector<NativeClothConstraint> build_native_cloth_constraints(
 
 static std::vector<float> build_native_cloth_pin_weights(
     const std::vector<Vec3>& positions,
-    bool cloak_bias
+    const std::vector<std::uint32_t>& indices,
+    bool cloak_bias,
+    const std::string& simulation_kind = "cloth",
+    const std::vector<Vec3>* attachment_anchors = nullptr
 ) {
     std::vector<float> weights(positions.size(), 0.0f);
     if (positions.empty()) return weights;
-    float y_min = positions.front().y;
-    float y_max = positions.front().y;
-    for (const Vec3& position : positions) {
-        y_min = std::min(y_min, position.y);
-        y_max = std::max(y_max, position.y);
+    const std::string kind = lower_copy(simulation_kind);
+    float hard_height = cloak_bias ? 0.16f : 0.12f;
+    float fade_height = cloak_bias ? 0.36f : 0.28f;
+    if (kind == "rope" || kind == "spline") {
+        hard_height = 0.06f;
+        fade_height = 0.18f;
+    } else if (kind == "hair") {
+        hard_height = 0.08f;
+        fade_height = 0.24f;
+    } else if (kind == "leather") {
+        hard_height = 0.10f;
+        fade_height = 0.24f;
+    } else if (kind == "body_soft") {
+        hard_height = 0.20f;
+        fade_height = 0.45f;
     }
-    const float span = std::max(1.0e-6f, y_max - y_min);
-    const float hard_height = cloak_bias ? 0.16f : 0.12f;
-    const float fade_height = cloak_bias ? 0.36f : 0.28f;
-    const float hard_line = y_max - span * hard_height;
-    const float fade_line = y_max - span * fade_height;
-    for (size_t index = 0; index < positions.size(); ++index) {
-        const float y = positions[index].y;
-        if (y >= hard_line) {
-            weights[index] = 1.0f;
-        } else if (y >= fade_line) {
-            weights[index] = std::clamp((y - fade_line) / std::max(1.0e-6f, hard_line - fade_line), 0.0f, 1.0f);
+    std::vector<size_t> parent(positions.size());
+    for (size_t index = 0; index < parent.size(); ++index) parent[index] = index;
+    auto find_root = [&](size_t start) {
+        size_t index = start;
+        while (parent[index] != index) {
+            parent[index] = parent[parent[index]];
+            index = parent[index];
+        }
+        return index;
+    };
+    auto unite = [&](size_t left, size_t right) {
+        const size_t left_root = find_root(left);
+        const size_t right_root = find_root(right);
+        if (left_root != right_root) parent[right_root] = left_root;
+    };
+    size_t valid_triangles = 0;
+    for (size_t offset = 0; offset + 2u < indices.size(); offset += 3u) {
+        const size_t a = static_cast<size_t>(indices[offset]);
+        const size_t b = static_cast<size_t>(indices[offset + 1u]);
+        const size_t c = static_cast<size_t>(indices[offset + 2u]);
+        if (a >= positions.size() || b >= positions.size() || c >= positions.size()) continue;
+        if (a == b || b == c || c == a) continue;
+        ++valid_triangles;
+        unite(a, b);
+        unite(b, c);
+        unite(c, a);
+    }
+    std::map<size_t, std::vector<size_t>> components;
+    if (valid_triangles <= 0) {
+        std::vector<size_t> all_indices(positions.size());
+        for (size_t index = 0; index < all_indices.size(); ++index) all_indices[index] = index;
+        components[0] = all_indices;
+    } else {
+        for (size_t index = 0; index < positions.size(); ++index) {
+            components[find_root(index)].push_back(index);
         }
     }
-    const float max_weight = weights.empty() ? 0.0f : *std::max_element(weights.begin(), weights.end());
-    if (max_weight <= 0.0f) {
-        std::vector<size_t> order(positions.size());
-        for (size_t index = 0; index < order.size(); ++index) order[index] = index;
-        std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
-            return positions[a].y > positions[b].y;
-        });
-        const size_t count = std::max<size_t>(3, std::min<size_t>(8, order.size()));
-        for (size_t index = 0; index < count; ++index) weights[order[index]] = 1.0f;
+    for (const auto& [component_key, component] : components) {
+        (void)component_key;
+        if (component.empty()) continue;
+        if (attachment_anchors != nullptr && !attachment_anchors->empty()) {
+            std::vector<std::pair<float, size_t>> nearest;
+            nearest.reserve(component.size());
+            for (size_t index : component) {
+                float best_distance = std::numeric_limits<float>::max();
+                for (const Vec3& anchor : *attachment_anchors) {
+                    best_distance = std::min(best_distance, native_distance(positions[index], anchor));
+                }
+                nearest.push_back({best_distance, index});
+            }
+            std::sort(nearest.begin(), nearest.end(), [](const auto& a, const auto& b) {
+                if (a.first != b.first) return a.first < b.first;
+                return a.second < b.second;
+            });
+            const size_t hard_count = std::max<size_t>(1, std::min<size_t>(8, std::max<size_t>(2, component.size() / 10u)));
+            const size_t fade_count = std::max<size_t>(hard_count, std::min<size_t>(component.size(), hard_count * 3u));
+            for (size_t rank = 0; rank < nearest.size() && rank < fade_count; ++rank) {
+                const size_t index = nearest[rank].second;
+                if (rank < hard_count || hard_count == fade_count) {
+                    weights[index] = 1.0f;
+                } else {
+                    const float t = 1.0f - static_cast<float>(rank - hard_count + 1u) / static_cast<float>(std::max<size_t>(1, fade_count - hard_count + 1u));
+                    weights[index] = std::max(weights[index], std::clamp(t, 0.0f, 1.0f));
+                }
+            }
+            continue;
+        }
+        float component_min_y = positions[component.front()].y;
+        float component_max_y = positions[component.front()].y;
+        for (size_t index : component) {
+            component_min_y = std::min(component_min_y, positions[index].y);
+            component_max_y = std::max(component_max_y, positions[index].y);
+        }
+        const float component_span = std::max(1.0e-6f, component_max_y - component_min_y);
+        const float hard_line = component_max_y - component_span * hard_height;
+        const float fade_line = component_max_y - component_span * fade_height;
+        float component_max_weight = 0.0f;
+        for (size_t index : component) {
+            const float y = positions[index].y;
+            if (y >= hard_line) {
+                weights[index] = 1.0f;
+            } else if (y >= fade_line) {
+                weights[index] = std::clamp((y - fade_line) / std::max(1.0e-6f, hard_line - fade_line), 0.0f, 1.0f);
+            }
+            component_max_weight = std::max(component_max_weight, weights[index]);
+        }
+        if (component_max_weight <= 0.0f) {
+            std::vector<size_t> order = component;
+            std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+                return positions[a].y > positions[b].y;
+            });
+            const size_t count = std::max<size_t>(1, std::min<size_t>(3, order.size()));
+            for (size_t index = 0; index < count; ++index) weights[order[index]] = 1.0f;
+        }
     }
     return weights;
+}
+
+static bool native_pbd_runtime_should_use_attachment_anchors(
+    const NativePbdSidecarHint& hint,
+    const NativePbdMaterialSettings& settings,
+    const NativeSubmesh& mesh
+) {
+    const std::string kind = lower_copy(settings.simulation_kind);
+    const std::string context = lower_copy(
+        hint.simulation_material_name + " " +
+        hint.material_name + " " +
+        hint.submesh_name + " " +
+        mesh.material + " " +
+        mesh.name
+    );
+    return kind == "spline"
+        || (kind == "rope" && context.find("weapon") != std::string::npos)
+        || context.find("flag") != std::string::npos
+        || context.find("banner") != std::string::npos
+        || context.find("ribbon") != std::string::npos;
+}
+
+static std::vector<Vec3> collect_native_attachment_anchor_positions(
+    const std::vector<NativeSubmesh>& submeshes,
+    size_t cloth_batch_index,
+    const Vec3& center,
+    float scale
+) {
+    std::vector<Vec3> anchors;
+    size_t total_positions = 0;
+    for (size_t index = 0; index < submeshes.size(); ++index) {
+        if (index == cloth_batch_index) continue;
+        total_positions += submeshes[index].positions.size();
+    }
+    const size_t stride = total_positions > 4096u ? std::max<size_t>(1, total_positions / 4096u) : 1u;
+    size_t seen = 0;
+    for (size_t mesh_index = 0; mesh_index < submeshes.size(); ++mesh_index) {
+        if (mesh_index == cloth_batch_index) continue;
+        const NativeSubmesh& mesh = submeshes[mesh_index];
+        for (const Vec3& raw_position : mesh.positions) {
+            if ((seen++ % stride) != 0u) continue;
+            anchors.push_back(vec_mul(vec_sub(raw_position, center), scale));
+        }
+    }
+    return anchors;
 }
 
 static NativeClothRuntimeBatch build_native_cloth_runtime_batch(
     const EntryJob& job,
     const PamtIndex& primary_index,
+    const std::vector<NativeSubmesh>& submeshes,
+    size_t batch_index,
     const NativeSubmesh& mesh,
     const std::vector<const TextureBinding*>& batch_bindings,
     const fs::path& package_dir,
@@ -6424,13 +7009,7 @@ static NativeClothRuntimeBatch build_native_cloth_runtime_batch(
     if (!hint.has_value()) return runtime;
     runtime.hint = *hint;
     runtime.settings = resolve_native_pbd_material_settings(job, primary_index, runtime.hint);
-    if (lower_copy(runtime.settings.simulation_kind) != "cloth") return runtime;
-    if (!native_cloth_token_match(
-        runtime.hint.simulation_material_name + " " +
-        runtime.hint.material_name + " " +
-        runtime.hint.submesh_name + " " +
-        (mesh.material.empty() ? mesh.name : mesh.material)
-    )) return runtime;
+    if (!native_soft_pbd_kind(runtime.settings.simulation_kind)) return runtime;
     if (mesh.positions.size() < 3 || mesh.indices.size() < 3) return runtime;
     std::vector<Vec3> normalized_positions;
     normalized_positions.reserve(mesh.positions.size());
@@ -6439,9 +7018,15 @@ static NativeClothRuntimeBatch build_native_cloth_runtime_batch(
     }
     std::vector<NativeClothConstraint> constraints = build_native_cloth_constraints(normalized_positions, mesh.indices, runtime.settings);
     if (constraints.empty()) return runtime;
+    const std::vector<Vec3> attachment_anchors = native_pbd_runtime_should_use_attachment_anchors(runtime.hint, runtime.settings, mesh)
+        ? collect_native_attachment_anchor_positions(submeshes, batch_index, center, scale)
+        : std::vector<Vec3>();
     const std::vector<float> pins = build_native_cloth_pin_weights(
         normalized_positions,
-        runtime.settings.is_cloak || native_cloth_token_match(runtime.hint.simulation_material_name + " " + mesh.material + " " + mesh.name)
+        mesh.indices,
+        runtime.settings.is_cloak || native_cloth_token_match(runtime.hint.simulation_material_name + " " + mesh.material + " " + mesh.name),
+        runtime.settings.simulation_kind,
+        attachment_anchors.empty() ? nullptr : &attachment_anchors
     );
     runtime.particle_path = geometry_dir / (stem + "_cloth_particles.bin");
     runtime.pin_path = geometry_dir / (stem + "_cloth_pins.bin");
@@ -6669,6 +7254,120 @@ static bool shader_rule_supports_conservative_layer_stack(const std::vector<cons
     return false;
 }
 
+static const TextureBinding* best_visible_layer_base_fallback(
+    const std::vector<TextureBinding>& bindings,
+    const NativeSubmesh& mesh,
+    const TextureBinding* selected_base,
+    int* selected_score = nullptr
+) {
+    const TextureBinding* best = nullptr;
+    int best_score = 86;
+    for (const TextureBinding& binding : bindings) {
+        if (binding.source_path.empty()) continue;
+        if (!binding_is_layer_diffuse(binding, selected_base)) continue;
+        if (base_binding_is_low_authority_overlay(&binding)) continue;
+        if (!material_binding_matches_mesh_source(binding, mesh)) continue;
+        if (
+            binding.material_wrapper_order_authoritative
+            && binding.material_wrapper_index >= 0
+            && mesh.source_local_submesh_index >= 0
+            && binding.material_wrapper_index != mesh.source_local_submesh_index
+        ) {
+            continue;
+        }
+        const int identity_score = material_identity_match_score(binding, mesh);
+        if (binding.material_wrapper_order_authoritative && identity_score < 120) continue;
+        int score = material_match_score(binding, mesh, "base") + visible_class_priority(binding.visible_class) * 22;
+        const std::string parameter_key = normalized_key(binding.parameter_name);
+        if (binding.visible_class == "layer_visible") score += 72;
+        if (parameter_key.find("detaildiffuse") != std::string::npos || parameter_key.find("detailcol") != std::string::npos) score += 50;
+        if (parameter_key.find("grimediffuse") != std::string::npos) score += 34;
+        if (parameter_key.find("dye") != std::string::npos || parameter_key.find("tint") != std::string::npos) score += 18;
+        if (material_wrapper_matches_mesh_local_index(binding, mesh)) score += 210;
+        if (binding.source_authority == "exact_sidecar") score += 90;
+        if (score > best_score) {
+            best_score = score;
+            best = &binding;
+        }
+    }
+    if (selected_score != nullptr) *selected_score = best == nullptr ? 0 : best_score;
+    return best;
+}
+
+static std::string material_category_for_bindings(
+    const std::vector<const TextureBinding*>& bindings,
+    const NativeSubmesh& mesh,
+    const TextureBinding* base,
+    const std::vector<MaterialLayer>& layers
+) {
+    std::string evidence = lower_copy(mesh.material + " " + mesh.name + " " + mesh.source_component_label);
+    if (base != nullptr) {
+        evidence += " " + lower_copy(base->archive_path + " " + base->texture_name + " " + base->parameter_name + " " + base->shader_rule + " " + base->shader_family);
+    }
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr) continue;
+        evidence += " " + lower_copy(binding->archive_path + " " + binding->texture_name + " " + binding->parameter_name + " " + binding->shader_rule + " " + binding->shader_family + " " + binding->pbd_simulation_material_name);
+    }
+    for (const MaterialLayer& layer : layers) {
+        evidence += " " + lower_copy(layer.diffuse_archive_path + " " + layer.source_parameter + " " + layer.layer_role);
+    }
+    if (evidence.find("skin") != std::string::npos || evidence.find("nude") != std::string::npos || evidence.find("body") != std::string::npos || evidence.find("head") != std::string::npos || evidence.find("hand") != std::string::npos) {
+        return "skin";
+    }
+    if (evidence.find("hair") != std::string::npos || evidence.find("fur") != std::string::npos || evidence.find("beard") != std::string::npos) {
+        return "hair";
+    }
+    if (evidence.find("cloth") != std::string::npos || evidence.find("fabric") != std::string::npos || evidence.find("uw") != std::string::npos || evidence.find("underwear") != std::string::npos || evidence.find("cloak") != std::string::npos) {
+        return "cloth";
+    }
+    if (evidence.find("leather") != std::string::npos || evidence.find("strap") != std::string::npos || evidence.find("belt") != std::string::npos || evidence.find("handle") != std::string::npos) {
+        return "leather";
+    }
+    if (evidence.find("wood") != std::string::npos || evidence.find("plank") != std::string::npos) {
+        return "wood";
+    }
+    if (base_binding_is_low_authority_overlay(base) && evidence.find("shield") != std::string::npos) {
+        return "wood";
+    }
+    if (evidence.find("metal") != std::string::npos || evidence.find("steel") != std::string::npos || evidence.find("iron") != std::string::npos || evidence.find("blade") != std::string::npos || evidence.find("guard") != std::string::npos || evidence.find("acc") != std::string::npos) {
+        return "metal";
+    }
+    return "generic";
+}
+
+static float material_category_confidence(const std::string& category, const std::vector<const TextureBinding*>& bindings, const TextureBinding* base) {
+    float confidence = category == "generic" ? 0.35f : 0.66f;
+    if (base != nullptr && base->source_authority == "exact_sidecar") confidence += 0.10f;
+    if (base_binding_is_low_authority_overlay(base)) confidence -= 0.12f;
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr) continue;
+        if (binding->material_output_quality == "exact") confidence += 0.02f;
+        if (binding->material_wrapper_order_authoritative) confidence += 0.02f;
+    }
+    return std::clamp(confidence, 0.20f, 0.95f);
+}
+
+static bool promoted_global_material_response(const TextureBinding* material) {
+    if (material == nullptr) return false;
+    const std::string packed = lower_copy(material->packed_channels);
+    const std::string parameter_key = normalized_key(material->parameter_name);
+    const std::string path = lower_copy(material->archive_path + " " + material->texture_name);
+    if (packed.find("r=occlusion") != std::string::npos && packed.find("g=roughness") != std::string::npos && packed.find("b=metalness") != std::string::npos) {
+        return true;
+    }
+    return parameter_key == "colorblendingmasktexture" && path.find("_ma") != std::string::npos;
+}
+
+static std::string material_response_disposition(const TextureBinding* material, const std::string& category) {
+    if (material == nullptr) return "none";
+    if (promoted_global_material_response(material)) {
+        return category == "metal" ? "promoted_metallic_roughness" : "promoted_ao_roughness_nonmetal_capped";
+    }
+    const std::string packed = lower_copy(material->packed_channels);
+    if (packed.find("layer:") != std::string::npos) return "layer_only";
+    return "diagnostic_only";
+}
+
 static bool layer_channel_matches(const TextureBinding& binding, const std::string& channel) {
     return binding.layer_channel.empty() || channel.empty() || binding.layer_channel == channel;
 }
@@ -6878,6 +7577,34 @@ static std::string material_layer_json(const MaterialLayer& layer) {
     return out.str();
 }
 
+static bool preview_color_is_tinted(const std::array<float, 3>& color) {
+    const float max_component = std::max({color[0], color[1], color[2]});
+    const float min_component = std::min({color[0], color[1], color[2]});
+    return (max_component - min_component) > 0.055f;
+}
+
+static bool layer_tint_is_visible(const MaterialLayer& layer) {
+    const float max_component = std::max({layer.tint[0], layer.tint[1], layer.tint[2]});
+    const float min_component = std::min({layer.tint[0], layer.tint[1], layer.tint[2]});
+    return (max_component - min_component) > 0.075f || layer.metalness_hint > 0.35f;
+}
+
+static float native_preview_base_tint_strength(
+    const TextureBinding* base,
+    const std::array<float, 3>& color,
+    const std::vector<MaterialLayer>& material_layers
+) {
+    if (base == nullptr || !preview_color_is_tinted(color)) return 0.0f;
+    float strength = lower_copy(base->archive_path).find("texturelayer") != std::string::npos ? 0.48f : 0.30f;
+    for (const MaterialLayer& layer : material_layers) {
+        if (layer.layer_role == "base") continue;
+        if (layer_tint_is_visible(layer)) {
+            strength = std::max(strength, layer.layer_role == "detail" ? 0.42f : 0.36f);
+        }
+    }
+    return std::clamp(strength, 0.0f, 0.58f);
+}
+
 static bool job_allows_texture_role(const EntryJob& job, const std::string& role) {
     if (!job.use_textures) return false;
     if (role == "base") return true;
@@ -7042,6 +7769,23 @@ static NativePackage write_d3d11_package(
         int specular_score = 0;
         int detail_score = 0;
         const TextureBinding* base = job_allows_texture_role(job, "base") ? best_base_binding_for_mode(bindings, mesh, job, &base_score) : nullptr;
+        bool visible_layer_albedo_used = false;
+        bool base_low_authority_overlay_selected = base_binding_is_low_authority_overlay(base);
+        int visible_layer_albedo_score = 0;
+        if (job_allows_texture_role(job, "base") && (base == nullptr || base_low_authority_overlay_selected)) {
+            if (const TextureBinding* layer_base = best_visible_layer_base_fallback(bindings, mesh, base, &visible_layer_albedo_score)) {
+                if (base == nullptr || visible_layer_albedo_score >= base_score - 20 || base_low_authority_overlay_selected) {
+                    base = layer_base;
+                    base_score = visible_layer_albedo_score;
+                    visible_layer_albedo_used = true;
+                    base_low_authority_overlay_selected = false;
+                    package.notes.push_back(
+                        "native visible layer albedo used: batch " + std::to_string(batch_index)
+                        + "; selected=" + (base->texture_name.empty() ? basename_from_path(base->archive_path) : base->texture_name)
+                    );
+                }
+            }
+        }
         const TextureBinding* normal = job_allows_texture_role(job, "normal") ? best_binding_for_role(bindings, mesh, "normal", &normal_score, &package.rejected_texture_examples) : nullptr;
         const TextureBinding* material = job_allows_texture_role(job, "material") ? best_binding_for_role(bindings, mesh, "material", &material_score, &package.rejected_texture_examples) : nullptr;
         const TextureBinding* height = job_allows_texture_role(job, "height") ? best_binding_for_role(bindings, mesh, "height", &height_score, &package.rejected_texture_examples) : nullptr;
@@ -7058,7 +7802,7 @@ static NativePackage write_d3d11_package(
         const bool base_low_authority = base != nullptr
             && !base_authoritative_wrapper_visible
             && !(parameter_is_authoritative_visible_base(base->parameter_name) && base_identity_score >= 120)
-            && (low_authority_base_path(base->archive_path) || low_authority_base_path(base->texture_name));
+            && base_binding_is_low_authority_overlay(base);
         const bool base_layer_visible = base != nullptr && base->visible_class == "layer_visible";
         const bool base_authoritative_small_slot =
             base != nullptr
@@ -7095,6 +7839,8 @@ static NativePackage write_d3d11_package(
         NativeClothRuntimeBatch cloth_runtime = build_native_cloth_runtime_batch(
             job,
             package_index_for_family,
+            submeshes,
+            batch_index,
             mesh,
             batch_bindings,
             package_dir,
@@ -7108,7 +7854,7 @@ static NativePackage write_d3d11_package(
             cloth_runtime_particle_count += cloth_runtime.particle_count;
             cloth_runtime_constraint_count += cloth_runtime.constraint_count;
             package.notes.push_back(
-                "native tool-side PBD cloth runtime: batch " + std::to_string(batch_index) +
+                "native tool-side PBD physics runtime: batch " + std::to_string(batch_index) +
                 "; material=" + cloth_runtime.hint.simulation_material_name +
                 "; particles=" + std::to_string(cloth_runtime.particle_count) +
                 "; constraints=" + std::to_string(cloth_runtime.constraint_count)
@@ -7152,6 +7898,11 @@ static NativePackage write_d3d11_package(
             material_hints,
             job.visible_texture_mode
         );
+        const std::string material_category = material_category_for_bindings(batch_bindings, mesh, base, material_layers);
+        const float material_category_conf = material_category_confidence(material_category, batch_bindings, base);
+        const bool material_response_promoted = promoted_global_material_response(material);
+        const std::string material_response = material_response_disposition(material, material_category);
+        const float base_tint_strength = native_preview_base_tint_strength(base, color, material_layers);
         const MaterialLayer* primary_layer = nullptr;
         for (const MaterialLayer& layer : material_layers) {
             if (layer.layer_role != "base" && !layer.diffuse_source.empty()) {
@@ -7178,6 +7929,10 @@ static NativePackage write_d3d11_package(
                 + ", normal=" + texture_label(normal)
                 + ", material=" + texture_label(material)
                 + ", height=" + texture_label(height)
+                + (visible_layer_albedo_used ? ", visible_layer_albedo=used" : "")
+                + (base_low_authority_overlay_selected ? ", base_low_authority_overlay=true" : "")
+                + ", material_category=" + material_category
+                + ", material_response=" + material_response
                 + ", uv_flip_policy=legacy_no_flip"
                 + ", normal_y_policy=shader_invert_legacy_compat"
             );
@@ -7192,6 +7947,9 @@ static NativePackage write_d3d11_package(
             << "\"submesh_name\":\"" << json_escape(mesh.name) << "\","
             << "\"shader_family\":\"" << json_escape(batch_bindings.empty() ? "" : batch_bindings.front()->shader_family) << "\","
             << "\"shader_rule\":\"" << json_escape(batch_bindings.empty() ? "generic" : batch_bindings.front()->shader_rule) << "\","
+            << "\"material_category\":\"" << json_escape(material_category) << "\","
+            << "\"material_category_confidence\":" << material_category_conf << ","
+            << "\"material_response_disposition\":\"" << json_escape(material_response) << "\","
             << "\"base\":\"" << json_escape(base == nullptr ? "" : base->archive_path) << "\","
             << "\"normal\":\"" << json_escape(normal == nullptr ? "" : normal->archive_path) << "\","
             << "\"material\":\"" << json_escape(material == nullptr ? "" : material->archive_path) << "\","
@@ -7209,6 +7967,9 @@ static NativePackage write_d3d11_package(
             << "\"base_technical\":" << (base_technical ? "true" : "false") << ","
             << "\"base_low_res\":" << (base_low_res ? "true" : "false") << ","
             << "\"base_low_confidence\":" << (base_low_confidence ? "true" : "false") << ","
+            << "\"base_low_authority_overlay\":" << (base_low_authority_overlay_selected ? "true" : "false") << ","
+            << "\"visible_layer_albedo_used\":" << (visible_layer_albedo_used ? "true" : "false") << ","
+            << "\"visible_layer_albedo_score\":" << visible_layer_albedo_score << ","
             << "\"uv_flip_policy\":\"legacy_no_flip\","
             << "\"normal_y_policy\":\"shader_invert_legacy_compat\","
             << "\"evidence_grade\":\"" << json_escape(material_layers.empty() ? "approximate" : material_layers.front().evidence_grade) << "\""
@@ -7229,6 +7990,11 @@ static NativePackage write_d3d11_package(
             << ",\"part_label\":\"" << json_escape(mesh.source_component_label.empty() ? mesh.material : mesh.source_component_label) << "\""
             << ",\"identity_file\":\"" << json_escape(identity_path.lexically_relative(package_dir).generic_string()) << "\"},"
             << "\"base_color\":[" << color[0] << "," << color[1] << "," << color[2] << "],"
+            << "\"material_category\":\"" << json_escape(material_category) << "\","
+            << "\"material_category_confidence\":" << material_category_conf << ","
+            << "\"material_response_promoted\":" << (material_response_promoted ? "true" : "false") << ","
+            << "\"material_response_disposition\":\"" << json_escape(material_response) << "\","
+            << "\"base_tint_strength\":" << base_tint_strength << ","
             << "\"textures\":{},"
             << "\"dds_textures\":{";
         bool wrote_slot = false;
@@ -7349,7 +8115,10 @@ static NativePackage write_d3d11_package(
             << "\"tangents_usable\":true,"
             << "\"shader_family\":\"" << json_escape(batch_bindings.empty() ? "" : batch_bindings.front()->shader_family) << "\","
             << "\"shader_rule\":\"" << json_escape(batch_bindings.empty() ? "generic" : batch_bindings.front()->shader_rule) << "\","
-            << "\"evidence_grade\":\"" << json_escape(material_layers.empty() ? "approximate" : material_layers.front().evidence_grade) << "\","
+            << "\"evidence_grade\":\"" << json_escape(material_layers.empty() ? "approximate" : material_layers.front().evidence_grade) << "\"," 
+            << "\"base_low_authority_overlay\":" << (base_low_authority_overlay_selected ? "true" : "false") << ","
+            << "\"visible_layer_albedo_used\":" << (visible_layer_albedo_used ? "true" : "false") << ","
+            << "\"visible_layer_albedo_score\":" << visible_layer_albedo_score << ","
             << "\"material_layer_count\":" << (material_layers.size() > 0 ? std::max<int>(0, static_cast<int>(material_layers.size()) - 1) : 0) << ","
             << "\"material_layers\":[";
         for (size_t layer_index = 0; layer_index < material_layers.size(); ++layer_index) {
@@ -7403,6 +8172,8 @@ static NativePackage write_d3d11_package(
             << ",\"identity_score\":" << base_identity_score
             << ",\"low_res\":" << (base_low_res ? "true" : "false")
             << ",\"low_authority\":" << (base_low_authority ? "true" : "false")
+            << ",\"low_authority_overlay\":" << (base_low_authority_overlay_selected ? "true" : "false")
+            << ",\"visible_layer_albedo_used\":" << (visible_layer_albedo_used ? "true" : "false")
             << ",\"technical\":" << (base_technical ? "true" : "false")
             << ",\"missing\":" << (base == nullptr ? "true" : "false")
             << ",\"visible_class\":\"" << json_escape(base == nullptr ? "" : base->visible_class) << "\""
@@ -7422,7 +8193,7 @@ static NativePackage write_d3d11_package(
             << "\"native_material_hints\":{\"shader_family\":\"" << json_escape(batch_bindings.empty() ? "" : batch_bindings.front()->shader_family) << "\",\"roughness\":" << material_hints.roughness << ",\"metalness\":" << material_hints.metalness << ",\"specular\":" << material_hints.specular << ",\"height_scale\":" << material_hints.height_scale << "},"
             << "\"notes\":[\"generated by cdmw-preview-core " << json_escape(package.mesh_parse) << " path\",\"native material inputs scoped to this batch: " << batch_bindings.size() << "\""
             << (held_layer_albedo ? ",\"skin/hair visible layer albedo held until mask semantics are validated\"" : "")
-            << (cloth_runtime.active ? ",\"tool-side PBD cloth runtime emitted from native material PBD metadata\"" : "")
+            << (cloth_runtime.active ? ",\"tool-side PBD physics runtime emitted from native material PBD metadata\"" : "")
             << "],"
             << "\"material_combiner_active\":false,"
             << "\"material_combiner_outputs\":[],"
@@ -7528,6 +8299,7 @@ static NativePackage write_d3d11_package(
         << "\"summary\":\"Native preview-core " << json_escape(format) << " package\","
         << "\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\","
         << "\"render_diagnostic_mode\":\"" << json_escape(job.render_diagnostic_mode) << "\","
+        << "\"d3d11_view_mode\":\"" << json_escape(job.d3d11_view_mode) << "\","
         << "\"mesh_count\":" << emitted_batch_count << ","
         << "\"source_vertex_count\":" << source_vertex_total << ","
         << "\"vertex_count\":" << emitted_vertex_count << ","
@@ -7541,6 +8313,17 @@ static NativePackage write_d3d11_package(
         << "\"invert_pan_x\":" << (job.invert_pan_x ? "true" : "false") << ","
         << "\"invert_pan_y\":" << (job.invert_pan_y ? "true" : "false") << ","
         << "\"max_anisotropy\":" << job.max_anisotropy << ","
+        << "\"d3d11_mip_lod_bias\":" << job.d3d11_mip_lod_bias << ","
+        << "\"d3d11_cull_back_faces\":" << (job.d3d11_cull_back_faces ? "true" : "false") << ","
+        << "\"d3d11_light_azimuth_degrees\":" << job.d3d11_light_azimuth_degrees << ","
+        << "\"d3d11_light_elevation_degrees\":" << job.d3d11_light_elevation_degrees << ","
+        << "\"d3d11_normal_y_mode\":\"" << json_escape(job.d3d11_normal_y_mode) << "\","
+        << "\"d3d11_ao_strength\":" << job.d3d11_ao_strength << ","
+        << "\"d3d11_roughness_bias\":" << job.d3d11_roughness_bias << ","
+        << "\"d3d11_metalness_scale\":" << job.d3d11_metalness_scale << ","
+        << "\"d3d11_environment_strength\":" << job.d3d11_environment_strength << ","
+        << "\"d3d11_emissive_gain\":" << job.d3d11_emissive_gain << ","
+        << "\"d3d11_texture_address_mode\":\"" << json_escape(job.d3d11_texture_address_mode) << "\","
         << "\"ambient_strength\":" << job.ambient_strength << ","
         << "\"diffuse_light_scale\":" << job.diffuse_light_scale << ","
         << "\"specular_base\":" << job.specular_base << ","
@@ -7878,6 +8661,1423 @@ int run_preview_job(const fs::path& job_path, const fs::path& report_path) {
     }
 }
 
+int run_mesh_audit_job(const fs::path& input_path, const fs::path& report_path, const std::string& filename) {
+    try {
+        std::vector<char> data = read_binary_file(input_path);
+        const std::string lowered = lower_copy(filename);
+        std::string format = "pam";
+        NativeMeshParseResult parsed;
+        if (lowered.ends_with(".pac")) {
+            format = "pac";
+            parsed.meshes = parse_pac_submeshes(data);
+            parsed.parser = "native_pac";
+        } else if (lowered.ends_with(".pamlod")) {
+            format = "pamlod";
+            parsed = parse_pamlod_submeshes(data);
+        } else {
+            parsed = parse_pam_submeshes(data);
+        }
+        std::uint64_t vertex_count = 0;
+        std::uint64_t index_count = 0;
+        int safe_mesh_count = 0;
+        for (const NativeSubmesh& mesh : parsed.meshes) {
+            vertex_count += static_cast<std::uint64_t>(mesh.positions.size());
+            index_count += static_cast<std::uint64_t>(mesh.indices.size());
+            if (mesh.geometry_safe) ++safe_mesh_count;
+        }
+        std::ostringstream out;
+        out << "{\"status\":\"ok\","
+            << "\"backend\":\"cdmw_preview_core_mesh_audit_0.1\","
+            << "\"parser\":\"" << json_escape(parsed.parser) << "\","
+            << "\"format\":\"" << json_escape(format) << "\","
+            << "\"layout\":\"" << json_escape(parsed.parser) << "\","
+            << "\"filename\":\"" << json_escape(filename) << "\","
+            << "\"submesh_count\":" << parsed.meshes.size() << ","
+            << "\"safe_submesh_count\":" << safe_mesh_count << ","
+            << "\"vertex_count\":" << vertex_count << ","
+            << "\"index_count\":" << index_count << ","
+            << "\"face_count\":" << (index_count / 3u) << ","
+            << "\"lod_count\":" << parsed.lod_count << ","
+            << "\"supported\":true,"
+            << "\"rebuild_supported\":false,"
+            << "\"parity_ready\":false,"
+            << "\"bytes_written\":0,"
+            << "\"fallback_reason\":\"native mesh rebuild parity is not enabled for this layout\","
+            << "\"rebuild_enabled\":false}";
+        write_text(report_path, out.str());
+        return 0;
+    } catch (const std::exception& exc) {
+        std::ostringstream out;
+        out << "{\"status\":\"error\","
+            << "\"supported\":false,"
+            << "\"backend\":\"cdmw_preview_core_mesh_audit_0.1\","
+            << "\"message\":\"" << json_escape(exc.what()) << "\","
+            << "\"format\":\"unknown\","
+            << "\"layout\":\"unknown\","
+            << "\"rebuild_supported\":false,"
+            << "\"parity_ready\":false,"
+            << "\"bytes_written\":0,"
+            << "\"fallback_reason\":\"" << json_escape(exc.what()) << "\","
+            << "\"rebuild_enabled\":false}";
+        try {
+            write_text(report_path, out.str());
+        } catch (...) {
+        }
+        std::cerr << exc.what() << "\n";
+        return 2;
+    }
+}
+
+int run_mesh_parse_job(const fs::path& input_path, const fs::path& report_path, const std::string& filename) {
+    return run_mesh_audit_job(input_path, report_path, filename);
+}
+
+static std::vector<std::string> split_tab_row(const std::string& line) {
+    std::vector<std::string> fields;
+    std::string current;
+    for (char ch : line) {
+        if (ch == '\t') {
+            fields.push_back(current);
+            current.clear();
+        } else {
+            current.push_back(ch);
+        }
+    }
+    fields.push_back(current);
+    return fields;
+}
+
+static double parse_double_field(const std::vector<std::string>& fields, size_t index, double fallback = 0.0) {
+    if (index >= fields.size()) return fallback;
+    try {
+        return std::stod(fields[index]);
+    } catch (...) {
+        return fallback;
+    }
+}
+
+static int parse_int_field(const std::vector<std::string>& fields, size_t index, int fallback = 0) {
+    if (index >= fields.size()) return fallback;
+    try {
+        return std::stoi(fields[index]);
+    } catch (...) {
+        return fallback;
+    }
+}
+
+static std::int64_t parse_i64_field(const std::vector<std::string>& fields, size_t index, std::int64_t fallback = 0) {
+    if (index >= fields.size()) return fallback;
+    try {
+        return std::stoll(fields[index]);
+    } catch (...) {
+        return fallback;
+    }
+}
+
+static std::uint16_t float_to_half(float value) {
+    if (!std::isfinite(value)) value = 0.0f;
+    std::uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    const std::uint32_t sign = (bits >> 16) & 0x8000u;
+    int exp = static_cast<int>((bits >> 23) & 0xFFu) - 127 + 15;
+    std::uint32_t mant = bits & 0x7FFFFFu;
+    if (exp <= 0) {
+        if (exp < -10) return static_cast<std::uint16_t>(sign);
+        mant |= 0x800000u;
+        const std::uint32_t shifted = mant >> static_cast<std::uint32_t>(1 - exp);
+        return static_cast<std::uint16_t>(sign | ((shifted + 0x1000u) >> 13));
+    }
+    if (exp >= 31) return static_cast<std::uint16_t>(sign | 0x7C00u);
+    return static_cast<std::uint16_t>(sign | (static_cast<std::uint32_t>(exp) << 10) | ((mant + 0x1000u) >> 13));
+}
+
+static std::uint16_t quantize_pac_u16(float value, float bbox_min, float bbox_extent) {
+    if (std::abs(bbox_extent) < 1.0e-10f || !std::isfinite(value) || !std::isfinite(bbox_min) || !std::isfinite(bbox_extent)) return 0;
+    const float t = std::clamp((value - bbox_min) / bbox_extent, 0.0f, 1.0f);
+    return static_cast<std::uint16_t>(std::clamp(static_cast<int>(std::nearbyint(t * 32767.0f)), 0, 32767));
+}
+
+static std::uint16_t quantize_pac_u16_double(double value, double bbox_min, double bbox_extent) {
+    if (std::abs(bbox_extent) < 1.0e-10 || !std::isfinite(value) || !std::isfinite(bbox_min) || !std::isfinite(bbox_extent)) return 0;
+    const double t = std::clamp((value - bbox_min) / bbox_extent, 0.0, 1.0);
+    return static_cast<std::uint16_t>(std::clamp(static_cast<int>(std::nearbyint(t * 32767.0)), 0, 32767));
+}
+
+static std::uint16_t quantize_static_u16_double(double value, double bbox_min, double bbox_max) {
+    const double span = bbox_max - bbox_min;
+    if (std::abs(span) < 1.0e-10) return 32768;
+    if (!std::isfinite(value) || !std::isfinite(bbox_min) || !std::isfinite(bbox_max)) return 0;
+    const double t = std::clamp((value - bbox_min) / span, 0.0, 1.0);
+    return static_cast<std::uint16_t>(std::clamp(static_cast<int>(std::nearbyint(t * 65535.0)), 0, 65535));
+}
+
+static std::uint32_t pack_pac_normal(Vec3 normal, std::uint32_t existing_packed) {
+    auto enc = [](float value) -> std::uint32_t {
+        value = std::clamp(std::isfinite(value) ? value : 0.0f, -1.0f, 1.0f);
+        return static_cast<std::uint32_t>(std::clamp(static_cast<int>(std::nearbyint((value + 1.0f) * 511.5f)), 0, 1023));
+    };
+    const std::uint32_t packed = enc(normal.z) | (enc(normal.x) << 10) | (enc(normal.y) << 20);
+    return (existing_packed & 0xC0000000u) | packed;
+}
+
+static void write_u16_le(std::vector<char>& data, size_t offset, std::uint16_t value) {
+    if (offset + 2u > data.size()) throw std::runtime_error("native PAC rebuild write is outside output buffer");
+    data[offset + 0] = static_cast<char>(value & 0xFFu);
+    data[offset + 1] = static_cast<char>((value >> 8) & 0xFFu);
+}
+
+static void write_u32_le(std::vector<char>& data, size_t offset, std::uint32_t value) {
+    if (offset + 4u > data.size()) throw std::runtime_error("native PAC rebuild write is outside output buffer");
+    data[offset + 0] = static_cast<char>(value & 0xFFu);
+    data[offset + 1] = static_cast<char>((value >> 8) & 0xFFu);
+    data[offset + 2] = static_cast<char>((value >> 16) & 0xFFu);
+    data[offset + 3] = static_cast<char>((value >> 24) & 0xFFu);
+}
+
+static void write_f32_le(std::vector<char>& data, size_t offset, float value) {
+    std::uint32_t raw = 0;
+    std::memcpy(&raw, &value, sizeof(raw));
+    write_u32_le(data, offset, raw);
+}
+
+static void append_u16_le(std::vector<char>& out, std::uint16_t value) {
+    out.push_back(static_cast<char>(value & 0xFFu));
+    out.push_back(static_cast<char>((value >> 8) & 0xFFu));
+}
+
+static void append_u32_le(std::vector<char>& out, std::uint32_t value) {
+    out.push_back(static_cast<char>(value & 0xFFu));
+    out.push_back(static_cast<char>((value >> 8) & 0xFFu));
+    out.push_back(static_cast<char>((value >> 16) & 0xFFu));
+    out.push_back(static_cast<char>((value >> 24) & 0xFFu));
+}
+
+struct PacPatchVertex {
+    std::array<double, 3> position{};
+    std::array<double, 2> uv{};
+    std::array<double, 3> normal{0.0, 1.0, 0.0};
+    std::int64_t source_offset = -1;
+};
+
+struct PacPatchFace {
+    std::uint32_t a = 0;
+    std::uint32_t b = 0;
+    std::uint32_t c = 0;
+};
+
+struct PacPatchSubmesh {
+    std::string name;
+    int vertex_count = 0;
+    int face_count = 0;
+    int stride = 0;
+    std::int64_t descriptor_offset = -1;
+    std::int64_t index_offset = -1;
+    int source_index_count = 0;
+    bool clean_shading = false;
+    std::vector<PacPatchVertex> vertices;
+    std::vector<PacPatchFace> faces;
+};
+
+struct PacFullSubmesh {
+    std::string name;
+    int vertex_count = 0;
+    int face_count = 0;
+    int stride = 0;
+    int source_lod_count = 0;
+    bool clean_shading = false;
+    std::vector<PacPatchVertex> vertices;
+    std::vector<PacPatchFace> faces;
+};
+
+static int pac_descriptor_record_length(const PacDescriptor& desc) {
+    const int stored_lod_count = std::max(1, desc.stored_lod_count);
+    if (stored_lod_count >= 4) return 48 + stored_lod_count * 4;
+    if (stored_lod_count == 3) return 46 + stored_lod_count * 4;
+    return 44 + stored_lod_count * 4;
+}
+
+static std::vector<PacFullSubmesh> load_pac_full_rebuild_tables(
+    const fs::path& submeshes_path,
+    const fs::path& vertices_path,
+    const fs::path& faces_path
+) {
+    std::vector<PacFullSubmesh> submeshes;
+    {
+        std::ifstream in(submeshes_path);
+        if (!in) throw std::runtime_error("could not open PAC full submesh table");
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty()) continue;
+            const std::vector<std::string> fields = split_tab_row(line);
+            if (fields.empty() || fields[0] == "header") continue;
+            if (fields[0] != "submesh") throw std::runtime_error("PAC full submesh table has an invalid row");
+            const int index = parse_int_field(fields, 1, -1);
+            if (index < 0) throw std::runtime_error("PAC full submesh table has invalid index");
+            if (static_cast<size_t>(index) >= submeshes.size()) submeshes.resize(static_cast<size_t>(index) + 1u);
+            PacFullSubmesh& submesh = submeshes[static_cast<size_t>(index)];
+            submesh.name = fields.size() > 2 ? fields[2] : "";
+            submesh.vertex_count = parse_int_field(fields, 3, 0);
+            submesh.face_count = parse_int_field(fields, 4, 0);
+            submesh.stride = parse_int_field(fields, 5, 0);
+            submesh.source_lod_count = parse_int_field(fields, 6, 0);
+            submesh.clean_shading = parse_int_field(fields, 7, 0) != 0;
+            submesh.vertices.resize(static_cast<size_t>(std::max(0, submesh.vertex_count)));
+            submesh.faces.resize(static_cast<size_t>(std::max(0, submesh.face_count)));
+        }
+    }
+    {
+        std::ifstream in(vertices_path);
+        if (!in) throw std::runtime_error("could not open PAC full vertex table");
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty()) continue;
+            const std::vector<std::string> fields = split_tab_row(line);
+            if (fields.empty() || fields[0] != "vertex") continue;
+            const int submesh_index = parse_int_field(fields, 1, -1);
+            const int vertex_index = parse_int_field(fields, 2, -1);
+            if (submesh_index < 0 || vertex_index < 0 || static_cast<size_t>(submesh_index) >= submeshes.size()) {
+                throw std::runtime_error("PAC full vertex table references an invalid submesh");
+            }
+            PacFullSubmesh& submesh = submeshes[static_cast<size_t>(submesh_index)];
+            if (static_cast<size_t>(vertex_index) >= submesh.vertices.size()) {
+                throw std::runtime_error("PAC full vertex table references an invalid vertex");
+            }
+            PacPatchVertex& vertex = submesh.vertices[static_cast<size_t>(vertex_index)];
+            vertex.source_offset = parse_i64_field(fields, 3, -1);
+            vertex.position = {parse_double_field(fields, 4), parse_double_field(fields, 5), parse_double_field(fields, 6)};
+            vertex.uv = {parse_double_field(fields, 7), parse_double_field(fields, 8)};
+            vertex.normal = {parse_double_field(fields, 9, 0.0), parse_double_field(fields, 10, 1.0), parse_double_field(fields, 11, 0.0)};
+        }
+    }
+    {
+        std::ifstream in(faces_path);
+        if (!in) throw std::runtime_error("could not open PAC full face table");
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty()) continue;
+            const std::vector<std::string> fields = split_tab_row(line);
+            if (fields.empty() || fields[0] != "face") continue;
+            const int submesh_index = parse_int_field(fields, 1, -1);
+            const int face_index = parse_int_field(fields, 2, -1);
+            if (submesh_index < 0 || face_index < 0 || static_cast<size_t>(submesh_index) >= submeshes.size()) {
+                throw std::runtime_error("PAC full face table references an invalid submesh");
+            }
+            PacFullSubmesh& submesh = submeshes[static_cast<size_t>(submesh_index)];
+            if (static_cast<size_t>(face_index) >= submesh.faces.size()) {
+                throw std::runtime_error("PAC full face table references an invalid face");
+            }
+            submesh.faces[static_cast<size_t>(face_index)] = PacPatchFace{
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 3, 0))),
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 4, 0))),
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 5, 0))),
+            };
+        }
+    }
+    return submeshes;
+}
+
+static std::vector<PacPatchSubmesh> load_pac_patch_tables(
+    const fs::path& submeshes_path,
+    const fs::path& vertices_path,
+    const fs::path& faces_path
+) {
+    std::vector<PacPatchSubmesh> submeshes;
+    {
+        std::ifstream in(submeshes_path);
+        if (!in) throw std::runtime_error("could not open PAC submesh patch table");
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty()) continue;
+            const std::vector<std::string> fields = split_tab_row(line);
+            const int index = parse_int_field(fields, 0, -1);
+            if (index < 0) throw std::runtime_error("PAC submesh patch table has invalid index");
+            if (static_cast<size_t>(index) >= submeshes.size()) submeshes.resize(static_cast<size_t>(index) + 1u);
+            PacPatchSubmesh& submesh = submeshes[static_cast<size_t>(index)];
+            submesh.name = fields.size() > 1 ? fields[1] : "";
+            submesh.vertex_count = parse_int_field(fields, 2, 0);
+            submesh.face_count = parse_int_field(fields, 3, 0);
+            submesh.stride = parse_int_field(fields, 4, 0);
+            submesh.descriptor_offset = parse_i64_field(fields, 5, -1);
+            submesh.index_offset = parse_i64_field(fields, 6, -1);
+            submesh.source_index_count = parse_int_field(fields, 7, 0);
+            submesh.clean_shading = parse_int_field(fields, 8, 0) != 0;
+            submesh.vertices.resize(static_cast<size_t>(std::max(0, submesh.vertex_count)));
+            submesh.faces.resize(static_cast<size_t>(std::max(0, submesh.face_count)));
+        }
+    }
+    {
+        std::ifstream in(vertices_path);
+        if (!in) throw std::runtime_error("could not open PAC vertex patch table");
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty()) continue;
+            const std::vector<std::string> fields = split_tab_row(line);
+            const int submesh_index = parse_int_field(fields, 0, -1);
+            const int vertex_index = parse_int_field(fields, 1, -1);
+            if (submesh_index < 0 || vertex_index < 0 || static_cast<size_t>(submesh_index) >= submeshes.size()) {
+                throw std::runtime_error("PAC vertex patch table references an invalid submesh");
+            }
+            PacPatchSubmesh& submesh = submeshes[static_cast<size_t>(submesh_index)];
+            if (static_cast<size_t>(vertex_index) >= submesh.vertices.size()) {
+                throw std::runtime_error("PAC vertex patch table references an invalid vertex");
+            }
+            PacPatchVertex& vertex = submesh.vertices[static_cast<size_t>(vertex_index)];
+            vertex.position = {parse_double_field(fields, 2), parse_double_field(fields, 3), parse_double_field(fields, 4)};
+            vertex.uv = {parse_double_field(fields, 5), parse_double_field(fields, 6)};
+            vertex.normal = {parse_double_field(fields, 7, 0.0), parse_double_field(fields, 8, 1.0), parse_double_field(fields, 9, 0.0)};
+            vertex.source_offset = parse_i64_field(fields, 10, -1);
+        }
+    }
+    {
+        std::ifstream in(faces_path);
+        if (!in) throw std::runtime_error("could not open PAC face patch table");
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty()) continue;
+            const std::vector<std::string> fields = split_tab_row(line);
+            const int submesh_index = parse_int_field(fields, 0, -1);
+            const int face_index = parse_int_field(fields, 1, -1);
+            if (submesh_index < 0 || face_index < 0 || static_cast<size_t>(submesh_index) >= submeshes.size()) {
+                throw std::runtime_error("PAC face patch table references an invalid submesh");
+            }
+            PacPatchSubmesh& submesh = submeshes[static_cast<size_t>(submesh_index)];
+            if (static_cast<size_t>(face_index) >= submesh.faces.size()) {
+                throw std::runtime_error("PAC face patch table references an invalid face");
+            }
+            submesh.faces[static_cast<size_t>(face_index)] = PacPatchFace{
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 2, 0))),
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 3, 0))),
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 4, 0))),
+            };
+        }
+    }
+    return submeshes;
+}
+
+static std::vector<char> rebuild_pac_in_place_native(const std::vector<char>& original, const std::vector<PacPatchSubmesh>& submeshes) {
+    std::vector<char> output = original;
+    for (size_t submesh_index = 0; submesh_index < submeshes.size(); ++submesh_index) {
+        const PacPatchSubmesh& submesh = submeshes[submesh_index];
+        if (submesh.vertex_count != static_cast<int>(submesh.vertices.size()) || submesh.face_count != static_cast<int>(submesh.faces.size())) {
+            throw std::runtime_error("PAC patch table topology is inconsistent");
+        }
+        if (submesh.vertex_count <= 0 && submesh.face_count <= 0) continue;
+        if (submesh.stride < 12) throw std::runtime_error("native PAC rebuild requires source vertex stride metadata");
+        std::array<double, 3> bmin{1.0e300, 1.0e300, 1.0e300};
+        std::array<double, 3> bmax{-1.0e300, -1.0e300, -1.0e300};
+        for (const PacPatchVertex& vertex : submesh.vertices) {
+            bmin[0] = std::min(bmin[0], vertex.position[0]); bmin[1] = std::min(bmin[1], vertex.position[1]); bmin[2] = std::min(bmin[2], vertex.position[2]);
+            bmax[0] = std::max(bmax[0], vertex.position[0]); bmax[1] = std::max(bmax[1], vertex.position[1]); bmax[2] = std::max(bmax[2], vertex.position[2]);
+        }
+        constexpr double bbox_eps = 1.0e-6;
+        for (int axis = 0; axis < 3; ++axis) {
+            bmin[axis] -= bbox_eps;
+            bmax[axis] += bbox_eps;
+        }
+        const std::array<double, 3> extent{bmax[0] - bmin[0], bmax[1] - bmin[1], bmax[2] - bmin[2]};
+        if (submesh.descriptor_offset >= 0) {
+            const size_t desc = static_cast<size_t>(submesh.descriptor_offset);
+            if (desc + 35u > output.size()) throw std::runtime_error("PAC descriptor offset is outside the file");
+            const size_t floats = desc + 3u;
+            write_f32_le(output, floats + 2u * 4u, static_cast<float>(bmin[0]));
+            write_f32_le(output, floats + 3u * 4u, static_cast<float>(bmin[1]));
+            write_f32_le(output, floats + 4u * 4u, static_cast<float>(bmin[2]));
+            write_f32_le(output, floats + 5u * 4u, static_cast<float>(extent[0]));
+            write_f32_le(output, floats + 6u * 4u, static_cast<float>(extent[1]));
+            write_f32_le(output, floats + 7u * 4u, static_cast<float>(extent[2]));
+        }
+        for (size_t vertex_index = 0; vertex_index < submesh.vertices.size(); ++vertex_index) {
+            const PacPatchVertex& vertex = submesh.vertices[vertex_index];
+            if (vertex.source_offset < 0) throw std::runtime_error("PAC vertex patch is missing source offset metadata");
+            const size_t rec_off = static_cast<size_t>(vertex.source_offset);
+            if (rec_off + static_cast<size_t>(submesh.stride) > output.size()) throw std::runtime_error("PAC vertex source offset is outside the file");
+            if (submesh.clean_shading) {
+                if (submesh.stride >= 8) write_u16_le(output, rec_off + 6u, 0);
+                if (submesh.stride >= 28) {
+                    for (size_t i = 20; i < 28; ++i) output[rec_off + i] = 0;
+                }
+            }
+            write_u16_le(output, rec_off + 0u, quantize_pac_u16_double(vertex.position[0], bmin[0], extent[0]));
+            write_u16_le(output, rec_off + 2u, quantize_pac_u16_double(vertex.position[1], bmin[1], extent[1]));
+            write_u16_le(output, rec_off + 4u, quantize_pac_u16_double(vertex.position[2], bmin[2], extent[2]));
+            if (submesh.stride >= 12) {
+                write_u16_le(output, rec_off + 8u, float_to_half(static_cast<float>(vertex.uv[0])));
+                write_u16_le(output, rec_off + 10u, float_to_half(static_cast<float>(vertex.uv[1])));
+            }
+            if (submesh.stride >= 20) {
+                const std::uint32_t existing = read_u32(output, rec_off + 16u);
+                write_u32_le(output, rec_off + 16u, pack_pac_normal(Vec3{static_cast<float>(vertex.normal[0]), static_cast<float>(vertex.normal[1]), static_cast<float>(vertex.normal[2])}, submesh.clean_shading ? 0u : existing));
+            }
+        }
+        if (submesh.index_offset >= 0) {
+            for (size_t face_index = 0; face_index < submesh.faces.size(); ++face_index) {
+                const PacPatchFace& face = submesh.faces[face_index];
+                if (
+                    face.a >= static_cast<std::uint32_t>(submesh.vertices.size())
+                    || face.b >= static_cast<std::uint32_t>(submesh.vertices.size())
+                    || face.c >= static_cast<std::uint32_t>(submesh.vertices.size())
+                ) {
+                    throw std::runtime_error("PAC face patch references an out-of-range vertex");
+                }
+                const size_t face_off = static_cast<size_t>(submesh.index_offset) + face_index * 6u;
+                if (face_off + 6u > output.size()) throw std::runtime_error("PAC face source offset is outside the file");
+                write_u16_le(output, face_off + 0u, static_cast<std::uint16_t>(face.a));
+                write_u16_le(output, face_off + 2u, static_cast<std::uint16_t>(face.b));
+                write_u16_le(output, face_off + 4u, static_cast<std::uint16_t>(face.c));
+            }
+        }
+    }
+    return output;
+}
+
+static std::vector<char> rebuild_pac_full_native(const std::vector<char>& original, const std::vector<PacFullSubmesh>& submeshes) {
+    if (original.size() < 0x50 || std::string(original.data(), original.data() + 4) != "PAR ") {
+        throw std::runtime_error("native PAC full rebuild requires a PAR input");
+    }
+    std::vector<char> decompressed_par = decompress_internal_par_sections(original);
+    if (!decompressed_par.empty()) {
+        throw std::runtime_error("native PAC full rebuild does not write compressed internal PAR sections yet");
+    }
+    const std::vector<ParSection> sections = parse_par_sections(original);
+    std::map<int, ParSection> section_by_index;
+    for (const ParSection& section : sections) section_by_index[section.index] = section;
+    auto sec0_it = section_by_index.find(0);
+    if (sec0_it == section_by_index.end()) throw std::runtime_error("PAC full rebuild section 0 is missing");
+    const ParSection& sec0 = sec0_it->second;
+    if (static_cast<size_t>(sec0.offset) + sec0.size > original.size() || sec0.size < 5u) {
+        throw std::runtime_error("PAC full rebuild section 0 is truncated");
+    }
+    const int n_lods = static_cast<unsigned char>(original[sec0.offset + 4u]);
+    if (n_lods <= 0 || n_lods > 10) throw std::runtime_error("PAC full rebuild has invalid LOD count");
+    std::vector<PacDescriptor> descriptors = find_pac_descriptors(original, sec0, n_lods);
+    if (descriptors.size() < submeshes.size()) throw std::runtime_error("PAC full rebuild descriptor count does not match submeshes");
+
+    std::vector<char> sec0_data(
+        original.begin() + static_cast<std::ptrdiff_t>(sec0.offset),
+        original.begin() + static_cast<std::ptrdiff_t>(sec0.offset + sec0.size)
+    );
+    descriptors.resize(submeshes.size());
+
+    std::map<int, std::vector<char>> preserved_sections;
+    for (const ParSection& section : sections) {
+        if (section.index <= n_lods) continue;
+        preserved_sections[section.index] = std::vector<char>(
+            original.begin() + static_cast<std::ptrdiff_t>(section.offset),
+            original.begin() + static_cast<std::ptrdiff_t>(section.offset + section.size)
+        );
+    }
+
+    struct PreparedPacFull {
+        const PacFullSubmesh* submesh = nullptr;
+        int stored_lod_count = 0;
+        std::array<double, 3> bbox_min{};
+        std::array<double, 3> bbox_extent{};
+    };
+    std::vector<PreparedPacFull> prepared;
+    prepared.reserve(submeshes.size());
+
+    for (size_t submesh_index = 0; submesh_index < submeshes.size(); ++submesh_index) {
+        const PacFullSubmesh& submesh = submeshes[submesh_index];
+        const PacDescriptor& desc = descriptors[submesh_index];
+        const int rel_desc_off = static_cast<int>(desc.descriptor_offset) - static_cast<int>(sec0.offset);
+        if (rel_desc_off < 0 || static_cast<size_t>(rel_desc_off) + 40u > sec0_data.size()) {
+            throw std::runtime_error("PAC full rebuild descriptor offset is outside section 0");
+        }
+        const int desc_record_len = pac_descriptor_record_length(desc);
+        if (static_cast<size_t>(rel_desc_off) + static_cast<size_t>(desc_record_len) > sec0_data.size()) {
+            throw std::runtime_error("PAC full rebuild descriptor record is truncated");
+        }
+        const int stored_lod_count = std::max(1, std::min(n_lods, submesh.source_lod_count > 0 ? submesh.source_lod_count : desc.stored_lod_count));
+        if (submesh.vertex_count <= 0 && submesh.face_count <= 0) {
+            const int vc_off = rel_desc_off + 40;
+            const int ic_off = vc_off + desc.stored_lod_count * 2;
+            for (int lod = 0; lod < desc.stored_lod_count; ++lod) {
+                write_u16_le(sec0_data, static_cast<size_t>(vc_off + lod * 2), 0);
+                write_u32_le(sec0_data, static_cast<size_t>(ic_off + lod * 4), 0);
+            }
+            continue;
+        }
+        if (submesh.stride < 12) throw std::runtime_error("PAC full rebuild requires source vertex stride metadata");
+        std::array<double, 3> bmin{1.0e300, 1.0e300, 1.0e300};
+        std::array<double, 3> bmax{-1.0e300, -1.0e300, -1.0e300};
+        for (const PacPatchVertex& vertex : submesh.vertices) {
+            bmin[0] = std::min(bmin[0], vertex.position[0]); bmin[1] = std::min(bmin[1], vertex.position[1]); bmin[2] = std::min(bmin[2], vertex.position[2]);
+            bmax[0] = std::max(bmax[0], vertex.position[0]); bmax[1] = std::max(bmax[1], vertex.position[1]); bmax[2] = std::max(bmax[2], vertex.position[2]);
+        }
+        constexpr double bbox_eps = 1.0e-6;
+        for (int axis = 0; axis < 3; ++axis) {
+            bmin[axis] -= bbox_eps;
+            bmax[axis] += bbox_eps;
+        }
+        const std::array<double, 3> extent{bmax[0] - bmin[0], bmax[1] - bmin[1], bmax[2] - bmin[2]};
+        const size_t floats = static_cast<size_t>(rel_desc_off) + 3u;
+        write_f32_le(sec0_data, floats + 2u * 4u, static_cast<float>(bmin[0]));
+        write_f32_le(sec0_data, floats + 3u * 4u, static_cast<float>(bmin[1]));
+        write_f32_le(sec0_data, floats + 4u * 4u, static_cast<float>(bmin[2]));
+        write_f32_le(sec0_data, floats + 5u * 4u, static_cast<float>(extent[0]));
+        write_f32_le(sec0_data, floats + 6u * 4u, static_cast<float>(extent[1]));
+        write_f32_le(sec0_data, floats + 7u * 4u, static_cast<float>(extent[2]));
+        const int vc_off = rel_desc_off + 40;
+        const int ic_off = vc_off + desc.stored_lod_count * 2;
+        for (int lod = 0; lod < desc.stored_lod_count; ++lod) {
+            write_u16_le(sec0_data, static_cast<size_t>(vc_off + lod * 2), static_cast<std::uint16_t>(submesh.vertex_count));
+            write_u32_le(sec0_data, static_cast<size_t>(ic_off + lod * 4), static_cast<std::uint32_t>(submesh.face_count * 3));
+        }
+        prepared.push_back(PreparedPacFull{&submesh, stored_lod_count, bmin, extent});
+    }
+
+    std::map<int, std::vector<char>> section_payloads;
+    std::map<int, int> lod_split_bytes;
+    section_payloads[0] = sec0_data;
+    for (int sec_idx = 1; sec_idx <= n_lods; ++sec_idx) {
+        const int lod_idx = n_lods - sec_idx;
+        std::vector<char> verts_buf;
+        std::vector<char> idx_buf;
+        for (const PreparedPacFull& item : prepared) {
+            if (item.submesh == nullptr || lod_idx >= item.stored_lod_count) continue;
+            const PacFullSubmesh& submesh = *item.submesh;
+            for (const PacPatchVertex& vertex : submesh.vertices) {
+                if (vertex.source_offset < 0) throw std::runtime_error("PAC full rebuild vertex is missing donor source offset");
+                const size_t source_offset = static_cast<size_t>(vertex.source_offset);
+                if (source_offset + static_cast<size_t>(submesh.stride) > original.size()) {
+                    throw std::runtime_error("PAC full rebuild donor record is outside the file");
+                }
+                std::vector<char> record(
+                    original.begin() + static_cast<std::ptrdiff_t>(source_offset),
+                    original.begin() + static_cast<std::ptrdiff_t>(source_offset + submesh.stride)
+                );
+                if (submesh.clean_shading) {
+                    if (submesh.stride >= 8) write_u16_le(record, 6u, 0);
+                    if (submesh.stride >= 28) {
+                        for (size_t i = 20; i < 28; ++i) record[i] = 0;
+                    }
+                }
+                write_u16_le(record, 0u, quantize_pac_u16_double(vertex.position[0], item.bbox_min[0], item.bbox_extent[0]));
+                write_u16_le(record, 2u, quantize_pac_u16_double(vertex.position[1], item.bbox_min[1], item.bbox_extent[1]));
+                write_u16_le(record, 4u, quantize_pac_u16_double(vertex.position[2], item.bbox_min[2], item.bbox_extent[2]));
+                if (submesh.stride >= 12) {
+                    write_u16_le(record, 8u, float_to_half(static_cast<float>(vertex.uv[0])));
+                    write_u16_le(record, 10u, float_to_half(static_cast<float>(vertex.uv[1])));
+                }
+                if (submesh.stride >= 20) {
+                    const std::uint32_t existing_normal = read_u32(record, 16u);
+                    write_u32_le(record, 16u, pack_pac_normal(Vec3{static_cast<float>(vertex.normal[0]), static_cast<float>(vertex.normal[1]), static_cast<float>(vertex.normal[2])}, submesh.clean_shading ? 0u : existing_normal));
+                }
+                verts_buf.insert(verts_buf.end(), record.begin(), record.end());
+            }
+            for (const PacPatchFace& face : submesh.faces) {
+                if (
+                    face.a >= static_cast<std::uint32_t>(submesh.vertex_count)
+                    || face.b >= static_cast<std::uint32_t>(submesh.vertex_count)
+                    || face.c >= static_cast<std::uint32_t>(submesh.vertex_count)
+                ) {
+                    throw std::runtime_error("PAC full rebuild face references an out-of-range vertex");
+                }
+                append_u16_le(idx_buf, static_cast<std::uint16_t>(face.a));
+                append_u16_le(idx_buf, static_cast<std::uint16_t>(face.b));
+                append_u16_le(idx_buf, static_cast<std::uint16_t>(face.c));
+            }
+        }
+        lod_split_bytes[sec_idx] = static_cast<int>(verts_buf.size());
+        verts_buf.insert(verts_buf.end(), idx_buf.begin(), idx_buf.end());
+        section_payloads[sec_idx] = std::move(verts_buf);
+    }
+    for (auto& [index, payload] : preserved_sections) {
+        section_payloads[index] = std::move(payload);
+    }
+
+    std::map<int, int> section_offsets;
+    section_offsets[0] = 0x50;
+    int next_offset = 0x50 + static_cast<int>(section_payloads[0].size());
+    for (int slot = 1; slot < 8; ++slot) {
+        auto it = section_payloads.find(slot);
+        if (it == section_payloads.end()) continue;
+        section_offsets[slot] = next_offset;
+        next_offset += static_cast<int>(it->second.size());
+    }
+    int table_off = 5;
+    for (int lod_idx = 0; lod_idx < n_lods; ++lod_idx) {
+        const int sec_idx = n_lods - lod_idx;
+        write_u32_le(section_payloads[0], static_cast<size_t>(table_off + lod_idx * 4), static_cast<std::uint32_t>(section_offsets[sec_idx]));
+    }
+    table_off += n_lods * 4;
+    for (int lod_idx = 0; lod_idx < n_lods; ++lod_idx) {
+        const int sec_idx = n_lods - lod_idx;
+        write_u32_le(section_payloads[0], static_cast<size_t>(table_off + lod_idx * 4), static_cast<std::uint32_t>(section_offsets[sec_idx] + lod_split_bytes[sec_idx]));
+    }
+
+    std::vector<char> assembled(original.begin(), original.begin() + 0x50);
+    for (int slot = 0; slot < 8; ++slot) {
+        write_u32_le(assembled, 0x10u + static_cast<size_t>(slot) * 8u, 0);
+        write_u32_le(assembled, 0x10u + static_cast<size_t>(slot) * 8u + 4u, 0);
+    }
+    for (int slot = 0; slot < 8; ++slot) {
+        auto it = section_payloads.find(slot);
+        if (it == section_payloads.end()) continue;
+        write_u32_le(assembled, 0x10u + static_cast<size_t>(slot) * 8u, 0);
+        write_u32_le(assembled, 0x10u + static_cast<size_t>(slot) * 8u + 4u, static_cast<std::uint32_t>(it->second.size()));
+        assembled.insert(assembled.end(), it->second.begin(), it->second.end());
+    }
+    return assembled;
+}
+
+static std::vector<char> rebuild_static_quantized_in_place_native(const std::vector<char>& original, const fs::path& patch_path) {
+    std::ifstream in(patch_path);
+    if (!in) throw std::runtime_error("could not open static mesh patch table");
+    std::vector<char> output = original;
+    std::array<double, 3> bmin{0.0, 0.0, 0.0};
+    std::array<double, 3> bmax{1.0, 1.0, 1.0};
+    int header_min_offset = -1;
+    int header_max_offset = -1;
+    bool saw_bbox = false;
+    struct VertexPatch {
+        size_t offset = 0;
+        std::array<double, 3> position{};
+    };
+    std::vector<VertexPatch> patches;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty()) continue;
+        const std::vector<std::string> fields = split_tab_row(line);
+        if (fields.empty()) continue;
+        if (fields[0] == "bbox") {
+            bmin = {parse_double_field(fields, 1), parse_double_field(fields, 2), parse_double_field(fields, 3)};
+            bmax = {parse_double_field(fields, 4, 1.0), parse_double_field(fields, 5, 1.0), parse_double_field(fields, 6, 1.0)};
+            header_min_offset = parse_int_field(fields, 7, -1);
+            header_max_offset = parse_int_field(fields, 8, -1);
+            saw_bbox = true;
+        } else if (fields[0] == "vertex") {
+            const std::int64_t raw_offset = parse_i64_field(fields, 1, -1);
+            if (raw_offset < 0) continue;
+            patches.push_back(VertexPatch{
+                static_cast<size_t>(raw_offset),
+                {parse_double_field(fields, 2), parse_double_field(fields, 3), parse_double_field(fields, 4)}
+            });
+        }
+    }
+    if (!saw_bbox) throw std::runtime_error("static mesh patch table is missing bbox row");
+    if (header_min_offset >= 0 && header_max_offset >= 0) {
+        write_f32_le(output, static_cast<size_t>(header_min_offset) + 0u, static_cast<float>(bmin[0]));
+        write_f32_le(output, static_cast<size_t>(header_min_offset) + 4u, static_cast<float>(bmin[1]));
+        write_f32_le(output, static_cast<size_t>(header_min_offset) + 8u, static_cast<float>(bmin[2]));
+        write_f32_le(output, static_cast<size_t>(header_max_offset) + 0u, static_cast<float>(bmax[0]));
+        write_f32_le(output, static_cast<size_t>(header_max_offset) + 4u, static_cast<float>(bmax[1]));
+        write_f32_le(output, static_cast<size_t>(header_max_offset) + 8u, static_cast<float>(bmax[2]));
+    }
+    for (const VertexPatch& patch : patches) {
+        if (patch.offset + 6u > output.size()) throw std::runtime_error("static mesh vertex patch is outside output buffer");
+        write_u16_le(output, patch.offset + 0u, quantize_static_u16_double(patch.position[0], bmin[0], bmax[0]));
+        write_u16_le(output, patch.offset + 2u, quantize_static_u16_double(patch.position[1], bmin[1], bmax[1]));
+        write_u16_le(output, patch.offset + 4u, quantize_static_u16_double(patch.position[2], bmin[2], bmax[2]));
+    }
+    return output;
+}
+
+struct PamFullVertex {
+    std::int64_t source_offset = -1;
+    std::array<double, 3> position{};
+    bool has_uv = false;
+    std::array<double, 2> uv{};
+};
+
+struct PamFullFace {
+    std::uint32_t a = 0;
+    std::uint32_t b = 0;
+    std::uint32_t c = 0;
+};
+
+struct PamFullSubmesh {
+    int index = 0;
+    int desc_offset = 0;
+    int vertex_count = 0;
+    int face_count = 0;
+    int stride = 0;
+    int original_vertex_base = 0;
+    int original_vertex_count = 0;
+    std::string texture;
+    std::string material;
+    int original_vertex_total = 0;
+    int original_index_total = 0;
+    std::array<float, 6> old_bbox{};
+    std::array<float, 6> new_bbox{};
+    std::vector<PamFullVertex> vertices;
+    std::vector<PamFullFace> faces;
+};
+
+struct PamFullRebuildPlan {
+    std::string kind;
+    int geom_offset = 0;
+    int old_geom_end = 0;
+    int stride = 0;
+    int scan_start = -1;
+    int idx_base = -1;
+    int vertex_end = -1;
+    std::array<double, 3> bbox_min{};
+    std::array<double, 3> bbox_max{};
+    std::vector<PamFullSubmesh> submeshes;
+};
+
+static void append_bytes(std::vector<char>& out, const std::vector<char>& data, size_t start, size_t end) {
+    if (start > end || end > data.size()) throw std::runtime_error("native PAM full rebuild slice is outside the file");
+    out.insert(out.end(), data.begin() + static_cast<std::ptrdiff_t>(start), data.begin() + static_cast<std::ptrdiff_t>(end));
+}
+
+static bool float_close(float value, float target, float tolerance = 1.0e-3f) {
+    return std::isfinite(value) && std::fabs(value - target) <= tolerance;
+}
+
+static void append_f32_bytes(std::vector<char>& out, float value) {
+    std::uint32_t raw = 0;
+    std::memcpy(&raw, &value, sizeof(raw));
+    append_u32_le(out, raw);
+}
+
+static std::vector<char> pack_u32_pair(std::uint32_t a, std::uint32_t b) {
+    std::vector<char> out;
+    out.reserve(8);
+    append_u32_le(out, a);
+    append_u32_le(out, b);
+    return out;
+}
+
+static std::vector<char> pack_bbox6(const std::array<float, 6>& values) {
+    std::vector<char> out;
+    out.reserve(24);
+    for (float value : values) append_f32_bytes(out, value);
+    return out;
+}
+
+static void replace_all_in_region(std::vector<char>& data, size_t start, size_t end, const std::vector<char>& old_bytes, const std::vector<char>& new_bytes) {
+    if (old_bytes.empty() || old_bytes == new_bytes || start >= end || old_bytes.size() > end - start) return;
+    for (size_t pos = start; pos + old_bytes.size() <= end;) {
+        if (std::equal(old_bytes.begin(), old_bytes.end(), data.begin() + static_cast<std::ptrdiff_t>(pos))) {
+            data.erase(data.begin() + static_cast<std::ptrdiff_t>(pos), data.begin() + static_cast<std::ptrdiff_t>(pos + old_bytes.size()));
+            data.insert(data.begin() + static_cast<std::ptrdiff_t>(pos), new_bytes.begin(), new_bytes.end());
+            pos += new_bytes.size();
+            end = end - old_bytes.size() + new_bytes.size();
+        } else {
+            ++pos;
+        }
+    }
+}
+
+static void sync_pam_geom_size_header_native(std::vector<char>& result, const std::vector<char>& original, int geom_offset, int old_geom_end, int new_geom_end) {
+    constexpr size_t header_geom_size_offset = 0x40u;
+    if (
+        result.size() < header_geom_size_offset + 4u
+        || original.size() < header_geom_size_offset + 4u
+        || geom_offset <= 0
+        || old_geom_end < geom_offset
+        || new_geom_end < geom_offset
+    ) {
+        return;
+    }
+    const int original_geom_len = old_geom_end - geom_offset;
+    const int original_header_geom_len = static_cast<int>(read_u32(original, header_geom_size_offset));
+    if (original_header_geom_len != original_geom_len) return;
+    write_u32_le(result, header_geom_size_offset, static_cast<std::uint32_t>(new_geom_end - geom_offset));
+}
+
+static void sync_pam_header_mirrors_native(std::vector<char>& result, const std::vector<PamFullSubmesh>& submeshes, int geom_offset) {
+    const size_t mesh_count = submeshes.size();
+    const size_t region_start = 0x410u + mesh_count * 0x218u;
+    const size_t region_end = std::min<size_t>(std::max<size_t>(static_cast<size_t>(std::max(0, geom_offset)), region_start), result.size());
+    if (region_start >= region_end) return;
+
+    for (const PamFullSubmesh& submesh : submeshes) {
+        const std::uint32_t original_indices = static_cast<std::uint32_t>(std::max(0, submesh.original_index_total));
+        const std::uint32_t new_indices = static_cast<std::uint32_t>(std::max(0, submesh.face_count * 3));
+        const std::uint32_t original_vertices = static_cast<std::uint32_t>(std::max(0, submesh.original_vertex_total));
+        const std::uint32_t new_vertices = static_cast<std::uint32_t>(std::max(0, submesh.vertex_count));
+
+        std::vector<char> old_count_bbox;
+        old_count_bbox.reserve(28);
+        append_u32_le(old_count_bbox, original_indices);
+        const std::vector<char> old_bbox = pack_bbox6(submesh.old_bbox);
+        old_count_bbox.insert(old_count_bbox.end(), old_bbox.begin(), old_bbox.end());
+        std::vector<char> new_count_bbox;
+        new_count_bbox.reserve(28);
+        append_u32_le(new_count_bbox, new_indices);
+        const std::vector<char> new_bbox = pack_bbox6(submesh.new_bbox);
+        new_count_bbox.insert(new_count_bbox.end(), new_bbox.begin(), new_bbox.end());
+        replace_all_in_region(result, region_start, region_end, old_count_bbox, new_count_bbox);
+        replace_all_in_region(result, region_start, region_end, old_bbox, new_bbox);
+
+        for (size_t off = region_start; off + 28u <= region_end; off += 4u) {
+            const std::uint32_t count = read_u32(result, off);
+            bool bbox_matches = count == original_indices;
+            for (int axis = 0; axis < 6 && bbox_matches; ++axis) {
+                bbox_matches = float_close(read_f32(result, off + 4u + static_cast<size_t>(axis) * 4u), submesh.old_bbox[static_cast<size_t>(axis)]);
+            }
+            if (!bbox_matches) continue;
+            write_u32_le(result, off, new_indices);
+            for (int axis = 0; axis < 6; ++axis) {
+                write_f32_le(result, off + 4u + static_cast<size_t>(axis) * 4u, submesh.new_bbox[static_cast<size_t>(axis)]);
+            }
+        }
+        for (size_t off = region_start; off + 24u <= region_end; off += 4u) {
+            bool bbox_matches = true;
+            for (int axis = 0; axis < 6 && bbox_matches; ++axis) {
+                bbox_matches = float_close(read_f32(result, off + static_cast<size_t>(axis) * 4u), submesh.old_bbox[static_cast<size_t>(axis)]);
+            }
+            if (!bbox_matches) continue;
+            for (int axis = 0; axis < 6; ++axis) {
+                write_f32_le(result, off + static_cast<size_t>(axis) * 4u, submesh.new_bbox[static_cast<size_t>(axis)]);
+            }
+        }
+
+        const std::vector<char> old_pair = pack_u32_pair(original_vertices, original_indices);
+        const std::vector<char> new_pair = pack_u32_pair(new_vertices, new_indices);
+        if (old_pair == new_pair) continue;
+        for (const std::string& anchor_text : {submesh.texture, submesh.material}) {
+            if (anchor_text.empty()) continue;
+            const std::vector<char> anchor(anchor_text.begin(), anchor_text.end());
+            for (size_t cursor = region_start; cursor + anchor.size() <= region_end;) {
+                auto it = std::search(result.begin() + static_cast<std::ptrdiff_t>(cursor), result.begin() + static_cast<std::ptrdiff_t>(region_end), anchor.begin(), anchor.end());
+                if (it == result.begin() + static_cast<std::ptrdiff_t>(region_end)) break;
+                const size_t pos = static_cast<size_t>(std::distance(result.begin(), it));
+                if (pos >= 8u && pos - 8u >= region_start && pos <= result.size()) {
+                    const size_t pair_off = pos - 8u;
+                    if (std::equal(old_pair.begin(), old_pair.end(), result.begin() + static_cast<std::ptrdiff_t>(pair_off))) {
+                        std::copy(new_pair.begin(), new_pair.end(), result.begin() + static_cast<std::ptrdiff_t>(pair_off));
+                    }
+                }
+                cursor = pos + anchor.size();
+            }
+        }
+    }
+}
+
+static PamFullRebuildPlan load_pam_full_rebuild_plan(const fs::path& table_path) {
+    std::ifstream in(table_path);
+    if (!in) throw std::runtime_error("could not open PAM full rebuild table");
+    PamFullRebuildPlan plan;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty()) continue;
+        const std::vector<std::string> fields = split_tab_row(line);
+        if (fields.empty()) continue;
+        if (fields[0] == "header") {
+            plan.kind = fields.size() > 1 ? fields[1] : "";
+            plan.geom_offset = parse_int_field(fields, 2, 0);
+            plan.old_geom_end = parse_int_field(fields, 3, 0);
+            plan.stride = parse_int_field(fields, 4, 0);
+            plan.scan_start = parse_int_field(fields, 5, -1);
+            plan.idx_base = parse_int_field(fields, 6, -1);
+            plan.vertex_end = parse_int_field(fields, 7, -1);
+            plan.bbox_min = {parse_double_field(fields, 8), parse_double_field(fields, 9), parse_double_field(fields, 10)};
+            plan.bbox_max = {parse_double_field(fields, 11), parse_double_field(fields, 12), parse_double_field(fields, 13)};
+        } else if (fields[0] == "submesh") {
+            const int index = parse_int_field(fields, 1, -1);
+            if (index < 0) throw std::runtime_error("PAM full rebuild table has invalid submesh index");
+            if (static_cast<size_t>(index) >= plan.submeshes.size()) plan.submeshes.resize(static_cast<size_t>(index) + 1u);
+            PamFullSubmesh& submesh = plan.submeshes[static_cast<size_t>(index)];
+            submesh.index = index;
+            submesh.desc_offset = parse_int_field(fields, 2, 0);
+            submesh.vertex_count = parse_int_field(fields, 3, 0);
+            submesh.face_count = parse_int_field(fields, 4, 0);
+            submesh.stride = parse_int_field(fields, 5, 0);
+            submesh.original_vertex_base = parse_int_field(fields, 6, 0);
+            submesh.original_vertex_count = parse_int_field(fields, 7, 0);
+            submesh.texture = fields.size() > 8 ? fields[8] : "";
+            submesh.material = fields.size() > 9 ? fields[9] : "";
+            submesh.original_vertex_total = parse_int_field(fields, 10, 0);
+            submesh.original_index_total = parse_int_field(fields, 11, 0);
+            for (int i = 0; i < 6; ++i) submesh.old_bbox[static_cast<size_t>(i)] = static_cast<float>(parse_double_field(fields, 12u + static_cast<size_t>(i), 0.0));
+            for (int i = 0; i < 6; ++i) submesh.new_bbox[static_cast<size_t>(i)] = static_cast<float>(parse_double_field(fields, 18u + static_cast<size_t>(i), 0.0));
+            submesh.vertices.resize(static_cast<size_t>(std::max(0, submesh.vertex_count)));
+            submesh.faces.resize(static_cast<size_t>(std::max(0, submesh.face_count)));
+        } else if (fields[0] == "vertex") {
+            const int submesh_index = parse_int_field(fields, 1, -1);
+            const int vertex_index = parse_int_field(fields, 2, -1);
+            if (submesh_index < 0 || vertex_index < 0 || static_cast<size_t>(submesh_index) >= plan.submeshes.size()) {
+                throw std::runtime_error("PAM full vertex row references an invalid submesh");
+            }
+            PamFullSubmesh& submesh = plan.submeshes[static_cast<size_t>(submesh_index)];
+            if (static_cast<size_t>(vertex_index) >= submesh.vertices.size()) throw std::runtime_error("PAM full vertex row references an invalid vertex");
+            PamFullVertex& vertex = submesh.vertices[static_cast<size_t>(vertex_index)];
+            vertex.source_offset = parse_i64_field(fields, 3, -1);
+            vertex.position = {parse_double_field(fields, 4), parse_double_field(fields, 5), parse_double_field(fields, 6)};
+            vertex.has_uv = parse_int_field(fields, 7, 0) != 0;
+            vertex.uv = {parse_double_field(fields, 8), parse_double_field(fields, 9)};
+        } else if (fields[0] == "face") {
+            const int submesh_index = parse_int_field(fields, 1, -1);
+            const int face_index = parse_int_field(fields, 2, -1);
+            if (submesh_index < 0 || face_index < 0 || static_cast<size_t>(submesh_index) >= plan.submeshes.size()) {
+                throw std::runtime_error("PAM full face row references an invalid submesh");
+            }
+            PamFullSubmesh& submesh = plan.submeshes[static_cast<size_t>(submesh_index)];
+            if (static_cast<size_t>(face_index) >= submesh.faces.size()) throw std::runtime_error("PAM full face row references an invalid face");
+            submesh.faces[static_cast<size_t>(face_index)] = PamFullFace{
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 3, 0))),
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 4, 0))),
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 5, 0))),
+            };
+        }
+    }
+    if (plan.kind.empty() || plan.geom_offset <= 0 || plan.old_geom_end < plan.geom_offset) {
+        throw std::runtime_error("PAM full rebuild table is missing a valid header");
+    }
+    return plan;
+}
+
+static std::vector<char> make_pam_template_record(const std::vector<char>& original, const PamFullVertex& vertex, int stride) {
+    if (stride <= 0) throw std::runtime_error("PAM full rebuild has invalid vertex stride");
+    std::vector<char> record(static_cast<size_t>(stride), 0);
+    if (vertex.source_offset >= 0) {
+        const size_t source_offset = static_cast<size_t>(vertex.source_offset);
+        if (source_offset + static_cast<size_t>(stride) <= original.size()) {
+            std::copy(
+                original.begin() + static_cast<std::ptrdiff_t>(source_offset),
+                original.begin() + static_cast<std::ptrdiff_t>(source_offset + stride),
+                record.begin()
+            );
+        }
+    }
+    return record;
+}
+
+static void pack_static_vertex_record_native(
+    std::vector<char>& record,
+    int stride,
+    const PamFullVertex& vertex,
+    const std::array<double, 3>& bmin,
+    const std::array<double, 3>& bmax
+) {
+    if (static_cast<int>(record.size()) < stride) record.resize(static_cast<size_t>(stride), 0);
+    write_u16_le(record, 0u, quantize_static_u16_double(vertex.position[0], bmin[0], bmax[0]));
+    write_u16_le(record, 2u, quantize_static_u16_double(vertex.position[1], bmin[1], bmax[1]));
+    write_u16_le(record, 4u, quantize_static_u16_double(vertex.position[2], bmin[2], bmax[2]));
+    if (stride >= 12 && vertex.has_uv) {
+        write_u16_le(record, 8u, float_to_half(static_cast<float>(vertex.uv[0])));
+        write_u16_le(record, 10u, float_to_half(static_cast<float>(vertex.uv[1])));
+    }
+}
+
+static std::vector<char> rebuild_pam_full_native(const std::vector<char>& original, const PamFullRebuildPlan& plan) {
+    const bool combined = plan.kind == "combined";
+    const bool scan = plan.kind == "scan_combined";
+    const bool backward = plan.kind == "backward_scan_combined";
+    const bool local = plan.kind == "local";
+    if (!combined && !scan && !backward && !local) throw std::runtime_error("unsupported PAM full rebuild layout");
+    const int write_start = scan ? plan.scan_start : plan.geom_offset;
+    if (write_start <= 0 || static_cast<size_t>(write_start) > original.size()) throw std::runtime_error("PAM full rebuild write start is invalid");
+
+    std::vector<char> result(original.begin(), original.begin() + static_cast<std::ptrdiff_t>(write_start));
+    write_f32_le(result, 0x14u, static_cast<float>(plan.bbox_min[0]));
+    write_f32_le(result, 0x18u, static_cast<float>(plan.bbox_min[1]));
+    write_f32_le(result, 0x1Cu, static_cast<float>(plan.bbox_min[2]));
+    write_f32_le(result, 0x20u, static_cast<float>(plan.bbox_max[0]));
+    write_f32_le(result, 0x24u, static_cast<float>(plan.bbox_max[1]));
+    write_f32_le(result, 0x28u, static_cast<float>(plan.bbox_max[2]));
+
+    std::vector<char> geom_data;
+    std::vector<char> index_data;
+    int vertex_cursor = 0;
+    int index_cursor = 0;
+    int current_voff = 0;
+
+    for (const PamFullSubmesh& submesh : plan.submeshes) {
+        if (submesh.desc_offset < 0 || static_cast<size_t>(submesh.desc_offset) + 16u > result.size()) {
+            throw std::runtime_error("PAM full rebuild descriptor offset is outside the preserved header");
+        }
+        write_u32_le(result, static_cast<size_t>(submesh.desc_offset), static_cast<std::uint32_t>(submesh.vertex_count));
+        write_u32_le(result, static_cast<size_t>(submesh.desc_offset) + 4u, static_cast<std::uint32_t>(submesh.face_count * 3));
+        if (local) {
+            write_u32_le(result, static_cast<size_t>(submesh.desc_offset) + 8u, static_cast<std::uint32_t>(current_voff));
+            write_u32_le(result, static_cast<size_t>(submesh.desc_offset) + 12u, 0u);
+            for (const PamFullVertex& vertex : submesh.vertices) {
+                std::vector<char> record = make_pam_template_record(original, vertex, submesh.stride);
+                pack_static_vertex_record_native(record, submesh.stride, vertex, plan.bbox_min, plan.bbox_max);
+                geom_data.insert(geom_data.end(), record.begin(), record.end());
+            }
+            for (const PamFullFace& face : submesh.faces) {
+                if (face.a >= static_cast<std::uint32_t>(submesh.vertex_count) || face.b >= static_cast<std::uint32_t>(submesh.vertex_count) || face.c >= static_cast<std::uint32_t>(submesh.vertex_count)) {
+                    throw std::runtime_error("PAM full rebuild face references an out-of-range vertex");
+                }
+                append_u16_le(geom_data, static_cast<std::uint16_t>(face.a));
+                append_u16_le(geom_data, static_cast<std::uint16_t>(face.b));
+                append_u16_le(geom_data, static_cast<std::uint16_t>(face.c));
+            }
+            current_voff += submesh.vertex_count * submesh.stride + submesh.face_count * 6;
+        } else {
+            write_u32_le(result, static_cast<size_t>(submesh.desc_offset) + 8u, static_cast<std::uint32_t>(vertex_cursor));
+            write_u32_le(result, static_cast<size_t>(submesh.desc_offset) + 12u, static_cast<std::uint32_t>(index_cursor));
+            for (const PamFullVertex& vertex : submesh.vertices) {
+                std::vector<char> record = make_pam_template_record(original, vertex, submesh.stride);
+                pack_static_vertex_record_native(record, submesh.stride, vertex, plan.bbox_min, plan.bbox_max);
+                geom_data.insert(geom_data.end(), record.begin(), record.end());
+            }
+            for (const PamFullFace& face : submesh.faces) {
+                if (face.a >= static_cast<std::uint32_t>(submesh.vertex_count) || face.b >= static_cast<std::uint32_t>(submesh.vertex_count) || face.c >= static_cast<std::uint32_t>(submesh.vertex_count)) {
+                    throw std::runtime_error("PAM full rebuild face references an out-of-range vertex");
+                }
+                append_u16_le(index_data, static_cast<std::uint16_t>(face.a + static_cast<std::uint32_t>(vertex_cursor)));
+                append_u16_le(index_data, static_cast<std::uint16_t>(face.b + static_cast<std::uint32_t>(vertex_cursor)));
+                append_u16_le(index_data, static_cast<std::uint16_t>(face.c + static_cast<std::uint32_t>(vertex_cursor)));
+            }
+            vertex_cursor += submesh.vertex_count;
+            index_cursor += submesh.face_count * 3;
+        }
+    }
+
+    int new_geom_end = plan.geom_offset;
+    if (combined || scan) {
+        result.insert(result.end(), geom_data.begin(), geom_data.end());
+        result.insert(result.end(), index_data.begin(), index_data.end());
+        new_geom_end = plan.geom_offset + static_cast<int>(geom_data.size() + index_data.size());
+    } else if (backward) {
+        if (plan.vertex_end < 0 || plan.idx_base < plan.vertex_end || plan.old_geom_end < plan.idx_base) {
+            throw std::runtime_error("PAM backward-scan full rebuild padding is invalid");
+        }
+        result.insert(result.end(), geom_data.begin(), geom_data.end());
+        append_bytes(result, original, static_cast<size_t>(plan.vertex_end), static_cast<size_t>(plan.idx_base));
+        result.insert(result.end(), index_data.begin(), index_data.end());
+        new_geom_end = plan.geom_offset + static_cast<int>(geom_data.size() + static_cast<size_t>(plan.idx_base - plan.vertex_end) + index_data.size());
+    } else {
+        result.insert(result.end(), geom_data.begin(), geom_data.end());
+        new_geom_end = plan.geom_offset + static_cast<int>(geom_data.size());
+    }
+
+    sync_pam_geom_size_header_native(result, original, plan.geom_offset, plan.old_geom_end, new_geom_end);
+    append_bytes(result, original, static_cast<size_t>(plan.old_geom_end), original.size());
+    sync_pam_header_mirrors_native(result, plan.submeshes, plan.geom_offset);
+    return result;
+}
+
+struct PamlodFullPlan {
+    int geom_offset = 0;
+    int old_lod0_end = 0;
+    int stride = 0;
+    int vertex_base = 0;
+    std::array<double, 3> bbox_min{};
+    std::array<double, 3> bbox_max{};
+    std::vector<PamFullSubmesh> submeshes;
+};
+
+static PamlodFullPlan load_pamlod_full_rebuild_plan(const fs::path& table_path) {
+    std::ifstream in(table_path);
+    if (!in) throw std::runtime_error("could not open PAMLOD full rebuild table");
+    PamlodFullPlan plan;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty()) continue;
+        const std::vector<std::string> fields = split_tab_row(line);
+        if (fields.empty()) continue;
+        if (fields[0] == "header") {
+            const std::string kind = fields.size() > 1 ? fields[1] : "";
+            if (kind != "pamlod_lod0_single" && kind != "pamlod_lod0") throw std::runtime_error("unsupported PAMLOD full rebuild table");
+            plan.geom_offset = parse_int_field(fields, 2, 0);
+            plan.old_lod0_end = parse_int_field(fields, 3, 0);
+            plan.stride = parse_int_field(fields, 4, 0);
+            plan.vertex_base = parse_int_field(fields, 5, 0);
+            plan.bbox_min = {parse_double_field(fields, 6), parse_double_field(fields, 7), parse_double_field(fields, 8)};
+            plan.bbox_max = {parse_double_field(fields, 9), parse_double_field(fields, 10), parse_double_field(fields, 11)};
+        } else if (fields[0] == "submesh") {
+            PamFullSubmesh submesh;
+            submesh.index = parse_int_field(fields, 1, -1);
+            submesh.desc_offset = parse_int_field(fields, 2, 0);
+            submesh.vertex_count = parse_int_field(fields, 3, 0);
+            submesh.face_count = parse_int_field(fields, 4, 0);
+            submesh.original_vertex_count = parse_int_field(fields, 5, 0);
+            submesh.stride = plan.stride;
+            if (submesh.index < 0) throw std::runtime_error("PAMLOD full rebuild submesh row has an invalid index");
+            if (static_cast<size_t>(submesh.index) >= plan.submeshes.size()) {
+                plan.submeshes.resize(static_cast<size_t>(submesh.index) + 1u);
+            }
+            submesh.vertices.resize(static_cast<size_t>(std::max(0, submesh.vertex_count)));
+            submesh.faces.resize(static_cast<size_t>(std::max(0, submesh.face_count)));
+            plan.submeshes[static_cast<size_t>(submesh.index)] = std::move(submesh);
+        } else if (fields[0] == "vertex") {
+            const int submesh_index = parse_int_field(fields, 1, -1);
+            const int vertex_index = parse_int_field(fields, 2, -1);
+            if (submesh_index < 0 || static_cast<size_t>(submesh_index) >= plan.submeshes.size()) {
+                throw std::runtime_error("PAMLOD full vertex row references an invalid submesh");
+            }
+            PamFullSubmesh& submesh = plan.submeshes[static_cast<size_t>(submesh_index)];
+            if (vertex_index < 0 || static_cast<size_t>(vertex_index) >= submesh.vertices.size()) {
+                throw std::runtime_error("PAMLOD full vertex row references an invalid vertex");
+            }
+            PamFullVertex& vertex = submesh.vertices[static_cast<size_t>(vertex_index)];
+            vertex.source_offset = parse_i64_field(fields, 3, -1);
+            vertex.position = {parse_double_field(fields, 4), parse_double_field(fields, 5), parse_double_field(fields, 6)};
+            vertex.has_uv = parse_int_field(fields, 7, 0) != 0;
+            vertex.uv = {parse_double_field(fields, 8), parse_double_field(fields, 9)};
+        } else if (fields[0] == "face") {
+            const int submesh_index = parse_int_field(fields, 1, -1);
+            const int face_index = parse_int_field(fields, 2, -1);
+            if (submesh_index < 0 || static_cast<size_t>(submesh_index) >= plan.submeshes.size()) {
+                throw std::runtime_error("PAMLOD full face row references an invalid submesh");
+            }
+            PamFullSubmesh& submesh = plan.submeshes[static_cast<size_t>(submesh_index)];
+            if (face_index < 0 || static_cast<size_t>(face_index) >= submesh.faces.size()) {
+                throw std::runtime_error("PAMLOD full face row references an invalid face");
+            }
+            submesh.faces[static_cast<size_t>(face_index)] = PamFullFace{
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 3, 0))),
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 4, 0))),
+                static_cast<std::uint32_t>(std::max(0, parse_int_field(fields, 5, 0))),
+            };
+        }
+    }
+    if (plan.geom_offset <= 0 || plan.old_lod0_end < plan.geom_offset || plan.stride <= 0 || plan.vertex_base <= 0) {
+        throw std::runtime_error("PAMLOD full rebuild table is missing a valid header");
+    }
+    if (plan.submeshes.empty()) {
+        throw std::runtime_error("PAMLOD full rebuild table has no LOD0 entries");
+    }
+    return plan;
+}
+
+static std::vector<char> rebuild_pamlod_lod0_full_native(const std::vector<char>& original, const PamlodFullPlan& plan) {
+    if (static_cast<size_t>(plan.vertex_base) > original.size() || static_cast<size_t>(plan.old_lod0_end) > original.size()) {
+        throw std::runtime_error("PAMLOD full rebuild offsets are outside the file");
+    }
+    std::vector<char> result(original.begin(), original.begin() + static_cast<std::ptrdiff_t>(plan.vertex_base));
+    write_f32_le(result, 0x10u, static_cast<float>(plan.bbox_min[0]));
+    write_f32_le(result, 0x14u, static_cast<float>(plan.bbox_min[1]));
+    write_f32_le(result, 0x18u, static_cast<float>(plan.bbox_min[2]));
+    write_f32_le(result, 0x1Cu, static_cast<float>(plan.bbox_max[0]));
+    write_f32_le(result, 0x20u, static_cast<float>(plan.bbox_max[1]));
+    write_f32_le(result, 0x24u, static_cast<float>(plan.bbox_max[2]));
+    std::vector<char> geom_data;
+    std::vector<char> index_data;
+    int vertex_cursor = 0;
+    int index_cursor = 0;
+    for (const PamFullSubmesh& submesh : plan.submeshes) {
+        if (submesh.desc_offset < 0 || static_cast<size_t>(submesh.desc_offset) + 16u > result.size()) {
+            throw std::runtime_error("PAMLOD full rebuild descriptor offset is outside the header");
+        }
+        write_u32_le(result, static_cast<size_t>(submesh.desc_offset), static_cast<std::uint32_t>(submesh.vertex_count));
+        write_u32_le(result, static_cast<size_t>(submesh.desc_offset) + 4u, static_cast<std::uint32_t>(submesh.face_count * 3));
+        write_u32_le(result, static_cast<size_t>(submesh.desc_offset) + 8u, static_cast<std::uint32_t>(vertex_cursor));
+        write_u32_le(result, static_cast<size_t>(submesh.desc_offset) + 12u, static_cast<std::uint32_t>(index_cursor));
+        for (const PamFullVertex& vertex : submesh.vertices) {
+            std::vector<char> record = make_pam_template_record(original, vertex, plan.stride);
+            pack_static_vertex_record_native(record, plan.stride, vertex, plan.bbox_min, plan.bbox_max);
+            geom_data.insert(geom_data.end(), record.begin(), record.end());
+        }
+        for (const PamFullFace& face : submesh.faces) {
+            if (face.a >= static_cast<std::uint32_t>(submesh.vertex_count) || face.b >= static_cast<std::uint32_t>(submesh.vertex_count) || face.c >= static_cast<std::uint32_t>(submesh.vertex_count)) {
+                throw std::runtime_error("PAMLOD full rebuild face references an out-of-range vertex");
+            }
+            append_u16_le(index_data, static_cast<std::uint16_t>(face.a));
+            append_u16_le(index_data, static_cast<std::uint16_t>(face.b));
+            append_u16_le(index_data, static_cast<std::uint16_t>(face.c));
+        }
+        vertex_cursor += submesh.vertex_count;
+        index_cursor += submesh.face_count * 3;
+    }
+    result.insert(result.end(), geom_data.begin(), geom_data.end());
+    result.insert(result.end(), index_data.begin(), index_data.end());
+    append_bytes(result, original, static_cast<size_t>(plan.old_lod0_end), original.size());
+    return result;
+}
+
+int run_mesh_rebuild_job(const fs::path& job_path, const fs::path& output_path, const fs::path& report_path) {
+    try {
+        const std::string job = read_text(job_path);
+        const std::string format = lower_copy(find_string_value(job, "target_format"));
+        const std::string filename = find_string_value(job, "source_filename");
+        const std::string layout = find_string_value(job, "layout");
+        const std::string rebuild_mode = find_string_value(job, "rebuild_mode");
+        if (format == "pac" && layout == "native_pac") {
+            const fs::path original_path = fs::path(find_string_value(job, "original_binary_path"));
+            if (rebuild_mode == "full") {
+                const fs::path submeshes_path = fs::path(find_string_value(job, "pac_full_submeshes_tsv_path"));
+                const fs::path vertices_path = fs::path(find_string_value(job, "pac_full_vertices_tsv_path"));
+                const fs::path faces_path = fs::path(find_string_value(job, "pac_full_faces_tsv_path"));
+                if (original_path.empty() || submeshes_path.empty() || vertices_path.empty() || faces_path.empty()) {
+                    throw std::runtime_error("native PAC full rebuild job is missing patch table paths");
+                }
+                const std::vector<char> original = read_binary_file(original_path);
+                const std::vector<PacFullSubmesh> full_submeshes = load_pac_full_rebuild_tables(submeshes_path, vertices_path, faces_path);
+                std::vector<char> rebuilt = rebuild_pac_full_native(original, full_submeshes);
+                if (!output_path.parent_path().empty()) fs::create_directories(output_path.parent_path());
+                std::ofstream out_file(output_path, std::ios::binary | std::ios::trunc);
+                if (!out_file) throw std::runtime_error("could not write native PAC full rebuild output");
+                out_file.write(rebuilt.data(), static_cast<std::streamsize>(rebuilt.size()));
+                if (!out_file) throw std::runtime_error("native PAC full rebuild output write failed");
+                std::ostringstream out;
+                out << "{\"status\":\"ok\","
+                    << "\"supported\":true,"
+                    << "\"backend\":\"cdmw_preview_core_mesh_audit_0.1\","
+                    << "\"command\":\"mesh-rebuild-job\","
+                    << "\"format\":\"pac\","
+                    << "\"layout\":\"native_pac\","
+                    << "\"filename\":\"" << json_escape(filename) << "\","
+                    << "\"rebuild_mode\":\"full\","
+                    << "\"rebuild_supported\":true,"
+                    << "\"parity_ready\":true,"
+                    << "\"bytes_written\":" << rebuilt.size() << ","
+                    << "\"output_path\":\"" << json_escape(output_path.string()) << "\","
+                    << "\"fallback_reason\":\"\"}";
+                write_text(report_path, out.str());
+                return 0;
+            }
+            const fs::path submeshes_path = fs::path(find_string_value(job, "pac_submeshes_tsv_path"));
+            const fs::path vertices_path = fs::path(find_string_value(job, "pac_vertices_tsv_path"));
+            const fs::path faces_path = fs::path(find_string_value(job, "pac_faces_tsv_path"));
+            if (original_path.empty() || submeshes_path.empty() || vertices_path.empty() || faces_path.empty()) {
+                throw std::runtime_error("native PAC rebuild job is missing patch table paths");
+            }
+            const std::vector<char> original = read_binary_file(original_path);
+            const std::vector<PacPatchSubmesh> patch_submeshes = load_pac_patch_tables(submeshes_path, vertices_path, faces_path);
+            std::vector<char> rebuilt = rebuild_pac_in_place_native(original, patch_submeshes);
+            if (!output_path.parent_path().empty()) fs::create_directories(output_path.parent_path());
+            std::ofstream out_file(output_path, std::ios::binary | std::ios::trunc);
+            if (!out_file) throw std::runtime_error("could not write native PAC rebuild output");
+            out_file.write(rebuilt.data(), static_cast<std::streamsize>(rebuilt.size()));
+            if (!out_file) throw std::runtime_error("native PAC rebuild output write failed");
+            std::ostringstream out;
+            out << "{\"status\":\"ok\","
+                << "\"supported\":true,"
+                << "\"backend\":\"cdmw_preview_core_mesh_audit_0.1\","
+                << "\"command\":\"mesh-rebuild-job\","
+                << "\"format\":\"pac\","
+                << "\"layout\":\"native_pac\","
+                << "\"filename\":\"" << json_escape(filename) << "\","
+                << "\"rebuild_supported\":true,"
+                << "\"parity_ready\":true,"
+                << "\"bytes_written\":" << rebuilt.size() << ","
+                << "\"output_path\":\"" << json_escape(output_path.string()) << "\","
+                << "\"fallback_reason\":\"\"}";
+            write_text(report_path, out.str());
+            return 0;
+        }
+        if (
+            (format == "pam" && (
+                layout == "native_pam_combined"
+                || layout == "native_pam_local"
+                || layout == "native_pam_scan_combined"
+                || layout == "native_pam_backward_scan_combined"
+            ))
+            || (format == "pamlod" && layout == "native_pamlod_lod0")
+        ) {
+            const fs::path original_path = fs::path(find_string_value(job, "original_binary_path"));
+            if (format == "pamlod" && rebuild_mode == "full") {
+                const fs::path full_table_path = fs::path(find_string_value(job, "pamlod_full_rebuild_tsv_path"));
+                if (original_path.empty() || full_table_path.empty()) {
+                    throw std::runtime_error("native PAMLOD full rebuild job is missing table paths");
+                }
+                const std::vector<char> original = read_binary_file(original_path);
+                const PamlodFullPlan plan = load_pamlod_full_rebuild_plan(full_table_path);
+                std::vector<char> rebuilt = rebuild_pamlod_lod0_full_native(original, plan);
+                if (!output_path.parent_path().empty()) fs::create_directories(output_path.parent_path());
+                std::ofstream out_file(output_path, std::ios::binary | std::ios::trunc);
+                if (!out_file) throw std::runtime_error("could not write native PAMLOD full rebuild output");
+                out_file.write(rebuilt.data(), static_cast<std::streamsize>(rebuilt.size()));
+                if (!out_file) throw std::runtime_error("native PAMLOD full rebuild output write failed");
+                std::ostringstream out;
+                out << "{\"status\":\"ok\","
+                    << "\"supported\":true,"
+                    << "\"backend\":\"cdmw_preview_core_mesh_audit_0.1\","
+                    << "\"command\":\"mesh-rebuild-job\","
+                    << "\"format\":\"pamlod\","
+                    << "\"layout\":\"" << json_escape(layout) << "\","
+                    << "\"filename\":\"" << json_escape(filename) << "\","
+                    << "\"rebuild_mode\":\"full\","
+                    << "\"rebuild_supported\":true,"
+                    << "\"parity_ready\":true,"
+                    << "\"bytes_written\":" << rebuilt.size() << ","
+                    << "\"output_path\":\"" << json_escape(output_path.string()) << "\","
+                    << "\"fallback_reason\":\"\"}";
+                write_text(report_path, out.str());
+                return 0;
+            }
+            if (format == "pam" && rebuild_mode == "full") {
+                const fs::path full_table_path = fs::path(find_string_value(job, "static_full_rebuild_tsv_path"));
+                if (original_path.empty() || full_table_path.empty()) {
+                    throw std::runtime_error("native PAM full rebuild job is missing table paths");
+                }
+                const std::vector<char> original = read_binary_file(original_path);
+                const PamFullRebuildPlan plan = load_pam_full_rebuild_plan(full_table_path);
+                std::vector<char> rebuilt = rebuild_pam_full_native(original, plan);
+                if (!output_path.parent_path().empty()) fs::create_directories(output_path.parent_path());
+                std::ofstream out_file(output_path, std::ios::binary | std::ios::trunc);
+                if (!out_file) throw std::runtime_error("could not write native PAM full rebuild output");
+                out_file.write(rebuilt.data(), static_cast<std::streamsize>(rebuilt.size()));
+                if (!out_file) throw std::runtime_error("native PAM full rebuild output write failed");
+                std::ostringstream out;
+                out << "{\"status\":\"ok\","
+                    << "\"supported\":true,"
+                    << "\"backend\":\"cdmw_preview_core_mesh_audit_0.1\","
+                    << "\"command\":\"mesh-rebuild-job\","
+                    << "\"format\":\"pam\","
+                    << "\"layout\":\"" << json_escape(layout) << "\","
+                    << "\"filename\":\"" << json_escape(filename) << "\","
+                    << "\"rebuild_mode\":\"full\","
+                    << "\"rebuild_supported\":true,"
+                    << "\"parity_ready\":true,"
+                    << "\"bytes_written\":" << rebuilt.size() << ","
+                    << "\"output_path\":\"" << json_escape(output_path.string()) << "\","
+                    << "\"fallback_reason\":\"\"}";
+                write_text(report_path, out.str());
+                return 0;
+            }
+            const fs::path patch_path = fs::path(find_string_value(job, "static_quantized_patch_tsv_path"));
+            if (original_path.empty() || patch_path.empty()) {
+                throw std::runtime_error("native static mesh rebuild job is missing patch table paths");
+            }
+            const std::vector<char> original = read_binary_file(original_path);
+            std::vector<char> rebuilt = rebuild_static_quantized_in_place_native(original, patch_path);
+            if (!output_path.parent_path().empty()) fs::create_directories(output_path.parent_path());
+            std::ofstream out_file(output_path, std::ios::binary | std::ios::trunc);
+            if (!out_file) throw std::runtime_error("could not write native static mesh rebuild output");
+            out_file.write(rebuilt.data(), static_cast<std::streamsize>(rebuilt.size()));
+            if (!out_file) throw std::runtime_error("native static mesh rebuild output write failed");
+            std::ostringstream out;
+            out << "{\"status\":\"ok\","
+                << "\"supported\":true,"
+                << "\"backend\":\"cdmw_preview_core_mesh_audit_0.1\","
+                << "\"command\":\"mesh-rebuild-job\","
+                << "\"format\":\"" << json_escape(format) << "\","
+                << "\"layout\":\"" << json_escape(layout) << "\","
+                << "\"filename\":\"" << json_escape(filename) << "\","
+                << "\"rebuild_supported\":true,"
+                << "\"parity_ready\":true,"
+                << "\"bytes_written\":" << rebuilt.size() << ","
+                << "\"output_path\":\"" << json_escape(output_path.string()) << "\","
+                << "\"fallback_reason\":\"\"}";
+            write_text(report_path, out.str());
+            return 0;
+        }
+        std::ostringstream out;
+        out << "{\"status\":\"unsupported\","
+            << "\"supported\":false,"
+            << "\"backend\":\"cdmw_preview_core_mesh_audit_0.1\","
+            << "\"command\":\"mesh-rebuild-job\","
+            << "\"format\":\"" << json_escape(format.empty() ? "unknown" : format) << "\","
+            << "\"layout\":\"" << json_escape(layout.empty() ? "unproven" : layout) << "\","
+            << "\"filename\":\"" << json_escape(filename) << "\","
+            << "\"rebuild_supported\":false,"
+            << "\"parity_ready\":false,"
+            << "\"bytes_written\":0,"
+            << "\"output_path\":\"" << json_escape(output_path.string()) << "\","
+            << "\"fallback_reason\":\"native mesh rebuild is not enabled until per-layout parity tests pass\"}";
+        write_text(report_path, out.str());
+        return 0;
+    } catch (const std::exception& exc) {
+        std::ostringstream out;
+        out << "{\"status\":\"error\","
+            << "\"supported\":false,"
+            << "\"backend\":\"cdmw_preview_core_mesh_audit_0.1\","
+            << "\"command\":\"mesh-rebuild-job\","
+            << "\"format\":\"unknown\","
+            << "\"layout\":\"unknown\","
+            << "\"rebuild_supported\":false,"
+            << "\"parity_ready\":false,"
+            << "\"bytes_written\":0,"
+            << "\"fallback_reason\":\"" << json_escape(exc.what()) << "\"}";
+        try {
+            write_text(report_path, out.str());
+        } catch (...) {
+        }
+        std::cerr << exc.what() << "\n";
+        return 2;
+    }
+}
+
 static std::vector<std::string> name_search_tokens(const std::string& text) {
     std::vector<std::string> tokens;
     std::string current;
@@ -8135,6 +10335,15 @@ int main(int argc, char** argv) {
         if (argc >= 4 && std::string(argv[1]) == "preview-job") {
             return run_preview_job(fs::path(argv[2]), fs::path(argv[3]));
         }
+        if (argc >= 4 && std::string(argv[1]) == "mesh-audit-job") {
+            return run_mesh_audit_job(fs::path(argv[2]), fs::path(argv[3]), argc >= 5 ? std::string(argv[4]) : std::string());
+        }
+        if (argc >= 4 && std::string(argv[1]) == "mesh-parse-job") {
+            return run_mesh_parse_job(fs::path(argv[2]), fs::path(argv[3]), argc >= 5 ? std::string(argv[4]) : std::string());
+        }
+        if (argc >= 5 && std::string(argv[1]) == "mesh-rebuild-job") {
+            return run_mesh_rebuild_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]));
+        }
         if (argc >= 5 && std::string(argv[1]) == "name-index-job") {
             return run_name_index_job(
                 fs::path(argv[2]),
@@ -8143,7 +10352,7 @@ int main(int argc, char** argv) {
                 argc >= 6 ? fs::path(argv[5]) : fs::path()
             );
         }
-        std::cerr << "usage: cdmw-preview-core self-test | --service | preview-job <job.json> <report.json> | name-index-job <input.tsv> <output.bin> <report.json> [progress.json]\n";
+        std::cerr << "usage: cdmw-preview-core self-test | --service | preview-job <job.json> <report.json> | mesh-audit-job <input> <report.json> [filename] | mesh-parse-job <input> <report.json> [filename] | mesh-rebuild-job <job.json> <output.bin> <report.json> | name-index-job <input.tsv> <output.bin> <report.json> [progress.json]\n";
         return 1;
     } catch (const std::exception& exc) {
         std::cerr << exc.what() << "\n";
