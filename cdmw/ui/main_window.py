@@ -3561,6 +3561,25 @@ def run_gui() -> int:
             finally:
                 self.finished.emit()
 
+    class VisualPlacementPreviewWorker(QObject):
+        completed = Signal(int, object)
+        error = Signal(int, str)
+        finished = Signal(int)
+
+        def __init__(self, request_id: int, task: Callable[[], object]):
+            super().__init__()
+            self.request_id = int(request_id)
+            self.task = task
+
+        @Slot()
+        def run(self) -> None:
+            try:
+                self.completed.emit(self.request_id, self.task())
+            except Exception as exc:
+                self.error.emit(self.request_id, str(exc))
+            finally:
+                self.finished.emit(self.request_id)
+
     class ComparePreviewWorker(QObject):
         completed = Signal(int, object)
         error = Signal(int, str)
@@ -27367,6 +27386,64 @@ def run_gui() -> int:
             best_score, _order, best_entry = candidates[0]
             return best_entry if best_score >= 45 else None
 
+        def _attachment_visual_body_context_model_entry(
+            self,
+            target_entry: ArchiveEntry,
+            donor_entry: Optional[ArchiveEntry] = None,
+        ) -> Optional[ArchiveEntry]:
+            evidence_text = " ".join(
+                str(value or "").replace("\\", "/").casefold()
+                for value in (
+                    getattr(target_entry, "path", ""),
+                    getattr(target_entry, "basename", ""),
+                    getattr(donor_entry, "path", "") if isinstance(donor_entry, ArchiveEntry) else "",
+                    getattr(donor_entry, "basename", "") if isinstance(donor_entry, ArchiveEntry) else "",
+                )
+            )
+            family = "phw" if "phw" in evidence_text or "/2_phw/" in evidence_text else "phm"
+            preferred = (
+                (
+                    "cd_phw_00_nude_00_0001.pac",
+                    "cd_phw_00_nude_00_0001_damian.pac",
+                )
+                if family == "phw"
+                else (
+                    "cd_phm_00_nude_10_0001.pac",
+                    "cd_phm_00_nude_00_0001.pac",
+                    "cd_phm_00_nude_00_4001.pac",
+                )
+            )
+            for basename in preferred:
+                for entry in tuple(self.archive_entries_by_basename.get(basename, ()) or ()):
+                    if isinstance(entry, ArchiveEntry) and str(entry.extension or "").lower() == ".pac":
+                        return entry
+
+            prefix = f"cd_{family}_00_nude"
+            candidates: List[Tuple[int, str, ArchiveEntry]] = []
+            for entry in tuple(getattr(self, "archive_entries", ()) or ()):
+                if not isinstance(entry, ArchiveEntry) or str(entry.extension or "").lower() != ".pac":
+                    continue
+                basename = str(entry.basename or PurePosixPath(entry.path.replace("\\", "/")).name).casefold()
+                path = str(entry.path or "").replace("\\", "/").casefold()
+                if not basename.startswith(prefix):
+                    continue
+                score = 0
+                if "/nude/" in path:
+                    score += 60
+                if "_hand_hair" in basename or "_lod_" in basename:
+                    score -= 80
+                if "damian" in basename:
+                    score += 20 if family == "phw" else -10
+                if "_10_0001" in basename:
+                    score += 28
+                if "_00_0001" in basename:
+                    score += 20
+                candidates.append((score, path, entry))
+            if not candidates:
+                return None
+            candidates.sort(key=lambda item: (-item[0], item[1]))
+            return candidates[0][2]
+
         @staticmethod
         def _attachment_visual_best_evidence(graph: AssetFamilyGraph) -> Optional[AttachmentPlacementEvidence]:
             rows = [
@@ -27524,6 +27601,8 @@ def run_gui() -> int:
         @staticmethod
         def _attachment_visual_context_has_real_anchor(context: Optional[Mapping[str, object]]) -> bool:
             if not isinstance(context, Mapping):
+                return False
+            if bool(context.get("force_visual_proxy_anchor")):
                 return False
             anchor = context.get("character_anchor")
             if not isinstance(anchor, (list, tuple)) or len(anchor) < 3:
@@ -28611,6 +28690,7 @@ def run_gui() -> int:
             target_model: Optional[object],
             donor_model: Optional[object],
             *,
+            body_model: Optional[object] = None,
             target_evidence: Optional[AttachmentPlacementEvidence],
             donor_evidence: Optional[AttachmentPlacementEvidence],
             target_context: Optional[Mapping[str, object]] = None,
@@ -28624,14 +28704,28 @@ def run_gui() -> int:
             if not isinstance(target_model, ModelPreviewData):
                 return None, ()
             effective_donor_context = donor_context if isinstance(donor_context, Mapping) else target_context
-            meshes: List[ModelPreviewMesh] = (
-                self._attachment_visual_body_proxy_meshes(
-                    (target_evidence, donor_evidence),
-                    (target_context, effective_donor_context),
+            meshes: List[ModelPreviewMesh] = []
+            if isinstance(body_model, ModelPreviewData):
+                meshes.extend(
+                    self._attachment_visual_clone_model_meshes(
+                        body_model,
+                        offset=(0.0, 0.0, 0.0),
+                        pivot=(0.0, 0.0, 0.0),
+                        rotation=(0.0, 0.0, 0.0, 1.0),
+                        color=(0.62, 0.60, 0.54),
+                        clear_textures=False,
+                        label_prefix="body context",
+                        placement_scale=1.0,
+                        use_raw_model_space=False,
+                    )
                 )
-                if include_body_proxy
-                else []
-            )
+            if include_body_proxy:
+                meshes.extend(
+                    self._attachment_visual_body_proxy_meshes(
+                        (target_evidence, donor_evidence),
+                        (target_context, effective_donor_context),
+                    )
+                )
             target_offset, target_pivot, target_rotation, target_label = self._attachment_visual_chain_transform(
                 target_evidence,
                 context=target_context,
@@ -28806,6 +28900,7 @@ def run_gui() -> int:
                 socket_entry = target_socket_entry
                 socket_name = str(getattr(target_evidence, "weapon_socket_name", "") or socket_name)
             extra_socket_roots: List[Path] = []
+            body_model_entry = self._attachment_visual_body_context_model_entry(target_entry, donor_entry)
 
             def _task(log: Callable[[str], None]) -> dict:
                 texconv_text = self.texconv_path_edit.text().strip()
@@ -28833,6 +28928,22 @@ def run_gui() -> int:
                         sidecar_entries_by_texture_basename=self.archive_sidecar_entries_by_texture_basename,
                         visible_texture_mode=preview_settings.visible_texture_mode,
                     )
+                body_preview = None
+                if isinstance(body_model_entry, ArchiveEntry):
+                    log(f"Building placement body context model: {body_model_entry.path}")
+                    try:
+                        body_preview = build_archive_preview_result(
+                            texconv_path,
+                            body_model_entry,
+                            texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
+                            texture_entries_by_basename=self.archive_entries_by_basename,
+                            sidecar_entries_by_texture_path=self.archive_sidecar_entries_by_texture_path,
+                            sidecar_entries_by_texture_basename=self.archive_sidecar_entries_by_texture_basename,
+                            visible_texture_mode=preview_settings.visible_texture_mode,
+                        )
+                    except Exception as exc:
+                        log(f"Placement body context unavailable; using skeleton/proxy fallback: {exc}")
+                        body_preview = None
                 target_context = self._attachment_visual_resolve_context(
                     target_graph,
                     target_evidence,
@@ -28850,6 +28961,8 @@ def run_gui() -> int:
                 return {
                     "target": target_preview,
                     "donor": donor_preview,
+                    "body": body_preview,
+                    "body_entry": body_model_entry,
                     "target_context": target_context,
                     "donor_context": donor_context,
                 }
@@ -28860,8 +28973,11 @@ def run_gui() -> int:
                     return
                 target_preview = result["target"]
                 donor_preview = result.get("donor") if isinstance(result.get("donor"), ArchivePreviewResult) else None
+                body_preview = result.get("body") if isinstance(result.get("body"), ArchivePreviewResult) else None
+                resolved_body_entry = result.get("body_entry") if isinstance(result.get("body_entry"), ArchiveEntry) else body_model_entry
                 target_model = getattr(target_preview, "preview_model", None)
                 donor_model = getattr(donor_preview, "preview_model", None) if donor_preview is not None else None
+                body_model = getattr(body_preview, "preview_model", None) if body_preview is not None else None
                 context_state: Dict[str, Dict[str, object]] = {
                     "target": result.get("target_context") if isinstance(result.get("target_context"), dict) else {},
                     "donor": result.get("donor_context") if isinstance(result.get("donor_context"), dict) else {},
@@ -28872,6 +28988,8 @@ def run_gui() -> int:
                 self._attach_archive_model_preview_images(target_model)
                 if isinstance(donor_model, ModelPreviewData):
                     self._attach_archive_model_preview_images(donor_model)
+                if isinstance(body_model, ModelPreviewData):
+                    self._attach_archive_model_preview_images(body_model)
 
                 dialog = QDialog(self)
                 dialog.setWindowTitle(f"Visual Placement Editor - {target_entry.basename}")
@@ -28899,6 +29017,14 @@ def run_gui() -> int:
                     mode_combo.addItem("Source model at source placement", "donor_model")
                 controls_layout.addWidget(QLabel("Preview"))
                 controls_layout.addWidget(mode_combo)
+                body_context_combo = QComboBox()
+                body_context_combo.addItem("Auto body model", "auto")
+                if isinstance(resolved_body_entry, ArchiveEntry) and isinstance(body_model, ModelPreviewData):
+                    body_context_combo.addItem(f"Body model: {resolved_body_entry.basename}", "body")
+                body_context_combo.addItem("Skeleton only", "skeleton")
+                body_context_combo.addItem("Proxy fallback", "proxy")
+                controls_layout.addWidget(QLabel("Body context"))
+                controls_layout.addWidget(body_context_combo)
                 chain_text = QLabel(
                     f"Current: {getattr(target_evidence, 'character_socket_name', '-') or '-'} -> {getattr(target_evidence, 'weapon_socket_name', '-') or '-'}\n"
                     f"Source: {getattr(donor_evidence, 'character_socket_name', '-') or '-'} -> {getattr(donor_evidence, 'weapon_socket_name', '-') or '-'}"
@@ -28953,12 +29079,14 @@ def run_gui() -> int:
                 controls_layout.addWidget(socket_note)
                 evidence_note = QLabel("")
                 evidence_note.setObjectName("HintLabel")
+                evidence_note.setTextFormat(Qt.RichText)
                 evidence_note.setWordWrap(True)
                 evidence_note.setTextInteractionFlags(Qt.TextSelectableByMouse)
                 controls_layout.addWidget(evidence_note)
                 controls_layout.addStretch(1)
                 splitter.addWidget(controls)
                 preview_widget = ModelPreviewWidget("Preparing placement preview...", theme_key=self.current_theme_key)
+                preview_widget.clear_model("Loading placement preview...")
                 preview_widget.set_render_settings(self._current_model_preview_render_settings())
                 preview_widget.set_use_textures(True)
                 preview_widget.set_alignment_editing_enabled(True)
@@ -28968,6 +29096,18 @@ def run_gui() -> int:
                 splitter.setStretchFactor(0, 0)
                 splitter.setStretchFactor(1, 1)
                 root_layout.addWidget(splitter, 1)
+                preview_status_row = QHBoxLayout()
+                preview_busy_bar = QProgressBar()
+                preview_busy_bar.setRange(0, 0)
+                preview_busy_bar.setFormat("Loading placement preview...")
+                preview_busy_bar.setVisible(False)
+                preview_status_label = QLabel("Placement preview ready.")
+                preview_status_label.setObjectName("HintLabel")
+                preview_status_label.setTextFormat(Qt.RichText)
+                preview_status_label.setWordWrap(True)
+                preview_status_row.addWidget(preview_busy_bar, 0)
+                preview_status_row.addWidget(preview_status_label, 1)
+                root_layout.addLayout(preview_status_row)
 
                 refresh_guard = {"active": False}
 
@@ -28981,6 +29121,33 @@ def run_gui() -> int:
                     donor_context = context_state.get("donor", {})
                     return donor_context if donor_context else context_state.get("target", {})
 
+                def _body_context_mode() -> str:
+                    return str(body_context_combo.currentData() or "auto").strip().casefold()
+
+                def _display_context(context: Optional[Mapping[str, object]]) -> Dict[str, object]:
+                    updated: Dict[str, object] = dict(context or {})
+                    mode = _body_context_mode()
+                    if mode == "proxy":
+                        for key in (
+                            "character_anchor",
+                            "bone_positions",
+                            "bone_matrices",
+                            "bone_parent_names",
+                            "skeleton_source_path",
+                            "skeleton_bone_count",
+                        ):
+                            updated.pop(key, None)
+                    if mode in {"auto", "body"} and isinstance(body_model, ModelPreviewData):
+                        updated["force_visual_proxy_anchor"] = True
+                        updated["body_context_path"] = getattr(resolved_body_entry, "path", "")
+                    return updated
+
+                def _selected_body_model() -> Optional[ModelPreviewData]:
+                    mode = _body_context_mode()
+                    if mode in {"auto", "body"} and isinstance(body_model, ModelPreviewData):
+                        return body_model
+                    return None
+
                 def _selected_candidate_socket() -> str:
                     return str(candidate_socket_combo.currentData() or "").strip()
 
@@ -28988,8 +29155,8 @@ def run_gui() -> int:
                     base_context = _candidate_base_context()
                     socket_override = _selected_candidate_socket()
                     if socket_override:
-                        return self._attachment_visual_context_for_character_socket(base_context, socket_override)
-                    return base_context
+                        return _display_context(self._attachment_visual_context_for_character_socket(base_context, socket_override))
+                    return _display_context(base_context)
 
                 def _candidate_evidence() -> Optional[AttachmentPlacementEvidence]:
                     base_evidence = donor_evidence or target_evidence
@@ -29014,7 +29181,7 @@ def run_gui() -> int:
                         candidate_socket_combo.blockSignals(False)
 
                 def _update_context_labels() -> None:
-                    target_context = context_state.get("target", {})
+                    target_context = _display_context(context_state.get("target", {}))
                     candidate_context = _candidate_context()
                     candidate_socket = _selected_candidate_socket()
                     chain_text.setText(
@@ -29022,34 +29189,137 @@ def run_gui() -> int:
                         f"Candidate: {candidate_socket or getattr(donor_evidence or target_evidence, 'character_socket_name', '-') or '-'} -> "
                         f"{getattr(donor_evidence or target_evidence, 'weapon_socket_name', '-') or '-'}"
                     )
+                    body_line = (
+                        f"<span style='color:#6ee7b7;font-weight:700;'>body</span> "
+                        f"<code>{escape(getattr(resolved_body_entry, 'path', '') or 'not resolved')}</code>"
+                        if isinstance(_selected_body_model(), ModelPreviewData) and isinstance(resolved_body_entry, ArchiveEntry)
+                        else "<span style='color:#f59e0b;font-weight:700;'>body fallback</span> skeleton/proxy only"
+                    )
                     evidence_note.setText(
-                        "Placement evidence:\n"
-                        f"Current: {target_context.get('placement_source_summary', 'socket-name proxy fallback')}\n"
-                        f"Candidate: {candidate_context.get('placement_source_summary', 'socket-name proxy fallback')}"
+                        "<div style='line-height:1.25;'>"
+                        "<b>Placement evidence</b><br>"
+                        f"<span style='color:#60a5fa;font-weight:700;'>current</span> "
+                        f"{escape(str(target_context.get('placement_source_summary', 'socket-name proxy fallback') or 'socket-name proxy fallback'))}<br>"
+                        f"<span style='color:#34d399;font-weight:700;'>candidate</span> "
+                        f"{escape(str(candidate_context.get('placement_source_summary', 'socket-name proxy fallback') or 'socket-name proxy fallback'))}<br>"
+                        f"{body_line}<br>"
+                        f"<span style='color:#fbbf24;font-weight:700;'>attach</span> "
+                        f"{escape(candidate_socket or 'default recovered socket')}"
+                        "</div>"
                     )
 
-                def _refresh_preview() -> None:
-                    if refresh_guard["active"]:
-                        return
-                    view_state = preview_widget.view_state_snapshot()
-                    preview_model, editable_indices = self._build_attachment_visual_preview_model(
-                        target_model,
-                        donor_model,
-                        target_evidence=target_evidence,
-                        donor_evidence=_candidate_evidence(),
-                        target_context=context_state.get("target", {}),
-                        donor_context=_candidate_context(),
-                        visual_offset=_visual_offset(),
-                        visual_rotation_degrees=_visual_rotation(),
-                        mode=str(mode_combo.currentData() or "target_with_donor"),
+                refresh_state: Dict[str, object] = {
+                    "request_id": 0,
+                    "active": False,
+                    "pending": False,
+                    "thread": None,
+                    "worker": None,
+                    "closed": False,
+                }
+                refresh_timer = QTimer(dialog)
+                refresh_timer.setSingleShot(True)
+                refresh_timer.setInterval(180)
+
+                def _set_preview_busy(active: bool, message: str = "") -> None:
+                    preview_busy_bar.setVisible(bool(active))
+                    preview_status_label.setText(
+                        f"<span style='color:#fbbf24;font-weight:700;'>{escape(message or 'Loading placement preview...')}</span>"
+                        if active
+                        else f"<span style='color:#6ee7b7;font-weight:700;'>{escape(message or 'Placement preview ready.')}</span>"
                     )
-                    if not isinstance(preview_model, ModelPreviewData):
-                        preview_widget.clear_model("No visual placement preview could be built.")
+                    build_adjusted_button.setEnabled((not active) and (bool(package_plan_rows) or isinstance(socket_entry, ArchiveEntry)))
+
+                def _start_preview_refresh() -> None:
+                    if bool(refresh_guard["active"]):
                         return
-                    preview_widget.set_model(preview_model)
-                    preview_widget.restore_view_state(view_state)
-                    preview_widget.set_alignment_editable_mesh_indices(editable_indices)
-                    preview_widget.set_alignment_editing_enabled(True)
+                    if bool(refresh_state.get("active")):
+                        refresh_state["pending"] = True
+                        return
+                    refresh_state["active"] = True
+                    refresh_state["request_id"] = int(refresh_state.get("request_id", 0) or 0) + 1
+                    request_id = int(refresh_state["request_id"])
+                    view_state = preview_widget.view_state_snapshot()
+                    target_context_snapshot = _display_context(context_state.get("target", {}))
+                    donor_context_snapshot = _candidate_context()
+                    candidate_evidence_snapshot = _candidate_evidence()
+                    body_model_snapshot = _selected_body_model()
+                    visual_offset_snapshot = _visual_offset()
+                    visual_rotation_snapshot = _visual_rotation()
+                    mode_snapshot = str(mode_combo.currentData() or "target_with_donor")
+                    render_settings_snapshot = preview_widget.render_settings()
+                    _set_preview_busy(True, "Updating visual placement preview...")
+
+                    def _preview_task() -> dict:
+                        preview_model, editable_indices = self._build_attachment_visual_preview_model(
+                            target_model,
+                            donor_model,
+                            body_model=body_model_snapshot,
+                            target_evidence=target_evidence,
+                            donor_evidence=candidate_evidence_snapshot,
+                            target_context=target_context_snapshot,
+                            donor_context=donor_context_snapshot,
+                            visual_offset=visual_offset_snapshot,
+                            visual_rotation_degrees=visual_rotation_snapshot,
+                            mode=mode_snapshot,
+                        )
+                        if not isinstance(preview_model, ModelPreviewData):
+                            return {"model": None, "prepared": None, "editable_indices": (), "view_state": view_state}
+                        prepared_model, prepared_preview = ModelPreviewWidget.prepare_model_preview(
+                            preview_model,
+                            render_settings=render_settings_snapshot,
+                            enable_material_combiner=False,
+                        )
+                        return {
+                            "model": prepared_model,
+                            "prepared": prepared_preview,
+                            "editable_indices": tuple(editable_indices),
+                            "view_state": view_state,
+                        }
+
+                    worker = VisualPlacementPreviewWorker(request_id, _preview_task)
+                    thread = QThread(self)
+                    worker.moveToThread(thread)
+                    thread.started.connect(worker.run)
+
+                    def _preview_complete(done_request_id: int, payload: object) -> None:
+                        if bool(refresh_state.get("closed")) or done_request_id != int(refresh_state.get("request_id", 0) or 0):
+                            return
+                        if not isinstance(payload, dict) or not isinstance(payload.get("model"), ModelPreviewData):
+                            preview_widget.clear_model("No visual placement preview could be built.")
+                            _set_preview_busy(False, "No visual placement preview could be built.")
+                            return
+                        preview_widget.set_prepared_model(payload.get("model"), payload.get("prepared"))
+                        preview_widget.restore_view_state(payload.get("view_state"))
+                        preview_widget.set_alignment_editable_mesh_indices(payload.get("editable_indices") or ())
+                        preview_widget.set_alignment_editing_enabled(True)
+                        _set_preview_busy(False, "Placement preview ready.")
+
+                    def _preview_error(done_request_id: int, message: str) -> None:
+                        if bool(refresh_state.get("closed")) or done_request_id != int(refresh_state.get("request_id", 0) or 0):
+                            return
+                        preview_widget.clear_model(f"Visual placement preview failed: {message}")
+                        _set_preview_busy(False, f"Preview failed: {message}")
+
+                    def _preview_finished(_done_request_id: int) -> None:
+                        refresh_state["active"] = False
+                        refresh_state["thread"] = None
+                        refresh_state["worker"] = None
+                        if bool(refresh_state.get("pending")) and not bool(refresh_state.get("closed")):
+                            refresh_state["pending"] = False
+                            QTimer.singleShot(0, _start_preview_refresh)
+
+                    worker.completed.connect(_preview_complete)
+                    worker.error.connect(_preview_error)
+                    worker.finished.connect(_preview_finished)
+                    worker.finished.connect(thread.quit)
+                    worker.finished.connect(worker.deleteLater)
+                    thread.finished.connect(thread.deleteLater)
+                    refresh_state["thread"] = thread
+                    refresh_state["worker"] = worker
+                    thread.start()
+
+                def _refresh_preview() -> None:
+                    refresh_timer.start()
 
                 def _import_socket_evidence_root() -> None:
                     selected_dir = QFileDialog.getExistingDirectory(
@@ -29105,6 +29375,7 @@ def run_gui() -> int:
                 for spin in offset_spins + rotation_spins:
                     spin.valueChanged.connect(lambda _value: _refresh_preview())
                 mode_combo.currentIndexChanged.connect(lambda _index: _refresh_preview())
+                body_context_combo.currentIndexChanged.connect(lambda _index: (_update_context_labels(), _refresh_preview()))
                 candidate_socket_combo.currentIndexChanged.connect(lambda _index: (_update_context_labels(), _refresh_preview()))
                 reset_button.clicked.connect(lambda _checked=False: _reset_adjustment())
                 evidence_root_button.clicked.connect(lambda _checked=False: _import_socket_evidence_root())
@@ -29205,6 +29476,8 @@ def run_gui() -> int:
                 close_button.clicked.connect(dialog.accept)
                 _populate_candidate_socket_combo()
                 _update_context_labels()
+                dialog.finished.connect(lambda _result=0: refresh_state.__setitem__("closed", True))
+                _set_preview_busy(True, "Loading placement preview...")
                 QTimer.singleShot(0, _refresh_preview)
                 dialog.exec()
 
@@ -31322,7 +31595,7 @@ def run_gui() -> int:
             package_plan_warnings: List[str] = []
             dialog = QDialog(self)
             dialog.setWindowTitle("Review Placement Copy Direction")
-            dialog.resize(1180, 760)
+            dialog.resize(1420, 900)
             layout = QVBoxLayout(dialog)
             layout.setContentsMargins(12, 12, 12, 12)
             layout.setSpacing(8)
@@ -31341,13 +31614,20 @@ def run_gui() -> int:
             direction_label.setWordWrap(True)
             direction_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             layout.addWidget(direction_label)
+            section_splitter = QSplitter(Qt.Vertical)
+            layout.addWidget(section_splitter, 1)
+            evidence_section = QGroupBox("Target / Source Evidence")
+            evidence_layout = QVBoxLayout(evidence_section)
+            evidence_layout.setContentsMargins(8, 8, 8, 8)
+            evidence_layout.setSpacing(6)
             tree = QTreeWidget()
             tree.setColumnCount(5)
             tree.setHeaderLabels(["Side", "Chain / Role", "File / Socket", "Evidence", "Status"])
             tree.setRootIsDecorated(True)
             tree.setAlternatingRowColors(True)
             tree.setUniformRowHeights(True)
-            layout.addWidget(tree, 1)
+            evidence_layout.addWidget(tree, 1)
+            section_splitter.addWidget(evidence_section)
 
             def add_graph(side: str, graph: AssetFamilyGraph) -> None:
                 side_item = QTreeWidgetItem([side, "", "", "", ""])
@@ -31551,7 +31831,7 @@ def run_gui() -> int:
             compare_tree.header().resizeSection(0, 180)
             compare_tree.header().resizeSection(1, 360)
             compare_tree.header().resizeSection(2, 360)
-            layout.addWidget(compare_group, stretch=1)
+            section_splitter.addWidget(compare_group)
 
             def _placement_xml_entry_by_basename(*basenames: str) -> Optional[ArchiveEntry]:
                 normalized_names = [PurePosixPath(str(name or "").replace("\\", "/")).name.casefold() for name in basenames if str(name or "").strip()]
@@ -31610,6 +31890,10 @@ def run_gui() -> int:
                     return f"{socket_name[:-7]}_ChildSocket"
                 return ""
 
+            visual_plan_section = QGroupBox("Visual Placement + Package Plan")
+            visual_plan_layout = QVBoxLayout(visual_plan_section)
+            visual_plan_layout.setContentsMargins(8, 8, 8, 8)
+            visual_plan_layout.setSpacing(8)
             visual_group = QGroupBox("Visual Placement")
             visual_layout = QGridLayout(visual_group)
             visual_layout.setContentsMargins(8, 8, 8, 8)
@@ -31663,10 +31947,11 @@ def run_gui() -> int:
             visual_layout.addWidget(attach_point_combo, 3, 1, 1, 3)
             visual_status = QLabel("")
             visual_status.setObjectName("HintLabel")
+            visual_status.setTextFormat(Qt.RichText)
             visual_status.setWordWrap(True)
             visual_status.setTextInteractionFlags(Qt.TextSelectableByMouse)
             visual_layout.addWidget(visual_status, 4, 0, 1, 4)
-            layout.addWidget(visual_group)
+            visual_plan_layout.addWidget(visual_group)
 
             plan_group = QGroupBox("Safe Placement Copy Package Plan")
             plan_layout = QVBoxLayout(plan_group)
@@ -31740,7 +32025,9 @@ def run_gui() -> int:
                 custom_icon_target_combo.addItem("No resolved existing target icon path", None)
                 custom_icon_status.setText("No existing target icon path was resolved for this target; custom icon packaging is unavailable.")
             plan_layout.addWidget(custom_icon_group)
-            layout.addWidget(plan_group)
+            visual_plan_layout.addWidget(plan_group, 1)
+            section_splitter.addWidget(visual_plan_section)
+            section_splitter.setSizes([230, 290, 360])
             footer = QLabel(
                 "This copies placement source prefab data into the target path while keeping the target PAC/material/motion context with the package and copying the source icon when resolved. "
                 "Source socket XML dependencies stay where the copied prefab expects them."
@@ -31836,34 +32123,36 @@ def run_gui() -> int:
 
             def _refresh_visual_status() -> None:
                 class_text = inferred_weapon_class or "unknown"
-                body_context = "real PAB skeleton/body context when resolved; socket proxy fallback otherwise"
                 notes = [
-                    f"Selected XML patch scope: {class_text}.",
-                    f"Preview context: {body_context}.",
+                    f"<span style='color:#fbbf24;font-weight:700;'>XML patch scope</span> {escape(class_text)}",
+                    "<span style='color:#a78bfa;font-weight:700;'>preview context</span> real body model when resolved; PAB skeleton or proxy fallback otherwise",
                 ]
                 if isinstance(part_in_out_entry, ArchiveEntry):
-                    notes.append(f"PartInOut XML: {part_in_out_entry.path}")
+                    notes.append(f"<span style='color:#6ee7b7;font-weight:700;'>PartInOut XML</span> <code>{escape(part_in_out_entry.path)}</code>")
                 else:
-                    notes.append("PartInOut XML not resolved; descriptor patch unavailable.")
+                    notes.append("<span style='color:#f59e0b;font-weight:700;'>PartInOut XML missing</span> descriptor patch unavailable")
                     patch_part_in_out_checkbox.setChecked(False)
                     patch_part_in_out_checkbox.setEnabled(False)
                 if isinstance(character_socket_entry, ArchiveEntry):
-                    notes.append(f"Character socket XML: {character_socket_entry.path}")
+                    notes.append(f"<span style='color:#6ee7b7;font-weight:700;'>character socket XML</span> <code>{escape(character_socket_entry.path)}</code>")
                 else:
-                    notes.append("Character socket XML not resolved; socket profile patch unavailable.")
+                    notes.append("<span style='color:#f59e0b;font-weight:700;'>character socket XML missing</span> socket profile patch unavailable")
                     patch_socket_checkbox.setChecked(False)
                     patch_socket_checkbox.setEnabled(False)
                 if imported_profile_state.get("part_in_out_path"):
-                    notes.append(f"Imported PartInOut profile: {imported_profile_state.get('part_in_out_path')}")
+                    notes.append(f"<span style='color:#34d399;font-weight:700;'>imported PartInOut profile</span> <code>{escape(str(imported_profile_state.get('part_in_out_path') or ''))}</code>")
                 if imported_profile_state.get("socket_path"):
-                    notes.append(f"Imported socket profile: {imported_profile_state.get('socket_path')}")
+                    notes.append(f"<span style='color:#34d399;font-weight:700;'>imported socket profile</span> <code>{escape(str(imported_profile_state.get('socket_path') or ''))}</code>")
                     patch_socket_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
                 elif not patch_socket_checkbox.isChecked():
                     patch_socket_checkbox.setEnabled(False)
                 attach_socket = _visual_selected_attach_socket()
                 if attach_socket:
-                    notes.append(f"Attach point: {attach_socket} -> {_child_socket_for_attach_point(attach_socket) or 'unchanged child socket'}")
-                visual_status.setText(" ".join(notes))
+                    notes.append(
+                        f"<span style='color:#fbbf24;font-weight:700;'>attach point</span> "
+                        f"{escape(attach_socket)} -&gt; {escape(_child_socket_for_attach_point(attach_socket) or 'unchanged child socket')}"
+                    )
+                visual_status.setText("<br>".join(notes))
 
             def _import_visual_profile_xml() -> None:
                 selected, _selected_filter = QFileDialog.getOpenFileName(
