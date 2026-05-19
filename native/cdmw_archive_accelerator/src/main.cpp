@@ -54,6 +54,11 @@ std::vector<char> read_binary(const fs::path& path) {
     return std::vector<char>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 }
 
+std::vector<char> read_binary_if_exists(const fs::path& path) {
+    if (path.empty() || !fs::is_regular_file(path)) return {};
+    return read_binary(path);
+}
+
 void write_text(const fs::path& path, const std::string& text) {
     if (!path.parent_path().empty()) fs::create_directories(path.parent_path());
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
@@ -154,6 +159,50 @@ std::uint16_t read_u16(const std::vector<char>& data, size_t offset) {
     return static_cast<std::uint16_t>(p[0] | (p[1] << 8));
 }
 
+std::uint32_t rot32(std::uint32_t value, int shift) {
+    return (value << shift) | (value >> (32 - shift));
+}
+
+std::uint32_t hashlittle_bytes(const std::string& text, std::uint32_t initval = 0) {
+    const auto* data = reinterpret_cast<const unsigned char*>(text.data());
+    const size_t length = text.size();
+    size_t remaining = length;
+    std::uint32_t a = 0xDEADBEEF + static_cast<std::uint32_t>(length) + initval;
+    std::uint32_t b = a;
+    std::uint32_t c = a;
+    size_t offset = 0;
+    auto read_tail = [&](size_t pos) -> std::uint32_t {
+        std::uint32_t value = 0;
+        for (size_t i = 0; i < 4 && pos + i < length; ++i) value |= static_cast<std::uint32_t>(data[pos + i]) << (8 * i);
+        return value;
+    };
+    while (remaining > 12) {
+        a += read_tail(offset);
+        b += read_tail(offset + 4);
+        c += read_tail(offset + 8);
+        a -= c; a ^= rot32(c, 4); c += b;
+        b -= a; b ^= rot32(a, 6); a += c;
+        c -= b; c ^= rot32(b, 8); b += a;
+        a -= c; a ^= rot32(c, 16); c += b;
+        b -= a; b ^= rot32(a, 19); a += c;
+        c -= b; c ^= rot32(b, 4); b += a;
+        offset += 12;
+        remaining -= 12;
+    }
+    if (remaining >= 9) c += read_tail(offset + 8);
+    if (remaining >= 5) b += read_tail(offset + 4);
+    if (remaining >= 1) a += read_tail(offset);
+    if (remaining == 0) return c;
+    c = (c ^ b) - rot32(b, 14);
+    a = (a ^ c) - rot32(c, 11);
+    b = (b ^ a) - rot32(a, 25);
+    c = (c ^ b) - rot32(b, 16);
+    a = (a ^ c) - rot32(c, 4);
+    b = (b ^ a) - rot32(a, 14);
+    c = (c ^ b) - rot32(b, 24);
+    return c;
+}
+
 class VfsPathResolver {
 public:
     explicit VfsPathResolver(std::vector<char> data, size_t max_cache_entries = 200000)
@@ -224,6 +273,10 @@ std::string basename_for(const std::string& path) {
     return slash == std::string::npos ? path : path.substr(slash + 1);
 }
 
+int slash_depth_for(const std::string& path) {
+    return static_cast<int>(std::count(path.begin(), path.end(), '/'));
+}
+
 std::string package_label_for(const Entry& entry) {
     return entry.pamt_path.parent_path().filename().string() + "/" + entry.pamt_path.filename().string();
 }
@@ -280,6 +333,62 @@ std::string normalize_extension(std::string ext) {
     ext = lower_copy(ext);
     if (ext.empty() || ext == "*" || ext == "all" || ext == ".*") return ext;
     return ext[0] == '.' ? ext : "." + ext;
+}
+
+std::string stem_for_path(const std::string& path) {
+    std::string base = basename_for(slash_copy(path));
+    const size_t dot = base.find_last_of('.');
+    if (dot != std::string::npos) base = base.substr(0, dot);
+    return lower_copy(base);
+}
+
+std::string package_group_for(const Entry& entry) {
+    return lower_copy(entry.pamt_path.parent_path().filename().string());
+}
+
+bool starts_with(const std::string& text, const std::string& prefix) {
+    return text.rfind(prefix, 0) == 0;
+}
+
+std::string strip_model_variant_suffix(std::string stem) {
+    stem = lower_copy(stem);
+    static const std::vector<std::string> suffixes = {
+        "_index01_l", "_index01_r", "_index02_l", "_index02_r", "_index03_l", "_index03_r",
+        "_index01", "_index02", "_index03", "_sub01", "_sub02", "_sub03", "_l", "_r", "_u", "_s", "_t", "_c", "_d"
+    };
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (const std::string& suffix : suffixes) {
+            if (
+                stem.size() > suffix.size()
+                && std::equal(suffix.rbegin(), suffix.rend(), stem.rbegin())
+            ) {
+                stem.resize(stem.size() - suffix.size());
+                changed = true;
+                break;
+            }
+        }
+    }
+    if (stem.size() >= 2 && std::isdigit(static_cast<unsigned char>(stem[stem.size() - 2])) && std::isalpha(static_cast<unsigned char>(stem.back()))) {
+        stem.pop_back();
+    }
+    return stem;
+}
+
+std::vector<std::string> model_candidate_bases(const std::string& stem) {
+    std::vector<std::string> out;
+    std::set<std::string> seen;
+    auto add = [&](std::string value) {
+        value = lower_copy(value);
+        if (!value.empty() && !seen.count(value)) {
+            seen.insert(value);
+            out.push_back(value);
+        }
+    };
+    add(stem);
+    add(strip_model_variant_suffix(stem));
+    return out;
 }
 
 bool ends_with(const std::string& text, const std::string& suffix) {
@@ -439,6 +548,16 @@ std::vector<Entry> read_entries_tsv(const fs::path& path) {
         entries.push_back(std::move(e));
     }
     return entries;
+}
+
+void write_progress_json(const fs::path& path, const std::string& stage, long long current, long long total) {
+    if (path.empty()) return;
+    std::ostringstream out;
+    out << "{\"stage\":\"" << json_escape(stage) << "\",\"current\":" << current << ",\"total\":" << total << "}";
+    try {
+        write_text(path, out.str());
+    } catch (...) {
+    }
 }
 
 struct BrowserOptions {
@@ -682,6 +801,516 @@ int run_browser_state_job(const fs::path& job_path, const fs::path& report_path)
     }
 }
 
+int run_derived_index_job(const fs::path& entries_path, const fs::path& report_path, const fs::path& progress_path) {
+    try {
+        std::vector<Entry> entries = read_entries_tsv(entries_path);
+        write_progress_json(progress_path, "index", 0, static_cast<long long>(entries.size()));
+        std::map<std::string, std::vector<int>> path_rows;
+        std::map<std::string, std::vector<int>> basename_rows;
+        std::map<std::string, std::vector<int>> extension_rows;
+        for (size_t i = 0; i < entries.size(); ++i) {
+            const Entry& entry = entries[i];
+            const int index = static_cast<int>(i);
+            const std::string normalized_path = lower_copy(slash_copy(entry.path));
+            const std::string basename = lower_copy(basename_for(entry.path));
+            const std::string ext = normalize_extension(extension_for(entry.path));
+            if (!normalized_path.empty()) path_rows[normalized_path].push_back(index);
+            if (!basename.empty()) basename_rows[basename].push_back(index);
+            if (!ext.empty()) extension_rows[ext].push_back(index);
+            if ((i + 1) % 100000 == 0) {
+                write_progress_json(progress_path, "index", static_cast<long long>(i + 1), static_cast<long long>(entries.size()));
+            }
+        }
+        for (auto& row : basename_rows) {
+            std::vector<int>& rows = row.second;
+            std::sort(rows.begin(), rows.end(), [&](int left, int right) {
+                const std::string left_path = lower_copy(slash_copy(entries[static_cast<size_t>(left)].path));
+                const std::string right_path = lower_copy(slash_copy(entries[static_cast<size_t>(right)].path));
+                const int left_depth = slash_depth_for(left_path);
+                const int right_depth = slash_depth_for(right_path);
+                if (left_depth != right_depth) return left_depth > right_depth;
+                if (left_path.size() != right_path.size()) return left_path.size() > right_path.size();
+                return left_path < right_path;
+            });
+        }
+        auto rows_json = [](const std::map<std::string, std::vector<int>>& rows_by_key) {
+            std::ostringstream out;
+            out << "[";
+            bool first_row = true;
+            for (const auto& row : rows_by_key) {
+                if (!first_row) out << ",";
+                first_row = false;
+                out << "[\"" << json_escape(row.first) << "\",[";
+                for (size_t i = 0; i < row.second.size(); ++i) {
+                    if (i) out << ",";
+                    out << row.second[i];
+                }
+                out << "]]";
+            }
+            out << "]";
+            return out.str();
+        };
+        std::ostringstream out;
+        out << "{\"status\":\"ok\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol
+            << ",\"entry_count\":" << entries.size()
+            << ",\"path_rows\":" << rows_json(path_rows)
+            << ",\"basename_rows\":" << rows_json(basename_rows)
+            << ",\"extension_rows\":" << rows_json(extension_rows)
+            << "}";
+        write_text(report_path, out.str());
+        write_progress_json(progress_path, "complete", static_cast<long long>(entries.size()), static_cast<long long>(entries.size()));
+        return 0;
+    } catch (const std::exception& exc) {
+        write_text(report_path, std::string("{\"status\":\"error\",\"backend\":\"") + kBackend + "\",\"message\":\"" + json_escape(exc.what()) + "\"}");
+        std::cerr << exc.what() << "\n";
+        return 2;
+    }
+}
+
+struct NativeItemRecord {
+    int item_id = 0;
+    std::string internal_name;
+    std::string display_name;
+    std::vector<std::string> localized_names;
+    std::vector<std::uint32_t> prefab_hashes;
+    std::vector<std::string> model_stems;
+    std::vector<std::string> pac_files;
+    std::vector<std::string> icon_paths;
+    std::vector<std::string> material_tags;
+};
+
+void add_unique(std::vector<std::string>& values, const std::string& value) {
+    if (value.empty()) return;
+    if (std::find(values.begin(), values.end(), value) == values.end()) values.push_back(value);
+}
+
+std::map<std::string, std::string> parse_localization_bin(const std::vector<char>& data) {
+    std::map<std::string, std::string> rows;
+    size_t pos = 0;
+    while (pos + 8 < data.size()) {
+        const std::uint32_t slen = read_u32(data, pos);
+        if (slen > 0 && slen <= 50000 && pos + 4 + slen <= data.size()) {
+            std::string id(data.begin() + static_cast<std::ptrdiff_t>(pos + 4), data.begin() + static_cast<std::ptrdiff_t>(pos + 4 + slen));
+            bool digits = slen >= 6 && slen <= 20 && std::all_of(id.begin(), id.end(), [](unsigned char ch) { return std::isdigit(ch); });
+            const size_t text_pos = pos + 4 + slen;
+            if (digits && text_pos + 4 < data.size()) {
+                const std::uint32_t text_len = read_u32(data, text_pos);
+                if (text_len > 0 && text_len < 50000 && text_pos + 4 + text_len <= data.size()) {
+                    std::string text(data.begin() + static_cast<std::ptrdiff_t>(text_pos + 4), data.begin() + static_cast<std::ptrdiff_t>(text_pos + 4 + text_len));
+                    rows[id] = text;
+                    pos = text_pos + 4 + text_len;
+                    continue;
+                }
+            }
+        }
+        ++pos;
+    }
+    return rows;
+}
+
+std::string normalize_icon_model_stem(std::string value) {
+    value = slash_copy(value);
+    value = basename_for(value);
+    value = lower_copy(value);
+    const std::string ext = extension_for(value);
+    if (ext == ".pac" || ext == ".prefab" || ext == ".pact") {
+        value.resize(value.size() - ext.size());
+    }
+    return value;
+}
+
+std::map<std::uint32_t, std::string> parse_stringinfo_hashes(const std::vector<char>& data) {
+    std::map<std::uint32_t, std::string> hashes;
+    size_t pos = 0;
+    while (pos + 8 < data.size()) {
+        const std::uint32_t slen = read_u32(data, pos);
+        if (slen >= 3 && slen <= 180 && pos + 4 + slen + 4 <= data.size()) {
+            std::string text(data.begin() + static_cast<std::ptrdiff_t>(pos + 4), data.begin() + static_cast<std::ptrdiff_t>(pos + 4 + slen));
+            while (!text.empty() && text.back() == '\0') text.pop_back();
+            const std::string lower = lower_copy(text);
+            const std::string prefix = "itemicon_prefab_";
+            if (starts_with(lower, prefix)) {
+                std::string model_stem = normalize_icon_model_stem(text.substr(prefix.size()));
+                if (starts_with(model_stem, "cd_")) {
+                    const std::uint32_t stored_hash = read_u32(data, pos + 4 + slen);
+                    hashes[stored_hash] = model_stem;
+                    hashes[hashlittle_bytes(text, 0xC5EDE)] = model_stem;
+                    hashes[hashlittle_bytes(model_stem, 0xC5EDE)] = model_stem;
+                }
+            }
+            pos += 4 + slen + 8;
+            continue;
+        }
+        ++pos;
+    }
+    return hashes;
+}
+
+bool item_icon_model_reference_is_compatible(const std::string& internal_name, const std::string& model_stem) {
+    const std::string a = lower_copy(internal_name);
+    const std::string b = lower_copy(model_stem);
+    static const std::vector<std::pair<std::string, std::string>> pairs = {
+        {"onehandsword", "01_sword"}, {"twohandsword", "02_sword"}, {"twohandspear", "02_spear"},
+        {"halberd", "02_alebard"}, {"alebard", "02_alebard"}, {"hammer", "02_hammer"},
+        {"spear", "spear"}, {"shield", "03_shield"}, {"backpack", "bag"}, {"ring", "ring"},
+        {"earring", "earring"}, {"necklace", "necklace"}, {"helm", "hel"}, {"helmet", "hel"},
+        {"armor", "ub"}, {"cloak", "cloak"}, {"glove", "hand"}, {"boots", "foot"}, {"saddle", "horse_ub"}
+    };
+    for (const auto& pair : pairs) {
+        if (a.find(pair.first) != std::string::npos && b.find(pair.second) != std::string::npos) return true;
+    }
+    return false;
+}
+
+std::vector<NativeItemRecord> parse_iteminfo_bin(
+    const std::vector<char>& data,
+    const std::map<std::string, std::map<std::string, std::string>>& loc_tables,
+    const std::map<std::uint32_t, std::string>& icon_hashes
+) {
+    static const unsigned char marker[] = {0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x07,0x70,0x00,0x00,0x00};
+    std::vector<NativeItemRecord> items;
+    std::set<int> seen_ids;
+    size_t idx = 0;
+    while (idx + sizeof(marker) < data.size()) {
+        auto it = std::search(data.begin() + static_cast<std::ptrdiff_t>(idx), data.end(), std::begin(marker), std::end(marker));
+        if (it == data.end()) break;
+        const size_t pos = static_cast<size_t>(std::distance(data.begin(), it));
+        idx = pos + sizeof(marker);
+        size_t name_start = pos;
+        while (name_start > 0 && static_cast<unsigned char>(data[name_start - 1]) >= 0x21 && static_cast<unsigned char>(data[name_start - 1]) <= 0x7E) {
+            --name_start;
+            if (pos - name_start > 150) break;
+        }
+        if (pos - name_start < 3 || name_start < 8) continue;
+        std::string name(data.begin() + static_cast<std::ptrdiff_t>(name_start), data.begin() + static_cast<std::ptrdiff_t>(pos));
+        if (!std::isalpha(static_cast<unsigned char>(name[0]))) continue;
+        if (!std::all_of(name.begin(), name.end(), [](unsigned char ch) { return std::isalnum(ch) || ch == '_'; })) continue;
+        const std::uint32_t name_len = read_u32(data, name_start - 4);
+        const std::uint32_t item_id = read_u32(data, name_start - 8);
+        if (!(name_len == name.size() || name_len == name.size() + 1)) continue;
+        if (item_id < 100 || item_id > 100000000 || seen_ids.count(static_cast<int>(item_id))) continue;
+        seen_ids.insert(static_cast<int>(item_id));
+        std::string loc_id;
+        const size_t loc_off = pos + 18;
+        if (loc_off + 4 < data.size()) {
+            const std::uint32_t loc_len = read_u32(data, loc_off);
+            if (loc_len > 5 && loc_len < 25 && loc_off + 4 + loc_len <= data.size()) {
+                std::string candidate(data.begin() + static_cast<std::ptrdiff_t>(loc_off + 4), data.begin() + static_cast<std::ptrdiff_t>(loc_off + 4 + loc_len));
+                if (std::all_of(candidate.begin(), candidate.end(), [](unsigned char ch) { return std::isdigit(ch); })) loc_id = candidate;
+            }
+        }
+        NativeItemRecord record;
+        record.item_id = static_cast<int>(item_id);
+        record.internal_name = name;
+        const size_t search_end = std::min(data.size(), pos + 800);
+        for (size_t scan = pos + 14; scan + 15 < search_end; ++scan) {
+            if (static_cast<unsigned char>(data[scan]) != 0x0E && static_cast<unsigned char>(data[scan]) != 0x0F) continue;
+            const std::uint32_t count1 = read_u32(data, scan + 3);
+            const std::uint32_t count2 = read_u32(data, scan + 7);
+            if (!(count1 > 0 && count1 <= 5 && count2 > 0 && count2 <= 5)) continue;
+            for (std::uint32_t hash_index = 0; hash_index < count2; ++hash_index) {
+                const std::uint32_t value = read_u32(data, scan + 11 + hash_index * 4);
+                if (value) record.prefab_hashes.push_back(value);
+            }
+            if (!record.prefab_hashes.empty()) break;
+        }
+        if (!icon_hashes.empty()) {
+            const auto next_it = std::search(data.begin() + static_cast<std::ptrdiff_t>(idx), data.end(), std::begin(marker), std::end(marker));
+            const size_t next_pos = next_it == data.end() ? pos + 2500 : static_cast<size_t>(std::distance(data.begin(), next_it));
+            const size_t icon_end = std::min({data.size(), next_pos, pos + 2500});
+            for (size_t scan = pos; scan + 4 <= icon_end; ++scan) {
+                const std::uint32_t value = read_u32(data, scan);
+                auto found = icon_hashes.find(value);
+                if (found != icon_hashes.end() && item_icon_model_reference_is_compatible(name, found->second)) {
+                    add_unique(record.model_stems, found->second);
+                }
+            }
+        }
+        std::set<std::string> seen_names;
+        if (!loc_id.empty()) {
+            for (const auto& table : loc_tables) {
+                auto found = table.second.find(loc_id);
+                if (found != table.second.end() && !found->second.empty()) {
+                    const std::string key = lower_copy(found->second);
+                    if (!seen_names.count(key)) {
+                        record.localized_names.push_back(found->second);
+                        seen_names.insert(key);
+                    }
+                }
+            }
+            auto eng_table = loc_tables.find("eng");
+            if (eng_table != loc_tables.end()) {
+                auto found = eng_table->second.find(loc_id);
+                if (found != eng_table->second.end()) record.display_name = found->second;
+            }
+            if (record.display_name.empty() && !record.localized_names.empty()) record.display_name = record.localized_names.front();
+        }
+        items.push_back(std::move(record));
+    }
+    return items;
+}
+
+std::map<std::string, std::vector<std::string>> build_icon_path_index(const std::vector<Entry>& entries) {
+    std::map<std::string, std::vector<std::string>> index;
+    static const std::vector<std::string> prefixes = {"itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_"};
+    for (const Entry& entry : entries) {
+        const std::string lower_path = lower_copy(slash_copy(entry.path));
+        if (extension_for(lower_path) != ".dds") continue;
+        const std::string stem = stem_for_path(lower_path);
+        if (lower_path.find("itemicon") == std::string::npos && std::none_of(prefixes.begin(), prefixes.end(), [&](const std::string& p) { return starts_with(stem, p); })) continue;
+        std::string model_stem;
+        for (const std::string& prefix : prefixes) {
+            if (starts_with(stem, prefix)) {
+                model_stem = normalize_icon_model_stem(stem.substr(prefix.size()));
+                break;
+            }
+        }
+        if (model_stem.empty()) {
+            const size_t cd_pos = stem.find("cd_");
+            if (cd_pos != std::string::npos) model_stem = normalize_icon_model_stem(stem.substr(cd_pos));
+        }
+        for (const std::string& key : model_candidate_bases(model_stem)) add_unique(index[key], slash_copy(entry.path));
+    }
+    return index;
+}
+
+std::string canonical_material_tag(std::string value) {
+    value = lower_copy(value);
+    std::string compact;
+    for (unsigned char ch : value) if (std::isalnum(ch)) compact.push_back(static_cast<char>(ch));
+    static const std::vector<std::pair<std::string, std::string>> aliases = {
+        {"cloth", "cloth"}, {"cloths", "cloth"}, {"fabric", "cloth"}, {"leather", "leather"}, {"hide", "leather"},
+        {"metal", "metal"}, {"iron", "metal"}, {"steel", "metal"}, {"wood", "wood"}, {"stone", "stone"},
+        {"fur", "fur"}, {"hair", "hair"}, {"skin", "skin"}, {"bone", "bone"}, {"glass", "glass"},
+        {"rope", "rope"}, {"crystal", "crystal"}, {"water", "water"}, {"dirt", "dirt"}, {"grass", "grass"}
+    };
+    for (const auto& alias : aliases) if (compact.find(alias.first) != std::string::npos) return alias.second;
+    return {};
+}
+
+std::map<std::string, std::vector<std::string>> parse_material_index(const std::vector<char>& data) {
+    std::map<std::string, std::vector<std::string>> index;
+    std::vector<std::string> record_values;
+    auto model_asset_path = [](std::string value) {
+        value = slash_copy(value);
+        const std::string lower = lower_copy(value);
+        for (const std::string& suffix : {".pamlod", ".prefab", ".pac", ".pam"}) {
+            const size_t pos = lower.find(suffix);
+            if (pos != std::string::npos && lower.substr(0, pos + suffix.size()).find('/') != std::string::npos) {
+                return value.substr(0, pos + suffix.size());
+            }
+        }
+        return std::string();
+    };
+    auto flush = [&](const std::string& path) {
+        const std::string normalized_path = model_asset_path(path);
+        if (normalized_path.empty()) return;
+        std::vector<std::string> tags;
+        for (const std::string& value : record_values) add_unique(tags, canonical_material_tag(value));
+        add_unique(tags, canonical_material_tag(normalized_path));
+        if (tags.empty()) return;
+        const std::string basename = lower_copy(basename_for(normalized_path));
+        const std::string stem = stem_for_path(normalized_path);
+        for (const std::string& key : {lower_copy(normalized_path), basename, stem}) {
+            for (const std::string& tag : tags) add_unique(index[key], tag);
+        }
+    };
+    size_t pos = 0;
+    while (pos + 8 <= data.size()) {
+        const std::uint32_t slen = read_u32(data, pos);
+        if (slen >= 3 && slen <= 260 && pos + 4 + slen <= data.size()) {
+            std::string text(data.begin() + static_cast<std::ptrdiff_t>(pos + 4), data.begin() + static_cast<std::ptrdiff_t>(pos + 4 + slen));
+            while (!text.empty() && text.back() == '\0') text.pop_back();
+            const std::string path = model_asset_path(text);
+            if (!path.empty()) {
+                flush(path);
+                record_values.clear();
+            } else if (!text.empty()) {
+                record_values.push_back(text);
+                if (record_values.size() > 48) record_values.erase(record_values.begin(), record_values.begin() + 16);
+            }
+            pos += 4 + slen;
+            continue;
+        }
+        ++pos;
+    }
+    return index;
+}
+
+std::map<std::uint32_t, std::string> build_model_hash_table(const std::vector<Entry>& entries) {
+    std::map<std::uint32_t, std::string> table;
+    static const std::vector<std::string> suffixes = {
+        "", "_l", "_r", "_u", "_s", "_t", "_c", "_d", "_index01", "_index02", "_index03",
+        "_index01_l", "_index01_r", "_index02_l", "_index02_r", "_index03_l", "_index03_r", "_sub01", "_sub02", "_sub03"
+    };
+    for (const Entry& entry : entries) {
+        const std::string lower_path = lower_copy(slash_copy(entry.path));
+        const std::string ext = extension_for(lower_path);
+        if (package_group_for(entry) != "0009" || !(ext == ".prefab" || ext == ".pac" || ext == ".pact")) continue;
+        const std::string base = stem_for_path(lower_path);
+        for (const std::string& candidate_base : model_candidate_bases(base)) {
+            for (const std::string& suffix : suffixes) {
+                const std::string name = candidate_base + suffix;
+                table.emplace(hashlittle_bytes(name, 0xC5EDE), name);
+            }
+        }
+    }
+    return table;
+}
+
+std::string json_string_array(const std::vector<std::string>& values) {
+    std::ostringstream out;
+    out << "[";
+    for (size_t i = 0; i < values.size(); ++i) {
+        if (i) out << ",";
+        out << "\"" << json_escape(values[i]) << "\"";
+    }
+    out << "]";
+    return out.str();
+}
+
+std::string json_u32_array(const std::vector<std::uint32_t>& values) {
+    std::ostringstream out;
+    out << "[";
+    for (size_t i = 0; i < values.size(); ++i) {
+        if (i) out << ",";
+        out << values[i];
+    }
+    out << "]";
+    return out.str();
+}
+
+void append_map_json(std::ostringstream& out, const std::map<std::string, std::string>& rows) {
+    out << "[";
+    bool first = true;
+    for (const auto& row : rows) {
+        if (!first) out << ",";
+        first = false;
+        out << "[\"" << json_escape(row.first) << "\",\"" << json_escape(row.second) << "\"]";
+    }
+    out << "]";
+}
+
+int run_item_index_job(const fs::path& entries_path, const fs::path& work_dir, const fs::path& report_path) {
+    try {
+        std::vector<Entry> entries = read_entries_tsv(entries_path);
+        std::map<std::string, std::map<std::string, std::string>> loc_tables;
+        for (const std::string& lang : {"kor","eng","jpn","rus","tur","spa-es","spa-mx","fre","ger","ita","pol","por-br","zho-tw","zho-cn"}) {
+            std::vector<char> data = read_binary_if_exists(work_dir / ("loc_" + lang + ".bin"));
+            if (!data.empty()) loc_tables[lang] = parse_localization_bin(data);
+        }
+        const auto icon_hashes = parse_stringinfo_hashes(read_binary_if_exists(work_dir / "stringinfo.bin"));
+        auto items = parse_iteminfo_bin(read_binary_if_exists(work_dir / "iteminfo.bin"), loc_tables, icon_hashes);
+        const auto icon_index = build_icon_path_index(entries);
+        const auto material_index = parse_material_index(read_binary_if_exists(work_dir / "partprefabdyeslotinfo.bin"));
+        const auto hash_table = build_model_hash_table(entries);
+        std::map<std::string, std::string> aliases;
+        std::map<std::string, std::string> display_names;
+        std::map<std::string, std::string> exact_display_names;
+        std::map<std::string, std::string> related_display_names;
+
+        auto add_display = [](std::map<std::string, std::string>& rows, const std::string& key, const std::string& value) {
+            if (key.empty() || value.empty()) return;
+            auto found = rows.find(key);
+            if (found == rows.end()) rows[key] = value;
+            else if (found->second.find(value) == std::string::npos) found->second += " / " + value;
+        };
+        auto add_alias = [](std::map<std::string, std::string>& rows, const std::string& key, const std::string& value) {
+            if (key.empty() || value.empty()) return;
+            auto found = rows.find(key);
+            if (found == rows.end()) rows[key] = value;
+            else found->second += " " + value;
+        };
+
+        std::vector<NativeItemRecord> linked_items;
+        for (NativeItemRecord& item : items) {
+            std::vector<std::string> exact_models;
+            std::vector<std::string> related_models = item.model_stems;
+            for (std::uint32_t hash : item.prefab_hashes) {
+                auto found = hash_table.find(hash);
+                if (found != hash_table.end()) add_unique(exact_models, found->second);
+            }
+            for (const std::string& resolved : exact_models) {
+                for (const std::string& key : model_candidate_bases(resolved)) {
+                    auto icons = icon_index.find(key);
+                    if (icons != icon_index.end()) for (const std::string& icon : icons->second) add_unique(item.icon_paths, icon);
+                }
+            }
+            for (const std::string& resolved : related_models) {
+                for (const std::string& key : model_candidate_bases(resolved)) {
+                    auto icons = icon_index.find(key);
+                    if (icons != icon_index.end()) for (const std::string& icon : icons->second) add_unique(item.icon_paths, icon);
+                }
+            }
+            for (const auto& pair : {std::make_pair(exact_models, std::string("exact")), std::make_pair(related_models, std::string("related"))}) {
+                for (const std::string& resolved : pair.first) {
+                    const std::string base = strip_model_variant_suffix(resolved);
+                    if (base.empty()) continue;
+                    const std::string pac_name = base + ".pac";
+                    add_unique(item.pac_files, pac_name);
+                    std::string terms = lower_copy(item.display_name + " " + item.internal_name + " " + base + " " + pac_name + " " + resolved);
+                    for (const std::string& name : item.localized_names) terms += " " + lower_copy(name);
+                    add_alias(aliases, base, terms);
+                    if (!item.display_name.empty()) {
+                        add_display(display_names, base, item.display_name);
+                        if (pair.second == "exact") add_display(exact_display_names, normalize_icon_model_stem(resolved), item.display_name);
+                        else add_display(related_display_names, base, item.display_name);
+                    }
+                }
+            }
+            for (const std::string& model : item.pac_files) {
+                for (const std::string& key : model_candidate_bases(stem_for_path(model))) {
+                    auto found = material_index.find(key);
+                    if (found != material_index.end()) for (const std::string& tag : found->second) add_unique(item.material_tags, tag);
+                }
+            }
+            if (!item.material_tags.empty()) {
+                std::string material_terms;
+                for (const std::string& tag : item.material_tags) material_terms += " " + tag;
+                for (const std::string& model : item.pac_files) add_alias(aliases, strip_model_variant_suffix(stem_for_path(model)), material_terms);
+            }
+            if (!item.pac_files.empty() || !item.model_stems.empty()) linked_items.push_back(std::move(item));
+        }
+
+        std::ostringstream out;
+        out << "{\"status\":\"ok\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol
+            << ",\"items\":[";
+        for (size_t i = 0; i < linked_items.size(); ++i) {
+            const auto& item = linked_items[i];
+            if (i) out << ",";
+            out << "{\"item_id\":" << item.item_id
+                << ",\"internal_name\":\"" << json_escape(item.internal_name)
+                << "\",\"display_name\":\"" << json_escape(item.display_name)
+                << "\",\"localized_names\":" << json_string_array(item.localized_names)
+                << ",\"prefab_hashes\":" << json_u32_array(item.prefab_hashes)
+                << ",\"model_stems\":" << json_string_array(item.model_stems)
+                << ",\"pac_files\":" << json_string_array(item.pac_files)
+                << ",\"icon_paths\":" << json_string_array(item.icon_paths)
+                << ",\"material_tags\":" << json_string_array(item.material_tags)
+                << "}";
+        }
+        out << "],\"model_base_aliases\":";
+        append_map_json(out, aliases);
+        out << ",\"model_base_display_names\":";
+        append_map_json(out, display_names);
+        out << ",\"model_base_exact_display_names\":";
+        append_map_json(out, exact_display_names);
+        out << ",\"model_base_related_display_names\":";
+        append_map_json(out, related_display_names);
+        out << ",\"item_count\":" << linked_items.size()
+            << ",\"model_hash_count\":" << hash_table.size()
+            << ",\"icon_path_key_count\":" << icon_index.size()
+            << ",\"material_key_count\":" << material_index.size()
+            << "}";
+        write_text(report_path, out.str());
+        return 0;
+    } catch (const std::exception& exc) {
+        write_text(report_path, std::string("{\"status\":\"error\",\"backend\":\"") + kBackend + "\",\"message\":\"" + json_escape(exc.what()) + "\"}");
+        std::cerr << exc.what() << "\n";
+        return 2;
+    }
+}
+
 int run_entry_read_job(const fs::path& job_path, const fs::path& output_path, const fs::path& report_path) {
     try {
         const std::string job = read_text(job_path);
@@ -741,10 +1370,18 @@ int main(int argc, char** argv) {
         if (argc >= 4 && std::string(argv[1]) == "browser-state-job") {
             return run_browser_state_job(fs::path(argv[2]), fs::path(argv[3]));
         }
+        if (argc >= 4 && std::string(argv[1]) == "derived-index-job") {
+            fs::path progress_path;
+            if (argc >= 5) progress_path = fs::path(argv[4]);
+            return run_derived_index_job(fs::path(argv[2]), fs::path(argv[3]), progress_path);
+        }
+        if (argc >= 5 && std::string(argv[1]) == "item-index-job") {
+            return run_item_index_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]));
+        }
         if (argc >= 5 && std::string(argv[1]) == "entry-read-job") {
             return run_entry_read_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]));
         }
-        std::cerr << "usage: cdmw-archive-accelerator --version | scan-job <job.json> <report.json> [progress.json] | browser-state-job <job.json> <report.json> [progress.json] | entry-read-job <job.json> <output.bin> <report.json>\n";
+        std::cerr << "usage: cdmw-archive-accelerator --version | scan-job <job.json> <report.json> [progress.json] | browser-state-job <job.json> <report.json> [progress.json] | derived-index-job <entries.tsv> <report.json> [progress.json] | item-index-job <entries.tsv> <work-dir> <report.json> | entry-read-job <job.json> <output.bin> <report.json>\n";
         return 1;
     } catch (const std::exception& exc) {
         std::cerr << exc.what() << "\n";

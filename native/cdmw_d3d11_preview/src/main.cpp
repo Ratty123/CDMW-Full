@@ -258,6 +258,7 @@ struct PreviewBatch {
     ComPtr<ID3D11ShaderResourceView> layer_material_srv;
     ComPtr<ID3D11ShaderResourceView> layer_normal_srv;
     ComPtr<ID3D11ShaderResourceView> layer_height_srv;
+    std::uint64_t live_texture_bytes = 0;
 };
 
 struct EditorCandidate {
@@ -402,6 +403,8 @@ struct RendererStats {
     std::map<std::string, int> material_layer_roles;
     std::map<std::string, int> dds_upload_formats;
     std::vector<std::string> texture_details;
+    std::vector<std::string> failed_textures;
+    int texture_failures = 0;
     int material_contract_schema = 0;
     int material_channel_contract_schema = 0;
     int texture_quality_schema = 0;
@@ -424,6 +427,8 @@ struct RendererStats {
     int texture_cache_entries = 0;
     int texture_cache_releases = 0;
     std::uint64_t estimated_texture_bytes = 0;
+    std::uint64_t texture_cache_bytes = 0;
+    std::uint64_t live_texture_bytes = 0;
     std::uint64_t process_working_set_bytes = 0;
     std::uint64_t process_private_bytes = 0;
     std::uint64_t frame_count = 0;
@@ -1446,6 +1451,47 @@ static std::string string_array_json(const std::vector<std::string>& values) {
     return out.str();
 }
 
+static std::string hresult_hex(HRESULT hr) {
+    std::ostringstream out;
+    out << "0x" << std::uppercase << std::hex << static_cast<unsigned long>(static_cast<unsigned int>(hr));
+    return out.str();
+}
+
+static std::string failed_texture_json(const std::string& item) {
+    std::vector<std::string> parts;
+    size_t start = 0;
+    while (parts.size() < 5) {
+        const size_t pos = item.find('|', start);
+        if (pos == std::string::npos) {
+            parts.push_back(item.substr(start));
+            break;
+        }
+        parts.push_back(item.substr(start, pos - start));
+        start = pos + 1;
+    }
+    while (parts.size() < 5) parts.push_back("");
+    std::ostringstream out;
+    out << "{"
+        << "\"slot\":\"" << json_escape(parts[0]) << "\","
+        << "\"path\":\"" << json_escape(parts[1]) << "\","
+        << "\"stage\":\"" << json_escape(parts[2]) << "\","
+        << "\"hresult\":\"" << json_escape(parts[3]) << "\","
+        << "\"message\":\"" << json_escape(parts[4]) << "\""
+        << "}";
+    return out.str();
+}
+
+static std::string failed_textures_json(const std::vector<std::string>& values) {
+    std::ostringstream out;
+    out << "[";
+    for (size_t i = 0; i < values.size() && i < 24; ++i) {
+        if (i) out << ",";
+        out << failed_texture_json(values[i]);
+    }
+    out << "]";
+    return out.str();
+}
+
 static std::string float3_json(const DirectX::XMFLOAT3& value) {
     std::ostringstream out;
     out << "[" << value.x << "," << value.y << "," << value.z << "]";
@@ -1507,6 +1553,10 @@ static std::string loaded_payload(const RendererStats& stats) {
            << "\"texture_cache_entries\":" << stats.texture_cache_entries << ","
            << "\"texture_cache_releases\":" << stats.texture_cache_releases << ","
            << "\"estimated_texture_bytes\":" << stats.estimated_texture_bytes << ","
+           << "\"texture_cache_bytes\":" << stats.texture_cache_bytes << ","
+           << "\"live_texture_bytes\":" << stats.live_texture_bytes << ","
+           << "\"texture_failures\":" << stats.texture_failures << ","
+           << "\"failed_textures\":" << failed_textures_json(stats.failed_textures) << ","
            << "\"process_working_set_bytes\":" << stats.process_working_set_bytes << ","
            << "\"process_private_bytes\":" << stats.process_private_bytes << ","
            << "\"frame_count\":" << stats.frame_count << ","
@@ -1523,6 +1573,30 @@ static std::string loaded_payload(const RendererStats& stats) {
     return loaded.str();
 }
 
+static std::string error_payload(const std::string& message, const RendererStats& stats) {
+    std::ostringstream out;
+    out << "{"
+        << "\"event\":\"error\","
+        << "\"backend\":\"D3D11\","
+        << "\"message\":\"" << json_escape(message) << "\","
+        << "\"batch_count\":" << stats.batch_count << ","
+        << "\"vertex_count\":" << stats.vertex_count << ","
+        << "\"texture_failures\":" << stats.texture_failures << ","
+        << "\"failed_textures\":" << failed_textures_json(stats.failed_textures) << ","
+        << "\"texture_bind_ms\":" << stats.texture_ms << ","
+        << "\"geometry_upload_ms\":" << stats.geometry_ms << ","
+        << "\"texture_cache_entries\":" << stats.texture_cache_entries << ","
+        << "\"texture_cache_releases\":" << stats.texture_cache_releases << ","
+        << "\"estimated_texture_bytes\":" << stats.estimated_texture_bytes << ","
+        << "\"texture_cache_bytes\":" << stats.texture_cache_bytes << ","
+        << "\"live_texture_bytes\":" << stats.live_texture_bytes << ","
+        << "\"texture_cache_bytes\":" << stats.texture_cache_bytes << ","
+        << "\"live_texture_bytes\":" << stats.live_texture_bytes << ","
+        << "\"skipped\":" << skipped_json(stats.skipped)
+        << "}";
+    return out.str();
+}
+
 static std::string cleared_payload(const RendererStats& stats) {
     std::ostringstream out;
     out << "{"
@@ -1532,6 +1606,8 @@ static std::string cleared_payload(const RendererStats& stats) {
         << "\"texture_cache_entries\":" << stats.texture_cache_entries << ","
         << "\"texture_cache_releases\":" << stats.texture_cache_releases << ","
         << "\"estimated_texture_bytes\":" << stats.estimated_texture_bytes << ","
+        << "\"texture_cache_bytes\":" << stats.texture_cache_bytes << ","
+        << "\"live_texture_bytes\":" << stats.live_texture_bytes << ","
         << "\"process_working_set_bytes\":" << stats.process_working_set_bytes << ","
         << "\"process_private_bytes\":" << stats.process_private_bytes << ","
         << "\"frame_count\":" << stats.frame_count << ","
@@ -2077,6 +2153,7 @@ public:
         srv_cache_.clear();
         texture_info_cache_.clear();
         estimated_texture_bytes_ = 0;
+        active_texture_bytes_ = active_bound_texture_bytes();
         ++texture_cache_releases_;
         cdmw_native_diag::event(
             "texture_cache_pruned",
@@ -2085,6 +2162,7 @@ public:
                 {"released_texture_cache_entries", std::to_string(released_srv_entries)},
                 {"released_texture_info_entries", std::to_string(released_texture_info_entries)},
                 {"released_estimated_texture_bytes", std::to_string(released_texture_bytes)},
+                {"live_texture_bytes", std::to_string(active_texture_bytes_)},
                 {"texture_cache_releases", std::to_string(texture_cache_releases_)}
             });
     }
@@ -2095,11 +2173,14 @@ public:
         const bool release_texture_cache =
             reason_text == "shutdown"
             || reason_text == "destructor"
+            || reason_text == "clear"
+            || reason_text == "load-missing-package"
             || reason_text == "parent_unresponsive"
             || reason_text == "parent_window_gone";
         const size_t released_srv_entries = release_texture_cache ? srv_cache_.size() : 0;
         const size_t released_texture_info_entries = release_texture_cache ? texture_info_cache_.size() : 0;
         const std::uint64_t released_texture_bytes = release_texture_cache ? estimated_texture_bytes_ : 0;
+        const std::uint64_t released_live_texture_bytes = active_bound_texture_bytes();
 
         if (context_) {
             ID3D11ShaderResourceView* null_srvs[kTotalSrvCount] = {};
@@ -2112,6 +2193,7 @@ public:
         }
         batches_.clear();
         cloth_colliders_.clear();
+        active_texture_bytes_ = 0;
         if (release_texture_cache) {
             srv_cache_.clear();
             texture_info_cache_.clear();
@@ -2130,6 +2212,7 @@ public:
                 {"released_texture_cache_entries", std::to_string(released_srv_entries)},
                 {"released_texture_info_entries", std::to_string(released_texture_info_entries)},
                 {"released_estimated_texture_bytes", std::to_string(released_texture_bytes)},
+                {"released_live_texture_bytes", std::to_string(released_live_texture_bytes)},
                 {"texture_cache_releases", std::to_string(texture_cache_releases_)}
             });
     }
@@ -2150,7 +2233,6 @@ public:
         cdmw_native_diag::event("package_load_start", {{"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)}, {"status_file", cdmw_native_diag::path_to_utf8(args_.status_file)}});
         write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"manifest\",\"message\":\"Loading native D3D11 preview package...\"}");
         auto start = std::chrono::steady_clock::now();
-        release_model_resources("reload");
         std::string manifest;
         RendererStats next_stats;
         std::vector<PreviewBatch> next_batches;
@@ -2223,6 +2305,20 @@ public:
             return false;
         }
         next_stats.manifest_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+        write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
+        if (!upload_batches(next_batches, next_stats)) {
+            write_status(args_.status_file, error_payload("native D3D11 package reload failed", next_stats));
+            cdmw_native_diag::event(
+                "package_load_error",
+                {
+                    {"reason", "upload failed"},
+                    {"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)},
+                    {"texture_failures", std::to_string(next_stats.texture_failures)},
+                    {"skipped", std::to_string(next_stats.skipped.size())}
+                });
+            return false;
+        }
+        release_model_resources("reload");
         batches_ = std::move(next_batches);
         cloth_colliders_ = std::move(next_cloth_colliders);
         hidden_source_submeshes_.clear();
@@ -2259,12 +2355,6 @@ public:
         if (reset_view_state) {
             reset_view();
         }
-        write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
-        if (!upload_batches()) {
-            write_status(args_.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"native D3D11 package reload failed\"}");
-            cdmw_native_diag::event("package_load_error", {{"reason", "upload failed"}, {"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)}});
-            return false;
-        }
         update_runtime_stats();
         write_status(args_.status_file, loaded_payload(stats_));
         request_render();
@@ -2278,7 +2368,9 @@ public:
                 {"dds_uploaded_base", std::to_string(stats_.dds_uploaded.base)},
                 {"png_fallback", std::to_string(stats_.png_fallback)},
                 {"texture_cache_entries", std::to_string(stats_.texture_cache_entries)},
-                {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)}
+                {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)},
+                {"texture_cache_bytes", std::to_string(stats_.texture_cache_bytes)},
+                {"live_texture_bytes", std::to_string(stats_.live_texture_bytes)}
             });
         return true;
     }
@@ -2323,7 +2415,9 @@ public:
             {
                 {"status_file", cdmw_native_diag::path_to_utf8(args_.status_file)},
                 {"texture_cache_entries", std::to_string(stats_.texture_cache_entries)},
-                {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)}
+                {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)},
+                {"texture_cache_bytes", std::to_string(stats_.texture_cache_bytes)},
+                {"live_texture_bytes", std::to_string(stats_.live_texture_bytes)}
             });
         return true;
     }
@@ -2496,7 +2590,9 @@ public:
                     {"batches", std::to_string(stats_.batch_count)},
                     {"vertices", std::to_string(stats_.vertex_count)},
                     {"texture_cache_entries", std::to_string(stats_.texture_cache_entries)},
-                    {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)}
+                    {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)},
+                    {"texture_cache_bytes", std::to_string(stats_.texture_cache_bytes)},
+                    {"live_texture_bytes", std::to_string(stats_.live_texture_bytes)}
                 });
         }
     }
@@ -3239,20 +3335,58 @@ private:
         }
     }
 
-    void update_runtime_stats() {
-        stats_.texture_cache_entries = static_cast<int>(srv_cache_.size());
-        stats_.texture_cache_releases = texture_cache_releases_;
-        stats_.estimated_texture_bytes = estimated_texture_bytes_;
-        stats_.frame_count = frame_count_;
-        stats_.render_request_count = render_request_count_;
-        stats_.render_suppressed_count = render_suppressed_count_;
-        stats_.parent_unresponsive_count = parent_unresponsive_count_;
-        stats_.parent_health = parent_health_;
+    void update_runtime_stats(RendererStats& stats) {
+        stats.texture_cache_entries = static_cast<int>(srv_cache_.size());
+        stats.texture_cache_releases = texture_cache_releases_;
+        active_texture_bytes_ = active_bound_texture_bytes();
+        stats.texture_cache_bytes = estimated_texture_bytes_;
+        stats.live_texture_bytes = active_texture_bytes_;
+        stats.estimated_texture_bytes = estimated_texture_bytes_ + active_texture_bytes_;
+        stats.frame_count = frame_count_;
+        stats.render_request_count = render_request_count_;
+        stats.render_suppressed_count = render_suppressed_count_;
+        stats.parent_unresponsive_count = parent_unresponsive_count_;
+        stats.parent_health = parent_health_;
         const cdmw_native_diag::ProcessMemorySnapshot memory = cdmw_native_diag::current_process_memory();
         if (memory.ok) {
-            stats_.process_working_set_bytes = memory.working_set_bytes;
-            stats_.process_private_bytes = memory.private_bytes;
+            stats.process_working_set_bytes = memory.working_set_bytes;
+            stats.process_private_bytes = memory.private_bytes;
         }
+    }
+
+    void update_runtime_stats() {
+        update_runtime_stats(stats_);
+    }
+
+    std::uint64_t active_bound_texture_bytes() const {
+        std::uint64_t total = 0;
+        for (const PreviewBatch& batch : batches_) {
+            total += batch.live_texture_bytes;
+        }
+        return total;
+    }
+
+    static std::wstring texture_file_identity(const std::wstring& path) {
+        std::error_code ec;
+        const fs::path file_path(path);
+        const std::uintmax_t size = fs::file_size(file_path, ec);
+        const std::wstring size_text = ec ? L"size:unknown" : (L"size:" + std::to_wstring(static_cast<unsigned long long>(size)));
+        ec.clear();
+        const auto mtime = fs::last_write_time(file_path, ec);
+        const std::wstring mtime_text = ec ? L"mtime:unknown" : (L"mtime:" + std::to_wstring(mtime.time_since_epoch().count()));
+        return size_text + L"|" + mtime_text;
+    }
+
+    static std::wstring texture_cache_key(
+        const std::wstring& path,
+        bool dds,
+        DirectX::CREATETEX_FLAGS create_flags) {
+        return (dds ? L"dds|" : L"wic|")
+            + std::to_wstring(static_cast<uint32_t>(create_flags))
+            + L"|"
+            + texture_file_identity(path)
+            + L"|"
+            + path;
     }
 
     static float current_display_scale(float distance) {
@@ -4544,7 +4678,7 @@ private:
         return mul3(value, 1.0f / length);
     }
 
-    bool load_cloth_runtime(PreviewBatch& batch) {
+    bool load_cloth_runtime(PreviewBatch& batch, RendererStats& stats) {
         ClothRuntime& cloth = batch.cloth;
         cloth.initialized = false;
         if (!cloth.available) return false;
@@ -4553,7 +4687,7 @@ private:
         std::vector<uint8_t> constraint_data = read_binary(cloth.constraint_file);
         const size_t particle_count = static_cast<size_t>(std::max(0, cloth.particle_count));
         if (particle_count == 0 || particle_data.size() < particle_count * sizeof(float) * 3u) {
-            stats_.skipped.push_back("cloth particles missing/truncated:" + std::to_string(batch.index));
+            stats.skipped.push_back("cloth particles missing/truncated:" + std::to_string(batch.index));
             cloth.available = false;
             return false;
         }
@@ -4861,14 +4995,18 @@ private:
     }
 
     bool upload_batches() {
+        return upload_batches(batches_, stats_);
+    }
+
+    bool upload_batches(std::vector<PreviewBatch>& batches, RendererStats& stats) {
         prune_srv_cache_if_needed("pre_upload_soft_cap");
         auto geometry_start = std::chrono::steady_clock::now();
         bool uploaded_any_geometry = false;
-        for (PreviewBatch& batch : batches_) {
+        for (PreviewBatch& batch : batches) {
             std::vector<uint8_t> data = read_binary(batch.vertex_file);
             const size_t expected = static_cast<size_t>(batch.vertex_count) * kVertexStrideBytes;
             if (data.size() < expected || expected == 0) {
-                stats_.skipped.push_back("geometry missing/truncated:" + wide_to_utf8(batch.vertex_file));
+                stats.skipped.push_back("geometry missing/truncated:" + wide_to_utf8(batch.vertex_file));
                 continue;
             }
             batch.cpu_vertices.resize(expected / sizeof(float));
@@ -4897,7 +5035,7 @@ private:
                     batch.cpu_source_vertices.push_back(vertex_index);
                 }
             }
-            const bool cloth_loaded = load_cloth_runtime(batch);
+            const bool cloth_loaded = load_cloth_runtime(batch, stats);
             D3D11_BUFFER_DESC desc{};
             desc.ByteWidth = static_cast<UINT>(expected);
             desc.Usage = cloth_loaded ? D3D11_USAGE_DYNAMIC : D3D11_USAGE_DEFAULT;
@@ -4907,54 +5045,58 @@ private:
             init.pSysMem = batch.cpu_vertices.data();
             HRESULT hr = device_->CreateBuffer(&desc, &init, batch.vertex_buffer.GetAddressOf());
             if (FAILED(hr)) {
-                stats_.skipped.push_back("vertex buffer upload failed:" + std::to_string(batch.index));
+                stats.skipped.push_back("vertex buffer upload failed:" + std::to_string(batch.index));
             } else {
                 uploaded_any_geometry = true;
             }
         }
-        stats_.geometry_ms = std::chrono::duration<double, std::milli>(
+        stats.geometry_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - geometry_start).count();
 
         auto texture_start = std::chrono::steady_clock::now();
-        for (PreviewBatch& batch : batches_) {
-            load_batch_texture(batch.base_dds, batch.base_png, batch.base_srv, "base");
-            load_batch_texture(batch.normal_dds, batch.normal_png, batch.normal_srv, "normal");
-            load_batch_texture(batch.material_dds, L"", batch.material_srv, "material");
-            load_batch_texture(batch.occlusion_dds, batch.occlusion_png, batch.occlusion_srv, "occlusion");
-            load_batch_texture(batch.roughness_dds, batch.roughness_png, batch.roughness_srv, "roughness");
-            load_batch_texture(batch.metalness_dds, batch.metalness_png, batch.metalness_srv, "metalness");
-            load_batch_texture(batch.specular_dds, batch.specular_png, batch.specular_srv, "specular");
-            load_batch_texture(batch.detail_dds, L"", batch.detail_srv, "detail");
-            load_batch_texture(batch.height_dds, batch.height_png, batch.height_srv, "height");
-            load_batch_texture(batch.emissive_dds, batch.emissive_png, batch.emissive_srv, "emissive");
+        for (PreviewBatch& batch : batches) {
+            batch.live_texture_bytes = 0;
+            load_batch_texture(batch.base_dds, batch.base_png, batch.base_srv, "base", stats, batch.live_texture_bytes);
+            load_batch_texture(batch.normal_dds, batch.normal_png, batch.normal_srv, "normal", stats, batch.live_texture_bytes);
+            load_batch_texture(batch.material_dds, L"", batch.material_srv, "material", stats, batch.live_texture_bytes);
+            load_batch_texture(batch.occlusion_dds, batch.occlusion_png, batch.occlusion_srv, "occlusion", stats, batch.live_texture_bytes);
+            load_batch_texture(batch.roughness_dds, batch.roughness_png, batch.roughness_srv, "roughness", stats, batch.live_texture_bytes);
+            load_batch_texture(batch.metalness_dds, batch.metalness_png, batch.metalness_srv, "metalness", stats, batch.live_texture_bytes);
+            load_batch_texture(batch.specular_dds, batch.specular_png, batch.specular_srv, "specular", stats, batch.live_texture_bytes);
+            load_batch_texture(batch.detail_dds, L"", batch.detail_srv, "detail", stats, batch.live_texture_bytes);
+            load_batch_texture(batch.height_dds, batch.height_png, batch.height_srv, "height", stats, batch.live_texture_bytes);
+            load_batch_texture(batch.emissive_dds, batch.emissive_png, batch.emissive_srv, "emissive", stats, batch.live_texture_bytes);
             for (int layer_index = 0; layer_index < batch.material_layer_count; ++layer_index) {
                 PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
-                load_batch_texture(layer.diffuse_dds, L"", layer.diffuse_srv, "layer_base");
-                load_batch_texture(layer.mask_dds, L"", layer.mask_srv, "detail");
-                load_batch_texture(layer.material_dds, L"", layer.material_srv, "material");
-                load_batch_texture(layer.normal_dds, L"", layer.normal_srv, "normal");
-                load_batch_texture(layer.height_dds, L"", layer.height_srv, "height");
+                load_batch_texture(layer.diffuse_dds, L"", layer.diffuse_srv, "layer_base", stats, batch.live_texture_bytes);
+                load_batch_texture(layer.mask_dds, L"", layer.mask_srv, "detail", stats, batch.live_texture_bytes);
+                load_batch_texture(layer.material_dds, L"", layer.material_srv, "material", stats, batch.live_texture_bytes);
+                load_batch_texture(layer.normal_dds, L"", layer.normal_srv, "normal", stats, batch.live_texture_bytes);
+                load_batch_texture(layer.height_dds, L"", layer.height_srv, "height", stats, batch.live_texture_bytes);
             }
         }
-        stats_.texture_ms = std::chrono::duration<double, std::milli>(
+        stats.texture_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - texture_start).count();
-        update_runtime_stats();
+        update_runtime_stats(stats);
         cdmw_native_diag::event(
             "upload_batches",
             {
-                {"batches", std::to_string(stats_.batch_count)},
-                {"vertices", std::to_string(stats_.vertex_count)},
-                {"geometry_ms", std::to_string(stats_.geometry_ms)},
-                {"texture_ms", std::to_string(stats_.texture_ms)},
-                {"dds_base", std::to_string(stats_.dds_uploaded.base)},
-                {"dds_normal", std::to_string(stats_.dds_uploaded.normal)},
-                {"dds_material", std::to_string(stats_.dds_uploaded.material)},
-                {"dds_height", std::to_string(stats_.dds_uploaded.height)},
-                {"png_fallback", std::to_string(stats_.png_fallback)},
-                {"texture_cache_entries", std::to_string(stats_.texture_cache_entries)},
-                {"texture_cache_releases", std::to_string(stats_.texture_cache_releases)},
-                {"estimated_texture_bytes", std::to_string(stats_.estimated_texture_bytes)},
-                {"skipped", std::to_string(stats_.skipped.size())}
+                {"batches", std::to_string(stats.batch_count)},
+                {"vertices", std::to_string(stats.vertex_count)},
+                {"geometry_ms", std::to_string(stats.geometry_ms)},
+                {"texture_ms", std::to_string(stats.texture_ms)},
+                {"dds_base", std::to_string(stats.dds_uploaded.base)},
+                {"dds_normal", std::to_string(stats.dds_uploaded.normal)},
+                {"dds_material", std::to_string(stats.dds_uploaded.material)},
+                {"dds_height", std::to_string(stats.dds_uploaded.height)},
+                {"png_fallback", std::to_string(stats.png_fallback)},
+                {"texture_failures", std::to_string(stats.texture_failures)},
+                {"texture_cache_entries", std::to_string(stats.texture_cache_entries)},
+                {"texture_cache_releases", std::to_string(stats.texture_cache_releases)},
+                {"estimated_texture_bytes", std::to_string(stats.estimated_texture_bytes)},
+                {"texture_cache_bytes", std::to_string(stats.texture_cache_bytes)},
+                {"live_texture_bytes", std::to_string(stats.live_texture_bytes)},
+                {"skipped", std::to_string(stats.skipped.size())}
             });
         return uploaded_any_geometry;
     }
@@ -4963,45 +5105,64 @@ private:
         const std::wstring& dds_path,
         const std::wstring& png_fallback,
         ComPtr<ID3D11ShaderResourceView>& target,
-        const char* slot) {
+        const char* slot,
+        RendererStats& stats,
+        std::uint64_t& bound_texture_bytes) {
         const std::string slot_name(slot);
         const DirectX::CREATETEX_FLAGS create_flags =
             (slot_name == "base" || slot_name == "layer_base" || slot_name == "emissive")
                 ? DirectX::CREATETEX_FORCE_SRGB
                 : DirectX::CREATETEX_IGNORE_SRGB;
+        std::uint64_t loaded_bytes = 0;
         if (!dds_path.empty() && fs::is_regular_file(fs::path(dds_path))) {
             TextureLoadInfo info{};
-            if (load_srv_from_file(dds_path, true, target, &info, create_flags)) {
-                increment_slot(stats_.dds_uploaded, slot_name);
-                increment_slot(stats_.textures_loaded, slot_name);
-                if (slot_name == "base" || slot_name == "layer_base" || slot_name == "emissive") ++stats_.srgb_color_uploads;
-                else ++stats_.linear_data_uploads;
+            HRESULT load_hr = S_OK;
+            std::string fail_stage;
+            if (load_srv_from_file(dds_path, true, target, &info, create_flags, stats, &load_hr, &fail_stage, &loaded_bytes)) {
+                bound_texture_bytes += loaded_bytes;
+                increment_slot(stats.dds_uploaded, slot_name);
+                increment_slot(stats.textures_loaded, slot_name);
+                if (slot_name == "base" || slot_name == "layer_base" || slot_name == "emissive") ++stats.srgb_color_uploads;
+                else ++stats.linear_data_uploads;
                 if (!info.format_name.empty()) {
-                    ++stats_.dds_upload_formats[info.format_name];
+                    ++stats.dds_upload_formats[info.format_name];
                 }
                 if ((slot_name == "base" || slot_name == "layer_base") && std::max(info.width, info.height) > 0 && std::max(info.width, info.height) < 512) {
-                    ++stats_.low_resolution_base_textures;
+                    ++stats.low_resolution_base_textures;
                 }
-                stats_.texture_details.push_back(
+                stats.texture_details.push_back(
                     slot_name + ":dds:" + filename_from_path(dds_path) + ":" +
                     info.format_name + ":" + std::to_string(info.width) + "x" + std::to_string(info.height));
                 return;
             }
-            stats_.skipped.push_back(slot_name + " DDS upload failed:" + wide_to_utf8(dds_path));
-            cdmw_native_diag::event("dds_upload_failed", {{"slot", slot_name}, {"path", wide_to_utf8(dds_path)}});
+            ++stats.texture_failures;
+            const std::string path_text = wide_to_utf8(dds_path);
+            const std::string hr_text = hresult_hex(load_hr);
+            const std::string stage_text = fail_stage.empty() ? "dds" : fail_stage;
+            stats.failed_textures.push_back(slot_name + "|" + path_text + "|" + stage_text + "|" + hr_text + "|DDS upload failed");
+            stats.skipped.push_back(slot_name + " DDS upload failed:" + path_text + ":" + hr_text);
+            cdmw_native_diag::event("dds_upload_failed", {{"slot", slot_name}, {"path", path_text}, {"stage", stage_text}, {"hresult", hr_text}});
         }
         if (!png_fallback.empty() && fs::is_regular_file(fs::path(png_fallback))) {
-            if (load_srv_from_file(png_fallback, false, target, nullptr, create_flags)) {
-                ++stats_.png_fallback;
-                increment_slot(stats_.png_uploaded, slot_name);
-                increment_slot(stats_.textures_loaded, slot_name);
-                if (slot_name == "base" || slot_name == "layer_base" || slot_name == "emissive") ++stats_.srgb_color_uploads;
-                else ++stats_.linear_data_uploads;
-                stats_.texture_details.push_back(slot_name + ":png:" + filename_from_path(png_fallback));
+            HRESULT load_hr = S_OK;
+            std::string fail_stage;
+            if (load_srv_from_file(png_fallback, false, target, nullptr, create_flags, stats, &load_hr, &fail_stage, &loaded_bytes)) {
+                bound_texture_bytes += loaded_bytes;
+                ++stats.png_fallback;
+                increment_slot(stats.png_uploaded, slot_name);
+                increment_slot(stats.textures_loaded, slot_name);
+                if (slot_name == "base" || slot_name == "layer_base" || slot_name == "emissive") ++stats.srgb_color_uploads;
+                else ++stats.linear_data_uploads;
+                stats.texture_details.push_back(slot_name + ":png:" + filename_from_path(png_fallback));
                 return;
             }
-            stats_.skipped.push_back(slot_name + " PNG fallback failed:" + wide_to_utf8(png_fallback));
-            cdmw_native_diag::event("png_fallback_failed", {{"slot", slot_name}, {"path", wide_to_utf8(png_fallback)}});
+            ++stats.texture_failures;
+            const std::string path_text = wide_to_utf8(png_fallback);
+            const std::string hr_text = hresult_hex(load_hr);
+            const std::string stage_text = fail_stage.empty() ? "wic" : fail_stage;
+            stats.failed_textures.push_back(slot_name + "|" + path_text + "|" + stage_text + "|" + hr_text + "|PNG fallback failed");
+            stats.skipped.push_back(slot_name + " PNG fallback failed:" + path_text + ":" + hr_text);
+            cdmw_native_diag::event("png_fallback_failed", {{"slot", slot_name}, {"path", path_text}, {"stage", stage_text}, {"hresult", hr_text}});
         }
     }
 
@@ -5010,18 +5171,26 @@ private:
         bool dds,
         ComPtr<ID3D11ShaderResourceView>& target,
         TextureLoadInfo* info,
-        DirectX::CREATETEX_FLAGS create_flags) {
+        DirectX::CREATETEX_FLAGS create_flags,
+        RendererStats& stats,
+        HRESULT* failed_hr = nullptr,
+        std::string* failed_stage = nullptr,
+        std::uint64_t* loaded_bytes = nullptr) {
+        if (loaded_bytes) *loaded_bytes = 0;
         prune_srv_cache_if_needed("texture_load_soft_cap");
-        std::wstring cache_key = (dds ? L"dds|" : L"wic|") + std::to_wstring(static_cast<uint32_t>(create_flags)) + L"|" + path;
+        std::wstring cache_key = texture_cache_key(path, dds, create_flags);
         auto cached = srv_cache_.find(cache_key);
         if (cached != srv_cache_.end() && cached->second) {
             target = cached->second;
-            ++stats_.texture_cache_hits;
+            ++stats.texture_cache_hits;
+            auto cached_info = texture_info_cache_.find(cache_key);
             if (info) {
-                auto cached_info = texture_info_cache_.find(cache_key);
                 if (cached_info != texture_info_cache_.end()) {
                     *info = cached_info->second;
                 }
+            }
+            if (loaded_bytes && cached_info != texture_info_cache_.end()) {
+                *loaded_bytes = static_cast<std::uint64_t>(cached_info->second.bytes);
             }
             return true;
         }
@@ -5030,7 +5199,11 @@ private:
         HRESULT hr = dds
             ? DirectX::LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, &metadata, image)
             : DirectX::LoadFromWICFile(path.c_str(), DirectX::WIC_FLAGS_NONE, &metadata, image);
-        if (FAILED(hr)) return false;
+        if (FAILED(hr)) {
+            if (failed_hr) *failed_hr = hr;
+            if (failed_stage) *failed_stage = dds ? "dds_decode" : "wic_decode";
+            return false;
+        }
         auto create_srv = [&](DirectX::CREATETEX_FLAGS flags) -> HRESULT {
             return DirectX::CreateShaderResourceViewEx(
                 device_.Get(),
@@ -5052,6 +5225,10 @@ private:
             // instead of falling back to the white material color.
             hr = create_srv(static_cast<DirectX::CREATETEX_FLAGS>(0));
         }
+        if (FAILED(hr)) {
+            if (failed_hr) *failed_hr = hr;
+            if (failed_stage) *failed_stage = "create_srv";
+        }
         if (SUCCEEDED(hr)) {
             TextureLoadInfo loaded_info{};
             loaded_info.format_name = dxgi_format_name(metadata.format);
@@ -5061,6 +5238,9 @@ private:
             srv_cache_[cache_key] = target;
             texture_info_cache_[cache_key] = loaded_info;
             estimated_texture_bytes_ += static_cast<std::uint64_t>(loaded_info.bytes);
+            if (loaded_bytes) {
+                *loaded_bytes = static_cast<std::uint64_t>(loaded_info.bytes);
+            }
             if (info) {
                 *info = loaded_info;
             }
@@ -5131,6 +5311,7 @@ private:
     std::map<std::wstring, TextureLoadInfo> texture_info_cache_;
     int texture_cache_releases_ = 0;
     std::uint64_t estimated_texture_bytes_ = 0;
+    std::uint64_t active_texture_bytes_ = 0;
     fs::path pending_package_dir_;
     fs::path pending_status_file_;
     bool pending_reset_view_ = false;
@@ -5226,7 +5407,7 @@ static int run_host(const Args& args) {
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&renderer));
     if (!renderer.initialize()) {
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-        write_status(args.status_file, "{\"event\":\"error\",\"backend\":\"D3D11\",\"message\":\"native D3D11 renderer initialization failed\"}");
+        write_status(args.status_file, error_payload("native D3D11 renderer initialization failed", stats));
         cdmw_native_diag::event("startup_error", {{"reason", "renderer initialization failed"}});
         return 4;
     }

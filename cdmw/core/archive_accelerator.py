@@ -10,6 +10,9 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 
 from cdmw.core.archive import (
     archive_browser_sort_is_active,
+    build_archive_entry_basename_index,
+    build_archive_entry_extension_index,
+    build_archive_entry_path_index,
     load_archive_scan_cache,
     prepare_archive_browser_state,
     resolve_archive_scan_cache_path,
@@ -337,7 +340,9 @@ def _native_browser_state_supported(
 ) -> bool:
     if not entries:
         return False
-    if item_search_aliases or archive_name_search_index is not None:
+    if archive_name_search_index is not None:
+        return False
+    if item_search_aliases and str(filter_text or "").strip():
         return False
     if archive_browser_sort_is_active(sort_column):
         return False
@@ -452,6 +457,92 @@ def _decode_native_browser_state(report: Mapping[str, object], entries: Sequence
             "protocol": int(report.get("protocol") or ARCHIVE_ACCELERATOR_PROTOCOL),
         },
     }
+
+
+def _decode_row_index(rows: object, entries: Sequence[ArchiveEntry]) -> dict[str, list[ArchiveEntry]]:
+    if not isinstance(rows, list):
+        raise ValueError("native derived index rows are missing")
+    decoded: dict[str, list[ArchiveEntry]] = {}
+    entry_count = len(entries)
+    for row in rows:
+        if not isinstance(row, list) or len(row) < 2:
+            continue
+        key = str(row[0] or "")
+        raw_indexes = row[1]
+        if not key or not isinstance(raw_indexes, list):
+            continue
+        values: list[ArchiveEntry] = []
+        for raw_index in raw_indexes:
+            try:
+                index = int(raw_index)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= index < entry_count:
+                values.append(entries[index])
+        decoded[key] = values
+    return decoded
+
+
+def build_archive_basic_indexes_accelerated(
+    entries: Sequence[ArchiveEntry],
+    *,
+    native_enabled: bool = True,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    stop_event: object = None,
+) -> tuple[dict[str, list[ArchiveEntry]], dict[str, list[ArchiveEntry]], dict[str, list[ArchiveEntry]], bool]:
+    binary = find_native_archive_accelerator() if native_enabled else None
+    if native_enabled and _native_archive_accelerator_ready(binary) and entries:
+        assert binary is not None
+        raise_if_cancelled(stop_event)
+        with tempfile.TemporaryDirectory(prefix="cdmw_archive_accelerator_derived_") as temp_dir:
+            temp_path = Path(temp_dir)
+            entries_path = temp_path / "entries.tsv"
+            report_path = temp_path / "derived_report.json"
+            progress_path = temp_path / "derived_progress.json"
+            if on_progress is not None:
+                on_progress(0, max(len(entries), 1), "Building native archive lookup indexes...")
+            _write_browser_entries_tsv(entries_path, entries)
+            try:
+                completed = subprocess.run(
+                    [
+                        str(binary),
+                        "derived-index-job",
+                        str(entries_path),
+                        str(report_path),
+                        str(progress_path),
+                        *_native_diagnostic_args(),
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=90.0,
+                    check=False,
+                    **hidden_subprocess_kwargs(),
+                )
+            except (OSError, subprocess.SubprocessError, ValueError):
+                completed = None
+            raise_if_cancelled(stop_event)
+            if completed is not None and completed.returncode == 0 and report_path.is_file():
+                try:
+                    report = json.loads(report_path.read_text(encoding="utf-8"))
+                    if (
+                        isinstance(report, Mapping)
+                        and report.get("status") == "ok"
+                        and int(report.get("entry_count") or -1) == len(entries)
+                    ):
+                        return (
+                            _decode_row_index(report.get("path_rows"), entries),
+                            _decode_row_index(report.get("basename_rows"), entries),
+                            _decode_row_index(report.get("extension_rows"), entries),
+                            True,
+                        )
+                except Exception:
+                    pass
+    return (
+        build_archive_entry_path_index(entries),
+        build_archive_entry_basename_index(entries),
+        build_archive_entry_extension_index(entries),
+        False,
+    )
 
 
 def _try_prepare_archive_browser_state_native(

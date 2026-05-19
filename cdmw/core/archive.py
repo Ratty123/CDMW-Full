@@ -48,6 +48,7 @@ from cdmw.core.model_preview import (
     build_pamlod_model_preview,
     ensure_model_preview_is_reasonable,
 )
+from cdmw.core.pat_decoder import build_pat_model_preview
 from cdmw.core.pbd_cloth import (
     PbdConfigMaterial,
     build_cloth_preview_from_sidecars,
@@ -93,6 +94,14 @@ _ARCHIVE_SIDECAR_ENTRY_SIGNATURE_FORMAT = 1
 _ARCHIVE_DERIVED_INDEX_CACHE_MAGIC = b"CTFDERI1"
 _ARCHIVE_DERIVED_INDEX_CACHE_VERSION = 10
 _ARCHIVE_DERIVED_INDEX_CACHE_MAX_SAFE_BYTES = 64 * 1024 * 1024
+_ARCHIVE_CACHE_ROOT_MAX_BYTES = 512 * 1024 * 1024
+_ARCHIVE_CACHE_ROOT_TARGET_BYTES = 384 * 1024 * 1024
+_ARCHIVE_CACHE_ROOT_PREFIXES: Tuple[str, ...] = (
+    "archive_scan_",
+    "archive_sidecars_",
+    "archive_derived_indexes_",
+    "archive_name_search_",
+)
 _INITIAL_MODEL_PREVIEW_RENDER_SETTINGS = clamp_model_preview_render_settings()
 # Keep visible base textures closer to their source resolution in the 3D preview.
 # Support maps are only sampled for lighting/material approximation. Keep them
@@ -1734,6 +1743,7 @@ def invalidate_archive_browser_cache(
             resolve_archive_sidecar_cache_path(package_root, candidate_root),
             resolve_archive_sidecar_cache_metadata_path(package_root, candidate_root),
             resolve_archive_derived_index_cache_path(package_root, candidate_root),
+            resolve_archive_name_search_index_cache_path(package_root, candidate_root),
         ):
             normalized_path = str(candidate_path).strip().lower()
             if not normalized_path or normalized_path in seen:
@@ -1753,6 +1763,54 @@ def invalidate_archive_browser_cache(
                 on_log(f"Warning: could not delete archive cache file {cache_path}: {exc}")
 
     return deleted_paths
+
+
+def prune_archive_cache_root(
+    cache_root: Path,
+    *,
+    max_bytes: int = _ARCHIVE_CACHE_ROOT_MAX_BYTES,
+    target_bytes: int = _ARCHIVE_CACHE_ROOT_TARGET_BYTES,
+) -> Dict[str, int]:
+    root = Path(cache_root)
+    if max_bytes <= 0 or target_bytes < 0 or not root.is_dir():
+        return {"files": 0, "bytes": 0, "removed_files": 0, "removed_bytes": 0}
+    units: List[Tuple[float, int, Path]] = []
+    total_bytes = 0
+    try:
+        children = tuple(root.iterdir())
+    except OSError:
+        return {"files": 0, "bytes": 0, "removed_files": 0, "removed_bytes": 0}
+    for path in children:
+        if not path.is_file() or not any(path.name.startswith(prefix) for prefix in _ARCHIVE_CACHE_ROOT_PREFIXES):
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        size = max(0, int(stat.st_size))
+        total_bytes += size
+        units.append((float(stat.st_mtime), size, path))
+    if total_bytes <= max_bytes:
+        return {"files": len(units), "bytes": total_bytes, "removed_files": 0, "removed_bytes": 0}
+    current_bytes = total_bytes
+    removed_files = 0
+    removed_bytes = 0
+    for _mtime, size, path in sorted(units, key=lambda item: (item[0], str(item[2]).lower())):
+        if current_bytes <= min(target_bytes, max_bytes):
+            break
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        current_bytes = max(0, current_bytes - size)
+        removed_files += 1
+        removed_bytes += size
+    return {
+        "files": max(0, len(units) - removed_files),
+        "bytes": current_bytes,
+        "removed_files": removed_files,
+        "removed_bytes": removed_bytes,
+    }
 
 
 def _candidate_archive_scan_cache_paths(package_root: Path, cache_root: Path) -> List[Path]:
@@ -2123,6 +2181,12 @@ def save_archive_scan_cache(
         on_progress(1, 1, "Archive index cache written; preparing browser indexes...")
     if on_log:
         on_log(f"Archive cache updated: {cache_path}")
+    prune_report = prune_archive_cache_root(cache_root)
+    if on_log and prune_report.get("removed_files"):
+        on_log(
+            "Archive cache pruned: "
+            f"{prune_report.get('removed_files', 0)} files, {format_byte_size(int(prune_report.get('removed_bytes', 0) or 0))}."
+        )
     _record_timing(timings, "cache_write_s", started_at)
     return cache_path
 
@@ -4179,6 +4243,12 @@ def save_archive_derived_index_cache(
     )
     if on_log is not None:
         on_log(f"Archive derived index cache updated: {cache_path}")
+    prune_report = prune_archive_cache_root(cache_root)
+    if on_log is not None and prune_report.get("removed_files"):
+        on_log(
+            "Archive cache pruned: "
+            f"{prune_report.get('removed_files', 0)} files, {format_byte_size(int(prune_report.get('removed_bytes', 0) or 0))}."
+        )
     _record_timing(timings, "derived_cache_write_s", started_at)
     return cache_path
 
@@ -4838,6 +4908,12 @@ def save_archive_texture_sidecar_cache(
         on_progress(1, 1, "Texture sidecar cache is ready.")
     if on_log is not None:
         on_log(f"Texture sidecar cache updated: {cache_path}")
+    prune_report = prune_archive_cache_root(cache_root)
+    if on_log is not None and prune_report.get("removed_files"):
+        on_log(
+            "Archive cache pruned: "
+            f"{prune_report.get('removed_files', 0)} files, {format_byte_size(int(prune_report.get('removed_bytes', 0) or 0))}."
+        )
     _record_timing(timings, "cache_write_s", started_at)
     return cache_path
 
@@ -14952,6 +15028,314 @@ def parse_socket_bone_data_xml(text: str, source_path: str = "") -> AttachmentSo
     return AttachmentSocketDocument(source_path=source_path, sockets=tuple(sockets), stack_equip_infos=tuple(stack_infos))
 
 
+_PART_IN_OUT_SOCKET_TAG_RE = re.compile(r"<PartInOutSocket\b(?P<attrs>[^<>]*?)/?>", re.IGNORECASE | re.DOTALL)
+_PART_IN_OUT_ATTR_RE = re.compile(r"""(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<quote>['"])(?P<value>.*?)(?P=quote)""", re.DOTALL)
+_PART_IN_OUT_PATCH_FIELDS: Tuple[str, ...] = (
+    "InSocketBone",
+    "InChildSocketBone",
+    "OutSocketBone",
+    "OutChildSocketBone",
+    "BagSocketBone",
+    "VehicleBagSocketBone",
+    "WeaponCasePart",
+    "Visible",
+)
+
+
+def _parse_part_in_out_attrs(text: str) -> Dict[str, str]:
+    attrs: Dict[str, str] = {}
+    for match in _PART_IN_OUT_ATTR_RE.finditer(str(text or "")):
+        name = str(match.group("name") or "").strip()
+        if not name:
+            continue
+        attrs[name] = html.unescape(str(match.group("value") or ""))
+    return attrs
+
+
+def parse_part_in_out_socket_info_xml(text: str, source_path: str = "") -> AttachmentPartInOutDocument:
+    """Parse character PartInOutSocket rows from Crimson descriptor XML-like text.
+
+    Character descriptor files use non-standard closing tags such as ``</>`` in
+    shipped samples, so this parser intentionally scans only self-contained
+    PartInOutSocket tags instead of requiring a fully valid XML document.
+    """
+    rows: List[AttachmentPartInOutSocketInfo] = []
+    for match in _PART_IN_OUT_SOCKET_TAG_RE.finditer(str(text or "")):
+        attrs = _parse_part_in_out_attrs(str(match.group("attrs") or ""))
+        part_name = str(attrs.get("PartName") or "").strip()
+        if not part_name:
+            continue
+        rows.append(
+            AttachmentPartInOutSocketInfo(
+                part_name=part_name,
+                in_socket_bone=str(attrs.get("InSocketBone") or ""),
+                out_socket_bone=str(attrs.get("OutSocketBone") or ""),
+                in_child_socket_bone=str(attrs.get("InChildSocketBone") or ""),
+                out_child_socket_bone=str(attrs.get("OutChildSocketBone") or ""),
+                bag_socket_bone=str(attrs.get("BagSocketBone") or ""),
+                vehicle_bag_socket_bone=str(attrs.get("VehicleBagSocketBone") or ""),
+                weapon_case_part=str(attrs.get("WeaponCasePart") or ""),
+                visible=str(attrs.get("Visible") or ""),
+                source_path=source_path,
+                attributes=dict(attrs),
+            )
+        )
+    return AttachmentPartInOutDocument(source_path=source_path, rows=tuple(rows))
+
+
+def infer_part_in_out_weapon_class(value: object) -> str:
+    normalized = str(value or "").replace("\\", "/").strip().casefold()
+    if not normalized:
+        return ""
+    if "cd_twohandweapon_sword" in normalized or "/2_twohandweapon/" in normalized or "twohandweapon" in normalized or "cd_phm_02_sword" in normalized:
+        return "twohand_sword"
+    if "cd_mainweapon_sword" in normalized or "/1_onehandweapon/" in normalized or "onehandweapon" in normalized or "cd_phm_01_sword" in normalized:
+        return "onehand_sword"
+    if "cd_mainweapon_dagger" in normalized or "dagger" in normalized:
+        return "onehand_dagger"
+    if "cd_mainweapon_axe" in normalized or "cd_twohandweapon_axe" in normalized:
+        return "axe"
+    if "cd_mainweapon_mace" in normalized or "cd_twohandweapon_mace" in normalized:
+        return "mace"
+    if "cd_twohandweapon" in normalized:
+        return "twohand"
+    if "cd_mainweapon" in normalized:
+        return "mainhand"
+    return ""
+
+
+def part_in_out_rows_for_weapon_class(
+    document: AttachmentPartInOutDocument,
+    weapon_class: str,
+) -> Tuple[AttachmentPartInOutSocketInfo, ...]:
+    normalized_class = str(weapon_class or "").strip().casefold()
+    if not normalized_class:
+        return tuple(document.rows)
+    return tuple(
+        row
+        for row in tuple(getattr(document, "rows", ()) or ())
+        if infer_part_in_out_weapon_class(row.part_name) == normalized_class
+    )
+
+
+def _part_in_out_attr_value(attrs: Mapping[str, str], name: str) -> str:
+    for attr_name, value in attrs.items():
+        if str(attr_name or "").casefold() == str(name or "").casefold():
+            return str(value or "")
+    return ""
+
+
+def _part_in_out_set_attr(tag_text: str, name: str, value: str) -> str:
+    escaped = html.escape(str(value or ""), quote=True)
+    pattern = re.compile(
+        rf"""(?P<prefix>\b{re.escape(name)}\s*=\s*)(?P<quote>['"])(?P<value>.*?)(?P=quote)""",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    def repl(match: re.Match[str]) -> str:
+        quote = str(match.group("quote") or '"')
+        return f"{match.group('prefix')}{quote}{escaped}{quote}"
+
+    if pattern.search(tag_text):
+        return pattern.sub(repl, tag_text, count=1)
+    insert_at = tag_text.rfind("/>")
+    if insert_at < 0:
+        insert_at = tag_text.rfind(">")
+    if insert_at < 0:
+        return tag_text
+    spacer = "" if tag_text[:insert_at].endswith((" ", "\t", "\n", "\r")) else " "
+    return f"{tag_text[:insert_at]}{spacer}{name}=\"{escaped}\"{tag_text[insert_at:]}"
+
+
+def build_part_in_out_socket_profile_patch(
+    base_text: str,
+    profile_text: str,
+    *,
+    weapon_class: str,
+    fields: Sequence[str] = _PART_IN_OUT_PATCH_FIELDS,
+) -> AttachmentPartInOutPatchResult:
+    base_document = parse_part_in_out_socket_info_xml(base_text)
+    profile_document = parse_part_in_out_socket_info_xml(profile_text)
+    profile_rows_by_name = {
+        row.part_name.casefold(): row
+        for row in part_in_out_rows_for_weapon_class(profile_document, weapon_class)
+    }
+    target_part_names = {
+        row.part_name.casefold()
+        for row in part_in_out_rows_for_weapon_class(base_document, weapon_class)
+    }
+    if not target_part_names or not profile_rows_by_name:
+        return AttachmentPartInOutPatchResult(text=str(base_text or ""))
+
+    diffs: List[AttachmentPartInOutPatchDiff] = []
+    patched_names: List[str] = []
+
+    def replace_tag(match: re.Match[str]) -> str:
+        tag_text = match.group(0)
+        attrs = _parse_part_in_out_attrs(str(match.group("attrs") or ""))
+        part_name = str(attrs.get("PartName") or "").strip()
+        key = part_name.casefold()
+        profile_row = profile_rows_by_name.get(key)
+        if key not in target_part_names or profile_row is None:
+            return tag_text
+        updated = tag_text
+        changed = False
+        for field_name in fields:
+            old_value = _part_in_out_attr_value(attrs, field_name)
+            new_value = _part_in_out_attr_value(profile_row.attributes, field_name)
+            if old_value == new_value:
+                continue
+            if not new_value and field_name not in profile_row.attributes:
+                continue
+            updated = _part_in_out_set_attr(updated, field_name, new_value)
+            diffs.append(
+                AttachmentPartInOutPatchDiff(
+                    part_name=part_name,
+                    field_name=field_name,
+                    old_value=old_value,
+                    new_value=new_value,
+                )
+            )
+            changed = True
+        if changed:
+            patched_names.append(part_name)
+        return updated
+
+    patched_text = _PART_IN_OUT_SOCKET_TAG_RE.sub(replace_tag, str(base_text or ""))
+    return AttachmentPartInOutPatchResult(
+        text=patched_text,
+        diffs=tuple(diffs),
+        patched_part_names=tuple(dict.fromkeys(patched_names)),
+    )
+
+
+def build_part_in_out_socket_attach_point_patch(
+    base_text: str,
+    *,
+    weapon_class: str,
+    in_socket_bone: str,
+    in_child_socket_bone: str = "",
+) -> AttachmentPartInOutPatchResult:
+    base_document = parse_part_in_out_socket_info_xml(base_text)
+    target_part_names = {
+        row.part_name.casefold()
+        for row in part_in_out_rows_for_weapon_class(base_document, weapon_class)
+    }
+    socket_name = str(in_socket_bone or "").strip()
+    child_socket_name = str(in_child_socket_bone or "").strip()
+    if not target_part_names or not socket_name:
+        return AttachmentPartInOutPatchResult(text=str(base_text or ""))
+
+    diffs: List[AttachmentPartInOutPatchDiff] = []
+    patched_names: List[str] = []
+
+    def replace_tag(match: re.Match[str]) -> str:
+        tag_text = match.group(0)
+        attrs = _parse_part_in_out_attrs(str(match.group("attrs") or ""))
+        part_name = str(attrs.get("PartName") or "").strip()
+        if part_name.casefold() not in target_part_names:
+            return tag_text
+        updated = tag_text
+        changed = False
+        old_socket = _part_in_out_attr_value(attrs, "InSocketBone")
+        if old_socket != socket_name:
+            updated = _part_in_out_set_attr(updated, "InSocketBone", socket_name)
+            diffs.append(AttachmentPartInOutPatchDiff(part_name, "InSocketBone", old_socket, socket_name))
+            changed = True
+        if child_socket_name:
+            old_child = _part_in_out_attr_value(attrs, "InChildSocketBone")
+            if old_child != child_socket_name:
+                updated = _part_in_out_set_attr(updated, "InChildSocketBone", child_socket_name)
+                diffs.append(AttachmentPartInOutPatchDiff(part_name, "InChildSocketBone", old_child, child_socket_name))
+                changed = True
+        if changed:
+            patched_names.append(part_name)
+        return updated
+
+    patched_text = _PART_IN_OUT_SOCKET_TAG_RE.sub(replace_tag, str(base_text or ""))
+    return AttachmentPartInOutPatchResult(
+        text=patched_text,
+        diffs=tuple(diffs),
+        patched_part_names=tuple(dict.fromkeys(patched_names)),
+    )
+
+
+_SOCKET_BONE_SOCKET_TAG_RE = re.compile(r"<Socket\b(?P<attrs>[^<>]*\bParent\s*=\s*['\"][^<>]*?)/?>", re.IGNORECASE | re.DOTALL)
+_SOCKET_BONE_PATCH_FIELDS: Tuple[str, ...] = ("Parent", "Rotation", "Translation", "UIView")
+
+
+def build_socket_bone_data_profile_patch(
+    base_text: str,
+    profile_text: str,
+    *,
+    socket_names: Sequence[str] = (),
+    fields: Sequence[str] = _SOCKET_BONE_PATCH_FIELDS,
+) -> AttachmentPartInOutPatchResult:
+    base_document = parse_socket_bone_data_xml(base_text)
+    profile_document = parse_socket_bone_data_xml(profile_text)
+    profile_sockets = {
+        socket.name.casefold(): socket
+        for socket in tuple(profile_document.sockets or ())
+        if str(socket.name or "").strip()
+    }
+    if socket_names:
+        target_names = {str(name or "").strip().casefold() for name in socket_names if str(name or "").strip()}
+    else:
+        target_names = {
+            socket.name.casefold()
+            for socket in tuple(base_document.sockets or ())
+            if str(socket.name or "").strip() and socket.name.casefold() in profile_sockets
+        }
+    target_names.discard("")
+    if not target_names or not profile_sockets:
+        return AttachmentPartInOutPatchResult(text=str(base_text or ""))
+
+    diffs: List[AttachmentPartInOutPatchDiff] = []
+    patched_names: List[str] = []
+
+    def profile_value(socket: AttachmentSocketInfo, field_name: str) -> str:
+        if field_name == "Parent":
+            return str(socket.parent or "")
+        if field_name == "Rotation":
+            return " ".join(f"{float(value):.6f}" for value in tuple(socket.rotation or ()))
+        if field_name == "Translation":
+            return " ".join(f"{float(value):.6f}" for value in tuple(socket.translation or ()))
+        if field_name == "UIView":
+            return str(socket.ui_view or "")
+        return ""
+
+    def replace_tag(match: re.Match[str]) -> str:
+        tag_text = match.group(0)
+        attrs = _parse_part_in_out_attrs(str(match.group("attrs") or ""))
+        socket_name = str(attrs.get("Name") or "").strip()
+        key = socket_name.casefold()
+        profile_socket = profile_sockets.get(key)
+        if key not in target_names or profile_socket is None:
+            return tag_text
+        updated = tag_text
+        changed = False
+        for field_name in fields:
+            new_value = profile_value(profile_socket, field_name)
+            if not new_value and field_name == "UIView" and field_name not in attrs:
+                continue
+            old_value = _part_in_out_attr_value(attrs, field_name)
+            if old_value == new_value:
+                continue
+            updated = _part_in_out_set_attr(updated, field_name, new_value)
+            diffs.append(AttachmentPartInOutPatchDiff(socket_name, field_name, old_value, new_value))
+            changed = True
+        if changed:
+            patched_names.append(socket_name)
+        return updated
+
+    patched_text = _SOCKET_BONE_SOCKET_TAG_RE.sub(replace_tag, str(base_text or ""))
+    return AttachmentPartInOutPatchResult(
+        text=patched_text,
+        diffs=tuple(diffs),
+        patched_part_names=tuple(dict.fromkeys(patched_names)),
+    )
+
+
 @dataclass(slots=True, frozen=True)
 class PrefabSocketNameField:
     field_name: str
@@ -18945,6 +19329,34 @@ def build_archive_preview_result(
             except Exception as exc:
                 model_preview_error = str(exc)
                 info_extra_parts.append(f"Visual model preview failed to recover geometry: {exc}")
+            add_timing("model_geometry_s", geometry_started_at)
+        elif extension == ".pat":
+            geometry_started_at = time.perf_counter()
+            try:
+                model_preview = build_pat_model_preview(data, entry.path, lod_index=0)
+                metadata_summary = (
+                    f"{metadata_summary} | PAT LOD {model_preview.lod_index + 1} of {model_preview.lod_count}"
+                    f" | {model_preview.face_count:,} faces"
+                )
+                material_count = len(
+                    {
+                        str(getattr(mesh, "material_name", "") or "").strip()
+                        for mesh in model_preview.meshes
+                        if str(getattr(mesh, "material_name", "") or "").strip()
+                    }
+                )
+                info_extra_parts.append(
+                    "Geometry preview uses the highest-detail PAT LOD decoded from 32-byte plant mesh vertices."
+                )
+                if material_count:
+                    info_extra_parts.append(
+                        f"Recovered {material_count:,} PAT material slot(s) and texture basename hint(s)."
+                    )
+            except RunCancelled:
+                raise
+            except Exception as exc:
+                model_preview_error = str(exc)
+                info_extra_parts.append(f"Visual PAT preview failed to recover geometry: {exc}")
             add_timing("model_geometry_s", geometry_started_at)
         elif extension in ARCHIVE_MODEL_EXTENSIONS:
             info_extra_parts.append("Visual preview is not available for this model format yet.")

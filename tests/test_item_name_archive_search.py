@@ -30,6 +30,9 @@ from cdmw.core.table_catalog import summarize_table_evidence
 from cdmw.models import ArchiveEntry
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
 def _entry(path: str) -> ArchiveEntry:
     return ArchiveEntry(
         path=path,
@@ -90,6 +93,19 @@ def _entries_with_payloads(payloads):
 
 
 class ItemNameArchiveSearchTests(unittest.TestCase):
+    def test_native_item_index_job_is_wired_with_python_fallback(self) -> None:
+        item_index_source = (REPO_ROOT / "cdmw" / "core" / "item_index.py").read_text(encoding="utf-8")
+        native_source = (REPO_ROOT / "native" / "cdmw_archive_accelerator" / "src" / "main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("def _try_build_archive_item_search_index_native", item_index_source)
+        self.assertIn('"item-index-job"', item_index_source)
+        self.assertIn("CDMW_DISABLE_NATIVE_ITEM_INDEX", item_index_source)
+        self.assertIn("return None", item_index_source)
+        self.assertIn("run_item_index_job", native_source)
+        self.assertIn("parse_iteminfo_bin", native_source)
+        self.assertIn("parse_localization_bin", native_source)
+        self.assertIn("build_model_hash_table", native_source)
+
     def test_dmm_duplicate_archive_entry_is_grouped_and_marked_active(self) -> None:
         virtual_path = "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0278.pac"
         original = _package_entry(virtual_path, "0009", offset=10)

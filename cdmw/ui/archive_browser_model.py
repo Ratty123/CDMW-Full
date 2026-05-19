@@ -554,6 +554,14 @@ class ArchiveBrowserTreeView(QTreeView):
         self.uiActivity.emit()
         super().wheelEvent(event)
 
+    def mousePressEvent(self, event) -> None:  # type: ignore[override]
+        if event.button() == Qt.RightButton:
+            self.uiActivity.emit()
+            event.accept()
+            return
+        self.uiActivity.emit()
+        super().mousePressEvent(event)
+
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         self.uiActivity.emit()
         super().resizeEvent(event)

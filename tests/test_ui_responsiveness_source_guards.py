@@ -39,6 +39,9 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
     def test_asset_tab_activation_defers_heavy_refresh_work(self) -> None:
         source = _read("cdmw/ui/main_window.py")
         self.assertIn("if self._is_tool_visible_or_current(self.archive_browser_tab)", source)
+        self.assertIn('self._refresh_archive_browser_if_pending("tab_activation")', source)
+        self.assertIn("def _archive_browser_render_is_ready(self) -> bool:", source)
+        self.assertIn("skipped=ready", source)
         self.assertIn("if self._is_tool_visible_or_current(self.research_tab)", source)
         self.assertIn("self.model_library_tab.handle_activated()", source)
         self.assertIn("self.item_icons_tab.schedule_targets_refresh(update_preview=False)", source)
@@ -46,15 +49,24 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
     def test_item_finder_uses_visible_icon_batches_only(self) -> None:
         source = _read("cdmw/ui/main_window.py")
         self.assertIn("catalog_filter_timer.setInterval(160)", source)
+        self.assertIn("icon_visible_queue_timer.setInterval(80)", source)
         self.assertIn("search_edit.textChanged.connect(lambda _text: catalog_filter_timer.start())", source)
         self.assertIn("category_tree.itemSelectionChanged.connect(lambda: catalog_filter_timer.start())", source)
         self.assertIn("if not dialog.isVisible():\n                    return", source)
         self.assertIn("loaded_count >= 4 or (time.perf_counter() - batch_started_at) >= 0.010", source)
         self.assertIn("allow_sync_prepare=False", source)
+        self.assertIn("allow_sync_prepare: bool = False", source)
         self.assertIn("ArchiveItemIconWarmupWorker", source)
         self.assertIn("self._queue_archive_asset_catalog_icon_warmup_rows(", source)
+        self.assertIn("self.archive_item_icon_prepared_callbacks.append(_handle_catalog_icon_prepared)", source)
+        self.assertIn("self.archive_item_icon_prepared_callbacks.append(_handle_item_finder_donor_icon_prepared)", source)
+        self.assertIn("finder_icon_visible_timer.setInterval(80)", source)
+        self.assertIn("self.archive_item_icon_negative_cache", source)
         self.assertNotIn("_queue_catalog_row_icons_for_all_shown_rows", source)
         self.assertNotIn("thumb_preload_pending", source)
+        preview_start = source.index("            def _refresh_selected_icon_preview() -> None:")
+        preview_body = source[preview_start: source.index("            def _handle_catalog_icon_prepared", preview_start)]
+        self.assertNotIn("_archive_asset_catalog_preview_pixmap(row, 120)", preview_body)
 
     def test_resize_path_avoids_expensive_global_recalculation(self) -> None:
         source = _read("cdmw/ui/main_window.py")
@@ -81,6 +93,76 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("browser_view_will_warm_for_startup", source)
         self.assertIn("force_startup_archive_render", source)
         self.assertIn("force_render: bool = False", source)
+        self.assertIn("on_archive_view_ready", source)
+        self.assertIn("_release_startup_after_archive_render", source)
+        self.assertIn('self.archive_browser_preload_state = "ready"', source)
+        self.assertIn("self.archive_browser_render_signature = self._current_archive_browser_render_signature()", source)
+        self.assertIn("delay_ms = max(1, int(self.archive_selection_state_timer.interval()) + 1)", source)
+        self.assertIn('reason="startup_preload"', source)
+
+    def test_archive_click_lag_preload_state_guards_ready_render(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        activation_start = source.index("        def _handle_tool_activated(self, widget: QWidget) -> None:")
+        activation_body = source[activation_start: source.index("        def show_settings", activation_start)]
+        refresh_start = source.index("        def _refresh_archive_browser_if_pending(")
+        refresh_body = source[refresh_start: source.index("        def _refresh_or_defer_archive_browser_view", refresh_start)]
+        self.assertIn("self.archive_browser_first_visible_started_at = time.perf_counter()", activation_body)
+        self.assertIn("if self._archive_browser_render_is_ready():", activation_body)
+        self.assertIn("def _schedule_archive_browser_first_visible_paint_marker", source)
+        self.assertIn("QTimer.singleShot(max(0, int(delay_ms)), self._handle_archive_browser_first_visible_paint)", source)
+        self.assertIn("def _refresh_archive_browser_view_stage_controls", source)
+        self.assertIn("def _refresh_archive_browser_view_stage_populate", source)
+        self.assertIn('self._log_archive_browser_render_stage("model_reset"', source)
+        self.assertIn("if self._archive_browser_render_is_ready():", refresh_body)
+        self.assertIn("self.archive_browser_refresh_pending = False", refresh_body)
+        self.assertIn("skipped=population_active", refresh_body)
+        self.assertIn("pending_refresh=start", refresh_body)
+
+    def test_archive_context_menu_does_not_auto_preview_or_build_family_graph(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        model_source = _read("cdmw/ui/archive_browser_model.py")
+        menu_start = source.index("        def _show_archive_tree_context_menu(self, position) -> None:")
+        menu_body = source[menu_start: source.index("        def _apply_archive_patch_result", menu_start)]
+        selection_start = source.index("        def _handle_archive_current_item_change(")
+        selection_body = source[selection_start: source.index("        def _schedule_archive_selection_state_update", selection_start)]
+        self.assertIn("def mousePressEvent(self, event) -> None:", model_source)
+        self.assertIn("if event.button() == Qt.RightButton:", model_source)
+        self.assertIn("event.accept()", model_source)
+        self.assertIn("archive_context_menu_selection_suppressed", source)
+        self.assertIn("self.archive_context_menu_selection_suppressed = True", menu_body)
+        self.assertIn("self.archive_context_menu_selection_suppressed = False", menu_body)
+        self.assertIn("if bool(getattr(self, \"archive_context_menu_selection_suppressed\", False)):", selection_body)
+        self.assertIn("preview_action.triggered.connect(lambda _checked=False, current_entry=entry: self._render_archive_preview(current_entry))", menu_body)
+        self.assertNotIn("self._render_archive_preview(entry)", menu_body)
+        self.assertNotIn("_archive_hkx_placement_candidates_for_entry(entry)", menu_body)
+        self.assertIn("if entry.extension in ARCHIVE_AUDIO_PATCH_EXTENSIONS:", menu_body)
+        self.assertIn("import_audio_action.triggered.connect(", menu_body)
+        self.assertIn("Archive context menu timing | build=", menu_body)
+
+    def test_archive_background_work_waits_for_browser_ready_or_first_paint(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        allowed_start = source.index("        def _archive_browser_background_work_allowed(self) -> bool:")
+        allowed_body = source[allowed_start: source.index("        def _schedule_archive_post_ready_background_work", allowed_start)]
+        finalize_start = source.index("        def _finalize_archive_scan_complete(")
+        finalize_body = source[finalize_start: source.index("        def _start_archive_enhanced_index_worker", finalize_start)]
+        icon_start = source.index("        def _schedule_archive_asset_catalog_icon_preload")
+        icon_body = source[icon_start: source.index("        def _queue_archive_asset_catalog_icon_warmup_rows", icon_start)]
+        self.assertIn('self.archive_browser_preload_state != "ready"', allowed_body)
+        self.assertIn("self.archive_browser_first_visible_paint_done", allowed_body)
+        self.assertIn("return False", allowed_body)
+        self.assertNotIn("self.archive_browser_ready_at", allowed_body)
+        self.assertIn("self.archive_deferred_enhanced_index_start_pending = True", finalize_body)
+        self.assertIn("self.archive_deferred_sidecar_start_pending = True", finalize_body)
+        self.assertIn("self._schedule_archive_post_ready_background_work()", finalize_body)
+        self.assertIn("if not self._archive_browser_background_work_allowed():", icon_body)
+        self.assertIn("self.archive_item_icon_preload_pending_after_ready = bool(self.archive_item_asset_catalog)", icon_body)
+
+    def test_startup_splash_progress_has_reserved_label(self) -> None:
+        source = _read("cdmw/ui/startup_splash_host.py")
+        self.assertIn("self.progress_label = QLabel", source)
+        self.assertIn("self.progress_label.setMaximumHeight(16)", source)
+        self.assertIn("self.detail_label.setMaximumHeight(34)", source)
+        self.assertNotIn("painter.drawText(QRectF(rail.left(), rail.top() - 20", source)
 
     def test_hidden_model_previews_stop_background_render_timers(self) -> None:
         widgets = _read("cdmw/ui/widgets.py")
@@ -107,7 +189,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
     def test_archive_browser_clear_and_expansion_are_progressive(self) -> None:
         source = _read("cdmw/ui/main_window.py")
         self.assertIn("def _begin_archive_tree_clear(self, on_complete: Callable[[], None]) -> bool:", source)
-        self.assertIn("self.archive_tree_clear_timer.start()", source)
+        self.assertIn("self.archive_tree_clear_timer.setInterval(12)", source)
         self.assertIn("def _continue_archive_tree_clear(self) -> None:", source)
         self.assertIn("self.archive_tree.takeTopLevelItem(0)", source)
         self.assertIn("clear_children: bool = True", source)

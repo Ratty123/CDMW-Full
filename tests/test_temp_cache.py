@@ -6,10 +6,21 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from cdmw.core.temp_cache import APP_TEMP_CACHE_ROOT_ENV, app_temp_cache_path, app_temp_root, prune_app_temp_cache
+from cdmw.core.temp_cache import (
+    APP_TEMP_CACHE_ROOT_ENV,
+    DEFAULT_APP_TEMP_CACHE_MAX_BYTES,
+    DEFAULT_APP_TEMP_CACHE_TARGET_BYTES,
+    app_temp_cache_path,
+    app_temp_root,
+    prune_app_temp_cache,
+)
 
 
 class AppTempCacheTests(unittest.TestCase):
+    def test_default_temp_cache_cap_stays_below_one_gb(self) -> None:
+        self.assertEqual(DEFAULT_APP_TEMP_CACHE_MAX_BYTES, 512 * 1024 * 1024)
+        self.assertEqual(DEFAULT_APP_TEMP_CACHE_TARGET_BYTES, 384 * 1024 * 1024)
+
     def test_app_temp_cache_path_uses_app_named_temp_root(self) -> None:
         root = Path("C:/temp_root")
         path = app_temp_cache_path("preview_cache", "abc", temp_root=root)
@@ -17,7 +28,7 @@ class AppTempCacheTests(unittest.TestCase):
         self.assertEqual(path, root / "CrimsonDesertModWorkbench" / "preview_cache" / "abc")
 
     def test_app_temp_root_prefers_configured_cache_root(self) -> None:
-        configured_root = Path("C:/Users/Ratrider/Desktop/CTF/archive_cache")
+        configured_root = Path(tempfile.gettempdir()) / "cdmw_test_archive_cache"
 
         with mock.patch.dict(os.environ, {APP_TEMP_CACHE_ROOT_ENV: str(configured_root)}):
             self.assertEqual(app_temp_root(), configured_root)

@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import os
 import re
+import json
+import subprocess
 import struct
+import tempfile
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.archive import (
@@ -1538,6 +1542,159 @@ def _build_archive_item_search_index_from_records(
     )
 
 
+def _rows_to_string_map(rows: object) -> Dict[str, str]:
+    result: Dict[str, str] = {}
+    if not isinstance(rows, list):
+        return result
+    for row in rows:
+        if isinstance(row, list) and len(row) >= 2:
+            key = str(row[0] or "").strip().lower()
+            value = str(row[1] or "").strip()
+            if key and value:
+                result[key] = value
+    return result
+
+
+def _try_build_archive_item_search_index_native(
+    entries: Sequence[ArchiveEntry],
+    sources: _ArchiveItemIndexSources,
+    *,
+    on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> Optional[ArchiveItemSearchIndex]:
+    if os.environ.get("CDMW_DISABLE_NATIVE_ITEM_INDEX", "").strip().lower() in {"1", "true", "yes"}:
+        return None
+    try:
+        from cdmw.core.archive_accelerator import (
+            _native_archive_accelerator_ready,
+            _native_diagnostic_args,
+            _write_browser_entries_tsv,
+            find_native_archive_accelerator,
+        )
+        from cdmw.core.common import hidden_subprocess_kwargs
+    except Exception:
+        return None
+    binary = find_native_archive_accelerator()
+    if not _native_archive_accelerator_ready(binary) or binary is None:
+        return None
+    if sources.iteminfo_entry is None:
+        return None
+    try:
+        with tempfile.TemporaryDirectory(prefix="cdmw_native_item_index_") as temp_dir:
+            temp_path = Path(temp_dir)
+            entries_path = temp_path / "entries.tsv"
+            report_path = temp_path / "item_index_report.json"
+            payload_root = temp_path / "payloads"
+            payload_root.mkdir(parents=True, exist_ok=True)
+            _write_browser_entries_tsv(entries_path, entries)
+
+            def write_payload(name: str, entry: Optional[ArchiveEntry]) -> None:
+                if entry is None:
+                    return
+                data, _decompressed, _note = read_archive_entry_data(entry, stop_event=stop_event)
+                (payload_root / name).write_bytes(data)
+
+            write_payload("iteminfo.bin", sources.iteminfo_entry)
+            write_payload("stringinfo.bin", sources.stringinfo_entry)
+            write_payload("partprefabdyeslotinfo.bin", sources.part_prefab_dye_slot_entry)
+            for language_code, loc_entry in sources.localization_entries.items():
+                write_payload(f"loc_{language_code}.bin", loc_entry)
+            raise_if_cancelled(stop_event)
+            completed = subprocess.run(
+                [
+                    str(binary),
+                    "item-index-job",
+                    str(entries_path),
+                    str(payload_root),
+                    str(report_path),
+                    *_native_diagnostic_args(),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=180.0,
+                check=False,
+                **hidden_subprocess_kwargs(),
+            )
+            raise_if_cancelled(stop_event)
+            if completed.returncode != 0 or not report_path.is_file():
+                return None
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+    except RunCancelled:
+        raise
+    except Exception as exc:
+        if on_log is not None:
+            on_log(f"Item-name search: native item index unavailable; falling back to Python: {exc}")
+        return None
+    if not isinstance(report, Mapping) or report.get("status") != "ok":
+        return None
+    items: List[ArchiveItemRecord] = []
+    for row in report.get("items", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        prefab_hashes = [int(value) for value in row.get("prefab_hashes", []) or []]
+        model_stems = [str(value) for value in row.get("model_stems", []) or [] if str(value or "").strip()]
+        pac_files = [str(value) for value in row.get("pac_files", []) or [] if str(value or "").strip()]
+        icon_paths = [str(value) for value in row.get("icon_paths", []) or [] if str(value or "").strip()]
+        localized_names = tuple(str(value) for value in row.get("localized_names", []) or [] if str(value or "").strip())
+        material_tags = [str(value) for value in row.get("material_tags", []) or [] if str(value or "").strip()]
+        item = ArchiveItemRecord(
+            item_id=int(row.get("item_id") or 0),
+            internal_name=str(row.get("internal_name") or ""),
+            display_name=str(row.get("display_name") or ""),
+            localized_names=localized_names,
+            prefab_hashes=prefab_hashes,
+            model_stems=model_stems,
+            pac_files=pac_files,
+            icon_paths=icon_paths,
+            material_tags=material_tags,
+        )
+        item.table_evidence = merge_table_evidence(
+            build_item_table_evidence(
+                item_id=item.item_id,
+                internal_name=item.internal_name,
+                display_name=item.display_name,
+                localized_names=item.localized_names,
+                prefab_hashes=tuple(item.prefab_hashes),
+                model_stems=tuple(item.model_stems),
+                icon_paths=tuple(item.icon_paths),
+            ),
+            _material_evidence_for_item(item, item.material_tags),
+        )
+        if item.internal_name and (item.pac_files or item.model_stems):
+            items.append(item)
+    pac_to_items: Dict[str, List[ArchiveItemRecord]] = {}
+    for item in items:
+        for pac_name in item.pac_files:
+            pac_to_items.setdefault(pac_name, []).append(item)
+    model_base_aliases = _rows_to_string_map(report.get("model_base_aliases"))
+    model_base_display_names = _rows_to_string_map(report.get("model_base_display_names"))
+    model_base_exact_display_names = _rows_to_string_map(report.get("model_base_exact_display_names"))
+    model_base_related_display_names = _rows_to_string_map(report.get("model_base_related_display_names"))
+    for base, terms in list(model_base_aliases.items()):
+        for alias_base in (*iter_archive_character_equipment_root_alias_stems(base), *iter_archive_equipment_model_alias_stems(base)):
+            existing = model_base_aliases.get(alias_base, "")
+            model_base_aliases[alias_base] = f"{existing} {terms}".strip() if existing else terms
+            display = model_base_display_names.get(base, "")
+            if display:
+                _add_display_name(model_base_display_names, alias_base, display)
+                _add_display_name(model_base_related_display_names, alias_base, display)
+    if on_log is not None:
+        on_log(
+            "Item-name search: native item index built "
+            f"{len(items):,} linked item(s), "
+            f"{int(report.get('model_hash_count') or 0):,} model hash candidate(s)."
+        )
+    return ArchiveItemSearchIndex(
+        items=items,
+        pac_to_items=pac_to_items,
+        model_base_aliases=model_base_aliases,
+        model_base_display_names=model_base_display_names,
+        model_base_exact_display_names=model_base_exact_display_names,
+        model_base_related_display_names=model_base_related_display_names,
+        asset_catalog=_build_archive_asset_catalog_entries(items),
+    )
+
+
 def build_archive_item_search_index(
     entries: Sequence[ArchiveEntry],
     *,
@@ -1546,6 +1703,14 @@ def build_archive_item_search_index(
 ) -> ArchiveItemSearchIndex:
     try:
         sources = _collect_archive_item_index_sources(entries, stop_event=stop_event)
+        native_index = _try_build_archive_item_search_index_native(
+            entries,
+            sources,
+            on_log=on_log,
+            stop_event=stop_event,
+        )
+        if native_index is not None:
+            return native_index
         loc_tables = _parse_archive_localization_tables_from_sources(
             sources,
             on_log=on_log,

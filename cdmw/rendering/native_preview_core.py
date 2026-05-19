@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -110,6 +111,7 @@ class NativePreviewCoreAttempt:
     diagnostics: Dict[str, Any] = field(default_factory=dict)
     elapsed_ms: float = 0.0
     report_path: str = ""
+    job_root_path: str = ""
     backend: str = NATIVE_PREVIEW_CORE_BACKEND_ID
 
     @property
@@ -582,31 +584,38 @@ def run_native_preview_core_preview_job(
                 stop_event=stop_event,
             )
     except RunCancelled:
+        shutil.rmtree(job_root, ignore_errors=True)
         raise
     except Exception as exc:
+        shutil.rmtree(job_root, ignore_errors=True)
         return NativePreviewCoreAttempt(
             status="error",
             fallback_reason=f"native preview-core launch failed: {exc}",
             elapsed_ms=max(0.0, (time.perf_counter() - started) * 1000.0),
             report_path=str(report_path),
+            job_root_path=str(job_root),
         )
     elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
     if returncode != 0:
         detail = (stderr_text or stdout_text or "").strip()
+        shutil.rmtree(job_root, ignore_errors=True)
         return NativePreviewCoreAttempt(
             status="error",
             fallback_reason=f"native preview-core exited with code {returncode}: {detail[:500]}",
             elapsed_ms=elapsed_ms,
             report_path=str(report_path),
+            job_root_path=str(job_root),
         )
     try:
         report = json.loads(report_path.read_text(encoding="utf-8"))
     except Exception as exc:
+        shutil.rmtree(job_root, ignore_errors=True)
         return NativePreviewCoreAttempt(
             status="error",
             fallback_reason=f"native preview-core report unavailable: {exc}",
             elapsed_ms=elapsed_ms,
             report_path=str(report_path),
+            job_root_path=str(job_root),
         )
     if not isinstance(report, Mapping):
         report = {"status": "error", "message": "native preview-core report was not an object"}
@@ -617,11 +626,15 @@ def run_native_preview_core_preview_job(
     report.setdefault("native_preview_core_binary_size", binary_signature[1])
     if use_service and service_pid > 0:
         report.setdefault("native_preview_core_process_pid", service_pid)
-    if cache_prune_report.get("removed_files"):
-        report.setdefault("native_preview_core_cache_pruned_files", cache_prune_report.get("removed_files", 0))
-        report.setdefault("native_preview_core_cache_pruned_bytes", cache_prune_report.get("removed_bytes", 0))
-    report.setdefault("native_preview_core_dds_cache_bytes", cache_prune_report.get("bytes", 0))
-    report.setdefault("native_preview_core_dds_cache_files", cache_prune_report.get("files", 0))
+    post_cache_prune_report = prune_native_preview_core_cache(cache_root)
+    removed_files = int(cache_prune_report.get("removed_files", 0) or 0) + int(post_cache_prune_report.get("removed_files", 0) or 0)
+    removed_bytes = int(cache_prune_report.get("removed_bytes", 0) or 0) + int(post_cache_prune_report.get("removed_bytes", 0) or 0)
+    if removed_files:
+        report.setdefault("native_preview_core_cache_pruned_files", removed_files)
+        report.setdefault("native_preview_core_cache_pruned_bytes", removed_bytes)
+    report.setdefault("native_preview_core_dds_cache_bytes", post_cache_prune_report.get("bytes", 0))
+    report.setdefault("native_preview_core_dds_cache_files", post_cache_prune_report.get("files", 0))
+    report.setdefault("native_preview_core_job_root", str(job_root))
     status = str(report.get("status") or "error").strip().lower()
     package_path = str(report.get("package_path") or "").strip()
     fallback_reason = str(report.get("fallback_reason") or report.get("message") or "").strip()
@@ -632,6 +645,7 @@ def run_native_preview_core_preview_job(
         diagnostics=dict(report),
         elapsed_ms=elapsed_ms,
         report_path=str(report_path),
+        job_root_path=str(job_root),
     )
 
 

@@ -27,6 +27,7 @@ from cdmw.models import (
     PreparedModelPreviewData,
     PreviewMaterialTextureInput,
     clamp_model_preview_render_settings,
+    RunCancelled,
 )
 from cdmw.rendering.material_channels import (
     MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION,
@@ -1874,6 +1875,7 @@ def write_isolated_qtquick3d_preview_package(
     prefer_direct_dds: bool = False,
     display_mode: str = "replacement_only",
     editor_workspace: str = "",
+    stop_event: object = None,
 ) -> Path:
     if not isinstance(prepared_preview, PreparedModelPreviewData):
         raise TypeError("prepared_preview must be PreparedModelPreviewData")
@@ -1909,6 +1911,8 @@ def write_isolated_qtquick3d_preview_package(
     cloth_constraint_count = 0
     legacy_pbr_cache: Dict[Tuple[str, int], Dict[str, str]] = {}
     for batch_index, batch in enumerate(prepared_batches):
+        if stop_event is not None and getattr(stop_event, "is_set", lambda: False)():
+            raise RunCancelled("D3D11 package write cancelled.")
         if not isinstance(batch, PreparedModelPreviewBatch):
             continue
         batch = _materialized_in_memory_batch(
@@ -1927,6 +1931,8 @@ def write_isolated_qtquick3d_preview_package(
         usable_blob = blob[: vertex_count * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES]
         geometry_path = geometry_dir / f"batch_{batch_index:03d}.bin"
         geometry_path.write_bytes(usable_blob)
+        if stop_event is not None and getattr(stop_event, "is_set", lambda: False)():
+            raise RunCancelled("D3D11 package write cancelled.")
         editor_identity = _write_editor_identity_blob(
             package_dir,
             geometry_dir,

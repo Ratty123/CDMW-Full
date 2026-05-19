@@ -441,6 +441,14 @@ class NativePreviewCoreTests(unittest.TestCase):
             self.assertFalse(old_file.exists())
             self.assertTrue(new_file.exists())
 
+    def test_native_preview_core_tracks_job_root_and_prunes_after_job(self) -> None:
+        source = Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8")
+
+        self.assertIn("job_root_path", source)
+        self.assertIn('report.setdefault("native_preview_core_job_root", str(job_root))', source)
+        self.assertIn("post_cache_prune_report = prune_native_preview_core_cache(cache_root)", source)
+        self.assertIn("shutil.rmtree(job_root, ignore_errors=True)", source)
+
     def test_static_native_material_index_prefers_exact_sidecars(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
 
@@ -780,7 +788,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("Texture2D emissive_tex : register(t9)", source)
         self.assertIn("batch.emissive_dds = dds_slot_source(object, \"emissive\")", source)
         self.assertIn("batch.emissive_intensity = std::clamp(json_float_field(object, \"emissive_intensity\"", source)
-        self.assertIn("load_batch_texture(batch.emissive_dds, batch.emissive_png, batch.emissive_srv, \"emissive\")", source)
+        self.assertIn(
+            "load_batch_texture(batch.emissive_dds, batch.emissive_png, batch.emissive_srv, \"emissive\", stats, batch.live_texture_bytes)",
+            source,
+        )
         self.assertIn("emissive_tex.Sample(preview_sampler, uv)", source)
 
     def test_d3d11_preview_uses_procedural_reflection_for_metal_materials(self) -> None:

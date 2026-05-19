@@ -847,6 +847,42 @@ class AttachmentSocketDocument:
 
 
 @dataclass(slots=True)
+class AttachmentPartInOutSocketInfo:
+    part_name: str = ""
+    in_socket_bone: str = ""
+    out_socket_bone: str = ""
+    in_child_socket_bone: str = ""
+    out_child_socket_bone: str = ""
+    bag_socket_bone: str = ""
+    vehicle_bag_socket_bone: str = ""
+    weapon_case_part: str = ""
+    visible: str = ""
+    source_path: str = ""
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class AttachmentPartInOutDocument:
+    source_path: str = ""
+    rows: Tuple[AttachmentPartInOutSocketInfo, ...] = ()
+
+
+@dataclass(slots=True)
+class AttachmentPartInOutPatchDiff:
+    part_name: str = ""
+    field_name: str = ""
+    old_value: str = ""
+    new_value: str = ""
+
+
+@dataclass(slots=True)
+class AttachmentPartInOutPatchResult:
+    text: str = ""
+    diffs: Tuple[AttachmentPartInOutPatchDiff, ...] = ()
+    patched_part_names: Tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
 class AttachmentPlacementEvidence:
     source_path: str = ""
     source_kind: str = ""

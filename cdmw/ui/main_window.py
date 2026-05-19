@@ -45,6 +45,7 @@ from cdmw.core.archive import (
     read_archive_entry_data,
 )
 from cdmw.core.archive_accelerator import (
+    build_archive_basic_indexes_accelerated,
     prepare_archive_browser_state_accelerated,
     scan_archive_entries_cached_accelerated,
 )
@@ -740,9 +741,26 @@ def run_gui() -> int:
                 return
             try:
                 user32 = ctypes.windll.user32
-                user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
-                user32.SendMessageW.restype = ctypes.c_ssize_t
-                user32.SendMessageW(ctypes.c_void_p(hwnd), int(message), int(wparam), int(lparam))
+                result = ctypes.c_size_t(0)
+                user32.SendMessageTimeoutW.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.c_uint,
+                    ctypes.c_size_t,
+                    ctypes.c_ssize_t,
+                    ctypes.c_uint,
+                    ctypes.c_uint,
+                    ctypes.POINTER(ctypes.c_size_t),
+                ]
+                user32.SendMessageTimeoutW.restype = ctypes.c_ssize_t
+                user32.SendMessageTimeoutW(
+                    ctypes.c_void_p(hwnd),
+                    int(message),
+                    int(wparam),
+                    int(lparam),
+                    0x0002,
+                    250,
+                    ctypes.byref(result),
+                )
             except Exception:
                 return
 
@@ -767,15 +785,27 @@ def run_gui() -> int:
                     ctypes.cast(buffer, ctypes.c_void_p),
                 )
                 user32 = ctypes.windll.user32
-                user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_void_p]
-                user32.SendMessageW.restype = ctypes.c_ssize_t
-                result = user32.SendMessageW(
+                result_value = ctypes.c_size_t(0)
+                user32.SendMessageTimeoutW.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.c_uint,
+                    ctypes.c_size_t,
+                    ctypes.c_void_p,
+                    ctypes.c_uint,
+                    ctypes.c_uint,
+                    ctypes.POINTER(ctypes.c_size_t),
+                ]
+                user32.SendMessageTimeoutW.restype = ctypes.c_ssize_t
+                result = user32.SendMessageTimeoutW(
                     ctypes.c_void_p(hwnd),
                     self._WM_COPYDATA,
                     int(self.winId()),
                     ctypes.byref(cds),
+                    0x0002,
+                    750,
+                    ctypes.byref(result_value),
                 )
-                return bool(result)
+                return bool(result and result_value.value)
             except Exception:
                 return False
 
@@ -2575,58 +2605,31 @@ def run_gui() -> int:
                         name_search_index = cached_name_search_index
                     else:
                         derived_cache_needs_write = bool(entries)
+                    enhanced_index_needs_build = bool(entries and name_search_index is None)
                     timings.setdefault("item_search_index_s", 0.0)
                 else:
-                    derived_cache_needs_write = bool(entries)
-                    self.log_message.emit("Building item-name search index...")
-                    self.progress_changed.emit(0, 0, "Building item-name search index...")
-                    item_index_started_at = time.perf_counter()
-                    try:
-                        item_index = build_archive_item_search_index(
-                            entries,
-                            on_log=self.log_message.emit,
-                            stop_event=self.stop_event,
-                        )
-                        item_search_aliases = dict(item_index.model_base_aliases)
-                        item_display_names = dict(getattr(item_index, "model_base_display_names", {}) or {})
-                        item_exact_display_names = dict(getattr(item_index, "model_base_exact_display_names", {}) or {})
-                        item_related_display_names = dict(getattr(item_index, "model_base_related_display_names", {}) or {})
-                        item_asset_catalog = [
-                            row.to_cache_dict()
-                            for row in getattr(item_index, "asset_catalog", [])
-                            if hasattr(row, "to_cache_dict")
-                        ]
-                    except RunCancelled:
-                        raise
-                    except Exception as exc:
-                        self.log_message.emit(f"Warning: item-name search index unavailable: {exc}")
-                    timings["item_search_index_s"] = max(0.0, float(time.perf_counter() - item_index_started_at))
+                    derived_cache_needs_write = False
+                    enhanced_index_needs_build = bool(entries)
+                    self.log_message.emit("Archive enhanced indexes are stale or missing; deferring item-name and name-search indexing until after the browser opens.")
+                    self.progress_changed.emit(0, 0, "Deferring enhanced archive indexes until after initial browser render...")
+                    timings["item_search_index_s"] = 0.0
                 self.log_message.emit("Building archive path lookup index...")
                 self.progress_changed.emit(0, 0, "Building archive path lookup index...")
                 path_index_started_at = time.perf_counter()
-                path_index = build_archive_entry_path_index(entries)
-                timings["entry_path_index_s"] = max(0.0, float(time.perf_counter() - path_index_started_at))
-                self.log_message.emit("Building archive basename lookup index...")
-                self.progress_changed.emit(0, 0, "Building archive basename lookup index...")
-                basename_index_started_at = time.perf_counter()
-                basename_index = build_archive_entry_basename_index(entries)
-                timings["entry_basename_index_s"] = max(0.0, float(time.perf_counter() - basename_index_started_at))
-                self.log_message.emit("Building archive extension lookup index...")
-                self.progress_changed.emit(0, 0, "Building archive extension lookup index...")
-                extension_index_started_at = time.perf_counter()
-                extension_index = build_archive_entry_extension_index(entries)
-                timings["entry_extension_index_s"] = max(0.0, float(time.perf_counter() - extension_index_started_at))
+                path_index, basename_index, extension_index, native_basic_indexes_used = build_archive_basic_indexes_accelerated(
+                    entries,
+                    native_enabled=self.native_archive_acceleration,
+                    on_progress=self.progress_changed.emit,
+                    stop_event=self.stop_event,
+                )
+                basic_index_elapsed = max(0.0, float(time.perf_counter() - path_index_started_at))
+                timings["entry_path_index_s"] = basic_index_elapsed
+                timings["entry_basename_index_s"] = 0.0
+                timings["entry_extension_index_s"] = 0.0
+                if native_basic_indexes_used:
+                    self.log_message.emit("Built archive lookup indexes with native helper.")
                 if name_search_index is None:
-                    self.log_message.emit("Building archive name search index...")
-                    self.progress_changed.emit(0, 0, "Building archive name search index...")
-                    name_search_index_started_at = time.perf_counter()
-                    name_search_index = build_archive_name_search_index(
-                        entries,
-                        item_search_aliases=item_search_aliases,
-                        on_progress=self.progress_changed.emit,
-                        stop_event=self.stop_event,
-                    )
-                    timings["entry_name_search_index_s"] = max(0.0, float(time.perf_counter() - name_search_index_started_at))
+                    timings["entry_name_search_index_s"] = 0.0
                 else:
                     self.log_message.emit("Loaded archive name search index from derived cache.")
                     timings["entry_name_search_index_s"] = 0.0
@@ -2713,6 +2716,8 @@ def run_gui() -> int:
                         "item_related_display_names": item_related_display_names,
                         "item_asset_catalog": item_asset_catalog,
                         "derived_cache_needs_write": derived_cache_needs_write,
+                        "enhanced_index_needs_build": enhanced_index_needs_build,
+                        "archive_native_derived_cache_ready": bool(native_basic_indexes_used),
                         "game_executable_fingerprints": self.updated_game_executable_fingerprints,
                         "timings": timings,
                         "timing_summary": timing_summary,
@@ -2787,6 +2792,69 @@ def run_gui() -> int:
                 self.log_message.emit(f"Lightweight archive derived index cache write finished in {elapsed:.2f}s.")
             except Exception as exc:
                 self.log_message.emit(f"Warning: archive derived index cache could not be written: {exc}")
+            finally:
+                if gc_was_enabled:
+                    gc.enable()
+                self.finished.emit()
+
+    class ArchiveEnhancedIndexWorker(QObject):
+        log_message = Signal(str)
+        progress_changed = Signal(int, int, str)
+        completed = Signal(object)
+        error = Signal(str)
+        finished = Signal()
+
+        def __init__(self, entries: Sequence[ArchiveEntry]):
+            super().__init__()
+            self.entries = entries
+            self.stop_event = threading.Event()
+
+        def stop(self) -> None:
+            self.stop_event.set()
+
+        @Slot()
+        def run(self) -> None:
+            gc_was_enabled = gc.isenabled()
+            if gc_was_enabled:
+                gc.disable()
+            try:
+                self.log_message.emit("Building enhanced archive item-name index in background...")
+                item_index = build_archive_item_search_index(
+                    self.entries,
+                    on_log=self.log_message.emit,
+                    stop_event=self.stop_event,
+                )
+                item_search_aliases = dict(item_index.model_base_aliases)
+                item_display_names = dict(getattr(item_index, "model_base_display_names", {}) or {})
+                item_exact_display_names = dict(getattr(item_index, "model_base_exact_display_names", {}) or {})
+                item_related_display_names = dict(getattr(item_index, "model_base_related_display_names", {}) or {})
+                item_asset_catalog = [
+                    row.to_cache_dict()
+                    for row in getattr(item_index, "asset_catalog", [])
+                    if hasattr(row, "to_cache_dict")
+                ]
+                self.log_message.emit("Building enhanced archive name-search index in background...")
+                name_search_index = build_archive_name_search_index(
+                    self.entries,
+                    item_search_aliases=item_search_aliases,
+                    on_progress=self.progress_changed.emit,
+                    stop_event=self.stop_event,
+                )
+                self.completed.emit(
+                    {
+                        "item_search_aliases": item_search_aliases,
+                        "item_display_names": item_display_names,
+                        "item_exact_display_names": item_exact_display_names,
+                        "item_related_display_names": item_related_display_names,
+                        "item_asset_catalog": item_asset_catalog,
+                        "name_search_index": name_search_index,
+                    }
+                )
+            except RunCancelled as exc:
+                if not self.stop_event.is_set():
+                    self.error.emit(str(exc))
+            except Exception as exc:
+                self.error.emit(str(exc))
             finally:
                 if gc_was_enabled:
                     gc.enable()
@@ -2901,6 +2969,13 @@ def run_gui() -> int:
                             break
                     if prepared_path:
                         self.icon_prepared.emit(self.generation, prepared_key, prepared_path, prepared_note)
+                    else:
+                        self.icon_prepared.emit(
+                            self.generation,
+                            prepared_key,
+                            "",
+                            prepared_note or "Recovered icon path could not be resolved in the loaded archive index.",
+                        )
             finally:
                 self.finished.emit(self.generation)
 
@@ -4142,6 +4217,7 @@ def run_gui() -> int:
                     backend=self.backend,
                     enable_material_combiner=True,
                     prefer_direct_dds=self.prefer_direct_dds,
+                    stop_event=self.stop_event,
                 )
                 elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
                 if not self.stop_event.is_set():
@@ -4258,6 +4334,7 @@ def run_gui() -> int:
                     prefer_direct_dds=True,
                     display_mode=self.display_mode,
                     editor_workspace=self.editor_workspace,
+                    stop_event=self.stop_event,
                 )
                 package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
                 if not self.stop_event.is_set():
@@ -4855,6 +4932,9 @@ def run_gui() -> int:
             self.archive_isolated_renderer_process: Optional[QProcess] = None
             self.archive_isolated_renderer_active_package: Optional[Path] = None
             self.archive_isolated_renderer_active_process: Optional[QProcess] = None
+            self.archive_isolated_renderer_pending_package: Optional[Path] = None
+            self.archive_isolated_renderer_pending_status_file: Optional[Path] = None
+            self.archive_isolated_renderer_pending_package_source = ""
             self.archive_isolated_renderer_retired_packages: List[Path] = []
             self.archive_isolated_renderer_status_file: Optional[Path] = None
             self.archive_isolated_renderer_status_mtime = 0.0
@@ -4896,6 +4976,10 @@ def run_gui() -> int:
             self.archive_item_display_names: Dict[str, str] = {}
             self.archive_item_exact_display_names: Dict[str, str] = {}
             self.archive_item_related_display_names: Dict[str, str] = {}
+            self.archive_enhanced_index_state = "idle"
+            self.archive_native_derived_cache_ready = False
+            self.archive_enhanced_index_thread: Optional[QThread] = None
+            self.archive_enhanced_index_worker: Optional[ArchiveEnhancedIndexWorker] = None
             self.archive_browser_row_display_cache: OrderedDict[
                 Tuple[str, str, int, bool],
                 ArchiveBrowserRowPayload,
@@ -4910,6 +4994,11 @@ def run_gui() -> int:
                 Tuple[Tuple[str, ...], str],
                 Tuple[str, str],
             ] = OrderedDict()
+            self.archive_item_icon_negative_cache: OrderedDict[
+                Tuple[Tuple[str, ...], str],
+                Tuple[float, str],
+            ] = OrderedDict()
+            self.archive_item_icon_prepared_callbacks: List[Callable[[Tuple[Tuple[str, ...], str]], None]] = []
             self.archive_item_icon_preload_queue: List[Dict[str, object]] = []
             self.archive_item_icon_preload_next_index = 0
             self.archive_item_icon_pixmap_cache_limit = 1200
@@ -4932,6 +5021,20 @@ def run_gui() -> int:
             self.archive_tree_sort_order = "asc"
             self.archive_browser_refresh_pending = False
             self.archive_startup_autoload_defer_preview = False
+            self.archive_browser_preload_state = "idle"
+            self.archive_browser_render_signature: Tuple[object, ...] = ()
+            self.archive_browser_first_visible_paint_done = False
+            self.archive_browser_first_visible_started_at = 0.0
+            self.archive_browser_first_visible_painted_at = 0.0
+            self.archive_browser_ready_at = 0.0
+            self.archive_browser_render_started_at = 0.0
+            self.archive_browser_render_reason = ""
+            self.archive_context_menu_selection_suppressed = False
+            self.archive_deferred_background_start_pending = False
+            self.archive_deferred_enhanced_index_start_pending = False
+            self.archive_deferred_derived_cache_write_pending = False
+            self.archive_deferred_sidecar_start_pending = False
+            self.archive_item_icon_preload_pending_after_ready = False
             self._activate_archive_browser_on_scan_complete = True
             self.archive_tree_child_folders: Dict[Tuple[str, ...], List[Tuple[str, Tuple[str, ...]]]] = {}
             self.archive_tree_direct_files: Dict[Tuple[str, ...], List[int]] = {}
@@ -5010,15 +5113,15 @@ def run_gui() -> int:
             self.archive_selection_state_timer.timeout.connect(self._update_archive_selection_state)
             self.archive_tree_population_timer = QTimer(self)
             self.archive_tree_population_timer.setSingleShot(True)
-            self.archive_tree_population_timer.setInterval(0)
+            self.archive_tree_population_timer.setInterval(12)
             self.archive_tree_population_timer.timeout.connect(self._continue_archive_tree_population)
             self.archive_tree_category_population_timer = QTimer(self)
             self.archive_tree_category_population_timer.setSingleShot(True)
-            self.archive_tree_category_population_timer.setInterval(0)
+            self.archive_tree_category_population_timer.setInterval(12)
             self.archive_tree_category_population_timer.timeout.connect(self._continue_archive_category_population)
             self.archive_tree_clear_timer = QTimer(self)
             self.archive_tree_clear_timer.setSingleShot(True)
-            self.archive_tree_clear_timer.setInterval(0)
+            self.archive_tree_clear_timer.setInterval(12)
             self.archive_tree_clear_timer.timeout.connect(self._continue_archive_tree_clear)
             self.archive_item_icon_preload_timer = QTimer(self)
             self.archive_item_icon_preload_timer.setSingleShot(True)
@@ -8487,9 +8590,13 @@ def run_gui() -> int:
             if widget is self.workflow_tab:
                 self._apply_workflow_content_tab_layout()
             elif widget is self.archive_browser_tab:
+                self._note_archive_ui_activity()
+                self.archive_browser_first_visible_started_at = time.perf_counter()
+                if self._archive_browser_render_is_ready():
+                    self._schedule_archive_browser_first_visible_paint_marker()
                 QTimer.singleShot(
                     80,
-                    lambda: self._refresh_archive_browser_if_pending()
+                    lambda: self._refresh_archive_browser_if_pending("tab_activation")
                     if self._is_tool_visible_or_current(self.archive_browser_tab)
                     else None,
                 )
@@ -12503,10 +12610,61 @@ def run_gui() -> int:
             self._update_window_menu_state()
             self._save_settings()
 
-        def _refresh_archive_browser_view(self, on_complete: Optional[Callable[[], None]] = None) -> None:
+        def _refresh_archive_browser_view(
+            self,
+            on_complete: Optional[Callable[[], None]] = None,
+            *,
+            reason: str = "refresh",
+        ) -> None:
+            if self._archive_browser_render_is_ready():
+                self.append_archive_log(
+                    f"Archive Browser activation timing | cause={reason} | skipped=ready",
+                    verbose=True,
+                )
+                if on_complete is not None:
+                    QTimer.singleShot(0, on_complete)
+                return
             self._cancel_archive_tree_population()
+            self.archive_browser_preload_state = "rendering"
+            self.archive_browser_render_signature = ()
+            self.archive_browser_render_started_at = time.perf_counter()
+            self.archive_browser_render_reason = reason
+            QTimer.singleShot(
+                0,
+                lambda on_complete=on_complete, reason=reason: self._refresh_archive_browser_view_stage_controls(
+                    on_complete=on_complete,
+                    reason=reason,
+                ),
+            )
+
+        def _log_archive_browser_render_stage(self, stage: str, started_at: float) -> None:
+            elapsed_ms = max(0.0, (time.perf_counter() - started_at) * 1000.0)
+            total_ms = 0.0
+            if self.archive_browser_render_started_at:
+                total_ms = max(0.0, (time.perf_counter() - self.archive_browser_render_started_at) * 1000.0)
+            self.append_archive_log(
+                "Archive Browser activation timing | "
+                f"cause={self.archive_browser_render_reason or 'refresh'} | "
+                f"stage={stage} | elapsed={elapsed_ms:.0f}ms | total={total_ms:.0f}ms",
+                verbose=True,
+            )
+
+        def _refresh_archive_browser_view_stage_controls(
+            self,
+            *,
+            on_complete: Optional[Callable[[], None]],
+            reason: str,
+        ) -> None:
+            if self._shutting_down:
+                return
+            if self._archive_browser_render_is_ready():
+                if on_complete is not None:
+                    QTimer.singleShot(0, on_complete)
+                return
+            started_at = time.perf_counter()
             self._rebuild_archive_extension_filter_choices()
             self._rebuild_archive_structure_filter_controls()
+            self._log_archive_browser_render_stage("controls", started_at)
             rebuild_tree_index = self._archive_folder_tree_enabled() and not self.archive_tree_index_ready
             rebuild_category_index = (
                 self._archive_category_view_enabled()
@@ -12527,18 +12685,58 @@ def run_gui() -> int:
                     if on_complete is not None:
                         QTimer.singleShot(0, on_complete)
                 return
-            defer_default_selection = bool(getattr(self, "archive_startup_autoload_defer_preview", False))
+            defer_default_selection = bool(getattr(self, "archive_startup_autoload_defer_preview", False)) or (
+                reason == "tab_activation"
+                and self.archive_tree.currentItem() is None
+                and not self.archive_preview_showing_loose
+            )
             self.archive_startup_autoload_defer_preview = False
+            QTimer.singleShot(
+                0,
+                lambda rebuild_tree_index=rebuild_tree_index, on_complete=on_complete, defer_default_selection=defer_default_selection: self._refresh_archive_browser_view_stage_populate(
+                    rebuild_tree_index=rebuild_tree_index,
+                    on_complete=on_complete,
+                    defer_default_selection=defer_default_selection,
+                ),
+            )
+
+        def _refresh_archive_browser_view_stage_populate(
+            self,
+            *,
+            rebuild_tree_index: bool,
+            on_complete: Optional[Callable[[], None]],
+            defer_default_selection: bool,
+        ) -> None:
+            started_at = time.perf_counter()
             self._populate_archive_tree(
                 rebuild_index=rebuild_tree_index,
                 on_complete=on_complete,
                 defer_default_selection=defer_default_selection,
             )
+            self._log_archive_browser_render_stage("populate_call", started_at)
             self.archive_browser_refresh_pending = False
 
-        def _refresh_archive_browser_if_pending(self) -> None:
-            if self.archive_browser_refresh_pending:
-                self._refresh_archive_browser_view()
+        def _refresh_archive_browser_if_pending(self, reason: str = "pending_refresh") -> None:
+            if not self.archive_browser_refresh_pending:
+                return
+            if self._archive_browser_render_is_ready():
+                self.archive_browser_refresh_pending = False
+                self.append_archive_log(
+                    f"Archive Browser activation timing | cause={reason} | skipped=ready",
+                    verbose=True,
+                )
+                return
+            if self.archive_tree_population_active or self.archive_tree_category_population_active:
+                self.append_archive_log(
+                    f"Archive Browser activation timing | cause={reason} | skipped=population_active",
+                    verbose=True,
+                )
+                return
+            self.append_archive_log(
+                f"Archive Browser activation timing | cause={reason} | pending_refresh=start",
+                verbose=True,
+            )
+            self._refresh_archive_browser_view(reason=reason)
 
         def _refresh_or_defer_archive_browser_view(
             self,
@@ -12550,7 +12748,10 @@ def run_gui() -> int:
             if activate_tab:
                 self._activate_tool_widget(self.archive_browser_tab)
             if force_render or self._is_tool_visible_or_current(self.archive_browser_tab):
-                self._refresh_archive_browser_view(on_complete=on_complete)
+                self._refresh_archive_browser_view(
+                    on_complete=on_complete,
+                    reason="startup_preload" if force_render else "visible_refresh",
+                )
             else:
                 self.archive_browser_refresh_pending = True
                 self.archive_startup_autoload_defer_preview = False
@@ -14633,11 +14834,22 @@ def run_gui() -> int:
                     self.archive_derived_cache_worker.stop()
                 except Exception:
                     pass
+            if self.archive_enhanced_index_worker is not None:
+                try:
+                    self.archive_enhanced_index_worker.stop()
+                except Exception:
+                    pass
 
         def scan_archives(self, force_refresh: bool = False, *, activate_archive_tab: bool = True) -> None:
             self._cancel_archive_tree_population()
             self._archive_scan_progress_timer.stop()
             self._archive_scan_progress_pending = None
+            self._mark_archive_browser_render_stale()
+            self.archive_browser_first_visible_paint_done = False
+            self.archive_deferred_enhanced_index_start_pending = False
+            self.archive_deferred_derived_cache_write_pending = False
+            self.archive_deferred_sidecar_start_pending = False
+            self.archive_item_icon_preload_pending_after_ready = False
             if self._background_task_active():
                 return
             self._stop_archive_sidecar_worker()
@@ -14855,6 +15067,7 @@ def run_gui() -> int:
                 if isinstance(row, Mapping)
             ]
             self._clear_archive_asset_catalog_icon_cache()
+            self.archive_item_icon_preload_pending_after_ready = bool(self.archive_item_asset_catalog)
             self._schedule_archive_asset_catalog_icon_preload()
             self.archive_active_asset_catalog_scope = ""
             self.archive_clear_asset_scope_button.setVisible(False)
@@ -14865,6 +15078,9 @@ def run_gui() -> int:
             self.archive_derived_cache_write_pending = bool(
                 payload.get("derived_cache_needs_write") and self.archive_entries
             )
+            enhanced_index_needs_build = bool(payload.get("enhanced_index_needs_build") and self.archive_entries)
+            self.archive_enhanced_index_state = "warming" if enhanced_index_needs_build else "ready"
+            self.archive_native_derived_cache_ready = bool(payload.get("archive_native_derived_cache_ready"))
             self.archive_sidecar_entries_by_texture_path = (
                 payload.get("sidecar_entries_by_texture_path", {})
                 if isinstance(payload.get("sidecar_entries_by_texture_path"), Mapping)
@@ -15056,21 +15272,89 @@ def run_gui() -> int:
                 self.set_status_message(completion_text)
                 self.append_archive_log(completion_text)
                 self._set_archive_warmup_overlay(False)
-                if release_startup_after_render:
-                    if not self.archive_tree_population_active and not self.archive_tree_category_population_active:
-                        QTimer.singleShot(0, _release_startup_after_archive_render)
-                else:
+                if not release_startup_after_render:
                     _write_heartbeat("running")
                     self._release_startup_splash()
             finally:
                 self.archive_scan_finalize_pending = False
-                if self.archive_derived_cache_write_pending:
-                    QTimer.singleShot(0, self._start_archive_derived_index_cache_writer)
+                if self.archive_enhanced_index_state == "warming":
+                    self.archive_deferred_enhanced_index_start_pending = True
+                elif self.archive_derived_cache_write_pending:
+                    self.archive_deferred_derived_cache_write_pending = True
                 if start_sidecar_after_finalize:
-                    if self.worker_thread is None and self.archive_sidecar_thread is None:
-                        QTimer.singleShot(0, self._start_archive_sidecar_index_worker)
+                    self.archive_deferred_sidecar_start_pending = True
+                self._schedule_archive_post_ready_background_work()
                 if self.worker_thread is None:
                     self.set_busy(False, build_mode=False)
+
+        def _start_archive_enhanced_index_worker(self) -> None:
+            if self._shutting_down or not self.archive_entries:
+                self.archive_enhanced_index_state = "idle"
+                return
+            if self.archive_enhanced_index_thread is not None:
+                return
+            self.archive_enhanced_index_state = "warming"
+            self.archive_scan_progress_label.setText("Archive Browser ready. Enhanced item-name search is warming in the background...")
+            self.set_status_message("Enhanced archive search is warming in the background...")
+            worker = ArchiveEnhancedIndexWorker(tuple(self.archive_entries))
+            thread = QThread(self)
+            worker.moveToThread(thread)
+            thread.started.connect(worker.run)
+            worker.log_message.connect(self.append_log)
+            worker.log_message.connect(self.append_archive_log)
+            worker.progress_changed.connect(self._handle_archive_enhanced_index_progress)
+            worker.completed.connect(self._handle_archive_enhanced_index_complete)
+            worker.error.connect(self._handle_archive_enhanced_index_error)
+            worker.finished.connect(thread.quit)
+            worker.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
+            thread.finished.connect(self._cleanup_archive_enhanced_index_refs)
+            self.archive_enhanced_index_worker = worker
+            self.archive_enhanced_index_thread = thread
+            try:
+                thread.start(QThread.LowPriority)
+            except Exception:
+                thread.start()
+
+        def _handle_archive_enhanced_index_progress(self, current: int, total: int, detail: str) -> None:
+            if self._shutting_down:
+                return
+            detail_text = str(detail or "Building enhanced archive search...")
+            self.set_status_message(detail_text)
+
+        def _handle_archive_enhanced_index_complete(self, result: object) -> None:
+            if self._shutting_down:
+                return
+            payload = result if isinstance(result, Mapping) else {}
+            name_search_index = payload.get("name_search_index")
+            self.archive_name_search_index = name_search_index if isinstance(name_search_index, ArchiveNameSearchIndex) else None
+            self.archive_item_search_aliases = dict(payload.get("item_search_aliases", {}) or {})
+            self.archive_item_display_names = dict(payload.get("item_display_names", {}) or {})
+            self.archive_item_exact_display_names = dict(payload.get("item_exact_display_names", {}) or {})
+            self.archive_item_related_display_names = dict(payload.get("item_related_display_names", {}) or {})
+            self.archive_item_asset_catalog = [
+                dict(row)
+                for row in (payload.get("item_asset_catalog", []) or [])
+                if isinstance(row, Mapping)
+            ]
+            self.archive_enhanced_index_state = "ready"
+            self.archive_derived_cache_write_pending = True
+            self.archive_asset_catalog_button.setEnabled(bool(self.archive_item_asset_catalog))
+            self.archive_material_finder_button.setEnabled(bool(self._archive_material_catalog_rows()))
+            self._clear_archive_asset_catalog_icon_cache()
+            self._schedule_archive_asset_catalog_icon_preload()
+            self.append_archive_log("Enhanced archive item-name search is ready.")
+            self.set_status_message("Enhanced archive item-name search is ready.")
+            QTimer.singleShot(0, self._start_archive_derived_index_cache_writer)
+
+        def _handle_archive_enhanced_index_error(self, message: str) -> None:
+            self.archive_enhanced_index_state = "failed"
+            self.append_archive_log(f"Warning: enhanced archive search could not be built: {message}")
+            self.set_status_message("Enhanced archive search failed; direct archive browsing remains available.", error=True)
+
+        def _cleanup_archive_enhanced_index_refs(self) -> None:
+            self.archive_enhanced_index_thread = None
+            self.archive_enhanced_index_worker = None
 
         def _start_archive_derived_index_cache_writer(self) -> None:
             if self._shutting_down:
@@ -15437,8 +15721,134 @@ def run_gui() -> int:
                 self.archive_tree_sort_order,
             )
 
+        def _current_archive_browser_render_signature(self) -> Tuple[object, ...]:
+            return (
+                *self._current_archive_filter_signature(),
+                len(self.archive_entries),
+                len(self.archive_filtered_entries),
+                int(self.archive_filtered_dds_count),
+                bool(self.archive_tree_index_ready),
+                bool(self._archive_category_index_ready()) if self.archive_filtered_entries else False,
+                bool(self.archive_active_asset_catalog_scope),
+            )
+
+        def _archive_browser_render_is_ready(self) -> bool:
+            return (
+                self.archive_browser_preload_state == "ready"
+                and bool(self.archive_browser_render_signature)
+                and self.archive_browser_render_signature == self._current_archive_browser_render_signature()
+                and not self.archive_filters_dirty
+                and not self.archive_tree_population_active
+                and not self.archive_tree_category_population_active
+                and not self.archive_tree_clear_active
+            )
+
+        def _mark_archive_browser_render_stale(self) -> None:
+            if self.archive_browser_preload_state == "rendering":
+                return
+            self.archive_browser_preload_state = "stale" if self.archive_entries else "idle"
+            self.archive_browser_render_signature = ()
+            self.archive_browser_first_visible_paint_done = False
+
+        def _mark_archive_browser_render_ready(self, *, reason: str, on_complete: Optional[Callable[[], None]] = None) -> None:
+            self.archive_browser_preload_state = "ready"
+            self.archive_browser_render_signature = self._current_archive_browser_render_signature()
+            self.archive_browser_refresh_pending = False
+            self.archive_browser_ready_at = time.perf_counter()
+            self.append_archive_log(
+                f"Archive Browser activation timing | cause={reason} | state=ready | rows={len(self.archive_filtered_entries):,}",
+                verbose=True,
+            )
+            if self._is_tool_visible_or_current(self.archive_browser_tab):
+                self._schedule_archive_browser_first_visible_paint_marker()
+            self._schedule_archive_post_ready_background_work()
+            if on_complete is not None:
+                delay_ms = max(1, int(self.archive_selection_state_timer.interval()) + 1)
+                QTimer.singleShot(delay_ms, on_complete)
+
+        def _archive_browser_background_work_allowed(self) -> bool:
+            if self._shutting_down or self.archive_browser_preload_state != "ready":
+                return False
+            now = time.perf_counter()
+            if not self.archive_browser_first_visible_paint_done:
+                return False
+            return (now - float(self.archive_browser_first_visible_painted_at or now)) >= 0.45
+
+        def _schedule_archive_browser_first_visible_paint_marker(self, delay_ms: int = 16) -> None:
+            if self._shutting_down or not self._is_tool_visible_or_current(self.archive_browser_tab):
+                return
+            try:
+                self.archive_tree.viewport().update()
+            except Exception:
+                pass
+            QTimer.singleShot(max(0, int(delay_ms)), self._handle_archive_browser_first_visible_paint)
+
+        def _schedule_archive_post_ready_background_work(self, delay_ms: Optional[int] = None) -> None:
+            if self.archive_deferred_background_start_pending or self._shutting_down:
+                return
+            self.archive_deferred_background_start_pending = True
+            if delay_ms is None:
+                delay_ms = 550 if self.archive_browser_first_visible_paint_done else 2000
+            QTimer.singleShot(max(0, int(delay_ms)), self._start_archive_deferred_background_work)
+
+        def _start_archive_deferred_background_work(self) -> None:
+            self.archive_deferred_background_start_pending = False
+            if self._shutting_down:
+                return
+            if not self._archive_browser_background_work_allowed():
+                self._schedule_archive_post_ready_background_work(
+                    250 if self._is_tool_visible_or_current(self.archive_browser_tab) else 1000
+                )
+                return
+            if (
+                self.archive_enhanced_index_thread is not None
+                or self.archive_derived_cache_thread is not None
+                or self.archive_sidecar_thread is not None
+            ):
+                self._schedule_archive_post_ready_background_work(900)
+                return
+            if self.archive_deferred_enhanced_index_start_pending and self.archive_enhanced_index_thread is None:
+                self.archive_deferred_enhanced_index_start_pending = False
+                self.append_archive_log("Archive Browser activation timing | cause=enhanced_index | start=deferred", verbose=True)
+                self._start_archive_enhanced_index_worker()
+                self._schedule_archive_post_ready_background_work(900)
+                return
+            elif self.archive_deferred_derived_cache_write_pending and self.archive_derived_cache_thread is None:
+                self.archive_deferred_derived_cache_write_pending = False
+                self._start_archive_derived_index_cache_writer()
+                self._schedule_archive_post_ready_background_work(900)
+                return
+            if self.archive_deferred_sidecar_start_pending:
+                self.archive_deferred_sidecar_start_pending = False
+                if self.worker_thread is None and self.archive_sidecar_thread is None:
+                    self.append_archive_log("Archive Browser activation timing | cause=sidecar_index | start=deferred", verbose=True)
+                    self._start_archive_sidecar_index_worker()
+                    self._schedule_archive_post_ready_background_work(900)
+                    return
+            if self.archive_item_icon_preload_pending_after_ready:
+                self.archive_item_icon_preload_pending_after_ready = False
+                self.append_archive_log("Archive Browser activation timing | cause=icon_warmup | start=deferred", verbose=True)
+                self._schedule_archive_asset_catalog_icon_preload(delay_ms=700)
+
+        def _handle_archive_browser_first_visible_paint(self) -> None:
+            if self._shutting_down or not self._is_tool_visible_or_current(self.archive_browser_tab):
+                return
+            if not self.archive_browser_first_visible_paint_done:
+                self.archive_browser_first_visible_paint_done = True
+                self.archive_browser_first_visible_painted_at = time.perf_counter()
+                elapsed_ms = max(
+                    0.0,
+                    (self.archive_browser_first_visible_painted_at - float(self.archive_browser_first_visible_started_at or self.archive_browser_first_visible_painted_at)) * 1000.0,
+                )
+                self.append_archive_log(
+                    f"Archive Browser activation timing | cause=first_paint | elapsed={elapsed_ms:.0f}ms",
+                    verbose=True,
+                )
+            self._schedule_archive_post_ready_background_work(550)
+
         def _mark_archive_filters_dirty(self) -> None:
             self.archive_filters_dirty = True
+            self._mark_archive_browser_render_stale()
             if self.archive_tree_clear_active:
                 self._cancel_archive_tree_clear()
                 pause_text = "Archive list update paused while filters are being edited. Press Apply Filters to refresh."
@@ -15669,6 +16079,7 @@ def run_gui() -> int:
         def _handle_archive_browser_view_mode_changed(self, _index: int) -> None:
             self._cancel_archive_tree_clear()
             self._cancel_archive_tree_population()
+            self._mark_archive_browser_render_stale()
             self.archive_tree.setRootIsDecorated(self._archive_tree_view_enabled())
             if self.worker_thread is not None:
                 self.archive_browser_refresh_pending = True
@@ -15742,6 +16153,7 @@ def run_gui() -> int:
             self._apply_archive_filter()
 
         def _apply_archive_filter(self) -> None:
+            self._mark_archive_browser_render_stale()
             if self.archive_active_asset_catalog_scope:
                 self.archive_active_asset_catalog_scope = ""
                 self.archive_clear_asset_scope_button.setVisible(False)
@@ -15805,6 +16217,7 @@ def run_gui() -> int:
             request_signature = self._current_archive_filter_signature()
             self.archive_filter_requested_signature = request_signature
             self.archive_filter_apply_pending = False
+            self._mark_archive_browser_render_stale()
             self.archive_scan_progress_label.setText("Preparing archive filter...")
             self.archive_scan_progress_bar.setRange(0, 0)
             self.archive_scan_progress_bar.setFormat("Working...")
@@ -16426,6 +16839,33 @@ def run_gui() -> int:
             texconv_key = self.texconv_path_edit.text().strip()
             return icon_paths, texconv_key
 
+        def _archive_item_icon_negative_note(
+            self,
+            prepared_key: Tuple[Tuple[str, ...], str],
+        ) -> str:
+            cached = self.archive_item_icon_negative_cache.get(prepared_key)
+            if cached is None:
+                return ""
+            recorded_at, note = cached
+            if time.monotonic() - float(recorded_at or 0.0) > 300.0:
+                self.archive_item_icon_negative_cache.pop(prepared_key, None)
+                return ""
+            self.archive_item_icon_negative_cache.move_to_end(prepared_key)
+            return str(note or "Icon preview could not be prepared.")
+
+        def _remember_archive_item_icon_negative(
+            self,
+            prepared_key: Tuple[Tuple[str, ...], str],
+            note: str,
+        ) -> None:
+            self.archive_item_icon_negative_cache[prepared_key] = (
+                time.monotonic(),
+                str(note or "Icon preview could not be prepared."),
+            )
+            self.archive_item_icon_negative_cache.move_to_end(prepared_key)
+            while len(self.archive_item_icon_negative_cache) > self.archive_item_icon_prepared_cache_limit:
+                self.archive_item_icon_negative_cache.popitem(last=False)
+
         def _clear_archive_asset_catalog_icon_cache(self) -> None:
             self.archive_item_icon_warmup_generation += 1
             self.archive_item_icon_preload_timer.stop()
@@ -16438,13 +16878,14 @@ def run_gui() -> int:
                     pass
             self.archive_item_icon_pixmap_cache.clear()
             self.archive_item_icon_prepared_path_cache.clear()
+            self.archive_item_icon_negative_cache.clear()
 
         def _cached_archive_asset_catalog_inventory_icon_pixmap(
             self,
             row: Mapping[str, object],
             size: int = 48,
             *,
-            allow_sync_prepare: bool = True,
+            allow_sync_prepare: bool = False,
         ) -> Tuple[Optional[QPixmap], str]:
             cache_key = self._archive_asset_catalog_icon_cache_key(row, size)
             icon_paths, requested_size, texconv_key = cache_key
@@ -16497,6 +16938,9 @@ def run_gui() -> int:
                 while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit:
                     self.archive_item_icon_pixmap_cache.popitem(last=False)
                 return result
+            negative_note = self._archive_item_icon_negative_note(prepared_key)
+            if negative_note:
+                return None, negative_note
             if not allow_sync_prepare:
                 return None, "Icon preview is warming in the background."
             result = self._archive_asset_catalog_inventory_icon_pixmap(row, requested_size)
@@ -16507,6 +16951,10 @@ def run_gui() -> int:
             return result
 
         def _schedule_archive_asset_catalog_icon_preload(self, delay_ms: int = 900) -> None:
+            if not self._archive_browser_background_work_allowed():
+                self.archive_item_icon_preload_pending_after_ready = bool(self.archive_item_asset_catalog)
+                return
+            self.archive_item_icon_preload_pending_after_ready = False
             self.archive_item_icon_preload_timer.stop()
             self.archive_item_icon_preload_queue.clear()
             self.archive_item_icon_preload_next_index = 0
@@ -16520,6 +16968,8 @@ def run_gui() -> int:
                     continue
                 prepared_key = self._archive_asset_catalog_prepared_icon_cache_key(row)
                 if prepared_key in self.archive_item_icon_prepared_path_cache:
+                    continue
+                if self._archive_item_icon_negative_note(prepared_key):
                     continue
                 rows.append(row)
                 if len(rows) >= self.archive_item_icon_preload_limit:
@@ -16555,6 +17005,8 @@ def run_gui() -> int:
                     continue
                 if prepared_key in self.archive_item_icon_prepared_path_cache or prepared_key in existing_keys:
                     continue
+                if self._archive_item_icon_negative_note(prepared_key):
+                    continue
                 existing_keys.add(prepared_key)
                 queued_rows.append(dict(row))
             if not queued_rows:
@@ -16568,6 +17020,10 @@ def run_gui() -> int:
 
         def _continue_archive_asset_catalog_icon_preload(self) -> None:
             if not self.archive_item_icon_preload_queue:
+                return
+            if not self._archive_browser_background_work_allowed():
+                self.archive_item_icon_preload_pending_after_ready = True
+                self.archive_item_icon_preload_timer.start(600)
                 return
             if self.worker_thread is not None:
                 self.archive_item_icon_preload_timer.start(600)
@@ -16623,11 +17079,23 @@ def run_gui() -> int:
                 return
             cache_key = (tuple(str(value) for value in icon_paths_raw), str(texconv_key_raw or ""))
             if not preview_path:
+                self._remember_archive_item_icon_negative(cache_key, note)
+                for callback in tuple(getattr(self, "archive_item_icon_prepared_callbacks", ()) or ()):
+                    try:
+                        callback(cache_key)
+                    except Exception:
+                        pass
                 return
             self.archive_item_icon_prepared_path_cache[cache_key] = (str(preview_path), str(note or "Recovered inventory icon"))
             self.archive_item_icon_prepared_path_cache.move_to_end(cache_key)
             while len(self.archive_item_icon_prepared_path_cache) > self.archive_item_icon_prepared_cache_limit:
                 self.archive_item_icon_prepared_path_cache.popitem(last=False)
+            self.archive_item_icon_negative_cache.pop(cache_key, None)
+            for callback in tuple(getattr(self, "archive_item_icon_prepared_callbacks", ()) or ()):
+                try:
+                    callback(cache_key)
+                except Exception:
+                    pass
 
         def _cleanup_archive_item_icon_warmup_refs(self, generation: int) -> None:
             self.archive_item_icon_warmup_thread = None
@@ -17293,6 +17761,9 @@ def run_gui() -> int:
             icon_retry_timer = QTimer(dialog)
             icon_retry_timer.setSingleShot(True)
             icon_retry_timer.setInterval(220)
+            icon_visible_queue_timer = QTimer(dialog)
+            icon_visible_queue_timer.setSingleShot(True)
+            icon_visible_queue_timer.setInterval(80)
             catalog_filter_timer = QTimer(dialog)
             catalog_filter_timer.setSingleShot(True)
             catalog_filter_timer.setInterval(160)
@@ -17427,6 +17898,11 @@ def run_gui() -> int:
                 )
                 if icon_row_queue and not icon_row_timer.isActive():
                     icon_row_timer.start(1)
+
+            def _queue_catalog_row_icons_coalesced(delay_ms: int = 80) -> None:
+                if not dialog.isVisible():
+                    return
+                icon_visible_queue_timer.start(max(0, int(delay_ms)))
 
             def _load_next_catalog_row_icon() -> None:
                 if not dialog.isVisible():
@@ -17671,8 +18147,7 @@ def run_gui() -> int:
                 if pixmap is None or pixmap.isNull():
                     if "warming" in str(note).lower():
                         icon_preview_timer.start(220)
-                    else:
-                        pixmap, note = self._archive_asset_catalog_preview_pixmap(row, 120)
+                        return
                 if pixmap is not None and not pixmap.isNull():
                     icon_preview.setPixmap(pixmap.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation))
                     if item is not None:
@@ -17685,6 +18160,37 @@ def run_gui() -> int:
                 fallback = self._build_archive_asset_catalog_icon(category, display_name).pixmap(QSize(96, 96))
                 icon_preview.setPixmap(fallback)
                 icon_preview.setToolTip(note or "No recovered icon preview is available for this asset row.")
+
+            def _handle_catalog_icon_prepared(prepared_key: Tuple[Tuple[str, ...], str]) -> None:
+                if not dialog.isVisible():
+                    return
+                icon_paths, texconv_key = prepared_key
+                if texconv_key != self.texconv_path_edit.text().strip():
+                    return
+                matched_items: List[QListWidgetItem] = []
+                active_rect = item_grid.viewport().rect().adjusted(-220, -280, 260, 680)
+                for row_index in range(item_grid.count()):
+                    item = item_grid.item(row_index)
+                    if item is None:
+                        continue
+                    row = item.data(Qt.UserRole)
+                    if not isinstance(row, Mapping):
+                        continue
+                    if tuple(self._archive_asset_catalog_row_values(row, "icon_paths")) != icon_paths:
+                        continue
+                    item_rect = item_grid.visualItemRect(item)
+                    if item_rect.isValid() and not item_rect.intersects(active_rect):
+                        continue
+                    item.setData(Qt.UserRole + 1, "fallback")
+                    matched_items.append(item)
+                    if len(matched_items) >= 16:
+                        break
+                if matched_items:
+                    icon_row_queue[0:0] = matched_items
+                    icon_row_timer.start(0)
+                current_row = _selected_catalog_row()
+                if isinstance(current_row, Mapping) and tuple(self._archive_asset_catalog_row_values(current_row, "icon_paths")) == icon_paths:
+                    icon_preview_timer.start(0)
 
             def _scope_selected(*, include_related: bool = True) -> None:
                 row = _selected_catalog_row()
@@ -17767,10 +18273,11 @@ def run_gui() -> int:
             icon_preview_timer.timeout.connect(_refresh_selected_icon_preview)
             icon_row_timer.timeout.connect(_load_next_catalog_row_icon)
             icon_retry_timer.timeout.connect(_queue_catalog_row_icons_for_visible_rows)
+            icon_visible_queue_timer.timeout.connect(_queue_catalog_row_icons_for_visible_rows)
             catalog_filter_timer.timeout.connect(_populate_catalog)
             search_edit.textChanged.connect(lambda _text: catalog_filter_timer.start())
             clear_search_button.clicked.connect(search_edit.clear)
-            item_grid.verticalScrollBar().valueChanged.connect(lambda _value: QTimer.singleShot(80, _queue_catalog_row_icons_for_visible_rows))
+            item_grid.verticalScrollBar().valueChanged.connect(lambda _value: _queue_catalog_row_icons_coalesced(80))
             item_grid.itemSelectionChanged.connect(_update_selected_catalog_detail)
             item_grid.itemDoubleClicked.connect(lambda _item: _scope_selected(include_related=True))
             exact_scope_button.clicked.connect(lambda _checked=False: _scope_selected(include_related=False))
@@ -17783,9 +18290,14 @@ def run_gui() -> int:
                 search_edit.setText(restored_search_text)
             category_tree.itemSelectionChanged.connect(lambda: catalog_filter_timer.start())
             _populate_catalog()
+            self.archive_item_icon_prepared_callbacks.append(_handle_catalog_icon_prepared)
             try:
                 dialog.exec()
             finally:
+                try:
+                    self.archive_item_icon_prepared_callbacks.remove(_handle_catalog_icon_prepared)
+                except ValueError:
+                    pass
                 selected_category, selected_group = _current_browser_filter()
                 selected_row = _selected_catalog_row()
                 self.settings.setValue("ui/item_finder_geometry", dialog.saveGeometry())
@@ -17805,6 +18317,7 @@ def run_gui() -> int:
                 icon_preview_timer.stop()
                 icon_row_timer.stop()
                 icon_retry_timer.stop()
+                icon_visible_queue_timer.stop()
                 icon_row_queue.clear()
 
         def _archive_asset_catalog_row_values(self, row: Mapping[str, object], key: str) -> List[str]:
@@ -18613,8 +19126,7 @@ def run_gui() -> int:
 
             self._finalize_archive_tree_render(preferred_path, target_item=target_item)
             self._set_archive_warmup_overlay(False)
-            if callback is not None:
-                callback()
+            self._mark_archive_browser_render_ready(reason="population_complete", on_complete=callback)
 
         def _append_archive_category_render_limit_item(
             self,
@@ -18929,6 +19441,16 @@ def run_gui() -> int:
                 return 250
             return 500
 
+        def _prewarm_archive_browser_row_display_cache(self, limit: int = 160) -> None:
+            if self._archive_virtual_tree_mode() != "flat":
+                return
+            count = min(max(0, int(limit)), len(self.archive_filtered_entries))
+            started_at = time.perf_counter()
+            for entry_index in range(count):
+                self._archive_browser_row_payload(entry_index, show_full_path=True)
+                if entry_index >= 24 and (time.perf_counter() - started_at) >= 0.012:
+                    break
+
         def _note_archive_ui_activity(self) -> None:
             self.archive_ui_activity_until = time.perf_counter() + 0.35
             self.archive_ui_activity_timer.start(420)
@@ -18962,6 +19484,7 @@ def run_gui() -> int:
             self.archive_tree.blockSignals(True)
             try:
                 self.archive_tree.setRootIsDecorated(self._archive_tree_view_enabled())
+                reset_started_at = time.perf_counter()
                 self.archive_tree.set_archive_state(
                     self.archive_filtered_entries,
                     mode=self._archive_virtual_tree_mode(),
@@ -18971,16 +19494,21 @@ def run_gui() -> int:
                     category_entry_indexes=self.archive_tree_category_entry_indexes,
                     fetch_batch_size=self._archive_virtual_fetch_batch_size(),
                 )
+                self._log_archive_browser_render_stage("model_reset", reset_started_at)
             finally:
                 self.archive_tree.blockSignals(False)
                 self.archive_tree.setEnabled(True)
+            prewarm_started_at = time.perf_counter()
+            self._prewarm_archive_browser_row_display_cache()
+            self._log_archive_browser_render_stage("row_prewarm", prewarm_started_at)
+            finalize_started_at = time.perf_counter()
             self._finalize_archive_tree_render(
                 preferred_path,
                 defer_default_selection=defer_default_selection,
             )
+            self._log_archive_browser_render_stage("finalize", finalize_started_at)
             self._set_archive_warmup_overlay(False)
-            if on_complete is not None:
-                on_complete()
+            self._mark_archive_browser_render_ready(reason="model_reset", on_complete=on_complete)
 
         def _finalize_archive_tree_render(
             self,
@@ -19123,8 +19651,10 @@ def run_gui() -> int:
                             self.archive_tree_population_render_total = 0
                             self._archive_tree_population_on_complete = None
                             self._append_archive_flat_render_limit_item(initial_end_index)
-                            if on_complete is not None:
-                                on_complete()
+                            self._mark_archive_browser_render_ready(
+                                reason="population_initial",
+                                on_complete=on_complete,
+                            )
                             return
                         progress_text = (
                             "Rendering archive browser items in batches to keep the UI responsive... "
@@ -19154,8 +19684,7 @@ def run_gui() -> int:
                 self.archive_tree.setEnabled(True)
                 self._finalize_archive_tree_render(preferred_path, defer_default_selection=defer_default_selection)
                 self._set_archive_warmup_overlay(False)
-                if on_complete is not None:
-                    on_complete()
+                self._mark_archive_browser_render_ready(reason="legacy_sync", on_complete=on_complete)
 
             top_level_items = self.archive_tree.topLevelItemCount()
             if top_level_items > 0 and self._begin_archive_tree_clear(render_into_empty_tree):
@@ -20350,6 +20879,7 @@ def run_gui() -> int:
             self.archive_preview_debounce_timer.stop()
             if self.archive_preview_worker is not None:
                 self.archive_preview_worker.stop()
+            self._deactivate_archive_model_renderers_for_non_model_preview()
             self._stop_archive_preview_loading_indicator(success=None)
             self.current_archive_preview_result = None
             self.archive_preview_requested_loose = False
@@ -20880,6 +21410,7 @@ def run_gui() -> int:
                     return False, f"{text}:{exc}"
 
             missing: List[str] = []
+            manifest_use_textures = bool(manifest.get("use_textures", False))
             for batch_index, batch in enumerate(tuple(manifest.get("batches", ()) or ())):
                 if not isinstance(batch, Mapping):
                     continue
@@ -20892,8 +21423,11 @@ def run_gui() -> int:
                         if not ok:
                             missing.append(f"batch {batch_index} {key}:{path_text}")
                 textures = batch.get("textures")
+                active_texture_count = 0
                 if isinstance(textures, Mapping):
                     for slot, raw_value in textures.items():
+                        if str(raw_value or "").strip():
+                            active_texture_count += 1
                         ok, path_text = existing_path(raw_value, relative_to_package=True)
                         if not ok:
                             missing.append(f"batch {batch_index} {slot} PNG:{path_text}")
@@ -20901,9 +21435,26 @@ def run_gui() -> int:
                 if isinstance(dds_textures, Mapping):
                     for slot, descriptor in dds_textures.items():
                         if isinstance(descriptor, Mapping):
+                            if str(descriptor.get("source_path", "") or "").strip():
+                                active_texture_count += 1
                             ok, path_text = existing_path(descriptor.get("source_path"), relative_to_package=False)
                             if not ok:
                                 missing.append(f"batch {batch_index} {slot} DDS:{path_text}")
+                selected_slots = batch.get("selected_texture_slots")
+                selected_texture_count = 0
+                if isinstance(selected_slots, Mapping):
+                    for descriptor in selected_slots.values():
+                        if isinstance(descriptor, Mapping) and str(descriptor.get("texture_name", "") or descriptor.get("archive_path", "") or "").strip():
+                            selected_texture_count += 1
+                if (
+                    manifest_use_textures
+                    and bool(batch.get("has_texture_coordinates", False))
+                    and selected_texture_count > 0
+                    and active_texture_count == 0
+                ):
+                    missing.append(
+                        f"batch {batch_index} texture manifest empty despite {selected_texture_count} selected native texture slot(s)"
+                    )
                 primary_layer = batch.get("primary_material_layer")
                 if isinstance(primary_layer, Mapping):
                     for slot in ("diffuse_source", "mask_source", "material_source", "normal_source", "height_source"):
@@ -20966,6 +21517,9 @@ def run_gui() -> int:
         ) -> None:
             del previous
             try:
+                if bool(getattr(self, "archive_context_menu_selection_suppressed", False)):
+                    self._schedule_archive_selection_state_update()
+                    return
                 if self.archive_tree_population_active:
                     self.archive_tree_population_timer.start(90)
                 if current is None:
@@ -20995,6 +21549,11 @@ def run_gui() -> int:
             self.archive_selection_state_timer.start()
 
         def _show_archive_preview_loading_state(self, entry: Optional[ArchiveEntry]) -> None:
+            keep_d3d11_visible = (
+                self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
+                and self._archive_isolated_renderer_process_running()
+                and self.archive_preview_stack.currentWidget() is self.archive_d3d11_preview_host
+            )
             self.archive_preview_title_label.setText(entry.basename if entry is not None else "Select an archive file")
             self.archive_preview_meta_label.setText("Loading preview...")
             role_label = self._archive_entry_role_label(entry)
@@ -21015,10 +21574,12 @@ def run_gui() -> int:
             )
             self.archive_preview_info_edit.setPlainText("Preparing archive preview...")
             self.archive_preview_text_edit.clear()
-            self.archive_preview_label.clear_preview("Preparing archive preview...")
-            self.archive_media_preview.clear_media("Preparing archive preview...")
+            if not keep_d3d11_visible:
+                self.archive_preview_label.clear_preview("Preparing archive preview...")
+                self.archive_media_preview.clear_media("Preparing archive preview...")
             self._update_archive_model_action_controls(None)
-            self.archive_preview_stack.setCurrentWidget(self.archive_preview_info_edit)
+            if not keep_d3d11_visible:
+                self.archive_preview_stack.setCurrentWidget(self.archive_preview_info_edit)
             self.archive_preview_tabs.setCurrentIndex(0)
             self._set_archive_preview_image_controls_enabled(False)
             if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
@@ -21034,6 +21595,10 @@ def run_gui() -> int:
         ) -> None:
             request_id = self.archive_preview_request_id + 1
             self.archive_preview_request_id = request_id
+            self.append_archive_log(
+                f"Archive Browser activation timing | cause=preview_start | path={getattr(entry, 'path', '')}",
+                verbose=True,
+            )
             _set_last_active_operation(
                 "archive_preview_request",
                 request_id=request_id,
@@ -21855,6 +22420,20 @@ def run_gui() -> int:
                 if str(item).strip()
             )
             texture_details_text = "; ".join(texture_details[:10]) if texture_details else "none"
+            failed_textures_raw = payload.get("failed_textures", ())
+            failed_texture_lines: List[str] = []
+            if isinstance(failed_textures_raw, Sequence) and not isinstance(failed_textures_raw, (str, bytes)):
+                for item in tuple(failed_textures_raw)[:8]:
+                    if isinstance(item, Mapping):
+                        slot = str(item.get("slot", "") or "?")
+                        stage = str(item.get("stage", "") or "?")
+                        hresult = str(item.get("hresult", "") or "")
+                        path = Path(str(item.get("path", "") or "")).name
+                        failed_texture_lines.append(f"{slot}:{stage}:{hresult}:{path}")
+                    elif str(item).strip():
+                        failed_texture_lines.append(str(item).strip())
+            failed_texture_text = "; ".join(failed_texture_lines) if failed_texture_lines else "none"
+            texture_failure_count = int(payload.get("texture_failures", 0) or 0)
             cache_hits = int(payload.get("texture_cache_hits", 0) or 0)
             cache_entries = int(payload.get("texture_cache_entries", 0) or 0)
             texture_bytes = int(payload.get("estimated_texture_bytes", 0) or 0)
@@ -21939,6 +22518,7 @@ def run_gui() -> int:
                 + (f"{material_channel_text}\n" if material_channel_text else "")
                 +
                 f"Native D3D11 Texture Details: {texture_details_text}\n"
+                f"Native D3D11 Texture Failures: {texture_failure_count:,}; {failed_texture_text}\n"
                 "Native D3D11 Material Layers: "
                 f"active_batches={int(payload.get('material_layer_active', 0) or 0):,}; "
                 f"layers={int(payload.get('material_layer_count', 0) or 0):,}; roles={layer_role_text}\n"
@@ -22094,6 +22674,11 @@ def run_gui() -> int:
                 self.archive_isolated_renderer_status_mtime = 0.0
                 self.archive_isolated_renderer_last_status_payload = {}
                 self.archive_isolated_renderer_package_source = ""
+            if include_active and getattr(self, "archive_isolated_renderer_pending_package", None) is not None:
+                retired.append(self.archive_isolated_renderer_pending_package)
+                self.archive_isolated_renderer_pending_package = None
+                self.archive_isolated_renderer_pending_status_file = None
+                self.archive_isolated_renderer_pending_package_source = ""
             self.archive_isolated_renderer_retired_packages = []
             for package_dir in retired:
                 try:
@@ -22101,11 +22686,53 @@ def run_gui() -> int:
                 except OSError:
                     pass
 
+        def _set_archive_d3d11_pending_package(self, package_dir: Path, status_file: Path, source: str) -> None:
+            self.archive_isolated_renderer_pending_package = Path(package_dir)
+            self.archive_isolated_renderer_pending_status_file = Path(status_file)
+            self.archive_isolated_renderer_pending_package_source = str(source or "").strip()
+
+        def _promote_archive_d3d11_pending_package_if_loaded(self, status_file: Path) -> None:
+            pending_status = getattr(self, "archive_isolated_renderer_pending_status_file", None)
+            pending_package = getattr(self, "archive_isolated_renderer_pending_package", None)
+            if pending_status is None or pending_package is None or Path(pending_status) != Path(status_file):
+                return
+            previous = getattr(self, "archive_isolated_renderer_active_package", None)
+            if previous is not None and Path(previous) != Path(pending_package):
+                self.archive_isolated_renderer_retired_packages.append(previous)
+            self.archive_isolated_renderer_active_package = Path(pending_package)
+            pending_source = str(getattr(self, "archive_isolated_renderer_pending_package_source", "") or "").strip()
+            if pending_source:
+                self.archive_isolated_renderer_package_source = pending_source
+            self.archive_isolated_renderer_pending_package = None
+            self.archive_isolated_renderer_pending_status_file = None
+            self.archive_isolated_renderer_pending_package_source = ""
+
+        def _discard_archive_d3d11_pending_package(self, status_file: Optional[Path] = None) -> bool:
+            pending_status = getattr(self, "archive_isolated_renderer_pending_status_file", None)
+            pending_package = getattr(self, "archive_isolated_renderer_pending_package", None)
+            if pending_package is None:
+                return False
+            if status_file is not None and pending_status is not None and Path(pending_status) != Path(status_file):
+                return False
+            self.archive_isolated_renderer_pending_package = None
+            self.archive_isolated_renderer_pending_status_file = None
+            self.archive_isolated_renderer_pending_package_source = ""
+            self._remove_archive_isolated_package_dir(Path(pending_package))
+            return True
+
         def _remove_archive_isolated_package_dir(self, package_dir: Optional[Path]) -> None:
             if package_dir is None:
                 return
+            package_dir = Path(package_dir)
+            removable_root = package_dir
             try:
-                shutil.rmtree(package_dir, ignore_errors=True)
+                parent = package_dir.parent
+                if package_dir.name == "package" and parent.name.startswith("cdmw_preview_core_"):
+                    removable_root = parent
+            except Exception:
+                removable_root = package_dir
+            try:
+                shutil.rmtree(removable_root, ignore_errors=True)
             except OSError:
                 pass
 
@@ -22131,12 +22758,10 @@ def run_gui() -> int:
                 active_package=str(getattr(self, "archive_isolated_renderer_active_package", "") or ""),
                 status_file=str(getattr(self, "archive_isolated_renderer_status_file", "") or ""),
             )
-            cleared = self.archive_d3d11_preview_host.clear_preview()
             self.archive_d3d11_preview_status_label.setText("Preparing native D3D11 preview package...")
-            if cleared:
-                self._set_archive_isolated_renderer_debug(
-                    "Native D3D11 Preview: cleared the previous model while the next archive preview is prepared."
-                )
+            self._set_archive_isolated_renderer_debug(
+                "Native D3D11 Preview: keeping the current model visible while the next package is prepared."
+            )
 
         def _show_archive_legacy_model_preview_fallback(self, reason: str) -> bool:
             result = getattr(self, "current_archive_preview_result", None)
@@ -22232,7 +22857,8 @@ def run_gui() -> int:
             thread.start()
 
         def _launch_archive_isolated_preview_result(self, result: ArchivePreviewResult) -> None:
-            self._shutdown_archive_isolated_renderer_host()
+            if not self._archive_isolated_renderer_process_running():
+                self._shutdown_archive_isolated_renderer_host()
             self._start_archive_isolated_preview_package_worker(result)
 
         def _handle_archive_isolated_package_ready(
@@ -22284,11 +22910,14 @@ def run_gui() -> int:
                 )
                 self._show_archive_legacy_model_preview_fallback(message)
                 return
-            previous = getattr(self, "archive_isolated_renderer_active_package", None)
-            if previous is not None:
-                self.archive_isolated_renderer_retired_packages.append(previous)
-            self.archive_isolated_renderer_active_package = package_dir
-            self.archive_isolated_renderer_package_source = "python-prepared"
+            if self._archive_isolated_renderer_process_running():
+                self._set_archive_d3d11_pending_package(package_dir, package_dir / "host_status.json", "python-prepared")
+            else:
+                previous = getattr(self, "archive_isolated_renderer_active_package", None)
+                if previous is not None:
+                    self.archive_isolated_renderer_retired_packages.append(previous)
+                self.archive_isolated_renderer_active_package = package_dir
+                self.archive_isolated_renderer_package_source = "python-prepared"
             _record_runtime_event(
                 "d3d11_package_ready",
                 package_request_id=request_id,
@@ -22363,6 +22992,8 @@ def run_gui() -> int:
             self.archive_isolated_renderer_status_mtime = 0.0
             self.archive_isolated_renderer_last_status_payload = {}
             if self._archive_isolated_renderer_process_running():
+                source = str(getattr(self, "archive_isolated_renderer_pending_package_source", "") or "")
+                self._set_archive_d3d11_pending_package(package_dir, status_file, source or self.archive_isolated_renderer_package_source)
                 _record_runtime_event(
                     "d3d11_renderer_reload",
                     package_dir=str(package_dir),
@@ -22372,12 +23003,9 @@ def run_gui() -> int:
                 self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
                 self.archive_d3d11_preview_status_label.setText("Reloading native D3D11 preview...")
                 self._set_archive_isolated_renderer_debug(
-                    "Native D3D11 Preview: reloading the embedded renderer with the latest preview package."
+                    "Native D3D11 Preview: loading the next package while the current preview remains visible."
                 )
                 self.archive_isolated_renderer_status_timer.start()
-                # A new archive selection must not leave the prior model/camera state visible if
-                # the native host rejects the new package after queuing the reload.
-                self.archive_d3d11_preview_host.clear_preview(status_file)
                 preserved_view_state = (
                     dict(self.archive_d3d11_view_state)
                     if bool(getattr(self, "archive_d3d11_has_view_state", False))
@@ -22405,6 +23033,9 @@ def run_gui() -> int:
                         lambda expected_status=status_file: self._check_archive_isolated_renderer_start_timeout(expected_status),
                     )
                     return
+                self.archive_isolated_renderer_pending_package = None
+                self.archive_isolated_renderer_pending_status_file = None
+                self.archive_isolated_renderer_pending_package_source = ""
                 process = getattr(self, "archive_isolated_renderer_process", None)
                 if process is not None:
                     try:
@@ -22412,6 +23043,15 @@ def run_gui() -> int:
                     except (RuntimeError, TypeError):
                         pass
                     self._kill_archive_isolated_renderer_process_if_running(process)
+            previous = getattr(self, "archive_isolated_renderer_active_package", None)
+            if previous is None or Path(previous) != Path(package_dir):
+                if previous is not None:
+                    self.archive_isolated_renderer_retired_packages.append(previous)
+                self.archive_isolated_renderer_active_package = package_dir
+            pending_source = str(getattr(self, "archive_isolated_renderer_pending_package_source", "") or "").strip()
+            if pending_source:
+                self.archive_isolated_renderer_package_source = pending_source
+                self.archive_isolated_renderer_pending_package_source = ""
             process = QProcess(self)
             try:
                 program, arguments = self._archive_isolated_renderer_command(package_dir, status_file)
@@ -22482,6 +23122,18 @@ def run_gui() -> int:
                 "If Windows Defender quarantines the unsigned EXE, submit it to Microsoft before allowing it: "
                 "https://www.microsoft.com/wdsi/filesubmission"
             )
+            process = getattr(self, "archive_isolated_renderer_process", None)
+            if process is not None:
+                try:
+                    process.finished.connect(lambda *_args, process=process: self._delete_archive_qprocess_later(process))
+                except (RuntimeError, TypeError):
+                    pass
+                self._kill_archive_isolated_renderer_process_if_running(process)
+            had_pending = self._discard_archive_d3d11_pending_package(expected_status)
+            self.archive_isolated_renderer_process = None
+            self.archive_isolated_renderer_active_process = None
+            self.archive_isolated_renderer_status_timer.stop()
+            self._cleanup_archive_isolated_renderer_packages(include_active=not had_pending)
             self._show_archive_legacy_model_preview_fallback("Isolated D3D11 renderer did not start in time.")
 
         def _open_archive_isolated_d3d11_preview(self) -> None:
@@ -22540,6 +23192,7 @@ def run_gui() -> int:
                 vertex_count=payload.get("vertex_count", 0),
                 texture_cache_entries=payload.get("texture_cache_entries", 0),
                 texture_cache_releases=payload.get("texture_cache_releases", 0),
+                texture_failures=payload.get("texture_failures", 0),
                 estimated_texture_bytes=payload.get("estimated_texture_bytes", 0),
                 d3d11_process_working_set_bytes=payload.get("process_working_set_bytes", 0),
                 d3d11_process_private_bytes=payload.get("process_private_bytes", 0),
@@ -22551,6 +23204,7 @@ def run_gui() -> int:
                 process_pid=self._archive_qprocess_pid(getattr(self, "archive_isolated_renderer_process", None)),
             )
             if event == "loaded":
+                self._promote_archive_d3d11_pending_package_if_loaded(status_file)
                 self.archive_d3d11_preview_host.set_render_tuning(self._current_model_preview_render_settings())
                 self._cleanup_archive_isolated_renderer_packages(include_active=False)
                 self._set_archive_isolated_renderer_debug(self._format_archive_isolated_renderer_debug(payload))
@@ -22574,14 +23228,33 @@ def run_gui() -> int:
                 self.set_status_message(f"Isolated D3D11 renderer: {message}")
             elif event == "error":
                 message = str(payload.get("message", "") or "Renderer error.")
+                discarded_pending = self._discard_archive_d3d11_pending_package(status_file)
+                failed_texture_count = int(payload.get("texture_failures", 0) or 0)
+                failed_texture_items: List[str] = []
+                failed_textures_raw = payload.get("failed_textures", ())
+                if isinstance(failed_textures_raw, Sequence) and not isinstance(failed_textures_raw, (str, bytes)):
+                    for item in tuple(failed_textures_raw)[:8]:
+                        if isinstance(item, Mapping):
+                            failed_texture_items.append(
+                                f"{item.get('slot', '?')}:{item.get('stage', '?')}:{item.get('hresult', '')}:"
+                                f"{Path(str(item.get('path', '') or '')).name}"
+                            )
+                failed_texture_text = (
+                    f"\nTexture failures: {failed_texture_count:,}; " + ("; ".join(failed_texture_items) or "none")
+                    if failed_texture_count
+                    else ""
+                )
                 self.archive_d3d11_preview_status_label.setText(message)
                 self.set_status_message(f"Isolated D3D11 renderer error: {message}", error=True)
                 self._set_archive_isolated_renderer_debug(
-                    f"Isolated Renderer error: {message}\n"
+                    f"Isolated Renderer error: {message}{failed_texture_text}\n"
                     "Defender note: if Windows Defender quarantines this unsigned experimental build, submit the EXE to Microsoft for analysis before allowing it: "
                     "https://www.microsoft.com/wdsi/filesubmission"
                 )
-                self._show_archive_legacy_model_preview_fallback(f"Isolated D3D11 renderer error: {message}")
+                if discarded_pending and getattr(self, "archive_isolated_renderer_active_package", None) is not None:
+                    self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
+                else:
+                    self._show_archive_legacy_model_preview_fallback(f"Isolated D3D11 renderer error: {message}")
             elif event == "closed":
                 self.archive_d3d11_preview_status_label.setText("D3D11 preview closed.")
                 self.set_status_message("Isolated D3D11 renderer closed.")
@@ -22603,7 +23276,8 @@ def run_gui() -> int:
             if not self._archive_isolated_renderer_process_running():
                 self.archive_isolated_renderer_process = None
                 self.archive_isolated_renderer_status_timer.stop()
-                self._cleanup_archive_isolated_renderer_packages(include_active=True)
+                had_pending = self._discard_archive_d3d11_pending_package()
+                self._cleanup_archive_isolated_renderer_packages(include_active=not had_pending)
                 self._show_archive_legacy_model_preview_fallback(f"Isolated D3D11 renderer process error: {error}")
 
         def _handle_archive_isolated_renderer_finished(self, exit_code: int, exit_status) -> None:
@@ -22620,7 +23294,8 @@ def run_gui() -> int:
             self.archive_isolated_renderer_active_process = None
             self.archive_isolated_renderer_status_timer.stop()
             self.archive_isolated_renderer_last_status_payload = {}
-            self._cleanup_archive_isolated_renderer_packages(include_active=True)
+            had_pending = self._discard_archive_d3d11_pending_package()
+            self._cleanup_archive_isolated_renderer_packages(include_active=not had_pending)
             if int(exit_code) == 0 and self.archive_preview_stack.currentWidget() is self.archive_d3d11_preview_host:
                 self.archive_preview_stack.setCurrentWidget(self.archive_model_preview)
             self.set_status_message(f"Isolated D3D11 renderer exited with code {int(exit_code)}.")
@@ -29686,6 +30361,9 @@ def run_gui() -> int:
                 finder_filter_timer.setInterval(180)
                 finder_icon_timer = QTimer(finder)
                 finder_icon_timer.setSingleShot(True)
+                finder_icon_visible_timer = QTimer(finder)
+                finder_icon_visible_timer.setSingleShot(True)
+                finder_icon_visible_timer.setInterval(80)
                 finder_icon_queue: List[QListWidgetItem] = []
                 finder_result: Dict[str, object] = {}
 
@@ -29766,6 +30444,11 @@ def run_gui() -> int:
                     if finder_icon_queue and not finder_icon_timer.isActive():
                         finder_icon_timer.start(1)
 
+                def _queue_item_finder_donor_icons_coalesced(delay_ms: int = 80) -> None:
+                    if not finder.isVisible():
+                        return
+                    finder_icon_visible_timer.start(max(0, int(delay_ms)))
+
                 def _load_next_item_finder_donor_icon() -> None:
                     if finder_icon_queue:
                         _write_ui_breadcrumb(
@@ -29810,6 +30493,34 @@ def run_gui() -> int:
                             break
                     if finder_icon_queue:
                         finder_icon_timer.start(3)
+
+                def _handle_item_finder_donor_icon_prepared(prepared_key: Tuple[Tuple[str, ...], str]) -> None:
+                    if not finder.isVisible():
+                        return
+                    icon_paths, texconv_key = prepared_key
+                    if texconv_key != self.texconv_path_edit.text().strip():
+                        return
+                    active_rect = item_grid.viewport().rect().adjusted(-220, -260, 260, 640)
+                    matched_items: List[QListWidgetItem] = []
+                    for row_index in range(item_grid.count()):
+                        item = item_grid.item(row_index)
+                        if item is None:
+                            continue
+                        row = item.data(Qt.UserRole)
+                        if not isinstance(row, Mapping):
+                            continue
+                        if tuple(self._archive_asset_catalog_row_values(row, "icon_paths")) != icon_paths:
+                            continue
+                        item_rect = item_grid.visualItemRect(item)
+                        if item_rect.isValid() and not item_rect.intersects(active_rect):
+                            continue
+                        item.setData(Qt.UserRole + 1, "fallback")
+                        matched_items.append(item)
+                        if len(matched_items) >= 16:
+                            break
+                    if matched_items:
+                        finder_icon_queue[0:0] = matched_items
+                        finder_icon_timer.start(0)
 
                 def _populate_item_finder_grid() -> None:
                     finder_icon_timer.stop()
@@ -29993,10 +30704,11 @@ def run_gui() -> int:
 
                 finder_filter_timer.timeout.connect(_populate_item_finder_grid)
                 finder_icon_timer.timeout.connect(_load_next_item_finder_donor_icon)
+                finder_icon_visible_timer.timeout.connect(_queue_item_finder_donor_icons_for_visible_rows)
                 finder_search.textChanged.connect(lambda _text: finder_filter_timer.start())
                 finder_category.currentIndexChanged.connect(lambda _index: _populate_item_finder_grid())
                 finder_clear_button.clicked.connect(finder_search.clear)
-                item_grid.verticalScrollBar().valueChanged.connect(lambda _value: QTimer.singleShot(80, _queue_item_finder_donor_icons_for_visible_rows))
+                item_grid.verticalScrollBar().valueChanged.connect(lambda _value: _queue_item_finder_donor_icons_coalesced(80))
                 item_grid.itemSelectionChanged.connect(_refresh_item_finder_candidates)
                 item_grid.itemDoubleClicked.connect(lambda _item: _choose_item_finder_candidate(recommended=True))
                 candidate_tree.currentItemChanged.connect(lambda _current, _previous: _refresh_candidate_button())
@@ -30005,6 +30717,7 @@ def run_gui() -> int:
                 use_candidate_button.clicked.connect(lambda _checked=False: _choose_item_finder_candidate(recommended=False))
                 finder_cancel_button.clicked.connect(finder.reject)
                 _populate_item_finder_grid()
+                self.archive_item_icon_prepared_callbacks.append(_handle_item_finder_donor_icon_prepared)
                 try:
                     if finder.exec() == QDialog.Accepted:
                         donor = finder_result.get("donor")
@@ -30012,6 +30725,13 @@ def run_gui() -> int:
                             result["donor"] = donor
                             picker.accept()
                 finally:
+                    try:
+                        self.archive_item_icon_prepared_callbacks.remove(_handle_item_finder_donor_icon_prepared)
+                    except ValueError:
+                        pass
+                    finder_icon_timer.stop()
+                    finder_icon_visible_timer.stop()
+                    finder_icon_queue.clear()
                     _write_ui_breadcrumb({"phase": "placement_item_finder_closed", "target_path": target_entry.path})
                     _write_heartbeat("running")
 
@@ -30820,6 +31540,121 @@ def run_gui() -> int:
             compare_tree.header().resizeSection(2, 360)
             layout.addWidget(compare_group, stretch=1)
 
+            def _placement_xml_entry_by_basename(*basenames: str) -> Optional[ArchiveEntry]:
+                normalized_names = [PurePosixPath(str(name or "").replace("\\", "/")).name.casefold() for name in basenames if str(name or "").strip()]
+                for basename in normalized_names:
+                    for candidate in tuple(self.archive_entries_by_basename.get(basename, ()) or ()):
+                        if isinstance(candidate, ArchiveEntry):
+                            return candidate
+                for candidate in tuple(getattr(self, "archive_entries", ()) or ()):
+                    if not isinstance(candidate, ArchiveEntry):
+                        continue
+                    candidate_name = PurePosixPath(candidate.path.replace("\\", "/")).name.casefold()
+                    if candidate_name in normalized_names:
+                        return candidate
+                return None
+
+            part_in_out_entry = _placement_xml_entry_by_basename("phm_description_player_kliff.xml")
+            character_socket_entry = _placement_xml_entry_by_basename("phm_01.pab.sockets.xml", "identityskeleton.pab.sockets.xml")
+            inferred_weapon_class = (
+                infer_part_in_out_weapon_class(target_entry.path)
+                or infer_part_in_out_weapon_class(donor_entry.path)
+                or infer_part_in_out_weapon_class(_evidence_value(target_evidence, "model_path"))
+                or infer_part_in_out_weapon_class(_evidence_value(donor_evidence, "model_path"))
+            )
+            imported_profile_state: Dict[str, object] = {
+                "part_in_out_text": "",
+                "part_in_out_path": "",
+                "socket_text": "",
+                "socket_path": "",
+            }
+
+            def _read_archive_text(entry: Optional[ArchiveEntry]) -> str:
+                if not isinstance(entry, ArchiveEntry):
+                    return ""
+                try:
+                    data, _decompressed, _note = read_archive_entry_data(entry)
+                except Exception:
+                    return ""
+                return try_decode_text_like_archive_data(data) or data.decode("utf-8-sig", errors="ignore")
+
+            def _character_socket_document() -> Optional[AttachmentSocketDocument]:
+                text = _read_archive_text(character_socket_entry)
+                if not text:
+                    return None
+                document = parse_socket_bone_data_xml(text, getattr(character_socket_entry, "path", ""))
+                return document if document.sockets or document.stack_equip_infos else None
+
+            def _child_socket_for_attach_point(socket_name: str) -> str:
+                lowered = str(socket_name or "").casefold()
+                if "pelvis_l" in lowered:
+                    return "Pelvis_L_ChildSocket"
+                if "pelvis_r" in lowered:
+                    return "Pelvis_R_ChildSocket"
+                if "hand" in lowered:
+                    return "Basic_ChildSocket"
+                if socket_name.endswith("_Socket"):
+                    return f"{socket_name[:-7]}_ChildSocket"
+                return ""
+
+            visual_group = QGroupBox("Visual Placement")
+            visual_layout = QGridLayout(visual_group)
+            visual_layout.setContentsMargins(8, 8, 8, 8)
+            visual_layout.setHorizontalSpacing(6)
+            visual_layout.setVerticalSpacing(5)
+            visual_hint = QLabel(
+                "Visual Placement is part of this Placement Swap: preview current/source placement on body or skeleton context, "
+                "then optionally patch character placement XML for the selected weapon class only."
+            )
+            visual_hint.setObjectName("HintLabel")
+            visual_hint.setWordWrap(True)
+            visual_layout.addWidget(visual_hint, 0, 0, 1, 4)
+            visual_preview_button = QPushButton("Open Visual Placement Preview...")
+            visual_preview_button.setToolTip("Preview current/source placement on the best available body, real PAB skeleton, or socket proxy.")
+            import_profile_button = QPushButton("Import Placement Profile XML...")
+            import_profile_button.setToolTip("Import a manual profile XML such as phm_description_player_kliff.xml or phm_01.pab.sockets.xml.")
+            visual_layout.addWidget(visual_preview_button, 1, 0)
+            visual_layout.addWidget(import_profile_button, 1, 1)
+            patch_part_in_out_checkbox = QCheckBox("Patch PartInOut placement XML")
+            patch_socket_checkbox = QCheckBox("Patch character socket XML")
+            patch_socket_checkbox.setEnabled(False)
+            visual_layout.addWidget(patch_part_in_out_checkbox, 2, 0)
+            visual_layout.addWidget(patch_socket_checkbox, 2, 1)
+            attach_point_combo = QComboBox()
+            attach_point_combo.addItem("Keep source placement", "")
+            character_document = _character_socket_document()
+            if isinstance(character_document, AttachmentSocketDocument):
+                seen_attach_points: set[str] = set()
+                socket_by_name = {
+                    str(socket.name or "").strip().casefold(): socket
+                    for socket in tuple(character_document.sockets or ())
+                    if isinstance(socket, AttachmentSocketInfo) and str(socket.name or "").strip()
+                }
+                for stack in tuple(character_document.stack_equip_infos or ()):
+                    label_prefix = str(stack.equip_type_name or "").strip()
+                    for socket_name in tuple(stack.socket_names or ()):
+                        key = str(socket_name or "").strip().casefold()
+                        if not key or key in seen_attach_points or key not in socket_by_name:
+                            continue
+                        seen_attach_points.add(key)
+                        attach_point_combo.addItem(f"{label_prefix}: {socket_name}" if label_prefix else str(socket_name), str(socket_name))
+                for socket in tuple(character_document.sockets or ()):
+                    socket_name = str(socket.name or "").strip()
+                    key = socket_name.casefold()
+                    if not socket_name or key in seen_attach_points:
+                        continue
+                    if any(token in key for token in ("spine", "pelvis", "hand", "weapon", "shield")):
+                        seen_attach_points.add(key)
+                        attach_point_combo.addItem(socket_name, socket_name)
+            visual_layout.addWidget(QLabel("Attach point"), 3, 0)
+            visual_layout.addWidget(attach_point_combo, 3, 1, 1, 3)
+            visual_status = QLabel("")
+            visual_status.setObjectName("HintLabel")
+            visual_status.setWordWrap(True)
+            visual_status.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            visual_layout.addWidget(visual_status, 4, 0, 1, 4)
+            layout.addWidget(visual_group)
+
             plan_group = QGroupBox("Safe Placement Copy Package Plan")
             plan_layout = QVBoxLayout(plan_group)
             plan_layout.setContentsMargins(8, 8, 8, 8)
@@ -30914,6 +31749,138 @@ def run_gui() -> int:
             close_row.addWidget(close_button)
             layout.addLayout(close_row)
 
+            def _visual_selected_attach_socket() -> str:
+                return str(attach_point_combo.currentData() or "").strip()
+
+            def _visual_part_in_out_patch(base_text: str) -> AttachmentPartInOutPatchResult:
+                if not patch_part_in_out_checkbox.isChecked() or not inferred_weapon_class:
+                    return AttachmentPartInOutPatchResult(text=base_text)
+                profile_text = str(imported_profile_state.get("part_in_out_text") or "")
+                if profile_text:
+                    return build_part_in_out_socket_profile_patch(
+                        base_text,
+                        profile_text,
+                        weapon_class=inferred_weapon_class,
+                    )
+                attach_socket = _visual_selected_attach_socket()
+                if not attach_socket:
+                    return AttachmentPartInOutPatchResult(text=base_text)
+                return build_part_in_out_socket_attach_point_patch(
+                    base_text,
+                    weapon_class=inferred_weapon_class,
+                    in_socket_bone=attach_socket,
+                    in_child_socket_bone=_child_socket_for_attach_point(attach_socket),
+                )
+
+            def _visual_socket_patch(base_text: str, part_patch: Optional[AttachmentPartInOutPatchResult] = None) -> AttachmentPartInOutPatchResult:
+                if not patch_socket_checkbox.isChecked():
+                    return AttachmentPartInOutPatchResult(text=base_text)
+                profile_text = str(imported_profile_state.get("socket_text") or "")
+                if not profile_text:
+                    return AttachmentPartInOutPatchResult(text=base_text)
+                socket_names: List[str] = []
+                attach_socket = _visual_selected_attach_socket()
+                if attach_socket:
+                    socket_names.append(attach_socket)
+                if isinstance(part_patch, AttachmentPartInOutPatchResult):
+                    for diff in tuple(part_patch.diffs or ()):
+                        if diff.field_name == "InSocketBone" and diff.new_value:
+                            socket_names.append(diff.new_value)
+                if not socket_names:
+                    socket_names.extend(
+                        str(value or "")
+                        for value in (
+                            _evidence_value(target_evidence, "character_socket_name"),
+                            _evidence_value(donor_evidence, "character_socket_name"),
+                        )
+                        if str(value or "").strip()
+                    )
+                return build_socket_bone_data_profile_patch(
+                    base_text,
+                    profile_text,
+                    socket_names=tuple(dict.fromkeys(socket_names)),
+                )
+
+            def _visual_patch_preview_rows() -> List[Tuple[str, str, str]]:
+                rows: List[Tuple[str, str, str]] = []
+                if patch_part_in_out_checkbox.isChecked() and isinstance(part_in_out_entry, ArchiveEntry):
+                    rows.append(
+                        (
+                            "Patch PartInOut placement XML",
+                            part_in_out_entry.path,
+                            f"Selected class: {inferred_weapon_class or 'unknown'}; attach point/profile driven.",
+                        )
+                    )
+                if patch_socket_checkbox.isChecked() and isinstance(character_socket_entry, ArchiveEntry):
+                    rows.append(
+                        (
+                            "Patch character socket XML",
+                            character_socket_entry.path,
+                            "Uses imported socket profile transforms for selected attach socket(s).",
+                        )
+                    )
+                return rows
+
+            def _refresh_visual_status() -> None:
+                class_text = inferred_weapon_class or "unknown"
+                body_context = "real PAB skeleton/body context when resolved; socket proxy fallback otherwise"
+                notes = [
+                    f"Selected XML patch scope: {class_text}.",
+                    f"Preview context: {body_context}.",
+                ]
+                if isinstance(part_in_out_entry, ArchiveEntry):
+                    notes.append(f"PartInOut XML: {part_in_out_entry.path}")
+                else:
+                    notes.append("PartInOut XML not resolved; descriptor patch unavailable.")
+                    patch_part_in_out_checkbox.setChecked(False)
+                    patch_part_in_out_checkbox.setEnabled(False)
+                if isinstance(character_socket_entry, ArchiveEntry):
+                    notes.append(f"Character socket XML: {character_socket_entry.path}")
+                else:
+                    notes.append("Character socket XML not resolved; socket profile patch unavailable.")
+                    patch_socket_checkbox.setChecked(False)
+                    patch_socket_checkbox.setEnabled(False)
+                if imported_profile_state.get("part_in_out_path"):
+                    notes.append(f"Imported PartInOut profile: {imported_profile_state.get('part_in_out_path')}")
+                if imported_profile_state.get("socket_path"):
+                    notes.append(f"Imported socket profile: {imported_profile_state.get('socket_path')}")
+                    patch_socket_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
+                elif not patch_socket_checkbox.isChecked():
+                    patch_socket_checkbox.setEnabled(False)
+                attach_socket = _visual_selected_attach_socket()
+                if attach_socket:
+                    notes.append(f"Attach point: {attach_socket} -> {_child_socket_for_attach_point(attach_socket) or 'unchanged child socket'}")
+                visual_status.setText(" ".join(notes))
+
+            def _import_visual_profile_xml() -> None:
+                selected, _selected_filter = QFileDialog.getOpenFileName(
+                    dialog,
+                    "Import Placement Profile XML",
+                    str(Path.home() / "Desktop"),
+                    "Placement XML (*.xml *.sockets.xml);;All files (*.*)",
+                )
+                if not selected:
+                    return
+                path = Path(selected).expanduser()
+                try:
+                    text = path.read_text(encoding="utf-8-sig", errors="ignore")
+                except Exception as exc:
+                    QMessageBox.warning(dialog, "Import Placement Profile XML", f"Could not read profile XML:\n{exc}")
+                    return
+                lowered = path.name.casefold()
+                if lowered.endswith(".sockets.xml") or "socket" in lowered:
+                    imported_profile_state["socket_text"] = text
+                    imported_profile_state["socket_path"] = str(path)
+                    patch_socket_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
+                    patch_socket_checkbox.setChecked(isinstance(character_socket_entry, ArchiveEntry))
+                else:
+                    imported_profile_state["part_in_out_text"] = text
+                    imported_profile_state["part_in_out_path"] = str(path)
+                    if isinstance(part_in_out_entry, ArchiveEntry):
+                        patch_part_in_out_checkbox.setChecked(True)
+                _refresh_visual_status()
+                _refresh_package_plan()
+
             def _refresh_package_plan() -> None:
                 nonlocal package_plan_rows, package_plan_warnings
                 package_plan_rows, package_plan_warnings = self._build_attachment_donor_package_plan(
@@ -30954,6 +31921,11 @@ def run_gui() -> int:
                             ]
                         )
                     )
+                for action, target_path, note in _visual_patch_preview_rows():
+                    item = QTreeWidgetItem([action, "visual placement", target_path, note])
+                    item.setToolTip(2, target_path)
+                    item.setToolTip(3, note)
+                    plan_tree.addTopLevelItem(item)
                 warning_label.setText("Review notes: " + " ".join(package_plan_warnings[:5]) if package_plan_warnings else "")
                 warning_label.setVisible(bool(package_plan_warnings))
                 build_button.setEnabled(bool(package_plan_rows))
@@ -31085,6 +32057,8 @@ def run_gui() -> int:
                     preview_lines.append(f"- ...and {len(package_plan_rows) - 8} more file(s)")
                 if custom_icon_spec is not None:
                     preview_lines.append(f"- custom icon {custom_icon_spec.source_path.name} -> {custom_icon_spec.target_path}")
+                for action, target_path, _note in _visual_patch_preview_rows():
+                    preview_lines.append(f"- {action} -> {target_path}")
                 question = (
                     "Write a mod-ready loose package using this reviewed placement-copy plan?\n\n"
                     f"Target that changes: {target_entry.path}\n"
@@ -31135,6 +32109,8 @@ def run_gui() -> int:
                             diagnostics.append(f"{action}: {donor.path} -> {target.path}")
                 if custom_icon_spec is not None:
                     diagnostics.append(f"Custom item icon: {custom_icon_spec.source_path} -> {custom_icon_spec.target_path}")
+                for action, target_path, note in _visual_patch_preview_rows():
+                    diagnostics.append(f"{action}: {target_path}; {note}")
                 package_info = self._placement_swap_package_info_with_diagnostics(package_info, diagnostics)
 
                 def _task(log: Callable[[str], None]) -> ArchiveLooseExportResult:
@@ -31153,6 +32129,33 @@ def run_gui() -> int:
                         action = str(row.get("action") or "Copy source bytes")
                         log(f"{action}: {donor.path} -> {target.path}")
                         requests_by_path[target_key] = ArchivePatchRequest(target, payload_data)
+                    part_patch_for_socket: Optional[AttachmentPartInOutPatchResult] = None
+                    if patch_part_in_out_checkbox.isChecked() and isinstance(part_in_out_entry, ArchiveEntry):
+                        base_text = _read_archive_text(part_in_out_entry)
+                        part_patch_for_socket = _visual_part_in_out_patch(base_text)
+                        if isinstance(part_patch_for_socket, AttachmentPartInOutPatchResult) and part_patch_for_socket.diffs:
+                            target_key = part_in_out_entry.path.replace("\\", "/").strip().casefold()
+                            requests_by_path[target_key] = ArchivePatchRequest(part_in_out_entry, part_patch_for_socket.text.encode("utf-8"))
+                            for diff in tuple(part_patch_for_socket.diffs[:20]):
+                                log(
+                                    "Patch PartInOut placement XML: "
+                                    f"{diff.part_name} {diff.field_name}: {diff.old_value or '-'} -> {diff.new_value or '-'}"
+                                )
+                        else:
+                            log("Patch PartInOut placement XML: no selected-class descriptor changes were produced.")
+                    if patch_socket_checkbox.isChecked() and isinstance(character_socket_entry, ArchiveEntry):
+                        base_text = _read_archive_text(character_socket_entry)
+                        socket_patch = _visual_socket_patch(base_text, part_patch_for_socket)
+                        if isinstance(socket_patch, AttachmentPartInOutPatchResult) and socket_patch.diffs:
+                            target_key = character_socket_entry.path.replace("\\", "/").strip().casefold()
+                            requests_by_path[target_key] = ArchivePatchRequest(character_socket_entry, socket_patch.text.encode("utf-8"))
+                            for diff in tuple(socket_patch.diffs[:20]):
+                                log(
+                                    "Patch character socket XML: "
+                                    f"{diff.part_name} {diff.field_name}: {diff.old_value or '-'} -> {diff.new_value or '-'}"
+                                )
+                        else:
+                            log("Patch character socket XML: no selected socket transform changes were produced.")
                     if custom_icon_spec is not None:
                         texconv_text = self.texconv_path_edit.text().strip()
                         generated_icon_spec = self._build_custom_item_icon_supplemental_spec(
@@ -31204,6 +32207,26 @@ def run_gui() -> int:
             custom_icon_folder_button.clicked.connect(lambda _checked=False: _choose_custom_icon_folder())
             custom_icon_library_button.clicked.connect(lambda _checked=False: _choose_custom_icon_library_source())
             _refresh_custom_icon_status()
+            visual_preview_button.clicked.connect(
+                lambda _checked=False: self._open_archive_attachment_visual_placement_dialog(
+                    target_entry,
+                    donor_entry,
+                    target_graph,
+                    donor_graph,
+                    package_plan_rows=tuple(package_plan_rows),
+                )
+            )
+            import_profile_button.clicked.connect(lambda _checked=False: _import_visual_profile_xml())
+            patch_part_in_out_checkbox.toggled.connect(lambda _checked=False: (_refresh_visual_status(), _refresh_package_plan()))
+            patch_socket_checkbox.toggled.connect(lambda _checked=False: (_refresh_visual_status(), _refresh_package_plan()))
+            attach_point_combo.currentIndexChanged.connect(
+                lambda _index=0: (
+                    patch_part_in_out_checkbox.setChecked(bool(_visual_selected_attach_socket()) or patch_part_in_out_checkbox.isChecked()),
+                    _refresh_visual_status(),
+                    _refresh_package_plan(),
+                )
+            )
+            _refresh_visual_status()
             experimental_model_checkbox.toggled.connect(lambda _checked=False: _refresh_experimental_options())
             experimental_hkx_checkbox.toggled.connect(lambda _checked=False: _refresh_package_plan())
             _refresh_experimental_options()
@@ -37593,6 +38616,7 @@ def run_gui() -> int:
             dialog.exec()
 
         def _show_archive_tree_context_menu(self, position) -> None:
+            context_started_at = time.perf_counter()
             item = self.archive_tree.itemAt(position)
             if item is None:
                 return
@@ -37600,13 +38624,17 @@ def run_gui() -> int:
             value = self._archive_tree_item_value(item)
             if kind != "file" or not isinstance(value, int):
                 return
-            if not item.isSelected():
-                self.archive_tree.clearSelection()
-                item.setSelected(True)
-            self.archive_tree.setCurrentItem(item)
             entry = self._archive_entry_at_tree_position(position)
             if entry is None:
                 return
+            self.archive_context_menu_selection_suppressed = True
+            if not item.isSelected():
+                self.archive_tree.clearSelection()
+            try:
+                self.archive_tree.setCurrentItem(item)
+            finally:
+                self.archive_context_menu_selection_suppressed = False
+            self._schedule_archive_selection_state_update()
 
             menu = QMenu(self)
             if hasattr(menu, "setToolTipsVisible"):
@@ -37683,12 +38711,11 @@ def run_gui() -> int:
                 placement_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._open_archive_attachment_placement_workspace_dialog(current_entry)
                 )
-                hkx_placement_candidates = self._archive_hkx_placement_candidates_for_entry(entry)
                 hkx_placement_action = menu.addAction("Open HKX Placement...")
                 hkx_placement_action.setToolTip(
-                    "Open the related HKX/HKT editor directly on Placement. If this family has multiple HKX/HKT files, choose one first."
+                    "Open the related HKX/HKT editor directly on Placement. Related HKX/HKT files are resolved only after this action is clicked."
                 )
-                hkx_placement_action.setEnabled(bool(hkx_placement_candidates))
+                hkx_placement_action.setEnabled(self._archive_entry_supports_attachment_placement_workflow(entry))
                 hkx_placement_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._open_archive_hkx_placement_for_entry(current_entry)
                 )
@@ -37810,6 +38837,11 @@ def run_gui() -> int:
                         lambda _checked=False, current_entry=entry: self._start_archive_audio_patch(current_entry)
                     )
 
+            elapsed_ms = max(0.0, (time.perf_counter() - context_started_at) * 1000.0)
+            self.append_archive_log(
+                f"Archive context menu timing | build={elapsed_ms:.0f}ms | path={entry.path}",
+                verbose=True,
+            )
             menu.exec(self.archive_tree.viewport().mapToGlobal(position))
 
         def _apply_archive_patch_result(self, patch_result: ArchivePatchResult) -> None:
@@ -68093,6 +69125,8 @@ def run_gui() -> int:
             if preferred_view == "model" and native_package_path and not self.archive_preview_showing_loose:
                 if request_id is not None and request_id != self.archive_preview_request_id:
                     return 0.0
+                if str(getattr(result, "quality_tier", "") or "").strip().lower() == "fast":
+                    return 0.0
                 model_apply_started_at = time.perf_counter()
                 renderer_backend = self._archive_model_renderer_backend()
                 host_binary = find_native_d3d11_host() if renderer_backend == ARCHIVE_MODEL_RENDERER_D3D11 else None
@@ -68112,11 +69146,14 @@ def run_gui() -> int:
                         self.set_status_message(message, error=True)
                         self._set_archive_isolated_renderer_debug(message)
                         return 0.0
-                    previous = getattr(self, "archive_isolated_renderer_active_package", None)
-                    if previous is not None:
-                        self.archive_isolated_renderer_retired_packages.append(previous)
-                    self.archive_isolated_renderer_active_package = package_dir
-                    self.archive_isolated_renderer_package_source = "native-core"
+                    if self._archive_isolated_renderer_process_running():
+                        self._set_archive_d3d11_pending_package(package_dir, package_dir / "host_status.json", "native-core")
+                    else:
+                        previous = getattr(self, "archive_isolated_renderer_active_package", None)
+                        if previous is not None:
+                            self.archive_isolated_renderer_retired_packages.append(previous)
+                        self.archive_isolated_renderer_active_package = package_dir
+                        self.archive_isolated_renderer_package_source = "native-core"
                     detail_text = self._detail_text_with_renderer_note(detail_text, None)
                     self._set_archive_preview_base_detail_text(detail_text, include_current_model_debug=False)
                     self.archive_media_preview.clear_media("No media preview available.")
@@ -68140,6 +69177,8 @@ def run_gui() -> int:
 
             if preferred_view == "model" and result.preview_model is not None and not self.archive_preview_showing_loose:
                 if request_id is not None and request_id != self.archive_preview_request_id:
+                    return 0.0
+                if str(getattr(result, "quality_tier", "") or "").strip().lower() == "fast":
                     return 0.0
                 model_apply_started_at = time.perf_counter()
                 renderer_backend = self._archive_model_renderer_backend()
@@ -69962,6 +71001,7 @@ def run_gui() -> int:
                 ("worker_thread", self.worker_thread, self.scan_worker or self.archive_scan_worker or self.archive_filter_worker or self.build_worker or self.dds_to_png_worker or self.utility_worker),
                 ("archive_sidecar_thread", self.archive_sidecar_thread, self.archive_sidecar_worker),
                 ("archive_derived_cache_thread", self.archive_derived_cache_thread, self.archive_derived_cache_worker),
+                ("archive_enhanced_index_thread", self.archive_enhanced_index_thread, self.archive_enhanced_index_worker),
                 ("archive_item_icon_warmup_thread", self.archive_item_icon_warmup_thread, self.archive_item_icon_warmup_worker),
                 ("compare_preview_thread", self.compare_preview_thread, self.compare_preview_worker),
                 ("archive_preview_thread", self.archive_preview_thread, self.archive_preview_worker),

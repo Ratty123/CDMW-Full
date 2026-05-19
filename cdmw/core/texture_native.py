@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -373,62 +374,65 @@ def ensure_directxtex_dds_preview_pngs(
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
     try:
-        raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
-        for job in normalized_jobs:
-            Path(str(job["output"])).parent.mkdir(parents=True, exist_ok=True)
-        job_path.write_text(
-            json.dumps({"version": 1, "backend": DIRECTXTEX_TEXTURE_BACKEND_ID, "jobs": normalized_jobs}, indent=2),
-            encoding="utf-8",
-        )
-        returncode, _stdout, _stderr = run_process_with_cancellation(
-            [str(binary), "batch-preview-json", str(job_path), str(report_path), *_native_diagnostic_args()],
-            timeout_seconds=max(1.0, float(timeout_seconds)),
-            stop_event=stop_event,
-        )
-    except RunCancelled:
-        raise
-    except Exception:
+        try:
+            raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
+            for job in normalized_jobs:
+                Path(str(job["output"])).parent.mkdir(parents=True, exist_ok=True)
+            job_path.write_text(
+                json.dumps({"version": 1, "backend": DIRECTXTEX_TEXTURE_BACKEND_ID, "jobs": normalized_jobs}, indent=2),
+                encoding="utf-8",
+            )
+            returncode, _stdout, _stderr = run_process_with_cancellation(
+                [str(binary), "batch-preview-json", str(job_path), str(report_path), *_native_diagnostic_args()],
+                timeout_seconds=max(1.0, float(timeout_seconds)),
+                stop_event=stop_event,
+            )
+        except RunCancelled:
+            raise
+        except Exception:
+            return results
+        if returncode != 0 or not report_path.is_file():
+            return results
+        try:
+            parsed = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return results
+        items = parsed.get("items") if isinstance(parsed, dict) else None
+        if not isinstance(items, list):
+            return results
+        for item in items:
+            if not isinstance(item, dict) or str(item.get("status") or "").lower() != "decoded":
+                continue
+            output_path = Path(str(item.get("output_path") or item.get("output") or ""))
+            source_path = Path(str(item.get("source_path") or item.get("input") or ""))
+            if not output_path.is_file() or not source_path:
+                continue
+            item.setdefault("backend", DIRECTXTEX_TEXTURE_BACKEND_ID)
+            item.setdefault("native_backend", "directxtex")
+            if write_native_texture_report_sidecar(output_path, item):
+                try:
+                    source_key = str(source_path.expanduser().resolve())
+                except OSError:
+                    source_key = str(source_path)
+                results[source_key] = output_path
+                if include_job_keys:
+                    result_key = str(item.get("result_key") or "").strip()
+                    if not result_key:
+                        result_key = job_keys_by_output.get(str(output_path), "")
+                    if not result_key:
+                        result_key = directxtex_preview_result_key(
+                            source_path,
+                            max_dimension=int(item.get("max_dimension") or item.get("max_dim") or 4096),
+                            slot_kind=str(item.get("slot") or item.get("slot_kind") or "base"),
+                            srgb=str(item.get("srgb") or "auto"),
+                            normal_space=str(item.get("normal_space") or "auto"),
+                        )
+                    results[result_key] = output_path
+        if results:
+            request_app_temp_cache_prune()
         return results
-    if returncode != 0 or not report_path.is_file():
-        return results
-    try:
-        parsed = json.loads(report_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return results
-    items = parsed.get("items") if isinstance(parsed, dict) else None
-    if not isinstance(items, list):
-        return results
-    for item in items:
-        if not isinstance(item, dict) or str(item.get("status") or "").lower() != "decoded":
-            continue
-        output_path = Path(str(item.get("output_path") or item.get("output") or ""))
-        source_path = Path(str(item.get("source_path") or item.get("input") or ""))
-        if not output_path.is_file() or not source_path:
-            continue
-        item.setdefault("backend", DIRECTXTEX_TEXTURE_BACKEND_ID)
-        item.setdefault("native_backend", "directxtex")
-        if write_native_texture_report_sidecar(output_path, item):
-            try:
-                source_key = str(source_path.expanduser().resolve())
-            except OSError:
-                source_key = str(source_path)
-            results[source_key] = output_path
-            if include_job_keys:
-                result_key = str(item.get("result_key") or "").strip()
-                if not result_key:
-                    result_key = job_keys_by_output.get(str(output_path), "")
-                if not result_key:
-                    result_key = directxtex_preview_result_key(
-                        source_path,
-                        max_dimension=int(item.get("max_dimension") or item.get("max_dim") or 4096),
-                        slot_kind=str(item.get("slot") or item.get("slot_kind") or "base"),
-                        srgb=str(item.get("srgb") or "auto"),
-                        normal_space=str(item.get("normal_space") or "auto"),
-                    )
-                results[result_key] = output_path
-    if results:
-        request_app_temp_cache_prune()
-    return results
+    finally:
+        shutil.rmtree(job_root, ignore_errors=True)
 
 
 def ensure_native_dds_preview_png(
@@ -588,45 +592,48 @@ def encode_dds_batch_with_directxtex(
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
     try:
-        for job in normalized_jobs:
-            Path(str(job["output"])).parent.mkdir(parents=True, exist_ok=True)
-        job_path.write_text(
-            json.dumps({"version": 1, "backend": DIRECTXTEX_TEXTURE_BACKEND_ID, "jobs": normalized_jobs}, indent=2),
-            encoding="utf-8",
-        )
-        returncode, _stdout, _stderr = run_process_with_cancellation(
-            [str(binary), "batch-encode-json", str(job_path), str(report_path), *_native_diagnostic_args()],
-            timeout_seconds=max(1.0, float(timeout_seconds)),
-            stop_event=stop_event,
-        )
-    except RunCancelled:
-        raise
-    except Exception:
-        return {}
-    if returncode not in {0, 2} or not report_path.is_file():
-        return {}
-    try:
-        parsed = json.loads(report_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    items = parsed.get("items") if isinstance(parsed, dict) else None
-    if not isinstance(items, list):
-        return {}
-    results: Dict[str, Dict[str, Any]] = {}
-    for item in items:
-        if not isinstance(item, dict) or str(item.get("status") or "").lower() != "encoded":
-            continue
-        output = Path(str(item.get("output_path") or ""))
-        if not output.is_file():
-            continue
-        item.setdefault("backend", DIRECTXTEX_TEXTURE_BACKEND_ID)
-        item.setdefault("native_backend", "directxtex")
         try:
-            output_key = str(output.expanduser().resolve())
-        except OSError:
-            output_key = str(output)
-        results[output_key] = dict(item)
-    return results
+            for job in normalized_jobs:
+                Path(str(job["output"])).parent.mkdir(parents=True, exist_ok=True)
+            job_path.write_text(
+                json.dumps({"version": 1, "backend": DIRECTXTEX_TEXTURE_BACKEND_ID, "jobs": normalized_jobs}, indent=2),
+                encoding="utf-8",
+            )
+            returncode, _stdout, _stderr = run_process_with_cancellation(
+                [str(binary), "batch-encode-json", str(job_path), str(report_path), *_native_diagnostic_args()],
+                timeout_seconds=max(1.0, float(timeout_seconds)),
+                stop_event=stop_event,
+            )
+        except RunCancelled:
+            raise
+        except Exception:
+            return {}
+        if returncode not in {0, 2} or not report_path.is_file():
+            return {}
+        try:
+            parsed = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        items = parsed.get("items") if isinstance(parsed, dict) else None
+        if not isinstance(items, list):
+            return {}
+        results: Dict[str, Dict[str, Any]] = {}
+        for item in items:
+            if not isinstance(item, dict) or str(item.get("status") or "").lower() != "encoded":
+                continue
+            output = Path(str(item.get("output_path") or ""))
+            if not output.is_file():
+                continue
+            item.setdefault("backend", DIRECTXTEX_TEXTURE_BACKEND_ID)
+            item.setdefault("native_backend", "directxtex")
+            try:
+                output_key = str(output.expanduser().resolve())
+            except OSError:
+                output_key = str(output)
+            results[output_key] = dict(item)
+        return results
+    finally:
+        shutil.rmtree(job_root, ignore_errors=True)
 
 
 def texconv_preview_report(

@@ -15,6 +15,9 @@ from cdmw.core.archive import (
     build_archive_entry_path_index,
     load_archive_derived_index_cache,
     load_archive_texture_sidecar_cache_rows,
+    invalidate_archive_browser_cache,
+    prune_archive_cache_root,
+    resolve_archive_name_search_index_cache_path,
     resolve_archive_derived_index_cache_path,
     resolve_archive_sidecar_cache_path,
     save_archive_derived_index_cache,
@@ -23,6 +26,9 @@ from cdmw.core.archive import (
 )
 from cdmw.core.table_catalog import table_catalog_cache_metadata
 from cdmw.models import ArchiveEntry
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _write_entry_files(root: Path, group: str, data: bytes) -> tuple[Path, Path]:
@@ -57,6 +63,22 @@ def _sidecar_text(texture_path: str, *, extra: str = "") -> bytes:
 
 
 class ArchiveCacheTests(unittest.TestCase):
+    def test_native_derived_index_job_is_wired_as_preferred_basic_index_path(self) -> None:
+        accelerator = (REPO_ROOT / "cdmw" / "core" / "archive_accelerator.py").read_text(encoding="utf-8")
+        native = (REPO_ROOT / "native" / "cdmw_archive_accelerator" / "src" / "main.cpp").read_text(encoding="utf-8")
+        main_window = (REPO_ROOT / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
+
+        self.assertIn("def build_archive_basic_indexes_accelerated", accelerator)
+        self.assertIn('"derived-index-job"', accelerator)
+        self.assertIn("build_archive_entry_path_index(entries)", accelerator)
+        self.assertIn("build_archive_entry_basename_index(entries)", accelerator)
+        self.assertIn("build_archive_entry_extension_index(entries)", accelerator)
+        self.assertIn("run_derived_index_job", native)
+        self.assertIn('path_rows', native)
+        self.assertIn('basename_rows', native)
+        self.assertIn('extension_rows', native)
+        self.assertIn("build_archive_basic_indexes_accelerated(", main_window)
+
     def test_basename_index_orders_nested_real_paths_before_shortcut_aliases(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -465,6 +487,45 @@ class ArchiveCacheTests(unittest.TestCase):
 
             self.assertIn("Archive index cache written; preparing browser indexes...", progress)
             self.assertNotIn("Archive cache is ready.", progress)
+
+    def test_invalidate_archive_browser_cache_removes_name_search_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            cache_root.mkdir()
+            name_index_path = resolve_archive_name_search_index_cache_path(root, cache_root)
+            name_index_path.write_bytes(b"name-search")
+
+            deleted = invalidate_archive_browser_cache(root, cache_root)
+
+            self.assertFalse(name_index_path.exists())
+            self.assertIn(name_index_path, deleted)
+
+    def test_prune_archive_cache_root_removes_oldest_top_level_cache_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            cache_root.mkdir()
+            old_scan = cache_root / "archive_scan_old.bin"
+            new_name = cache_root / "archive_name_search_new.bin"
+            foreign = cache_root / "other.bin"
+            old_scan.write_bytes(b"a" * 700)
+            new_name.write_bytes(b"b" * 700)
+            foreign.write_bytes(b"c" * 2000)
+            old_time = 100.0
+            new_time = 200.0
+            old_scan.touch()
+            new_name.touch()
+            import os
+
+            os.utime(old_scan, (old_time, old_time))
+            os.utime(new_name, (new_time, new_time))
+
+            report = prune_archive_cache_root(cache_root, max_bytes=1000, target_bytes=700)
+
+            self.assertEqual(report["removed_files"], 1)
+            self.assertFalse(old_scan.exists())
+            self.assertTrue(new_name.exists())
+            self.assertTrue(foreign.exists())
 
 
 if __name__ == "__main__":

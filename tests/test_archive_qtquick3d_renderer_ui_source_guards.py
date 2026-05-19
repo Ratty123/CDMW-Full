@@ -38,6 +38,36 @@ class ArchiveQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn("parse_mesh(", package_source)
         self.assertNotIn("build_archive_preview_result(", package_source)
 
+    def test_native_d3d11_reload_keeps_previous_preview_until_loaded(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        reload_start = source.index('def _start_archive_isolated_renderer_process(self, package_dir: Path)')
+        reload_end = source.index('def _check_archive_isolated_renderer_start_timeout', reload_start)
+        reload_source = source[reload_start:reload_end]
+
+        self.assertIn("_set_archive_d3d11_pending_package(package_dir, status_file", reload_source)
+        self.assertIn("loading the next package while the current preview remains visible", reload_source)
+        self.assertNotIn("clear_preview(status_file)", reload_source)
+        self.assertIn("_promote_archive_d3d11_pending_package_if_loaded(status_file)", source)
+        self.assertIn("_discard_archive_d3d11_pending_package(status_file)", source)
+        self.assertIn("keep_d3d11_visible", source)
+        self.assertIn("_deactivate_archive_model_renderers_for_non_model_preview()", source)
+        self.assertIn('quality_tier", "") or "").strip().lower() == "fast"', source)
+        self.assertIn("SendMessageTimeoutW", source)
+        self.assertIn("_kill_archive_isolated_renderer_process_if_running(process)", source)
+
+    def test_native_d3d11_texture_integrity_and_diagnostics_are_reported(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("texture manifest empty despite", source)
+        self.assertIn("Native D3D11 Texture Failures:", source)
+        self.assertIn("texture_failures", native_source)
+        self.assertIn("failed_textures", native_source)
+        self.assertIn("hresult_hex", native_source)
+        self.assertIn("error_payload(\"native D3D11 package reload failed\"", native_source)
+        self.assertIn("texture_cache_key(path, dds, create_flags)", native_source)
+        self.assertIn("live_texture_bytes", native_source)
+
 
 if __name__ == "__main__":
     unittest.main()

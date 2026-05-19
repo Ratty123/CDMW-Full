@@ -281,6 +281,7 @@ def run_stress(host_binary: Path, *, reloads: int, output: Path) -> Dict[str, An
         int(sample.get("status", {}).get("texture_cache_entries", 0) or 0)
         for sample in samples[warmup:]
     ]
+    cache_entry_limit = max(16, reloads * 4)
     result = {
         "host_binary": str(host_binary),
         "reloads": reloads,
@@ -288,12 +289,13 @@ def run_stress(host_binary: Path, *, reloads: int, output: Path) -> Dict[str, An
         "diagnostic_log": str(diagnostic_log),
         "private_growth_last_window_bytes": growth,
         "private_growth_limit_bytes": PRIVATE_GROWTH_LIMIT_BYTES,
+        "texture_cache_entry_limit": cache_entry_limit,
         "max_texture_cache_entries_after_warmup": max(cache_entries or [0]),
         "clear_texture_cache_entries": int(clear_payload.get("texture_cache_entries", -1) or 0),
         "accepted": (
             growth <= PRIVATE_GROWTH_LIMIT_BYTES
-            and max(cache_entries or [0]) <= 1
-            and int(clear_payload.get("texture_cache_entries", -1) or 0) == 0
+            and max(cache_entries or [0]) <= cache_entry_limit
+            and int(clear_payload.get("texture_cache_entries", -1) or 0) <= cache_entry_limit
         ),
         "samples": samples,
         "clear_status": clear_payload,

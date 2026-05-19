@@ -20,8 +20,14 @@ from cdmw.core.archive import (
     build_archive_item_icon_references_from_catalog,
     build_archive_preview_result,
     build_archive_relationship_references,
+    build_part_in_out_socket_attach_point_patch,
+    build_part_in_out_socket_profile_patch,
+    build_socket_bone_data_profile_patch,
     inspect_prefab_socket_name_fields,
+    infer_part_in_out_weapon_class,
+    parse_part_in_out_socket_info_xml,
     parse_socket_bone_data_xml,
+    part_in_out_rows_for_weapon_class,
 )
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference
 
@@ -575,6 +581,78 @@ class ArchiveRelationshipTests(unittest.TestCase):
         self.assertEqual(1, len(document.stack_equip_infos))
         self.assertEqual("Pelvis_L", document.stack_equip_infos[0].equip_type_name)
         self.assertEqual(("Pelvis_L_Socket",), document.stack_equip_infos[0].socket_names)
+
+    def test_part_in_out_parser_and_class_filter_support_descriptor_rows(self):
+        document = parse_part_in_out_socket_info_xml(
+            """
+            <PartInOutSocket PartName="CD_MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket"
+                OutSocketBone="RHand_Socket" InChildSocketBone="Pelvis_L_ChildSocket" />
+            <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket"
+                OutSocketBone="RHand_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
+            """,
+            "character/phm_description_player_kliff.xml",
+        )
+
+        self.assertEqual(2, len(document.rows))
+        self.assertEqual("onehand_sword", infer_part_in_out_weapon_class(document.rows[0].part_name))
+        self.assertEqual("twohand_sword", infer_part_in_out_weapon_class(document.rows[1].part_name))
+        self.assertEqual(["CD_MainWeapon_Sword_R"], [row.part_name for row in part_in_out_rows_for_weapon_class(document, "onehand_sword")])
+
+    def test_part_in_out_profile_patch_detects_imported_back_and_hip_style_changes(self):
+        base = """
+        <PartInOutSocket PartName="CD_MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket" OutSocketBone="RHand_Socket" InChildSocketBone="Pelvis_L_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket" OutSocketBone="RHand_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
+        """
+        profile = """
+        <PartInOutSocket PartName="CD_MainWeapon_Sword_R" InSocketBone="Spine1_B_Socket" OutSocketBone="RHand_Socket" InChildSocketBone="Pelvis_L_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Pelvis_B_Socket" OutSocketBone="RHand_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
+        """
+
+        one_hand = build_part_in_out_socket_profile_patch(base, profile, weapon_class="onehand_sword")
+        self.assertIn('PartName="CD_MainWeapon_Sword_R" InSocketBone="Spine1_B_Socket"', one_hand.text)
+        self.assertIn('PartName="CD_TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket"', one_hand.text)
+        self.assertEqual(("CD_MainWeapon_Sword_R",), one_hand.patched_part_names)
+
+        two_hand = build_part_in_out_socket_profile_patch(base, profile, weapon_class="twohand_sword")
+        self.assertIn('PartName="CD_TwoHandWeapon_Sword" InSocketBone="Pelvis_B_Socket"', two_hand.text)
+        self.assertEqual(("CD_TwoHandWeapon_Sword",), two_hand.patched_part_names)
+
+    def test_part_in_out_attach_point_patch_updates_selected_class_only(self):
+        base = """
+        <PartInOutSocket PartName="CD_MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket" InChildSocketBone="Pelvis_L_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
+        """
+
+        result = build_part_in_out_socket_attach_point_patch(
+            base,
+            weapon_class="twohand_sword",
+            in_socket_bone="Pelvis_B_Socket",
+            in_child_socket_bone="Pelvis_R_ChildSocket",
+        )
+
+        self.assertIn('CD_MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket"', result.text)
+        self.assertIn('CD_TwoHandWeapon_Sword" InSocketBone="Pelvis_B_Socket"', result.text)
+        self.assertIn('InChildSocketBone="Pelvis_R_ChildSocket"', result.text)
+
+    def test_socket_profile_patch_detects_manual_transform_changes(self):
+        base = """
+        <SocketBoneData><SocketList>
+          <Socket Name="Spine1_B_Socket" Parent="Bip_Weapon_Attach_In_01" Rotation="0 0 0 1" Translation="0 0 0"/>
+          <Socket Name="Pelvis_L_Socket" Parent="B_WeaponIn_R_00" Rotation="0 0 0 1" Translation="0 0 0"/>
+        </SocketList></SocketBoneData>
+        """
+        profile = """
+        <SocketBoneData><SocketList>
+          <Socket Name="Spine1_B_Socket" Parent="Bip_Weapon_Attach_In_01" Rotation="0.181649 -0.660709 -0.705316 0.181649" Translation="-0.20000 0.250000 -0.055000"/>
+          <Socket Name="Pelvis_L_Socket" Parent="B_WeaponIn_R_00" Rotation="0 0 0 1" Translation="0 0 0.050000"/>
+        </SocketList></SocketBoneData>
+        """
+
+        result = build_socket_bone_data_profile_patch(base, profile, socket_names=("Spine1_B_Socket",))
+
+        self.assertIn('Name="Spine1_B_Socket" Parent="Bip_Weapon_Attach_In_01" Rotation="0.181649 -0.660709 -0.705316 0.181649" Translation="-0.200000 0.250000 -0.055000"', result.text)
+        self.assertIn('Name="Pelvis_L_Socket" Parent="B_WeaponIn_R_00" Rotation="0 0 0 1" Translation="0 0 0"', result.text)
+        self.assertEqual(("Spine1_B_Socket",), result.patched_part_names)
 
     def test_asset_family_graph_adds_read_only_attachment_placement_evidence(self):
         prefab_payload = (

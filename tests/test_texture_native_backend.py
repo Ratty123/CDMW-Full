@@ -186,6 +186,7 @@ class NativeTextureBackendTests(unittest.TestCase):
 
             self.assertEqual(1, len(run_commands))
             self.assertEqual({"batch-preview-json"}, {Path(run_commands[0][1]).name})
+            self.assertFalse(Path(run_commands[0][2]).parent.exists())
             self.assertEqual({str(dds_a.resolve()), str(dds_b.resolve())}, set(results))
             for preview_path in results.values():
                 self.assertTrue(texture_native.native_texture_report_sidecar_path(preview_path).is_file())
@@ -256,6 +257,7 @@ class NativeTextureBackendTests(unittest.TestCase):
 
             self.assertEqual(1, len(run_commands))
             self.assertEqual({"batch-encode-json"}, {Path(run_commands[0][1]).name})
+            self.assertFalse(Path(run_commands[0][2]).parent.exists())
             self.assertEqual({str(output_a.resolve()), str(output_b.resolve())}, set(results))
             self.assertEqual("BC7_UNORM", results[str(output_a.resolve())]["format"])
             self.assertEqual(4, results[str(output_a.resolve())]["mip_count"])

@@ -55,15 +55,27 @@ class NativeD3D11PreviewHostFrame(QFrame):
                 ctypes.cast(buffer, ctypes.c_void_p),
             )
             user32 = ctypes.windll.user32
-            user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_void_p]
-            user32.SendMessageW.restype = ctypes.c_ssize_t
-            result = user32.SendMessageW(
+            result_value = ctypes.c_size_t(0)
+            user32.SendMessageTimeoutW.argtypes = [
+                ctypes.c_void_p,
+                ctypes.c_uint,
+                ctypes.c_size_t,
+                ctypes.c_void_p,
+                ctypes.c_uint,
+                ctypes.c_uint,
+                ctypes.POINTER(ctypes.c_size_t),
+            ]
+            user32.SendMessageTimeoutW.restype = ctypes.c_ssize_t
+            result = user32.SendMessageTimeoutW(
                 ctypes.c_void_p(hwnd),
                 self._WM_COPYDATA,
                 int(self.winId()),
                 ctypes.byref(cds),
+                0x0002,
+                750,
+                ctypes.byref(result_value),
             )
-            return bool(result)
+            return bool(result and result_value.value)
         except Exception:
             return False
 

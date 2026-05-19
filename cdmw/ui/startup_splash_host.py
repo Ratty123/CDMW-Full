@@ -89,8 +89,8 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             )
 
             layout = QVBoxLayout(self)
-            layout.setContentsMargins(30, 90, 30, 24)
-            layout.setSpacing(8)
+            layout.setContentsMargins(30, 82, 30, 18)
+            layout.setSpacing(6)
             layout.addStretch(1)
 
             self.title_label = QLabel("Crimson Desert Mod Workbench")
@@ -108,9 +108,20 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             detail_font = QFont()
             detail_font.setPointSize(8)
             self.detail_label.setFont(detail_font)
-            self.detail_label.setMinimumHeight(42)
+            self.detail_label.setMinimumHeight(32)
+            self.detail_label.setMaximumHeight(34)
             layout.addWidget(self.detail_label)
-            layout.addSpacing(24)
+
+            self.progress_label = QLabel("")
+            self.progress_label.setAlignment(Qt.AlignCenter)
+            progress_font = QFont()
+            progress_font.setPointSize(8)
+            self.progress_label.setFont(progress_font)
+            self.progress_label.setMinimumHeight(14)
+            self.progress_label.setMaximumHeight(16)
+            self.progress_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            layout.addWidget(self.progress_label)
+            layout.addSpacing(22)
 
             self.setStyleSheet(
                 """
@@ -123,6 +134,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                 """
             )
             self.detail_label.setStyleSheet("color: #9f938c;")
+            self.progress_label.setStyleSheet("color: rgba(159, 147, 140, 210);")
 
             self._frame_timer = QTimer(self)
             self._frame_timer.setTimerType(Qt.PreciseTimer)
@@ -166,9 +178,12 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                 else:
                     self._target_progress = max(previous_target, min(raw_progress, 0.965))
                 self._has_determinate_progress = True
+                progress = min(max(self._display_progress, 0.0), 1.0)
+                self.progress_label.setText(f"{self._current:,} / {self._total:,}" if self._total > 1 else f"{int(progress * 100):d}%")
             else:
                 self._current = 0
                 self._total = 0
+                self.progress_label.setText("")
 
         def _payload_int(self, payload: dict, key: str) -> int:
             try:
@@ -210,6 +225,9 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             if self._has_determinate_progress and self._display_progress < self._target_progress:
                 delta = self._target_progress - self._display_progress
                 self._display_progress = min(self._target_progress, self._display_progress + max(0.003, delta * 0.16))
+                if self._total > 0:
+                    progress = min(max(self._display_progress, 0.0), 1.0)
+                    self.progress_label.setText(f"{self._current:,} / {self._total:,}" if self._total > 1 else f"{int(progress * 100):d}%")
             self.update()
 
         def _draw_falling_blocks(self, painter: QPainter, rect: QRectF) -> None:
@@ -274,9 +292,6 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                 progress = min(max(self._display_progress, 0.0), 1.0)
                 if progress > 0.01:
                     painter.drawRoundedRect(QRectF(rail.left(), rail.top(), rail.width() * progress, rail.height()), 1.5, 1.5)
-                progress_text = f"{self._current:,} / {self._total:,}" if self._total > 1 else f"{int(progress * 100):d}%"
-                painter.setPen(QPen(QColor(159, 147, 140, 210), 1.0))
-                painter.drawText(QRectF(rail.left(), rail.top() - 20, rail.width(), 14), Qt.AlignCenter, progress_text)
             else:
                 sweep_width = rail.width() * 0.24
                 sweep_left = rail.left() + ((rail.width() + sweep_width) * self._phase) - sweep_width

@@ -192,8 +192,28 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("self._archive_scan_progress_timer.start(delay_ms)", source)
         self.assertIn("self._flush_archive_scan_progress()", source)
         self.assertIn("self.archive_tree_population_time_budget_ms = 6.0", source)
+        self.assertIn("self.archive_tree_population_timer.setInterval(12)", source)
+        self.assertIn("self.archive_tree_category_population_timer.setInterval(12)", source)
         self.assertIn("return 420, 130", source)
         self.assertIn("current_item is not None and not defer_default_selection", source)
+
+    def test_archive_startup_defers_enhanced_indexes_until_browser_ready(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        deferred_message = "Archive enhanced indexes are stale or missing; deferring item-name and name-search indexing until after the browser opens."
+        self.assertIn(deferred_message, source)
+        self.assertIn("class ArchiveEnhancedIndexWorker", source)
+        self.assertIn('"enhanced_index_needs_build"', source)
+        self.assertIn('self.archive_enhanced_index_state = "warming"', source)
+        self.assertIn("self.archive_deferred_enhanced_index_start_pending = True", source)
+        self.assertIn("self._schedule_archive_post_ready_background_work()", source)
+        scan_start = source.index("class ArchiveScanWorker")
+        scan_end = source.index("class ArchiveDerivedIndexCacheWriteWorker", scan_start)
+        scan_body = source[scan_start:scan_end]
+        self.assertIn("enhanced_index_needs_build = bool(entries and name_search_index is None)", scan_body)
+        self.assertIn("enhanced_index_needs_build = bool(entries)", scan_body)
+        self.assertIn('"enhanced_index_needs_build": enhanced_index_needs_build', scan_body)
+        self.assertNotIn("build_archive_item_search_index(\n                            entries", scan_body)
+        self.assertNotIn("name_search_index = build_archive_name_search_index(\n                        entries", scan_body)
 
     def test_placement_workspace_and_loose_overlay_review_are_present(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -232,6 +252,13 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("Compare the actual recovered socket/prefab values", source)
         self.assertIn('target_socket_button = QPushButton("Open Target Socket XML")', source)
         self.assertIn('donor_socket_button = QPushButton("Open Source Socket XML")', source)
+        self.assertIn('visual_group = QGroupBox("Visual Placement")', source)
+        self.assertIn("Open Visual Placement Preview", source)
+        self.assertIn("Import Placement Profile XML", source)
+        self.assertIn("Patch PartInOut placement XML", source)
+        self.assertIn("Patch character socket XML", source)
+        self.assertIn("build_part_in_out_socket_profile_patch", source)
+        self.assertIn("build_socket_bone_data_profile_patch", source)
         self.assertIn("Build Placement Copy Package", source)
         self.assertIn("Target that changes", source)
         self.assertIn("Placement source", source)
