@@ -357,6 +357,7 @@ struct PreviewRenderView {
 
 struct ConstantBuffer {
     DirectX::XMFLOAT4X4 mvp;
+    DirectX::XMFLOAT4X4 normal_world;
     DirectX::XMFLOAT4 light_dir;
     DirectX::XMFLOAT4 base_color_flip;
     DirectX::XMFLOAT4 flags;
@@ -397,6 +398,9 @@ struct RendererStats {
     int cloth_particle_count = 0;
     int cloth_constraint_count = 0;
     int cloth_collider_count = 0;
+    int pbd_hint_count = 0;
+    int pbd_soft_hint_count = 0;
+    int pbd_cloth_hint_count = 0;
     std::uint64_t cloth_simulation_steps = 0;
     std::map<std::string, int> material_combiner_outputs;
     std::map<std::string, int> material_combiner_decode_modes;
@@ -1315,6 +1319,9 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
     stats.batch_count = static_cast<int>(batches.size());
     stats.vertex_count = json_int_field(manifest, "vertex_count", 0);
     stats.cloth_collider_count = std::max(0, json_int_field(manifest, "cloth_collider_count", 0));
+    stats.pbd_hint_count = std::max(0, json_int_field(manifest, "pbd_hint_count", 0));
+    stats.pbd_soft_hint_count = std::max(0, json_int_field(manifest, "pbd_soft_hint_count", 0));
+    stats.pbd_cloth_hint_count = std::max(0, json_int_field(manifest, "pbd_cloth_hint_count", 0));
     stats.material_contract_schema = std::max(0, json_int_field(manifest, "material_contract_schema", 0));
     stats.material_channel_contract_schema = std::max(0, json_int_field(manifest, "material_channel_contract_schema", 0));
     stats.texture_quality_schema = std::max(0, json_int_field(manifest, "texture_quality_schema", 0));
@@ -1545,6 +1552,9 @@ static std::string loaded_payload(const RendererStats& stats) {
            << "\"cloth_particle_count\":" << stats.cloth_particle_count << ","
            << "\"cloth_constraint_count\":" << stats.cloth_constraint_count << ","
            << "\"cloth_collider_count\":" << stats.cloth_collider_count << ","
+           << "\"pbd_hint_count\":" << stats.pbd_hint_count << ","
+           << "\"pbd_soft_hint_count\":" << stats.pbd_soft_hint_count << ","
+           << "\"pbd_cloth_hint_count\":" << stats.pbd_cloth_hint_count << ","
            << "\"cloth_simulation_steps\":" << stats.cloth_simulation_steps << ","
            << "\"manifest_read_ms\":" << stats.manifest_ms << ","
            << "\"texture_bind_ms\":" << stats.texture_ms << ","
@@ -1655,6 +1665,7 @@ static HRESULT compile_shader(const char* source, const char* entry, const char*
 static const char* kShaderSource = R"(
 cbuffer Constants : register(b0) {
     row_major float4x4 mvp;
+    row_major float4x4 normal_world;
     float4 light_dir;
     float4 base_color_flip;
     float4 flags;
@@ -1731,11 +1742,11 @@ float3 linear_to_srgb(float3 color) {
 VSOut vs_main(VSIn input) {
     VSOut output;
     output.position = mul(float4(input.position, 1.0), mvp);
-    output.normal = normalize(input.normal);
+    output.normal = normalize(mul(float4(input.normal, 0.0), normal_world).xyz);
     output.color = input.color;
     output.uv = input.uv;
-    output.tangent = normalize(input.tangent);
-    output.bitangent = normalize(input.bitangent);
+    output.tangent = normalize(mul(float4(input.tangent, 0.0), normal_world).xyz);
+    output.bitangent = normalize(mul(float4(input.bitangent, 0.0), normal_world).xyz);
     return output;
 }
 float select_mask_channel(float4 sample_value, float channel_value) {
@@ -2905,6 +2916,7 @@ private:
         context_->OMSetDepthStencilState(no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
         ConstantBuffer constants{};
         DirectX::XMStoreFloat4x4(&constants.mvp, mvp);
+        DirectX::XMStoreFloat4x4(&constants.normal_world, DirectX::XMMatrixIdentity());
         constants.light_dir = DirectX::XMFLOAT4(-0.35f, 0.45f, -0.82f, 0.0f);
         constants.base_color_flip = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
         constants.render_tuning = DirectX::XMFLOAT4(0.85f, 0.15f, 0.0f, 0.0f);
@@ -2936,6 +2948,7 @@ private:
         context_->OMSetDepthStencilState(no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
         ConstantBuffer constants{};
         DirectX::XMStoreFloat4x4(&constants.mvp, mvp);
+        DirectX::XMStoreFloat4x4(&constants.normal_world, DirectX::XMMatrixIdentity());
         constants.light_dir = DirectX::XMFLOAT4(-0.35f, 0.45f, -0.82f, 0.0f);
         constants.base_color_flip = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
         constants.render_tuning = DirectX::XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
@@ -3168,13 +3181,22 @@ private:
         draw_colored_lines(vertices, world_view_projection, true);
     }
 
-    void draw_preview_batch(PreviewBatch& batch, const DirectX::XMMATRIX& mvp, const DirectX::XMFLOAT4& editor_tint) {
+    void draw_preview_batch(
+        PreviewBatch& batch,
+        const DirectX::XMMATRIX& mvp,
+        const DirectX::XMMATRIX& normal_source_world,
+        const DirectX::XMFLOAT4& editor_tint
+    ) {
         if (!batch.vertex_buffer || batch.vertex_count <= 0) return;
         UINT stride = kVertexStrideBytes;
         UINT offset = 0;
         context_->IASetVertexBuffers(0, 1, batch.vertex_buffer.GetAddressOf(), &stride, &offset);
         ConstantBuffer constants{};
         DirectX::XMStoreFloat4x4(&constants.mvp, mvp);
+        DirectX::XMVECTOR normal_determinant{};
+        const DirectX::XMMATRIX normal_world = DirectX::XMMatrixTranspose(
+            DirectX::XMMatrixInverse(&normal_determinant, normal_source_world));
+        DirectX::XMStoreFloat4x4(&constants.normal_world, normal_world);
         const float light_azimuth = DirectX::XMConvertToRadians(render_tuning_.light_azimuth_degrees);
         const float light_elevation = DirectX::XMConvertToRadians(render_tuning_.light_elevation_degrees);
         const float light_cos_elevation = std::cos(light_elevation);
@@ -3302,8 +3324,9 @@ private:
         context_->RSSetViewports(1, &view.viewport);
         context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : (render_tuning_.cull_back_faces && cull_rasterizer_ ? cull_rasterizer_.Get() : rasterizer_.Get()));
         context_->OMSetDepthStencilState(view.no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
-        const DirectX::XMMATRIX world_view_projection =
-            world_matrix_for_view_role(view.role) * view_projection_matrix_for_viewport(view.viewport, distance_for_view_role(view.role));
+        const DirectX::XMMATRIX camera_world = world_matrix_for_view_role(view.role);
+        const DirectX::XMMATRIX view_projection = view_projection_matrix_for_viewport(view.viewport, distance_for_view_role(view.role));
+        const DirectX::XMMATRIX world_view_projection = camera_world * view_projection;
         if (!view.wireframe && !icon_capture_mode_) {
             draw_workspace_grid(view, world_view_projection);
         }
@@ -3327,7 +3350,8 @@ private:
             }
             const DirectX::XMMATRIX alignment_transform =
                 view.role == PreviewViewRole::Reference ? DirectX::XMMatrixIdentity() : alignment_preview_transform_for_batch(batch);
-            draw_preview_batch(batch, alignment_transform * world_view_projection, tint);
+            const DirectX::XMMATRIX batch_world = alignment_transform * camera_world;
+            draw_preview_batch(batch, batch_world * view_projection, batch_world, tint);
         }
         draw_cloth_debug_overlays(view, world_view_projection);
         if (!icon_capture_mode_) {

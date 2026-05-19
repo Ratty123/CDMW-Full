@@ -610,6 +610,9 @@ struct NativePackage {
     int base_low_res_count = 0;
     int base_low_confidence_count = 0;
     int base_technical_count = 0;
+    int pbd_hint_count = 0;
+    int pbd_soft_hint_count = 0;
+    int pbd_cloth_hint_count = 0;
     std::vector<std::string> base_quality_notes;
     std::vector<std::string> selected_texture_examples;
     std::vector<std::string> rejected_texture_examples;
@@ -6197,6 +6200,11 @@ static std::vector<TextureBinding> build_material_bindings(
             continue;
         }
         if (parsed_sidecar == nullptr) continue;
+        package.pbd_hint_count += static_cast<int>(parsed_sidecar->pbd_hints.size());
+        for (const NativePbdSidecarHint& hint : parsed_sidecar->pbd_hints) {
+            if (native_pbd_hint_is_soft_physics(hint)) ++package.pbd_soft_hint_count;
+            if (native_pbd_hint_is_cloth(hint)) ++package.pbd_cloth_hint_count;
+        }
         const std::string& sidecar_shader_family = parsed_sidecar->shader_family;
         const std::string& sidecar_shader_rule = parsed_sidecar->shader_rule;
         const SidecarParameterSummary& parameter_summary = parsed_sidecar->parameter_summary;
@@ -7296,6 +7304,23 @@ static const TextureBinding* best_visible_layer_base_fallback(
     return best;
 }
 
+static bool evidence_token_boundary(char ch) {
+    return !std::isalnum(static_cast<unsigned char>(ch));
+}
+
+static bool evidence_contains_token(const std::string& evidence, const std::string& token) {
+    if (token.empty()) return false;
+    size_t pos = 0;
+    while ((pos = evidence.find(token, pos)) != std::string::npos) {
+        const bool left_boundary = pos == 0 || evidence_token_boundary(evidence[pos - 1]);
+        const size_t end = pos + token.size();
+        const bool right_boundary = end >= evidence.size() || evidence_token_boundary(evidence[end]);
+        if (left_boundary && right_boundary) return true;
+        pos = end;
+    }
+    return false;
+}
+
 static std::string material_category_for_bindings(
     const std::vector<const TextureBinding*>& bindings,
     const NativeSubmesh& mesh,
@@ -7313,26 +7338,26 @@ static std::string material_category_for_bindings(
     for (const MaterialLayer& layer : layers) {
         evidence += " " + lower_copy(layer.diffuse_archive_path + " " + layer.source_parameter + " " + layer.layer_role);
     }
-    if (evidence.find("skin") != std::string::npos || evidence.find("nude") != std::string::npos || evidence.find("body") != std::string::npos || evidence.find("head") != std::string::npos || evidence.find("hand") != std::string::npos) {
-        return "skin";
-    }
-    if (evidence.find("hair") != std::string::npos || evidence.find("fur") != std::string::npos || evidence.find("beard") != std::string::npos) {
+    if (evidence.find("skinnedmeshhair") != std::string::npos || evidence.find("skinnedmeshfur") != std::string::npos || evidence_contains_token(evidence, "hair") || evidence_contains_token(evidence, "fur") || evidence_contains_token(evidence, "beard")) {
         return "hair";
     }
-    if (evidence.find("cloth") != std::string::npos || evidence.find("fabric") != std::string::npos || evidence.find("uw") != std::string::npos || evidence.find("underwear") != std::string::npos || evidence.find("cloak") != std::string::npos) {
+    if (evidence.find("skinnedmeshcloth") != std::string::npos || evidence_contains_token(evidence, "cloth") || evidence_contains_token(evidence, "fabric") || evidence_contains_token(evidence, "uw") || evidence_contains_token(evidence, "underwear") || evidence_contains_token(evidence, "cloak")) {
         return "cloth";
     }
-    if (evidence.find("leather") != std::string::npos || evidence.find("strap") != std::string::npos || evidence.find("belt") != std::string::npos || evidence.find("handle") != std::string::npos) {
+    if (evidence_contains_token(evidence, "leather") || evidence_contains_token(evidence, "strap") || evidence_contains_token(evidence, "belt") || evidence_contains_token(evidence, "handle")) {
         return "leather";
     }
-    if (evidence.find("wood") != std::string::npos || evidence.find("plank") != std::string::npos) {
+    if (evidence_contains_token(evidence, "wood") || evidence_contains_token(evidence, "plank")) {
         return "wood";
     }
     if (base_binding_is_low_authority_overlay(base) && evidence.find("shield") != std::string::npos) {
         return "wood";
     }
-    if (evidence.find("metal") != std::string::npos || evidence.find("steel") != std::string::npos || evidence.find("iron") != std::string::npos || evidence.find("blade") != std::string::npos || evidence.find("guard") != std::string::npos || evidence.find("acc") != std::string::npos) {
+    if (evidence_contains_token(evidence, "metal") || evidence_contains_token(evidence, "steel") || evidence_contains_token(evidence, "iron") || evidence_contains_token(evidence, "blade") || evidence_contains_token(evidence, "guard") || evidence_contains_token(evidence, "acc")) {
         return "metal";
+    }
+    if (evidence.find("skinnedmeshskin") != std::string::npos || evidence_contains_token(evidence, "skin") || evidence_contains_token(evidence, "nude") || evidence_contains_token(evidence, "body") || evidence_contains_token(evidence, "head") || evidence_contains_token(evidence, "hand")) {
+        return "skin";
     }
     return "generic";
 }
@@ -7591,12 +7616,20 @@ static bool layer_tint_is_visible(const MaterialLayer& layer) {
     return (max_component - min_component) > 0.075f || layer.metalness_hint > 0.35f;
 }
 
+static bool reliable_visible_base_texture(const TextureBinding* base) {
+    if (base == nullptr || base->source_path.empty()) return false;
+    if (base->visible_class == "technical") return false;
+    if (base->material_output_quality != "exact") return false;
+    return base->source_authority == "exact_sidecar" || base->source_authority == "embedded_mesh";
+}
+
 static float native_preview_base_tint_strength(
     const TextureBinding* base,
     const std::array<float, 3>& color,
     const std::vector<MaterialLayer>& material_layers
 ) {
     if (base == nullptr || !preview_color_is_tinted(color)) return 0.0f;
+    if (reliable_visible_base_texture(base)) return 0.0f;
     float strength = lower_copy(base->archive_path).find("texturelayer") != std::string::npos ? 0.48f : 0.30f;
     for (const MaterialLayer& layer : material_layers) {
         if (layer.layer_role == "base") continue;
@@ -8352,6 +8385,9 @@ static NativePackage write_d3d11_package(
     }
     manifest << "],"
         << "\"dds_upload_policy\":{\"default\":\"direct_dds\",\"png_fallback\":\"generated_or_non_dds_only\",\"base_srgb\":\"from_technique_or_role\",\"data_maps\":\"linear\",\"normal_y_policy\":\"per_batch\"},"
+        << "\"pbd_hint_count\":" << package.pbd_hint_count << ","
+        << "\"pbd_soft_hint_count\":" << package.pbd_soft_hint_count << ","
+        << "\"pbd_cloth_hint_count\":" << package.pbd_cloth_hint_count << ","
         << "\"cloth_runtime_schema\":1,"
         << "\"cloth_batch_count\":" << cloth_runtime_batch_count << ","
         << "\"cloth_particle_count\":" << cloth_runtime_particle_count << ","

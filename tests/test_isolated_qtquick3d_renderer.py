@@ -1106,6 +1106,11 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("material_hints", source)
         self.assertIn("material_shader_family", source)
         self.assertIn("material_family_code", source)
+        self.assertIn("row_major float4x4 normal_world", source)
+        self.assertIn("mul(float4(input.normal, 0.0), normal_world)", source)
+        self.assertIn("mul(float4(input.tangent, 0.0), normal_world)", source)
+        self.assertIn("mul(float4(input.bitangent, 0.0), normal_world)", source)
+        self.assertIn("batch_world * view_projection", source)
         self.assertIn("base_tint_strength", source)
         self.assertIn("boosted_preview_layer_weight", source)
         self.assertIn("tint_chroma", source)
@@ -1391,7 +1396,11 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("show_tool_pbd_cloth_pins", source)
         self.assertIn("show_tool_pbd_cloth_colliders", source)
         self.assertIn("cloth_simulation_steps", source)
+        self.assertIn("pbd_hint_count", source)
+        self.assertIn("pbd_soft_hint_count", source)
+        self.assertIn("pbd_cloth_hint_count", source)
         self.assertIn("Native D3D11 PBD Physics Preview", main_window_source)
+        self.assertIn("metadata-only", main_window_source)
         self.assertIn("Tool-side PBD physics preview", main_window_source)
 
     def test_native_d3d11_host_rejects_stale_or_invalid_packages_and_exposes_debug_modes(self) -> None:
