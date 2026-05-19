@@ -18162,6 +18162,68 @@ def _attach_hkx_physics_overlay_to_model_preview(
     return notes
 
 
+def resolve_hkx_preview_context_model_entry(
+    entry: ArchiveEntry,
+    related_references: Sequence[ArchiveModelTextureReference],
+) -> Optional[ArchiveEntry]:
+    """Return the best read-only model context for an HKX/HKT preview."""
+
+    if str(getattr(entry, "extension", "") or "").strip().lower() not in {".hkx", ".hkt"}:
+        return None
+    source_path = str(getattr(entry, "path", "") or "").replace("\\", "/").strip()
+    source_stem = PurePosixPath(source_path).stem.strip().casefold()
+    source_parent = PurePosixPath(source_path).parent.as_posix().casefold()
+    model_extensions = {".pac", ".pam", ".pamlod"}
+    candidates: List[Tuple[int, int, ArchiveEntry]] = []
+    seen: set[Tuple[str, str]] = set()
+
+    for order, reference in enumerate(tuple(related_references or ())):
+        resolved_entry = getattr(reference, "resolved_entry", None)
+        if not isinstance(resolved_entry, ArchiveEntry):
+            continue
+        extension = str(getattr(resolved_entry, "extension", "") or "").strip().lower()
+        if extension not in model_extensions:
+            continue
+        candidate_path = str(getattr(resolved_entry, "path", "") or "").replace("\\", "/").strip()
+        candidate_stem = PurePosixPath(candidate_path).stem.strip().casefold()
+        candidate_parent = PurePosixPath(candidate_path).parent.as_posix().casefold()
+        key = (candidate_path.casefold(), str(getattr(resolved_entry, "pamt_path", "") or "").casefold())
+        if not candidate_path or key in seen:
+            continue
+        seen.add(key)
+        score = 0
+        if source_stem and candidate_stem == source_stem:
+            score += 1000
+        elif source_stem and (source_stem in candidate_stem or source_stem in candidate_path.casefold()):
+            score += 360
+        if source_parent and candidate_parent and source_parent == candidate_parent:
+            score += 120
+        if getattr(resolved_entry, "pamt_path", None) == getattr(entry, "pamt_path", None):
+            score += 80
+        if getattr(resolved_entry, "pamt_path", None) is not None and getattr(entry, "pamt_path", None) is not None:
+            try:
+                if resolved_entry.pamt_path.parent == entry.pamt_path.parent:
+                    score += 50
+            except Exception:
+                pass
+        if str(getattr(reference, "semantic_hint", "") or "").strip().lower() == "same_stem_companion":
+            score += 70
+        if str(getattr(reference, "relation_confidence", "") or "").strip().lower() in {
+            RelationConfidence.AUTHORITATIVE.value,
+            RelationConfidence.EXACT_PATH.value,
+            RelationConfidence.PATH_NORMALIZED.value,
+            RelationConfidence.DERIVED_SAME_STEM.value,
+        }:
+            score += 40
+        score += {".pac": 30, ".pam": 20, ".pamlod": 10}.get(extension, 0)
+        candidates.append((score, -order, resolved_entry))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return candidates[0][2]
+
+
 def _retarget_model_preview(model_preview: ModelPreviewData, path: str) -> None:
     model_preview.path = path
     model_preview.summary = _build_model_preview_summary_text(path, model_preview)
@@ -18995,37 +19057,119 @@ def build_archive_preview_result(
                 archive_entries_by_normalized_path=texture_entries_by_normalized_path,
                 archive_entries_by_basename=texture_entries_by_basename,
             )
+            graph_references = build_archive_relationship_references(
+                entry,
+                archive_entries_by_normalized_path=texture_entries_by_normalized_path,
+                archive_entries_by_basename=texture_entries_by_basename,
+            )
+            related_references = merge_archive_reference_rows(related_references, graph_references)
             descriptor_hints, skeleton_bone_positions, hkx_visual_notes = _build_hkx_preview_context_from_related_references(
                 related_references,
                 stop_event=stop_event,
             )
             hkx_model_preview: Optional[ModelPreviewData] = None
+            hkx_document: Optional[Mapping[str, object]] = None
+            hkx_context_model_entry = resolve_hkx_preview_context_model_entry(entry, related_references)
             try:
                 hkx_document = build_hkx_editable_geometry_document(data, entry.path, descriptor_hints)
-                hkx_model_preview = build_hkx_model_preview_from_document(
-                    hkx_document,
-                    source_path=entry.path,
-                    skeleton_bone_positions=skeleton_bone_positions,
-                )
+                if hkx_context_model_entry is not None:
+                    try:
+                        context_result = build_archive_preview_result(
+                            texconv_path,
+                            hkx_context_model_entry,
+                            (),
+                            companion_entry=None,
+                            texture_entries_by_normalized_path=texture_entries_by_normalized_path,
+                            texture_entries_by_basename=texture_entries_by_basename,
+                            sidecar_entries_by_texture_path=sidecar_entries_by_texture_path,
+                            sidecar_entries_by_texture_basename=sidecar_entries_by_texture_basename,
+                            include_loose_preview_assets=False,
+                            semantic_sidecar_texts=semantic_sidecar_texts,
+                            visible_texture_mode=visible_texture_mode,
+                            support_texture_slots=support_texture_slots,
+                            quality_tier=normalized_quality_tier,
+                            stop_event=stop_event,
+                        )
+                        context_model = getattr(context_result, "preview_model", None)
+                        if isinstance(context_model, ModelPreviewData):
+                            selected_overlay = build_hkx_physics_overlay_from_document(
+                                hkx_document,
+                                source_path=entry.path,
+                                normalization_center=tuple(getattr(context_model, "normalization_center", (0.0, 0.0, 0.0)) or (0.0, 0.0, 0.0)),
+                                normalization_scale=float(getattr(context_model, "normalization_scale", 1.0) or 1.0),
+                                skeleton_bone_positions=skeleton_bone_positions,
+                            )
+                            context_summary = (
+                                f"{entry.path}\n"
+                                "HKX Body + Physics preview\n"
+                                f"Body context: {hkx_context_model_entry.path}\n"
+                                f"{context_model.mesh_count:,} body submesh(es)\n"
+                                f"{context_model.face_count:,} body faces"
+                            )
+                            hkx_model_preview = replace(
+                                context_model,
+                                path=entry.path,
+                                summary=context_summary,
+                                physics_overlay=selected_overlay,
+                            )
+                            hkx_visual_notes.append(
+                                f"HKX is physics/collision; body mesh loaded from {hkx_context_model_entry.path}."
+                            )
+                            if selected_overlay is not None:
+                                hkx_visual_notes.append(
+                                    f"Selected HKX physics overlay attached to body context: {len(selected_overlay.shapes):,} decoded shape(s)."
+                                )
+                            else:
+                                hkx_visual_notes.append("Selected HKX physics overlay did not decode renderable shapes for the body context.")
+                        else:
+                            hkx_visual_notes.append(
+                                f"HKX body context skipped: {hkx_context_model_entry.path} did not produce a renderable model preview."
+                            )
+                    except RunCancelled:
+                        raise
+                    except Exception as exc:
+                        hkx_visual_notes.append(f"HKX body context skipped for {hkx_context_model_entry.path}: {exc}")
+                if hkx_model_preview is None:
+                    hkx_model_preview = build_hkx_model_preview_from_document(
+                        hkx_document,
+                        source_path=entry.path,
+                        skeleton_bone_positions=skeleton_bone_positions,
+                    )
                 if hkx_model_preview is not None:
                     shape_count = len(getattr(getattr(hkx_model_preview, "physics_overlay", None), "shapes", ()) or ())
                     bone_count = len(getattr(getattr(hkx_model_preview, "physics_overlay", None), "bones", ()) or ())
-                    hkx_visual_notes.append(
-                        "HKX visual preview generated "
-                        f"{hkx_model_preview.mesh_count:,} D3D11-ready batch(es) from "
-                        f"{shape_count:,} decoded shape(s)"
-                        + (f" and {bone_count:,} skeleton bone(s)" if bone_count else "")
-                        + "."
-                    )
+                    if hkx_context_model_entry is not None and "HKX Body + Physics preview" in str(getattr(hkx_model_preview, "summary", "") or ""):
+                        hkx_visual_notes.append(
+                            "HKX Body + Physics visual preview generated "
+                            f"{hkx_model_preview.mesh_count:,} body batch(es) with "
+                            f"{shape_count:,} decoded physics shape(s)"
+                            + (f" and {bone_count:,} skeleton bone(s)" if bone_count else "")
+                            + "."
+                        )
+                    else:
+                        hkx_visual_notes.append(
+                            "HKX visual preview generated "
+                            f"{hkx_model_preview.mesh_count:,} D3D11-ready batch(es) from "
+                            f"{shape_count:,} decoded shape(s)"
+                            + (f" and {bone_count:,} skeleton bone(s)" if bone_count else "")
+                            + "."
+                        )
             except RunCancelled:
                 raise
             except Exception as exc:
                 hkx_visual_notes.append(f"HKX visual preview generation skipped: {exc}")
             if hkx_model_preview is not None:
-                metadata_summary = (
-                    f"{metadata_summary} | Havok | {hkx_model_preview.mesh_count:,} preview batch(es)"
-                    f" | {hkx_model_preview.face_count:,} faces"
-                )
+                if hkx_context_model_entry is not None and "HKX Body + Physics preview" in str(getattr(hkx_model_preview, "summary", "") or ""):
+                    metadata_summary = (
+                        f"{metadata_summary} | Havok | Body + Physics"
+                        f" | {hkx_model_preview.mesh_count:,} body batch(es)"
+                        f" | {hkx_model_preview.face_count:,} body faces"
+                    )
+                else:
+                    metadata_summary = (
+                        f"{metadata_summary} | Havok | {hkx_model_preview.mesh_count:,} preview batch(es)"
+                        f" | {hkx_model_preview.face_count:,} faces"
+                    )
             else:
                 metadata_summary = f"{metadata_summary} | Havok"
             detail_extra = "\n\n".join(

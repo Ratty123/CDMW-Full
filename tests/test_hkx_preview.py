@@ -9,6 +9,12 @@ import tempfile
 import xml.etree.ElementTree as ET
 from unittest import mock
 
+from cdmw.core.archive import (
+    build_archive_entry_basename_index,
+    build_archive_entry_path_index,
+    build_archive_preview_result,
+    resolve_hkx_preview_context_model_entry,
+)
 from cdmw.core.archive_modding import (
     apply_hkx_editable_geometry_document,
     apply_hkx_editable_geometry_json,
@@ -28,7 +34,8 @@ from cdmw.core.archive_modding import (
     _hkx_xml_add_value_layout,
     parse_hkx_tagfile_summary,
 )
-from cdmw.models import RunCancelled
+from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, ModelPreviewData, ModelPreviewMesh, RunCancelled
+from cdmw.modding.mesh_parser import ParsedMesh
 
 
 def _tag_item(marker: bytes, payload: bytes, *, flags: int = 0x40000000) -> bytes:
@@ -41,6 +48,51 @@ def _tna1_payload(type_name_count: int) -> bytes:
 
 
 class HkxPreviewTests(unittest.TestCase):
+    def _archive_entries(self, payloads):
+        tempdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tempdir.cleanup)
+        root = Path(tempdir.name)
+        paz_path = root / "0.paz"
+        pamt_path = root / "0.pamt"
+        offset = 0
+        entries = []
+        with paz_path.open("wb") as handle:
+            for index, (path, payload) in enumerate(payloads):
+                data = payload if isinstance(payload, bytes) else str(payload).encode("utf-8")
+                handle.write(data)
+                entries.append(
+                    ArchiveEntry(
+                        path=path,
+                        pamt_path=pamt_path,
+                        paz_file=paz_path,
+                        offset=offset,
+                        comp_size=len(data),
+                        orig_size=len(data),
+                        flags=0,
+                        paz_index=index,
+                    )
+                )
+                offset += len(data)
+        return entries
+
+    def _body_preview_stub(self, path: str = "character/model/body.pac") -> ModelPreviewData:
+        mesh = ModelPreviewMesh(
+            material_name="Body",
+            preview_color=(0.5, 0.7, 0.9),
+            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            indices=[0, 1, 2],
+            source_submesh_index=0,
+        )
+        return ModelPreviewData(
+            path=path,
+            format="pac",
+            summary=f"{path}\nbody stub",
+            mesh_count=1,
+            vertex_count=3,
+            face_count=1,
+            meshes=[mesh],
+        )
+
     def _modern_hkx_bytes(self) -> bytes:
         type_names = b"\0".join(
             (
@@ -1264,6 +1316,82 @@ class HkxPreviewTests(unittest.TestCase):
         assert preview.physics_overlay is not None
         self.assertEqual(1, len(preview.physics_overlay.shapes))
         self.assertEqual(2, len(preview.physics_overlay.bones))
+
+    def test_hkx_archive_preview_uses_same_stem_body_context_with_selected_physics_overlay(self) -> None:
+        hkx_data = self._modern_hkx_bytes()
+        entries = self._archive_entries(
+            (
+                ("character/bin__/meshphysics/cd_pgw_00_nude_00_0001.hkx", hkx_data),
+                ("character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pac", b"PAR "),
+            )
+        )
+        hkx_entry = entries[0]
+
+        def _preview_stub(data: bytes, path: str):
+            del data
+            return self._body_preview_stub(path), ParsedMesh(path=path, format="pac")
+
+        with mock.patch("cdmw.core.archive.build_mesh_preview_from_bytes", side_effect=_preview_stub):
+            result = build_archive_preview_result(
+                None,
+                hkx_entry,
+                texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
+                texture_entries_by_basename=build_archive_entry_basename_index(entries),
+            )
+
+        self.assertIn("Body + Physics", result.metadata_summary)
+        self.assertIn("HKX is physics/collision; body mesh loaded from character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pac", result.detail_text)
+        self.assertIsInstance(result.preview_model, ModelPreviewData)
+        assert result.preview_model is not None
+        self.assertEqual(hkx_entry.path, result.preview_model.path)
+        self.assertEqual("pac", result.preview_model.format)
+        self.assertIn("HKX Body + Physics preview", result.preview_model.summary)
+        self.assertIsNotNone(result.preview_model.physics_overlay)
+        assert result.preview_model.physics_overlay is not None
+        self.assertEqual((hkx_entry.path,), result.preview_model.physics_overlay.source_paths)
+        self.assertEqual(1, len(result.preview_model.physics_overlay.shapes))
+        self.assertFalse(any(mesh.preview_role == "hkx_collision_shape" for mesh in result.preview_model.meshes))
+
+    def test_hkx_archive_preview_without_body_context_keeps_collision_preview(self) -> None:
+        hkx_data = self._modern_hkx_bytes()
+        entries = self._archive_entries((("character/bin__/meshphysics/body.hkx", hkx_data),))
+
+        result = build_archive_preview_result(
+            None,
+            entries[0],
+            texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
+            texture_entries_by_basename=build_archive_entry_basename_index(entries),
+        )
+
+        self.assertNotIn("Body + Physics", result.metadata_summary)
+        self.assertIsInstance(result.preview_model, ModelPreviewData)
+        assert result.preview_model is not None
+        self.assertIn("HKX collision/skeleton preview", result.preview_model.summary)
+        self.assertTrue(any(mesh.preview_role == "hkx_collision_shape" for mesh in result.preview_model.meshes))
+
+    def test_hkx_context_model_resolver_prefers_exact_same_stem_body(self) -> None:
+        root = Path(tempfile.gettempdir())
+        hkx_entry = ArchiveEntry("character/bin__/meshphysics/body_a.hkx", root / "0.pamt", root / "0.paz", 0, 1, 1, 0, 0)
+        exact_body = ArchiveEntry("character/model/body_a.pac", root / "0.pamt", root / "0.paz", 1, 1, 1, 0, 0)
+        weaker_body = ArchiveEntry("character/model/body_a_variant.pac", root / "0.pamt", root / "0.paz", 2, 1, 1, 0, 0)
+        references = (
+            ArchiveModelTextureReference(
+                reference_name=weaker_body.basename,
+                resolved_archive_path=weaker_body.path,
+                resolved_entry=weaker_body,
+                semantic_hint="relationship_graph",
+                relation_confidence="derived_family_heuristic",
+            ),
+            ArchiveModelTextureReference(
+                reference_name=exact_body.basename,
+                resolved_archive_path=exact_body.path,
+                resolved_entry=exact_body,
+                semantic_hint="same_stem_companion",
+                relation_confidence="derived_same_stem",
+            ),
+        )
+
+        self.assertIs(resolve_hkx_preview_context_model_entry(hkx_entry, references), exact_body)
 
     def test_hkx_converter_exports_material_simulation_context_for_cloth_and_hair(self) -> None:
         data = self._modern_hkx_bytes()

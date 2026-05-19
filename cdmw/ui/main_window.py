@@ -16531,7 +16531,7 @@ def run_gui() -> int:
             if "Material" in reference_roles:
                 parts.append("Material Linked")
             if "Physics" in reference_roles or "HKX" in reference_roles:
-                parts.append("Physics Linked")
+                parts.append("Physics Metadata")
             if self._archive_known_used_by_references(entry):
                 parts.append("Used By Known Index")
             exact_name, name_hint, _name_reason = self._archive_entry_item_name_match(entry)
@@ -22443,6 +22443,9 @@ def run_gui() -> int:
             cloth_particle_count = int(payload.get("cloth_particle_count", 0) or 0)
             cloth_constraint_count = int(payload.get("cloth_constraint_count", 0) or 0)
             cloth_collider_count = int(payload.get("cloth_collider_count", 0) or 0)
+            pbd_hint_count = int(payload.get("pbd_hint_count", 0) or 0)
+            pbd_soft_hint_count = int(payload.get("pbd_soft_hint_count", 0) or 0)
+            pbd_cloth_hint_count = int(payload.get("pbd_cloth_hint_count", 0) or 0)
             cloth_step_count = int(payload.get("cloth_simulation_steps", 0) or 0)
             srgb_color_uploads = int(payload.get("srgb_color_uploads", 0) or 0)
             linear_data_uploads = int(payload.get("linear_data_uploads", 0) or 0)
@@ -22493,6 +22496,12 @@ def run_gui() -> int:
             material_channel_text = self._archive_material_channel_debug_from_package(
                 getattr(self, "archive_isolated_renderer_active_package", None)
             )
+            if cloth_batch_count > 0:
+                pbd_runtime_status = "runtime"
+            elif pbd_hint_count > 0:
+                pbd_runtime_status = "metadata-only"
+            else:
+                pbd_runtime_status = "none"
             return (
                 "Native D3D11 Preview: embedded child process; "
                 f"backend={backend}; batches={int(payload.get('batch_count', 0) or 0):,}; "
@@ -22526,6 +22535,7 @@ def run_gui() -> int:
                 f"legacy_active_batches={int(payload.get('material_combiner_active', 0) or 0):,}; "
                 f"outputs={combiner_output_text}; decode={combiner_mode_text}\n"
                 "Native D3D11 PBD Physics Preview: "
+                f"status={pbd_runtime_status}; hints={pbd_hint_count:,}; soft_hints={pbd_soft_hint_count:,}; cloth_hints={pbd_cloth_hint_count:,}; "
                 f"batches={cloth_batch_count:,}; particles={cloth_particle_count:,}; "
                 f"constraints={cloth_constraint_count:,}; colliders={cloth_collider_count:,}; steps={cloth_step_count:,}\n"
                 "Native D3D11 Overlay Metadata: "
@@ -69220,6 +69230,11 @@ def run_gui() -> int:
                         )
                     except Exception:
                         pass
+                    if hasattr(model_preview_widget, "set_physics_overlay_bones_visible"):
+                        try:
+                            model_preview_widget.set_physics_overlay_bones_visible(False)
+                        except Exception:
+                            pass
                 self._sync_archive_isolated_renderer_if_running(result)
                 model_apply_s = max(0.0, float(time.perf_counter() - model_apply_started_at))
                 self.archive_media_preview.clear_media("No media preview available.")

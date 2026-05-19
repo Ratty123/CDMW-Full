@@ -5,6 +5,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 MAIN_WINDOW = ROOT / "cdmw" / "ui" / "main_window.py"
 WIDGETS = ROOT / "cdmw" / "ui" / "widgets.py"
+ARCHIVE_CORE = ROOT / "cdmw" / "core" / "archive.py"
 
 
 class HkxUiSourceGuardTests(unittest.TestCase):
@@ -594,6 +595,17 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("_rebuild_all_assigned_pairs", source)
         self.assertIn("experimental_copy_source_model=experimental_model_checkbox.isChecked()", source)
         self.assertIn("experimental_copy_source_hkx=experimental_hkx_checkbox.isChecked()", source)
+
+    def test_hkx_archive_preview_body_context_strings_are_present(self) -> None:
+        archive_source = ARCHIVE_CORE.read_text(encoding="utf-8")
+        ui_source = MAIN_WINDOW.read_text(encoding="utf-8")
+
+        self.assertIn("def resolve_hkx_preview_context_model_entry", archive_source)
+        self.assertIn("HKX Body + Physics preview", archive_source)
+        self.assertIn("HKX is physics/collision; body mesh loaded from", archive_source)
+        self.assertIn("Body + Physics", archive_source)
+        self.assertIn('hkx_preview_skeleton_checkbox = QCheckBox("Show skeleton context")', ui_source)
+        self.assertIn("model_preview_widget.set_physics_overlay_bones_visible(False)", ui_source)
 
 
 if __name__ == "__main__":
