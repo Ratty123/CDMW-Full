@@ -23,8 +23,12 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_preview_health_label = QLabel", source)
         self.assertIn("def _archive_preview_health_text(", source)
         self.assertIn('"Preview OK"', source)
-        self.assertIn('"Physics Linked"', source)
+        self.assertIn('"Physics Metadata"', source)
+        self.assertNotIn('"Physics Linked"', source)
         self.assertIn('"Name Inferred"', source)
+        self.assertIn("Native Asset Family: schema=v", source)
+        self.assertIn("python_graph = build_archive_asset_family_graph(source_entry, tuple(references))", source)
+        self.assertIn('graph.attachment_evidence = tuple(getattr(python_graph, "attachment_evidence", ()) or ())', source)
 
     def test_asset_relationship_actions_use_direct_scope_and_no_live_scan(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")

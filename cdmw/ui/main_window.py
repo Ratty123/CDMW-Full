@@ -4041,6 +4041,9 @@ def run_gui() -> int:
                 grouped_paths={key: tuple(value) for key, value in grouped_paths.items()},
                 summary=summary,
             )
+            if isinstance(source_entry, ArchiveEntry):
+                python_graph = build_archive_asset_family_graph(source_entry, tuple(references))
+                graph.attachment_evidence = tuple(getattr(python_graph, "attachment_evidence", ()) or ())
             lines.append(
                 f"Native Asset Family: schema=v{schema_version}; rows={len(member_rows):,}; references={len(references):,}; source=native-core."
             )

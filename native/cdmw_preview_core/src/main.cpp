@@ -5933,6 +5933,8 @@ static std::vector<std::string> prefab_candidate_basenames_for_model_stem(const 
     };
     for (const std::string& stem : stems) {
         add_basename(stem + "_s.prefab");
+        add_basename(stem + "_l.prefab");
+        add_basename(stem + "_r.prefab");
         add_basename(stem + ".prefab");
     }
     return basenames;
@@ -8231,7 +8233,14 @@ static NativePackage write_d3d11_package(
         {model_stem + ".meshinfo", {"MeshInfo", "Meshinfo"}},
         {model_stem + ".hkx", {"Physics / HKX", "HKX / Physics"}},
         {model_stem + ".prefab", {"Prefab / Metadata", "Prefab"}},
+        {model_stem + "_l.prefab", {"Prefab / Metadata", "Prefab"}},
+        {model_stem + "_r.prefab", {"Prefab / Metadata", "Prefab"}},
         {model_stem + ".prefabdata_xml", {"Prefab / Metadata", "Prefab Data"}},
+        {model_stem + "_l.prefabdata_xml", {"Prefab / Metadata", "Prefab Data"}},
+        {model_stem + "_r.prefabdata_xml", {"Prefab / Metadata", "Prefab Data"}},
+        {model_stem + ".sockets.xml", {"Attachment / Placement", "Socket XML"}},
+        {model_stem + "_l.sockets.xml", {"Attachment / Placement", "Socket XML"}},
+        {model_stem + "_r.sockets.xml", {"Attachment / Placement", "Socket XML"}},
         {model_stem + ".pab", {"Skeleton / Rig", "Skeleton"}},
     };
     for (const auto& related : related_exact_basenames) {

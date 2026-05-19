@@ -821,6 +821,16 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('return "wood";', source)
         self.assertIn('return "leather";', source)
 
+    def test_native_asset_family_resolves_side_specific_placement_files(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn('add_basename(stem + "_l.prefab")', source)
+        self.assertIn('add_basename(stem + "_r.prefab")', source)
+        self.assertIn('{model_stem + "_l.prefab", {"Prefab / Metadata", "Prefab"}}', source)
+        self.assertIn('{model_stem + "_r.prefab", {"Prefab / Metadata", "Prefab"}}', source)
+        self.assertIn('{model_stem + "_l.sockets.xml", {"Attachment / Placement", "Socket XML"}}', source)
+        self.assertIn('{model_stem + "_r.sockets.xml", {"Attachment / Placement", "Socket XML"}}', source)
+
     def test_d3d11_preview_caps_nonmetal_material_response_by_category(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
 
