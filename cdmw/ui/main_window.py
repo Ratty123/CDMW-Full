@@ -44145,6 +44145,8 @@ def run_gui() -> int:
             control_tabs = QTabWidget(content_container)
             control_tabs.setObjectName("MeshAlignmentStickyWorkflowTabs")
             control_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            control_tabs.setUsesScrollButtons(True)
+            control_tabs.setElideMode(Qt.ElideRight)
 
             def _new_alignment_scroll_tab(object_name: str) -> tuple[QScrollArea, QWidget, QVBoxLayout]:
                 scroll = QScrollArea(control_tabs)
@@ -44167,6 +44169,9 @@ def run_gui() -> int:
             parts_tab, parts_page, parts_layout = _new_alignment_scroll_tab("MeshAlignmentPartsScrollTab")
             mesh_edit_tab, mesh_edit_page, mesh_edit_layout_page = _new_alignment_scroll_tab("MeshAlignmentMeshEditingScrollTab")
             mesh_edit_page.setMinimumWidth(mesh_edit_control_content_min_width)
+            mesh_edit_layout_page.setContentsMargins(0, 0, 0, 0)
+            mesh_edit_layout_page.setSpacing(0)
+            mesh_edit_tab.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             textures_tab, textures_page, textures_layout = _new_alignment_scroll_tab("MeshAlignmentMaterialsScrollTab")
             control_tabs.addTab(setup_tab, "Setup")
             control_tabs.addTab(parts_tab, "Parts && Routing")
@@ -44640,6 +44645,9 @@ def run_gui() -> int:
                 alignment_post_open_tasks.clear()
                 for callback in pending_tasks:
                     QTimer.singleShot(0, callback)
+
+            def _load_original_reference_texture_preview() -> None:
+                return
 
             def _global_transform_values() -> tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]:
                 try:
@@ -51925,12 +51933,14 @@ def run_gui() -> int:
                         for source in getattr(replacement_mesh_for_mapping, "submeshes", ()) or ()
                     )
                 )
-                mesh_edit_group = QGroupBox("Mesh Editing")
-                mesh_edit_group.setMaximumWidth(mesh_edit_control_content_min_width)
-                mesh_edit_group.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Maximum)
+                mesh_edit_group = QFrame(mesh_edit_page)
+                mesh_edit_group.setObjectName("MeshEditVerticalToolbox")
+                mesh_edit_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
                 mesh_edit_layout = QVBoxLayout(mesh_edit_group)
-                mesh_edit_layout.setContentsMargins(5, 3, 5, 3)
+                mesh_edit_layout.setContentsMargins(8, 4, 8, 4)
                 mesh_edit_layout.setSpacing(4)
+                mesh_edit_title_label = QLabel("Mesh Editing")
+                mesh_edit_title_label.setObjectName("SectionLabel")
                 mesh_edit_enabled_checkbox = QCheckBox("Enable Mesh Editing")
                 mesh_edit_enabled_checkbox.setToolTip("Edit visible replacement source geometry. Remove Faces can cut triangles; other tools keep topology fixed.")
                 mesh_edit_scope_combo = QComboBox()
@@ -52029,6 +52039,7 @@ def run_gui() -> int:
                     mesh_edit_layout.addWidget(label)
                     mesh_edit_layout.addWidget(widget)
 
+                mesh_edit_layout.addWidget(mesh_edit_title_label)
                 mesh_edit_layout.addWidget(mesh_edit_enabled_checkbox)
                 _mesh_edit_field("Scope", mesh_edit_scope_combo)
                 _mesh_edit_field("Part", mesh_edit_part_combo)
@@ -53140,7 +53151,7 @@ def run_gui() -> int:
                 parts_outliner_layout.addStretch(1)
                 parts_layout.addWidget(parts_outliner_panel, 1)
                 parts_layout.addStretch(1)
-                mesh_edit_layout_page.addWidget(mesh_edit_group, 0, Qt.AlignLeft | Qt.AlignTop)
+                mesh_edit_layout_page.addWidget(mesh_edit_group, 0)
                 mesh_edit_layout_page.addStretch(1)
 
                 _alignment_startup_step("Preparing replacement texture sources...")
@@ -57672,6 +57683,10 @@ def run_gui() -> int:
                             return False
                         advanced_dds_overrides_state["loading"] = True
                         advanced_dds_overrides_state["load_requested"] = True
+                        try:
+                            _ensure_source_material_plan_loaded()
+                        except NameError:
+                            pass
                         texture_busy_bar.setFormat("Loading advanced DDS override rows...")
                         texture_busy_bar.setVisible(True)
                         QApplication.processEvents()
@@ -58469,1056 +58484,1051 @@ def run_gui() -> int:
                         html_parts.append("</div></body></html>")
                         return "".join(html_parts)
 
-                    if not texture_override_rows:
-                        texture_layout.addWidget(
-                            QLabel("No editable texture slots were found for the currently suggested replacement mapping.")
+                    texture_workflow = QWidget()
+                    texture_workflow_layout = QVBoxLayout(texture_workflow)
+                    texture_workflow_layout.setContentsMargins(0, 0, 0, 0)
+                    texture_workflow_layout.setSpacing(3)
+                    texture_summary_label = QLabel()
+                    texture_summary_label.setWordWrap(True)
+                    texture_summary_label.setTextFormat(Qt.RichText)
+                    texture_summary_label.setObjectName("HintLabel")
+                    texture_workflow_layout.addWidget(texture_summary_label)
+                    texture_busy_bar = QProgressBar()
+                    texture_busy_bar.setRange(0, 0)
+                    texture_busy_bar.setTextVisible(True)
+                    texture_busy_bar.setFormat("Updating texture assignments...")
+                    texture_busy_bar.setVisible(False)
+                    texture_workflow_layout.addWidget(texture_busy_bar)
+                    texture_override_tree = QTreeWidget()
+                    texture_override_tree.setHeaderLabels(
+                        [
+                            "Target",
+                            "Source",
+                            "Role",
+                            "DDS",
+                            "Assigned",
+                            "Status",
+                            "Controls",
+                        ]
+                    )
+                    texture_override_tree.setMinimumHeight(320)
+                    texture_override_tree.setMinimumWidth(0)
+                    _configure_alignment_tree(
+                        texture_override_tree,
+                        (120, 220, 96, 260, 180, 96, 240),
+                        max_height=0,
+                        stretch_columns=(1, 3, 6),
+                        persist_key="advanced_dds_overrides_v2",
+                    )
+                    selected_texture_editor = QWidget()
+                    selected_texture_editor_layout = QGridLayout(selected_texture_editor)
+                    selected_texture_editor_layout.setContentsMargins(0, 0, 0, 0)
+                    selected_texture_editor_layout.setHorizontalSpacing(4)
+                    selected_texture_editor_layout.setVerticalSpacing(2)
+                    selected_texture_editor_label = QLabel("Selected row")
+                    selected_texture_editor_label.setObjectName("HintLabel")
+                    selected_texture_editor_label.setMinimumWidth(0)
+                    selected_texture_editor_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+                    selected_role_combo = QComboBox()
+                    selected_role_combo.setMinimumWidth(118)
+                    selected_role_combo.setToolTip("Manual repair role for the selected original DDS slot.")
+                    for role_kind in ("base", "normal", "height", "material"):
+                        selected_role_combo.addItem(_texture_role_label_for_slot(role_kind), role_kind)
+                    selected_source_combo = QComboBox()
+                    selected_source_combo.setMinimumWidth(190)
+                    selected_source_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+                    selected_source_combo.setToolTip("Texture source for the selected original DDS slot. Keep original disables this manual override.")
+                    selected_choose_source_button = QPushButton("Choose...")
+                    selected_choose_source_button.setMinimumWidth(0)
+                    selected_choose_source_button.setMaximumWidth(82)
+                    selected_choose_source_button.setToolTip("Open the texture source picker for the selected row.")
+                    selected_apply_suggestion_button = QPushButton("Use Suggested")
+                    selected_apply_suggestion_button.setMinimumWidth(0)
+                    selected_apply_suggestion_button.setMaximumWidth(118)
+                    selected_apply_suggestion_button.setEnabled(False)
+                    selected_apply_suggestion_button.setToolTip("Apply the suggested source texture to the selected original DDS slot.")
+                    selected_texture_editor_layout.addWidget(selected_texture_editor_label, 0, 0, 1, 6)
+                    selected_texture_editor_layout.addWidget(QLabel("Role"), 1, 0)
+                    selected_texture_editor_layout.addWidget(selected_role_combo, 1, 1)
+                    selected_texture_editor_layout.addWidget(QLabel("Source"), 1, 2)
+                    selected_texture_editor_layout.addWidget(selected_source_combo, 1, 3, 1, 2)
+                    selected_texture_editor_layout.addWidget(selected_choose_source_button, 1, 5)
+                    selected_texture_editor_layout.addWidget(selected_apply_suggestion_button, 1, 6)
+                    selected_texture_editor_layout.setColumnStretch(3, 1)
+                    texture_workflow_layout.addWidget(selected_texture_editor)
+                    texture_detail_browser = QTextBrowser()
+                    texture_detail_browser.setReadOnly(True)
+                    texture_detail_browser.setOpenExternalLinks(False)
+                    texture_detail_browser.setMinimumHeight(220)
+                    texture_detail_browser.setMinimumWidth(300)
+                    texture_detail_browser.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+                    texture_detail_browser.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                    texture_detail_browser.setStyleSheet(
+                        texture_detail_browser.styleSheet()
+                        + "QTextBrowser { font-size: 8px; line-height: 1.08; }"
+                    )
+                    texture_details_splitter = QSplitter(Qt.Horizontal)
+                    texture_details_splitter.addWidget(texture_override_tree)
+                    texture_details_splitter.addWidget(texture_detail_browser)
+                    texture_details_splitter.setCollapsible(0, False)
+                    texture_details_splitter.setCollapsible(1, False)
+                    texture_details_splitter.setStretchFactor(0, 7)
+                    texture_details_splitter.setStretchFactor(1, 3)
+                    texture_details_splitter.setSizes([760, 320])
+                    texture_workflow_layout.addWidget(texture_details_splitter, 1)
+                    selected_texture_row: Dict[str, Optional[Dict[str, Any]]] = {"row": None}
+                    selected_texture_editor_loading = {"active": False}
+                    selected_texture_source_committing = {"active": False}
+
+                    def _current_texture_row() -> Optional[Dict[str, Any]]:
+                        item = texture_override_tree.currentItem()
+                        if item is not None:
+                            row_state = item.data(0, Qt.UserRole + 1)
+                            if isinstance(row_state, dict):
+                                return row_state
+                        return selected_texture_row.get("row")
+
+                    def _current_texture_target_name() -> str:
+                        row_state = _current_texture_row()
+                        return str(row_state.get("target_name", "") or "") if row_state is not None else ""
+
+                    def _texture_source_choices_for_row(row_state: Optional[Dict[str, Any]]) -> List[Tuple[str, str]]:
+                        choices: List[Tuple[str, str]] = [("Keep original", "")]
+                        added_source_paths: set[str] = set()
+
+                        def _source_key(source_path: object) -> str:
+                            return str(source_path or "").replace("\\", "/").strip().lower()
+
+                        def _add_source_choice(label: str, source_path: str) -> None:
+                            normalized_source_path = str(source_path or "").strip()
+                            if not normalized_source_path:
+                                return
+                            source_key = _source_key(normalized_source_path)
+                            if source_key in added_source_paths:
+                                return
+                            added_source_paths.add(source_key)
+                            choices.append((label, normalized_source_path))
+
+                        if row_state is not None:
+                            source_path_for_row = _texture_row_effective_source(row_state)
+                            suggested_source_for_row = str(row_state.get("suggested_source", "") or "").strip()
+                            if source_path_for_row:
+                                _add_source_choice(f"Assigned: {Path(source_path_for_row).name}", source_path_for_row)
+                            if suggested_source_for_row and _source_key(suggested_source_for_row) != _source_key(source_path_for_row):
+                                _add_source_choice(f"Use suggested: {Path(suggested_source_for_row).name}", suggested_source_for_row)
+                        for texture_file in texture_files_for_mapping:
+                            _add_source_choice(texture_file.name, str(texture_file))
+                        return choices
+
+                    def _sync_selected_texture_editor(row_state: Optional[Dict[str, Any]]) -> None:
+                        selected_texture_editor_loading["active"] = True
+                        try:
+                            has_row = row_state is not None
+                            selected_role_combo.setEnabled(has_row)
+                            selected_source_combo.setEnabled(has_row)
+                            if has_row:
+                                _sync_texture_row_assignment_state(row_state)
+                            source_path_for_row = _texture_row_effective_source(row_state) if has_row else ""
+                            selected_source_combo.blockSignals(True)
+                            selected_source_combo.clear()
+                            for label, source_path in _texture_source_choices_for_row(row_state if has_row else None):
+                                selected_source_combo.addItem(label, source_path)
+                            source_index = selected_source_combo.findData(source_path_for_row)
+                            if source_index < 0:
+                                source_index = 0
+                            selected_source_combo.setCurrentIndex(source_index)
+                            selected_source_combo.blockSignals(False)
+                            if has_row:
+                                affects_text = _texture_row_source_summary(row_state)
+                                if len(affects_text) > 58:
+                                    affects_text = affects_text[:55].rstrip() + "..."
+                                selected_texture_editor_label.setText(f"Affects: {affects_text}")
+                                selected_texture_editor_label.setToolTip(_texture_row_source_summary(row_state, limit=20))
+                            else:
+                                selected_texture_editor_label.setText("Selected row")
+                                selected_texture_editor_label.setToolTip("")
+                            selected_role_combo.blockSignals(True)
+                            role_index = selected_role_combo.findData(
+                                str(row_state.get("slot_kind", "") or "material") if has_row else "material"
+                            )
+                            selected_role_combo.setCurrentIndex(max(0, role_index))
+                            selected_role_combo.blockSignals(False)
+                            suggested_source_for_row = str(row_state.get("suggested_source", "") or "").strip() if has_row else ""
+                            suggestion_available = bool(
+                                has_row
+                                and suggested_source_for_row
+                                and suggested_source_for_row != source_path_for_row
+                            )
+                            selected_apply_suggestion_button.setText("Use Suggested")
+                            selected_apply_suggestion_button.setEnabled(suggestion_available)
+                            selected_apply_suggestion_button.setToolTip(
+                                f"Apply suggested source:\n{suggested_source_for_row}"
+                                if suggestion_available
+                                else "No unapplied suggestion is available for the selected row."
+                            )
+                        finally:
+                            selected_texture_editor_loading["active"] = False
+
+                    def _texture_target_sort_key(target_name: str) -> tuple[int, str]:
+                        rows = texture_rows_by_target.get(target_name, [])
+                        unassigned = sum(
+                            1
+                            for row_state in rows
+                            if not _texture_row_is_assigned(row_state)
                         )
-                    else:
-                        texture_workflow = QWidget()
-                        texture_workflow_layout = QVBoxLayout(texture_workflow)
-                        texture_workflow_layout.setContentsMargins(0, 0, 0, 0)
-                        texture_workflow_layout.setSpacing(3)
-                        texture_summary_label = QLabel()
-                        texture_summary_label.setWordWrap(True)
-                        texture_summary_label.setTextFormat(Qt.RichText)
-                        texture_summary_label.setObjectName("HintLabel")
-                        texture_workflow_layout.addWidget(texture_summary_label)
-                        texture_busy_bar = QProgressBar()
-                        texture_busy_bar.setRange(0, 0)
-                        texture_busy_bar.setTextVisible(True)
+                        return (-unassigned, target_name.lower())
+
+                    def _refresh_texture_details(row_state: Optional[Dict[str, Any]] = None, *, sync_editor: bool = True) -> None:
+                        if row_state is None:
+                            row_state = selected_texture_row.get("row")
+                        target_name = (
+                            str(row_state.get("target_name", "") or "")
+                            if row_state is not None
+                            else _current_texture_target_name()
+                        )
+                        if sync_editor:
+                            _sync_selected_texture_editor(row_state)
+                        _sync_texture_selection_highlight(row_state)
+                        if row_state is None:
+                            texture_detail_browser.setHtml(
+                                "<html><body style='color:#8b949e; background:#1f1f1f; font-family:Segoe UI, sans-serif; font-size:8px;'>"
+                                "Select a texture role to inspect parameter, source, original DDS, final behavior, and warnings."
+                                "</body></html>"
+                            )
+                        else:
+                            target_rows = texture_rows_by_target.get(target_name, [])
+                            assigned_count = sum(
+                                1
+                                for target_row in target_rows
+                                if _texture_row_is_assigned(target_row)
+                            )
+                            row_state["_assigned_count"] = assigned_count
+                            row_state["_target_row_count"] = len(target_rows)
+                            texture_detail_browser.setHtml(_diagnostics_for_target_html(target_name, row_state) if target_name else "")
+
+                    def _set_texture_row_assignment(row_state: Dict[str, Any], source_path: str, checked: bool) -> None:
+                        row_key = _texture_row_override_key(row_state)
+                        normalized_source_path = str(source_path or "").strip()
+                        if checked and normalized_source_path:
+                            texture_override_assignments[row_key] = normalized_source_path
+                        else:
+                            texture_override_assignments[row_key] = ""
+                            normalized_source_path = ""
+                        row_state["source_path"] = normalized_source_path
+                        row_state["checked"] = bool(normalized_source_path)
+                        texture_overrides_dirty["dirty"] = True
+
+                    def _refresh_texture_row_guidance() -> None:
+                        nonlocal texture_sets
+                        texture_sets = group_replacement_texture_sets(texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
+                        _apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
+                        suggested_counts: Dict[str, int] = {}
+                        for row_state in texture_override_rows:
+                            suggested_source = (
+                                ""
+                                if _texture_row_is_shared(row_state)
+                                else _best_source_for_slot(
+                                    str(row_state.get("target_name", "") or ""),
+                                    tuple(row_state.get("source_indices", ()) or ()),
+                                    str(row_state.get("slot_kind", "") or "material"),
+                                    texture_sets,
+                                    parameter_name=str(row_state.get("parameter_name", "") or ""),
+                                    target_texture_path=str(row_state.get("target_path", "") or ""),
+                                    target_shader_family=str(row_state.get("shader_family", "") or ""),
+                                )
+                            )
+                            row_state["suggested_source"] = suggested_source
+                            suggested_key = suggested_source.strip().lower()
+                            if suggested_key:
+                                suggested_counts[suggested_key] = suggested_counts.get(suggested_key, 0) + 1
+                        for row_state in texture_override_rows:
+                            suggested_source = str(row_state.get("suggested_source", "") or "").strip()
+                            guidance = classify_texture_assignment_guidance(
+                                str(row_state.get("parameter_name", "") or ""),
+                                str(row_state.get("target_path", "") or ""),
+                                suggested_source=suggested_source,
+                                repeated_suggestion_count=suggested_counts.get(suggested_source.lower(), 1) if suggested_source else 1,
+                            )
+                            row_state["guidance"] = guidance
+                            row_state["advanced"] = bool(guidance.advanced)
+                            row_state["state_label"] = str(guidance.state_label or "")
+                            row_state["confidence"] = str(guidance.confidence or "manual")
+                            row_state["role_label"] = _texture_role_label_for_slot(
+                                str(row_state.get("slot_kind", "") or "material")
+                            )
+                            if _texture_row_is_shared(row_state):
+                                row_state["suggested_source"] = ""
+                                row_state["advanced"] = True
+                                row_state["state_label"] = "Original shared layer"
+                                row_state["confidence"] = "manual"
+                            _sync_texture_row_assignment_state(row_state)
+
+                    def _texture_override_row_sort_key(row_state: Dict[str, Any]) -> tuple[int, int, str, str, str]:
+                        role_order = {"base": 0, "normal": 1, "height": 2, "material": 3}
+                        target_name = str(row_state.get("target_name", "") or "")
+                        return (
+                            _texture_target_sort_key(target_name)[0],
+                            role_order.get(str(row_state.get("slot_kind", "") or ""), 9),
+                            target_name.lower(),
+                            str(row_state.get("parameter_name", "") or "").lower(),
+                            str(row_state.get("target_path", "") or "").lower(),
+                        )
+
+                    def _texture_row_visible(row_state: Dict[str, Any]) -> bool:
+                        if not bool(texture_show_advanced_checkbox.isChecked()) and bool(row_state.get("advanced")):
+                            return False
+                        selected_source_index = int(selected_source_part.get("index", -1))
+                        filter_selected = bool(texture_filter_selected_checkbox.isChecked())
+                        source_indices = tuple(row_state.get("source_indices", ()) or ())
+                        if filter_selected and selected_source_index >= 0 and selected_source_index not in source_indices:
+                            return False
+                        return True
+
+                    def _update_texture_summary_label(visible_count: Optional[int] = None) -> None:
+                        if visible_count is None:
+                            visible_count = sum(1 for row_state in texture_override_rows if _texture_row_visible(row_state))
+                        assigned_count = sum(
+                            1
+                            for row_state in texture_override_rows
+                            if _texture_row_is_assigned(row_state)
+                        )
+                        advanced_hidden = sum(
+                            1
+                            for row_state in texture_override_rows
+                            if bool(row_state.get("advanced")) and not bool(texture_show_advanced_checkbox.isChecked())
+                        )
+                        texture_summary_label.setText(
+                            "<div style='line-height:1.35;'>"
+                            "<span style='color:#79c0ff; font-weight:700;'>Visible rows</span>"
+                            f"<span style='color:#f0f6fc;'> {int(visible_count):,}</span>"
+                            "<span style='color:#8b949e;'> | </span>"
+                            "<span style='color:#7ee787; font-weight:700;'>Assigned</span>"
+                            f"<span style='color:#f0f6fc;'> {assigned_count:,}/{len(texture_override_rows):,}</span>"
+                            "<span style='color:#8b949e;'> | </span>"
+                            "<span style='color:#d2a8ff; font-weight:700;'>Advanced hidden</span>"
+                            f"<span style='color:#f0f6fc;'> {advanced_hidden:,}</span>"
+                            "</div>"
+                        )
+
+                    def _apply_texture_row_to_item(item: QTreeWidgetItem, row_state: Dict[str, Any]) -> None:
+                        _sync_texture_row_assignment_state(row_state)
+                        table_row = build_dds_override_table_row(row_state)
+                        contract_action = str(row_state.get("_contract_action", "") or "").strip()
+                        contract_reason = str(row_state.get("_contract_reason", "") or "").strip()
+                        contract_source = str(row_state.get("_contract_selected_source", "") or "").strip()
+                        status_label = contract_action.replace("_", " ").title() if contract_action else table_row.status.label
+                        status_color = _texture_plan_status_color(status_label)
+                        if contract_action == "will_prune":
+                            status_color = "#fb923c"
+                        elif contract_action == "kept":
+                            status_color = "#8b949e"
+                        elif contract_action == "replaced":
+                            status_color = "#3fb950"
+                        elif contract_action == "review":
+                            status_color = "#d29922"
+                        values = (
+                            table_row.part_label or table_row.part_material,
+                            _texture_row_source_summary(row_state),
+                            table_row.role,
+                            table_row.original_slot,
+                            Path(contract_source).name if contract_source else table_row.override_source,
+                            status_label,
+                            contract_reason or table_row.controls,
+                        )
+                        for column, value in enumerate(values):
+                            item.setText(column, value)
+                        item.setData(0, Qt.UserRole, tuple(row_state.get("source_indices", ()) or ()))
+                        item.setData(0, Qt.UserRole + 1, row_state)
+                        for column in range(7):
+                            if column == 0:
+                                item.setToolTip(column, table_row.full_part_material or table_row.part_material)
+                            elif column == 1:
+                                item.setToolTip(column, _texture_row_source_summary(row_state, limit=20))
+                            elif column in {2, 6}:
+                                item.setToolTip(column, table_row.controls)
+                            elif column == 3:
+                                item.setToolTip(column, table_row.target_dds or table_row.original_slot)
+                            elif column == 5:
+                                item.setToolTip(column, contract_reason or table_row.status.detail or status_label)
+                            elif column == 4:
+                                source_path = contract_source or _texture_row_effective_source(row_state)
+                                item.setToolTip(column, source_path or table_row.status.detail or table_row.override_source)
+                            else:
+                                item.setToolTip(column, item.text(column))
+                        role_color = {
+                            "base": "#7ee787",
+                            "normal": "#79c0ff",
+                            "height": "#ffa657",
+                            "material": "#d2a8ff",
+                        }.get(str(row_state.get("slot_kind", "") or "").strip().lower(), "#c9d1d9")
+                        source_color = (
+                            "#7ee787"
+                            if contract_action == "replaced" or _texture_row_is_assigned(row_state)
+                            else ("#f2cc60" if str(row_state.get("suggested_source", "") or "").strip() else "#8b949e")
+                        )
+                        item.setForeground(1, QBrush(QColor("#79c0ff")))
+                        item.setForeground(2, QBrush(QColor(role_color)))
+                        item.setForeground(3, QBrush(QColor(role_color)))
+                        item.setForeground(4, QBrush(QColor(source_color)))
+                        item.setForeground(5, QBrush(QColor(status_color)))
+                        item.setBackground(5, QBrush(QColor(status_color)))
+                        item.setForeground(
+                            5,
+                            QBrush(
+                                QColor(
+                                    "#0d1117"
+                                    if status_label
+                                    in {
+                                        TEXTURE_PLAN_STATUS_READY,
+                                        TEXTURE_PLAN_STATUS_REVIEW,
+                                        TEXTURE_PLAN_STATUS_SUPPORT_ONLY,
+                                    }
+                                    else "#ffffff"
+                                )
+                            ),
+                        )
+
+                    def _texture_item_for_row(row_state: Dict[str, Any]) -> Optional[QTreeWidgetItem]:
+                        for item_index in range(texture_override_tree.topLevelItemCount()):
+                            item = texture_override_tree.topLevelItem(item_index)
+                            if item.data(0, Qt.UserRole + 1) is row_state:
+                                return item
+                        return None
+
+                    def _refresh_texture_row_in_place(row_state: Dict[str, Any], *, sync_editor: bool = True) -> bool:
+                        item = texture_override_tree.currentItem()
+                        if item is None or item.data(0, Qt.UserRole + 1) is not row_state:
+                            item = _texture_item_for_row(row_state)
+                        if item is None:
+                            return False
+                        selected_texture_row["row"] = row_state
+                        texture_override_tree.blockSignals(True)
+                        try:
+                            texture_override_tree.setCurrentItem(item)
+                            _apply_texture_row_to_item(item, row_state)
+                        finally:
+                            texture_override_tree.blockSignals(False)
+                        _update_texture_summary_label()
+                        _refresh_texture_details(row_state, sync_editor=sync_editor)
+                        texture_override_tree.scrollToItem(item, QAbstractItemView.EnsureVisible)
+                        return True
+
+                    def _refresh_texture_table(
+                        preserve_row: Optional[Dict[str, Any]] = None,
+                        *,
+                        select_first: bool = False,
+                    ) -> None:
+                        if preserve_row is None:
+                            preserve_row = selected_texture_row.get("row")
+                        previous_scroll_value = texture_override_tree.verticalScrollBar().value()
                         texture_busy_bar.setFormat("Updating texture assignments...")
-                        texture_busy_bar.setVisible(False)
-                        texture_workflow_layout.addWidget(texture_busy_bar)
-                        texture_override_tree = QTreeWidget()
-                        texture_override_tree.setHeaderLabels(
-                            [
-                                "Target",
-                                "Source",
-                                "Role",
-                                "DDS",
-                                "Assigned",
-                                "Status",
-                                "Controls",
+                        texture_busy_bar.setVisible(True)
+                        QApplication.processEvents()
+                        texture_override_tree.blockSignals(True)
+                        try:
+                            _refresh_alignment_virtual_sidecar_contract(_current_dialog_mappings_for_preview())
+                            texture_override_tree.clear()
+                            visible_rows = [
+                                row_state
+                                for row_state in sorted(texture_override_rows, key=_texture_override_row_sort_key)
+                                if _texture_row_visible(row_state)
                             ]
-                        )
-                        texture_override_tree.setMinimumHeight(320)
-                        texture_override_tree.setMinimumWidth(0)
-                        _configure_alignment_tree(
-                            texture_override_tree,
-                            (120, 220, 96, 260, 180, 96, 240),
-                            max_height=0,
-                            stretch_columns=(1, 3, 6),
-                            persist_key="advanced_dds_overrides_v2",
-                        )
-                        selected_texture_editor = QWidget()
-                        selected_texture_editor_layout = QGridLayout(selected_texture_editor)
-                        selected_texture_editor_layout.setContentsMargins(0, 0, 0, 0)
-                        selected_texture_editor_layout.setHorizontalSpacing(4)
-                        selected_texture_editor_layout.setVerticalSpacing(2)
-                        selected_texture_editor_label = QLabel("Selected row")
-                        selected_texture_editor_label.setObjectName("HintLabel")
-                        selected_texture_editor_label.setMinimumWidth(0)
-                        selected_texture_editor_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-                        selected_role_combo = QComboBox()
-                        selected_role_combo.setMinimumWidth(118)
-                        selected_role_combo.setToolTip("Manual repair role for the selected original DDS slot.")
-                        for role_kind in ("base", "normal", "height", "material"):
-                            selected_role_combo.addItem(_texture_role_label_for_slot(role_kind), role_kind)
-                        selected_source_combo = QComboBox()
-                        selected_source_combo.setMinimumWidth(190)
-                        selected_source_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-                        selected_source_combo.setToolTip("Texture source for the selected original DDS slot. Keep original disables this manual override.")
-                        selected_choose_source_button = QPushButton("Choose...")
-                        selected_choose_source_button.setMinimumWidth(0)
-                        selected_choose_source_button.setMaximumWidth(82)
-                        selected_choose_source_button.setToolTip("Open the texture source picker for the selected row.")
-                        selected_apply_suggestion_button = QPushButton("Use Suggested")
-                        selected_apply_suggestion_button.setMinimumWidth(0)
-                        selected_apply_suggestion_button.setMaximumWidth(118)
-                        selected_apply_suggestion_button.setEnabled(False)
-                        selected_apply_suggestion_button.setToolTip("Apply the suggested source texture to the selected original DDS slot.")
-                        selected_texture_editor_layout.addWidget(selected_texture_editor_label, 0, 0, 1, 6)
-                        selected_texture_editor_layout.addWidget(QLabel("Role"), 1, 0)
-                        selected_texture_editor_layout.addWidget(selected_role_combo, 1, 1)
-                        selected_texture_editor_layout.addWidget(QLabel("Source"), 1, 2)
-                        selected_texture_editor_layout.addWidget(selected_source_combo, 1, 3, 1, 2)
-                        selected_texture_editor_layout.addWidget(selected_choose_source_button, 1, 5)
-                        selected_texture_editor_layout.addWidget(selected_apply_suggestion_button, 1, 6)
-                        selected_texture_editor_layout.setColumnStretch(3, 1)
-                        texture_workflow_layout.addWidget(selected_texture_editor)
-                        texture_detail_browser = QTextBrowser()
-                        texture_detail_browser.setReadOnly(True)
-                        texture_detail_browser.setOpenExternalLinks(False)
-                        texture_detail_browser.setMinimumHeight(220)
-                        texture_detail_browser.setMinimumWidth(300)
-                        texture_detail_browser.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-                        texture_detail_browser.setTextInteractionFlags(Qt.TextSelectableByMouse)
-                        texture_detail_browser.setStyleSheet(
-                            texture_detail_browser.styleSheet()
-                            + "QTextBrowser { font-size: 8px; line-height: 1.08; }"
-                        )
-                        texture_details_splitter = QSplitter(Qt.Horizontal)
-                        texture_details_splitter.addWidget(texture_override_tree)
-                        texture_details_splitter.addWidget(texture_detail_browser)
-                        texture_details_splitter.setCollapsible(0, False)
-                        texture_details_splitter.setCollapsible(1, False)
-                        texture_details_splitter.setStretchFactor(0, 7)
-                        texture_details_splitter.setStretchFactor(1, 3)
-                        texture_details_splitter.setSizes([760, 320])
-                        texture_workflow_layout.addWidget(texture_details_splitter, 1)
-                        selected_texture_row: Dict[str, Optional[Dict[str, Any]]] = {"row": None}
-                        selected_texture_editor_loading = {"active": False}
-                        selected_texture_source_committing = {"active": False}
+                            _update_texture_summary_label(len(visible_rows))
+                            item_to_select: Optional[QTreeWidgetItem] = None
+                            for row_state in visible_rows:
+                                item = QTreeWidgetItem([""] * 7)
+                                _apply_texture_row_to_item(item, row_state)
+                                texture_override_tree.addTopLevelItem(item)
+                                if preserve_row is row_state:
+                                    item_to_select = item
+                            texture_override_tree.blockSignals(False)
+                            if item_to_select is not None:
+                                texture_override_tree.setCurrentItem(item_to_select)
+                                selected_texture_row["row"] = item_to_select.data(0, Qt.UserRole + 1)
+                                texture_override_tree.scrollToItem(item_to_select, QAbstractItemView.EnsureVisible)
+                            else:
+                                selected_texture_row["row"] = None
+                                texture_override_tree.clearSelection()
+                                texture_override_tree.setCurrentIndex(QModelIndex())
+                                texture_override_tree.verticalScrollBar().setValue(previous_scroll_value)
+                            _refresh_texture_details(selected_texture_row.get("row"))
+                            texture_override_tree.setMinimumHeight(320)
+                            texture_override_tree.setMaximumHeight(16777215)
+                            _auto_fit_alignment_tree_columns(
+                                texture_override_tree,
+                                (120, 150, 90, 180, 220, 96, 180),
+                                (220, 280, 180, 340, 420, 140, 360),
+                                expand_column=4,
+                            )
+                        finally:
+                            texture_override_tree.blockSignals(False)
+                            texture_busy_bar.setVisible(False)
 
-                        def _current_texture_row() -> Optional[Dict[str, Any]]:
-                            item = texture_override_tree.currentItem()
-                            if item is not None:
-                                row_state = item.data(0, Qt.UserRole + 1)
-                                if isinstance(row_state, dict):
-                                    return row_state
-                            return selected_texture_row.get("row")
+                    def _texture_table_selection_changed(*_args: object) -> None:
+                        selected_texture_row["row"] = _current_texture_row()
+                        _refresh_texture_details(selected_texture_row.get("row"))
 
-                        def _current_texture_target_name() -> str:
-                            row_state = _current_texture_row()
-                            return str(row_state.get("target_name", "") or "") if row_state is not None else ""
+                    def _selected_texture_role_changed(*_args: object) -> None:
+                        if selected_texture_editor_loading["active"]:
+                            return
+                        row_state = _current_texture_row()
+                        if row_state is None:
+                            return
+                        row_state["slot_kind"] = str(selected_role_combo.currentData() or "material")
+                        row_state["role_label"] = _texture_role_label_for_slot(str(row_state.get("slot_kind", "") or "material"))
+                        selected_texture_row["row"] = row_state
+                        _refresh_texture_row_guidance()
+                        _refresh_texture_table(row_state)
+                        _queue_texture_preview_refresh()
 
-                        def _texture_source_choices_for_row(row_state: Optional[Dict[str, Any]]) -> List[Tuple[str, str]]:
-                            choices: List[Tuple[str, str]] = [("Keep original", "")]
-                            added_source_paths: set[str] = set()
-
-                            def _source_key(source_path: object) -> str:
-                                return str(source_path or "").replace("\\", "/").strip().lower()
-
-                            def _add_source_choice(label: str, source_path: str) -> None:
-                                normalized_source_path = str(source_path or "").strip()
-                                if not normalized_source_path:
-                                    return
-                                source_key = _source_key(normalized_source_path)
-                                if source_key in added_source_paths:
-                                    return
-                                added_source_paths.add(source_key)
-                                choices.append((label, normalized_source_path))
-
-                            if row_state is not None:
-                                source_path_for_row = _texture_row_effective_source(row_state)
-                                suggested_source_for_row = str(row_state.get("suggested_source", "") or "").strip()
-                                if source_path_for_row:
-                                    _add_source_choice(f"Assigned: {Path(source_path_for_row).name}", source_path_for_row)
-                                if suggested_source_for_row and _source_key(suggested_source_for_row) != _source_key(source_path_for_row):
-                                    _add_source_choice(f"Use suggested: {Path(suggested_source_for_row).name}", suggested_source_for_row)
-                            for texture_file in texture_files_for_mapping:
-                                _add_source_choice(texture_file.name, str(texture_file))
-                            return choices
-
-                        def _sync_selected_texture_editor(row_state: Optional[Dict[str, Any]]) -> None:
-                            selected_texture_editor_loading["active"] = True
-                            try:
-                                has_row = row_state is not None
-                                selected_role_combo.setEnabled(has_row)
-                                selected_source_combo.setEnabled(has_row)
-                                if has_row:
-                                    _sync_texture_row_assignment_state(row_state)
-                                source_path_for_row = _texture_row_effective_source(row_state) if has_row else ""
-                                selected_source_combo.blockSignals(True)
-                                selected_source_combo.clear()
-                                for label, source_path in _texture_source_choices_for_row(row_state if has_row else None):
-                                    selected_source_combo.addItem(label, source_path)
-                                source_index = selected_source_combo.findData(source_path_for_row)
-                                if source_index < 0:
-                                    source_index = 0
-                                selected_source_combo.setCurrentIndex(source_index)
-                                selected_source_combo.blockSignals(False)
-                                if has_row:
-                                    affects_text = _texture_row_source_summary(row_state)
-                                    if len(affects_text) > 58:
-                                        affects_text = affects_text[:55].rstrip() + "..."
-                                    selected_texture_editor_label.setText(f"Affects: {affects_text}")
-                                    selected_texture_editor_label.setToolTip(_texture_row_source_summary(row_state, limit=20))
-                                else:
-                                    selected_texture_editor_label.setText("Selected row")
-                                    selected_texture_editor_label.setToolTip("")
-                                selected_role_combo.blockSignals(True)
-                                role_index = selected_role_combo.findData(
-                                    str(row_state.get("slot_kind", "") or "material") if has_row else "material"
-                                )
-                                selected_role_combo.setCurrentIndex(max(0, role_index))
-                                selected_role_combo.blockSignals(False)
-                                suggested_source_for_row = str(row_state.get("suggested_source", "") or "").strip() if has_row else ""
-                                suggestion_available = bool(
-                                    has_row
-                                    and suggested_source_for_row
-                                    and suggested_source_for_row != source_path_for_row
-                                )
+                    def _commit_texture_row_source(row_state: Dict[str, Any], source_path: str, *, sync_editor: bool = True) -> None:
+                        if selected_texture_source_committing["active"]:
+                            return
+                        source_path = str(source_path or "").strip()
+                        current_source = _texture_row_effective_source(row_state)
+                        current_checked = _texture_row_is_assigned(row_state)
+                        desired_checked = bool(source_path)
+                        selected_texture_source_committing["active"] = True
+                        try:
+                            if source_path != current_source or desired_checked != current_checked:
+                                _set_texture_row_assignment(row_state, source_path, desired_checked)
+                            selected_texture_row["row"] = row_state
+                            if not _refresh_texture_row_in_place(row_state, sync_editor=sync_editor):
+                                _refresh_texture_table(row_state)
+                            if not sync_editor:
+                                suggested_source = str(row_state.get("suggested_source", "") or "").strip()
+                                suggestion_available = bool(suggested_source and suggested_source != source_path)
                                 selected_apply_suggestion_button.setText("Use Suggested")
                                 selected_apply_suggestion_button.setEnabled(suggestion_available)
                                 selected_apply_suggestion_button.setToolTip(
-                                    f"Apply suggested source:\n{suggested_source_for_row}"
+                                    f"Apply suggested source:\n{suggested_source}"
                                     if suggestion_available
                                     else "No unapplied suggestion is available for the selected row."
                                 )
-                            finally:
-                                selected_texture_editor_loading["active"] = False
+                        finally:
+                            selected_texture_source_committing["active"] = False
+                        if source_path != current_source or desired_checked != current_checked:
+                            _queue_texture_preview_refresh()
 
-                        def _texture_target_sort_key(target_name: str) -> tuple[int, str]:
-                            rows = texture_rows_by_target.get(target_name, [])
-                            unassigned = sum(
-                                1
-                                for row_state in rows
-                                if not _texture_row_is_assigned(row_state)
-                            )
-                            return (-unassigned, target_name.lower())
+                    def _selected_texture_source_changed(index: int = -1, *_args: object) -> None:
+                        if selected_texture_editor_loading["active"] or selected_texture_source_committing["active"]:
+                            return
+                        row_state = _current_texture_row()
+                        if row_state is None:
+                            return
+                        try:
+                            combo_index = int(index)
+                        except (TypeError, ValueError):
+                            combo_index = selected_source_combo.currentIndex()
+                        if combo_index < 0 or combo_index >= selected_source_combo.count():
+                            combo_index = selected_source_combo.currentIndex()
+                        source_path = str(selected_source_combo.itemData(combo_index) or "").strip()
+                        row_state = selected_texture_row.get("row") or row_state
+                        _commit_texture_row_source(row_state, source_path, sync_editor=False)
 
-                        def _refresh_texture_details(row_state: Optional[Dict[str, Any]] = None, *, sync_editor: bool = True) -> None:
-                            if row_state is None:
-                                row_state = selected_texture_row.get("row")
-                            target_name = (
-                                str(row_state.get("target_name", "") or "")
-                                if row_state is not None
-                                else _current_texture_target_name()
-                            )
-                            if sync_editor:
-                                _sync_selected_texture_editor(row_state)
-                            _sync_texture_selection_highlight(row_state)
-                            if row_state is None:
-                                texture_detail_browser.setHtml(
-                                    "<html><body style='color:#8b949e; background:#1f1f1f; font-family:Segoe UI, sans-serif; font-size:8px;'>"
-                                    "Select a texture role to inspect parameter, source, original DDS, final behavior, and warnings."
-                                    "</body></html>"
-                                )
-                            else:
-                                target_rows = texture_rows_by_target.get(target_name, [])
-                                assigned_count = sum(
-                                    1
-                                    for target_row in target_rows
-                                    if _texture_row_is_assigned(target_row)
-                                )
-                                row_state["_assigned_count"] = assigned_count
-                                row_state["_target_row_count"] = len(target_rows)
-                                texture_detail_browser.setHtml(_diagnostics_for_target_html(target_name, row_state) if target_name else "")
+                    def _choose_selected_texture_source() -> None:
+                        if selected_texture_source_committing["active"]:
+                            return
+                        row_state = _current_texture_row()
+                        if row_state is None:
+                            return
+                        choices = _texture_source_choices_for_row(row_state)
+                        picker_dialog = QDialog(dialog)
+                        picker_dialog.setWindowTitle("Assign Override Source")
+                        picker_dialog.setModal(True)
+                        picker_dialog.resize(620, 520)
+                        picker_layout = QVBoxLayout(picker_dialog)
+                        picker_layout.setContentsMargins(12, 12, 12, 12)
+                        picker_layout.setSpacing(8)
+                        picker_label = QLabel(
+                            f"Assign a source texture to {simplified_part_label(row_state.get('target_name', ''))} / "
+                            f"{_texture_role_label_for_slot(str(row_state.get('slot_kind', '') or 'material'))}."
+                        )
+                        picker_label.setWordWrap(True)
+                        picker_label.setObjectName("HintLabel")
+                        picker_layout.addWidget(picker_label)
+                        source_list = QListWidget()
+                        source_list.setSelectionMode(QAbstractItemView.SingleSelection)
+                        current_source = _texture_row_effective_source(row_state)
+                        selected_item: Optional[QListWidgetItem] = None
+                        for label, source_path in choices:
+                            display_text = label if not source_path else f"{label}  -  {source_path}"
+                            item = QListWidgetItem(display_text)
+                            item.setData(Qt.UserRole, source_path)
+                            item.setToolTip(source_path or "Keep original")
+                            source_list.addItem(item)
+                            if str(source_path or "").strip() == current_source:
+                                selected_item = item
+                        if selected_item is None and source_list.count() > 0:
+                            selected_item = source_list.item(0)
+                        if selected_item is not None:
+                            source_list.setCurrentItem(selected_item)
+                        source_list.itemDoubleClicked.connect(lambda _item: picker_dialog.accept())
+                        picker_layout.addWidget(source_list, 1)
+                        button_row = QHBoxLayout()
+                        button_row.addStretch(1)
+                        assign_button = QPushButton("Assign Source")
+                        keep_button = QPushButton("Keep Original")
+                        cancel_button = QPushButton("Cancel")
+                        assign_button.clicked.connect(picker_dialog.accept)
+                        keep_button.clicked.connect(lambda: (source_list.setCurrentRow(0), picker_dialog.accept()))
+                        cancel_button.clicked.connect(picker_dialog.reject)
+                        button_row.addWidget(assign_button)
+                        button_row.addWidget(keep_button)
+                        button_row.addWidget(cancel_button)
+                        picker_layout.addLayout(button_row)
+                        if picker_dialog.exec() != QDialog.Accepted:
+                            return
+                        current_item = source_list.currentItem()
+                        source_path = str(current_item.data(Qt.UserRole) if current_item is not None else "").strip()
+                        _commit_texture_row_source(row_state, source_path)
 
-                        def _set_texture_row_assignment(row_state: Dict[str, Any], source_path: str, checked: bool) -> None:
-                            row_key = _texture_row_override_key(row_state)
-                            normalized_source_path = str(source_path or "").strip()
-                            if checked and normalized_source_path:
-                                texture_override_assignments[row_key] = normalized_source_path
-                            else:
-                                texture_override_assignments[row_key] = ""
-                                normalized_source_path = ""
-                            row_state["source_path"] = normalized_source_path
-                            row_state["checked"] = bool(normalized_source_path)
-                            texture_overrides_dirty["dirty"] = True
+                    def _clear_selected_texture_source() -> None:
+                        if selected_texture_source_committing["active"]:
+                            return
+                        row_state = _current_texture_row()
+                        if row_state is None:
+                            return
+                        _commit_texture_row_source(row_state, "")
 
-                        def _refresh_texture_row_guidance() -> None:
-                            nonlocal texture_sets
-                            texture_sets = group_replacement_texture_sets(texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
-                            _apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
-                            suggested_counts: Dict[str, int] = {}
-                            for row_state in texture_override_rows:
-                                suggested_source = (
-                                    ""
-                                    if _texture_row_is_shared(row_state)
-                                    else _best_source_for_slot(
-                                        str(row_state.get("target_name", "") or ""),
-                                        tuple(row_state.get("source_indices", ()) or ()),
-                                        str(row_state.get("slot_kind", "") or "material"),
-                                        texture_sets,
-                                        parameter_name=str(row_state.get("parameter_name", "") or ""),
-                                        target_texture_path=str(row_state.get("target_path", "") or ""),
-                                        target_shader_family=str(row_state.get("shader_family", "") or ""),
-                                    )
-                                )
-                                row_state["suggested_source"] = suggested_source
-                                suggested_key = suggested_source.strip().lower()
-                                if suggested_key:
-                                    suggested_counts[suggested_key] = suggested_counts.get(suggested_key, 0) + 1
-                            for row_state in texture_override_rows:
-                                suggested_source = str(row_state.get("suggested_source", "") or "").strip()
-                                guidance = classify_texture_assignment_guidance(
-                                    str(row_state.get("parameter_name", "") or ""),
-                                    str(row_state.get("target_path", "") or ""),
-                                    suggested_source=suggested_source,
-                                    repeated_suggestion_count=suggested_counts.get(suggested_source.lower(), 1) if suggested_source else 1,
-                                )
-                                row_state["guidance"] = guidance
-                                row_state["advanced"] = bool(guidance.advanced)
-                                row_state["state_label"] = str(guidance.state_label or "")
-                                row_state["confidence"] = str(guidance.confidence or "manual")
-                                row_state["role_label"] = _texture_role_label_for_slot(
-                                    str(row_state.get("slot_kind", "") or "material")
-                                )
-                                if _texture_row_is_shared(row_state):
-                                    row_state["suggested_source"] = ""
-                                    row_state["advanced"] = True
-                                    row_state["state_label"] = "Original shared layer"
-                                    row_state["confidence"] = "manual"
-                                _sync_texture_row_assignment_state(row_state)
+                    def _apply_selected_texture_suggestion() -> None:
+                        if selected_texture_source_committing["active"]:
+                            return
+                        row_state = _current_texture_row()
+                        if row_state is None:
+                            return
+                        suggested_source = str(row_state.get("suggested_source", "") or "").strip()
+                        if not suggested_source:
+                            return
+                        _commit_texture_row_source(row_state, suggested_source)
 
-                        def _texture_override_row_sort_key(row_state: Dict[str, Any]) -> tuple[int, int, str, str, str]:
-                            role_order = {"base": 0, "normal": 1, "height": 2, "material": 3}
-                            target_name = str(row_state.get("target_name", "") or "")
+                    def _apply_texture_selected_part_filter() -> None:
+                        _refresh_texture_table()
+
+                    def _texture_table_item_activated(item: Optional[QTreeWidgetItem], column: int) -> None:
+                        if item is None or int(column) != 4:
+                            return
+                        row_state = item.data(0, Qt.UserRole + 1)
+                        if not isinstance(row_state, dict):
+                            return
+                        texture_override_tree.setCurrentItem(item)
+                        _choose_selected_texture_source()
+
+                    def _texture_assignment_summary_html(
+                        title: str,
+                        planned_rows: Sequence[Tuple[Dict[str, Any], str, str]],
+                        *,
+                        reason: str,
+                    ) -> str:
+                        def _chip(label: object, background: str, foreground: str = "#0d1117") -> str:
                             return (
-                                _texture_target_sort_key(target_name)[0],
-                                role_order.get(str(row_state.get("slot_kind", "") or ""), 9),
-                                target_name.lower(),
-                                str(row_state.get("parameter_name", "") or "").lower(),
-                                str(row_state.get("target_path", "") or "").lower(),
+                                "<span style='padding:2px 7px; font-weight:700; "
+                                f"background:{background}; color:{foreground}; white-space:nowrap;'>"
+                                f"{escape(str(label or '').strip() or 'Unknown')}</span>"
                             )
 
-                        def _texture_row_visible(row_state: Dict[str, Any]) -> bool:
-                            if not bool(texture_show_advanced_checkbox.isChecked()) and bool(row_state.get("advanced")):
-                                return False
-                            selected_source_index = int(selected_source_part.get("index", -1))
-                            filter_selected = bool(texture_filter_selected_checkbox.isChecked())
-                            source_indices = tuple(row_state.get("source_indices", ()) or ())
-                            if filter_selected and selected_source_index >= 0 and selected_source_index not in source_indices:
-                                return False
-                            return True
-
-                        def _update_texture_summary_label(visible_count: Optional[int] = None) -> None:
-                            if visible_count is None:
-                                visible_count = sum(1 for row_state in texture_override_rows if _texture_row_visible(row_state))
-                            assigned_count = sum(
-                                1
-                                for row_state in texture_override_rows
-                                if _texture_row_is_assigned(row_state)
+                        row_html: List[str] = []
+                        for row_state, source_path, decision in planned_rows[:18]:
+                            table_row = build_dds_override_table_row(
+                                {
+                                    **row_state,
+                                    "source_path": source_path,
+                                    "checked": decision == "Apply",
+                                }
                             )
-                            advanced_hidden = sum(
-                                1
-                                for row_state in texture_override_rows
-                                if bool(row_state.get("advanced")) and not bool(texture_show_advanced_checkbox.isChecked())
-                            )
-                            texture_summary_label.setText(
-                                "<div style='line-height:1.35;'>"
-                                "<span style='color:#79c0ff; font-weight:700;'>Visible rows</span>"
-                                f"<span style='color:#f0f6fc;'> {int(visible_count):,}</span>"
-                                "<span style='color:#8b949e;'> | </span>"
-                                "<span style='color:#7ee787; font-weight:700;'>Assigned</span>"
-                                f"<span style='color:#f0f6fc;'> {assigned_count:,}/{len(texture_override_rows):,}</span>"
-                                "<span style='color:#8b949e;'> | </span>"
-                                "<span style='color:#d2a8ff; font-weight:700;'>Advanced hidden</span>"
-                                f"<span style='color:#f0f6fc;'> {advanced_hidden:,}</span>"
-                                "</div>"
-                            )
-
-                        def _apply_texture_row_to_item(item: QTreeWidgetItem, row_state: Dict[str, Any]) -> None:
-                            _sync_texture_row_assignment_state(row_state)
-                            table_row = build_dds_override_table_row(row_state)
-                            contract_action = str(row_state.get("_contract_action", "") or "").strip()
-                            contract_reason = str(row_state.get("_contract_reason", "") or "").strip()
-                            contract_source = str(row_state.get("_contract_selected_source", "") or "").strip()
-                            status_label = contract_action.replace("_", " ").title() if contract_action else table_row.status.label
+                            status_label = table_row.status.label
                             status_color = _texture_plan_status_color(status_label)
-                            if contract_action == "will_prune":
-                                status_color = "#fb923c"
-                            elif contract_action == "kept":
-                                status_color = "#8b949e"
-                            elif contract_action == "replaced":
-                                status_color = "#3fb950"
-                            elif contract_action == "review":
-                                status_color = "#d29922"
-                            values = (
-                                table_row.part_label or table_row.part_material,
-                                _texture_row_source_summary(row_state),
-                                table_row.role,
-                                table_row.original_slot,
-                                Path(contract_source).name if contract_source else table_row.override_source,
-                                status_label,
-                                contract_reason or table_row.controls,
-                            )
-                            for column, value in enumerate(values):
-                                item.setText(column, value)
-                            item.setData(0, Qt.UserRole, tuple(row_state.get("source_indices", ()) or ()))
-                            item.setData(0, Qt.UserRole + 1, row_state)
-                            for column in range(7):
-                                if column == 0:
-                                    item.setToolTip(column, table_row.full_part_material or table_row.part_material)
-                                elif column == 1:
-                                    item.setToolTip(column, _texture_row_source_summary(row_state, limit=20))
-                                elif column in {2, 6}:
-                                    item.setToolTip(column, table_row.controls)
-                                elif column == 3:
-                                    item.setToolTip(column, table_row.target_dds or table_row.original_slot)
-                                elif column == 5:
-                                    item.setToolTip(column, contract_reason or table_row.status.detail or status_label)
-                                elif column == 4:
-                                    source_path = contract_source or _texture_row_effective_source(row_state)
-                                    item.setToolTip(column, source_path or table_row.status.detail or table_row.override_source)
-                                else:
-                                    item.setToolTip(column, item.text(column))
+                            status_foreground = "#ffffff" if status_label in {TEXTURE_PLAN_STATUS_LIKELY_GREY, TEXTURE_PLAN_STATUS_IGNORED_ADVANCED} else "#0d1117"
                             role_color = {
-                                "base": "#7ee787",
-                                "normal": "#79c0ff",
-                                "height": "#ffa657",
-                                "material": "#d2a8ff",
-                            }.get(str(row_state.get("slot_kind", "") or "").strip().lower(), "#c9d1d9")
-                            source_color = (
-                                "#7ee787"
-                                if contract_action == "replaced" or _texture_row_is_assigned(row_state)
-                                else ("#f2cc60" if str(row_state.get("suggested_source", "") or "").strip() else "#8b949e")
+                                "base": "#3fb950",
+                                "normal": "#58a6ff",
+                                "height": "#fb923c",
+                                "material": "#a371f7",
+                            }.get(table_row.slot_kind, "#8b949e")
+                            row_html.append(
+                                "<tr style='background:#161b22;'>"
+                                f"<td style='padding:6px 7px; color:#f0f6fc; white-space:nowrap;'>{escape(table_row.part_label or table_row.part_material)}</td>"
+                                f"<td style='padding:6px 7px;'>{_chip(table_row.role, role_color)}</td>"
+                                f"<td style='padding:6px 7px; color:#a5d6ff; word-break:break-all;'>{escape(table_row.original_slot)}</td>"
+                                f"<td style='padding:6px 7px; color:#e6edf3; word-break:break-all;'>{escape(Path(source_path).name if source_path else 'Keep original')}</td>"
+                                f"<td style='padding:6px 7px;'>{_chip(status_label, status_color, status_foreground)}</td>"
+                                f"<td style='padding:6px 7px;'>{_chip(decision, '#238636', '#ffffff')}</td>"
+                                "</tr>"
                             )
-                            item.setForeground(1, QBrush(QColor("#79c0ff")))
-                            item.setForeground(2, QBrush(QColor(role_color)))
-                            item.setForeground(3, QBrush(QColor(role_color)))
-                            item.setForeground(4, QBrush(QColor(source_color)))
-                            item.setForeground(5, QBrush(QColor(status_color)))
-                            item.setBackground(5, QBrush(QColor(status_color)))
-                            item.setForeground(
-                                5,
-                                QBrush(
-                                    QColor(
-                                        "#0d1117"
-                                        if status_label
-                                        in {
-                                            TEXTURE_PLAN_STATUS_READY,
-                                            TEXTURE_PLAN_STATUS_REVIEW,
-                                            TEXTURE_PLAN_STATUS_SUPPORT_ONLY,
-                                        }
-                                        else "#ffffff"
-                                    )
-                                ),
+                        if len(planned_rows) > 18:
+                            row_html.append(
+                                f"<tr><td colspan='6' style='padding:7px; color:#8b949e;'>... {len(planned_rows) - 18:,} more row(s)</td></tr>"
                             )
+                        return (
+                            "<html><body style='background:#1f1f1f; color:#e6edf3; font-family:Segoe UI, sans-serif; font-size:12px; margin:0;'>"
+                            "<div style='padding:10px 12px; line-height:1.35;'>"
+                            f"<div style='font-size:17px; font-weight:700; color:#f0f6fc;'>{escape(title)}</div>"
+                            f"<div style='margin-top:7px; color:#c9d1d9;'>{escape(reason)}</div>"
+                            "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:10px; background:#2b2416; border:1px solid #3d2f12;'>"
+                            "<tr><td width='8' style='background:#d29922;'></td>"
+                            "<td style='padding:8px 10px; color:#f2cc60;'>"
+                            "Suggested rows become manual overrides; unchanged rows keep original DDS slots."
+                            "</td></tr></table>"
+                            "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:12px; border:1px solid #30363d;'>"
+                            "<tr style='background:#24292f; color:#8b949e;'>"
+                            "<th align='left' style='padding:6px 7px;'>Part</th>"
+                            "<th align='left' style='padding:6px 7px;'>Role</th>"
+                            "<th align='left' style='padding:6px 7px;'>DDS</th>"
+                            "<th align='left' style='padding:6px 7px;'>Source</th>"
+                            "<th align='left' style='padding:6px 7px;'>Status</th>"
+                            "<th align='left' style='padding:6px 7px;'>Action</th></tr>"
+                            + "".join(row_html)
+                            + "</table></div></body></html>"
+                        )
 
-                        def _texture_item_for_row(row_state: Dict[str, Any]) -> Optional[QTreeWidgetItem]:
-                            for item_index in range(texture_override_tree.topLevelItemCount()):
-                                item = texture_override_tree.topLevelItem(item_index)
-                                if item.data(0, Qt.UserRole + 1) is row_state:
-                                    return item
-                            return None
-
-                        def _refresh_texture_row_in_place(row_state: Dict[str, Any], *, sync_editor: bool = True) -> bool:
-                            item = texture_override_tree.currentItem()
-                            if item is None or item.data(0, Qt.UserRole + 1) is not row_state:
-                                item = _texture_item_for_row(row_state)
-                            if item is None:
-                                return False
-                            selected_texture_row["row"] = row_state
-                            texture_override_tree.blockSignals(True)
-                            try:
-                                texture_override_tree.setCurrentItem(item)
-                                _apply_texture_row_to_item(item, row_state)
-                            finally:
-                                texture_override_tree.blockSignals(False)
-                            _update_texture_summary_label()
-                            _refresh_texture_details(row_state, sync_editor=sync_editor)
-                            texture_override_tree.scrollToItem(item, QAbstractItemView.EnsureVisible)
-                            return True
-
-                        def _refresh_texture_table(
-                            preserve_row: Optional[Dict[str, Any]] = None,
-                            *,
-                            select_first: bool = False,
-                        ) -> None:
-                            if preserve_row is None:
-                                preserve_row = selected_texture_row.get("row")
-                            previous_scroll_value = texture_override_tree.verticalScrollBar().value()
-                            texture_busy_bar.setFormat("Updating texture assignments...")
-                            texture_busy_bar.setVisible(True)
-                            QApplication.processEvents()
-                            texture_override_tree.blockSignals(True)
-                            try:
-                                _refresh_alignment_virtual_sidecar_contract(_current_dialog_mappings_for_preview())
-                                texture_override_tree.clear()
-                                visible_rows = [
-                                    row_state
-                                    for row_state in sorted(texture_override_rows, key=_texture_override_row_sort_key)
-                                    if _texture_row_visible(row_state)
-                                ]
-                                _update_texture_summary_label(len(visible_rows))
-                                item_to_select: Optional[QTreeWidgetItem] = None
-                                for row_state in visible_rows:
-                                    item = QTreeWidgetItem([""] * 7)
-                                    _apply_texture_row_to_item(item, row_state)
-                                    texture_override_tree.addTopLevelItem(item)
-                                    if preserve_row is row_state:
-                                        item_to_select = item
-                                texture_override_tree.blockSignals(False)
-                                if item_to_select is not None:
-                                    texture_override_tree.setCurrentItem(item_to_select)
-                                    selected_texture_row["row"] = item_to_select.data(0, Qt.UserRole + 1)
-                                    texture_override_tree.scrollToItem(item_to_select, QAbstractItemView.EnsureVisible)
-                                else:
-                                    selected_texture_row["row"] = None
-                                    texture_override_tree.clearSelection()
-                                    texture_override_tree.setCurrentIndex(QModelIndex())
-                                    texture_override_tree.verticalScrollBar().setValue(previous_scroll_value)
-                                _refresh_texture_details(selected_texture_row.get("row"))
-                                texture_override_tree.setMinimumHeight(320)
-                                texture_override_tree.setMaximumHeight(16777215)
-                                _auto_fit_alignment_tree_columns(
-                                    texture_override_tree,
-                                    (120, 150, 90, 180, 220, 96, 180),
-                                    (220, 280, 180, 340, 420, 140, 360),
-                                    expand_column=4,
-                                )
-                            finally:
-                                texture_override_tree.blockSignals(False)
-                                texture_busy_bar.setVisible(False)
-
-                        def _texture_table_selection_changed(*_args: object) -> None:
-                            selected_texture_row["row"] = _current_texture_row()
-                            _refresh_texture_details(selected_texture_row.get("row"))
-
-                        def _selected_texture_role_changed(*_args: object) -> None:
-                            if selected_texture_editor_loading["active"]:
-                                return
-                            row_state = _current_texture_row()
-                            if row_state is None:
-                                return
-                            row_state["slot_kind"] = str(selected_role_combo.currentData() or "material")
-                            row_state["role_label"] = _texture_role_label_for_slot(str(row_state.get("slot_kind", "") or "material"))
-                            selected_texture_row["row"] = row_state
-                            _refresh_texture_row_guidance()
-                            _refresh_texture_table(row_state)
-                            _queue_texture_preview_refresh()
-
-                        def _commit_texture_row_source(row_state: Dict[str, Any], source_path: str, *, sync_editor: bool = True) -> None:
-                            if selected_texture_source_committing["active"]:
-                                return
-                            source_path = str(source_path or "").strip()
-                            current_source = _texture_row_effective_source(row_state)
-                            current_checked = _texture_row_is_assigned(row_state)
-                            desired_checked = bool(source_path)
-                            selected_texture_source_committing["active"] = True
-                            try:
-                                if source_path != current_source or desired_checked != current_checked:
-                                    _set_texture_row_assignment(row_state, source_path, desired_checked)
-                                selected_texture_row["row"] = row_state
-                                if not _refresh_texture_row_in_place(row_state, sync_editor=sync_editor):
-                                    _refresh_texture_table(row_state)
-                                if not sync_editor:
-                                    suggested_source = str(row_state.get("suggested_source", "") or "").strip()
-                                    suggestion_available = bool(suggested_source and suggested_source != source_path)
-                                    selected_apply_suggestion_button.setText("Use Suggested")
-                                    selected_apply_suggestion_button.setEnabled(suggestion_available)
-                                    selected_apply_suggestion_button.setToolTip(
-                                        f"Apply suggested source:\n{suggested_source}"
-                                        if suggestion_available
-                                        else "No unapplied suggestion is available for the selected row."
-                                    )
-                            finally:
-                                selected_texture_source_committing["active"] = False
-                            if source_path != current_source or desired_checked != current_checked:
-                                _queue_texture_preview_refresh()
-
-                        def _selected_texture_source_changed(index: int = -1, *_args: object) -> None:
-                            if selected_texture_editor_loading["active"] or selected_texture_source_committing["active"]:
-                                return
-                            row_state = _current_texture_row()
-                            if row_state is None:
-                                return
-                            try:
-                                combo_index = int(index)
-                            except (TypeError, ValueError):
-                                combo_index = selected_source_combo.currentIndex()
-                            if combo_index < 0 or combo_index >= selected_source_combo.count():
-                                combo_index = selected_source_combo.currentIndex()
-                            source_path = str(selected_source_combo.itemData(combo_index) or "").strip()
-                            row_state = selected_texture_row.get("row") or row_state
-                            _commit_texture_row_source(row_state, source_path, sync_editor=False)
-
-                        def _choose_selected_texture_source() -> None:
-                            if selected_texture_source_committing["active"]:
-                                return
-                            row_state = _current_texture_row()
-                            if row_state is None:
-                                return
-                            choices = _texture_source_choices_for_row(row_state)
-                            picker_dialog = QDialog(dialog)
-                            picker_dialog.setWindowTitle("Assign Override Source")
-                            picker_dialog.setModal(True)
-                            picker_dialog.resize(620, 520)
-                            picker_layout = QVBoxLayout(picker_dialog)
-                            picker_layout.setContentsMargins(12, 12, 12, 12)
-                            picker_layout.setSpacing(8)
-                            picker_label = QLabel(
-                                f"Assign a source texture to {simplified_part_label(row_state.get('target_name', ''))} / "
-                                f"{_texture_role_label_for_slot(str(row_state.get('slot_kind', '') or 'material'))}."
+                    def _confirm_texture_assignment_action(
+                        title: str,
+                        planned_rows: Sequence[Tuple[Dict[str, Any], str, str]],
+                        *,
+                        reason: str,
+                    ) -> bool:
+                        if not planned_rows:
+                            QMessageBox.information(
+                                dialog,
+                                title,
+                                "No compatible suggested texture overrides were found for the selected part.",
                             )
-                            picker_label.setWordWrap(True)
-                            picker_label.setObjectName("HintLabel")
-                            picker_layout.addWidget(picker_label)
-                            source_list = QListWidget()
-                            source_list.setSelectionMode(QAbstractItemView.SingleSelection)
-                            current_source = _texture_row_effective_source(row_state)
-                            selected_item: Optional[QListWidgetItem] = None
-                            for label, source_path in choices:
-                                display_text = label if not source_path else f"{label}  -  {source_path}"
-                                item = QListWidgetItem(display_text)
-                                item.setData(Qt.UserRole, source_path)
-                                item.setToolTip(source_path or "Keep original")
-                                source_list.addItem(item)
-                                if str(source_path or "").strip() == current_source:
-                                    selected_item = item
-                            if selected_item is None and source_list.count() > 0:
-                                selected_item = source_list.item(0)
-                            if selected_item is not None:
-                                source_list.setCurrentItem(selected_item)
-                            source_list.itemDoubleClicked.connect(lambda _item: picker_dialog.accept())
-                            picker_layout.addWidget(source_list, 1)
-                            button_row = QHBoxLayout()
-                            button_row.addStretch(1)
-                            assign_button = QPushButton("Assign Source")
-                            keep_button = QPushButton("Keep Original")
-                            cancel_button = QPushButton("Cancel")
-                            assign_button.clicked.connect(picker_dialog.accept)
-                            keep_button.clicked.connect(lambda: (source_list.setCurrentRow(0), picker_dialog.accept()))
-                            cancel_button.clicked.connect(picker_dialog.reject)
-                            button_row.addWidget(assign_button)
-                            button_row.addWidget(keep_button)
-                            button_row.addWidget(cancel_button)
-                            picker_layout.addLayout(button_row)
-                            if picker_dialog.exec() != QDialog.Accepted:
-                                return
-                            current_item = source_list.currentItem()
-                            source_path = str(current_item.data(Qt.UserRole) if current_item is not None else "").strip()
-                            _commit_texture_row_source(row_state, source_path)
+                            return False
+                        confirm_dialog = QDialog(dialog)
+                        confirm_dialog.setWindowTitle(title)
+                        confirm_dialog.setModal(True)
+                        confirm_dialog.resize(940, 540)
+                        confirm_layout = QVBoxLayout(confirm_dialog)
+                        confirm_layout.setContentsMargins(12, 12, 12, 12)
+                        confirm_layout.setSpacing(10)
+                        summary_browser = QTextBrowser()
+                        summary_browser.setReadOnly(True)
+                        summary_browser.setOpenExternalLinks(False)
+                        summary_browser.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                        summary_browser.setHtml(_texture_assignment_summary_html(title, planned_rows, reason=reason))
+                        confirm_layout.addWidget(summary_browser, 1)
+                        button_row = QHBoxLayout()
+                        button_row.addStretch(1)
+                        apply_button = QPushButton("Apply These Overrides")
+                        cancel_button = QPushButton("Cancel")
+                        cancel_button.setDefault(True)
+                        apply_button.clicked.connect(confirm_dialog.accept)
+                        cancel_button.clicked.connect(confirm_dialog.reject)
+                        button_row.addWidget(apply_button)
+                        button_row.addWidget(cancel_button)
+                        confirm_layout.addLayout(button_row)
+                        return confirm_dialog.exec() == QDialog.Accepted
 
-                        def _clear_selected_texture_source() -> None:
-                            if selected_texture_source_committing["active"]:
-                                return
-                            row_state = _current_texture_row()
-                            if row_state is None:
-                                return
-                            _commit_texture_row_source(row_state, "")
-
-                        def _apply_selected_texture_suggestion() -> None:
-                            if selected_texture_source_committing["active"]:
-                                return
-                            row_state = _current_texture_row()
-                            if row_state is None:
-                                return
+                    def _apply_replacement_texture_plan_to_overrides() -> None:
+                        if not _ensure_advanced_dds_overrides_loaded(reason="apply-suggested"):
+                            return
+                        _refresh_texture_row_guidance()
+                        planned_rows: List[Tuple[Dict[str, Any], str, str]] = []
+                        for row_state in texture_override_rows:
                             suggested_source = str(row_state.get("suggested_source", "") or "").strip()
-                            if not suggested_source:
-                                return
-                            _commit_texture_row_source(row_state, suggested_source)
+                            guidance = row_state.get("guidance")
+                            if suggested_source and _texture_row_can_apply_suggested_for_target(row_state, guidance):
+                                planned_rows.append((row_state, suggested_source, "Apply"))
+                        if not _confirm_texture_assignment_action(
+                            "Apply Suggested",
+                            planned_rows,
+                            reason=(
+                                "Apply compatible sources; ambiguous rows stay unchanged."
+                            ),
+                        ):
+                            return
+                        for row_state, suggested_source, _decision in planned_rows:
+                            _set_texture_row_assignment(row_state, suggested_source, True)
+                        _refresh_texture_table(selected_texture_row.get("row"))
+                        _queue_texture_preview_refresh()
 
-                        def _apply_texture_selected_part_filter() -> None:
-                            _refresh_texture_table()
+                    def _texture_set_for_selected_source_material() -> object | None:
+                        material_name = str(selected_texture_plan_source.get("material_name", "") or "").strip()
+                        if material_name:
+                            material_key = material_name.lower()
+                            texture_set = texture_sets.get(material_key)
+                            if texture_set is not None:
+                                return texture_set
+                            for candidate in texture_sets.values():
+                                if str(getattr(candidate, "material_name", "") or "").strip().lower() == material_key:
+                                    return candidate
+                        for raw_source_index in tuple(selected_texture_plan_source.get("source_indices", ()) or ()):
+                            try:
+                                source_index = int(raw_source_index)
+                            except (TypeError, ValueError):
+                                continue
+                            texture_set = _texture_set_for_source_index(source_index, texture_sets)
+                            if texture_set is not None:
+                                return texture_set
+                        return None
 
-                        def _texture_table_item_activated(item: Optional[QTreeWidgetItem], column: int) -> None:
-                            if item is None or int(column) != 4:
-                                return
-                            row_state = item.data(0, Qt.UserRole + 1)
-                            if not isinstance(row_state, dict):
-                                return
-                            texture_override_tree.setCurrentItem(item)
-                            _choose_selected_texture_source()
+                    def _source_slot_for_texture_row(texture_set: object, row_state: Mapping[str, Any]) -> object | None:
+                        slots = getattr(texture_set, "slots", {}) or {}
+                        slot_kind = str(row_state.get("slot_kind", "") or row_state.get("original_slot_kind", "") or "material").strip().lower()
+                        candidates = [slot_kind]
+                        if slot_kind == "material_mask":
+                            candidates.extend(["material_mask", "material"])
+                        elif slot_kind == "detail_mask":
+                            candidates.extend(["detail_mask", "material"])
+                        elif slot_kind == "material":
+                            candidates.extend(["material_mask", "detail_mask"])
+                        elif slot_kind == "base":
+                            candidates.append("base")
+                        for candidate in candidates:
+                            source_slot = slots.get(candidate)
+                            if source_slot is not None and isinstance(getattr(source_slot, "source_path", None), Path):
+                                return source_slot
+                        return None
 
-                        def _texture_assignment_summary_html(
-                            title: str,
-                            planned_rows: Sequence[Tuple[Dict[str, Any], str, str]],
-                            *,
-                            reason: str,
-                        ) -> str:
-                            def _chip(label: object, background: str, foreground: str = "#0d1117") -> str:
-                                return (
-                                    "<span style='padding:2px 7px; font-weight:700; "
-                                    f"background:{background}; color:{foreground}; white-space:nowrap;'>"
-                                    f"{escape(str(label or '').strip() or 'Unknown')}</span>"
-                                )
-
-                            row_html: List[str] = []
-                            for row_state, source_path, decision in planned_rows[:18]:
-                                table_row = build_dds_override_table_row(
-                                    {
-                                        **row_state,
-                                        "source_path": source_path,
-                                        "checked": decision == "Apply",
-                                    }
-                                )
-                                status_label = table_row.status.label
-                                status_color = _texture_plan_status_color(status_label)
-                                status_foreground = "#ffffff" if status_label in {TEXTURE_PLAN_STATUS_LIKELY_GREY, TEXTURE_PLAN_STATUS_IGNORED_ADVANCED} else "#0d1117"
-                                role_color = {
-                                    "base": "#3fb950",
-                                    "normal": "#58a6ff",
-                                    "height": "#fb923c",
-                                    "material": "#a371f7",
-                                }.get(table_row.slot_kind, "#8b949e")
-                                row_html.append(
-                                    "<tr style='background:#161b22;'>"
-                                    f"<td style='padding:6px 7px; color:#f0f6fc; white-space:nowrap;'>{escape(table_row.part_label or table_row.part_material)}</td>"
-                                    f"<td style='padding:6px 7px;'>{_chip(table_row.role, role_color)}</td>"
-                                    f"<td style='padding:6px 7px; color:#a5d6ff; word-break:break-all;'>{escape(table_row.original_slot)}</td>"
-                                    f"<td style='padding:6px 7px; color:#e6edf3; word-break:break-all;'>{escape(Path(source_path).name if source_path else 'Keep original')}</td>"
-                                    f"<td style='padding:6px 7px;'>{_chip(status_label, status_color, status_foreground)}</td>"
-                                    f"<td style='padding:6px 7px;'>{_chip(decision, '#238636', '#ffffff')}</td>"
-                                    "</tr>"
-                                )
-                            if len(planned_rows) > 18:
-                                row_html.append(
-                                    f"<tr><td colspan='6' style='padding:7px; color:#8b949e;'>... {len(planned_rows) - 18:,} more row(s)</td></tr>"
-                                )
-                            return (
-                                "<html><body style='background:#1f1f1f; color:#e6edf3; font-family:Segoe UI, sans-serif; font-size:12px; margin:0;'>"
-                                "<div style='padding:10px 12px; line-height:1.35;'>"
-                                f"<div style='font-size:17px; font-weight:700; color:#f0f6fc;'>{escape(title)}</div>"
-                                f"<div style='margin-top:7px; color:#c9d1d9;'>{escape(reason)}</div>"
-                                "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:10px; background:#2b2416; border:1px solid #3d2f12;'>"
-                                "<tr><td width='8' style='background:#d29922;'></td>"
-                                "<td style='padding:8px 10px; color:#f2cc60;'>"
-                                "Suggested rows become manual overrides; unchanged rows keep original DDS slots."
-                                "</td></tr></table>"
-                                "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:12px; border:1px solid #30363d;'>"
-                                "<tr style='background:#24292f; color:#8b949e;'>"
-                                "<th align='left' style='padding:6px 7px;'>Part</th>"
-                                "<th align='left' style='padding:6px 7px;'>Role</th>"
-                                "<th align='left' style='padding:6px 7px;'>DDS</th>"
-                                "<th align='left' style='padding:6px 7px;'>Source</th>"
-                                "<th align='left' style='padding:6px 7px;'>Status</th>"
-                                "<th align='left' style='padding:6px 7px;'>Action</th></tr>"
-                                + "".join(row_html)
-                                + "</table></div></body></html>"
-                            )
-
-                        def _confirm_texture_assignment_action(
-                            title: str,
-                            planned_rows: Sequence[Tuple[Dict[str, Any], str, str]],
-                            *,
-                            reason: str,
-                        ) -> bool:
-                            if not planned_rows:
-                                QMessageBox.information(
-                                    dialog,
-                                    title,
-                                    "No compatible suggested texture overrides were found for the selected part.",
-                                )
-                                return False
-                            confirm_dialog = QDialog(dialog)
-                            confirm_dialog.setWindowTitle(title)
-                            confirm_dialog.setModal(True)
-                            confirm_dialog.resize(940, 540)
-                            confirm_layout = QVBoxLayout(confirm_dialog)
-                            confirm_layout.setContentsMargins(12, 12, 12, 12)
-                            confirm_layout.setSpacing(10)
-                            summary_browser = QTextBrowser()
-                            summary_browser.setReadOnly(True)
-                            summary_browser.setOpenExternalLinks(False)
-                            summary_browser.setTextInteractionFlags(Qt.TextSelectableByMouse)
-                            summary_browser.setHtml(_texture_assignment_summary_html(title, planned_rows, reason=reason))
-                            confirm_layout.addWidget(summary_browser, 1)
-                            button_row = QHBoxLayout()
-                            button_row.addStretch(1)
-                            apply_button = QPushButton("Apply These Overrides")
-                            cancel_button = QPushButton("Cancel")
-                            cancel_button.setDefault(True)
-                            apply_button.clicked.connect(confirm_dialog.accept)
-                            cancel_button.clicked.connect(confirm_dialog.reject)
-                            button_row.addWidget(apply_button)
-                            button_row.addWidget(cancel_button)
-                            confirm_layout.addLayout(button_row)
-                            return confirm_dialog.exec() == QDialog.Accepted
-
-                        def _apply_replacement_texture_plan_to_overrides() -> None:
-                            if not _ensure_advanced_dds_overrides_loaded(reason="apply-suggested"):
-                                return
-                            _refresh_texture_row_guidance()
-                            planned_rows: List[Tuple[Dict[str, Any], str, str]] = []
-                            for row_state in texture_override_rows:
-                                suggested_source = str(row_state.get("suggested_source", "") or "").strip()
-                                guidance = row_state.get("guidance")
-                                if suggested_source and _texture_row_can_apply_suggested_for_target(row_state, guidance):
-                                    planned_rows.append((row_state, suggested_source, "Apply"))
-                            if not _confirm_texture_assignment_action(
-                                "Apply Suggested",
-                                planned_rows,
-                                reason=(
-                                    "Apply compatible sources; ambiguous rows stay unchanged."
-                                ),
-                            ):
-                                return
-                            for row_state, suggested_source, _decision in planned_rows:
-                                _set_texture_row_assignment(row_state, suggested_source, True)
-                            _refresh_texture_table(selected_texture_row.get("row"))
-                            _queue_texture_preview_refresh()
-
-                        def _texture_set_for_selected_source_material() -> object | None:
-                            material_name = str(selected_texture_plan_source.get("material_name", "") or "").strip()
-                            if material_name:
-                                material_key = material_name.lower()
-                                texture_set = texture_sets.get(material_key)
-                                if texture_set is not None:
-                                    return texture_set
-                                for candidate in texture_sets.values():
-                                    if str(getattr(candidate, "material_name", "") or "").strip().lower() == material_key:
-                                        return candidate
-                            for raw_source_index in tuple(selected_texture_plan_source.get("source_indices", ()) or ()):
-                                try:
-                                    source_index = int(raw_source_index)
-                                except (TypeError, ValueError):
-                                    continue
-                                texture_set = _texture_set_for_source_index(source_index, texture_sets)
-                                if texture_set is not None:
-                                    return texture_set
-                            return None
-
-                        def _source_slot_for_texture_row(texture_set: object, row_state: Mapping[str, Any]) -> object | None:
-                            slots = getattr(texture_set, "slots", {}) or {}
-                            slot_kind = str(row_state.get("slot_kind", "") or row_state.get("original_slot_kind", "") or "material").strip().lower()
-                            candidates = [slot_kind]
-                            if slot_kind == "material_mask":
-                                candidates.extend(["material_mask", "material"])
-                            elif slot_kind == "detail_mask":
-                                candidates.extend(["detail_mask", "material"])
-                            elif slot_kind == "material":
-                                candidates.extend(["material_mask", "detail_mask"])
-                            elif slot_kind == "base":
-                                candidates.append("base")
-                            for candidate in candidates:
-                                source_slot = slots.get(candidate)
-                                if source_slot is not None and isinstance(getattr(source_slot, "source_path", None), Path):
-                                    return source_slot
-                            return None
-
-                        def _apply_selected_source_material_textures() -> None:
-                            if not _ensure_advanced_dds_overrides_loaded(reason="use-selected"):
-                                return
-                            texture_set = _texture_set_for_selected_source_material()
-                            if texture_set is None:
-                                QMessageBox.information(
-                                    dialog,
-                                    "Use Selected",
-                                    "Select a material row first.",
-                                )
-                                return
-                            source_indices = {
-                                int(raw_source_index)
-                                for raw_source_index in tuple(selected_texture_plan_source.get("source_indices", ()) or ())
-                                if isinstance(raw_source_index, int) or str(raw_source_index).strip().lstrip("-").isdigit()
-                            }
-                            if not source_indices:
-                                source_indices.update(_source_indices_for_material_name(str(getattr(texture_set, "material_name", "") or "")))
-                            planned_rows: List[Tuple[Dict[str, Any], str, str]] = []
-                            for row_state in texture_override_rows:
-                                row_source_indices = set(_texture_row_current_source_indices(row_state))
-                                if source_indices and row_source_indices and not (source_indices & row_source_indices):
-                                    continue
-                                source_slot = _source_slot_for_texture_row(texture_set, row_state)
-                                source_path = getattr(source_slot, "source_path", None) if source_slot is not None else None
-                                if not isinstance(source_path, Path):
-                                    continue
-                                planned_rows.append((row_state, str(source_path), "Apply"))
-                            if not planned_rows:
-                                base_slot = (getattr(texture_set, "slots", {}) or {}).get("base")
-                                if base_slot is not None and isinstance(getattr(base_slot, "source_path", None), Path):
-                                    rebuild_sidecar_checkbox.setChecked(True)
-                                    inject_base_color_checkbox.setChecked(True)
-                                    _queue_texture_preview_refresh()
-                                    QMessageBox.information(
-                                        dialog,
-                                        "Use Selected",
-                                        "Base/color binding enabled.",
-                                    )
-                                    return
-                                QMessageBox.information(
-                                    dialog,
-                                    "Use Selected",
-                                    "No compatible rows matched.",
-                                )
-                                return
-                            material_name = str(getattr(texture_set, "material_name", "") or "selected source material")
-                            if not _confirm_texture_assignment_action(
+                    def _apply_selected_source_material_textures() -> None:
+                        if not _ensure_advanced_dds_overrides_loaded(reason="use-selected"):
+                            return
+                        texture_set = _texture_set_for_selected_source_material()
+                        if texture_set is None:
+                            QMessageBox.information(
+                                dialog,
                                 "Use Selected",
-                                planned_rows,
-                                reason=(
-                                    f"Apply detected textures from {material_name}."
-                                ),
-                            ):
-                                return
-                            saw_base = False
-                            for row_state, source_path, _decision in planned_rows:
-                                if str(row_state.get("slot_kind", "") or "").strip().lower() == "base":
-                                    saw_base = True
-                                _set_texture_row_assignment(row_state, source_path, True)
-                            if saw_base:
+                                "Select a material row first.",
+                            )
+                            return
+                        source_indices = {
+                            int(raw_source_index)
+                            for raw_source_index in tuple(selected_texture_plan_source.get("source_indices", ()) or ())
+                            if isinstance(raw_source_index, int) or str(raw_source_index).strip().lstrip("-").isdigit()
+                        }
+                        if not source_indices:
+                            source_indices.update(_source_indices_for_material_name(str(getattr(texture_set, "material_name", "") or "")))
+                        planned_rows: List[Tuple[Dict[str, Any], str, str]] = []
+                        for row_state in texture_override_rows:
+                            row_source_indices = set(_texture_row_current_source_indices(row_state))
+                            if source_indices and row_source_indices and not (source_indices & row_source_indices):
+                                continue
+                            source_slot = _source_slot_for_texture_row(texture_set, row_state)
+                            source_path = getattr(source_slot, "source_path", None) if source_slot is not None else None
+                            if not isinstance(source_path, Path):
+                                continue
+                            planned_rows.append((row_state, str(source_path), "Apply"))
+                        if not planned_rows:
+                            base_slot = (getattr(texture_set, "slots", {}) or {}).get("base")
+                            if base_slot is not None and isinstance(getattr(base_slot, "source_path", None), Path):
                                 rebuild_sidecar_checkbox.setChecked(True)
                                 inject_base_color_checkbox.setChecked(True)
-                            _refresh_texture_table(selected_texture_row.get("row"))
-                            _queue_texture_preview_refresh()
-
-                        def _apply_all_suggested_override_sources() -> None:
-                            if not _ensure_advanced_dds_overrides_loaded(reason="apply-all-suggested"):
-                                return
-                            _refresh_texture_row_guidance()
-                            planned_rows: List[Tuple[Dict[str, Any], str, str]] = []
-                            for row_state in texture_override_rows:
-                                suggested_source = str(row_state.get("suggested_source", "") or "").strip()
-                                if suggested_source:
-                                    planned_rows.append((row_state, suggested_source, "Apply"))
-                            if not planned_rows:
+                                _queue_texture_preview_refresh()
                                 QMessageBox.information(
                                     dialog,
-                                    "Apply all Suggested for Override Source",
-                                    "No suggested override sources are available for the current advanced DDS override rows.",
+                                    "Use Selected",
+                                    "Base/color binding enabled.",
                                 )
                                 return
-                            if not _confirm_texture_assignment_action(
+                            QMessageBox.information(
+                                dialog,
+                                "Use Selected",
+                                "No compatible rows matched.",
+                            )
+                            return
+                        material_name = str(getattr(texture_set, "material_name", "") or "selected source material")
+                        if not _confirm_texture_assignment_action(
+                            "Use Selected",
+                            planned_rows,
+                            reason=(
+                                f"Apply detected textures from {material_name}."
+                            ),
+                        ):
+                            return
+                        saw_base = False
+                        for row_state, source_path, _decision in planned_rows:
+                            if str(row_state.get("slot_kind", "") or "").strip().lower() == "base":
+                                saw_base = True
+                            _set_texture_row_assignment(row_state, source_path, True)
+                        if saw_base:
+                            rebuild_sidecar_checkbox.setChecked(True)
+                            inject_base_color_checkbox.setChecked(True)
+                        _refresh_texture_table(selected_texture_row.get("row"))
+                        _queue_texture_preview_refresh()
+
+                    def _apply_all_suggested_override_sources() -> None:
+                        if not _ensure_advanced_dds_overrides_loaded(reason="apply-all-suggested"):
+                            return
+                        _refresh_texture_row_guidance()
+                        planned_rows: List[Tuple[Dict[str, Any], str, str]] = []
+                        for row_state in texture_override_rows:
+                            suggested_source = str(row_state.get("suggested_source", "") or "").strip()
+                            if suggested_source:
+                                planned_rows.append((row_state, suggested_source, "Apply"))
+                        if not planned_rows:
+                            QMessageBox.information(
+                                dialog,
                                 "Apply all Suggested for Override Source",
-                                planned_rows,
-                                reason=(
-                                    "Apply every suggested source. Review the final preview before export."
-                                ),
-                            ):
-                                return
-                            for row_state, suggested_source, _decision in planned_rows:
-                                _set_texture_row_assignment(row_state, suggested_source, True)
-                            _refresh_texture_table(selected_texture_row.get("row"))
-                            _queue_texture_preview_refresh()
-
-                        def _clear_target_texture_assignments() -> None:
-                            if not _ensure_advanced_dds_overrides_loaded(reason="clear-target"):
-                                return
-                            target_name = _current_texture_target_name()
-                            for row_state in texture_rows_by_target.get(target_name, []):
-                                _set_texture_row_assignment(row_state, "", False)
-                            _refresh_texture_table(selected_texture_row.get("row"))
-                            _queue_texture_preview_refresh()
-
-                        def _selected_material_override_rows() -> List[Dict[str, Any]]:
-                            if not _ensure_advanced_dds_overrides_loaded(reason="material-route"):
-                                return []
-                            selected_sources = {
-                                int(raw_source_index)
-                                for raw_source_index in tuple(selected_texture_plan_source.get("source_indices", ()) or ())
-                                if isinstance(raw_source_index, int) or str(raw_source_index).strip().lstrip("-").isdigit()
-                            }
-                            selected_material = str(selected_texture_plan_source.get("material_name", "") or "").strip().lower()
-                            rows: List[Dict[str, Any]] = []
-                            for row_state in texture_override_rows:
-                                row_sources = set(_texture_row_current_source_indices(row_state))
-                                row_material = str(row_state.get("target_name", "") or "").strip().lower()
-                                if selected_sources and row_sources and selected_sources & row_sources:
-                                    rows.append(row_state)
-                                elif selected_material and row_material == selected_material:
-                                    rows.append(row_state)
-                            return rows
-
-                        def _use_route_source_for_selected_material() -> None:
-                            _apply_selected_source_material_textures()
-
-                        def _clear_selected_material_texture_assignments() -> None:
-                            rows = _selected_material_override_rows()
-                            if not rows:
-                                QMessageBox.information(dialog, "Texture Route", "Select a material route first.")
-                                return
-                            for row_state in rows:
-                                _set_texture_row_assignment(row_state, "", False)
-                            _refresh_texture_table(selected_texture_row.get("row"))
-                            _queue_texture_preview_refresh()
-
-                        def _choose_file_for_selected_material() -> None:
-                            rows = _selected_material_override_rows()
-                            if not rows:
-                                QMessageBox.information(dialog, "Texture Route", "Select a material route first.")
-                                return
-                            selected_file, _selected_filter = QFileDialog.getOpenFileName(
-                                dialog,
-                                "Choose Texture For Selected Route",
-                                str(obj_path.parent),
-                                "Texture files (*.png *.dds *.jpg *.jpeg *.tga *.bmp *.tif *.tiff);;All files (*.*)",
+                                "No suggested override sources are available for the current advanced DDS override rows.",
                             )
-                            if not selected_file:
-                                return
-                            texture_path = Path(selected_file).expanduser()
-                            if not texture_path.is_file():
-                                return
-                            for row_state in rows:
-                                _set_texture_row_assignment(row_state, str(texture_path), True)
-                            key = str(texture_path.resolve()).lower()
-                            if key not in seen_texture_file_keys:
-                                seen_texture_file_keys.add(key)
-                                texture_files_for_mapping.append(texture_path.resolve())
-                            _refresh_texture_row_guidance()
-                            _refresh_texture_table(selected_texture_row.get("row"))
-                            _queue_texture_preview_refresh()
+                            return
+                        if not _confirm_texture_assignment_action(
+                            "Apply all Suggested for Override Source",
+                            planned_rows,
+                            reason=(
+                                "Apply every suggested source. Review the final preview before export."
+                            ),
+                        ):
+                            return
+                        for row_state, suggested_source, _decision in planned_rows:
+                            _set_texture_row_assignment(row_state, suggested_source, True)
+                        _refresh_texture_table(selected_texture_row.get("row"))
+                        _queue_texture_preview_refresh()
 
-                        def _add_missing_texture_sources() -> None:
-                            selected_files, _selected_filter = QFileDialog.getOpenFileNames(
-                                dialog,
-                                "Add Replacement Textures",
-                                str(obj_path.parent),
-                                "Texture files (*.png *.dds *.jpg *.jpeg *.tga *.bmp *.tif *.tiff);;All files (*.*)",
-                            )
-                            added = False
-                            for selected_file in selected_files or ():
-                                texture_path = Path(selected_file).expanduser()
-                                if not texture_path.is_file() or texture_path.suffix.lower() not in SCENE_TEXTURE_SOURCE_EXTENSIONS:
-                                    continue
-                                key = str(texture_path.resolve()).lower()
-                                if key in seen_texture_file_keys:
-                                    continue
-                                seen_texture_file_keys.add(key)
-                                texture_files_for_mapping.append(texture_path.resolve())
-                                added = True
-                            if not added:
-                                return
-                            _refresh_texture_row_guidance()
-                            _refresh_source_material_plan()
-                            try:
-                                if texture_sets and not rebuild_sidecar_checkbox.isChecked():
-                                    rebuild_sidecar_checkbox.setChecked(True)
-                            except NameError:
-                                pass
-                            _refresh_texture_table(selected_texture_row.get("row"))
-                            _queue_texture_preview_refresh()
+                    def _clear_target_texture_assignments() -> None:
+                        if not _ensure_advanced_dds_overrides_loaded(reason="clear-target"):
+                            return
+                        target_name = _current_texture_target_name()
+                        for row_state in texture_rows_by_target.get(target_name, []):
+                            _set_texture_row_assignment(row_state, "", False)
+                        _refresh_texture_table(selected_texture_row.get("row"))
+                        _queue_texture_preview_refresh()
 
-                        def _add_missing_texture_folder() -> None:
-                            selected_dir = QFileDialog.getExistingDirectory(
-                                dialog,
-                                "Add Replacement Texture Folder",
-                                str(obj_path.parent),
-                            )
-                            if not selected_dir:
-                                return
-                            added = False
-                            for candidate in sorted(Path(selected_dir).expanduser().rglob("*")):
-                                if not candidate.is_file() or candidate.suffix.lower() not in SCENE_TEXTURE_SOURCE_EXTENSIONS:
-                                    continue
-                                key = str(candidate.resolve()).lower()
-                                if key in seen_texture_file_keys:
-                                    continue
-                                seen_texture_file_keys.add(key)
-                                texture_files_for_mapping.append(candidate.resolve())
-                                added = True
-                            if not added:
-                                return
-                            _refresh_texture_row_guidance()
-                            _refresh_source_material_plan()
-                            try:
-                                if texture_sets and not rebuild_sidecar_checkbox.isChecked():
-                                    rebuild_sidecar_checkbox.setChecked(True)
-                            except NameError:
-                                pass
-                            _refresh_texture_table(selected_texture_row.get("row"))
-                            _queue_texture_preview_refresh()
+                    def _selected_material_override_rows() -> List[Dict[str, Any]]:
+                        if not _ensure_advanced_dds_overrides_loaded(reason="material-route"):
+                            return []
+                        selected_sources = {
+                            int(raw_source_index)
+                            for raw_source_index in tuple(selected_texture_plan_source.get("source_indices", ()) or ())
+                            if isinstance(raw_source_index, int) or str(raw_source_index).strip().lstrip("-").isdigit()
+                        }
+                        selected_material = str(selected_texture_plan_source.get("material_name", "") or "").strip().lower()
+                        rows: List[Dict[str, Any]] = []
+                        for row_state in texture_override_rows:
+                            row_sources = set(_texture_row_current_source_indices(row_state))
+                            row_material = str(row_state.get("target_name", "") or "").strip().lower()
+                            if selected_sources and row_sources and selected_sources & row_sources:
+                                rows.append(row_state)
+                            elif selected_material and row_material == selected_material:
+                                rows.append(row_state)
+                        return rows
 
-                        texture_filter_refresh["func"] = _apply_texture_selected_part_filter
-                        texture_override_tree.currentItemChanged.connect(_texture_table_selection_changed)
-                        texture_override_tree.itemActivated.connect(_texture_table_item_activated)
-                        selected_role_combo.currentIndexChanged.connect(_selected_texture_role_changed)
-                        selected_source_combo.currentIndexChanged.connect(_selected_texture_source_changed)
-                        selected_choose_source_button.clicked.connect(_choose_selected_texture_source)
-                        selected_apply_suggestion_button.clicked.connect(_apply_selected_texture_suggestion)
-                        apply_texture_plan_button.clicked.connect(_apply_replacement_texture_plan_to_overrides)
-                        apply_selected_source_textures_button.clicked.connect(_apply_selected_source_material_textures)
-                        material_use_route_source_button.clicked.connect(_use_route_source_for_selected_material)
-                        material_keep_original_button.clicked.connect(_clear_selected_material_texture_assignments)
-                        material_choose_file_button.clicked.connect(_choose_file_for_selected_material)
-                        material_neutralize_button.clicked.connect(_clear_selected_material_texture_assignments)
-                        material_do_not_emit_button.clicked.connect(_clear_selected_material_texture_assignments)
-                        apply_all_suggested_overrides_button.clicked.connect(_apply_all_suggested_override_sources)
-                        texture_filter_selected_checkbox.toggled.connect(_apply_texture_selected_part_filter)
-                        texture_show_advanced_checkbox.toggled.connect(_apply_texture_selected_part_filter)
-                        clear_target_textures_button.clicked.connect(_clear_target_texture_assignments)
-                        keep_original_target_button.clicked.connect(_clear_target_texture_assignments)
-                        do_not_emit_texture_button.clicked.connect(_clear_target_texture_assignments)
-                        add_textures_button.clicked.connect(_add_missing_texture_sources)
-                        add_texture_folder_button.clicked.connect(_add_missing_texture_folder)
-                        advanced_dds_load_button.clicked.connect(
-                            lambda _checked=False: _ensure_advanced_dds_overrides_loaded(reason="button")
+                    def _use_route_source_for_selected_material() -> None:
+                        _apply_selected_source_material_textures()
+
+                    def _clear_selected_material_texture_assignments() -> None:
+                        rows = _selected_material_override_rows()
+                        if not rows:
+                            QMessageBox.information(dialog, "Texture Route", "Select a material route first.")
+                            return
+                        for row_state in rows:
+                            _set_texture_row_assignment(row_state, "", False)
+                        _refresh_texture_table(selected_texture_row.get("row"))
+                        _queue_texture_preview_refresh()
+
+                    def _choose_file_for_selected_material() -> None:
+                        rows = _selected_material_override_rows()
+                        if not rows:
+                            QMessageBox.information(dialog, "Texture Route", "Select a material route first.")
+                            return
+                        selected_file, _selected_filter = QFileDialog.getOpenFileName(
+                            dialog,
+                            "Choose Texture For Selected Route",
+                            str(obj_path.parent),
+                            "Texture files (*.png *.dds *.jpg *.jpeg *.tga *.bmp *.tif *.tiff);;All files (*.*)",
                         )
-                        texture_layout.addWidget(texture_workflow, 1)
-                        _refresh_texture_table()
+                        if not selected_file:
+                            return
+                        texture_path = Path(selected_file).expanduser()
+                        if not texture_path.is_file():
+                            return
+                        for row_state in rows:
+                            _set_texture_row_assignment(row_state, str(texture_path), True)
+                        key = str(texture_path.resolve()).lower()
+                        if key not in seen_texture_file_keys:
+                            seen_texture_file_keys.add(key)
+                            texture_files_for_mapping.append(texture_path.resolve())
+                        _refresh_texture_row_guidance()
+                        _refresh_texture_table(selected_texture_row.get("row"))
+                        _queue_texture_preview_refresh()
+
+                    def _add_missing_texture_sources() -> None:
+                        selected_files, _selected_filter = QFileDialog.getOpenFileNames(
+                            dialog,
+                            "Add Replacement Textures",
+                            str(obj_path.parent),
+                            "Texture files (*.png *.dds *.jpg *.jpeg *.tga *.bmp *.tif *.tiff);;All files (*.*)",
+                        )
+                        added = False
+                        for selected_file in selected_files or ():
+                            texture_path = Path(selected_file).expanduser()
+                            if not texture_path.is_file() or texture_path.suffix.lower() not in SCENE_TEXTURE_SOURCE_EXTENSIONS:
+                                continue
+                            key = str(texture_path.resolve()).lower()
+                            if key in seen_texture_file_keys:
+                                continue
+                            seen_texture_file_keys.add(key)
+                            texture_files_for_mapping.append(texture_path.resolve())
+                            added = True
+                        if not added:
+                            return
+                        _refresh_texture_row_guidance()
+                        _refresh_source_material_plan()
+                        try:
+                            if texture_sets and not rebuild_sidecar_checkbox.isChecked():
+                                rebuild_sidecar_checkbox.setChecked(True)
+                        except NameError:
+                            pass
+                        _refresh_texture_table(selected_texture_row.get("row"))
+                        _queue_texture_preview_refresh()
+
+                    def _add_missing_texture_folder() -> None:
+                        selected_dir = QFileDialog.getExistingDirectory(
+                            dialog,
+                            "Add Replacement Texture Folder",
+                            str(obj_path.parent),
+                        )
+                        if not selected_dir:
+                            return
+                        added = False
+                        for candidate in sorted(Path(selected_dir).expanduser().rglob("*")):
+                            if not candidate.is_file() or candidate.suffix.lower() not in SCENE_TEXTURE_SOURCE_EXTENSIONS:
+                                continue
+                            key = str(candidate.resolve()).lower()
+                            if key in seen_texture_file_keys:
+                                continue
+                            seen_texture_file_keys.add(key)
+                            texture_files_for_mapping.append(candidate.resolve())
+                            added = True
+                        if not added:
+                            return
+                        _refresh_texture_row_guidance()
+                        _refresh_source_material_plan()
+                        try:
+                            if texture_sets and not rebuild_sidecar_checkbox.isChecked():
+                                rebuild_sidecar_checkbox.setChecked(True)
+                        except NameError:
+                            pass
+                        _refresh_texture_table(selected_texture_row.get("row"))
+                        _queue_texture_preview_refresh()
+
+                    texture_filter_refresh["func"] = _apply_texture_selected_part_filter
+                    texture_override_tree.currentItemChanged.connect(_texture_table_selection_changed)
+                    texture_override_tree.itemActivated.connect(_texture_table_item_activated)
+                    selected_role_combo.currentIndexChanged.connect(_selected_texture_role_changed)
+                    selected_source_combo.currentIndexChanged.connect(_selected_texture_source_changed)
+                    selected_choose_source_button.clicked.connect(_choose_selected_texture_source)
+                    selected_apply_suggestion_button.clicked.connect(_apply_selected_texture_suggestion)
+                    apply_texture_plan_button.clicked.connect(_apply_replacement_texture_plan_to_overrides)
+                    apply_selected_source_textures_button.clicked.connect(_apply_selected_source_material_textures)
+                    material_use_route_source_button.clicked.connect(_use_route_source_for_selected_material)
+                    material_keep_original_button.clicked.connect(_clear_selected_material_texture_assignments)
+                    material_choose_file_button.clicked.connect(_choose_file_for_selected_material)
+                    material_neutralize_button.clicked.connect(_clear_selected_material_texture_assignments)
+                    material_do_not_emit_button.clicked.connect(_clear_selected_material_texture_assignments)
+                    apply_all_suggested_overrides_button.clicked.connect(_apply_all_suggested_override_sources)
+                    texture_filter_selected_checkbox.toggled.connect(_apply_texture_selected_part_filter)
+                    texture_show_advanced_checkbox.toggled.connect(_apply_texture_selected_part_filter)
+                    clear_target_textures_button.clicked.connect(_clear_target_texture_assignments)
+                    keep_original_target_button.clicked.connect(_clear_target_texture_assignments)
+                    do_not_emit_texture_button.clicked.connect(_clear_target_texture_assignments)
+                    add_textures_button.clicked.connect(_add_missing_texture_sources)
+                    add_texture_folder_button.clicked.connect(_add_missing_texture_folder)
+                    advanced_dds_load_button.clicked.connect(
+                        lambda _checked=False: _ensure_advanced_dds_overrides_loaded(reason="button")
+                    )
+                    texture_layout.addWidget(texture_workflow, 1)
+                    _refresh_texture_table()
                     advanced_texture_section = CollapsibleSection("Advanced Original DDS Overrides", expanded=False)
                     advanced_texture_section.toggled.connect(
                         lambda expanded: _ensure_advanced_dds_overrides_loaded(reason="section") if expanded else None
