@@ -43356,6 +43356,26 @@ def run_gui() -> int:
                     padding: 0;
                     border-radius: 8px;
                 }
+                QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette {
+                    background: #0d1117;
+                    border: 1px solid #30363d;
+                    border-radius: 4px;
+                    padding: 2px;
+                }
+                QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette QToolButton {
+                    font-size: 8px;
+                    text-align: left;
+                    padding: 2px 6px;
+                    border: 1px solid #30363d;
+                    border-radius: 3px;
+                    background: #161b22;
+                }
+                QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette QToolButton:checked {
+                    color: #0d1117;
+                    background: #f78166;
+                    border-color: #ffab70;
+                    font-weight: 700;
+                }
                 """
             )
             def _inline_help_button(text: str) -> QPushButton:
@@ -43369,8 +43389,9 @@ def run_gui() -> int:
             root_layout = QVBoxLayout(dialog)
             alignment_control_min_width = 520
             alignment_control_content_min_width = 560
-            mesh_edit_control_min_width = 300
-            mesh_edit_control_content_min_width = 320
+            mesh_edit_control_min_width = 236
+            mesh_edit_control_content_min_width = 248
+            mesh_edit_control_max_width = 300
             alignment_preview_min_width = 420
             main_splitter = QSplitter(Qt.Horizontal, dialog)
             main_splitter.setChildrenCollapsible(False)
@@ -44062,6 +44083,8 @@ def run_gui() -> int:
                     if main_splitter.orientation() != Qt.Vertical:
                         main_splitter.setOrientation(Qt.Vertical)
                     main_splitter.setHandleWidth(8)
+                    controls_panel.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
+                    content_container.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
                     controls_panel.setMaximumWidth(16777215)
                     controls_panel.setMinimumWidth(0)
                     content_container.setMinimumWidth(0)
@@ -44077,15 +44100,18 @@ def run_gui() -> int:
                     main_splitter.setHandleWidth(10)
                     active_control_min_width = mesh_edit_control_min_width if mesh_edit_tools_active else alignment_control_min_width
                     active_content_min_width = mesh_edit_control_content_min_width if mesh_edit_tools_active else alignment_control_content_min_width
+                    active_policy = QSizePolicy.Fixed if mesh_edit_tools_active else QSizePolicy.MinimumExpanding
+                    controls_panel.setSizePolicy(active_policy, QSizePolicy.Expanding)
+                    content_container.setSizePolicy(active_policy, QSizePolicy.Expanding)
                     controls_panel.setMinimumWidth(active_control_min_width)
                     content_container.setMinimumWidth(active_content_min_width)
-                    controls_panel.setMaximumWidth(460 if mesh_edit_tools_active else 16777215)
+                    controls_panel.setMaximumWidth(mesh_edit_control_max_width if mesh_edit_tools_active else 16777215)
                     preview_panel.setMinimumWidth(alignment_preview_min_width)
                     if preview_splitter.orientation() != Qt.Horizontal:
                         preview_splitter.setOrientation(Qt.Horizontal)
                     if force_sizes or mode_changed:
                         if mesh_edit_tools_active:
-                            control_width = max(mesh_edit_control_min_width, min(420, int(width * 0.18)))
+                            control_width = max(mesh_edit_control_min_width, min(mesh_edit_control_max_width, int(width * 0.13)))
                         else:
                             control_width = max(620, min(1040, int(width * 0.42)))
                         main_splitter.setSizes([control_width, max(760, width - control_width)])
@@ -51790,17 +51816,11 @@ def run_gui() -> int:
                     )
                 )
                 mesh_edit_group = QGroupBox("Mesh Editing")
-                mesh_edit_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-                mesh_edit_layout = QGridLayout(mesh_edit_group)
+                mesh_edit_group.setMaximumWidth(mesh_edit_control_content_min_width)
+                mesh_edit_group.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Maximum)
+                mesh_edit_layout = QVBoxLayout(mesh_edit_group)
                 mesh_edit_layout.setContentsMargins(5, 3, 5, 3)
-                mesh_edit_layout.setHorizontalSpacing(4)
-                mesh_edit_layout.setVerticalSpacing(2)
-                mesh_edit_layout.setColumnMinimumWidth(0, 82)
-                mesh_edit_layout.setColumnStretch(0, 0)
-                mesh_edit_layout.setColumnStretch(1, 1)
-                mesh_edit_layout.setColumnMinimumWidth(2, 82)
-                mesh_edit_layout.setColumnStretch(2, 0)
-                mesh_edit_layout.setColumnStretch(3, 1)
+                mesh_edit_layout.setSpacing(4)
                 mesh_edit_enabled_checkbox = QCheckBox("Enable Mesh Editing")
                 mesh_edit_enabled_checkbox.setToolTip("Edit visible replacement source geometry. Remove Faces can cut triangles; other tools keep topology fixed.")
                 mesh_edit_scope_combo = QComboBox()
@@ -51819,6 +51839,37 @@ def run_gui() -> int:
                     ("Select Vertices", "vertex"),
                 ):
                     mesh_edit_tool_combo.addItem(label, tool)
+                mesh_edit_tool_combo.setVisible(False)
+                mesh_edit_tool_palette = QFrame(mesh_edit_group)
+                mesh_edit_tool_palette.setObjectName("MeshEditVerticalToolPalette")
+                mesh_edit_tool_palette_layout = QVBoxLayout(mesh_edit_tool_palette)
+                mesh_edit_tool_palette_layout.setContentsMargins(0, 0, 0, 0)
+                mesh_edit_tool_palette_layout.setSpacing(3)
+                mesh_edit_tool_buttons: Dict[str, QToolButton] = {}
+                for label, tool, tooltip in (
+                    ("Move", "grab", "Move vertices inside the brush radius."),
+                    ("Smooth", "smooth", "Smooth vertices inside the brush radius."),
+                    ("Push/Pull", "inflate", "Push or pull vertices along their normals."),
+                    ("Pinch/Relax", "pinch", "Pinch vertices toward the brush center, or relax with inverted strokes."),
+                    ("Remove Faces", "remove", "Cut away faces touched by the brush. Boundaries stay open."),
+                    ("Select Vertices", "vertex", "Paint vertex selection for Delete Selected Faces."),
+                ):
+                    button = QToolButton(mesh_edit_tool_palette)
+                    button.setText(label)
+                    button.setToolButtonStyle(Qt.ToolButtonTextOnly)
+                    button.setCheckable(True)
+                    button.setAutoExclusive(True)
+                    button.setChecked(tool == "grab")
+                    button.setMinimumHeight(24)
+                    button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+                    button.setToolTip(tooltip)
+                    button.clicked.connect(
+                        lambda _checked=False, selected_tool=tool: mesh_edit_tool_combo.setCurrentIndex(
+                            max(0, mesh_edit_tool_combo.findData(selected_tool))
+                        )
+                    )
+                    mesh_edit_tool_buttons[tool] = button
+                    mesh_edit_tool_palette_layout.addWidget(button)
                 mesh_edit_delete_mode_combo = QComboBox()
                 for label, mode in (("On release", "release"), ("During drag", "live"), ("Selection only", "selection")):
                     mesh_edit_delete_mode_combo.addItem(label, mode)
@@ -51860,45 +51911,44 @@ def run_gui() -> int:
                 mesh_edit_status_label = QLabel("Enable Mesh Editing to edit visible replacement source geometry.")
                 mesh_edit_status_label.setObjectName("HintLabel")
                 mesh_edit_status_label.setWordWrap(True)
-                mesh_edit_status_label.setMaximumHeight(36)
-                mesh_edit_layout.addWidget(mesh_edit_enabled_checkbox, 0, 0, 1, 4)
-                mesh_edit_layout.addWidget(QLabel("Scope"), 1, 0)
-                mesh_edit_layout.addWidget(mesh_edit_scope_combo, 1, 1)
-                mesh_edit_layout.addWidget(QLabel("Part"), 1, 2)
-                mesh_edit_layout.addWidget(mesh_edit_part_combo, 1, 3)
-                mesh_edit_layout.addWidget(QLabel("Tool"), 2, 0)
-                mesh_edit_layout.addWidget(mesh_edit_tool_combo, 2, 1)
-                mesh_edit_layout.addWidget(QLabel("Remove Mode"), 2, 2)
-                mesh_edit_layout.addWidget(mesh_edit_delete_mode_combo, 2, 3)
-                mesh_edit_layout.addWidget(QLabel("Radius"), 3, 0)
-                mesh_edit_layout.addWidget(mesh_edit_radius_spin, 3, 1)
-                mesh_edit_layout.addWidget(QLabel("Strength"), 3, 2)
-                mesh_edit_layout.addWidget(mesh_edit_strength_spin, 3, 3)
-                mesh_edit_layout.addWidget(QLabel("Falloff"), 4, 0)
-                mesh_edit_layout.addWidget(mesh_edit_falloff_combo, 4, 1)
+                mesh_edit_status_label.setMaximumHeight(54)
+
+                def _mesh_edit_field(label_text: str, widget: QWidget) -> None:
+                    label = QLabel(label_text)
+                    label.setObjectName("HintLabel")
+                    mesh_edit_layout.addWidget(label)
+                    mesh_edit_layout.addWidget(widget)
+
+                mesh_edit_layout.addWidget(mesh_edit_enabled_checkbox)
+                _mesh_edit_field("Scope", mesh_edit_scope_combo)
+                _mesh_edit_field("Part", mesh_edit_part_combo)
+                mesh_edit_layout.addWidget(QLabel("Tool"))
+                mesh_edit_layout.addWidget(mesh_edit_tool_palette)
+                mesh_edit_remove_mode_label = QLabel("Remove Mode")
+                mesh_edit_remove_mode_label.setObjectName("HintLabel")
+                mesh_edit_layout.addWidget(mesh_edit_remove_mode_label)
+                mesh_edit_layout.addWidget(mesh_edit_delete_mode_combo)
+                _mesh_edit_field("Radius", mesh_edit_radius_spin)
+                _mesh_edit_field("Strength", mesh_edit_strength_spin)
+                _mesh_edit_field("Falloff", mesh_edit_falloff_combo)
                 mesh_edit_option_row = QHBoxLayout()
                 mesh_edit_option_row.setContentsMargins(0, 0, 0, 0)
                 mesh_edit_option_row.setSpacing(4)
                 mesh_edit_option_row.addWidget(mesh_edit_mirror_checkbox)
                 mesh_edit_option_row.addWidget(mesh_edit_show_vertices_checkbox)
                 mesh_edit_option_row.addStretch(1)
-                mesh_edit_layout.addLayout(mesh_edit_option_row, 4, 2, 1, 2)
-                mesh_edit_selection_row = QHBoxLayout()
-                mesh_edit_selection_row.setContentsMargins(0, 0, 0, 0)
-                mesh_edit_selection_row.setSpacing(3)
-                mesh_edit_selection_row.addWidget(mesh_edit_clear_selection_button)
-                mesh_edit_selection_row.addWidget(mesh_edit_delete_faces_button)
-                mesh_edit_selection_row.addStretch(1)
-                mesh_edit_layout.addLayout(mesh_edit_selection_row, 5, 0, 1, 2)
+                mesh_edit_layout.addLayout(mesh_edit_option_row)
+                mesh_edit_layout.addWidget(mesh_edit_clear_selection_button)
+                mesh_edit_layout.addWidget(mesh_edit_delete_faces_button)
                 mesh_edit_button_row = QHBoxLayout()
                 mesh_edit_button_row.setContentsMargins(0, 0, 0, 0)
                 mesh_edit_button_row.setSpacing(3)
                 mesh_edit_button_row.addWidget(mesh_edit_undo_button)
                 mesh_edit_button_row.addWidget(mesh_edit_redo_button)
-                mesh_edit_button_row.addWidget(mesh_edit_reset_part_button)
                 mesh_edit_button_row.addStretch(1)
-                mesh_edit_layout.addLayout(mesh_edit_button_row, 5, 2, 1, 2)
-                mesh_edit_layout.addWidget(mesh_edit_status_label, 6, 0, 1, 4)
+                mesh_edit_layout.addLayout(mesh_edit_button_row)
+                mesh_edit_layout.addWidget(mesh_edit_reset_part_button)
+                mesh_edit_layout.addWidget(mesh_edit_status_label)
 
                 def _mesh_edit_scope_mode() -> str:
                     mode = str(mesh_edit_scope_combo.currentData() or "all").strip().lower()
@@ -52069,10 +52119,12 @@ def run_gui() -> int:
                     )
                     editing_active = editing_requested and can_edit
                     remove_tool = _mesh_edit_current_tool() == "remove"
+                    for tool, button in mesh_edit_tool_buttons.items():
+                        button.setChecked(tool == _mesh_edit_current_tool())
                     for widget in (
                         mesh_edit_scope_combo,
                         mesh_edit_part_combo,
-                        mesh_edit_tool_combo,
+                        mesh_edit_tool_palette,
                         mesh_edit_radius_spin,
                         mesh_edit_falloff_combo,
                         mesh_edit_mirror_checkbox,
@@ -52081,6 +52133,8 @@ def run_gui() -> int:
                         widget.setEnabled(editing_requested)
                     mesh_edit_part_combo.setEnabled(editing_requested and _mesh_edit_scope_mode() == "selected")
                     mesh_edit_delete_mode_combo.setEnabled(editing_requested and remove_tool)
+                    mesh_edit_remove_mode_label.setVisible(remove_tool)
+                    mesh_edit_delete_mode_combo.setVisible(remove_tool)
                     mesh_edit_strength_spin.setEnabled(editing_requested and not remove_tool)
                     mesh_edit_clear_selection_button.setEnabled(editing_active)
                     mesh_edit_delete_faces_button.setEnabled(
@@ -52976,7 +53030,7 @@ def run_gui() -> int:
                 parts_outliner_layout.addStretch(1)
                 parts_layout.addWidget(parts_outliner_panel, 1)
                 parts_layout.addStretch(1)
-                mesh_edit_layout_page.addWidget(mesh_edit_group, 0)
+                mesh_edit_layout_page.addWidget(mesh_edit_group, 0, Qt.AlignLeft | Qt.AlignTop)
                 mesh_edit_layout_page.addStretch(1)
 
                 _alignment_startup_step("Preparing replacement texture sources...")
