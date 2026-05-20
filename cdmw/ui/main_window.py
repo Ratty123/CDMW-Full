@@ -43781,6 +43781,8 @@ def run_gui() -> int:
                 "d3d11_id_to_source_indices": {},
             }
             alignment_d3d11_view_state: Dict[str, object] = {}
+            alignment_preview_mode_view_states: Dict[str, object] = {}
+            alignment_preview_mode_state = {"current": str(preview_mode_combo.currentData() or "side_by_side")}
             alignment_preview_view_sync = {"active": False}
 
             def _handle_alignment_d3d11_view_state_payload(payload: object) -> None:
@@ -43877,6 +43879,18 @@ def run_gui() -> int:
                     replacement_only_preview,
                 ):
                     preview_widget.restore_view_state(qt_state)
+
+            def _save_alignment_preview_mode_view_state(mode: str) -> None:
+                normalized_mode = str(mode or "side_by_side")
+                try:
+                    alignment_preview_mode_view_states[normalized_mode] = _alignment_current_camera_state()
+                except Exception:
+                    pass
+
+            def _restore_alignment_preview_mode_view_state(mode: str) -> None:
+                state = alignment_preview_mode_view_states.get(str(mode or "side_by_side"))
+                if isinstance(state, Mapping):
+                    _apply_alignment_camera_state(state)
 
             def _set_alignment_camera(yaw: float, pitch: float) -> None:
                 state = _alignment_current_camera_state()
@@ -61058,11 +61072,15 @@ def run_gui() -> int:
                     for index in tuple(alignment_d3d11_drag_transaction.get("part_source_indices", ()) or ())
                 )
                 alignment_d3d11_drag_transaction["active"] = False
+                _commit_alignment_d3d11_drag_generation()
                 if part_source_indices:
                     _refresh_source_assignment_columns(lightweight=True)
                     _queue_part_transform_preview_update(int(part_source_indices[0]))
                 else:
                     _queue_global_transform_preview_update()
+                _replay_alignment_d3d11_fast_transform()
+                if _alignment_d3d11_preview_active():
+                    _queue_static_preview_rebuild()
 
             def _finish_alignment_d3d11_rotation(dx: float, dy: float, dz: float) -> None:
                 _apply_alignment_d3d11_rotation_total(dx, dy, dz)
@@ -61073,11 +61091,15 @@ def run_gui() -> int:
                     for index in tuple(alignment_d3d11_drag_transaction.get("part_source_indices", ()) or ())
                 )
                 alignment_d3d11_drag_transaction["active"] = False
+                _commit_alignment_d3d11_drag_generation()
                 if part_source_indices:
                     _refresh_source_assignment_columns(lightweight=True)
                     _queue_part_transform_preview_update(int(part_source_indices[0]))
                 else:
                     _queue_global_transform_preview_update()
+                _replay_alignment_d3d11_fast_transform()
+                if _alignment_d3d11_preview_active():
+                    _queue_static_preview_rebuild()
 
             def _commit_alignment_preview_translation(dx: float, dy: float, dz: float) -> None:
                 static_preview_refresh_timer.stop()
