@@ -33,6 +33,14 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("QSize(", source)
         self.assertIn("QSettings, QSize, Qt", source)
 
+    def test_runtime_target_warnings_are_visible_and_companions_autocopy(self) -> None:
+        source = _main_window_source()
+        archive_source = _archive_modding_source()
+        self.assertIn('startswith("Runtime target warning:")', source)
+        self.assertIn("runtime_target_warning", source)
+        self.assertIn("def _mesh_import_runtime_sibling_warning_lines", archive_source)
+        self.assertIn("Auto-including exact mesh companion file(s)", archive_source)
+
     def test_alignment_modes_are_simplified_and_default_grid_flat(self) -> None:
         source = _main_window_source()
         static_source = _static_replacer_source()

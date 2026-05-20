@@ -118,6 +118,19 @@ MESH_IMPORT_COMPANION_EXTENSIONS = {
     ".material",
     ".paa_metabin",
 }
+_MESH_IMPORT_AUTOCOPY_COMPANION_EXTENSIONS = {
+    ".pac_xml",
+    ".pam_xml",
+    ".pamlod_xml",
+    ".pami",
+    ".xml",
+    ".hkx",
+    ".hkt",
+    ".meshinfo",
+}
+_MESH_IMPORT_RUNTIME_MESH_EXTENSIONS = {".pac", ".pam", ".pamlod"}
+_MESH_IMPORT_TEXTURE_SUFFIXES = ("_basecolor", "_diffuse", "_normal", "_disp", "_height", "_roughness")
+_MESH_IMPORT_SHORT_TEXTURE_SUFFIXES = ("_ma", "_mg", "_sp", "_n", "_m", "_o")
 
 
 @dataclass(slots=True)
@@ -1016,6 +1029,58 @@ def _mesh_import_modelproperty_variant(mesh_path: str) -> str:
             parts[index] = "modelproperty"
             return PurePosixPath(*parts).as_posix()
     return ""
+
+
+def _mesh_import_companion_stem(path: str) -> str:
+    pure = PurePosixPath(str(path or "").replace("\\", "/").strip())
+    name = pure.name.lower()
+    for suffix in (".pac.xml", ".pam.xml", ".pamlod.xml"):
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    suffix = pure.suffix.lower()
+    if suffix in {".pac_xml", ".pam_xml", ".pamlod_xml", ".pami", ".xml", ".hkx", ".hkt", ".meshinfo"}:
+        return pure.stem.lower()
+    return pure.stem.lower()
+
+
+def _mesh_import_is_exact_runtime_companion(primary_entry: ArchiveEntry, related_entry: ArchiveEntry) -> bool:
+    related_extension = str(getattr(related_entry, "extension", "") or "").strip().lower()
+    if related_extension not in _MESH_IMPORT_AUTOCOPY_COMPANION_EXTENSIONS:
+        return False
+    primary_path = str(getattr(primary_entry, "path", "") or "").replace("\\", "/").strip()
+    related_path = str(getattr(related_entry, "path", "") or "").replace("\\", "/").strip()
+    if not primary_path or not related_path or primary_path.lower() == related_path.lower():
+        return False
+    primary_stem = PurePosixPath(primary_path).stem.lower()
+    related_stem = _mesh_import_companion_stem(related_path)
+    if not primary_stem or related_stem != primary_stem:
+        return False
+    lowered_related = related_path.lower()
+    if related_extension in {".hkx", ".hkt"}:
+        return "meshphysics" in lowered_related or "physics" in lowered_related
+    if related_extension == ".meshinfo":
+        return True
+    return "modelproperty" in lowered_related or related_extension in {".pami", ".xml"}
+
+
+def _mesh_import_auto_companion_entries(
+    primary_entry: ArchiveEntry,
+    preview_result: MeshImportPreviewResult,
+) -> Tuple[ArchiveEntry, ...]:
+    entries: List[ArchiveEntry] = []
+    seen: set[str] = set()
+    for reference in tuple(getattr(preview_result, "texture_references", ()) or ()):
+        related_entry = getattr(reference, "resolved_entry", None)
+        if not isinstance(related_entry, ArchiveEntry):
+            continue
+        if not _mesh_import_is_exact_runtime_companion(primary_entry, related_entry):
+            continue
+        key = str(getattr(related_entry, "path", "") or "").replace("\\", "/").strip().lower()
+        if not key or key in seen:
+            continue
+        entries.append(related_entry)
+        seen.add(key)
+    return tuple(entries)
 
 
 def _mesh_import_target_sidecar_candidates_for_base(
@@ -2558,6 +2623,29 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
             related_entry = getattr(reference, "resolved_entry", None)
             if isinstance(related_entry, ArchiveEntry):
                 related_entries.append(related_entry)
+    auto_companion_entries = _mesh_import_auto_companion_entries(primary_entry, preview_result)
+    if auto_companion_entries:
+        existing_related_keys = {
+            str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lower()
+            for entry in related_entries
+            if isinstance(entry, ArchiveEntry)
+        }
+        added_auto_companions: List[ArchiveEntry] = []
+        for companion_entry in auto_companion_entries:
+            key = str(getattr(companion_entry, "path", "") or "").replace("\\", "/").strip().lower()
+            output_key = _mesh_loose_export_payload_path(key, export_options).lower() if key else ""
+            if not key or key in existing_related_keys or output_key in written_virtual_paths:
+                continue
+            related_entries.append(companion_entry)
+            existing_related_keys.add(key)
+            added_auto_companions.append(companion_entry)
+        if added_auto_companions:
+            _safe_log(
+                on_log,
+                "Auto-including exact mesh companion file(s): "
+                + ", ".join(entry.basename for entry in added_auto_companions[:6])
+                + (" ..." if len(added_auto_companions) > 6 else ""),
+            )
 
     if related_entries:
         for related_entry in related_entries:
@@ -4062,6 +4150,149 @@ def _source_owned_target_names_from_sidecars(
     return ()
 
 
+def _mesh_import_normalize_runtime_stem_candidate(value: str) -> str:
+    candidate = str(value or "").replace("\\", "/").strip().strip('"').strip("'").lower()
+    if not candidate:
+        return ""
+    candidate = PurePosixPath(candidate).name
+    for suffix in _MESH_IMPORT_TEXTURE_SUFFIXES:
+        if candidate.endswith(suffix):
+            candidate = candidate[: -len(suffix)]
+            break
+    for suffix in _MESH_IMPORT_SHORT_TEXTURE_SUFFIXES:
+        if candidate.endswith(suffix) and len(candidate) > len(suffix):
+            candidate = candidate[: -len(suffix)]
+            break
+    candidate = re.sub(r"[^a-z0-9_]+", "_", candidate).strip("_")
+    if not candidate.startswith("cd_") or len(candidate) < 8:
+        return ""
+    return candidate
+
+
+def _mesh_import_runtime_stem_candidates_from_sidecars(
+    original_sidecars: Sequence[Tuple[ArchiveEntry, str]],
+) -> Tuple[str, ...]:
+    stems: List[str] = []
+    seen: set[str] = set()
+    for _sidecar_entry, sidecar_text in tuple(original_sidecars or ()):
+        text = str(sidecar_text or "")
+        if not text:
+            continue
+        for pattern in (
+            r'\b(?:_subMeshName|subMeshName|SubMeshName)="([^"]+)"',
+            r'\b_path="([^"]+)"',
+            r'\bvalue="([^"]+)"',
+        ):
+            for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+                stem = _mesh_import_normalize_runtime_stem_candidate(match.group(1))
+                if stem and stem not in seen:
+                    stems.append(stem)
+                    seen.add(stem)
+    return tuple(stems)
+
+
+def _mesh_import_runtime_stem_candidates_from_mesh(mesh: ParsedMesh) -> Tuple[str, ...]:
+    stems: List[str] = []
+    seen: set[str] = set()
+    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        for raw_value in (
+            getattr(submesh, "name", ""),
+            getattr(submesh, "material", ""),
+            getattr(submesh, "texture", ""),
+        ):
+            stem = _mesh_import_normalize_runtime_stem_candidate(str(raw_value or ""))
+            if stem and stem not in seen:
+                stems.append(stem)
+                seen.add(stem)
+    return tuple(stems)
+
+
+def _mesh_import_runtime_sibling_mesh_candidates(
+    entry: ArchiveEntry,
+    mesh: ParsedMesh,
+    archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+    original_sidecars: Sequence[Tuple[ArchiveEntry, str]] = (),
+) -> Tuple[ArchiveEntry, ...]:
+    if archive_entries_by_basename is None:
+        return ()
+    source_path = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lower()
+    source_extension = str(getattr(entry, "extension", "") or "").strip().lower()
+    if source_extension not in _MESH_IMPORT_RUNTIME_MESH_EXTENSIONS:
+        return ()
+    stems: List[str] = []
+    seen_stems: set[str] = set()
+    for stem in _mesh_import_runtime_stem_candidates_from_mesh(mesh) + _mesh_import_runtime_stem_candidates_from_sidecars(original_sidecars):
+        if stem and stem not in seen_stems:
+            stems.append(stem)
+            seen_stems.add(stem)
+    if not stems:
+        return ()
+    candidates: List[ArchiveEntry] = []
+    seen_paths: set[str] = set()
+    for stem in stems:
+        for extension in _MESH_IMPORT_RUNTIME_MESH_EXTENSIONS:
+            for candidate in tuple(archive_entries_by_basename.get(f"{stem}{extension}", ()) or ()):
+                candidate_path = str(getattr(candidate, "path", "") or "").replace("\\", "/").strip()
+                candidate_key = candidate_path.lower()
+                if not candidate_key or candidate_key == source_path or candidate_key in seen_paths:
+                    continue
+                if str(getattr(candidate, "extension", "") or "").strip().lower() not in _MESH_IMPORT_RUNTIME_MESH_EXTENSIONS:
+                    continue
+                if "character/model/" not in candidate_key:
+                    continue
+                candidates.append(candidate)
+                seen_paths.add(candidate_key)
+
+    def _score(candidate: ArchiveEntry) -> Tuple[int, int, str]:
+        path = str(getattr(candidate, "path", "") or "").replace("\\", "/").lower()
+        score = 0
+        if "/1_pc/" in path:
+            score += 80
+        if "/armor/" in path:
+            score += 30
+        if "/2_mon/" in source_path and "/2_mon/" not in path:
+            score += 20
+        if "/modelproperty/" not in path and "character/model/" in path:
+            score += 5
+        return (score, -len(path), path)
+
+    candidates.sort(key=_score, reverse=True)
+    return tuple(candidates[:12])
+
+
+def _mesh_import_runtime_sibling_warning_lines(
+    entry: ArchiveEntry,
+    mesh: ParsedMesh,
+    archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+    original_sidecars: Sequence[Tuple[ArchiveEntry, str]] = (),
+) -> Tuple[str, ...]:
+    candidates = _mesh_import_runtime_sibling_mesh_candidates(
+        entry,
+        mesh,
+        archive_entries_by_basename,
+        original_sidecars,
+    )
+    if not candidates:
+        return ()
+    source_path = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lower()
+    has_player_candidate = any("/1_pc/" in str(getattr(candidate, "path", "") or "").replace("\\", "/").lower() for candidate in candidates)
+    if "/2_mon/" not in source_path and not has_player_candidate:
+        return ()
+    lines = [
+        "Runtime target warning: this selected mesh appears to be a display/monster clone that references player equipment mesh names. "
+        "Editing/exporting only this PAC can look correct in preview but leave the equipped in-game model unchanged."
+        if "/2_mon/" in source_path and has_player_candidate
+        else "Runtime target warning: related runtime mesh candidates with the same material/submesh family were found. "
+        "If in-game output does not change, edit/export the runtime mesh path instead of only this preview source.",
+        "Likely runtime mesh candidate(s):",
+    ]
+    for candidate in candidates[:6]:
+        lines.append(f"  {candidate.path}")
+    if len(candidates) > 6:
+        lines.append(f"  ... {len(candidates) - 6:,} more candidate(s)")
+    return tuple(lines)
+
+
 def _decode_text_payload(data: bytes) -> str:
     for encoding in ("utf-8-sig", "utf-16", "utf-8", "cp1252"):
         try:
@@ -4593,6 +4824,14 @@ def build_mesh_import_preview(
         sidecar_reference_paths = selected_sidecar_reference_paths
         sidecar_texts_by_normalized_path = selected_sidecar_texts_by_normalized_path
         sidecar_texts_by_basename = selected_sidecar_texts_by_basename
+    summary_lines.extend(
+        _mesh_import_runtime_sibling_warning_lines(
+            entry,
+            parsed_mesh,
+            texture_entries_by_basename,
+            original_sidecars_for_static,
+        )
+    )
     texture_references: Tuple[ArchiveModelTextureReference, ...] = ()
     if texconv_path is not None:
         if sidecar_texture_references:

@@ -8,7 +8,14 @@ from unittest.mock import patch
 
 from cdmw.core import archive_modding
 from cdmw.core.mesh_baseline import MeshBaselineData
-from cdmw.models import ArchiveEntry, ImportAutoFixResult, ModelPreviewData, ModelPreviewMesh
+from cdmw.models import (
+    ArchiveEntry,
+    ArchiveModelTextureReference,
+    ImportAutoFixResult,
+    ModelPreviewData,
+    ModelPreviewMesh,
+    ModPackageInfo,
+)
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.scene_importer import SceneImportResult
 from cdmw.modding.static_mesh_replacer import (
@@ -31,6 +38,21 @@ def _mesh(path: str, vertices: list[tuple[float, float, float]]) -> ParsedMesh:
         submeshes=[submesh],
         total_vertices=len(vertices),
         total_faces=1,
+    )
+
+
+def _entry(path: str, root: Path) -> ArchiveEntry:
+    package_root = root / "0009"
+    package_root.mkdir(parents=True, exist_ok=True)
+    return ArchiveEntry(
+        path=path,
+        pamt_path=package_root / "package.pamt",
+        paz_file=package_root / "package.paz",
+        offset=0,
+        comp_size=0,
+        orig_size=0,
+        flags=0,
+        paz_index=0,
     )
 
 
@@ -173,6 +195,99 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
         self.assertEqual("CD_Test_Part_B", preview_model.meshes[1].texture_name)
         self.assertEqual("", preview_model.meshes[1].preview_texture_path)
         self.assertNotIn("local sidecar texture fallback", "\n".join(lines))
+
+    def test_runtime_sibling_warning_flags_display_clone_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            display_entry = _entry(
+                "character/model/2_mon/cd_m0001/armor/19_cloak/cd_m0001_00_de_pdm_cloak_21009.pac",
+                root,
+            )
+            player_entry = _entry(
+                "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0009.pac",
+                root,
+            )
+            mesh = ParsedMesh(
+                path=display_entry.path,
+                format="pac",
+                submeshes=[
+                    SubMesh(
+                        name="CD_PHM_00_Cloak_0009",
+                        material="CD_PHM_00_Cloak_0009",
+                        vertices=[(0.0, 0.0, 0.0)],
+                        faces=[],
+                    )
+                ],
+            )
+
+            lines = archive_modding._mesh_import_runtime_sibling_warning_lines(
+                display_entry,
+                mesh,
+                {"cd_phm_00_cloak_0009.pac": (player_entry,)},
+            )
+
+        self.assertIn("Runtime target warning", "\n".join(lines))
+        self.assertIn(player_entry.path, "\n".join(lines))
+
+    def test_loose_export_auto_copies_exact_mesh_companions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            primary = _entry("character/model/armor/test_cloak.pac", root)
+            sidecar = _entry("character/modelproperty/armor/test_cloak.pac_xml", root)
+            physics = _entry("character/bin__/meshphysics/armor/test_cloak.hkx", root)
+            unrelated = _entry("character/modelproperty/armor/other_cloak.pac_xml", root)
+            preview = archive_modding.MeshImportPreviewResult(
+                rebuilt_data=b"rebuilt",
+                parsed_mesh=ParsedMesh(path=primary.path, format="pac"),
+                preview_model=ModelPreviewData(),
+                summary_lines=[],
+                texture_references=(
+                    ArchiveModelTextureReference(
+                        reference_name=sidecar.basename,
+                        resolved_archive_path=sidecar.path,
+                        resolved_entry=sidecar,
+                        resolution_status="resolved",
+                        relation_group="Material Sidecars",
+                        reference_kind="material_sidecar",
+                    ),
+                    ArchiveModelTextureReference(
+                        reference_name=physics.basename,
+                        resolved_archive_path=physics.path,
+                        resolved_entry=physics,
+                        resolution_status="resolved",
+                        relation_group="Physics / Collision",
+                        reference_kind="physics",
+                    ),
+                    ArchiveModelTextureReference(
+                        reference_name=unrelated.basename,
+                        resolved_archive_path=unrelated.path,
+                        resolved_entry=unrelated,
+                        resolution_status="resolved",
+                        relation_group="Material Sidecars",
+                        reference_kind="material_sidecar",
+                    ),
+                ),
+            )
+
+            def fake_extract(entry: ArchiveEntry, target_path: Path, **_kwargs: object) -> Path:
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_bytes(f"related:{entry.path}".encode("utf-8"))
+                return target_path
+
+            with patch("cdmw.core.archive.extract_archive_entry", side_effect=fake_extract):
+                result = archive_modding.export_archive_mesh_payloads_to_mod_ready_loose(
+                    (archive_modding.ArchivePatchRequest(primary, b"rebuilt"),),
+                    primary_entry=primary,
+                    preview_result=preview,
+                    source_obj_path=root / "source.obj",
+                    parent_root=root,
+                    package_info=ModPackageInfo(title="Mesh Mod"),
+                    related_entries_to_include=(),
+                )
+
+            self.assertTrue((result.package_root / "character" / "modelproperty" / "armor" / "test_cloak.pac_xml").exists())
+            self.assertTrue((result.package_root / "character" / "bin__" / "meshphysics" / "armor" / "test_cloak.hkx").exists())
+            self.assertFalse((result.package_root / "character" / "modelproperty" / "armor" / "other_cloak.pac_xml").exists())
 
 
 if __name__ == "__main__":

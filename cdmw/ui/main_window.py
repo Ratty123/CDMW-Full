@@ -41317,6 +41317,20 @@ def run_gui() -> int:
             elif not patched:
                 warning_badge = "Import preview"
                 warning_text = "This rebuilt mesh preview has not been written back to the game archives yet."
+            runtime_target_warning = next(
+                (
+                    str(line or "").strip()
+                    for line in import_result.summary_lines
+                    if str(line or "").strip().startswith("Runtime target warning:")
+                ),
+                "",
+            )
+            if runtime_target_warning:
+                warning_text = (
+                    f"{warning_text}\n\n{runtime_target_warning}"
+                    if warning_text
+                    else runtime_target_warning
+                )
             prepared_model, prepared_preview_model = prepare_model_preview(preview_model_for_display)
             preview_result = ArchivePreviewResult(
                 status="ok",
