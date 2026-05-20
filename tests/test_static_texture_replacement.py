@@ -1901,6 +1901,75 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertEqual("BC5_UNORM", parse_dds(output_dds).texconv_format)
             self.assertTrue(any("normal map output uses BC5_UNORM" in warning for warning in report.warnings))
 
+    def test_material_mask_bc1_encode_forces_opaque_alpha_to_preserve_rgb(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            source_png = root / "helmet_material_mask_arm_standard.png"
+            original_dds = root / "original_ma.dds"
+            Image.new("RGBA", (2, 2), (255, 192, 0, 0)).save(source_png)
+            original_dds.write_bytes(_fake_dds_bytes(2, 2, mips=1, fourcc=b"DXT1"))
+            seen_pixels: list[tuple[int, int, int, int]] = []
+
+            def fake_native_encode(source: Path, target: Path, **kwargs: object) -> dict[str, object]:
+                with Image.open(source) as image:
+                    seen_pixels.append(image.convert("RGBA").getpixel((0, 0)))
+                width = int(kwargs["width"])
+                height = int(kwargs["height"])
+                mips = int(kwargs["mip_count"])
+                target.write_bytes(_fake_dds_bytes(width, height, mips=mips, fourcc=b"DXT1"))
+                return {"ok": True}
+
+            with patch("cdmw.core.texture_native.encode_dds_with_directxtex", side_effect=fake_native_encode):
+                payload = _build_texture_payload(
+                    ReplacementTextureSlot("Helmet", "material_mask", source_png),
+                    target_entry=object(),
+                    texconv_path=None,
+                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                    original_texture_source_path=lambda _entry: original_dds,
+                    report=TextureReplacementReport(),
+                    on_log=None,
+                )
+
+            self.assertEqual([(255, 192, 0, 255)], seen_pixels)
+            output_dds = root / "output.dds"
+            output_dds.write_bytes(payload)
+            self.assertEqual("BC1_UNORM", parse_dds(output_dds).texconv_format)
+
+    def test_non_material_bc1_encode_keeps_source_alpha(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            source_png = root / "replacement_Base_Color.png"
+            original_dds = root / "original.dds"
+            Image.new("RGBA", (2, 2), (10, 20, 30, 0)).save(source_png)
+            original_dds.write_bytes(_fake_dds_bytes(2, 2, mips=1, fourcc=b"DXT1"))
+            seen_pixels: list[tuple[int, int, int, int]] = []
+
+            def fake_native_encode(source: Path, target: Path, **kwargs: object) -> dict[str, object]:
+                with Image.open(source) as image:
+                    seen_pixels.append(image.convert("RGBA").getpixel((0, 0)))
+                width = int(kwargs["width"])
+                height = int(kwargs["height"])
+                mips = int(kwargs["mip_count"])
+                target.write_bytes(_fake_dds_bytes(width, height, mips=mips, fourcc=b"DXT1"))
+                return {"ok": True}
+
+            with patch("cdmw.core.texture_native.encode_dds_with_directxtex", side_effect=fake_native_encode):
+                _build_texture_payload(
+                    ReplacementTextureSlot("replacement", "base", source_png),
+                    target_entry=object(),
+                    texconv_path=None,
+                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                    original_texture_source_path=lambda _entry: original_dds,
+                    report=TextureReplacementReport(),
+                    on_log=None,
+                )
+
+            self.assertEqual([(10, 20, 30, 0)], seen_pixels)
+
     def test_png_to_dds_falls_back_when_native_encode_writes_invalid_dds(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

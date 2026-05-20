@@ -8147,6 +8147,8 @@ def _build_texture_payload(
                     f"{source_png.name}: normal map output uses BC5_UNORM instead of template format {output_format}.",
                 )
                 output_format = "BC5_UNORM"
+        if str(source_slot.slot_kind or "").strip().lower() == "material_mask" and _dds_format_is_bc1(output_format):
+            _force_png_alpha_opaque(prepared_png)
         if on_log:
             on_log(f"Converting {source_png.name} -> {getattr(target_entry, 'path', 'texture')} ({output_format})")
         produced = out_dir / f"{prepared_png.stem}.dds"
@@ -8244,6 +8246,27 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
         b = b.point(lambda value: max(0, min(255, int(round(int(value) * factor[2])))))
         Image.merge("RGBA", (r, g, b, a)).save(path)
     return path
+
+
+def _dds_format_is_bc1(dds_format: str) -> bool:
+    normalized = str(dds_format or "").strip().upper()
+    return normalized == "DXT1" or normalized.startswith("BC1_")
+
+
+def _force_png_alpha_opaque(path: Path) -> None:
+    from PIL import Image
+
+    try:
+        with Image.open(path) as image:
+            rgba = image.convert("RGBA")
+    except Exception:
+        return
+    alpha = rgba.getchannel("A")
+    extrema = alpha.getextrema()
+    if extrema == (255, 255):
+        return
+    r, g, b, _a = rgba.split()
+    Image.merge("RGBA", (r, g, b, Image.new("L", rgba.size, 255))).save(path)
 
 
 def _copy_png_with_inverted_green(source_path: Path, target_path: Path) -> None:
