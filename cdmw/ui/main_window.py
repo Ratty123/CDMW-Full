@@ -43153,6 +43153,7 @@ def run_gui() -> int:
             # Modify Original D3D11 alignment preview should match Archive Preview by default.
             original_texture_preview_default = bool(modify_original_clone_mode)
             original_texture_preview_state = {"enabled": original_texture_preview_default}
+            original_reference_texture_preview_state = {"loaded": False, "loading": False}
 
             def _preserve_modify_original_material_preview() -> bool:
                 return bool(modify_original_clone_mode and original_texture_preview_state.get("enabled"))
@@ -43770,6 +43771,8 @@ def run_gui() -> int:
                 "pending_label": "",
                 "queued_model": None,
                 "queued_label": "",
+                "request_drag_generation": 0,
+                "request_drag_generations": {},
                 "prepare_ms": 0.0,
                 "package_ms": 0.0,
                 "package_quality": "fast",
@@ -44510,6 +44513,9 @@ def run_gui() -> int:
             selected_target_slot = {"index": -1}
             source_role_overrides: Dict[int, str] = {}
             source_display_overrides: Dict[int, str] = {}
+            source_display_label_cache: Dict[int, str] = {}
+            source_display_duplicate_counts_cache: Dict[str, int] = {}
+            source_display_cache_revision = {"value": 0}
             texture_items_by_source: List[Tuple[QTreeWidgetItem, Tuple[int, ...]]] = []
             texture_filter_selected_checkbox: Optional[QCheckBox] = None
             texture_filter_refresh: Dict[str, Optional[Callable[[], None]]] = {"func": None}
@@ -44576,10 +44582,12 @@ def run_gui() -> int:
             static_preview_baked_transform_state: Dict[str, object] = {"global": None, "parts": {}}
             alignment_d3d11_drag_transaction: Dict[str, object] = {
                 "active": False,
+                "generation": 0,
                 "part_source_indices": (),
                 "global": None,
                 "parts": {},
             }
+            alignment_d3d11_drag_generation = {"value": 0, "active": 0, "committed": 0}
             alignment_d3d11_drag_ui_state: Dict[str, object] = {
                 "global_offset": None,
                 "global_rotation": None,
@@ -44652,7 +44660,8 @@ def run_gui() -> int:
                     if selected_preview_indices is not None
                     else None
                 )
-                alignment_d3d11_state["pending_fast_transform"] = None
+                if not bool(alignment_d3d11_drag_transaction.get("active")):
+                    alignment_d3d11_state["pending_fast_transform"] = None
 
             def _adaptive_alignment_preview_face_limit(
                 submesh_count: int,
@@ -45742,6 +45751,21 @@ def run_gui() -> int:
                 )
                 return clamp_model_preview_render_settings(fast_settings), False, False, "fast"
 
+            def _alignment_d3d11_drag_reload_stale(request_id: int = 0) -> bool:
+                if bool(alignment_d3d11_drag_transaction.get("active")):
+                    return True
+                request_generation = int(alignment_d3d11_state.get("request_drag_generation", 0) or 0)
+                request_generations = alignment_d3d11_state.get("request_drag_generations")
+                if isinstance(request_generations, dict):
+                    try:
+                        request_generation = int(
+                            request_generations.get(int(request_id), request_generation) or 0
+                        )
+                    except (TypeError, ValueError):
+                        request_generation = int(alignment_d3d11_state.get("request_drag_generation", 0) or 0)
+                committed_generation = int(alignment_d3d11_drag_generation.get("committed", 0) or 0)
+                return request_generation < committed_generation
+
             def _start_alignment_d3d11_package_worker(model: object, label: str) -> None:
                 if not _alignment_d3d11_preview_active() or not isinstance(model, ModelPreviewData):
                     return
@@ -45754,6 +45778,13 @@ def run_gui() -> int:
                     return
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                 request_id = int(alignment_d3d11_state["request_id"])
+                request_drag_generation = int(alignment_d3d11_drag_generation.get("value", 0) or 0)
+                alignment_d3d11_state["request_drag_generation"] = request_drag_generation
+                request_generations = alignment_d3d11_state.get("request_drag_generations")
+                if not isinstance(request_generations, dict):
+                    request_generations = {}
+                    alignment_d3d11_state["request_drag_generations"] = request_generations
+                request_generations[request_id] = request_drag_generation
                 settings, high_quality_textures, enable_material_combiner, package_quality = _alignment_d3d11_package_quality(label, model)
                 alignment_d3d11_state["package_quality"] = package_quality
                 worker = AlignmentD3D11PackageWorker(
@@ -45804,6 +45835,10 @@ def run_gui() -> int:
                 if int(request_id) != int(alignment_d3d11_state.get("request_id", 0) or 0):
                     _cleanup_alignment_d3d11_package(package_dir)
                     return
+                if _alignment_d3d11_drag_reload_stale(int(request_id)):
+                    _cleanup_alignment_d3d11_package(package_dir)
+                    alignment_d3d11_preview_status_label.setText("Native D3D11 preview reload deferred until drag settles.")
+                    return
                 alignment_d3d11_state["prepare_ms"] = float(prepare_ms)
                 alignment_d3d11_state["package_ms"] = float(package_ms)
                 _start_alignment_d3d11_process(package_dir)
@@ -45825,6 +45860,10 @@ def run_gui() -> int:
                     QTimer.singleShot(0, lambda model=pending_model, label=pending_label: _start_alignment_d3d11_package_worker(model, label))
 
             def _start_alignment_d3d11_process(package_dir: Path) -> None:
+                if bool(alignment_d3d11_drag_transaction.get("active")):
+                    _cleanup_alignment_d3d11_package(package_dir)
+                    alignment_d3d11_preview_status_label.setText("Native D3D11 preview reload paused during drag.")
+                    return
                 status_file = package_dir / "host_status.json"
                 try:
                     status_file.unlink(missing_ok=True)
@@ -45966,6 +46005,9 @@ def run_gui() -> int:
                     return
                 event = str(payload.get("event", "") or "").strip().lower()
                 if event == "loaded":
+                    if bool(alignment_d3d11_drag_transaction.get("active")):
+                        alignment_d3d11_preview_status_label.setText("Native D3D11 preview loaded; applying after drag settles.")
+                        return
                     alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
                     alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
                     if alignment_d3d11_view_state:
@@ -46165,28 +46207,46 @@ def run_gui() -> int:
                 source = replacement_mesh_for_mapping.submeshes[source_index]
                 return _mapping_role_hint(f"{getattr(source, 'name', '')} {getattr(source, 'material', '')}")
 
+            def _invalidate_source_display_cache() -> None:
+                source_display_label_cache.clear()
+                source_display_duplicate_counts_cache.clear()
+                source_display_cache_revision["value"] = int(source_display_cache_revision.get("value", 0) or 0) + 1
+
             def _source_display_name(source_index: int) -> str:
                 if replacement_mesh_for_mapping is None:
                     return f"source {source_index}"
                 if source_index < 0 or source_index >= len(replacement_mesh_for_mapping.submeshes):
                     return f"{source_index}: invalid"
+                cached_label = source_display_label_cache.get(int(source_index))
+                if cached_label is not None:
+                    return cached_label
                 override = str(source_display_overrides.get(source_index, "") or "").strip()
                 if override:
-                    return f"{source_index}: {override}"
+                    result = f"{source_index}: {override}"
+                    source_display_label_cache[int(source_index)] = result
+                    return result
                 source = replacement_mesh_for_mapping.submeshes[source_index]
                 label = getattr(source, "material", "") or getattr(source, "name", "") or f"source {source_index}"
-                duplicate_count = 0
-                for candidate in replacement_mesh_for_mapping.submeshes:
-                    candidate_label = getattr(candidate, "material", "") or getattr(candidate, "name", "") or ""
-                    if str(candidate_label or "").strip().lower() == str(label or "").strip().lower():
-                        duplicate_count += 1
+                if not source_display_duplicate_counts_cache:
+                    for candidate in tuple(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ()):
+                        candidate_label = getattr(candidate, "material", "") or getattr(candidate, "name", "") or ""
+                        candidate_key = str(candidate_label or "").strip().lower()
+                        if candidate_key:
+                            source_display_duplicate_counts_cache[candidate_key] = (
+                                int(source_display_duplicate_counts_cache.get(candidate_key, 0) or 0) + 1
+                            )
+                duplicate_count = int(
+                    source_display_duplicate_counts_cache.get(str(label or "").strip().lower(), 0) or 0
+                )
                 if duplicate_count > 1:
                     label = (
                         f"{label} "
                         f"({len(getattr(source, 'vertices', ()) or ()):,.0f}v/"
                         f"{len(getattr(source, 'faces', ()) or ()):,.0f}f)"
                     )
-                return f"{source_index}: {label}"
+                result = f"{source_index}: {label}"
+                source_display_label_cache[int(source_index)] = result
+                return result
 
             def _selected_source_summary(raw_text: str) -> tuple[str, bool]:
                 if replacement_mesh_for_mapping is None:
@@ -46816,6 +46876,7 @@ def run_gui() -> int:
                     source_role_overrides.update(dict(snapshot.get("source_role_overrides", {})))
                     source_display_overrides.clear()
                     source_display_overrides.update(dict(snapshot.get("source_display_overrides", {})))
+                    _invalidate_source_display_cache()
                     original_part_copies[:] = list(copy.deepcopy(snapshot.get("original_part_copies", [])))
                     appended_source_indices.clear()
                     appended_source_indices.update(int(index) for index in snapshot.get("appended_source_indices", set()))
@@ -47576,6 +47637,7 @@ def run_gui() -> int:
                     if role_value:
                         source_role_overrides[new_source_index] = role_value
                     source_display_overrides[new_source_index] = copied_part.name
+                    _invalidate_source_display_cache()
                     copied_original_source_indices.add(new_source_index)
                     copied_original_source_to_original_index[new_source_index] = original_index
                     appended_source_indices.add(new_source_index)
@@ -51169,6 +51231,7 @@ def run_gui() -> int:
                         or f"source {source_index}"
                     ).strip()
                     source_display_overrides[new_index] = f"{source_label} ({copy_suffix})"
+                    _invalidate_source_display_cache()
 
                     mapped_targets = _source_mapping_target_indices(source_index)
                     if source_index in independent_output_source_indices:
@@ -51299,6 +51362,7 @@ def run_gui() -> int:
                         source_role_overrides.update(previous_source_role_overrides)
                         source_display_overrides.clear()
                         source_display_overrides.update(previous_source_display_overrides)
+                        _invalidate_source_display_cache()
                         source_part_adjustments.clear()
                         source_part_adjustments.update(copy.deepcopy(previous_source_part_adjustments))
                         dialog_added_supplemental_files[:] = previous_dialog_added_supplemental_files
@@ -51389,6 +51453,7 @@ def run_gui() -> int:
                             )
                             _add_source_tree_item(int(source_index), source)
                             part_source_combo.addItem(_source_display_name(int(source_index)), int(source_index))
+                    _invalidate_source_display_cache()
                     source_geometry_revision["value"] = int(source_geometry_revision.get("value", 0) or 0) + 1
                     mesh_edit_redo_stack.clear()
                     mesh_edit_redo_adjustment_stack.clear()
@@ -53699,7 +53764,10 @@ def run_gui() -> int:
                         "removed_target_submesh_indices": sorted(
                             int(mapping.target_submesh_index)
                             for mapping in tuple(current_mappings or ())
-                            if not tuple(getattr(mapping, "source_submesh_indices", ()) or ())
+                            if not any(
+                                _source_index_is_enabled_renderable(int(source_index))
+                                for source_index in tuple(getattr(mapping, "source_submesh_indices", ()) or ())
+                            )
                         ),
                         "mesh_edit_revision": int(mesh_edit_revision.get("value", 0) or 0),
                         "source_geometry_revision": int(source_geometry_revision.get("value", 0) or 0),
@@ -60397,7 +60465,8 @@ def run_gui() -> int:
                     if selected_preview_indices is not None
                     else None
                 )
-                alignment_d3d11_state["pending_fast_transform"] = None
+                if not bool(alignment_d3d11_drag_transaction.get("active")):
+                    alignment_d3d11_state["pending_fast_transform"] = None
 
             def _active_alignment_transform_preview_widgets() -> tuple[NativePreviewPanel, ...]:
                 active_mode = str(preview_mode_combo.currentData() or "side_by_side")
@@ -60781,13 +60850,28 @@ def run_gui() -> int:
                 part_source_indices = tuple(_alignment_part_source_indices_for_commit())
                 if part_source_indices:
                     _push_geometry_undo_snapshot("D3D11 part drag")
+                drag_generation = int(alignment_d3d11_drag_generation.get("value", 0) or 0) + 1
+                alignment_d3d11_drag_generation["value"] = drag_generation
+                alignment_d3d11_drag_generation["active"] = drag_generation
                 alignment_d3d11_drag_transaction["active"] = True
+                alignment_d3d11_drag_transaction["generation"] = drag_generation
                 alignment_d3d11_drag_transaction["part_source_indices"] = part_source_indices
                 alignment_d3d11_drag_transaction["global"] = _global_transform_values()
                 alignment_d3d11_drag_transaction["parts"] = {
                     int(source_index): _part_transform_values(int(source_index))
                     for source_index in part_source_indices
                 }
+
+            def _commit_alignment_d3d11_drag_generation() -> None:
+                drag_generation = int(alignment_d3d11_drag_transaction.get("generation", 0) or 0)
+                if drag_generation <= 0:
+                    drag_generation = int(alignment_d3d11_drag_generation.get("active", 0) or 0)
+                alignment_d3d11_drag_generation["committed"] = max(
+                    int(alignment_d3d11_drag_generation.get("committed", 0) or 0),
+                    int(drag_generation),
+                )
+                alignment_d3d11_drag_generation["active"] = 0
+                alignment_d3d11_drag_transaction["generation"] = 0
 
             def _set_global_transform_values_for_d3d11_drag(
                 *,

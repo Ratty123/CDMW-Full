@@ -100,6 +100,98 @@ def _minimal_pac_original() -> tuple[bytes, ParsedMesh]:
     return data, original
 
 
+def _minimal_two_part_pac_original() -> tuple[bytes, ParsedMesh]:
+    n_lods = 4
+    part_count = 2
+    vertices_per_part = 3
+    vertex_records = bytearray(part_count * vertices_per_part * 40)
+    positions = [
+        (0, 0, 0),
+        (32767, 0, 0),
+        (0, 32767, 0),
+        (0, 0, 0),
+        (0, 32767, 0),
+        (0, 0, 32767),
+    ]
+    for index, position in enumerate(positions):
+        struct.pack_into("<HHH", vertex_records, index * 40, *position)
+        struct.pack_into("<I", vertex_records, index * 40 + 16, 0)
+    indices = struct.pack("<HHH", 0, 1, 2) + struct.pack("<HHH", 0, 1, 2)
+    lod_section = bytes(vertex_records + indices)
+
+    sec0 = bytearray(5 + n_lods * 8)
+    sec0[4] = n_lods
+    descriptor_starts: list[int] = []
+    for part_index in range(part_count):
+        name = f"target{part_index}".encode("ascii")
+        sec0.extend(bytes([len(name)]) + name)
+        sec0.extend(bytes([len(name)]) + name)
+        descriptor_starts.append(len(sec0))
+        desc = bytearray(64)
+        desc[0] = 0x01
+        struct.pack_into(
+            "<8f",
+            desc,
+            3,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            1.0,
+            1.0,
+        )
+        desc[35:40] = bytes([0x04, 0x00, 0x01, 0x02, 0x03])
+        for lod_index in range(n_lods):
+            struct.pack_into("<H", desc, 40 + lod_index * 2, vertices_per_part)
+            struct.pack_into("<I", desc, 48 + lod_index * 4, 3)
+        sec0.extend(desc)
+
+    header = bytearray(0x50)
+    header[:4] = b"PAR "
+    sections = [bytes(sec0)] + [lod_section] * n_lods
+    for index, payload in enumerate(sections):
+        struct.pack_into("<I", header, 0x10 + index * 8, 0)
+        struct.pack_into("<I", header, 0x10 + index * 8 + 4, len(payload))
+    offsets = []
+    cursor = len(header)
+    for payload in sections:
+        offsets.append(cursor)
+        cursor += len(payload)
+    for lod_index in range(n_lods):
+        section_index = n_lods - lod_index
+        struct.pack_into("<I", sec0, 5 + lod_index * 4, offsets[section_index])
+        struct.pack_into("<I", sec0, 5 + n_lods * 4 + lod_index * 4, offsets[section_index] + len(vertex_records))
+    sections[0] = bytes(sec0)
+    data = bytes(header) + b"".join(sections)
+    lod0_offset = offsets[4]
+    original = _mesh(
+        "target.pac",
+        [
+            SubMesh(
+                name=f"target{part_index}",
+                material=f"target{part_index}",
+                vertices=[
+                    (float(part_index), 0.0, 0.0),
+                    (float(part_index) + 1.0, 0.0, 0.0),
+                    (float(part_index), 1.0, 0.0),
+                ],
+                faces=[(0, 1, 2)],
+                source_vertex_offsets=[
+                    lod0_offset + (part_index * vertices_per_part + vertex_index) * 40
+                    for vertex_index in range(vertices_per_part)
+                ],
+                source_vertex_stride=40,
+                source_descriptor_offset=offsets[0] + descriptor_starts[part_index],
+                source_lod_count=n_lods,
+            )
+            for part_index in range(part_count)
+        ],
+    )
+    return data, original
+
+
 class StaticMeshReplacementPreviewTests(unittest.TestCase):
     def test_manual_alignment_does_not_apply_hidden_axis_rotation(self) -> None:
         original = _mesh(
@@ -182,6 +274,50 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         self.assertEqual(1, report.replacement_face_count)
         self.assertEqual(1, len(parsed.submeshes[0].faces))
         self.assertEqual(3, len(parsed.submeshes[0].vertices))
+
+    def test_static_replacement_disabled_part_exports_runtime_safe_placeholder(self) -> None:
+        original_data, original = _minimal_two_part_pac_original()
+        replacement = _mesh(
+            "two_part_source.obj",
+            [
+                SubMesh(
+                    name="visible",
+                    material="visible",
+                    vertices=[(0.0, 0.0, 0.0), (1.5, 0.0, 0.0), (0.0, 1.5, 0.0)],
+                    faces=[(0, 1, 2)],
+                ),
+                SubMesh(
+                    name="disabled",
+                    material="disabled",
+                    vertices=[(5.0, 0.0, 0.0), (6.0, 0.0, 0.0), (5.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                ),
+            ],
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+            submesh_mappings=[
+                StaticSubmeshMapping(0, "target0", [0], 0),
+                StaticSubmeshMapping(1, "target1", [1], 1),
+            ],
+            source_part_adjustments=[
+                StaticSourcePartAdjustment(source_submesh_index=1, enabled=False),
+            ],
+        )
+
+        rebuilt, report = build_static_mesh_replacement(original_data, original, replacement, options)
+        parsed = parse_pac(rebuilt, "rebuilt.pac")
+
+        self.assertFalse(report.errors)
+        self.assertEqual(2, len(parsed.submeshes))
+        self.assertEqual(3, len(parsed.submeshes[1].vertices))
+        self.assertEqual(1, len(parsed.submeshes[1].faces))
+        xs = [vertex[0] for vertex in parsed.submeshes[1].vertices]
+        ys = [vertex[1] for vertex in parsed.submeshes[1].vertices]
+        zs = [vertex[2] for vertex in parsed.submeshes[1].vertices]
+        self.assertLess(max(xs) - min(xs), 0.001)
+        self.assertLess(max(ys) - min(ys), 0.001)
+        self.assertLess(max(zs) - min(zs), 0.001)
 
     def test_auto_flat_original_rolls_replacement_to_original_plane(self) -> None:
         original = _mesh(

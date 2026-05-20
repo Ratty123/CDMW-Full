@@ -820,6 +820,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("mesh_edit_delete_mode_combo.setVisible(remove_tool)", main_source)
         self.assertIn("restore_deleted_output = (", main_source)
         self.assertIn("if restore_deleted_output:", main_source)
+        self.assertIn("not any(\n                                _source_index_is_enabled_renderable", main_source)
         reset_scope = main_source[
             main_source.index("def _mesh_edit_reset_scope") : main_source.index("def _mesh_edit_preview_to_source_vector")
         ]

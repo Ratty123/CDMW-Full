@@ -1525,11 +1525,11 @@ def _build_mapped_replacement_mesh(
                 )
             source_parts.append(source_part)
         if (
-            bool(getattr(options, "complete_external_swap", False))
-            and not source_parts
+            not source_parts
             and not tuple(section.source_submesh_indices or ())
+            and enforce_vertex_limit
         ):
-            merged = _build_complete_swap_runtime_placeholder_submesh(target)
+            merged = _build_removed_runtime_placeholder_submesh(target)
         else:
             merged = _merge_source_submeshes(source_parts, target)
         section_label = str(section.target_submesh_name or "").strip()
@@ -1906,12 +1906,13 @@ def _rewrite_submesh_uvs_for_material_atlas(
     submesh.uvs = rewritten
 
 
-def _build_complete_swap_runtime_placeholder_submesh(target: SubMesh) -> SubMesh:
+def _build_removed_runtime_placeholder_submesh(target: SubMesh) -> SubMesh:
     """Emit a valid, effectively invisible draw for runtime slots with no source mesh.
 
-    Some PAC consumers appear to treat zero-count draw descriptors as invalid.
-    Complete source-owned swaps still need the original draw-slot scaffold, so
-    empty slots become a tiny degenerate triangle cloned from the donor slot.
+    Some PAC consumers appear to treat zero-count draw descriptors as invalid
+    and can keep drawing the original section.  Empty/removed slots therefore
+    become a tiny triangle cloned from the donor slot instead of a zero-count
+    descriptor.
     """
     donor_index = 0
     for index, weights in enumerate(getattr(target, "bone_weights", ()) or ()):
@@ -1941,6 +1942,10 @@ def _build_complete_swap_runtime_placeholder_submesh(target: SubMesh) -> SubMesh
         face_count=1,
     )
     return placeholder
+
+
+def _build_complete_swap_runtime_placeholder_submesh(target: SubMesh) -> SubMesh:
+    return _build_removed_runtime_placeholder_submesh(target)
 
 
 def _normalized_preview_face_limit(value: int | None) -> int:
