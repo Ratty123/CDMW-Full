@@ -52173,12 +52173,19 @@ def run_gui() -> int:
                         return
                     _mesh_edit_record_snapshot()
                     for source_index in source_indices:
+                        working_source = replacement_mesh_for_mapping.submeshes[source_index]
+                        base_source = replacement_mesh_base_for_mapping.submeshes[source_index]
+                        restore_deleted_output = (
+                            not bool(getattr(working_source, "faces", None))
+                            and bool(getattr(base_source, "faces", None))
+                        )
                         replacement_mesh_for_mapping.submeshes[source_index] = copy.deepcopy(
-                            replacement_mesh_base_for_mapping.submeshes[source_index]
+                            base_source
                         )
                         mesh_edit_selected_vertices_by_submesh.pop(source_index, None)
-                        adjustment = _ensure_source_part_adjustment(source_index)
-                        adjustment.enabled = True
+                        if restore_deleted_output:
+                            adjustment = _ensure_source_part_adjustment(source_index)
+                            adjustment.enabled = True
                     _mesh_edit_update_mesh_totals()
                     replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
                     mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1

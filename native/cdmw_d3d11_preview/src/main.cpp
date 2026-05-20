@@ -4119,6 +4119,7 @@ private:
         if (!mesh_edit_.enabled || width_ <= 0 || height_ <= 0) return candidates;
         for (const PreviewBatch& batch : batches_) {
             if (batch.cpu_positions.empty()) continue;
+            if (!batch.editor_editable || batch_is_reference(batch) || !batch_visible_in_view(batch, PreviewViewRole::Replacement)) continue;
             for (size_t vertex_index = 0; vertex_index < batch.cpu_positions.size(); ++vertex_index) {
                 int source_submesh = vertex_index < batch.cpu_source_submeshes.size()
                     ? batch.cpu_source_submeshes[vertex_index]
@@ -4163,6 +4164,7 @@ private:
         if (mesh_edit_.selected_vertices.empty()) return candidates;
         std::set<std::pair<int, int>> seen;
         for (const PreviewBatch& batch : batches_) {
+            if (!batch.editor_editable || batch_is_reference(batch) || !batch_visible_in_view(batch, PreviewViewRole::Replacement)) continue;
             for (size_t vertex_index = 0; vertex_index < batch.cpu_positions.size(); ++vertex_index) {
                 int source_submesh = vertex_index < batch.cpu_source_submeshes.size()
                     ? batch.cpu_source_submeshes[vertex_index]

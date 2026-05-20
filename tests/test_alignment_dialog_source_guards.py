@@ -800,6 +800,13 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def _mesh_edit_allowed_source_indices", main_source)
         self.assertIn("def _mesh_edit_can_edit_scope", main_source)
         self.assertIn("def _mesh_edit_reset_scope", main_source)
+        self.assertIn("restore_deleted_output = (", main_source)
+        self.assertIn("if restore_deleted_output:", main_source)
+        reset_scope = main_source[
+            main_source.index("def _mesh_edit_reset_scope") : main_source.index("def _mesh_edit_preview_to_source_vector")
+        ]
+        self.assertIn("if restore_deleted_output:\n                            adjustment = _ensure_source_part_adjustment(source_index)", reset_scope)
+        self.assertNotIn("adjustment = _ensure_source_part_adjustment(source_index)\n                        adjustment.enabled = True", reset_scope)
         self.assertIn("source_submesh_indices=allowed_indices", main_source)
         self.assertIn("delete_mode=delete_mode", main_source)
         self.assertIn("def _mesh_edit_begin_stroke", main_source)
