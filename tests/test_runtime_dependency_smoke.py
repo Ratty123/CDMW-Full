@@ -17,9 +17,6 @@ class RuntimeDependencySmokeTests(unittest.TestCase):
             "Pillow": "PIL",
             "numpy": "numpy",
             "opencv-python-headless": "cv2",
-            "PySide6.QtQml": "PySide6.QtQml",
-            "PySide6.QtQuick": "PySide6.QtQuick",
-            "PySide6.QtQuick3D": "PySide6.QtQuick3D",
         }
         missing: list[str] = []
         for package_name, import_name in packages.items():

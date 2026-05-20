@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import unittest
 
 
@@ -265,10 +265,10 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn('"Item Finder visual pick"', source)
         self.assertIn("placement_source_preview_widget = QLabel", source)
         self.assertIn("Source Model Preview", source)
-        self.assertIn("Software geometry preview only in this picker", source)
+        self.assertIn("Static geometry thumbnail only in this picker", source)
         self.assertIn("def _render_placement_source_preview_pixmap", source)
-        self.assertIn('"software_preview": True', source)
-        self.assertIn("live OpenGL uploads are skipped here", source)
+        self.assertIn('"static_preview": True', source)
+        self.assertIn("live texture uploads are skipped here", source)
         self.assertIn("attach_preview_images=False", source)
         self.assertIn('"placement_source_preview_start"', source)
         self.assertIn('"placement_source_preview_applied"', source)
@@ -282,7 +282,7 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("3D preview is skipped in this nested picker", source)
         self.assertIn('"placement_item_finder_open"', source)
         self.assertIn('"placement_item_finder_candidates_resolved"', source)
-        self.assertNotIn("finder_source_preview_widget = ModelPreviewWidget", source)
+        self.assertNotIn("finder_source_preview_widget = NativePreviewPanel", source)
         self.assertNotIn("update_finder_source_preview, close_finder_source_preview", source)
         self.assertNotIn("close_finder_source_preview(wait=True)", source)
         self.assertIn('use_recommended_button = QPushButton("Use Recommended Source")', source)
@@ -318,7 +318,7 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn('target_socket_button = QPushButton("Open Target Socket XML")', source)
         self.assertIn('donor_socket_button = QPushButton("Open Source Socket XML")', source)
         self.assertIn("manual socket XML mix", source)
-        self.assertNotIn("placement_visual_preview = ModelPreviewWidget", source)
+        self.assertNotIn("placement_visual_preview = NativePreviewPanel", source)
         self.assertNotIn("placement_candidate_socket_combo", source)
         self.assertNotIn("target_proxy_model", source)
         self.assertNotIn("def _current_inline_placement_proxy_model() -> Optional[ModelPreviewData]:", source)
@@ -351,7 +351,7 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("archive_preview_original_settings = self.archive_model_preview.render_settings()", source)
         self.assertIn("if preview is self.archive_model_preview:", source)
         self.assertIn("self.archive_model_preview.set_render_settings(archive_preview_original_settings)", source)
-        self.assertIn("hkx_link_preview_widget = ModelPreviewWidget", source)
+        self.assertIn("hkx_link_preview_widget = NativePreviewPanel", source)
         self.assertIn("_refresh_hkx_link_preview_model", source)
         self.assertIn("_highlight_browser_data_in_preview", source)
         self.assertIn("browser_follow_preview_checkbox.toggled.connect", source)

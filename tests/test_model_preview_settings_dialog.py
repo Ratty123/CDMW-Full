@@ -119,6 +119,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         )
 
         self.assertEqual("d3d11_native", dialog.current_archive_renderer_backend())
+        self.assertTrue(dialog.archive_renderer_backend_combo.isHidden())
         self.assertTrue(dialog.render_diagnostic_mode_combo.isHidden())
         self.assertFalse(dialog.d3d11_view_mode_combo.isHidden())
         self.assertFalse(dialog.d3d11_normal_y_mode_combo.isHidden())
@@ -126,7 +127,9 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertFalse(dialog.d3d11_cull_back_faces_checkbox.isHidden())
         self.assertTrue(dialog.disable_depth_test_checkbox.isHidden())
         self.assertFalse(dialog.disable_all_support_maps_checkbox.isHidden())
+        self.assertEqual("Ignore support maps", dialog.disable_all_support_maps_checkbox.text())
         self.assertFalse(dialog.disable_normal_map_checkbox.isHidden())
+        self.assertEqual("Ignore normal map", dialog.disable_normal_map_checkbox.text())
         self.assertFalse(dialog.flip_texture_v_checkbox.isHidden())
         self.assertFalse(dialog._slider_controls["max_anisotropy"].isHidden())
         self.assertFalse(dialog._slider_controls["ambient_strength"].isHidden())
@@ -153,14 +156,12 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertEqual("clamp", current.d3d11_texture_address_mode)
         self.assertTrue(current.d3d11_cull_back_faces)
 
-        legacy_index = dialog.archive_renderer_backend_combo.findData("legacy_opengl")
-        self.assertGreaterEqual(legacy_index, 0)
-        dialog.archive_renderer_backend_combo.setCurrentIndex(legacy_index)
-
-        self.assertEqual("legacy_opengl", dialog.current_archive_renderer_backend())
-        self.assertFalse(dialog.render_diagnostic_mode_combo.isHidden())
-        self.assertTrue(dialog.d3d11_view_mode_combo.isHidden())
-        self.assertFalse(dialog.disable_depth_test_checkbox.isHidden())
+        self.assertEqual(-1, dialog.archive_renderer_backend_combo.findData("legacy_green_up"))
+        dialog.set_archive_renderer_backend("legacy_green_up")
+        self.assertEqual("d3d11_native", dialog.current_archive_renderer_backend())
+        self.assertTrue(dialog.render_diagnostic_mode_combo.isHidden())
+        self.assertFalse(dialog.d3d11_view_mode_combo.isHidden())
+        self.assertTrue(dialog.disable_depth_test_checkbox.isHidden())
         self.assertFalse(dialog.flip_texture_v_checkbox.isHidden())
 
         dialog.close()

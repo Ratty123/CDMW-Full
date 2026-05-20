@@ -66,6 +66,43 @@ class PersistentTreeHeaderTests(unittest.TestCase):
             self.assertEqual(0, restored.header().logicalIndex(1))
             self.assertEqual(1, restored.header().logicalIndex(2))
 
+    def test_can_persist_widths_without_movable_order(self) -> None:
+        _app()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings_path = Path(temp_dir) / "settings.ini"
+            settings = _settings(settings_path)
+            tree = _tree()
+            make_tree_columns_persistent(
+                tree,
+                settings,
+                "tree",
+                restore_later=False,
+                persist_order=False,
+                sections_movable=False,
+            )
+            tree.header().resizeSection(1, 210)
+            settings.sync()
+
+            self.assertFalse(tree.header().sectionsMovable())
+            self.assertEqual("", str(settings.value(persistent_tree_column_order_key("tree"), "")))
+
+            restored_settings = _settings(settings_path)
+            restored = _tree()
+            make_tree_columns_persistent(
+                restored,
+                restored_settings,
+                "tree",
+                restore_later=False,
+                persist_order=False,
+                sections_movable=False,
+            )
+
+            self.assertFalse(restored.header().sectionsMovable())
+            self.assertEqual(210, restored.header().sectionSize(1))
+            self.assertEqual(0, restored.header().logicalIndex(0))
+            self.assertEqual(1, restored.header().logicalIndex(1))
+            self.assertEqual(2, restored.header().logicalIndex(2))
+
     def test_stale_saved_layouts_are_ignored_when_column_count_changes(self) -> None:
         _app()
         with tempfile.TemporaryDirectory() as temp_dir:

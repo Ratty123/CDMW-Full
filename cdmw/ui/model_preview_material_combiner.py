@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 import math
@@ -13,7 +13,7 @@ from cdmw.models import PreviewMaterialTextureInput
 
 
 @dataclass(frozen=True, slots=True)
-class QtQuick3DMaterialCombinerSettings:
+class MaterialPreviewCombinerSettings:
     normal_strength_floor: float = 0.5
     normal_strength_cap: float = 1.0
     height_amount: float = 0.04
@@ -21,7 +21,7 @@ class QtQuick3DMaterialCombinerSettings:
 
 
 @dataclass(frozen=True, slots=True)
-class QtQuick3DMaterialCombinerResult:
+class MaterialPreviewCombinerResult:
     base_source: str = ""
     base_note: str = ""
     normal_source: str = ""
@@ -1933,13 +1933,13 @@ def synthesize_material_texture_inputs(batch: object) -> Tuple[PreviewMaterialTe
     return tuple(inputs)
 
 
-def combine_qtquick3d_material(
+def combine_preview_material(
     payload: object,
     output_dir: Path,
     batch_index: int,
     *,
-    settings: QtQuick3DMaterialCombinerSettings,
-) -> QtQuick3DMaterialCombinerResult:
+    settings: MaterialPreviewCombinerSettings,
+) -> MaterialPreviewCombinerResult:
     notes: list[str] = []
     outputs: list[str] = []
     decode_modes: list[str] = []
@@ -2278,7 +2278,7 @@ def combine_qtquick3d_material(
         elif height_candidates:
             notes.append(f"height normal derivation skipped:{contrast:.3f}")
 
-    return QtQuick3DMaterialCombinerResult(
+    return MaterialPreviewCombinerResult(
         base_source=base_source,
         base_note=base_note,
         normal_source=normal_source,
@@ -2300,18 +2300,10 @@ def combine_qtquick3d_material(
     )
 
 
-MaterialPreviewCombinerSettings = QtQuick3DMaterialCombinerSettings
-MaterialPreviewCombinerResult = QtQuick3DMaterialCombinerResult
-combine_preview_material = combine_qtquick3d_material
-
-
 __all__ = [
     "MaterialPreviewCombinerResult",
     "MaterialPreviewCombinerSettings",
-    "QtQuick3DMaterialCombinerResult",
-    "QtQuick3DMaterialCombinerSettings",
     "combine_preview_material",
-    "combine_qtquick3d_material",
     "decode_material_sample",
     "synthesize_material_texture_inputs",
 ]

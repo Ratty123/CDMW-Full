@@ -5,7 +5,7 @@ use std::process;
 fn print_usage() {
     eprintln!("Usage:");
     eprintln!("  cd-texture inspect-json <texture.dds>");
-    eprintln!("  cd-texture preview-png <texture.dds> <out.png> --max-dim N --slot base|normal|material|height --srgb auto|on|off --normal-space auto|directx|opengl");
+    eprintln!("  cd-texture preview-png <texture.dds> <out.png> --max-dim N --slot base|normal|material|height --srgb auto|on|off --normal-space auto|directx|green_up");
 }
 
 fn value_after(args: &[String], name: &str, default: &str) -> String {

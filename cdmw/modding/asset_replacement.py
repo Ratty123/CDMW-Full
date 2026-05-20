@@ -88,7 +88,7 @@ def infer_cd_texture_role_from_path(texture_path: str) -> str:
 
     if last in {"n", "normal", "normalmap", "norm", "nrm", "nm", "wn", "nor", "no"}:
         return "normal"
-    if normalized.endswith(("normalopengl", "normaldirectx", "normaldx")):
+    if normalized.endswith(("normalgreenup", "normaldirectx", "normaldx")):
         return "normal"
 
     if last in {"disp", "displacement", "height", "hgt", "hei", "depth", "dmap", "bump", "pom", "parallax"}:

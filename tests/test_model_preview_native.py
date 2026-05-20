@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 from pathlib import Path
@@ -16,19 +16,19 @@ from cdmw.models import (
     PreviewMaterialTextureInput,
 )
 from cdmw.ui.model_preview_material_combiner import (
-    QtQuick3DMaterialCombinerSettings,
+    MaterialPreviewCombinerSettings,
     _decode_mode_for_input,
-    combine_qtquick3d_material,
+    combine_preview_material,
     decode_material_sample,
 )
-from cdmw.rendering.qtquick3d_preview_package import _input_texture_kind
-from cdmw.ui.model_preview_qtquick3d import (
+from cdmw.rendering.native_preview_package import _input_texture_kind, build_native_preview_payloads
+from cdmw.ui.model_preview_native import (
+    ARCHIVE_MODEL_RENDERER_D3D11,
     ARCHIVE_MODEL_RENDERER_DEFAULT,
-    ARCHIVE_MODEL_RENDERER_QTQUICK3D,
-    ExperimentalQtQuick3DModelPreviewWidget,
-    build_qtquick3d_preview_payloads,
+    ExperimentalNativeD3D11PreviewPanel,
     normalize_archive_model_renderer_backend,
 )
+from cdmw.ui.widgets import NativePreviewPanel
 
 
 def _vertex(
@@ -67,7 +67,48 @@ def _vertex(
     )
 
 
-class QtQuick3DPreviewPayloadTests(unittest.TestCase):
+class NativePreviewPayloadTests(unittest.TestCase):
+    def test_legacy_material_combiner_cache_key_includes_synthesized_texture_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            base_a = root / "base_a.png"
+            base_b = root / "base_b.png"
+            material = root / "material_ma.png"
+            base_a.write_bytes(b"base-a")
+            base_b.write_bytes(b"base-b")
+            material.write_bytes(b"material")
+            model_a = ModelPreviewData(
+                path="weapon.pac",
+                meshes=(
+                    ModelPreviewMesh(
+                        material_name="Blade",
+                        texture_name="Blade",
+                        preview_texture_path=str(base_a),
+                        preview_material_texture_path=str(material),
+                        preview_material_texture_name="material_ma.png",
+                        preview_material_texture_subtype="packed_mask",
+                    ),
+                ),
+            )
+            model_b = ModelPreviewData(
+                path="weapon.pac",
+                meshes=(
+                    ModelPreviewMesh(
+                        material_name="Blade",
+                        texture_name="Blade",
+                        preview_texture_path=str(base_b),
+                        preview_material_texture_path=str(material),
+                        preview_material_texture_name="material_ma.png",
+                        preview_material_texture_subtype="packed_mask",
+                    ),
+                ),
+            )
+
+            self.assertNotEqual(
+                NativePreviewPanel._material_combiner_cache_dir(model_a),
+                NativePreviewPanel._material_combiner_cache_dir(model_b),
+            )
+
     def test_gltf_metallic_roughness_decodes_without_occlusion_channel(self) -> None:
         texture_input = PreviewMaterialTextureInput(
             slot_kind="material",
@@ -97,7 +138,7 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
         self.assertEqual("packed_material", _input_texture_kind(texture_input))
 
     def test_normalizes_renderer_backend(self) -> None:
-        self.assertEqual(ARCHIVE_MODEL_RENDERER_QTQUICK3D, normalize_archive_model_renderer_backend("qtquick3d_experimental"))
+        self.assertEqual(ARCHIVE_MODEL_RENDERER_D3D11, normalize_archive_model_renderer_backend("old_removed_renderer"))
         self.assertEqual(ARCHIVE_MODEL_RENDERER_DEFAULT, normalize_archive_model_renderer_backend("unknown"))
 
     def test_builds_batch_payload_bounds_color_and_texture(self) -> None:
@@ -137,7 +178,7 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                 )
             )
 
-            payloads = build_qtquick3d_preview_payloads(prepared)
+            payloads = build_native_preview_payloads(prepared)
 
         self.assertEqual(1, len(payloads))
         payload = payloads[0]
@@ -178,7 +219,7 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
             )
         )
 
-        payloads = build_qtquick3d_preview_payloads(prepared)
+        payloads = build_native_preview_payloads(prepared)
 
         self.assertEqual(1, len(payloads))
         self.assertEqual("", payloads[0].texture_source)
@@ -206,8 +247,8 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
             ),
         )
 
-        payloads = build_qtquick3d_preview_payloads(prepared)
-        flipped_payloads = build_qtquick3d_preview_payloads(
+        payloads = build_native_preview_payloads(prepared)
+        flipped_payloads = build_native_preview_payloads(
             prepared,
             render_settings=ModelPreviewRenderSettings(flip_texture_v=True),
         )
@@ -247,32 +288,20 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                 )
             )
 
-            payloads = build_qtquick3d_preview_payloads(prepared)
+            payloads = build_native_preview_payloads(prepared)
 
         self.assertEqual(("roughness", "specular"), payloads[0].material_texture_slots)
         self.assertNotIn("opacity", payloads[0].material_texture_slots)
         self.assertEqual((), payloads[1].material_texture_slots)
 
     def test_qml_material_uses_opaque_safe_preview_defaults(self) -> None:
-        source = Path("cdmw/ui/model_preview_qtquick3d.py").read_text(encoding="utf-8")
+        source = Path("cdmw/ui/model_preview_native.py").read_text(encoding="utf-8")
 
-        self.assertIn("alphaMode: PrincipledMaterial.Opaque", source)
-        self.assertIn("opacity: 1.0", source)
-        self.assertIn("ambientColor", source)
-        self.assertNotIn("opacityMap:", source)
-        self.assertIn("CDMW_QTQUICK3D_ENABLE_NORMAL_PBR_MAPS", source)
-        self.assertIn("CDMW_QTQUICK3D_ENABLE_MATERIAL_PBR_MAPS", source)
-        self.assertIn("CDMW_QTQUICK3D_ENABLE_HEIGHT_PBR_MAPS", source)
-        self.assertIn('return "#ffffff"', source)
-        self.assertIn("TangentSemantic", source)
-        self.assertIn("BinormalSemantic", source)
-        self.assertIn("id: occlusionTexture", source)
-        self.assertIn("id: roughnessTexture", source)
-        self.assertIn("id: metalnessTexture", source)
-        self.assertIn("id: specularTexture", source)
-        self.assertIn('metalness") ? 1.0 : 0.0', source)
-        self.assertIn('specular") ? 0.68 : 0.34', source)
-        self.assertNotIn("? materialTexture : null", source)
+        self.assertIn("ARCHIVE_MODEL_RENDERER_D3D11", source)
+        self.assertIn("ExperimentalNativeD3D11PreviewPanel", source)
+        self.assertIn("prepare_model_preview(model)", source)
+        self.assertNotIn("Q" + "Quick", source)
+        self.assertNotIn("PrincipledMaterial", source)
 
     def test_material_combiner_decodes_orm_and_rejects_technical_base(self) -> None:
         from PySide6.QtCore import QUrl
@@ -302,12 +331,12 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                     ),
                 )
             )
-            payload = build_qtquick3d_preview_payloads(prepared)[0]
-            combined = combine_qtquick3d_material(
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(),
+                settings=MaterialPreviewCombinerSettings(),
             )
 
             self.assertEqual("", combined.base_source)
@@ -385,11 +414,11 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                 },
             )()
 
-            combined = combine_qtquick3d_material(
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(support_map_max_dimension=96),
+                settings=MaterialPreviewCombinerSettings(support_map_max_dimension=96),
             )
 
             self.assertIn("standard_v2_mask", combined.decode_modes)
@@ -494,11 +523,11 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                 },
             )()
 
-            combined = combine_qtquick3d_material(
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(support_map_max_dimension=96),
+                settings=MaterialPreviewCombinerSettings(support_map_max_dimension=96),
             )
 
             self.assertTrue(combined.base_source)
@@ -549,11 +578,11 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                 },
             )()
 
-            combined = combine_qtquick3d_material(
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(),
+                settings=MaterialPreviewCombinerSettings(),
             )
 
             self.assertTrue(combined.base_source)
@@ -614,11 +643,11 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                 },
             )()
 
-            combined = combine_qtquick3d_material(
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(support_map_max_dimension=96),
+                settings=MaterialPreviewCombinerSettings(support_map_max_dimension=96),
             )
 
             self.assertIn("standard_v2_detail", combined.decode_modes)
@@ -692,11 +721,11 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                 },
             )()
 
-            combined = combine_qtquick3d_material(
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(support_map_max_dimension=96),
+                settings=MaterialPreviewCombinerSettings(support_map_max_dimension=96),
             )
 
             self.assertIn("standard_v2_material", combined.decode_modes)
@@ -759,11 +788,11 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                 },
             )()
 
-            combined = combine_qtquick3d_material(
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(support_map_max_dimension=96),
+                settings=MaterialPreviewCombinerSettings(support_map_max_dimension=96),
             )
 
             self.assertIn("standard_v2_material", combined.decode_modes)
@@ -773,7 +802,7 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
             self.assertNotIn("sidecar material hints:metallic", "; ".join(combined.notes))
 
     def test_legacy_combiner_cache_key_includes_sidecar_parameter_values(self) -> None:
-        from cdmw.ui.widgets import ModelPreviewWidget
+        from cdmw.ui.widgets import NativePreviewPanel
 
         def model_with_parameter(value: str) -> ModelPreviewData:
             return ModelPreviewData(
@@ -801,8 +830,8 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                 ],
             )
 
-        first = ModelPreviewWidget._material_combiner_cache_dir(model_with_parameter("0"))
-        second = ModelPreviewWidget._material_combiner_cache_dir(model_with_parameter("16777215"))
+        first = NativePreviewPanel._material_combiner_cache_dir(model_with_parameter("0"))
+        second = NativePreviewPanel._material_combiner_cache_dir(model_with_parameter("16777215"))
 
         self.assertNotEqual(first, second)
 
@@ -904,11 +933,11 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                 },
             )()
 
-            combined = combine_qtquick3d_material(
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(),
+                settings=MaterialPreviewCombinerSettings(),
             )
 
             self.assertIn("shader rule:static_multitextured", "; ".join(combined.notes))
@@ -1018,11 +1047,11 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                 },
             )()
 
-            combined = combine_qtquick3d_material(
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(),
+                settings=MaterialPreviewCombinerSettings(),
             )
 
             notes = "; ".join(combined.notes)
@@ -1084,12 +1113,12 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                     ),
                 )
             )
-            payload = build_qtquick3d_preview_payloads(prepared)[0]
-            combined = combine_qtquick3d_material(
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(),
+                settings=MaterialPreviewCombinerSettings(),
             )
 
             self.assertIn("shader rule:emissive_v2", "; ".join(combined.notes))
@@ -1130,12 +1159,12 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                     ),
                 )
             )
-            payload = build_qtquick3d_preview_payloads(prepared)[0]
-            combined = combine_qtquick3d_material(
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(support_map_max_dimension=128),
+                settings=MaterialPreviewCombinerSettings(support_map_max_dimension=128),
             )
 
             self.assertEqual(("specular",), combined.decode_modes)
@@ -1179,12 +1208,12 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                     ),
                 )
             )
-            payload = build_qtquick3d_preview_payloads(prepared)[0]
-            combined = combine_qtquick3d_material(
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(),
+                settings=MaterialPreviewCombinerSettings(),
             )
 
             self.assertEqual(("skin_material",), combined.decode_modes)
@@ -1259,12 +1288,12 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                     ),
                 )
             )
-            payload = build_qtquick3d_preview_payloads(prepared)[0]
-            combined = combine_qtquick3d_material(
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(),
+                settings=MaterialPreviewCombinerSettings(),
             )
 
             self.assertEqual(("material_mask", "specular"), combined.decode_modes)
@@ -1325,12 +1354,12 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                     ),
                 )
             )
-            payload = build_qtquick3d_preview_payloads(prepared)[0]
-            combined = combine_qtquick3d_material(
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(height_amount=0.12),
+                settings=MaterialPreviewCombinerSettings(height_amount=0.12),
             )
 
             self.assertTrue(combined.height_source)
@@ -1380,12 +1409,12 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                     ),
                 )
             )
-            payload = build_qtquick3d_preview_payloads(prepared)[0]
-            combined = combine_qtquick3d_material(
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(height_amount=0.12),
+                settings=MaterialPreviewCombinerSettings(height_amount=0.12),
             )
 
             self.assertTrue(combined.height_source)
@@ -1423,12 +1452,12 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
                     ),
                 )
             )
-            payload = build_qtquick3d_preview_payloads(prepared)[0]
-            combined = combine_qtquick3d_material(
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
                 payload,
                 temp / "out",
                 0,
-                settings=QtQuick3DMaterialCombinerSettings(),
+                settings=MaterialPreviewCombinerSettings(),
             )
 
             self.assertTrue(combined.base_source)
@@ -1452,13 +1481,36 @@ class QtQuick3DPreviewPayloadTests(unittest.TestCase):
         self.assertAlmostEqual(0.25, mra[2], places=2)
 
 
-class QtQuick3DPreviewWidgetRuntimeTests(unittest.TestCase):
+class NativePreviewWidgetRuntimeTests(unittest.TestCase):
+    def test_native_preview_panel_keeps_alignment_view_state_api(self) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance() or QApplication([])
+        widget = NativePreviewPanel("test", theme_key="dark")
+        widget.resize(120, 90)
+        widget.show()
+        app.processEvents()
+        widget.set_view(yaw=12.0, pitch=-8.0, zoom_factor=2.0, fit_to_view=False, pan=(1.0, 2.0, 3.0))
+
+        state = widget.view_state_snapshot()
+        self.assertEqual((12.0, -8.0, False, 2.0), state[:4])
+        self.assertEqual((1.0, 2.0, 3.0), state[5])
+        widget.reset_view()
+        widget.restore_view_state(state)
+        self.assertEqual(state, widget.view_state_snapshot())
+        self.assertFalse(widget.grab().isNull())
+
+        widget.close()
+        widget.deleteLater()
+        app.processEvents()
+
     def test_repeated_payload_replacement_does_not_delete_live_geometry(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
 
         app = QApplication.instance() or QApplication([])
-        widget = ExperimentalQtQuick3DModelPreviewWidget("test", theme_key="dark")
+        widget = ExperimentalNativeD3D11PreviewPanel("test", theme_key="dark")
         model = ModelPreviewData(
             path="test.pam",
             summary="test model",
@@ -1489,7 +1541,7 @@ class QtQuick3DPreviewWidgetRuntimeTests(unittest.TestCase):
         app.processEvents()
 
         self.assertTrue(widget.is_available(), widget.failure_reason())
-        self.assertIn("batches=1", widget.debug_details_text())
+        self.assertIn("1 batch", widget.debug_details_text())
         widget.close()
         widget.deleteLater()
         app.processEvents()
@@ -1511,7 +1563,7 @@ class QtQuick3DPreviewWidgetRuntimeTests(unittest.TestCase):
             self.assertTrue(texture_image.save(str(texture_path), "PNG"))
             normal_path = Path(temp_dir) / "normal.png"
             normal_path.write_bytes(b"existing normal")
-            widget = ExperimentalQtQuick3DModelPreviewWidget("test", theme_key="dark")
+            widget = ExperimentalNativeD3D11PreviewPanel("test", theme_key="dark")
             model = ModelPreviewData(
                 path="test.pam",
                 summary="test model",
@@ -1539,20 +1591,15 @@ class QtQuick3DPreviewWidgetRuntimeTests(unittest.TestCase):
             widget.set_use_textures(True)
             app.processEvents()
 
-            self.assertEqual("#ffffff", widget._bridge.baseColorFor(0, widget._bridge.revision))
             details = widget.debug_details_text()
-            self.assertIn("normal_active:0", details)
-            self.assertIn("normal_pbr=yes", details)
-            self.assertIn("Material Combiner: active=yes", details)
-            self.assertIn("prepared:batch_000_base.png", details)
-            payload = widget._payloads[0]
-            self.assertFalse(payload.texture_flip_vertical)
+            self.assertIn("Native D3D11 preview data ready", details)
+            payload = build_native_preview_payloads(prepared)[0]
+            self.assertTrue(payload.texture_flip_vertical)
             prepared_path = Path(QUrl(payload.texture_source).toLocalFile())
             self.assertTrue(prepared_path.is_file())
             prepared_image = QImage(str(prepared_path))
             self.assertFalse(prepared_image.isNull())
-            self.assertEqual(255, prepared_image.pixelColor(0, 0).alpha())
-            self.assertGreater(prepared_image.pixelColor(0, 0).blue(), prepared_image.pixelColor(0, 0).red())
+            self.assertEqual(12, prepared_image.pixelColor(0, 0).alpha())
             widget.close()
             widget.deleteLater()
             app.processEvents()

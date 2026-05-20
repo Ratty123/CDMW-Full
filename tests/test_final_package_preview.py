@@ -24,6 +24,7 @@ from cdmw.core.mod_package import ModPackageExportOptions
 from cdmw.models import ArchiveModelTextureReference, ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.material_replacer import ReplacementTextureSet, ReplacementTextureSlot
 from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.modding.static_mesh_replacer import StaticOutputDrawSection
 
 
 def _preview(material_name: str = "Blade", texture_path: str = "source_preview.png") -> MeshImportPreviewResult:
@@ -57,6 +58,7 @@ class FinalPackagePreviewTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             preview = _preview()
+            original_texture_name = preview.preview_model.meshes[0].texture_name
             specs = (
                 MeshImportSupplementalFileSpec(
                     source_path=root / "blade.dds",
@@ -79,7 +81,74 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertEqual(FINAL_PREVIEW_BINDING_GENERATED, result.binding_rows[0].binding_source)
             self.assertIn("blade_base", result.preview_model.meshes[0].preview_texture_path)
             self.assertNotEqual("source_preview.png", result.preview_model.meshes[0].preview_texture_path)
+            self.assertEqual(original_texture_name, result.preview_model.meshes[0].texture_name)
             self.assertTrue(any(line.startswith("Texture Contract:") for line in result.summary_lines))
+
+    def test_final_preview_keeps_slot_identity_for_later_support_bindings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"not a parsed mesh in this focused test",
+                parsed_mesh=ParsedMesh(path="character/model/test_weapon.pac", format="pac"),
+                preview_model=ModelPreviewData(
+                    path="character/model/test_weapon.pac",
+                    meshes=[
+                        ModelPreviewMesh(
+                            material_name="CD_PHM_02_Handle_0015",
+                            texture_name="cd_phm_02_sword_handle_0015",
+                            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                        ),
+                    ],
+                ),
+                summary_lines=[],
+            )
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="cd_phm_02_sword_handle_0015">'
+                '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/gem_base.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/gem_n.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_colorBlendingMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/gem_ma.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_detailMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/gem_mg.dds"/></MaterialParameterTexture>'
+                "</SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(source_path=root / "gem_base.dds", target_path="character/texture/gem_base.dds", kind="texture_generated", payload_data=b"DDS base"),
+                MeshImportSupplementalFileSpec(source_path=root / "gem_n.dds", target_path="character/texture/gem_n.dds", kind="texture_generated", payload_data=b"DDS normal"),
+                MeshImportSupplementalFileSpec(source_path=root / "gem_ma.dds", target_path="character/texture/gem_ma.dds", kind="texture_generated", payload_data=b"DDS material"),
+                MeshImportSupplementalFileSpec(source_path=root / "gem_mg.dds", target_path="character/texture/gem_mg.dds", kind="texture_generated", payload_data=b"DDS detail"),
+                MeshImportSupplementalFileSpec(source_path=root / "test_weapon.pac_xml", target_path="character/modelproperty/test_weapon.pac_xml", kind="sidecar_generated", payload_data=sidecar),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            self.assertEqual([], result.likely_grey_materials)
+            self.assertEqual("cd_phm_02_sword_handle_0015", result.preview_model.meshes[0].texture_name)
+            self.assertIn("gem_base", result.preview_model.meshes[0].preview_texture_path)
+            self.assertIn("gem_n", result.preview_model.meshes[0].preview_normal_texture_path)
+            self.assertIn("gem_ma", result.preview_model.meshes[0].preview_material_texture_path)
+            self.assertNotIn("gem_mg", result.preview_model.meshes[0].preview_material_texture_path)
+
+    def test_emissive_binding_does_not_override_base_preview_texture(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview(material_name="Gem")
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Gem">'
+                '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/gem_base.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_emissiveIntensityTexture"><ResourceReferencePath_ITexture _path="character/texture/gem_emi.dds"/></MaterialParameterTexture>'
+                "</SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(source_path=root / "gem_base.dds", target_path="character/texture/gem_base.dds", kind="texture_generated", payload_data=b"DDS base"),
+                MeshImportSupplementalFileSpec(source_path=root / "gem_emi.dds", target_path="character/texture/gem_emi.dds", kind="texture_generated", payload_data=b"DDS emissive"),
+                MeshImportSupplementalFileSpec(source_path=root / "gem.pac_xml", target_path="character/modelproperty/gem.pac_xml", kind="sidecar_generated", payload_data=sidecar),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            self.assertIn("gem_base", result.preview_model.meshes[0].preview_texture_path)
+            self.assertNotIn("gem_emi", result.preview_model.meshes[0].preview_texture_path)
 
     def test_texture_contract_warns_for_normal_bound_to_color_path_and_orphan_dds(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -258,6 +327,1009 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertEqual(FINAL_PREVIEW_READY, result.binding_rows[0].status)
             self.assertEqual(FINAL_PREVIEW_BINDING_GENERATED, result.binding_rows[0].binding_source)
             self.assertIn("blade_base", result.preview_model.meshes[0].preview_texture_path)
+
+    def test_complete_source_owned_warns_draw_order_fallback_with_material_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"not a parsed mesh in this focused test",
+                parsed_mesh=ParsedMesh(path="character/model/test_weapon.pac", format="pac"),
+                preview_model=ModelPreviewData(
+                    path="character/model/test_weapon.pac",
+                    meshes=[
+                        ModelPreviewMesh(
+                            material_name="CD_PHM_02_Handle_0015",
+                            texture_name="CD_PHM_02_Handle_0015",
+                            positions=[],
+                            indices=[],
+                            preview_texture_path="gem_inside_source.png",
+                        ),
+                        ModelPreviewMesh(
+                            material_name="CD_PHM_02_Handle_0015",
+                            texture_name="CD_PHM_02_Handle_0015",
+                            positions=[],
+                            indices=[],
+                            preview_texture_path="gem_outside_source.png",
+                        ),
+                    ],
+                ),
+                summary_lines=[],
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside.dds",
+                    target_path="character/texture/gem_inside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_outside.dds",
+                    target_path="character/texture/gem_outside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem outside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<Root>'
+                        b'<SkinnedMeshMaterialWrapper _subMeshName="Gem_inside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'</SkinnedMeshMaterialWrapper>'
+                        b'<SkinnedMeshMaterialWrapper _subMeshName="Gem_outside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_outside.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'</SkinnedMeshMaterialWrapper>'
+                        b'</Root>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            warning_text = "\n".join(result.warnings)
+            self.assertFalse(result.preflight_errors)
+            self.assertIn("draw-order fallback", warning_text)
+            self.assertIn("Gem_inside -> CD_PHM_02_Handle_0015", warning_text)
+            self.assertIn("Gem_outside -> CD_PHM_02_Handle_0015", warning_text)
+
+    def test_complete_source_owned_passes_with_exact_cloned_material_bindings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"not a parsed mesh in this focused test",
+                parsed_mesh=ParsedMesh(path="character/model/test_weapon.pac", format="pac"),
+                preview_model=ModelPreviewData(
+                    path="character/model/test_weapon.pac",
+                    meshes=[
+                        ModelPreviewMesh(
+                            material_name="Gem_inside",
+                            texture_name="Gem_inside",
+                            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                        ),
+                        ModelPreviewMesh(
+                            material_name="Gem_outside",
+                            texture_name="Gem_outside",
+                            positions=[(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                        ),
+                    ],
+                ),
+                summary_lines=[],
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside.dds",
+                    target_path="character/texture/gem_inside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_outside.dds",
+                    target_path="character/texture/gem_outside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem outside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<Root>'
+                        b'<SkinnedMeshMaterialWrapper _subMeshName="Gem_inside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'</SkinnedMeshMaterialWrapper>'
+                        b'<SkinnedMeshMaterialWrapper _subMeshName="Gem_outside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_outside.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'</SkinnedMeshMaterialWrapper>'
+                        b'</Root>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            self.assertFalse(result.preflight_errors)
+            self.assertFalse(any("draw-order fallback" in warning for warning in result.warnings))
+            self.assertEqual([], result.likely_grey_materials)
+
+    def test_complete_source_owned_passes_frostmourne_style_materials(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"not a parsed mesh in this focused test",
+                parsed_mesh=ParsedMesh(path="character/model/test_weapon.pac", format="pac"),
+                preview_model=ModelPreviewData(
+                    path="character/model/test_weapon.pac",
+                    meshes=[
+                        ModelPreviewMesh(
+                            material_name="Blade",
+                            texture_name="Blade",
+                            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                        ),
+                        ModelPreviewMesh(
+                            material_name="Handle",
+                            texture_name="Handle",
+                            positions=[(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                        ),
+                        ModelPreviewMesh(
+                            material_name="Skull",
+                            texture_name="Skull",
+                            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                        ),
+                    ],
+                ),
+                summary_lines=[],
+            )
+            specs = []
+            wrappers = []
+            for item_id, material in enumerate(("Blade", "Handle", "Skull"), start=1337):
+                texture_path = f"character/texture/frostmourne_{material.lower()}_base.dds"
+                specs.append(
+                    MeshImportSupplementalFileSpec(
+                        source_path=root / f"{material.lower()}_base.dds",
+                        target_path=texture_path,
+                        kind="texture_generated",
+                        payload_data=f"DDS {material}".encode("ascii"),
+                    )
+                )
+                wrappers.append(
+                    f'<SkinnedMeshMaterialWrapper ItemID="{item_id}" _subMeshName="{material}">'
+                    f'<Material Name="_resourceMaterial" _materialName="SkinnedMeshStandard_Ver2">'
+                    f'<Vector Name="_parameters"><MaterialParameterTexture _name="_overlayColorTexture">'
+                    f'<ResourceReferencePath_ITexture _path="{texture_path}"/>'
+                    f'</MaterialParameterTexture></Vector></Material></SkinnedMeshMaterialWrapper>'
+                )
+            specs.append(
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        '<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        '<Vector Name="_subMeshResources" IdBase="1339">'
+                        + "".join(wrappers)
+                        + '</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ).encode("utf-8"),
+                )
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=tuple(specs),
+                require_source_owned_colors=True,
+            )
+
+            self.assertFalse(result.preflight_errors)
+            self.assertEqual(3, len(result.binding_rows))
+            self.assertEqual([], result.likely_grey_materials)
+
+    def test_complete_source_owned_blocks_pac_xml_wrapper_emitted_outside_submesh_resources(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Gem_inside")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside.dds",
+                    target_path="character/texture/gem_inside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_n.dds",
+                    target_path="character/texture/gem_inside_n.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside normal",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_ma.dds",
+                    target_path="character/texture/gem_inside_ma.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside material",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_mg.dds",
+                    target_path="character/texture/gem_inside_mg.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside detail",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        b'<Vector Name="_subMeshResources" IdBase="1191">'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1189" _subMeshName="Donor"/>'
+                        b'</Vector></SkinnedMeshProperty></ModelProperty>'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Gem_inside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'</SkinnedMeshMaterialWrapper></ModelPropertyList>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            blocker_text = "\n".join(result.preflight_errors)
+            self.assertIn("Gem_inside wrapper was emitted outside _subMeshResources", blocker_text)
+
+    def test_complete_source_owned_blocks_duplicate_pac_xml_wrapper_item_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"not a parsed mesh in this focused test",
+                parsed_mesh=ParsedMesh(path="character/model/test_weapon.pac", format="pac"),
+                preview_model=ModelPreviewData(
+                    path="character/model/test_weapon.pac",
+                    meshes=[
+                        ModelPreviewMesh(
+                            material_name="Gem_inside",
+                            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                        ),
+                        ModelPreviewMesh(
+                            material_name="Gem_outside",
+                            positions=[(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                        ),
+                    ],
+                ),
+                summary_lines=[],
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside.dds",
+                    target_path="character/texture/gem_inside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_outside.dds",
+                    target_path="character/texture/gem_outside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem outside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        b'<Vector Name="_subMeshResources" IdBase="1191">'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Gem_inside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_normalTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_n.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_colorBlendingMaskTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_ma.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_detailMaskTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_mg.dds"/>'
+                        b'</MaterialParameterTexture></SkinnedMeshMaterialWrapper>'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Gem_outside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_outside.dds"/>'
+                        b'</MaterialParameterTexture></SkinnedMeshMaterialWrapper>'
+                        b'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            blocker_text = "\n".join(result.preflight_errors)
+            self.assertIn("Gem_outside duplicates SkinnedMeshMaterialWrapper ItemID 1190 with Gem_inside", blocker_text)
+
+    def test_complete_source_owned_blocks_stale_pac_xml_submesh_resource_wrappers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Gem_inside")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside.dds",
+                    target_path="character/texture/gem_inside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_n.dds",
+                    target_path="character/texture/gem_inside_n.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside normal",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_ma.dds",
+                    target_path="character/texture/gem_inside_ma.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside material",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_mg.dds",
+                    target_path="character/texture/gem_inside_mg.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside detail",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        b'<Vector Name="_subMeshResources">'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Gem_inside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_normalTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_n.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_colorBlendingMaskTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_ma.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_detailMaskTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_mg.dds"/>'
+                        b'</MaterialParameterTexture></SkinnedMeshMaterialWrapper>'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1191" _subMeshName="CD_PHM_02_Handle_0015"/>'
+                        b'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            blocker_text = "\n".join(result.preflight_errors)
+            self.assertIn("stale original _subMeshResources wrapper", blocker_text)
+            self.assertIn("CD_PHM_02_Handle_0015", blocker_text)
+
+    def test_complete_source_owned_allows_planned_runtime_placeholder_wrappers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Gem_inside")
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(0, 0, "Gem_inside", [0], 0, 0, "CD_PHM_02_Handle_0015", 3, True),
+                StaticOutputDrawSection(1, 1, "CD_PHM_02_Guard_0015", [], 1, 1, "CD_PHM_02_Guard_0015", 0, False),
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside.dds",
+                    target_path="character/texture/gem_inside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_n.dds",
+                    target_path="character/texture/gem_inside_n.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside normal",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_ma.dds",
+                    target_path="character/texture/gem_inside_ma.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside material",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_mg.dds",
+                    target_path="character/texture/gem_inside_mg.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside detail",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        b'<Vector Name="_subMeshResources" IdBase="1191">'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Gem_inside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_normalTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_n.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_colorBlendingMaskTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_ma.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_detailMaskTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_mg.dds"/>'
+                        b'</MaterialParameterTexture></SkinnedMeshMaterialWrapper>'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1191" _subMeshName="CD_PHM_02_Guard_0015">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/original_guard.dds"/>'
+                        b'</MaterialParameterTexture></SkinnedMeshMaterialWrapper>'
+                        b'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            blocker_text = "\n".join(result.preflight_errors)
+            self.assertNotIn("stale original _subMeshResources wrapper", blocker_text)
+            self.assertFalse(result.preflight_errors)
+
+    def test_complete_source_owned_contract_uses_actual_runtime_wrapper_not_all_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            runtime_name = "cd_phm_02_sword_handle_0015"
+            preview = _preview(runtime_name)
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(
+                    0,
+                    0,
+                    runtime_name,
+                    [2],
+                    0,
+                    0,
+                    "CD_PHM_02_Handle_0015",
+                    50,
+                    False,
+                    runtime_slot_name="CD_PHM_02_Handle_0015",
+                    runtime_material_name=runtime_name,
+                    source_material_name="Gem_inside",
+                ),
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "handle_base.dds",
+                    target_path="character/texture/handle_base.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS handle base",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "handle_n.dds",
+                    target_path="character/texture/handle_n.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS handle normal",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "handle_ma.dds",
+                    target_path="character/texture/handle_ma.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS handle material",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "handle_mg.dds",
+                    target_path="character/texture/handle_mg.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS handle detail",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        f'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        f'<Vector Name="_subMeshResources" IdBase="1190">'
+                        f'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="{runtime_name}">'
+                        f'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        f'<ResourceReferencePath_ITexture _path="character/texture/handle_base.dds"/>'
+                        f'</MaterialParameterTexture>'
+                        f'<MaterialParameterTexture _name="_normalTexture">'
+                        f'<ResourceReferencePath_ITexture _path="character/texture/handle_n.dds"/>'
+                        f'</MaterialParameterTexture>'
+                        f'<MaterialParameterTexture _name="_colorBlendingMaskTexture">'
+                        f'<ResourceReferencePath_ITexture _path="character/texture/handle_ma.dds"/>'
+                        f'</MaterialParameterTexture>'
+                        f'<MaterialParameterTexture _name="_detailMaskTexture">'
+                        f'<ResourceReferencePath_ITexture _path="character/texture/handle_mg.dds"/>'
+                        f'</MaterialParameterTexture></SkinnedMeshMaterialWrapper>'
+                        f'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ).encode("utf-8"),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            blocker_text = "\n".join(result.preflight_errors)
+            self.assertNotIn("Gem_inside", blocker_text)
+            self.assertFalse(result.preflight_errors)
+
+    def test_complete_source_owned_allows_weapon_wrapper_without_native_overlay_when_mask_generated(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            runtime_name = "cd_phm_02_sword_handle_0015"
+            preview = _preview(runtime_name)
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(
+                    0,
+                    0,
+                    runtime_name,
+                    [2],
+                    0,
+                    0,
+                    "CD_PHM_02_Handle_0015",
+                    50,
+                    False,
+                    runtime_slot_name="CD_PHM_02_Handle_0015",
+                    runtime_material_name=runtime_name,
+                    source_material_name="Gem_inside",
+                ),
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "handle_ma.dds",
+                    target_path="character/texture/handle_ma.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS handle material",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        f'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        f'<Vector Name="_subMeshResources" IdBase="1190">'
+                        f'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="{runtime_name}">'
+                        f'<Material Name="_resourceMaterial" _materialName="SkinnedMeshStandard_Ver2">'
+                        f'<Vector Name="_parameters">'
+                        f'<MaterialParameterTexture _name="_colorBlendingMaskTexture">'
+                        f'<ResourceReferencePath_ITexture _path="character/texture/handle_ma.dds"/>'
+                        f'</MaterialParameterTexture>'
+                        f'</Vector></Material></SkinnedMeshMaterialWrapper>'
+                        f'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ).encode("utf-8"),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            warning_text = "\n".join(result.warnings)
+            self.assertFalse(result.preflight_errors)
+            self.assertIn("uses generated CD mask/color-blend data as color authority", warning_text)
+            self.assertNotIn("lacks generated Base / Color", "\n".join(result.preflight_errors + result.warnings))
+
+    def test_complete_source_owned_warns_missing_generated_support_bindings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Gem_inside")
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(0, 0, "Gem_inside", [0], 0, 0, "CD_PHM_02_Handle_0015", 3, True),
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside.dds",
+                    target_path="character/texture/gem_inside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        b'<Vector Name="_subMeshResources" IdBase="1191">'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Gem_inside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside.dds"/>'
+                        b'</MaterialParameterTexture></SkinnedMeshMaterialWrapper>'
+                        b'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            warning_text = "\n".join(result.warnings)
+            self.assertFalse(result.preflight_errors)
+            self.assertIn("missing generated optional support binding(s): Gem_inside", warning_text)
+            self.assertIn("Normal", warning_text)
+            self.assertIn("Material / Mask", warning_text)
+            self.assertIn("Detail Mask", warning_text)
+
+    def test_complete_source_owned_warns_original_support_binding_survival(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            original_normal = root / "original_n.dds"
+            original_normal.write_bytes(b"DDS original normal")
+            preview = _preview("Gem_inside")
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(0, 0, "Gem_inside", [0], 0, 0, "CD_PHM_02_Handle_0015", 3, True),
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside.dds",
+                    target_path="character/texture/gem_inside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_ma.dds",
+                    target_path="character/texture/gem_inside_ma.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside material",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_mg.dds",
+                    target_path="character/texture/gem_inside_mg.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside detail",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        b'<Vector Name="_subMeshResources" IdBase="1191">'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Gem_inside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_normalTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/original_n.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_colorBlendingMaskTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_ma.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_detailMaskTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_mg.dds"/>'
+                        b'</MaterialParameterTexture></SkinnedMeshMaterialWrapper>'
+                        b'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                original_dds_resolver=lambda path: original_normal if path == "character/texture/original_n.dds" else None,
+                require_source_owned_colors=True,
+            )
+
+            warning_text = "\n".join(result.warnings)
+            self.assertFalse(result.preflight_errors)
+            self.assertIn("inherits original Normal binding", warning_text)
+            self.assertIn("character/texture/original_n.dds", warning_text)
+
+    def test_complete_source_owned_blocks_surviving_original_layer_parameters(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Blade")
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(0, 0, "Blade", [0], 0, 0, "Blade", 1, True),
+            )
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+                '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_n.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_colorBlendingMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_ma.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_detailMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_mg.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_grimeDiffuseTextureR"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0101.dds"/></MaterialParameterTexture>'
+                "</SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(source_path=root / "blade_base.dds", target_path="character/texture/blade_base.dds", kind="texture_generated", payload_data=b"DDS base"),
+                MeshImportSupplementalFileSpec(source_path=root / "blade_n.dds", target_path="character/texture/blade_n.dds", kind="texture_generated", payload_data=b"DDS normal"),
+                MeshImportSupplementalFileSpec(source_path=root / "blade_ma.dds", target_path="character/texture/blade_ma.dds", kind="texture_generated", payload_data=b"DDS material"),
+                MeshImportSupplementalFileSpec(source_path=root / "blade_mg.dds", target_path="character/texture/blade_mg.dds", kind="texture_generated", payload_data=b"DDS detail"),
+                MeshImportSupplementalFileSpec(source_path=root / "blade.pac_xml", target_path="character/modelproperty/blade.pac_xml", kind="sidecar_generated", payload_data=sidecar),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs, require_source_owned_colors=True)
+
+            warning_text = "\n".join(result.warnings)
+            self.assertFalse(result.preflight_errors)
+            self.assertIn("non-generated original/support material parameter", warning_text)
+            self.assertIn("_grimeDiffuseTextureR", warning_text)
+
+    def test_complete_source_owned_warns_height_when_sidecar_keeps_height_slot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            original_height = root / "original_disp.dds"
+            original_height.write_bytes(b"DDS original height")
+            preview = _preview("Blade")
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(0, 0, "Blade", [0], 0, 0, "Blade", 1, True),
+            )
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+                '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_n.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_colorBlendingMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_ma.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_detailMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_mg.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_heightTexture"><ResourceReferencePath_ITexture _path="character/texture/original_disp.dds"/></MaterialParameterTexture>'
+                "</SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(source_path=root / "blade_base.dds", target_path="character/texture/blade_base.dds", kind="texture_generated", payload_data=b"DDS base"),
+                MeshImportSupplementalFileSpec(source_path=root / "blade_n.dds", target_path="character/texture/blade_n.dds", kind="texture_generated", payload_data=b"DDS normal"),
+                MeshImportSupplementalFileSpec(source_path=root / "blade_ma.dds", target_path="character/texture/blade_ma.dds", kind="texture_generated", payload_data=b"DDS material"),
+                MeshImportSupplementalFileSpec(source_path=root / "blade_mg.dds", target_path="character/texture/blade_mg.dds", kind="texture_generated", payload_data=b"DDS detail"),
+                MeshImportSupplementalFileSpec(source_path=root / "blade.pac_xml", target_path="character/modelproperty/blade.pac_xml", kind="sidecar_generated", payload_data=sidecar),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                original_dds_resolver=lambda path: original_height if path == "character/texture/original_disp.dds" else None,
+                require_source_owned_colors=True,
+            )
+
+            warning_text = "\n".join(result.warnings)
+            self.assertFalse(result.preflight_errors)
+            self.assertIn("inherits original Height binding", warning_text)
+            self.assertIn("keeps original support texture binding", warning_text)
+
+    def test_complete_source_owned_blocks_source_label_used_as_material_shader_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("lambert1")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "lambert1.dds",
+                    target_path="character/texture/lambert1.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS lambert1",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        b'<Vector Name="_subMeshResources">'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="lambert1">'
+                        b'<Material Name="_resourceMaterial" _materialName="lambert1">'
+                        b'<Vector Name="_parameters">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/lambert1.dds"/>'
+                        b'</MaterialParameterTexture></Vector></Material></SkinnedMeshMaterialWrapper>'
+                        b'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            blocker_text = "\n".join(result.preflight_errors)
+            self.assertIn("lambert1 material shader name is the source material label", blocker_text)
+            self.assertIn("SkinnedMeshStandard_Ver2", blocker_text)
+
+    def test_complete_source_owned_blocks_duplicate_material_parameter_item_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Blade")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_base.dds",
+                    target_path="character/texture/blade_base.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS base",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_ma.dds",
+                    target_path="character/texture/blade_ma.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS material",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        b'<Vector Name="_subMeshResources" IdBase="1190">'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Blade">'
+                        b'<Material Name="_resourceMaterial" _materialName="SkinnedMeshStandard_Ver2">'
+                        b'<Vector Name="_parameters">'
+                        b'<MaterialParameterTexture StringItemID="_overlayColorTexture" ItemID="3936485985222654" _name="_overlayColorTexture" Index="0">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture StringItemID="_colorBlendingMaskTexture" ItemID="3936485985222654" _name="_colorBlendingMaskTexture" Index="1">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/blade_ma.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'</Vector></Material></SkinnedMeshMaterialWrapper>'
+                        b'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            blocker_text = "\n".join(result.preflight_errors)
+            self.assertIn("Blade duplicates material parameter ItemID 3936485985222654", blocker_text)
+            self.assertIn("_overlayColorTexture", blocker_text)
+            self.assertIn("_colorBlendingMaskTexture", blocker_text)
+
+    def test_complete_source_owned_blocks_submesh_resource_idbase_below_wrapper_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("lambert1")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "lambert1.dds",
+                    target_path="character/texture/lambert1.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS lambert1",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        b'<Vector Name="_subMeshResources" IdBase="1336">'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1339" _subMeshName="lambert1">'
+                        b'<Material Name="_resourceMaterial" _materialName="SkinnedMeshStandard_Ver2">'
+                        b'<Vector Name="_parameters">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/lambert1.dds"/>'
+                        b'</MaterialParameterTexture></Vector></Material></SkinnedMeshMaterialWrapper>'
+                        b'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            blocker_text = "\n".join(result.preflight_errors)
+            self.assertIn("_subMeshResources IdBase 1336 is lower", blocker_text)
+            self.assertIn("ItemID 1339", blocker_text)
+
+    def test_complete_source_owned_blocks_sidecar_wrapper_order_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"not a parsed mesh in this focused test",
+                parsed_mesh=ParsedMesh(path="character/model/test_weapon.pac", format="pac"),
+                preview_model=ModelPreviewData(
+                    path="character/model/test_weapon.pac",
+                    meshes=[
+                        ModelPreviewMesh(
+                            material_name="Gem_inside",
+                            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                        ),
+                        ModelPreviewMesh(
+                            material_name="Gem_outside",
+                            positions=[(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                        ),
+                    ],
+                ),
+                summary_lines=[],
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside.dds",
+                    target_path="character/texture/gem_inside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_outside.dds",
+                    target_path="character/texture/gem_outside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem outside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        b'<Vector Name="_subMeshResources" IdBase="1191">'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1191" _subMeshName="Gem_outside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_outside.dds"/>'
+                        b'</MaterialParameterTexture></SkinnedMeshMaterialWrapper>'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Gem_inside">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside.dds"/>'
+                        b'</MaterialParameterTexture></SkinnedMeshMaterialWrapper>'
+                        b'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+            )
+
+            blocker_text = "\n".join(result.preflight_errors)
+            self.assertIn("wrapper order does not match rebuilt PAC draw order", blocker_text)
+            self.assertIn("PAC: Gem_inside, Gem_outside", blocker_text)
+            self.assertIn("sidecar: Gem_outside, Gem_inside", blocker_text)
 
     def test_original_archive_dds_exact_path_is_ready_without_generated_dds(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

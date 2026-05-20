@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import dataclasses
 import json
@@ -45,6 +45,65 @@ ISOLATED_PREVIEW_VERTEX_FLOATS = 23
 ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES = ISOLATED_PREVIEW_VERTEX_FLOATS * 4
 _VERTEX_STRUCT = struct.Struct("<23f")
 _IDENTITY_STRUCT = struct.Struct("<ii")
+
+
+@dataclasses.dataclass(frozen=True)
+class NativePreviewBatchPayload:
+    material_name: str = ""
+    texture_name: str = ""
+    vertex_count: int = 0
+    bounds_min: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    bounds_max: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    base_color: Tuple[float, float, float] = (0.78, 0.48, 0.34)
+    texture_source: str = ""
+    normal_texture_source: str = ""
+    material_texture_source: str = ""
+    height_texture_source: str = ""
+    normal_texture_strength: float = 1.0
+    material_texture_packed_channels: Tuple[str, ...] = ()
+    material_texture_slots: Tuple[str, ...] = ()
+    material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
+    texture_flip_vertical: bool = True
+    has_texture_coordinates: bool = False
+    tangents_usable: bool = False
+
+
+def _local_file_url(path_value: object) -> str:
+    text = str(path_value or "").strip()
+    if not text:
+        return ""
+    if text.lower().startswith("file:"):
+        return text
+    try:
+        path = Path(text).expanduser()
+    except OSError:
+        return ""
+    if not path.is_file():
+        return ""
+    try:
+        return path.resolve().as_uri()
+    except (OSError, ValueError):
+        return ""
+
+
+def _payload_bounds(vertex_blob: bytes, vertex_count: int) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
+    usable_count = min(max(0, int(vertex_count)), len(vertex_blob) // ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES)
+    if usable_count <= 0:
+        return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
+    mins = [float("inf"), float("inf"), float("inf")]
+    maxs = [float("-inf"), float("-inf"), float("-inf")]
+    for index in range(usable_count):
+        try:
+            vertex = _VERTEX_STRUCT.unpack_from(vertex_blob, index * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES)
+        except struct.error:
+            break
+        for axis in range(3):
+            value = float(vertex[axis])
+            mins[axis] = min(mins[axis], value)
+            maxs[axis] = max(maxs[axis], value)
+    if not all(math.isfinite(value) for value in (*mins, *maxs)):
+        return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
+    return tuple(mins), tuple(maxs)  # type: ignore[return-value]
 
 
 def _safe_float(value: object, fallback: float = 0.0) -> float:
@@ -474,6 +533,127 @@ def _input_texture_kind(texture_input: PreviewMaterialTextureInput) -> str:
     if technical in {"specular", "roughness", "metalness", "height", "normal", "opacity", "packed_material", "detail_mask", "emissive"}:
         return technical
     return ""
+
+
+def _payload_material_slots(batch: PreparedModelPreviewBatch) -> Tuple[str, ...]:
+    subtype = str(getattr(batch, "preview_material_texture_subtype", "") or "").strip().lower()
+    channels = tuple(
+        str(channel or "").strip().lower()
+        for channel in tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ())
+        if str(channel or "").strip()
+    )
+    descriptor = " ".join((subtype, " ".join(channels))).lower()
+    if "opacity" in descriptor or channels == ("alpha",):
+        return ()
+    if subtype in {"orm", "rma", "mra"} or channels[:3] == ("ao", "roughness", "metallic"):
+        return ("occlusion", "roughness", "metalness")
+    if "material_mask" in descriptor or "mask" in descriptor:
+        return ("roughness", "specular")
+    if "roughness" in descriptor and ("metallic" in descriptor or "metalness" in descriptor):
+        return ("roughness", "metalness")
+    if "specular" in descriptor:
+        return ("specular",)
+    return ()
+
+
+def _payload_material_inputs(batch: PreparedModelPreviewBatch) -> Tuple[PreviewMaterialTextureInput, ...]:
+    explicit = tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
+    if explicit:
+        return explicit
+    inputs: list[PreviewMaterialTextureInput] = []
+    base_path = str(getattr(batch, "preview_texture_path", "") or "").strip()
+    if base_path:
+        inputs.append(
+            PreviewMaterialTextureInput(
+                slot_kind="base",
+                texture_name=str(getattr(batch, "texture_name", "") or ""),
+                preview_texture_path=base_path,
+                semantic_type="color",
+                visualized=True,
+            )
+        )
+    normal_path = str(getattr(batch, "preview_normal_texture_path", "") or "").strip()
+    if normal_path:
+        inputs.append(
+            PreviewMaterialTextureInput(
+                slot_kind="normal",
+                texture_name=str(getattr(batch, "preview_normal_texture_name", "") or ""),
+                preview_texture_path=normal_path,
+                semantic_type="normal",
+                visualized=True,
+            )
+        )
+    material_path = str(getattr(batch, "preview_material_texture_path", "") or "").strip()
+    if material_path:
+        inputs.append(
+            PreviewMaterialTextureInput(
+                slot_kind="material",
+                texture_name=str(getattr(batch, "preview_material_texture_name", "") or ""),
+                preview_texture_path=material_path,
+                semantic_type="material",
+                semantic_subtype=str(getattr(batch, "preview_material_texture_subtype", "") or ""),
+                packed_channels=tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ()),
+                visualized=True,
+            )
+        )
+    height_path = str(getattr(batch, "preview_height_texture_path", "") or "").strip()
+    if height_path:
+        inputs.append(
+            PreviewMaterialTextureInput(
+                slot_kind="height",
+                texture_name=str(getattr(batch, "preview_height_texture_name", "") or ""),
+                preview_texture_path=height_path,
+                semantic_type="height",
+                visualized=True,
+            )
+        )
+    return tuple(inputs)
+
+
+def build_native_preview_payloads(
+    prepared: PreparedModelPreviewData,
+    *,
+    render_settings: Optional[ModelPreviewRenderSettings] = None,
+) -> Tuple[NativePreviewBatchPayload, ...]:
+    settings = clamp_model_preview_render_settings(render_settings)
+    payloads: list[NativePreviewBatchPayload] = []
+    for batch in tuple(getattr(prepared, "batches", ()) or ()):
+        vertex_blob = bytes(getattr(batch, "vertex_blob", b"") or b"")
+        vertex_count = int(getattr(batch, "index_count", 0) or 0)
+        if vertex_count <= 0 or not vertex_blob:
+            continue
+        bounds_min, bounds_max = _payload_bounds(vertex_blob, vertex_count)
+        flip_value = getattr(batch, "preview_texture_flip_vertical", True)
+        if flip_value is None:
+            flip_value = resolve_preview_texture_flip_vertical(
+                None,
+                source_path=str(getattr(prepared, "source_path", "") or ""),
+                source_format=str(getattr(prepared, "format", "") or ""),
+                flip_texture_v=bool(getattr(settings, "flip_texture_v", False)),
+            )
+        material_channels = tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ())
+        payloads.append(
+            NativePreviewBatchPayload(
+                material_name=str(getattr(batch, "material_name", "") or ""),
+                texture_name=str(getattr(batch, "texture_name", "") or ""),
+                vertex_count=vertex_count,
+                bounds_min=bounds_min,
+                bounds_max=bounds_max,
+                base_color=_first_vertex_color(vertex_blob),
+                texture_source=_local_file_url(getattr(batch, "preview_texture_path", "")),
+                normal_texture_source=_local_file_url(getattr(batch, "preview_normal_texture_path", "")),
+                material_texture_source=_local_file_url(getattr(batch, "preview_material_texture_path", "")),
+                height_texture_source=_local_file_url(getattr(batch, "preview_height_texture_path", "")),
+                normal_texture_strength=float(getattr(batch, "preview_normal_texture_strength", 1.0) or 1.0),
+                material_texture_packed_channels=tuple(str(channel) for channel in material_channels),
+                material_texture_slots=_payload_material_slots(batch),
+                material_texture_inputs=_payload_material_inputs(batch),
+                texture_flip_vertical=bool(flip_value),
+                has_texture_coordinates=bool(getattr(batch, "has_texture_coordinates", False)),
+                tangents_usable=_tangents_usable(vertex_blob, vertex_count),
+            )
+        )
+    return tuple(payloads)
 
 
 def _copy_texture(
@@ -969,6 +1149,18 @@ def _material_contract_for_batch(
         for slot_name in _MATERIAL_CONTRACT_SLOTS
     }
     packed_channels = list(tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ()))
+    normalized_channels = [str(channel or "").strip().lower() for channel in packed_channels]
+    divergence_reasons: list[str] = []
+    if normalized_channels and normalized_channels[:3] != ["ao", "roughness", "metallic"]:
+        divergence_reasons.append("channel layout differs from default ARM")
+    if not any(slot_states.get(slot, {}).get("status") != "missing" for slot in ("normal",)):
+        divergence_reasons.append("missing source normal uses neutral fallback in CD runtime approximation")
+    if not any(slot_states.get(slot, {}).get("status") != "missing" for slot in ("occlusion",)):
+        divergence_reasons.append("missing source AO uses profile default in CD runtime approximation")
+    if not any(slot_states.get(slot, {}).get("status") != "missing" for slot in ("roughness", "material")):
+        divergence_reasons.append("missing source roughness uses factor/profile fallback")
+    if not any(slot_states.get(slot, {}).get("status") != "missing" for slot in ("metalness", "material")):
+        divergence_reasons.append("missing source metallic uses factor/profile fallback")
     slot_diagnostics = _material_slot_diagnostics(slot_states)
     present_slots = sum(1 for slot in slot_states.values() if str(slot.get("status", "")) != "missing")
     return {
@@ -989,6 +1181,19 @@ def _material_contract_for_batch(
         "slot_diagnostics": slot_diagnostics,
         "source_sidecar_paths": _material_sidecar_paths(batch),
         "packed_channels": packed_channels,
+        "preview_modes": {
+            "source_pbr_preview": {
+                "authority": "gltf_source_textures_and_factors",
+                "base": "baseColorTexture * baseColorFactor",
+                "material": "metallicRoughnessTexture G/B plus occlusion/emissive inputs",
+            },
+            "cd_runtime_approx": {
+                "authority": "generated_cd_profile_outputs",
+                "profile": "arm_standard",
+                "material": "_ma RGB=AO/roughness/metallic with neutral support fallbacks",
+            },
+        },
+        "preview_divergence_reasons": divergence_reasons,
         "material_input_count": sum(
             1
             for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
@@ -1862,7 +2067,26 @@ def _texture_sources_for_batch(
     return textures, tuple(dict.fromkeys(note for note in notes if note)), combiner_metadata
 
 
-def write_isolated_qtquick3d_preview_package(
+def _d3d11_material_policy_for_batch(
+    batch: PreparedModelPreviewBatch,
+    *,
+    enable_material_combiner: bool,
+    prefer_direct_dds: bool,
+    original_reference_material_parity: bool = True,
+    editor_workspace: str = "",
+) -> tuple[bool, bool, str]:
+    role = str(getattr(batch, "editor_role", "") or "").strip().lower()
+    workspace = str(editor_workspace or "").strip().lower()
+    if role == "original_reference" and original_reference_material_parity:
+        return True, False, "original_reference_archive_parity"
+    if role == "replacement_preview":
+        if workspace == "modify_original_alignment" and original_reference_material_parity:
+            return True, False, "modify_original_archive_parity"
+        return False, bool(prefer_direct_dds), "replacement_source_direct"
+    return bool(enable_material_combiner), bool(prefer_direct_dds), "global"
+
+
+def write_isolated_d3d11_preview_package(
     model: object,
     prepared_preview: PreparedModelPreviewData,
     *,
@@ -1873,6 +2097,7 @@ def write_isolated_qtquick3d_preview_package(
     output_root: Optional[Path] = None,
     enable_material_combiner: bool = True,
     prefer_direct_dds: bool = False,
+    original_reference_material_parity: bool = True,
     display_mode: str = "replacement_only",
     editor_workspace: str = "",
     stop_event: object = None,
@@ -1948,6 +2173,13 @@ def write_isolated_qtquick3d_preview_package(
             use_textures=bool(use_textures),
             high_quality_textures=bool(high_quality_textures),
         )
+        batch_enable_combiner, batch_prefer_direct_dds, material_policy = _d3d11_material_policy_for_batch(
+            batch,
+            enable_material_combiner=bool(enable_material_combiner),
+            prefer_direct_dds=bool(prefer_direct_dds),
+            original_reference_material_parity=bool(original_reference_material_parity),
+            editor_workspace=editor_workspace,
+        )
         textures, notes, combiner_metadata = _texture_sources_for_batch(
             batch,
             package_dir=package_dir,
@@ -1960,11 +2192,23 @@ def write_isolated_qtquick3d_preview_package(
             source_path=getattr(prepared_preview, "source_path", "") or getattr(model, "path", ""),
             tangents_usable=tangents_usable,
             copy_cache=copy_cache,
-            enable_material_combiner=bool(enable_material_combiner),
-            prefer_direct_dds=bool(prefer_direct_dds),
+            enable_material_combiner=batch_enable_combiner,
+            prefer_direct_dds=batch_prefer_direct_dds,
             direct_dds_slots=dds_textures,
             legacy_pbr_cache=legacy_pbr_cache,
         )
+        if material_policy == "original_reference_archive_parity":
+            notes = tuple(notes) + (
+                "original reference material policy: material combiner enabled; direct DDS base fallback disabled",
+            )
+        elif material_policy == "modify_original_archive_parity":
+            notes = tuple(notes) + (
+                "modify-original material policy: material combiner enabled; direct DDS base fallback disabled",
+            )
+        elif material_policy == "replacement_source_direct":
+            notes = tuple(notes) + (
+                "replacement material policy: direct source DDS preferred; archive material combiner disabled",
+            )
         total_vertices += vertex_count
         normal_strength = max(
             _safe_float(getattr(settings, "normal_strength_floor", 0.5), 0.5),
@@ -2043,6 +2287,9 @@ def write_isolated_qtquick3d_preview_package(
                 "texture_quality": texture_quality,
                 "notes": list(notes),
                 "material_combiner_active": bool(combiner_metadata.get("active", False)),
+                "material_combiner_policy": material_policy,
+                "material_combiner_enabled": batch_enable_combiner,
+                "prefer_direct_dds": batch_prefer_direct_dds,
                 "material_combiner_outputs": list(tuple(combiner_metadata.get("outputs", ()) or ())),
                 "material_combiner_decode_modes": list(tuple(combiner_metadata.get("decode_modes", ()) or ())),
                 "material_combiner_notes": list(tuple(combiner_metadata.get("notes", ()) or ())),
@@ -2181,7 +2428,7 @@ def write_isolated_qtquick3d_preview_package(
     return package_dir
 
 
-def read_isolated_qtquick3d_preview_manifest(package_dir: Path) -> Mapping[str, Any]:
+def read_isolated_d3d11_preview_manifest(package_dir: Path) -> Mapping[str, Any]:
     manifest_path = Path(package_dir).expanduser() / "manifest.json"
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(data, Mapping):
@@ -2192,10 +2439,12 @@ def read_isolated_qtquick3d_preview_manifest(package_dir: Path) -> Mapping[str, 
 
 
 __all__ = [
+    "NativePreviewBatchPayload",
+    "build_native_preview_payloads",
     "ISOLATED_PREVIEW_SCHEMA_VERSION",
     "ISOLATED_PREVIEW_VERTEX_FLOATS",
     "ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES",
     "SUPPORTED_ISOLATED_PREVIEW_SCHEMA_VERSIONS",
-    "read_isolated_qtquick3d_preview_manifest",
-    "write_isolated_qtquick3d_preview_package",
+    "read_isolated_d3d11_preview_manifest",
+    "write_isolated_d3d11_preview_package",
 ]

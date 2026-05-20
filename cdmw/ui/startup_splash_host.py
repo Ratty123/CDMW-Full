@@ -55,8 +55,8 @@ def _pid_is_alive(pid: int) -> bool:
 
 def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
     try:
-        from PySide6.QtCore import QPoint, QRectF, Qt, QTimer
-        from PySide6.QtGui import QColor, QFont, QPainter, QPen
+        from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
+        from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QPolygonF
         from PySide6.QtWidgets import QApplication, QDialog, QLabel, QSizePolicy, QVBoxLayout
     except ImportError:
         return 1
@@ -112,16 +112,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             self.detail_label.setMaximumHeight(34)
             layout.addWidget(self.detail_label)
 
-            self.progress_label = QLabel("")
-            self.progress_label.setAlignment(Qt.AlignCenter)
-            progress_font = QFont()
-            progress_font.setPointSize(8)
-            self.progress_label.setFont(progress_font)
-            self.progress_label.setMinimumHeight(14)
-            self.progress_label.setMaximumHeight(16)
-            self.progress_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            layout.addWidget(self.progress_label)
-            layout.addSpacing(22)
+            layout.addSpacing(30)
 
             self.setStyleSheet(
                 """
@@ -134,7 +125,6 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                 """
             )
             self.detail_label.setStyleSheet("color: #9f938c;")
-            self.progress_label.setStyleSheet("color: rgba(159, 147, 140, 210);")
 
             self._frame_timer = QTimer(self)
             self._frame_timer.setTimerType(Qt.PreciseTimer)
@@ -178,12 +168,9 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                 else:
                     self._target_progress = max(previous_target, min(raw_progress, 0.965))
                 self._has_determinate_progress = True
-                progress = min(max(self._display_progress, 0.0), 1.0)
-                self.progress_label.setText(f"{self._current:,} / {self._total:,}" if self._total > 1 else f"{int(progress * 100):d}%")
             else:
                 self._current = 0
                 self._total = 0
-                self.progress_label.setText("")
 
         def _payload_int(self, payload: dict, key: str) -> int:
             try:
@@ -225,9 +212,6 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             if self._has_determinate_progress and self._display_progress < self._target_progress:
                 delta = self._target_progress - self._display_progress
                 self._display_progress = min(self._target_progress, self._display_progress + max(0.003, delta * 0.16))
-                if self._total > 0:
-                    progress = min(max(self._display_progress, 0.0), 1.0)
-                    self.progress_label.setText(f"{self._current:,} / {self._total:,}" if self._total > 1 else f"{int(progress * 100):d}%")
             self.update()
 
         def _draw_falling_blocks(self, painter: QPainter, rect: QRectF) -> None:
@@ -241,6 +225,104 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                 y = rect.top() - 18.0 + (((elapsed * speed) + seed) % 1.0) * travel
                 painter.setBrush(QColor(197, 109, 67, int(38 * alpha_factor)))
                 painter.drawRect(QRectF(x, y, size, size))
+            painter.restore()
+
+        def _face_gradient(self, polygon: QPolygonF, start: QColor, end: QColor) -> QLinearGradient:
+            bounds = polygon.boundingRect()
+            gradient = QLinearGradient(bounds.topLeft(), bounds.bottomRight())
+            gradient.setColorAt(0.0, start)
+            gradient.setColorAt(1.0, end)
+            return gradient
+
+        def _draw_iso_block(
+            self,
+            painter: QPainter,
+            center_x: float,
+            top_y: float,
+            half_width: float,
+            half_depth: float,
+            block_height: float,
+            opacity: float = 1.0,
+        ) -> None:
+            alpha = max(0, min(255, int(255 * opacity)))
+            top = QPolygonF(
+                [
+                    QPointF(center_x, top_y - half_depth),
+                    QPointF(center_x + half_width, top_y),
+                    QPointF(center_x, top_y + half_depth),
+                    QPointF(center_x - half_width, top_y),
+                ]
+            )
+            left = QPolygonF(
+                [
+                    QPointF(center_x - half_width, top_y),
+                    QPointF(center_x, top_y + half_depth),
+                    QPointF(center_x, top_y + half_depth + block_height),
+                    QPointF(center_x - half_width, top_y + block_height),
+                ]
+            )
+            right = QPolygonF(
+                [
+                    QPointF(center_x + half_width, top_y),
+                    QPointF(center_x, top_y + half_depth),
+                    QPointF(center_x, top_y + half_depth + block_height),
+                    QPointF(center_x + half_width, top_y + block_height),
+                ]
+            )
+            top_a = QColor("#d57d4f")
+            top_b = QColor("#a95032")
+            left_a = QColor("#f0b083")
+            left_b = QColor("#9b5a39")
+            right_a = QColor("#6d3024")
+            right_b = QColor("#2b1512")
+            for color in (top_a, top_b, left_a, left_b, right_a, right_b):
+                color.setAlpha(alpha)
+
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(self._face_gradient(left, left_a, left_b))
+            painter.drawPolygon(left)
+            painter.setBrush(self._face_gradient(right, right_a, right_b))
+            painter.drawPolygon(right)
+            painter.setBrush(self._face_gradient(top, top_a, top_b))
+            painter.drawPolygon(top)
+            painter.setPen(QPen(QColor(197, 109, 67, int(46 * opacity)), 0.7))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawPolyline(top)
+
+        def _draw_block_wave_mark(self, painter: QPainter, rect: QRectF) -> None:
+            width = max(1.0, float(rect.width()))
+            height = max(1.0, float(rect.height()))
+            center_x = rect.left() + width * 0.5
+            anchor_y = rect.top() + height * 0.78
+            painter.save()
+            painter.setRenderHint(QPainter.Antialiasing, True)
+
+            cols = 8
+            rows = 4
+            half_width = min(max(width / 46.0, 6.6), 8.8)
+            half_depth = half_width * 0.48
+            block_height = half_width * 0.72
+            phase_radians = self._phase * math.tau
+            for row in range(rows):
+                for col in range(cols):
+                    x = center_x + (col - (cols - 1) * 0.5) * half_width * 1.58 + (row - (rows - 1) * 0.5) * half_width * 0.72
+                    base_y = anchor_y + (row - (rows - 1) * 0.5) * half_depth * 1.86 + (col - (cols - 1) * 0.5) * half_depth * 0.08
+                    wave = (math.sin(phase_radians + col * 0.72 + row * 0.58) + 1.0) * 0.5
+                    stack_height = 1.0 + wave * 3.1
+                    full_blocks = int(stack_height)
+                    partial = stack_height - full_blocks
+                    for level in range(full_blocks):
+                        self._draw_iso_block(painter, x, base_y - (level + 1) * block_height, half_width, half_depth, block_height)
+                    if partial > 0.12:
+                        self._draw_iso_block(
+                            painter,
+                            x,
+                            base_y - (full_blocks + 1) * block_height,
+                            half_width,
+                            half_depth,
+                            block_height,
+                            0.35 + partial * 0.65,
+                        )
             painter.restore()
 
         def paintEvent(self, event) -> None:  # type: ignore[override]
@@ -258,30 +340,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             painter.setPen(QPen(QColor(62, 52, 47, 190), 1.0))
             painter.drawRoundedRect(rect, 10, 10)
 
-            mark_size = 34.0
-            center_x = rect.left() + rect.width() * 0.5
-            center_y = rect.top() + 68.0
-            mark_rect = QRectF(center_x - mark_size * 0.5, center_y - mark_size * 0.5, mark_size, mark_size)
-            painter.setPen(QPen(QColor(71, 54, 46, 220), 1.0))
-            painter.setBrush(QColor("#181412"))
-            painter.drawRoundedRect(mark_rect, 8, 8)
-            painter.setPen(QPen(QColor(197, 109, 67, 64), 1.2))
-            painter.drawRoundedRect(mark_rect.adjusted(3, 3, -3, -3), 5, 5)
-            sweep_angle = int(((self._phase * 360.0) - 90.0) * 16.0)
-            painter.setPen(QPen(QColor("#c56d43"), 2.0, Qt.SolidLine, Qt.RoundCap))
-            painter.drawArc(mark_rect.adjusted(7, 7, -7, -7), sweep_angle, int(112 * 16))
-            dot_angle = (self._phase * math.tau) - (math.pi * 0.5)
-            dot_radius = mark_size * 0.26
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(240, 210, 184, 220))
-            painter.drawEllipse(
-                QPoint(
-                    int(center_x + math.cos(dot_angle) * dot_radius),
-                    int(center_y + math.sin(dot_angle) * dot_radius),
-                ),
-                2,
-                2,
-            )
+            self._draw_block_wave_mark(painter, QRectF(rect.left() + 52, rect.top() + 14, rect.width() - 104, 70))
 
             rail = QRectF(rect.left() + 72, rect.bottom() - 42, rect.width() - 144, 3)
             painter.setPen(Qt.NoPen)

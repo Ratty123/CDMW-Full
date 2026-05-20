@@ -260,7 +260,7 @@ class PbdClothPreviewTests(unittest.TestCase):
         self.assertIn("alignment_non_translation_transform_active", source)
 
     def test_prepare_model_preview_preserves_cloth_for_source_submesh_zero(self) -> None:
-        from cdmw.ui.widgets import ModelPreviewWidget
+        from cdmw.rendering.model_preview_prepare import prepare_model_preview
 
         cloth_batch = ClothPreviewBatch(
             mesh_index=-1,
@@ -281,7 +281,7 @@ class PbdClothPreviewTests(unittest.TestCase):
             cloth_preview=ClothPreviewData(batches=(cloth_batch,)),
         )
 
-        _cloned, prepared = ModelPreviewWidget.prepare_model_preview(model)
+        _cloned, prepared = prepare_model_preview(model)
 
         self.assertIsNotNone(prepared)
         assert prepared is not None

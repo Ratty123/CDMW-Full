@@ -385,7 +385,7 @@ class SceneMeshAppendTests(unittest.TestCase):
                 "all.001_Emissive.png",
                 "all.001_Metallic.png",
                 "all.001_Mixed_AO.png",
-                "all.001_Normal_OpenGL.png",
+                "all.001_Normal_GreenUp.png",
                 "all.001_Roughness.png",
             ):
                 (texture_dir / name).write_bytes(b"support")

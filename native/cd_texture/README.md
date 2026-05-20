@@ -2,7 +2,7 @@
 
 Native Crimson Desert texture preview preprocessing helper.
 
-This crate is intentionally separate from the main Qt/OpenGL preview. It decodes
+This crate is intentionally separate from the main native preview. It decodes
 DDS files into app-ready PNG previews and emits JSON diagnostics that Python can
 attach to model preview diagnostics.
 

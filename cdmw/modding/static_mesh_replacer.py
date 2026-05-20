@@ -135,6 +135,16 @@ class StaticIndependentPart:
 
 
 @dataclass
+class StaticMaterialAtlasRect:
+    source_material_name: str
+    source_submesh_indices: tuple[int, ...] = ()
+    x: float = 0.0
+    y: float = 0.0
+    width: float = 1.0
+    height: float = 1.0
+
+
+@dataclass
 class StaticOutputDrawSection:
     output_index: int
     target_submesh_index: int
@@ -142,8 +152,20 @@ class StaticOutputDrawSection:
     source_submesh_indices: list[int] = field(default_factory=list)
     target_material_slot_index: int = 0
     clone_source_target_index: int = -1
+    donor_material_name: str = ""
     vertex_count: int = 0
     is_cloned_section: bool = False
+    runtime_slot_name: str = ""
+    runtime_material_name: str = ""
+    source_material_name: str = ""
+    lod_strategy: str = ""
+    section0_preserved: bool = False
+    companion_paths: tuple[str, ...] = ()
+    atlas_source_material_names: tuple[str, ...] = ()
+    atlas_rects: tuple[StaticMaterialAtlasRect, ...] = ()
+    atlas_padding: int = 8
+    atlas_size: tuple[int, int] = (0, 0)
+    atlas_material_name: str = ""
 
 
 @dataclass
@@ -172,7 +194,10 @@ class StaticMeshReplacementOptions:
     strict_static_only: bool = True
     source_material_texture_overrides: list[StaticSourceMaterialTextureOverride] = field(default_factory=list)
     donor_material_plans: list[StaticDonorMaterialPlan] = field(default_factory=list)
+    source_owned_target_names: list[str] = field(default_factory=list)
     dense_export_mode: str = "preserve_split"
+    complete_swap_atlas_mode: str = "auto_when_needed"
+    complete_swap_material_profile: str = "arm_standard"
     removed_target_submesh_indices: list[int] = field(default_factory=list)
     prune_removed_target_texture_parameters: bool = False
     prune_unmapped_original_texture_parameters: bool = False
@@ -289,6 +314,7 @@ def _clone_submesh_fast(submesh: SubMesh) -> SubMesh:
         "preview_material_texture_subtype",
         "preview_material_texture_packed_channels",
         "preview_material_texture_inputs",
+        "preview_material_parameters",
         "preview_height_texture_path",
         "preview_height_texture_name",
         "preview_sidecar_shader_family",
@@ -440,6 +466,36 @@ def _partition_source_indices_for_vertex_limit(
     return groups, errors
 
 
+def _complete_swap_atlas_mode(options: StaticMeshReplacementOptions) -> str:
+    mode = str(getattr(options, "complete_swap_atlas_mode", "auto_when_needed") or "auto_when_needed").strip().lower()
+    return mode if mode in {"auto_when_needed", "off", "block"} else "auto_when_needed"
+
+
+def _atlas_rects_for_source_groups(
+    groups: Sequence[tuple[list[int], str]],
+) -> tuple[StaticMaterialAtlasRect, ...]:
+    visible_groups = [(list(indices), str(label or "").strip()) for indices, label in groups if indices]
+    if len(visible_groups) <= 1:
+        return ()
+    columns = max(1, math.ceil(math.sqrt(len(visible_groups))))
+    rows = max(1, math.ceil(len(visible_groups) / columns))
+    rects: list[StaticMaterialAtlasRect] = []
+    for index, (source_indices, label) in enumerate(visible_groups):
+        column = index % columns
+        row = index // columns
+        rects.append(
+            StaticMaterialAtlasRect(
+                source_material_name=label,
+                source_submesh_indices=tuple(int(source_index) for source_index in source_indices),
+                x=float(column) / float(columns),
+                y=float(row) / float(rows),
+                width=1.0 / float(columns),
+                height=1.0 / float(rows),
+            )
+        )
+    return tuple(rects)
+
+
 def plan_static_output_draw_sections(
     original_mesh: ParsedMesh,
     replacement_mesh: ParsedMesh,
@@ -454,6 +510,182 @@ def plan_static_output_draw_sections(
     cloned_sections: list[StaticOutputDrawSection] = []
     warnings: list[str] = []
     errors: list[str] = []
+
+    def _source_group_label(source_indices: list[int], fallback: str) -> str:
+        for source_index in source_indices:
+            if 0 <= source_index < len(replacement_mesh.submeshes):
+                source = replacement_mesh.submeshes[source_index]
+                label = str(getattr(source, "material", "") or getattr(source, "name", "") or "").strip()
+                if label:
+                    return label
+        return fallback
+
+    if bool(getattr(normalized_options, "complete_external_swap", False)):
+        source_owned_target_names = [
+            str(name or "").strip()
+            for name in tuple(getattr(normalized_options, "source_owned_target_names", ()) or ())
+        ]
+
+        def _runtime_name_for_target_index(target_index: int, fallback: str) -> str:
+            if 0 <= target_index < len(source_owned_target_names) and source_owned_target_names[target_index]:
+                return source_owned_target_names[target_index]
+            return fallback
+
+        assigned_groups: dict[int, list[tuple[list[int], str]]] = {}
+        extra_groups: list[tuple[int, list[int], str]] = []
+        mapped_empty_targets: set[int] = set()
+        atlas_mode = _complete_swap_atlas_mode(normalized_options)
+
+        for target_index, target in enumerate(original_mesh.submeshes):
+            mapping = mappings_by_target.get(target_index)
+            source_indices = list(mapping.source_submesh_indices if mapping is not None else [])
+            target_name = (
+                str(getattr(mapping, "target_submesh_name", "") or "").strip()
+                if mapping is not None
+                else ""
+            ) or target.material or target.name or f"target {target_index}"
+            material_slot_index = (
+                int(getattr(mapping, "target_material_slot_index", target_index) or target_index)
+                if mapping is not None
+                else target_index
+            )
+            grouped_sources: dict[str, list[int]] = {}
+            for source_index in source_indices:
+                if source_index < 0 or source_index >= len(replacement_mesh.submeshes):
+                    continue
+                source = replacement_mesh.submeshes[source_index]
+                label = str(getattr(source, "material", "") or getattr(source, "name", "") or f"source {source_index}").strip()
+                grouped_sources.setdefault(label.lower(), []).append(source_index)
+            runtime_target_name = _runtime_name_for_target_index(target_index, target_name)
+            source_group_batches: list[list[int]] = []
+            for source_group in grouped_sources.values():
+                groups, group_errors = _partition_source_indices_for_vertex_limit(
+                    replacement_mesh,
+                    source_group,
+                    normalized_options,
+                )
+                errors.extend(group_errors)
+                source_group_batches.extend(group for group in groups if group)
+            if not source_group_batches:
+                if mapping is not None:
+                    mapped_empty_targets.add(target_index)
+                continue
+            assigned_groups[target_index] = [(source_group_batches[0], _source_group_label(source_group_batches[0], target_name))]
+            for group in source_group_batches[1:]:
+                extra_groups.append((target_index, group, _source_group_label(group, target_name)))
+
+        free_target_indices = [
+            index
+            for index in range(len(original_mesh.submeshes))
+            if index not in assigned_groups and index not in mapped_empty_targets
+        ]
+        for source_target_index, group, source_label in extra_groups:
+            if not free_target_indices:
+                if atlas_mode == "auto_when_needed":
+                    assigned_groups.setdefault(source_target_index, []).append((group, source_label))
+                    continue
+                target = original_mesh.submeshes[source_target_index]
+                runtime_name = _runtime_name_for_target_index(
+                    source_target_index,
+                    target.material or target.name or f"target {source_target_index}",
+                )
+                errors.append(
+                    "PAC runtime ABI has only "
+                    f"{len(original_mesh.submeshes):,} safe draw slot(s); atlas or explicit slot mapping required "
+                    f"because {runtime_name} receives additional source material group {source_label}."
+                )
+                continue
+            assigned_index = free_target_indices.pop(0)
+            assigned_groups[assigned_index] = [(group, source_label)]
+
+        for target_index, target in enumerate(original_mesh.submeshes):
+            target_name = target.material or target.name or f"target {target_index}"
+            runtime_target_name = _runtime_name_for_target_index(target_index, target.name or target_name)
+            runtime_material_name = target.material or target.name or target_name
+            assigned = assigned_groups.get(target_index)
+            if not assigned:
+                original_sections.append(
+                    StaticOutputDrawSection(
+                        output_index=0,
+                        target_submesh_index=target_index,
+                        target_submesh_name=runtime_target_name,
+                        source_submesh_indices=[],
+                        target_material_slot_index=target_index,
+                        clone_source_target_index=target_index,
+                        donor_material_name=target.material or target.name or target_name,
+                        vertex_count=0,
+                        is_cloned_section=False,
+                        runtime_slot_name=target.name or target_name,
+                        runtime_material_name=runtime_material_name,
+                        lod_strategy="preserve_runtime_abi_placeholder",
+                        section0_preserved=True,
+                    )
+                )
+                continue
+            merged_groups = [(list(group), str(source_label or "").strip()) for group, source_label in assigned if group]
+            merged_source_indices = [
+                source_index
+                for group, _source_label in merged_groups
+                for source_index in group
+            ]
+            atlas_rects = _atlas_rects_for_source_groups(merged_groups)
+            source_label = (
+                " + ".join(label for _group, label in merged_groups if label)
+                if atlas_rects
+                else (merged_groups[0][1] if merged_groups else "")
+            )
+            if atlas_rects:
+                vertex_count = sum(
+                    _source_vertex_count(replacement_mesh, source_index, normalized_options)
+                    for source_index in merged_source_indices
+                )
+                if vertex_count > _STATIC_REPLACEMENT_VERTEX_LIMIT:
+                    errors.append(
+                        f"Atlas/bake target {runtime_target_name} would contain {vertex_count:,} vertices; "
+                        f"PAC draw sections support at most {_STATIC_REPLACEMENT_VERTEX_LIMIT:,}."
+                    )
+            original_sections.append(
+                StaticOutputDrawSection(
+                    output_index=0,
+                    target_submesh_index=target_index,
+                    target_submesh_name=runtime_target_name,
+                    source_submesh_indices=list(merged_source_indices),
+                    target_material_slot_index=target_index,
+                    clone_source_target_index=target_index,
+                    donor_material_name=runtime_target_name,
+                    vertex_count=sum(
+                        _source_vertex_count(replacement_mesh, source_index, normalized_options)
+                        for source_index in merged_source_indices
+                    ),
+                    is_cloned_section=False,
+                    runtime_slot_name=target.name or target_name,
+                    runtime_material_name=runtime_material_name,
+                    source_material_name=source_label,
+                    lod_strategy="preserve_runtime_abi_decimated_from_lod0",
+                    section0_preserved=True,
+                    atlas_source_material_names=tuple(rect.source_material_name for rect in atlas_rects),
+                    atlas_rects=atlas_rects,
+                    atlas_material_name=f"{runtime_target_name}_baked_atlas" if atlas_rects else "",
+                )
+            )
+        planned = original_sections
+        for output_index, section in enumerate(planned):
+            section.output_index = output_index
+        if planned:
+            warnings.append(
+                "Complete source-owned swap will preserve the original PAC runtime draw ABI and route source material groups into existing slots: "
+                f"{sum(1 for section in planned if section.source_submesh_indices)} source-owned section(s); "
+                f"{sum(1 for section in planned if not section.source_submesh_indices)} original runtime slot placeholder(s)."
+            )
+            atlas_sections = [section for section in planned if tuple(getattr(section, "atlas_rects", ()) or ())]
+            for section in atlas_sections:
+                warnings.append(
+                    "Complete source-owned swap will atlas/bake "
+                    f"{', '.join(section.atlas_source_material_names)} into runtime slot {section.target_submesh_name}."
+                )
+        else:
+            errors.append("Complete source-owned swap found no replacement source material groups to export.")
+        return planned, warnings, errors
 
     for target_index, target in enumerate(original_mesh.submeshes):
         mapping = mappings_by_target.get(target_index)
@@ -489,14 +721,15 @@ def plan_static_output_draw_sections(
 
         first_group = groups[0] if groups else []
         original_sections.append(
-            StaticOutputDrawSection(
-                output_index=0,
-                target_submesh_index=target_index,
-                target_submesh_name=target_name,
-                source_submesh_indices=list(first_group),
-                target_material_slot_index=material_slot_index,
-                clone_source_target_index=-1,
-                vertex_count=sum(
+                StaticOutputDrawSection(
+                    output_index=0,
+                    target_submesh_index=target_index,
+                    target_submesh_name=target_name,
+                    source_submesh_indices=list(first_group),
+                    target_material_slot_index=material_slot_index,
+                    clone_source_target_index=-1,
+                    donor_material_name=target.material or target.name or target_name,
+                    vertex_count=sum(
                     _source_vertex_count(replacement_mesh, source_index, normalized_options)
                     for source_index in first_group
                 ),
@@ -512,6 +745,7 @@ def plan_static_output_draw_sections(
                     source_submesh_indices=list(group),
                     target_material_slot_index=material_slot_index,
                     clone_source_target_index=target_index,
+                    donor_material_name=target.material or target.name or target_name,
                     vertex_count=sum(
                         _source_vertex_count(replacement_mesh, source_index, normalized_options)
                         for source_index in group
@@ -524,10 +758,16 @@ def plan_static_output_draw_sections(
     for output_index, section in enumerate(planned):
         section.output_index = output_index
     if cloned_sections:
-        warnings.append(
-            "Dense replacement will preserve source parts by cloning PAC draw section(s): "
-            f"{len(cloned_sections)} cloned section(s)."
-        )
+        if bool(getattr(normalized_options, "complete_external_swap", False)):
+            warnings.append(
+                "Complete source-owned swap will preserve source material groups by cloning PAC draw section(s): "
+                f"{len(cloned_sections)} cloned section(s)."
+            )
+        else:
+            warnings.append(
+                "Dense replacement will preserve source parts by cloning PAC draw section(s): "
+                f"{len(cloned_sections)} cloned section(s)."
+            )
     return planned, warnings, errors
 
 
@@ -682,14 +922,20 @@ def build_static_mesh_replacement(
     if fmt == "pac":
         from .mesh_importer import _build_pac_full_rebuild
 
+        complete_external_swap = bool(getattr(normalized_options, "complete_external_swap", False))
         rebuilt = _build_pac_full_rebuild(
             original_mesh,
             working_mesh,
             original_data,
-            clone_descriptor_sources=[
+            clone_descriptor_sources=[] if complete_external_swap else [
                 int(section.clone_source_target_index)
                 for section in cloned_draw_sections
             ],
+            clone_descriptor_names=[] if complete_external_swap else [
+                str(section.target_submesh_name or "").strip()
+                for section in cloned_draw_sections
+            ],
+            preserve_runtime_abi=complete_external_swap,
         )
     elif fmt == "pam":
         from .mesh_importer import build_pam
@@ -1258,21 +1504,50 @@ def _build_mapped_replacement_mesh(
                 raise ValueError(f"Output draw section references invalid target submesh index {target_index}.")
             continue
         target = original_mesh.submeshes[target_index]
-        source_parts = [
-            _clone_submesh_fast(transformed_sources[source_index])
-            for source_index in section.source_submesh_indices
-            if (
+        atlas_rect_by_source = _atlas_rects_by_source_index(section)
+        source_parts: list[SubMesh] = []
+        for source_index in section.source_submesh_indices:
+            if not (
                 0 <= source_index < len(transformed_sources)
                 and not _is_marker_submesh(transformed_sources[source_index])
                 and adjustments_by_index.get(source_index, StaticSourcePartAdjustment(source_index)).enabled
-            )
-        ]
-        merged = _merge_source_submeshes(source_parts, target)
+            ):
+                continue
+            source_part = _clone_submesh_fast(transformed_sources[source_index])
+            atlas_rect = atlas_rect_by_source.get(int(source_index))
+            if atlas_rect is not None:
+                _rewrite_submesh_uvs_for_material_atlas(
+                    source_part,
+                    atlas_rect,
+                    target_name=str(section.target_submesh_name or target.name or target.material or target_index),
+                    source_index=int(source_index),
+                    source_material_name=str(atlas_rect.source_material_name or source_part.material or source_part.name or source_index),
+                )
+            source_parts.append(source_part)
+        if (
+            bool(getattr(options, "complete_external_swap", False))
+            and not source_parts
+            and not tuple(section.source_submesh_indices or ())
+        ):
+            merged = _build_complete_swap_runtime_placeholder_submesh(target)
+        else:
+            merged = _merge_source_submeshes(source_parts, target)
         section_label = str(section.target_submesh_name or "").strip()
         if section_label:
-            merged.name = section_label
-            if not merged.material:
+            if bool(getattr(options, "complete_external_swap", False)):
+                # Complete PAC swaps use source-owned material authority, but
+                # the PAC draw ABI itself must stay original.  The sidecar
+                # routing name lives on the output section; the binary submesh
+                # keeps the donor descriptor name/material.
+                merged.name = target.name or section_label
+                merged.material = target.material or target.name or section_label
+                merged.texture = target.name or target.material or section_label
+                setattr(merged, "source_owned_sidecar_name", section_label)
+            elif not merged.material:
+                merged.name = section_label
                 merged.material = section_label
+            else:
+                merged.name = section_label
         if enforce_vertex_limit and len(merged.vertices) > _STATIC_REPLACEMENT_VERTEX_LIMIT:
             raise ValueError(
                 f"Static replacement target {target_index} has {len(merged.vertices):,} vertices; "
@@ -1586,6 +1861,86 @@ def _merge_source_submeshes(submeshes: list[SubMesh], target: SubMesh) -> SubMes
     merged.vertex_count = len(merged.vertices)
     merged.face_count = len(merged.faces)
     return merged
+
+
+def _atlas_rects_by_source_index(section: StaticOutputDrawSection) -> dict[int, StaticMaterialAtlasRect]:
+    rects: dict[int, StaticMaterialAtlasRect] = {}
+    for rect in tuple(getattr(section, "atlas_rects", ()) or ()):
+        for source_index in tuple(getattr(rect, "source_submesh_indices", ()) or ()):
+            try:
+                rects[int(source_index)] = rect
+            except (TypeError, ValueError):
+                continue
+    return rects
+
+
+def _rewrite_submesh_uvs_for_material_atlas(
+    submesh: SubMesh,
+    rect: StaticMaterialAtlasRect,
+    *,
+    target_name: str,
+    source_index: int,
+    source_material_name: str,
+) -> None:
+    if not submesh.uvs or len(submesh.uvs) != len(submesh.vertices):
+        raise ValueError(
+            f"Cannot atlas/bake {source_material_name} into {target_name}: source submesh {source_index} has no complete UV set."
+        )
+    rewritten: list[tuple[float, float]] = []
+    for raw_u, raw_v in submesh.uvs:
+        u = float(raw_u)
+        v = float(raw_v)
+        if u < -1e-4 or u > 1.0001 or v < -1e-4 or v > 1.0001:
+            raise ValueError(
+                f"Cannot atlas/bake {source_material_name} into {target_name}: source UV ({u:.4f}, {v:.4f}) "
+                "is outside 0..1; tiled UVs are not supported for automatic complete-swap atlases."
+            )
+        clamped_u = max(0.0, min(1.0, u))
+        clamped_v = max(0.0, min(1.0, v))
+        rewritten.append(
+            (
+                float(rect.x) + clamped_u * float(rect.width),
+                float(rect.y) + clamped_v * float(rect.height),
+            )
+        )
+    submesh.uvs = rewritten
+
+
+def _build_complete_swap_runtime_placeholder_submesh(target: SubMesh) -> SubMesh:
+    """Emit a valid, effectively invisible draw for runtime slots with no source mesh.
+
+    Some PAC consumers appear to treat zero-count draw descriptors as invalid.
+    Complete source-owned swaps still need the original draw-slot scaffold, so
+    empty slots become a tiny degenerate triangle cloned from the donor slot.
+    """
+    donor_index = 0
+    for index, weights in enumerate(getattr(target, "bone_weights", ()) or ()):
+        if weights:
+            donor_index = index
+            break
+    if not getattr(target, "vertices", None):
+        origin = (0.0, 0.0, 0.0)
+    else:
+        donor_index = max(0, min(donor_index, len(target.vertices) - 1))
+        origin = target.vertices[donor_index]
+    epsilon = 1.0e-5
+    placeholder = SubMesh(
+        name=target.name,
+        material=target.material,
+        texture=target.texture,
+        vertices=[
+            (float(origin[0]), float(origin[1]), float(origin[2])),
+            (float(origin[0]) + epsilon, float(origin[1]), float(origin[2])),
+            (float(origin[0]), float(origin[1]) + epsilon, float(origin[2])),
+        ],
+        uvs=[(0.0, 0.0), (0.0, 0.0), (0.0, 0.0)],
+        normals=[(0.0, 1.0, 0.0), (0.0, 1.0, 0.0), (0.0, 1.0, 0.0)],
+        faces=[(0, 1, 2)],
+        source_vertex_map=[donor_index, donor_index, donor_index],
+        vertex_count=3,
+        face_count=1,
+    )
+    return placeholder
 
 
 def _normalized_preview_face_limit(value: int | None) -> int:

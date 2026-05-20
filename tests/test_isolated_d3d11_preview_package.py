@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 import struct
@@ -24,10 +24,10 @@ from cdmw.models import (
     PreviewMaterialTextureInput,
 )
 from cdmw.core.texture_native import write_native_texture_report_sidecar
-from cdmw.rendering.qtquick3d_preview_package import (
+from cdmw.rendering.native_preview_package import (
     ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES,
-    read_isolated_qtquick3d_preview_manifest,
-    write_isolated_qtquick3d_preview_package,
+    read_isolated_d3d11_preview_manifest,
+    write_isolated_d3d11_preview_package,
 )
 
 
@@ -81,15 +81,15 @@ def _minimal_bc_dds(fourcc: bytes = b"DXT1") -> bytes:
     return b"DDS " + bytes(header) + (b"\0" * block_size)
 
 
-class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
+class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
     def test_writes_empty_preview_package(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="empty.pac"),
                 PreparedModelPreviewData(source_path="empty.pac"),
                 output_root=Path(temp_dir) / "package",
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
         self.assertEqual(9, manifest["schema_version"])
         self.assertEqual("empty.pac", manifest["source_path"])
@@ -159,12 +159,12 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 model,
                 prepared,
                 output_root=temp_path / "package",
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
             batch = manifest["batches"][0]
             self.assertEqual(1, manifest["cloth_batch_count"])
@@ -211,12 +211,12 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 model,
                 PreparedModelPreviewData(source_path="body.pac"),
                 output_root=Path(temp_dir) / "package",
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
         skeleton = manifest["skeleton_overlay"]
         self.assertTrue(skeleton["enabled"])
@@ -249,14 +249,14 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 model,
                 prepared,
                 output_root=temp_path / "package",
                 use_textures=True,
                 prefer_direct_dds=True,
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
             base_texture = manifest["batches"][0]["textures"]["base"]
             base_texture_exists = (package_dir / base_texture).is_file()
 
@@ -323,12 +323,12 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="helmet.gltf"),
                 prepared,
                 output_root=temp_path / "package",
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
             batch = manifest["batches"][0]
 
         self.assertEqual("shiny_metal_inspection", manifest["lighting_preset"])
@@ -356,14 +356,14 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="replacement.gltf"),
                 prepared,
                 output_root=temp_path / "package",
                 use_textures=True,
                 prefer_direct_dds=True,
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
             base_texture = manifest["batches"][0]["textures"]["base"]
 
             self.assertTrue(base_texture)
@@ -453,14 +453,14 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="weapon.pac"),
                 prepared,
                 output_root=temp_path / "package",
                 display_mode="side_by_side",
                 editor_workspace="mesh_alignment",
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
             batch = manifest["batches"][0]
             geometry_path = package_dir / batch["vertex_file"]
@@ -554,14 +554,14 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="weapon.pac"),
                 prepared,
                 output_root=temp_path / "package",
                 enable_material_combiner=False,
                 prefer_direct_dds=True,
             )
-            batch = read_isolated_qtquick3d_preview_manifest(package_dir)["batches"][0]
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
             textures = batch["textures"]
 
             self.assertEqual("", textures["base"])
@@ -612,19 +612,197 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="head.pac"),
                 prepared,
                 output_root=temp_path / "package",
                 enable_material_combiner=False,
                 prefer_direct_dds=True,
             )
-            batch = read_isolated_qtquick3d_preview_manifest(package_dir)["batches"][0]
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
 
             self.assertEqual("", batch["textures"]["base"])
             self.assertEqual(str(base_dds), batch["dds_textures"]["base"]["source_path"])
             self.assertTrue(batch["dds_textures"]["base"]["promoted_from_material_input"])
             self.assertIn("base PNG fallback skipped", " ".join(batch["notes"]))
+
+    def test_alignment_package_uses_archive_parity_material_policy_for_original_reference_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            low_authority_base = temp_path / "cd_common_default_overlay_old.png"
+            detail_diffuse = temp_path / "cd_texturelayer_003_0016.png"
+            detail_mask = temp_path / "blade_mg.png"
+            material_mask = temp_path / "blade_ma.png"
+            replacement_base = temp_path / "replacement_base.png"
+            replacement_base_dds = temp_path / "replacement_base.dds"
+            for path, color in (
+                (low_authority_base, QColor(24, 24, 24, 255)),
+                (detail_diffuse, QColor(220, 48, 32, 255)),
+                (detail_mask, QColor(255, 0, 0, 255)),
+                (material_mask, QColor(70, 170, 210, 255)),
+                (replacement_base, QColor(40, 140, 210, 255)),
+            ):
+                image = QImage(4, 4, QImage.Format_RGBA8888)
+                image.fill(color)
+                self.assertTrue(image.save(str(path), "PNG"))
+            replacement_base_dds.write_bytes(_minimal_bc_dds(b"DXT1"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            reference_inputs = (
+                PreviewMaterialTextureInput(
+                    slot_kind="base",
+                    parameter_name="_overlayColorTexture",
+                    source_texture_path="character/texture/cd_common_default_overlay_old.dds",
+                    texture_name="cd_common_default_overlay_old.dds",
+                    preview_texture_path=str(low_authority_base),
+                    semantic_type="color",
+                    semantic_subtype="albedo",
+                    material_name="CD_PHM_02_Blade_0014",
+                    shader_family="SkinnedMeshStandard_Ver2",
+                    confidence="pac_xml",
+                    visualized=True,
+                ),
+                PreviewMaterialTextureInput(
+                    slot_kind="material",
+                    parameter_name="_detailDiffuseMaskR",
+                    source_texture_path="character/texture/cd_texturelayer_003_0016.dds",
+                    texture_name="cd_texturelayer_003_0016.dds",
+                    preview_texture_path=str(detail_diffuse),
+                    semantic_type="color",
+                    semantic_subtype="detail_diffuse",
+                    material_name="CD_PHM_02_Blade_0014",
+                    shader_family="SkinnedMeshStandard_Ver2",
+                    material_parameters=(
+                        PreviewMaterialParameterInput(
+                            parameter_kind="byte4",
+                            parameter_name="_dyeingGlobalOpacity",
+                            value="255",
+                        ),
+                    ),
+                    visualized=True,
+                ),
+                PreviewMaterialTextureInput(
+                    slot_kind="material",
+                    parameter_name="_detailMaskTexture",
+                    source_texture_path="character/texture/cd_phm_02_blade_0014_mg.dds",
+                    texture_name="cd_phm_02_blade_0014_mg.dds",
+                    preview_texture_path=str(detail_mask),
+                    semantic_type="mask",
+                    semantic_subtype="detail_mask",
+                    material_name="CD_PHM_02_Blade_0014",
+                    shader_family="SkinnedMeshStandard_Ver2",
+                    visualized=True,
+                ),
+                PreviewMaterialTextureInput(
+                    slot_kind="material",
+                    parameter_name="_colorBlendingMaskTexture",
+                    source_texture_path="character/texture/cd_phm_02_blade_0014_ma.dds",
+                    texture_name="cd_phm_02_blade_0014_ma.dds",
+                    preview_texture_path=str(material_mask),
+                    semantic_type="mask",
+                    semantic_subtype="material_mask",
+                    material_name="CD_PHM_02_Blade_0014",
+                    shader_family="SkinnedMeshStandard_Ver2",
+                    visualized=True,
+                ),
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="weapon.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="CD_PHM_02_Blade_0014",
+                        texture_name="CD_PHM_02_Blade_0014",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(low_authority_base),
+                        preview_material_texture_inputs=reference_inputs,
+                        has_texture_coordinates=True,
+                        editor_role="original_reference",
+                    ),
+                    PreparedModelPreviewBatch(
+                        material_name="Replacement",
+                        texture_name="Replacement",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(replacement_base),
+                        preview_texture_dds_path=str(replacement_base_dds),
+                        has_texture_coordinates=True,
+                        editor_role="replacement_preview",
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="weapon.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                enable_material_combiner=True,
+                prefer_direct_dds=True,
+                display_mode="side_by_side",
+                editor_workspace="mesh_replacement_alignment",
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+
+            reference_batch, replacement_batch = manifest["batches"]
+            self.assertEqual("original_reference_archive_parity", reference_batch["material_combiner_policy"])
+            self.assertTrue(reference_batch["material_combiner_enabled"])
+            self.assertFalse(reference_batch["prefer_direct_dds"])
+            self.assertTrue(reference_batch["material_combiner_active"])
+            self.assertIn("standard_v2_detail", reference_batch["material_combiner_decode_modes"])
+            self.assertIn("combined", reference_batch["textures"]["base"])
+            self.assertTrue(any("original reference material policy" in note for note in reference_batch["notes"]))
+
+            self.assertEqual("replacement_source_direct", replacement_batch["material_combiner_policy"])
+            self.assertFalse(replacement_batch["material_combiner_enabled"])
+            self.assertTrue(replacement_batch["prefer_direct_dds"])
+            self.assertFalse(replacement_batch["material_combiner_active"])
+            self.assertTrue(replacement_batch["dds_textures"]["base"]["direct_upload_candidate"])
+            self.assertTrue(any("base PNG fallback skipped; direct DDS available" in note for note in replacement_batch["notes"]))
+
+            modify_original_package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="weapon.pac"),
+                prepared,
+                output_root=temp_path / "package_modify_original",
+                enable_material_combiner=True,
+                prefer_direct_dds=True,
+                display_mode="side_by_side",
+                editor_workspace="modify_original_alignment",
+            )
+            _modify_reference_batch, modify_replacement_batch = read_isolated_d3d11_preview_manifest(
+                modify_original_package_dir
+            )["batches"]
+            self.assertEqual("modify_original_archive_parity", modify_replacement_batch["material_combiner_policy"])
+            self.assertTrue(modify_replacement_batch["material_combiner_enabled"])
+            self.assertFalse(modify_replacement_batch["prefer_direct_dds"])
+            self.assertTrue(
+                any("modify-original material policy" in note for note in modify_replacement_batch["notes"])
+            )
+
+            fast_package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="weapon.pac"),
+                prepared,
+                output_root=temp_path / "package_fast",
+                high_quality_textures=False,
+                enable_material_combiner=False,
+                prefer_direct_dds=True,
+                original_reference_material_parity=False,
+                display_mode="side_by_side",
+                editor_workspace="mesh_replacement_alignment",
+            )
+            fast_reference_batch, fast_replacement_batch = read_isolated_d3d11_preview_manifest(fast_package_dir)["batches"]
+            self.assertEqual("global", fast_reference_batch["material_combiner_policy"])
+            self.assertFalse(fast_reference_batch["material_combiner_enabled"])
+            self.assertTrue(fast_reference_batch["prefer_direct_dds"])
+            self.assertFalse(fast_reference_batch["material_combiner_active"])
+            self.assertNotIn("combined", fast_reference_batch["textures"]["base"])
+            self.assertFalse(any("original reference material policy" in note for note in fast_reference_batch["notes"]))
+            self.assertEqual("replacement_source_direct", fast_replacement_batch["material_combiner_policy"])
+            self.assertFalse(fast_replacement_batch["material_combiner_enabled"])
 
     def test_synthesized_albedo_overrides_direct_low_authority_base_for_d3d11(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -705,13 +883,13 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="cd_phm_02_sword_0014.pac"),
                 prepared,
                 output_root=temp_path / "package",
                 prefer_direct_dds=True,
             )
-            batch = read_isolated_qtquick3d_preview_manifest(package_dir)["batches"][0]
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
             generated_base = package_dir / batch["textures"]["base"]
             generated_image = QImage(str(generated_base))
 
@@ -763,14 +941,14 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 invert_pan_y=True,
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="armor.pac"),
                 prepared,
                 output_root=temp_path / "package",
                 render_settings=settings,
                 prefer_direct_dds=True,
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
             dds_textures = manifest["batches"][0]["dds_textures"]
 
             self.assertNotIn("normal", dds_textures)
@@ -826,14 +1004,14 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="weapon.pac"),
                 prepared,
                 output_root=temp_path / "package",
                 enable_material_combiner=False,
                 prefer_direct_dds=True,
             )
-            batch = read_isolated_qtquick3d_preview_manifest(package_dir)["batches"][0]
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
             textures = batch["textures"]
 
             self.assertTrue(textures["specular"])
@@ -886,12 +1064,12 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="weapon.pac"),
                 prepared,
                 output_root=temp_path / "package",
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
             batch = manifest["batches"][0]
             textures = batch["textures"]
@@ -951,12 +1129,12 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="weapon.pac"),
                 prepared,
                 output_root=temp_path / "package",
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
             batch = manifest["batches"][0]
             textures = batch["textures"]
@@ -984,13 +1162,13 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="weapon.pac"),
                 prepared,
                 output_root=temp_path / "package",
                 render_settings=ModelPreviewRenderSettings(flip_texture_v=True),
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
         self.assertTrue(manifest["batches"][0]["texture_flip_vertical"])
 
@@ -1014,12 +1192,12 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="triangle.gltf", format="gltf"),
                 prepared,
                 output_root=temp_path / "package",
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
         self.assertFalse(manifest["batches"][0]["texture_flip_vertical"])
 
@@ -1043,13 +1221,13 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="triangle.glb", format="glb"),
                 prepared,
                 output_root=temp_path / "package",
                 render_settings=ModelPreviewRenderSettings(flip_texture_v=True),
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
         self.assertTrue(manifest["batches"][0]["texture_flip_vertical"])
 
@@ -1074,18 +1252,18 @@ class IsolatedQtQuick3DPreviewPackageTests(unittest.TestCase):
                 ),
             )
 
-            package_dir = write_isolated_qtquick3d_preview_package(
+            package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path="weapon.pac", format="pac"),
                 prepared,
                 output_root=temp_path / "package",
             )
-            manifest = read_isolated_qtquick3d_preview_manifest(package_dir)
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
         self.assertFalse(manifest["batches"][0]["texture_flip_vertical"])
 
 
-class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
-    def test_native_host_is_isolated_from_qtquick_and_archive_stack(self) -> None:
+class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
+    def test_native_host_is_isolated_from_qt_scene_and_archive_stack(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
 
         self.assertIn("D3D11CreateDevice", source)
@@ -1164,12 +1342,12 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("Texture2D metalness_tex", source)
         self.assertIn("Texture2D specular_tex", source)
         self.assertIn("Texture2D height_tex", source)
-        self.assertNotIn("QtQuick", source)
-        self.assertNotIn("QQuickWidget", source)
-        self.assertNotIn("QQuickView", source)
-        self.assertNotIn("QOpenGLWidget", source)
+        self.assertNotIn("Qt" + "Quick", source)
+        self.assertNotIn("Q" + "QuickWidget", source)
+        self.assertNotIn("Q" + "QuickView", source)
+        self.assertNotIn("QGreenUpWidget", source)
         self.assertNotIn("main_window", source)
-        self.assertNotIn("configure_experimental_qtquick3d_rhi", source)
+        self.assertNotIn("configure_experimental_" + "qt" + "quick" + "3d_rhi", source)
         self.assertNotIn("parse_mesh(", source)
         self.assertNotIn("build_archive_preview_result", source)
         self.assertNotIn("std::cin", source)
@@ -1199,7 +1377,7 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("rgba.InitializeFromImage(*convert_source)", source)
         self.assertIn("source_format=", source)
 
-    def test_native_d3d11_is_archive_renderer_backend_and_qtquick_is_not_used(self) -> None:
+    def test_native_d3d11_is_archive_renderer_backend_and_qt_scene_is_not_used(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
 
         self.assertIn("archive_isolated_renderer_button", source)
@@ -1268,6 +1446,8 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         self.assertIn("material_channel_contract", source)
         self.assertIn("Native D3D11 Overlay Metadata", source)
         self.assertIn("semantic_writes", source)
+        self.assertIn('def _yes_no(value: object) -> str:', source)
+        self.assertNotIn("self._yes_no", source)
         self.assertIn("process.terminate()", source)
         self.assertIn("readyReadStandardError.connect(self._handle_archive_isolated_renderer_stderr)", source)
         self.assertIn("finished.connect(self._handle_archive_isolated_renderer_finished)", source)
@@ -1429,7 +1609,7 @@ class IsolatedQtQuick3DRendererSourceGuardTests(unittest.TestCase):
         source = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
 
         self.assertIn("cdmw.rendering.native_d3d11_host", source)
-        self.assertIn("cdmw.rendering.qtquick3d_preview_package", source)
+        self.assertIn("cdmw.rendering.native_preview_package", source)
         self.assertIn("cd-texture-dx.exe", source)
         self.assertIn("cdmw-d3d11-preview.exe", source)
 

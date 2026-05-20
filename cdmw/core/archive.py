@@ -9443,7 +9443,7 @@ def _prefetch_archive_model_texture_preview_paths(
                 "dds_path": source_key,
                 "slot_kind": slot_key,
                 "max_dimension": resolved_max_dimension,
-                "normal_space": "opengl" if slot_key == "normal" else "auto",
+                "normal_space": "green_up" if slot_key == "normal" else "auto",
                 "srgb": "auto",
             }
         )
@@ -9452,7 +9452,7 @@ def _prefetch_archive_model_texture_preview_paths(
             max_dimension=resolved_max_dimension,
             slot_kind=slot_key,
             srgb="auto",
-            normal_space="opengl" if slot_key == "normal" else "auto",
+            normal_space="green_up" if slot_key == "normal" else "auto",
         )
         by_job_key[job_key] = (local_key, cache_key)
         by_source.setdefault(source_key, (local_key, cache_key))

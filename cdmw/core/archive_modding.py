@@ -112,6 +112,8 @@ MESH_IMPORT_SIDECAR_EXTENSIONS = {
 }
 MESH_IMPORT_COMPANION_EXTENSIONS = {
     ".prefab",
+    ".hkx",
+    ".hkt",
     ".meshinfo",
     ".material",
     ".paa_metabin",
@@ -142,6 +144,7 @@ class MeshImportPreviewResult:
     import_issues: Tuple[ImportIssue, ...] = ()
     auto_fix_result: ImportAutoFixResult = field(default_factory=ImportAutoFixResult)
     roundtrip_manifest: Optional[dict] = None
+    source_owned_output_draw_sections: Tuple[object, ...] = ()
 
 
 @dataclass(slots=True)
@@ -4025,6 +4028,40 @@ def _collect_original_mesh_sidecar_texts(
     return tuple(sidecars)
 
 
+def _source_owned_target_names_from_sidecars(
+    original_sidecars: Sequence[Tuple[ArchiveEntry, str]],
+) -> Tuple[str, ...]:
+    """Return game-runtime submesh wrapper names in original _subMeshResources order."""
+    for _sidecar_entry, sidecar_text in tuple(original_sidecars or ()):
+        text = str(sidecar_text or "")
+        if "_subMeshResources" not in text or "SkinnedMeshMaterialWrapper" not in text:
+            continue
+        vector_match = re.search(
+            r'<Vector\b[^>]*\bName="_subMeshResources"[^>]*>(?P<body>.*?)</Vector>\s*</SkinnedMeshProperty>',
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        body = vector_match.group("body") if vector_match is not None else text
+        names: List[str] = []
+        for match in re.finditer(
+            r'<SkinnedMeshMaterialWrapper\b(?P<attrs>[^>]*)>',
+            body,
+            flags=re.IGNORECASE | re.DOTALL,
+        ):
+            attrs = match.group("attrs") or ""
+            name_match = re.search(
+                r'\b(?:_subMeshName|subMeshName|SubMeshName)="([^"]+)"',
+                attrs,
+                flags=re.IGNORECASE,
+            )
+            name = str(name_match.group(1) if name_match else "").strip()
+            if name:
+                names.append(name)
+        if names:
+            return tuple(names)
+    return ()
+
+
 def _decode_text_payload(data: bytes) -> str:
     for encoding in ("utf-8-sig", "utf-16", "utf-8", "cp1252"):
         try:
@@ -4389,6 +4426,9 @@ def build_mesh_import_preview(
     original_baseline = read_archive_entry_baseline_data(entry, read_entry_data=read_archive_entry_data)
     original_data = original_baseline.data
     original_mesh = parse_mesh(original_data, entry.path)
+    original_sidecars_for_static: Tuple[Tuple[ArchiveEntry, str], ...] = ()
+    if texture_entries_by_basename is not None:
+        original_sidecars_for_static = _collect_original_mesh_sidecar_texts(entry, texture_entries_by_basename)
     normalized_import_mode = str(import_mode or "roundtrip").strip().lower()
     static_mappings = []
     enable_missing_base_color_parameters = False
@@ -4409,6 +4449,13 @@ def build_mesh_import_preview(
         )
         if not base_static_options.submesh_mappings:
             base_static_options = dataclasses.replace(base_static_options, submesh_mappings=static_mappings)
+        if bool(getattr(base_static_options, "complete_external_swap", False)):
+            source_owned_target_names = _source_owned_target_names_from_sidecars(original_sidecars_for_static)
+            if source_owned_target_names:
+                base_static_options = dataclasses.replace(
+                    base_static_options,
+                    source_owned_target_names=list(source_owned_target_names),
+                )
         rebuilt_data, static_report = build_static_mesh_replacement(
             original_data,
             original_mesh,
@@ -4689,6 +4736,10 @@ def build_mesh_import_preview(
     complete_external_material_reset = bool(
         getattr(static_replacement_options, "complete_external_material_reset", False)
     )
+    complete_swap_material_profile = str(
+        getattr(static_replacement_options, "complete_swap_material_profile", "arm_standard")
+        or "arm_standard"
+    )
     if (
         normalized_import_mode == "static_replacement"
         and bool(getattr(static_replacement_options, "neutralize_inherited_material_layers", False))
@@ -4699,6 +4750,9 @@ def build_mesh_import_preview(
     if normalized_import_mode == "static_replacement" and complete_external_material_reset:
         summary_lines.append(
             "Complete external swap material reset: enabled; generated material sidecars will reset inherited target shader response on rebuilt draw sections."
+        )
+        summary_lines.append(
+            f"Complete swap material profile: {complete_swap_material_profile}; source PBR maps/factors will be translated into CD runtime support masks."
         )
     if (
         normalized_import_mode == "static_replacement"
@@ -4711,7 +4765,7 @@ def build_mesh_import_preview(
             or prune_unmapped_original_texture_parameters
         )
     ):
-        original_sidecars = _collect_original_mesh_sidecar_texts(entry, texture_entries_by_basename)
+        original_sidecars = original_sidecars_for_static or _collect_original_mesh_sidecar_texts(entry, texture_entries_by_basename)
         texture_source_files = tuple(
             path for path in resolved_supplemental_files if path.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS
         )
@@ -4748,6 +4802,7 @@ def build_mesh_import_preview(
                         getattr(static_replacement_options, "neutralize_inherited_material_layers", False)
                     ),
                     complete_external_material_reset=complete_external_material_reset,
+                    complete_swap_material_profile=complete_swap_material_profile,
                     removed_target_material_names=tuple(
                         str(getattr(original_mesh.submeshes[int(index)], "material", "") or getattr(original_mesh.submeshes[int(index)], "name", "") or f"target {int(index)}")
                         for index in tuple(getattr(static_replacement_options, "removed_target_submesh_indices", ()) or ())
@@ -4756,12 +4811,22 @@ def build_mesh_import_preview(
                     ),
                     prune_removed_target_texture_parameters=prune_removed_target_texture_parameters,
                     prune_unmapped_original_texture_parameters=prune_unmapped_original_texture_parameters,
+                    output_draw_sections=tuple(getattr(static_report, "output_draw_sections", ()) or ()),
                 )
             except Exception as exc:
                 generated_payloads = []
                 texture_replacement_report = None
                 summary_lines.append(f"Static texture replacement failed: {exc}")
             if texture_replacement_report is not None:
+                material_profile_name = str(getattr(texture_replacement_report, "material_profile_name", "") or "").strip()
+                probe_variants = tuple(getattr(texture_replacement_report, "material_probe_variants", ()) or ())
+                if material_profile_name:
+                    summary_lines.append(f"Complete swap material profile active: {material_profile_name}")
+                    if probe_variants:
+                        summary_lines.append(
+                            "Complete swap calibration profiles available: "
+                            + ", ".join(str(getattr(variant, "material_profile_name", "") or "") for variant in probe_variants[:5])
+                        )
                 material_routes = tuple(getattr(texture_replacement_report, "material_routes", ()) or ())
                 if material_routes:
                     summary_lines.append("Static source material routing:")
@@ -4896,6 +4961,7 @@ def build_mesh_import_preview(
         import_issues=import_issues,
         auto_fix_result=auto_fix_result,
         roundtrip_manifest=manifest_payload if isinstance(manifest_payload, dict) else None,
+        source_owned_output_draw_sections=tuple(getattr(static_report, "output_draw_sections", ()) or ()),
     )
 
 
@@ -21838,7 +21904,7 @@ def build_hkx_model_preview_from_document(
 ) -> Optional[ModelPreviewData]:
     """Convert decoded HKX collision and skeleton context into a real preview mesh.
 
-    D3D11 and the legacy renderer both consume ModelPreviewData triangle batches.
+    Native preview paths consume ModelPreviewData triangle batches.
     This visual model is not a Havok simulation; it is a display mesh for recovered
     collision surfaces plus related skeleton bones when PAB context is available.
     """

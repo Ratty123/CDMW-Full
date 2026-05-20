@@ -387,7 +387,7 @@ static bool should_invert_green(const PreviewJob& job) {
     std::string normal_space = job.normal_space;
     std::transform(slot.begin(), slot.end(), slot.begin(), ::tolower);
     std::transform(normal_space.begin(), normal_space.end(), normal_space.begin(), ::tolower);
-    return slot == "normal" && (normal_space == "opengl" || normal_space == "qtquick" || normal_space == "auto");
+    return slot == "normal" && (normal_space == "green_up" || normal_space == "auto");
 }
 
 static void invert_green_channel(DirectX::ScratchImage& image) {
@@ -503,7 +503,7 @@ static std::string decode_preview(const PreviewJob& job) {
         << "\"prepared_width\":" << target_width << ","
         << "\"prepared_height\":" << target_height << ","
         << "\"mip_count\":" << metadata.mipLevels << ","
-        << "\"normal_space\":\"" << (normal_green_inverted ? "opengl_green_inverted" : job.normal_space) << "\","
+        << "\"normal_space\":\"" << (normal_green_inverted ? "green_up_inverted" : job.normal_space) << "\","
         << "\"normal_green_inverted\":" << (normal_green_inverted ? "true" : "false") << ","
         << "\"decode_ms\":" << elapsed
         << "}";

@@ -3339,6 +3339,7 @@ def _append_pac_cloned_descriptors(
     sec0_offset: int,
     descriptors: list[object],
     clone_descriptor_sources: Sequence[int],
+    clone_descriptor_names: Sequence[str] = (),
 ) -> list[object]:
     if not clone_descriptor_sources:
         return list(descriptors)
@@ -3356,20 +3357,154 @@ def _append_pac_cloned_descriptors(
         if rel_desc_off < 0 or rel_desc_off + desc_len > len(sec0_data):
             raise ValueError(f"PAC descriptor {source_index} cannot be cloned from section 0.")
         desc_bytes = bytes(sec0_data[rel_desc_off:rel_desc_off + desc_len])
-        name = str(getattr(source_desc, "name", "") or f"clone_{source_index}").strip()
-        material = str(getattr(source_desc, "material", "") or name).strip()
-        suffix = f"_clone{clone_ordinal}"
-        prefix = _length_prefixed_ascii(f"{name}{suffix}", f"clone_{clone_ordinal}")
+        override_name = ""
+        if clone_ordinal - 1 < len(clone_descriptor_names):
+            override_name = str(clone_descriptor_names[clone_ordinal - 1] or "").strip()
+        source_name = str(getattr(source_desc, "name", "") or f"clone_{source_index}").strip()
+        source_material = str(getattr(source_desc, "material", "") or source_name).strip()
+        if override_name:
+            name = override_name
+            material = override_name
+        else:
+            suffix = f"_clone{clone_ordinal}"
+            name = f"{source_name}{suffix}"
+            material = source_material
+        prefix = _length_prefixed_ascii(name, f"clone_{clone_ordinal}")
         prefix += _length_prefixed_ascii(material, f"material_{source_index}")
         clone_desc_rel_off = len(sec0_data) + len(prefix)
         sec0_data.extend(prefix)
         sec0_data.extend(desc_bytes)
         cloned_desc = copy.copy(source_desc)
-        cloned_desc.name = f"{name}{suffix}"
+        cloned_desc.name = name
         cloned_desc.material = material
         cloned_desc.descriptor_offset = sec0_offset + clone_desc_rel_off
         planned.append(cloned_desc)
     return planned
+
+
+def _build_pac_output_descriptors(
+    sec0_data: bytearray,
+    *,
+    sec0_offset: int,
+    descriptors: list[object],
+    descriptor_source_indices: Sequence[int],
+    descriptor_names: Sequence[str] = (),
+) -> list[object]:
+    planned: list[object] = []
+    stored_lod_count = int(sec0_data[4]) if len(sec0_data) >= 5 else 0
+    descriptor_table_start = 5 + max(0, stored_lod_count) * 8
+    descriptor_table_start = max(5, min(descriptor_table_start, len(sec0_data)))
+    rebuilt_sec0 = bytearray(sec0_data[:descriptor_table_start])
+    for output_index, raw_source_index in enumerate(tuple(descriptor_source_indices or ())):
+        try:
+            source_index = int(raw_source_index)
+        except (TypeError, ValueError):
+            raise ValueError(f"PAC output draw section {output_index} has an invalid descriptor source.")
+        if source_index < 0 or source_index >= len(descriptors):
+            raise ValueError(f"PAC output draw section {output_index} references missing descriptor {source_index}.")
+        source_desc = descriptors[source_index]
+        rel_desc_off = int(getattr(source_desc, "descriptor_offset", -1)) - int(sec0_offset)
+        desc_len = _pac_descriptor_record_length(source_desc)
+        if rel_desc_off < 0 or rel_desc_off + desc_len > len(sec0_data):
+            raise ValueError(f"PAC descriptor {source_index} cannot be copied from section 0.")
+        raw_name = ""
+        if output_index < len(descriptor_names):
+            raw_name = str(descriptor_names[output_index] or "").strip()
+        source_name = str(getattr(source_desc, "name", "") or f"section_{output_index}").strip()
+        source_material = str(getattr(source_desc, "material", "") or source_name).strip()
+        name = raw_name or source_name
+        material = raw_name or source_material
+        prefix = _length_prefixed_ascii(name, f"section_{output_index}")
+        prefix += _length_prefixed_ascii(material, f"material_{output_index}")
+        desc_rel_off = len(rebuilt_sec0) + len(prefix)
+        rebuilt_sec0.extend(prefix)
+        rebuilt_sec0.extend(sec0_data[rel_desc_off:rel_desc_off + desc_len])
+        cloned_desc = copy.copy(source_desc)
+        cloned_desc.name = name
+        cloned_desc.material = material
+        cloned_desc.descriptor_offset = sec0_offset + desc_rel_off
+        planned.append(cloned_desc)
+    sec0_data[:] = rebuilt_sec0
+    return planned
+
+
+def _pac_lod_submesh_variant(submesh: SubMesh, target_face_count: int) -> SubMesh:
+    faces = list(getattr(submesh, "faces", ()) or [])
+    if target_face_count <= 0 or not faces or target_face_count >= len(faces):
+        variant = copy.copy(submesh)
+        variant.vertices = list(getattr(submesh, "vertices", ()) or [])
+        variant.uvs = list(getattr(submesh, "uvs", ()) or [])
+        variant.normals = list(getattr(submesh, "normals", ()) or [])
+        variant.faces = list(faces)
+        variant.source_vertex_map = list(range(len(variant.vertices)))
+        variant.vertex_count = len(variant.vertices)
+        variant.face_count = len(variant.faces)
+        return variant
+
+    step = max(1, math.ceil(len(faces) / float(max(1, target_face_count))))
+    sampled_faces = faces[::step][:target_face_count]
+    source_to_lod: dict[int, int] = {}
+    lod_vertices: list[tuple[float, float, float]] = []
+    lod_faces: list[tuple[int, int, int]] = []
+    source_order: list[int] = []
+    for face in sampled_faces:
+        remapped: list[int] = []
+        for raw_index in face[:3]:
+            source_index = int(raw_index)
+            if source_index < 0 or source_index >= len(submesh.vertices):
+                remapped = []
+                break
+            lod_index = source_to_lod.get(source_index)
+            if lod_index is None:
+                lod_index = len(lod_vertices)
+                source_to_lod[source_index] = lod_index
+                source_order.append(source_index)
+                lod_vertices.append(submesh.vertices[source_index])
+            remapped.append(lod_index)
+        if len(remapped) == 3 and len(set(remapped)) == 3:
+            lod_faces.append((remapped[0], remapped[1], remapped[2]))
+    if not lod_vertices or not lod_faces:
+        return _pac_lod_submesh_variant(submesh, len(faces))
+
+    variant = copy.copy(submesh)
+    variant.vertices = lod_vertices
+    variant.faces = lod_faces
+    variant.uvs = (
+        [submesh.uvs[source_index] for source_index in source_order]
+        if len(getattr(submesh, "uvs", ()) or ()) == len(submesh.vertices)
+        else []
+    )
+    variant.normals = (
+        [submesh.normals[source_index] for source_index in source_order]
+        if len(getattr(submesh, "normals", ()) or ()) == len(submesh.vertices)
+        else []
+    )
+    if not variant.normals or len(variant.normals) != len(variant.vertices):
+        variant.normals = _compute_smooth_normals(variant.vertices, variant.faces)
+    variant.source_vertex_map = source_order
+    variant.vertex_count = len(variant.vertices)
+    variant.face_count = len(variant.faces)
+    return variant
+
+
+def _pac_lod_variants_for_submesh(new_sm: SubMesh, desc: object, stored_lod_count: int) -> list[SubMesh]:
+    faces = list(getattr(new_sm, "faces", ()) or [])
+    if not faces:
+        return []
+    base_index_count = max(1, int((getattr(desc, "index_counts", ()) or [len(faces) * 3])[0] or len(faces) * 3))
+    variants: list[SubMesh] = []
+    for lod_idx in range(stored_lod_count):
+        if lod_idx == 0:
+            target_faces = len(faces)
+        else:
+            try:
+                original_index_count = int(desc.index_counts[lod_idx] or 0)
+            except Exception:
+                original_index_count = 0
+            ratio = max(0.0, min(1.0, float(original_index_count) / float(base_index_count))) if original_index_count else 1.0
+            target_faces = max(1, min(len(faces), int(round(len(faces) * ratio))))
+        variants.append(_pac_lod_submesh_variant(new_sm, target_faces))
+    return variants
 
 
 def _build_pac_full_rebuild(
@@ -3378,6 +3513,10 @@ def _build_pac_full_rebuild(
     original_data: bytes,
     *,
     clone_descriptor_sources: Sequence[int] = (),
+    clone_descriptor_names: Sequence[str] = (),
+    output_descriptor_sources: Sequence[int] = (),
+    output_descriptor_names: Sequence[str] = (),
+    preserve_runtime_abi: bool = False,
 ) -> bytes:
     """Rebuild PAC geometry sections from scratch for topology-changing imports."""
     sections = _parse_par_sections(original_data)
@@ -3394,19 +3533,38 @@ def _build_pac_full_rebuild(
     sec0_data = bytearray(original_data[sec0["offset"]:sec0["offset"] + sec0["size"]])
     if len(descriptors) < len(original_mesh.submeshes):
         raise ValueError("PAC descriptor count does not match the parsed original submesh set.")
-    clone_descriptor_sources = tuple(int(index) for index in tuple(clone_descriptor_sources or ()))
-    expected_submesh_count = len(original_mesh.submeshes) + len(clone_descriptor_sources)
-    if len(working_mesh.submeshes) != expected_submesh_count:
-        raise ValueError(
-            "PAC dense replacement output plan does not match the working mesh: "
-            f"{len(working_mesh.submeshes)} submesh(es), expected {expected_submesh_count}."
+    if preserve_runtime_abi and (clone_descriptor_sources or clone_descriptor_names or output_descriptor_sources or output_descriptor_names):
+        raise ValueError("PAC runtime ABI preservation cannot clone or rename draw descriptors.")
+    output_descriptor_sources = tuple(int(index) for index in tuple(output_descriptor_sources or ()))
+    if output_descriptor_sources:
+        if len(output_descriptor_sources) != len(working_mesh.submeshes):
+            raise ValueError(
+                "PAC source-owned output descriptor plan does not match the working mesh: "
+                f"{len(output_descriptor_sources)} descriptor source(s), {len(working_mesh.submeshes)} submesh(es)."
+            )
+        descriptors = _build_pac_output_descriptors(
+            sec0_data,
+            sec0_offset=sec0["offset"],
+            descriptors=descriptors[:len(original_mesh.submeshes)],
+            descriptor_source_indices=output_descriptor_sources,
+            descriptor_names=output_descriptor_names,
         )
-    descriptors = _append_pac_cloned_descriptors(
-        sec0_data,
-        sec0_offset=sec0["offset"],
-        descriptors=descriptors[:len(original_mesh.submeshes)],
-        clone_descriptor_sources=clone_descriptor_sources,
-    )
+        clone_descriptor_sources = ()
+    else:
+        clone_descriptor_sources = tuple(int(index) for index in tuple(clone_descriptor_sources or ()))
+        expected_submesh_count = len(original_mesh.submeshes) + len(clone_descriptor_sources)
+        if len(working_mesh.submeshes) != expected_submesh_count:
+            raise ValueError(
+                "PAC dense replacement output plan does not match the working mesh: "
+                f"{len(working_mesh.submeshes)} submesh(es), expected {expected_submesh_count}."
+            )
+        descriptors = _append_pac_cloned_descriptors(
+            sec0_data,
+            sec0_offset=sec0["offset"],
+            descriptors=descriptors[:len(original_mesh.submeshes)],
+            clone_descriptor_sources=clone_descriptor_sources,
+            clone_descriptor_names=clone_descriptor_names,
+        )
     if len(descriptors) < len(working_mesh.submeshes):
         raise ValueError("PAC descriptor count does not match the planned submesh set.")
     preserved_sections = {
@@ -3417,7 +3575,9 @@ def _build_pac_full_rebuild(
 
     prepared_submeshes = []
     for sm_idx, (new_sm, desc) in enumerate(zip(working_mesh.submeshes, descriptors)):
-        if sm_idx < len(original_mesh.submeshes):
+        if output_descriptor_sources:
+            source_target_index = output_descriptor_sources[sm_idx]
+        elif sm_idx < len(original_mesh.submeshes):
             source_target_index = sm_idx
         else:
             source_target_index = clone_descriptor_sources[sm_idx - len(original_mesh.submeshes)]
@@ -3467,6 +3627,9 @@ def _build_pac_full_rebuild(
         bmin, bmax = _compute_bbox(new_sm.vertices)
         extent = tuple(bmax[i] - bmin[i] for i in range(3))
         stored_lod_count = max(1, min(n_lods, orig_sm.source_lod_count or desc.stored_lod_count or n_lods))
+        lod_variants = _pac_lod_variants_for_submesh(new_sm, desc, stored_lod_count)
+        if not lod_variants:
+            lod_variants = [new_sm]
 
         rel_desc_off = desc.descriptor_offset - sec0["offset"]
         if rel_desc_off < 0 or rel_desc_off + 40 > len(sec0_data):
@@ -3475,22 +3638,20 @@ def _build_pac_full_rebuild(
         _patch_pac_descriptor_bounds(sec0_data, rel_desc_off, bmin, extent)
         vc_off = rel_desc_off + 40
         ic_off = vc_off + desc.stored_lod_count * 2
-        new_vert_count = len(new_sm.vertices)
-        new_index_count = len(new_sm.faces) * 3
         for lod_idx in range(desc.stored_lod_count):
-            struct.pack_into("<H", sec0_data, vc_off + lod_idx * 2, new_vert_count)
-            struct.pack_into("<I", sec0_data, ic_off + lod_idx * 4, new_index_count)
+            variant = lod_variants[min(lod_idx, len(lod_variants) - 1)] if lod_variants else new_sm
+            struct.pack_into("<H", sec0_data, vc_off + lod_idx * 2, len(variant.vertices))
+            struct.pack_into("<I", sec0_data, ic_off + lod_idx * 4, len(variant.faces) * 3)
 
         prepared_submeshes.append({
             "submesh": new_sm,
             "donor_records": donor_records,
             "donor_indices": donor_indices,
-            "normals": normals,
-            "uvs": new_uvs,
             "bbox_min": bmin,
             "bbox_extent": extent,
             "stored_lod_count": stored_lod_count,
             "clean_shading_records": clean_shading_records,
+            "lod_variants": lod_variants,
         })
 
     lod_payloads: dict[int, bytes] = {}
@@ -3504,17 +3665,29 @@ def _build_pac_full_rebuild(
             if lod_idx >= prepared["stored_lod_count"]:
                 continue
 
-            sm = prepared["submesh"]
+            lod_variants = prepared["lod_variants"]
+            sm = lod_variants[min(lod_idx, len(lod_variants) - 1)] if lod_variants else prepared["submesh"]
             donor_records = prepared["donor_records"]
             donor_indices = prepared["donor_indices"]
-            normals = prepared["normals"]
-            new_uvs = prepared["uvs"]
+            normals = (
+                sm.normals
+                if len(getattr(sm, "normals", ()) or ()) == len(sm.vertices)
+                else _compute_smooth_normals(sm.vertices, sm.faces)
+            )
+            new_uvs = sm.uvs if len(getattr(sm, "uvs", ()) or ()) == len(sm.vertices) else []
+            source_vertex_map = (
+                list(getattr(sm, "source_vertex_map", ()) or [])
+                if len(getattr(sm, "source_vertex_map", ()) or []) == len(sm.vertices)
+                else list(range(len(sm.vertices)))
+            )
             bbox_min = prepared["bbox_min"]
             bbox_extent = prepared["bbox_extent"]
             clean_shading_records = prepared["clean_shading_records"]
 
             for vi, vertex in enumerate(sm.vertices):
-                donor_rec = bytearray(donor_records[donor_indices[vi]])
+                base_vi = source_vertex_map[vi] if vi < len(source_vertex_map) else vi
+                base_vi = max(0, min(base_vi, len(donor_indices) - 1))
+                donor_rec = bytearray(donor_records[donor_indices[base_vi]])
                 if clean_shading_records:
                     if len(donor_rec) >= 8:
                         struct.pack_into("<H", donor_rec, 6, 0)

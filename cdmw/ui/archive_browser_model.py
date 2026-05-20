@@ -153,6 +153,42 @@ class ArchiveBrowserModel(QAbstractItemModel):
         if category_sort_key is not None:
             self._category_sort_key = category_sort_key
 
+    def invalidate_rows(self, columns: Sequence[int] = ()) -> None:
+        self._row_cache.clear()
+        normalized_columns = tuple(
+            column
+            for column in sorted({int(column) for column in columns})
+            if 0 <= column < self.columnCount()
+        )
+        first_column = normalized_columns[0] if normalized_columns else 0
+        last_column = normalized_columns[-1] if normalized_columns else self.columnCount() - 1
+        roles = [Qt.DisplayRole, Qt.ToolTipRole]
+
+        if self._mode == "flat":
+            row_count = len(self._entries)
+            if row_count > 0:
+                self.dataChanged.emit(
+                    self.index(0, first_column),
+                    self.index(row_count - 1, last_column),
+                    roles,
+                )
+            return
+
+        def emit_children(parent_node: ArchiveBrowserNode, parent_index: QModelIndex) -> None:
+            child_count = parent_node.childCount()
+            if child_count <= 0:
+                return
+            self.dataChanged.emit(
+                self.index(0, first_column, parent_index),
+                self.index(child_count - 1, last_column, parent_index),
+                roles,
+            )
+            for row, child in enumerate(parent_node.children):
+                if child.childCount() > 0:
+                    emit_children(child, self.index(row, 0, parent_index))
+
+        emit_children(self._root, QModelIndex())
+
     def _build_top_level_nodes(self) -> List[ArchiveBrowserNode]:
         if self._mode == "categories":
             nodes: List[ArchiveBrowserNode] = []
@@ -451,6 +487,9 @@ class ArchiveBrowserTreeView(QTreeView):
 
     def set_archive_state(self, *args, **kwargs) -> None:
         self._archive_model.set_archive_state(*args, **kwargs)
+
+    def invalidate_archive_rows(self, columns: Sequence[int] = ()) -> None:
+        self._archive_model.invalidate_rows(columns)
 
     def set_empty_state(self, title: str, detail: str = "") -> None:
         self.empty_title = title

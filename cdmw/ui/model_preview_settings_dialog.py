@@ -127,7 +127,6 @@ class ModelPreviewSettingsDialog(QDialog):
     cloth_preview_reset_requested = Signal()
 
     ARCHIVE_RENDERER_D3D11 = "d3d11_native"
-    ARCHIVE_RENDERER_LEGACY_OPENGL = "legacy_opengl"
 
     def __init__(
         self,
@@ -186,16 +185,28 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.setVerticalSpacing(10)
         self.archive_renderer_backend_combo = QComboBox()
         self.archive_renderer_backend_combo.addItem("Native D3D11 (Default)", self.ARCHIVE_RENDERER_D3D11)
-        self.archive_renderer_backend_combo.addItem("Legacy OpenGL", self.ARCHIVE_RENDERER_LEGACY_OPENGL)
         self.archive_renderer_backend_combo.setToolTip(
-            "Native D3D11 is the default Archive Browser preview path. Legacy OpenGL keeps the older in-process renderer and its diagnostic-only controls."
+            "Native D3D11 is the only Archive Browser preview path."
         )
+        self.archive_renderer_backend_combo.setVisible(False)
         self.use_textures_checkbox = QCheckBox("Use textures when available")
         self.high_quality_checkbox = QCheckBox("Use support-map preview shading")
-        self.disable_all_support_maps_checkbox = QCheckBox("Disable all support maps")
-        self.disable_normal_map_checkbox = QCheckBox("Disable normal map")
-        self.disable_material_map_checkbox = QCheckBox("Disable material map")
-        self.disable_height_map_checkbox = QCheckBox("Disable height map")
+        self.disable_all_support_maps_checkbox = QCheckBox("Ignore support maps")
+        self.disable_all_support_maps_checkbox.setToolTip(
+            "When checked, preview uses base textures only and skips normal, material, and height maps."
+        )
+        self.disable_normal_map_checkbox = QCheckBox("Ignore normal map")
+        self.disable_normal_map_checkbox.setToolTip(
+            "When checked, preview lighting ignores resolved normal-map texture input."
+        )
+        self.disable_material_map_checkbox = QCheckBox("Ignore material map")
+        self.disable_material_map_checkbox.setToolTip(
+            "When checked, preview lighting ignores resolved material-map texture input."
+        )
+        self.disable_height_map_checkbox = QCheckBox("Ignore height map")
+        self.disable_height_map_checkbox.setToolTip(
+            "When checked, preview lighting ignores resolved height-map texture input."
+        )
         self.flip_texture_v_checkbox = QCheckBox("Flip texture V")
         self.flip_texture_v_checkbox.setToolTip(
             "Toggle the preview texture V orientation. Use this when a model's resolved textures appear vertically flipped."
@@ -225,7 +236,6 @@ class ModelPreviewSettingsDialog(QDialog):
         self.d3d11_texture_address_mode_combo = QComboBox()
         for mode in D3D11_TEXTURE_ADDRESS_MODES:
             self.d3d11_texture_address_mode_combo.addItem(D3D11_TEXTURE_ADDRESS_MODE_LABELS.get(mode, mode), mode)
-        general_form.addRow("Renderer backend", self.archive_renderer_backend_combo)
         general_form.addRow("", self.use_textures_checkbox)
         general_form.addRow("", self.high_quality_checkbox)
         general_form.addRow("", self.disable_all_support_maps_checkbox)
@@ -280,7 +290,7 @@ class ModelPreviewSettingsDialog(QDialog):
         general_hint.setWordWrap(True)
         general_layout.addWidget(general_hint)
         self.d3d11_hint_label = QLabel(
-            "Native D3D11 supports texture on/off, culling, D3D11 view modes, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and native DDS diagnostics. Flip texture V is available for all preview backends. Legacy-only probe modes, alpha modes, and shader debug strips are hidden while D3D11 is selected."
+            "Native D3D11 supports texture on/off, culling, D3D11 view modes, Flip texture V, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and native DDS diagnostics."
         )
         self.d3d11_hint_label.setObjectName("HintLabel")
         self.d3d11_hint_label.setWordWrap(True)
@@ -408,7 +418,7 @@ class ModelPreviewSettingsDialog(QDialog):
         )
         quality_layout.addLayout(quality_form)
         quality_hint = QLabel(
-            "Native D3D11 applies these to its shader and sampler directly. Legacy OpenGL uses the same values for its preview shader. Texture resolution for D3D11 normally comes from direct DDS upload; generated fallback maps still use the existing preview cache pipeline."
+            "Native D3D11 applies these to its shader and sampler directly. Texture resolution normally comes from direct DDS upload; generated fallback maps still use the existing preview cache pipeline."
         )
         quality_hint.setObjectName("HintLabel")
         quality_hint.setWordWrap(True)
@@ -713,8 +723,6 @@ class ModelPreviewSettingsDialog(QDialog):
         key = str(backend or "").strip().lower()
         if key in {"d3d11", "direct3d11", "native_d3d11", cls.ARCHIVE_RENDERER_D3D11}:
             return cls.ARCHIVE_RENDERER_D3D11
-        if key in {"legacy", "opengl", cls.ARCHIVE_RENDERER_LEGACY_OPENGL}:
-            return cls.ARCHIVE_RENDERER_LEGACY_OPENGL
         return cls.ARCHIVE_RENDERER_D3D11
 
     def current_archive_renderer_backend(self) -> str:
@@ -745,7 +753,7 @@ class ModelPreviewSettingsDialog(QDialog):
 
     def _sync_renderer_specific_controls(self) -> None:
         d3d11 = self.current_archive_renderer_backend() == self.ARCHIVE_RENDERER_D3D11
-        legacy = not d3d11
+        legacy = False
         diagnostics_index = self.tabs.indexOf(self._diagnostics_tab)
         if diagnostics_index >= 0:
             self.tabs.setTabVisible(diagnostics_index, legacy)
@@ -788,8 +796,6 @@ class ModelPreviewSettingsDialog(QDialog):
         self.d3d11_hint_label.setVisible(d3d11)
         self.high_quality_checkbox.setToolTip(
             "D3D11 packages and shades resolved normal/material/height support maps only when this is enabled."
-            if d3d11
-            else "Legacy OpenGL samples resolved normal, material, and height maps for approximate support-map shading."
         )
         self._sync_probe_controls_enabled()
 
@@ -988,7 +994,7 @@ class ModelPreviewSettingsDialog(QDialog):
         relief_tooltip = (
             "Controls support-map lighting, normal, and height response for the selected renderer."
             if relief_controls_enabled
-            else "Enable textures and support-map preview shading. Legacy OpenGL also requires Enhanced Relief Preview or a relief diagnostic mode."
+            else "Enable textures and support-map preview shading."
         )
         support_controls_enabled = bool(
             self.use_textures_checkbox.isChecked()

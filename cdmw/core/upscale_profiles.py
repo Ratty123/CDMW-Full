@@ -62,7 +62,7 @@ _GROUP_SUFFIX_PATTERNS: Tuple[re.Pattern[str], ...] = (
     re.compile(r"_(?:cd|dif|diff|di|color|colour|col|c|albedo|alb|base|basecolor|base_color|bc|bcol|detaildiffuse|detailcolor|grimediffuse)$", re.IGNORECASE),
     re.compile(r"_d$", re.IGNORECASE),
     re.compile(
-        r"_(?:wn|n|no|nor|nm|nrm|norm|normal|normalmap|normal_opengl|normal_directx|normal_dx|normal_gl|detailnormal|grimenormal)$",
+        r"_(?:wn|n|no|nor|nm|nrm|norm|normal|normalmap|normal_greenup|normal_green_up|normal_directx|normal_dx|detailnormal|grimenormal)$",
         re.IGNORECASE,
     ),
     re.compile(r"_(?:xvector|yvector|zvector|vector|pivotpos|pivot|position|pos|flow|velocity|dr|op)$", re.IGNORECASE),

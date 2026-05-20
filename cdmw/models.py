@@ -1390,6 +1390,8 @@ MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES: Tuple[str, ...] = (
     "material_response",
     "metal_shine",
     "roughness_response",
+    "source_pbr_preview",
+    "cd_runtime_approx",
 )
 
 MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS: Dict[str, str] = {
@@ -1422,6 +1424,8 @@ MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS: Dict[str, str] = {
     "material_response": "Material Mask Response",
     "metal_shine": "Metal / Shine Response",
     "roughness_response": "Roughness Response",
+    "source_pbr_preview": "Source PBR Preview",
+    "cd_runtime_approx": "CD Runtime Approx Preview",
 }
 
 MODEL_PREVIEW_ALPHA_HANDLING_MODES: Tuple[str, ...] = (

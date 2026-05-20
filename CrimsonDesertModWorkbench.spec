@@ -46,7 +46,7 @@ binaries = []
 hiddenimports = []
 hiddenimports += [
     "cdmw.rendering.native_d3d11_host",
-    "cdmw.rendering.qtquick3d_preview_package",
+    "cdmw.rendering.native_preview_package",
     "PySide6.QtWebEngineCore",
     "PySide6.QtWebEngineWidgets",
 ]

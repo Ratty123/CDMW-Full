@@ -1,10 +1,13 @@
+import copy
 import struct
 import unittest
 
-from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, parse_pac
+from cdmw.modding.mesh_deformer import delete_faces_touching_vertices
+from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, _parse_par_sections, parse_pac
 from cdmw.modding.static_mesh_replacer import (
     StaticIndependentPart,
     StaticMeshReplacementOptions,
+    StaticOutputDrawSection,
     StaticReplacementTransform,
     StaticSourcePartAdjustment,
     StaticSubmeshMapping,
@@ -137,6 +140,48 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         )
 
         self.assertEqual(preview.submeshes[0].vertices[1], (2.0, 0.0, 0.0))
+
+    def test_static_replacement_export_uses_face_deleted_edited_source_mesh(self) -> None:
+        original_data, original = _minimal_pac_original()
+        replacement = _mesh(
+            "cut_source.obj",
+            [
+                SubMesh(
+                    name="replacement",
+                    material="replacement",
+                    vertices=[
+                        (-1.0, 0.0, 0.0),
+                        (1.0, 0.0, 0.0),
+                        (-1.0, 1.0, 0.0),
+                        (1.0, 1.0, 0.0),
+                    ],
+                    uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)],
+                    faces=[(0, 1, 2), (1, 3, 2)],
+                )
+            ],
+        )
+        edited = copy.deepcopy(replacement)
+        result = delete_faces_touching_vertices(edited, {0: [0]})
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+            submesh_mappings=[mapping],
+            edited_source_mesh=edited,
+        )
+
+        rebuilt, report = build_static_mesh_replacement(original_data, original, replacement, options)
+        parsed = parse_pac(rebuilt, "rebuilt.pac")
+
+        self.assertEqual(1, result.removed_face_count)
+        self.assertFalse(report.errors)
+        self.assertEqual(1, report.replacement_face_count)
+        self.assertEqual(1, len(parsed.submeshes[0].faces))
+        self.assertEqual(3, len(parsed.submeshes[0].vertices))
 
     def test_auto_flat_original_rolls_replacement_to_original_plane(self) -> None:
         original = _mesh(
@@ -368,6 +413,277 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         self.assertEqual(2, len(parsed.submeshes))
         self.assertTrue(all(len(submesh.vertices) <= 65_535 for submesh in parsed.submeshes))
         self.assertEqual(88_000, sum(len(submesh.vertices) for submesh in parsed.submeshes))
+
+    def test_complete_source_owned_blocks_more_source_materials_than_runtime_slots(self) -> None:
+        original_data, original = _minimal_pac_original()
+        replacement = _mesh(
+            "wolf_sword.gltf",
+            [
+                SubMesh(
+                    name="Broken_sword_Gem_inside_0",
+                    material="Gem_inside",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                ),
+                SubMesh(
+                    name="Broken_sword_Gem_outside_0",
+                    material="Gem_outside",
+                    vertices=[(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                ),
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="CD_PHM_02_Handle_0015",
+            source_submesh_indices=[0, 1],
+            target_material_slot_index=0,
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+            submesh_mappings=[mapping],
+            complete_external_swap=True,
+            complete_swap_atlas_mode="block",
+        )
+
+        with self.assertRaisesRegex(ValueError, "PAC runtime ABI has only 1 safe draw slot"):
+            build_static_mesh_replacement(original_data, original, replacement, options)
+
+    def test_complete_source_owned_auto_atlas_merges_overflow_material_groups(self) -> None:
+        original_data, original = _minimal_pac_original()
+        replacement = _mesh(
+            "wolf_sword.gltf",
+            [
+                SubMesh(
+                    name="Broken_sword_Gem_inside_0",
+                    material="Gem_inside",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                ),
+                SubMesh(
+                    name="Broken_sword_Gem_outside_0",
+                    material="Gem_outside",
+                    vertices=[(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+                    uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                ),
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="CD_PHM_02_Handle_0015",
+            source_submesh_indices=[0, 1],
+            target_material_slot_index=0,
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+            submesh_mappings=[mapping],
+            complete_external_swap=True,
+        )
+
+        rebuilt, report = build_static_mesh_replacement(original_data, original, replacement, options)
+        parsed = parse_pac(rebuilt, "rebuilt.pac")
+
+        self.assertFalse(report.errors)
+        self.assertEqual(1, len(report.output_draw_sections))
+        section = report.output_draw_sections[0]
+        self.assertEqual(("Gem_inside", "Gem_outside"), section.atlas_source_material_names)
+        self.assertEqual(2, len(section.atlas_rects))
+        self.assertEqual(1, len(parsed.submeshes))
+        self.assertEqual(6, len(parsed.submeshes[0].uvs))
+        first_group_u = [uv[0] for uv in parsed.submeshes[0].uvs[:3]]
+        second_group_u = [uv[0] for uv in parsed.submeshes[0].uvs[3:]]
+        self.assertLessEqual(max(first_group_u), 0.5)
+        self.assertGreaterEqual(min(second_group_u), 0.5)
+
+    def test_complete_source_owned_auto_atlas_handles_two_slot_three_material_sword_shape(self) -> None:
+        original = _mesh(
+            "cd_phm_02_sword_0042.pac",
+            [
+                SubMesh(name="slot0", material="CD_PHM_02_Sword_0042", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+                SubMesh(name="slot1", material="cd_phm_02_sword_handle_0042", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+            ],
+        )
+        replacement = _mesh(
+            "wolf_sword.gltf",
+            [
+                SubMesh(name="blade", material="lambert1", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+                SubMesh(name="gem_outside", material="Gem_outside", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+                SubMesh(name="gem_inside", material="Gem_inside", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+            ],
+        )
+
+        sections, warnings, errors = plan_static_output_draw_sections(
+            original,
+            replacement,
+            [
+                StaticSubmeshMapping(0, "CD_PHM_02_Sword_0042", [1], 0),
+                StaticSubmeshMapping(1, "cd_phm_02_sword_handle_0042", [0, 2], 1),
+            ],
+            StaticMeshReplacementOptions(complete_external_swap=True),
+        )
+
+        self.assertFalse(errors)
+        self.assertEqual(2, len(sections))
+        self.assertEqual([1], sections[0].source_submesh_indices)
+        self.assertEqual([0, 2], sections[1].source_submesh_indices)
+        self.assertEqual(("lambert1", "Gem_inside"), sections[1].atlas_source_material_names)
+        self.assertTrue(any("atlas/bake lambert1, Gem_inside" in warning for warning in warnings))
+
+    def test_complete_source_owned_preserves_pac_section0_and_descriptor_names(self) -> None:
+        original_data, original = _minimal_pac_original()
+        replacement = _mesh(
+            "wolf_sword.gltf",
+            [
+                SubMesh(
+                    name="Broken_sword_Gem_inside_0",
+                    material="Gem_inside",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                ),
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="runtime_target",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+
+        rebuilt, report = build_static_mesh_replacement(
+            original_data,
+            original,
+            replacement,
+            StaticMeshReplacementOptions(
+                transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+                submesh_mappings=[mapping],
+                complete_external_swap=True,
+                source_owned_target_names=["runtime_target"],
+            ),
+        )
+        original_sec0 = next(section for section in _parse_par_sections(original_data) if section["index"] == 0)
+        rebuilt_sec0 = next(section for section in _parse_par_sections(rebuilt) if section["index"] == 0)
+        parsed = parse_pac(rebuilt, "rebuilt.pac")
+
+        self.assertEqual(original_sec0["size"], rebuilt_sec0["size"])
+        self.assertEqual("target", parsed.submeshes[0].name)
+        self.assertEqual("target", parsed.submeshes[0].material)
+        self.assertEqual("runtime_target", report.output_draw_sections[0].target_submesh_name)
+        self.assertTrue(report.output_draw_sections[0].section0_preserved)
+
+    def test_complete_source_owned_preserves_original_runtime_slot_placeholders(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(name="original_handle", material="CD_Handle", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+                SubMesh(name="original_guard", material="CD_Guard", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+                SubMesh(name="original_blade", material="CD_Blade", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+                SubMesh(name="original_acc", material="CD_Acc", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+            ],
+        )
+        replacement = _mesh(
+            "wolf_sword.gltf",
+            [
+                SubMesh(name="gem_inside", material="Gem_inside", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+                SubMesh(name="gem_outside", material="Gem_outside", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+                SubMesh(name="blade", material="lambert1", vertices=[(0.0, 0.0, 0.0)], faces=[]),
+            ],
+        )
+        sections, warnings, errors = plan_static_output_draw_sections(
+            original,
+            replacement,
+            [
+                StaticSubmeshMapping(0, "CD_Handle", [0, 1], 0),
+                StaticSubmeshMapping(2, "CD_Blade", [2], 2),
+            ],
+            StaticMeshReplacementOptions(
+                complete_external_swap=True,
+                source_owned_target_names=["runtime_handle_a", "runtime_handle_b", "runtime_blade", "runtime_acc"],
+            ),
+        )
+
+        self.assertFalse(errors)
+        self.assertTrue(any("runtime slot placeholder" in warning for warning in warnings))
+        self.assertEqual(
+            ["runtime_handle_a", "runtime_handle_b", "runtime_blade", "runtime_acc"],
+            [section.target_submesh_name for section in sections],
+        )
+        self.assertEqual([False, False, False, False], [section.is_cloned_section for section in sections])
+        self.assertEqual([0, 1, 2, 3], [section.target_submesh_index for section in sections])
+        self.assertEqual(["original_handle", "original_guard", "original_blade", "original_acc"], [section.runtime_slot_name for section in sections])
+
+    def test_complete_source_owned_empty_runtime_placeholder_emits_degenerate_draw(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(
+                    name="original_handle",
+                    material="CD_Handle",
+                    vertices=[(3.0, 4.0, 5.0), (4.0, 4.0, 5.0), (3.0, 5.0, 5.0)],
+                    faces=[(0, 1, 2)],
+                    bone_weights=[(), (), ()],
+                )
+            ],
+        )
+        replacement = _mesh("wolf_sword.gltf", [])
+        mapped = _build_mapped_replacement_mesh(
+            original,
+            replacement,
+            [],
+            StaticMeshReplacementOptions(complete_external_swap=True),
+            output_draw_sections=[
+                StaticOutputDrawSection(0, 0, "runtime_handle", [], 0, 0, "CD_Handle", 0, False)
+            ],
+        )
+
+        self.assertEqual(1, len(mapped.submeshes))
+        placeholder = mapped.submeshes[0]
+        self.assertEqual("original_handle", placeholder.name)
+        self.assertEqual("CD_Handle", placeholder.material)
+        self.assertEqual(3, len(placeholder.vertices))
+        self.assertEqual([(0, 1, 2)], placeholder.faces)
+        self.assertEqual([0, 0, 0], placeholder.source_vertex_map)
+        self.assertGreater(placeholder.vertices[1][0], placeholder.vertices[0][0])
+
+    def test_complete_source_owned_uses_runtime_sidecar_slot_names_when_available(self) -> None:
+        original_data, original = _minimal_pac_original()
+        replacement = _mesh(
+            "wolf_sword.gltf",
+            [
+                SubMesh(
+                    name="Broken_sword_Gem_inside_0",
+                    material="Gem_inside",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                ),
+                SubMesh(
+                    name="Broken_sword_Gem_outside_0",
+                    material="Gem_outside",
+                    vertices=[(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                ),
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="CD_PHM_02_Handle_0015",
+            source_submesh_indices=[0, 1],
+            target_material_slot_index=0,
+        )
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+            submesh_mappings=[mapping],
+            complete_external_swap=True,
+            complete_swap_atlas_mode="block",
+            source_owned_target_names=[
+                "cd_phm_02_sword_handle_0015_03",
+                "cd_phm_02_sword_handle_0015",
+            ],
+        )
+
+        with self.assertRaisesRegex(ValueError, "PAC runtime ABI has only 1 safe draw slot"):
+            build_static_mesh_replacement(original_data, original, replacement, options)
 
     def test_preview_decimation_keeps_transform_responsive(self) -> None:
         original = _mesh(

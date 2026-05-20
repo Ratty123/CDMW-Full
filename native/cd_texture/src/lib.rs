@@ -64,14 +64,14 @@ impl SrgbMode {
 pub enum NormalSpace {
     Auto,
     DirectX,
-    OpenGL,
+    GreenUp,
 }
 
 impl NormalSpace {
     pub fn parse(value: &str) -> Self {
         match value.trim().to_ascii_lowercase().as_str() {
             "directx" | "dx" => Self::DirectX,
-            "opengl" | "gl" => Self::OpenGL,
+            "green_up" => Self::GreenUp,
             _ => Self::Auto,
         }
     }
@@ -80,7 +80,7 @@ impl NormalSpace {
         match self {
             Self::Auto => "auto",
             Self::DirectX => "directx",
-            Self::OpenGL => "opengl",
+            Self::GreenUp => "green_up",
         }
     }
 }
@@ -272,13 +272,13 @@ fn prepare_image(
     if slot == TextureSlot::Normal {
         let likely_space = infer_normal_space(&prepared);
         report.likely_normal_space = likely_space.to_string();
-        if normal_space == NormalSpace::OpenGL
+        if normal_space == NormalSpace::GreenUp
             || (normal_space == NormalSpace::Auto && likely_space == "directx")
         {
             for pixel in prepared.pixels_mut() {
                 pixel[1] = 255u8.saturating_sub(pixel[1]);
             }
-            report.likely_normal_space = "opengl".to_string();
+            report.likely_normal_space = "green_up".to_string();
         }
     }
     let stats = channel_stats(&prepared);
@@ -377,7 +377,7 @@ fn infer_normal_space(image: &RgbaImage) -> &'static str {
     if green_sum / count > 0.54 {
         "directx"
     } else {
-        "opengl"
+        "green_up"
     }
 }
 

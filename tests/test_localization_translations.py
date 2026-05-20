@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 from cdmw.ui.localization import UiLocalizer
 
@@ -76,14 +76,14 @@ def test_archive_browser_documentation_covers_current_functionality_in_supported
     main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
 
     assert "active mod/original/shadowed duplicate status" in main_window_source
-    assert "software geometry preview so browsing candidates" in main_window_source
+    assert "static geometry thumbnail so browsing candidates" in main_window_source
     assert "Bulk Placement Swap" in main_window_source
     assert "Item Finder" in main_window_source
 
     assert "mod activo" in main_window_source
-    assert "vista previa de geometria por software" in main_window_source
+    assert "miniatura estatica de geometria" in main_window_source
     assert "Intercambio masivo de colocacion" in main_window_source
 
     assert "Aktiver Mod" in main_window_source
-    assert "Software-Geometrievorschau" in main_window_source
+    assert "statische Geometrie-Miniatur" in main_window_source
     assert "HKX-Platzierung" in main_window_source

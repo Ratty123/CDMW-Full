@@ -1691,7 +1691,7 @@ def _parse_pac_geometry_section(
         sm = SubMesh(
             name=desc.name,
             material=desc.material,
-            texture=desc.material or desc.name,
+            texture=desc.name or desc.material,
             vertices=verts,
             uvs=uvs if len(uvs) == len(verts) else [],
             normals=normals if len(normals) == len(verts) else _compute_smooth_normals(verts, faces),

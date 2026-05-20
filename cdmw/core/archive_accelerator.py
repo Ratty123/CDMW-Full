@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.archive import (
     archive_browser_sort_is_active,
@@ -340,7 +340,7 @@ def _native_browser_state_supported(
 ) -> bool:
     if not entries:
         return False
-    if archive_name_search_index is not None:
+    if archive_name_search_index is not None and str(filter_text or "").strip():
         return False
     if item_search_aliases and str(filter_text or "").strip():
         return False
@@ -548,10 +548,10 @@ def build_archive_basic_indexes_accelerated(
 def _try_prepare_archive_browser_state_native(
     entries: Sequence[ArchiveEntry],
     **kwargs: Any,
-) -> Optional[dict]:
+) -> Tuple[Optional[dict], str]:
     binary = find_native_archive_accelerator()
     if not _native_archive_accelerator_ready(binary):
-        return None
+        return None, "native archive accelerator binary unavailable or not ready"
     assert binary is not None
     if not _native_browser_state_supported(
         entries,
@@ -562,7 +562,7 @@ def _try_prepare_archive_browser_state_native(
         sort_column=kwargs.get("sort_column", -1),
         role_filter=str(kwargs.get("role_filter", "all") or "all"),
     ):
-        return None
+        return None, "request not supported by native browser-state accelerator"
     stop_event = kwargs.get("stop_event")
     raise_if_cancelled(stop_event)
     with tempfile.TemporaryDirectory(prefix="cdmw_archive_accelerator_browser_") as temp_dir:
@@ -601,24 +601,30 @@ def _try_prepare_archive_browser_state_native(
                 check=False,
                 **hidden_subprocess_kwargs(),
             )
-        except (OSError, subprocess.SubprocessError, ValueError):
-            return None
+        except subprocess.TimeoutExpired:
+            return None, "native browser-state accelerator timed out after 60s"
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
+            return None, f"native browser-state accelerator launch failed: {exc}"
         raise_if_cancelled(stop_event)
         if completed.returncode != 0 or not report_path.is_file():
-            return None
+            stderr = completed.stderr.decode("utf-8", errors="replace").strip()[:500]
+            stdout = completed.stdout.decode("utf-8", errors="replace").strip()[:300]
+            detail = stderr or stdout or "no diagnostic output"
+            return None, f"native browser-state accelerator failed rc={completed.returncode}: {detail}"
         try:
             report = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
+        except (OSError, json.JSONDecodeError) as exc:
+            return None, f"native browser-state accelerator report invalid: {exc}"
     if not isinstance(report, Mapping) or report.get("status") != "ok":
-        return None
-    return _decode_native_browser_state(report, entries)
+        return None, f"native browser-state accelerator report status={getattr(report, 'get', lambda _key, _default=None: None)('status')}"
+    return _decode_native_browser_state(report, entries), ""
 
 
 def prepare_archive_browser_state_accelerated(*args: Any, native_enabled: bool = True, resource_profile: str = "balanced_60fps", **kwargs: Any) -> dict:
     native_path = find_native_archive_accelerator() if native_enabled else None
+    fallback_reason = "native acceleration disabled"
     if native_enabled and args:
-        native_state = _try_prepare_archive_browser_state_native(args[0], **kwargs)
+        native_state, fallback_reason = _try_prepare_archive_browser_state_native(args[0], **kwargs)
         if native_state is not None:
             native_state["archive_accelerator"]["native_path"] = str(native_path or "")
             native_state["archive_accelerator"]["resource_profile"] = str(resource_profile or "balanced_60fps")
@@ -630,5 +636,6 @@ def prepare_archive_browser_state_accelerated(*args: Any, native_enabled: bool =
         "native_path": str(native_path or ""),
         "native_used": False,
         "resource_profile": str(resource_profile or "balanced_60fps"),
+        "fallback_reason": str(fallback_reason or "native browser-state accelerator unavailable"),
     }
     return state

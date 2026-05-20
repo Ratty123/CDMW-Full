@@ -70,7 +70,7 @@ class NativeTextureBackendTests(unittest.TestCase):
                 max_dimension=1024,
                 slot_kind="normal",
                 srgb="auto",
-                normal_space="opengl",
+                normal_space="green_up",
                 binary=binary_path,
             )
             large_key = texture_native.native_texture_cache_key(
@@ -106,7 +106,7 @@ class NativeTextureBackendTests(unittest.TestCase):
                 max_dimension=512,
                 slot_kind="normal",
                 srgb="auto",
-                normal_space="opengl",
+                normal_space="green_up",
                 binary=binary_path,
             )
 
@@ -303,7 +303,7 @@ class NativeTextureBackendTests(unittest.TestCase):
                                 "dds_path": str(dds_path),
                                 "slot_kind": "normal",
                                 "max_dimension": 192,
-                                "normal_space": "opengl",
+                                "normal_space": "green_up",
                             },
                         ),
                         include_job_keys=True,
@@ -314,7 +314,7 @@ class NativeTextureBackendTests(unittest.TestCase):
                 dds_path,
                 max_dimension=192,
                 slot_kind="normal",
-                normal_space="opengl",
+                normal_space="green_up",
             )
             self.assertIn(str(dds_path.resolve()), results)
             self.assertIn(base_key, results)

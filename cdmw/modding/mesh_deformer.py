@@ -20,6 +20,14 @@ class MeshTopologySignature:
     faces: tuple[tuple[tuple[int, int, int], ...], ...]
 
 
+@dataclass(frozen=True)
+class MeshFaceDeleteResult:
+    affected_submesh_indices: tuple[int, ...] = ()
+    emptied_submesh_indices: tuple[int, ...] = ()
+    removed_face_count: int = 0
+    removed_vertex_count: int = 0
+
+
 def mesh_topology_signature(mesh: ParsedMesh) -> MeshTopologySignature:
     return MeshTopologySignature(
         submesh_count=len(mesh.submeshes),
@@ -48,6 +56,7 @@ def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
         "preview_material_texture_subtype",
         "preview_material_texture_packed_channels",
         "preview_material_texture_inputs",
+        "preview_material_parameters",
         "preview_height_texture_path",
         "preview_height_texture_name",
         "preview_sidecar_shader_family",
@@ -105,6 +114,248 @@ def recompute_submesh_normals(submesh: SubMesh) -> None:
 def recompute_mesh_normals(mesh: ParsedMesh) -> None:
     for submesh in mesh.submeshes:
         recompute_submesh_normals(submesh)
+
+
+def _remap_vertex_aligned_list(values: Sequence[object], index_map: Mapping[int, int], old_vertex_count: int) -> list[object]:
+    if len(values) != old_vertex_count:
+        return []
+    remapped: list[object] = [None] * len(index_map)
+    for old_index, new_index in index_map.items():
+        remapped[new_index] = values[old_index]
+    return remapped
+
+
+def _valid_vertex_index_set(vertex_indices: Iterable[int], vertex_count: int) -> set[int]:
+    selected: set[int] = set()
+    for raw_index in vertex_indices:
+        try:
+            index = int(raw_index)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= index < vertex_count:
+            selected.add(index)
+    return selected
+
+
+def _delete_faces_touching_submesh_vertices(
+    submesh: SubMesh,
+    vertex_indices: Iterable[int],
+    *,
+    remove_orphans: bool,
+    recompute_normals: bool,
+) -> tuple[int, int, bool]:
+    old_vertex_count = len(submesh.vertices)
+    selected = _valid_vertex_index_set(vertex_indices, old_vertex_count)
+    if not selected:
+        return 0, 0, False
+
+    kept_faces: list[tuple[int, int, int]] = []
+    removed_faces = 0
+    for face in submesh.faces:
+        if len(face) < 3:
+            continue
+        try:
+            a, b, c = (int(face[0]), int(face[1]), int(face[2]))
+        except (TypeError, ValueError):
+            continue
+        if a in selected or b in selected or c in selected:
+            removed_faces += 1
+            continue
+        if 0 <= a < old_vertex_count and 0 <= b < old_vertex_count and 0 <= c < old_vertex_count:
+            kept_faces.append((a, b, c))
+    if removed_faces <= 0:
+        return 0, 0, False
+
+    removed_vertices = 0
+    if remove_orphans:
+        used_vertex_indices = sorted({index for face in kept_faces for index in face})
+        index_map = {old_index: new_index for new_index, old_index in enumerate(used_vertex_indices)}
+        submesh.vertices = [submesh.vertices[old_index] for old_index in used_vertex_indices]
+        submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.normals = _remap_vertex_aligned_list(submesh.normals, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.bone_indices = _remap_vertex_aligned_list(submesh.bone_indices, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.bone_weights = _remap_vertex_aligned_list(submesh.bone_weights, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.source_vertex_map = _remap_vertex_aligned_list(submesh.source_vertex_map, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.source_vertex_offsets = _remap_vertex_aligned_list(submesh.source_vertex_offsets, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.faces = [
+            (index_map[a], index_map[b], index_map[c])
+            for a, b, c in kept_faces
+            if a in index_map and b in index_map and c in index_map
+        ]
+        removed_vertices = old_vertex_count - len(submesh.vertices)
+    else:
+        submesh.faces = kept_faces
+    submesh.vertex_count = len(submesh.vertices)
+    submesh.face_count = len(submesh.faces)
+    if recompute_normals:
+        recompute_submesh_normals(submesh)
+    return removed_faces, removed_vertices, not bool(submesh.faces)
+
+
+def _compact_orphan_vertices_for_submesh(
+    submesh: SubMesh,
+    *,
+    recompute_normals: bool,
+) -> tuple[int, bool]:
+    old_vertex_count = len(submesh.vertices)
+    if old_vertex_count <= 0:
+        submesh.vertex_count = 0
+        submesh.face_count = len(submesh.faces)
+        return 0, not bool(submesh.faces)
+
+    valid_faces: list[tuple[int, int, int]] = []
+    for face in submesh.faces:
+        if len(face) < 3:
+            continue
+        try:
+            a, b, c = (int(face[0]), int(face[1]), int(face[2]))
+        except (TypeError, ValueError):
+            continue
+        if 0 <= a < old_vertex_count and 0 <= b < old_vertex_count and 0 <= c < old_vertex_count:
+            valid_faces.append((a, b, c))
+
+    used_vertex_indices = sorted({index for face in valid_faces for index in face})
+    index_map = {old_index: new_index for new_index, old_index in enumerate(used_vertex_indices)}
+    if len(index_map) != old_vertex_count or len(valid_faces) != len(submesh.faces):
+        submesh.vertices = [submesh.vertices[old_index] for old_index in used_vertex_indices]
+        submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.normals = _remap_vertex_aligned_list(submesh.normals, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.bone_indices = _remap_vertex_aligned_list(submesh.bone_indices, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.bone_weights = _remap_vertex_aligned_list(submesh.bone_weights, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.source_vertex_map = _remap_vertex_aligned_list(submesh.source_vertex_map, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.source_vertex_offsets = _remap_vertex_aligned_list(submesh.source_vertex_offsets, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.faces = [
+            (index_map[a], index_map[b], index_map[c])
+            for a, b, c in valid_faces
+            if a in index_map and b in index_map and c in index_map
+        ]
+
+    submesh.vertex_count = len(submesh.vertices)
+    submesh.face_count = len(submesh.faces)
+    if recompute_normals:
+        recompute_submesh_normals(submesh)
+    return old_vertex_count - len(submesh.vertices), not bool(submesh.faces)
+
+
+def compact_orphan_vertices(
+    mesh: ParsedMesh | SubMesh,
+    submesh_indices: Iterable[int] | None = None,
+    *,
+    recompute_normals: bool = True,
+) -> MeshFaceDeleteResult:
+    if isinstance(mesh, SubMesh):
+        removed_vertices, emptied = _compact_orphan_vertices_for_submesh(
+            mesh,
+            recompute_normals=recompute_normals,
+        )
+        return MeshFaceDeleteResult(
+            affected_submesh_indices=(0,) if removed_vertices else (),
+            emptied_submesh_indices=(0,) if emptied and removed_vertices else (),
+            removed_vertex_count=removed_vertices,
+        )
+
+    if submesh_indices is None:
+        target_indices = range(len(mesh.submeshes))
+    else:
+        target_indices = []
+        for raw_index in submesh_indices:
+            try:
+                submesh_index = int(raw_index)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= submesh_index < len(mesh.submeshes):
+                target_indices.append(submesh_index)
+
+    affected: list[int] = []
+    emptied: list[int] = []
+    removed_vertex_count = 0
+    for submesh_index in target_indices:
+        removed_vertices, is_empty = _compact_orphan_vertices_for_submesh(
+            mesh.submeshes[int(submesh_index)],
+            recompute_normals=recompute_normals,
+        )
+        if removed_vertices <= 0:
+            continue
+        affected.append(int(submesh_index))
+        if is_empty:
+            emptied.append(int(submesh_index))
+        removed_vertex_count += removed_vertices
+
+    mesh.total_vertices = sum(len(submesh.vertices) for submesh in mesh.submeshes)
+    mesh.total_faces = sum(len(submesh.faces) for submesh in mesh.submeshes)
+    mesh.has_uvs = any(bool(submesh.uvs) for submesh in mesh.submeshes)
+    mesh.has_bones = any(bool(submesh.bone_indices) or bool(submesh.bone_weights) for submesh in mesh.submeshes)
+    return MeshFaceDeleteResult(
+        affected_submesh_indices=tuple(affected),
+        emptied_submesh_indices=tuple(emptied),
+        removed_vertex_count=removed_vertex_count,
+    )
+
+
+def delete_faces_touching_vertices(
+    mesh: ParsedMesh | SubMesh,
+    selected_vertices_by_submesh: Mapping[int, Iterable[int]] | Iterable[int],
+    *,
+    remove_orphans: bool = True,
+    recompute_normals: bool = True,
+) -> MeshFaceDeleteResult:
+    if isinstance(mesh, SubMesh):
+        if isinstance(selected_vertices_by_submesh, Mapping):
+            submesh_vertex_indices: list[object] = []
+            for values in selected_vertices_by_submesh.values():
+                submesh_vertex_indices.extend(tuple(values or ()))
+        else:
+            submesh_vertex_indices = list(tuple(selected_vertices_by_submesh or ()))
+        removed_faces, removed_vertices, emptied = _delete_faces_touching_submesh_vertices(
+            mesh,
+            submesh_vertex_indices,
+            remove_orphans=remove_orphans,
+            recompute_normals=recompute_normals,
+        )
+        return MeshFaceDeleteResult(
+            affected_submesh_indices=(0,) if removed_faces else (),
+            emptied_submesh_indices=(0,) if emptied and removed_faces else (),
+            removed_face_count=removed_faces,
+            removed_vertex_count=removed_vertices,
+        )
+
+    affected: list[int] = []
+    emptied: list[int] = []
+    removed_face_count = 0
+    removed_vertex_count = 0
+    if not isinstance(selected_vertices_by_submesh, Mapping):
+        return MeshFaceDeleteResult()
+    for raw_submesh_index, raw_vertex_indices in selected_vertices_by_submesh.items():
+        try:
+            submesh_index = int(raw_submesh_index)
+        except (TypeError, ValueError):
+            continue
+        if submesh_index < 0 or submesh_index >= len(mesh.submeshes):
+            continue
+        removed_faces, removed_vertices, is_empty = _delete_faces_touching_submesh_vertices(
+            mesh.submeshes[submesh_index],
+            raw_vertex_indices,
+            remove_orphans=remove_orphans,
+            recompute_normals=recompute_normals,
+        )
+        if removed_faces <= 0:
+            continue
+        affected.append(submesh_index)
+        if is_empty:
+            emptied.append(submesh_index)
+        removed_face_count += removed_faces
+        removed_vertex_count += removed_vertices
+
+    mesh.total_vertices = sum(len(submesh.vertices) for submesh in mesh.submeshes)
+    mesh.total_faces = sum(len(submesh.faces) for submesh in mesh.submeshes)
+    mesh.has_uvs = any(bool(submesh.uvs) for submesh in mesh.submeshes)
+    mesh.has_bones = any(bool(submesh.bone_indices) or bool(submesh.bone_weights) for submesh in mesh.submeshes)
+    return MeshFaceDeleteResult(
+        affected_submesh_indices=tuple(affected),
+        emptied_submesh_indices=tuple(emptied),
+        removed_face_count=removed_face_count,
+        removed_vertex_count=removed_vertex_count,
+    )
 
 
 def _vec3(value: Sequence[object], fallback: Vec3 = (0.0, 0.0, 0.0)) -> Vec3:

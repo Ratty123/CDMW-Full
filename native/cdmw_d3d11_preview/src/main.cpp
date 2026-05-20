@@ -274,8 +274,10 @@ struct EditorCandidate {
 
 struct MeshEditState {
     bool enabled = false;
+    std::string scope_mode = "all";
     std::string target_mode = "brush";
     std::string tool = "grab";
+    std::string delete_mode = "release";
     std::string falloff = "smooth";
     float radius_pixels = 24.0f;
     float strength = 0.5f;
@@ -289,6 +291,7 @@ struct MeshEditState {
     bool previewed = false;
     std::vector<EditorCandidate> drag_candidates;
     std::set<std::pair<int, int>> selected_vertices;
+    std::set<int> source_submesh_indices;
 };
 
 struct AlignmentState {
@@ -2476,6 +2479,8 @@ public:
             return true;
         }
         case WM_LBUTTONDOWN:
+            cursor_x_ = GET_X_LPARAM(lparam);
+            cursor_y_ = GET_Y_LPARAM(lparam);
             if (begin_mesh_edit_drag(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
                 request_render();
                 result = 0;
@@ -2495,6 +2500,8 @@ public:
             result = 0;
             return true;
         case WM_MOUSEMOVE:
+            cursor_x_ = GET_X_LPARAM(lparam);
+            cursor_y_ = GET_Y_LPARAM(lparam);
             if (update_mesh_edit_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
                 request_render();
                 result = 0;
@@ -3185,7 +3192,8 @@ private:
         PreviewBatch& batch,
         const DirectX::XMMATRIX& mvp,
         const DirectX::XMMATRIX& normal_source_world,
-        const DirectX::XMFLOAT4& editor_tint
+        const DirectX::XMFLOAT4& editor_tint,
+        bool mesh_edit_flat
     ) {
         if (!batch.vertex_buffer || batch.vertex_count <= 0) return;
         UINT stride = kVertexStrideBytes;
@@ -3205,119 +3213,361 @@ private:
             std::sin(light_elevation),
             -std::cos(light_azimuth) * light_cos_elevation,
             0.0f);
-        constants.base_color_flip = DirectX::XMFLOAT4(batch.base_color[0], batch.base_color[1], batch.base_color[2], batch.flip_v ? 1.0f : 0.0f);
-        constants.flags = DirectX::XMFLOAT4(
-            batch.base_srv ? 1.0f : 0.0f,
-            batch.normal_srv ? 1.0f : 0.0f,
-            (batch.material_srv && batch.material_response_promoted) ? 1.0f : 0.0f,
-            batch.height_srv ? 1.0f : 0.0f);
-        constants.flags2 = DirectX::XMFLOAT4(
-            batch.occlusion_srv ? 1.0f : 0.0f,
-            batch.roughness_srv ? 1.0f : 0.0f,
-            batch.metalness_srv ? 1.0f : 0.0f,
-            batch.specular_srv ? 1.0f : 0.0f);
+        constants.base_color_flip = mesh_edit_flat
+            ? DirectX::XMFLOAT4(0.54f, 0.55f, 0.54f, 0.0f)
+            : DirectX::XMFLOAT4(batch.base_color[0], batch.base_color[1], batch.base_color[2], batch.flip_v ? 1.0f : 0.0f);
+        constants.flags = mesh_edit_flat
+            ? DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f)
+            : DirectX::XMFLOAT4(
+                batch.base_srv ? 1.0f : 0.0f,
+                batch.normal_srv ? 1.0f : 0.0f,
+                (batch.material_srv && batch.material_response_promoted) ? 1.0f : 0.0f,
+                batch.height_srv ? 1.0f : 0.0f);
+        constants.flags2 = mesh_edit_flat
+            ? DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f)
+            : DirectX::XMFLOAT4(
+                batch.occlusion_srv ? 1.0f : 0.0f,
+                batch.roughness_srv ? 1.0f : 0.0f,
+                batch.metalness_srv ? 1.0f : 0.0f,
+                batch.specular_srv ? 1.0f : 0.0f);
         constants.material_params = DirectX::XMFLOAT4(
-            batch.normal_strength,
-            batch.height_amount,
+            mesh_edit_flat ? 0.0f : batch.normal_strength,
+            mesh_edit_flat ? 0.0f : batch.height_amount,
             0.0f,
             0.0f);
         constants.material_hints = DirectX::XMFLOAT4(
-            batch.roughness_hint,
-            batch.metalness_hint,
-            batch.specular_hint,
-            batch.height_scale_hint);
-        constants.flags3 = DirectX::XMFLOAT4(
-            batch.detail_srv ? 1.0f : 0.0f,
-            render_tuning_.normal_y_mode == 1 ? 1.0f : (render_tuning_.normal_y_mode == 2 ? 0.0f : (batch.invert_normal_y ? 1.0f : 0.0f)),
-            batch.alpha_cutout ? 1.0f : 0.0f,
-            batch.alpha_threshold);
-        constants.render_tuning = DirectX::XMFLOAT4(
-            render_tuning_.ambient_strength,
-            render_tuning_.diffuse_light_scale,
-            render_tuning_.specular_base,
-            render_tuning_.specular_max);
-        constants.render_tuning2 = DirectX::XMFLOAT4(
-            render_tuning_.shininess_min,
-            render_tuning_.shininess_max,
-            0.0f,
-            0.0f);
-        constants.render_tuning3 = DirectX::XMFLOAT4(
-            render_tuning_.ao_strength,
-            render_tuning_.roughness_bias,
-            render_tuning_.metalness_scale,
-            render_tuning_.environment_strength);
-        constants.render_tuning4 = DirectX::XMFLOAT4(
-            render_tuning_.emissive_gain,
-            0.0f,
-            0.0f,
-            0.0f);
-        constants.editor_tint = editor_tint;
-        constants.flags4 = DirectX::XMFLOAT4(
-            batch.base_tint_strength,
-            static_cast<float>(render_tuning_.diagnostic_mode),
-            static_cast<float>(std::max(0, batch.source_submesh_index + 1)),
-            batch.material_family_code);
-        constants.flags5 = DirectX::XMFLOAT4(
-            batch.material_category_code,
-            batch.material_category_confidence,
-            batch.material_response_promoted ? 1.0f : 0.0f,
-            batch.low_authority_base_overlay ? 1.0f : 0.0f);
-        const float emissive_encoded = (batch.emissive_srv ? 2.0f : 0.0f) + std::clamp(batch.emissive_intensity / 12.0f, 0.0f, 1.0f);
-        constants.emissive_params = DirectX::XMFLOAT4(
-            std::clamp(batch.emissive_color[0], 0.0f, 2.0f),
-            std::clamp(batch.emissive_color[1], 0.0f, 2.0f),
-            std::clamp(batch.emissive_color[2], 0.0f, 2.0f),
-            emissive_encoded);
-        for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
-            const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
-            constants.layer_flags[layer_index] = DirectX::XMFLOAT4(
-                layer.diffuse_srv ? 1.0f : 0.0f,
-                layer.mask_srv ? 1.0f : 0.0f,
-                layer.material_srv ? 1.0f : 0.0f,
-                layer.normal_srv ? 1.0f : 0.0f);
-            constants.layer_params[layer_index] = DirectX::XMFLOAT4(
-                layer.channel_index,
-                boosted_preview_layer_weight(layer, layer_index),
-                layer.height_srv ? 1.0f : 0.0f,
+            mesh_edit_flat ? 0.0f : batch.roughness_hint,
+            mesh_edit_flat ? 0.0f : batch.metalness_hint,
+            mesh_edit_flat ? 0.0f : batch.specular_hint,
+            mesh_edit_flat ? 0.0f : batch.height_scale_hint);
+        constants.flags3 = mesh_edit_flat
+            ? DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f)
+            : DirectX::XMFLOAT4(
+                batch.detail_srv ? 1.0f : 0.0f,
+                render_tuning_.normal_y_mode == 1 ? 1.0f : (render_tuning_.normal_y_mode == 2 ? 0.0f : (batch.invert_normal_y ? 1.0f : 0.0f)),
+                batch.alpha_cutout ? 1.0f : 0.0f,
+                batch.alpha_threshold);
+        constants.render_tuning = mesh_edit_flat
+            ? DirectX::XMFLOAT4(0.62f, 0.50f, 0.02f, 0.05f)
+            : DirectX::XMFLOAT4(
+                render_tuning_.ambient_strength,
+                render_tuning_.diffuse_light_scale,
+                render_tuning_.specular_base,
+                render_tuning_.specular_max);
+        constants.render_tuning2 = mesh_edit_flat
+            ? DirectX::XMFLOAT4(18.0f, 28.0f, 0.0f, 0.0f)
+            : DirectX::XMFLOAT4(
+                render_tuning_.shininess_min,
+                render_tuning_.shininess_max,
+                0.0f,
                 0.0f);
-            constants.layer_tint[layer_index] = DirectX::XMFLOAT4(
-                layer.tint[0],
-                layer.tint[1],
-                layer.tint[2],
-                layer.tint[3]);
-            constants.layer_hints[layer_index] = DirectX::XMFLOAT4(
-                layer.roughness_hint,
-                layer.metalness_hint,
-                layer.specular_hint,
-                layer.height_srv ? std::max(layer.height_scale_hint, 0.02f) : 0.0f);
+        constants.render_tuning3 = mesh_edit_flat
+            ? DirectX::XMFLOAT4(0.0f, 0.30f, 0.0f, 0.05f)
+            : DirectX::XMFLOAT4(
+                render_tuning_.ao_strength,
+                render_tuning_.roughness_bias,
+                render_tuning_.metalness_scale,
+                render_tuning_.environment_strength);
+        constants.render_tuning4 = mesh_edit_flat
+            ? DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f)
+            : DirectX::XMFLOAT4(
+                render_tuning_.emissive_gain,
+                0.0f,
+                0.0f,
+                0.0f);
+        constants.editor_tint = mesh_edit_flat ? DirectX::XMFLOAT4(0.50f, 0.51f, 0.50f, 0.42f) : editor_tint;
+        constants.flags4 = DirectX::XMFLOAT4(
+            mesh_edit_flat ? 0.0f : batch.base_tint_strength,
+            mesh_edit_flat ? 0.0f : static_cast<float>(render_tuning_.diagnostic_mode),
+            static_cast<float>(std::max(0, batch.source_submesh_index + 1)),
+            mesh_edit_flat ? 0.0f : batch.material_family_code);
+        constants.flags5 = mesh_edit_flat
+            ? DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f)
+            : DirectX::XMFLOAT4(
+                batch.material_category_code,
+                batch.material_category_confidence,
+                batch.material_response_promoted ? 1.0f : 0.0f,
+                batch.low_authority_base_overlay ? 1.0f : 0.0f);
+        const float emissive_encoded = mesh_edit_flat ? 0.0f : ((batch.emissive_srv ? 2.0f : 0.0f) + std::clamp(batch.emissive_intensity / 12.0f, 0.0f, 1.0f));
+        constants.emissive_params = DirectX::XMFLOAT4(
+            mesh_edit_flat ? 0.0f : std::clamp(batch.emissive_color[0], 0.0f, 2.0f),
+            mesh_edit_flat ? 0.0f : std::clamp(batch.emissive_color[1], 0.0f, 2.0f),
+            mesh_edit_flat ? 0.0f : std::clamp(batch.emissive_color[2], 0.0f, 2.0f),
+            emissive_encoded);
+        if (!mesh_edit_flat) {
+            for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
+                const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
+                constants.layer_flags[layer_index] = DirectX::XMFLOAT4(
+                    layer.diffuse_srv ? 1.0f : 0.0f,
+                    layer.mask_srv ? 1.0f : 0.0f,
+                    layer.material_srv ? 1.0f : 0.0f,
+                    layer.normal_srv ? 1.0f : 0.0f);
+                constants.layer_params[layer_index] = DirectX::XMFLOAT4(
+                    layer.channel_index,
+                    boosted_preview_layer_weight(layer, layer_index),
+                    layer.height_srv ? 1.0f : 0.0f,
+                    0.0f);
+                constants.layer_tint[layer_index] = DirectX::XMFLOAT4(
+                    layer.tint[0],
+                    layer.tint[1],
+                    layer.tint[2],
+                    layer.tint[3]);
+                constants.layer_hints[layer_index] = DirectX::XMFLOAT4(
+                    layer.roughness_hint,
+                    layer.metalness_hint,
+                    layer.specular_hint,
+                    layer.height_srv ? std::max(layer.height_scale_hint, 0.02f) : 0.0f);
+            }
         }
         context_->UpdateSubresource(constants_.Get(), 0, nullptr, &constants, 0, 0);
         context_->VSSetConstantBuffers(0, 1, constants_.GetAddressOf());
         context_->PSSetConstantBuffers(0, 1, constants_.GetAddressOf());
         ID3D11ShaderResourceView* srvs[kTotalSrvCount] = {
-            batch.base_srv.Get(),
-            batch.normal_srv.Get(),
-            batch.material_srv.Get(),
-            batch.occlusion_srv.Get(),
-            batch.roughness_srv.Get(),
-            batch.metalness_srv.Get(),
-            batch.specular_srv.Get(),
-            batch.height_srv.Get(),
-            batch.detail_srv.Get(),
-            batch.emissive_srv.Get(),
+            mesh_edit_flat ? nullptr : batch.base_srv.Get(),
+            mesh_edit_flat ? nullptr : batch.normal_srv.Get(),
+            mesh_edit_flat ? nullptr : batch.material_srv.Get(),
+            mesh_edit_flat ? nullptr : batch.occlusion_srv.Get(),
+            mesh_edit_flat ? nullptr : batch.roughness_srv.Get(),
+            mesh_edit_flat ? nullptr : batch.metalness_srv.Get(),
+            mesh_edit_flat ? nullptr : batch.specular_srv.Get(),
+            mesh_edit_flat ? nullptr : batch.height_srv.Get(),
+            mesh_edit_flat ? nullptr : batch.detail_srv.Get(),
+            mesh_edit_flat ? nullptr : batch.emissive_srv.Get(),
         };
-        for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
-            const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
-            srvs[10 + layer_index] = layer.diffuse_srv.Get();
-            srvs[14 + layer_index] = layer.mask_srv.Get();
-            srvs[18 + layer_index] = layer.material_srv.Get();
-            srvs[22 + layer_index] = layer.normal_srv.Get();
-            srvs[26 + layer_index] = layer.height_srv.Get();
+        if (!mesh_edit_flat) {
+            for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
+                const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
+                srvs[10 + layer_index] = layer.diffuse_srv.Get();
+                srvs[14 + layer_index] = layer.mask_srv.Get();
+                srvs[18 + layer_index] = layer.material_srv.Get();
+                srvs[22 + layer_index] = layer.normal_srv.Get();
+                srvs[26 + layer_index] = layer.height_srv.Get();
+            }
         }
         context_->PSSetShaderResources(0, kTotalSrvCount, srvs);
         context_->Draw(static_cast<UINT>(batch.vertex_count), 0);
         ID3D11ShaderResourceView* clear_srvs[kTotalSrvCount] = {};
         context_->PSSetShaderResources(0, kTotalSrvCount, clear_srvs);
+    }
+
+    bool mesh_edit_overlay_active_for_view(const PreviewRenderView& view) const {
+        return mesh_edit_.enabled
+            && !icon_capture_mode_
+            && view.role != PreviewViewRole::Reference
+            && width_ > 0
+            && height_ > 0;
+    }
+
+    bool mesh_edit_source_allowed(int source_submesh_index) const {
+        return source_submesh_index >= 0
+            && (mesh_edit_.source_submesh_indices.empty()
+                || mesh_edit_.source_submesh_indices.find(source_submesh_index) != mesh_edit_.source_submesh_indices.end());
+    }
+
+    bool mesh_edit_batch_editable_in_view(const PreviewBatch& batch, const PreviewRenderView& view) const {
+        return mesh_edit_overlay_active_for_view(view)
+            && batch_visible_in_view(batch, view.role)
+            && batch.editor_editable
+            && !batch_is_reference(batch)
+            && batch.source_submesh_index >= 0
+            && mesh_edit_source_allowed(batch.source_submesh_index)
+            && !batch.cpu_positions.empty();
+    }
+
+    std::pair<int, int> mesh_edit_source_key(const PreviewBatch& batch, size_t vertex_index) const {
+        const int source_submesh = vertex_index < batch.cpu_source_submeshes.size()
+            ? batch.cpu_source_submeshes[vertex_index]
+            : batch.source_submesh_index;
+        const int source_vertex = vertex_index < batch.cpu_source_vertices.size()
+            ? batch.cpu_source_vertices[vertex_index]
+            : static_cast<int>(vertex_index);
+        return std::pair<int, int>(source_submesh, source_vertex);
+    }
+
+    bool mesh_edit_source_vertex_selected(const PreviewBatch& batch, size_t vertex_index) const {
+        const std::pair<int, int> key = mesh_edit_source_key(batch, vertex_index);
+        return key.first >= 0
+            && key.second >= 0
+            && mesh_edit_.selected_vertices.find(key) != mesh_edit_.selected_vertices.end();
+    }
+
+    bool project_batch_position_for_view(
+        const PreviewBatch& batch,
+        const DirectX::XMFLOAT3& position,
+        const PreviewRenderView& view,
+        float& screen_x,
+        float& screen_y
+    ) const {
+        const DirectX::XMMATRIX alignment_transform =
+            view.role == PreviewViewRole::Reference ? DirectX::XMMatrixIdentity() : alignment_preview_transform_for_batch(batch);
+        const DirectX::XMMATRIX camera_world = world_matrix_for_view_role(view.role);
+        const DirectX::XMMATRIX view_projection = view_projection_matrix_for_viewport(view.viewport, distance_for_view_role(view.role));
+        DirectX::XMVECTOR source = DirectX::XMLoadFloat3(&position);
+        DirectX::XMVECTOR projected = DirectX::XMVector3TransformCoord(source, alignment_transform * camera_world * view_projection);
+        DirectX::XMFLOAT3 clip{};
+        DirectX::XMStoreFloat3(&clip, projected);
+        if (!std::isfinite(clip.x) || !std::isfinite(clip.y) || !std::isfinite(clip.z)) return false;
+        if (clip.z < 0.0f || clip.z > 1.0f) return false;
+        screen_x = view.viewport.TopLeftX + (clip.x * 0.5f + 0.5f) * view.viewport.Width;
+        screen_y = view.viewport.TopLeftY + (0.5f - clip.y * 0.5f) * view.viewport.Height;
+        return std::isfinite(screen_x) && std::isfinite(screen_y);
+    }
+
+    void draw_mesh_edit_overlay(const PreviewRenderView& view) {
+        if (!mesh_edit_overlay_active_for_view(view)) return;
+
+        std::vector<float> vertices;
+        vertices.reserve(23u * 4096u);
+        DirectX::XMMATRIX identity = DirectX::XMMatrixIdentity();
+        constexpr size_t kMaxMeshEditOverlayTriangles = 70000u;
+        constexpr size_t kMaxMeshEditOverlayVertices = 45000u;
+
+        auto append_screen_vertex = [&](float x, float y, float r, float g, float b) {
+            const float local_x = x - view.viewport.TopLeftX;
+            const float local_y = y - view.viewport.TopLeftY;
+            const float clip_x = (local_x / std::max(1.0f, view.viewport.Width)) * 2.0f - 1.0f;
+            const float clip_y = 1.0f - (local_y / std::max(1.0f, view.viewport.Height)) * 2.0f;
+            append_line_vertex(vertices, clip_x, clip_y, 0.0f, r, g, b);
+        };
+        auto add_triangle = [&](ScreenPoint a, ScreenPoint b, ScreenPoint c, float r, float g, float blue) {
+            append_screen_vertex(a.x, a.y, r, g, blue);
+            append_screen_vertex(b.x, b.y, r, g, blue);
+            append_screen_vertex(c.x, c.y, r, g, blue);
+        };
+        auto add_thick_line = [&](ScreenPoint start, ScreenPoint end, float width_pixels, float r, float g, float blue) {
+            const float dx = end.x - start.x;
+            const float dy = end.y - start.y;
+            const float length = std::max(1.0f, std::hypot(dx, dy));
+            const float px = -dy / length * width_pixels * 0.5f;
+            const float py = dx / length * width_pixels * 0.5f;
+            ScreenPoint a{start.x + px, start.y + py};
+            ScreenPoint b{end.x + px, end.y + py};
+            ScreenPoint c{end.x - px, end.y - py};
+            ScreenPoint d{start.x - px, start.y - py};
+            add_triangle(a, b, c, r, g, blue);
+            add_triangle(a, c, d, r, g, blue);
+        };
+        auto add_disc = [&](ScreenPoint center, float radius, float r, float g, float blue) {
+            constexpr int kSegments = 14;
+            constexpr float kPi = 3.14159265358979323846f;
+            for (int index = 0; index < kSegments; ++index) {
+                const float a0 = (2.0f * kPi * static_cast<float>(index)) / static_cast<float>(kSegments);
+                const float a1 = (2.0f * kPi * static_cast<float>(index + 1)) / static_cast<float>(kSegments);
+                add_triangle(
+                    center,
+                    ScreenPoint{center.x + std::cos(a0) * radius, center.y + std::sin(a0) * radius},
+                    ScreenPoint{center.x + std::cos(a1) * radius, center.y + std::sin(a1) * radius},
+                    r, g, blue);
+            }
+        };
+        auto add_ring = [&](ScreenPoint center, float radius, float width_pixels, float r, float g, float blue) {
+            constexpr int kSegments = 80;
+            constexpr float kPi = 3.14159265358979323846f;
+            const float inner = std::max(1.0f, radius - width_pixels * 0.5f);
+            const float outer = radius + width_pixels * 0.5f;
+            for (int index = 0; index < kSegments; ++index) {
+                const float a0 = (2.0f * kPi * static_cast<float>(index)) / static_cast<float>(kSegments);
+                const float a1 = (2.0f * kPi * static_cast<float>(index + 1)) / static_cast<float>(kSegments);
+                ScreenPoint o0{center.x + std::cos(a0) * outer, center.y + std::sin(a0) * outer};
+                ScreenPoint o1{center.x + std::cos(a1) * outer, center.y + std::sin(a1) * outer};
+                ScreenPoint i0{center.x + std::cos(a0) * inner, center.y + std::sin(a0) * inner};
+                ScreenPoint i1{center.x + std::cos(a1) * inner, center.y + std::sin(a1) * inner};
+                add_triangle(o0, o1, i1, r, g, blue);
+                add_triangle(o0, i1, i0, r, g, blue);
+            }
+        };
+
+        std::set<std::pair<int, int>> brush_vertices;
+        const bool cursor_in_view =
+            static_cast<float>(cursor_x_) >= view.viewport.TopLeftX
+            && static_cast<float>(cursor_x_) <= view.viewport.TopLeftX + view.viewport.Width
+            && static_cast<float>(cursor_y_) >= view.viewport.TopLeftY
+            && static_cast<float>(cursor_y_) <= view.viewport.TopLeftY + view.viewport.Height;
+        if (cursor_in_view) {
+            std::vector<EditorCandidate> brush_candidates = mesh_edit_candidates_at(
+                cursor_x_,
+                cursor_y_,
+                mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex" ? 12.0f : mesh_edit_.radius_pixels,
+                mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex");
+            for (const EditorCandidate& candidate : brush_candidates) {
+                brush_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.source_vertex_index));
+            }
+            const bool remove_tool = mesh_edit_.tool == "remove";
+            add_ring(ScreenPoint{static_cast<float>(cursor_x_), static_cast<float>(cursor_y_)}, mesh_edit_.radius_pixels + 2.0f, 3.8f, 0.0f, 0.0f, 0.0f);
+            add_ring(
+                ScreenPoint{static_cast<float>(cursor_x_), static_cast<float>(cursor_y_)},
+                mesh_edit_.radius_pixels,
+                2.2f,
+                remove_tool ? 1.0f : 0.32f,
+                remove_tool ? 0.28f : 0.86f,
+                remove_tool ? 0.10f : 1.0f);
+        }
+
+        size_t overlay_triangle_count = 0;
+        size_t overlay_vertex_count = 0;
+        std::set<std::pair<int, int>> emitted_vertices;
+        for (const PreviewBatch& batch : batches_) {
+            if (!mesh_edit_batch_editable_in_view(batch, view)) continue;
+            const size_t triangle_count = batch.cpu_positions.size() / 3u;
+            const size_t triangle_stride = std::max<size_t>(1u, triangle_count / std::max<size_t>(1u, kMaxMeshEditOverlayTriangles));
+            for (size_t triangle_index = 0; triangle_index < triangle_count; triangle_index += triangle_stride) {
+                if (overlay_triangle_count++ >= kMaxMeshEditOverlayTriangles) break;
+                const size_t base = triangle_index * 3u;
+                ScreenPoint p[3]{};
+                bool projected = true;
+                for (size_t corner = 0; corner < 3u; ++corner) {
+                    float screen_x = 0.0f;
+                    float screen_y = 0.0f;
+                    if (!project_batch_position_for_view(batch, batch.cpu_positions[base + corner], view, screen_x, screen_y)) {
+                        projected = false;
+                        break;
+                    }
+                    p[corner] = ScreenPoint{screen_x, screen_y};
+                }
+                if (!projected) continue;
+                const bool selected_triangle =
+                    mesh_edit_source_vertex_selected(batch, base)
+                    || mesh_edit_source_vertex_selected(batch, base + 1u)
+                    || mesh_edit_source_vertex_selected(batch, base + 2u)
+                    || brush_vertices.find(mesh_edit_source_key(batch, base)) != brush_vertices.end()
+                    || brush_vertices.find(mesh_edit_source_key(batch, base + 1u)) != brush_vertices.end()
+                    || brush_vertices.find(mesh_edit_source_key(batch, base + 2u)) != brush_vertices.end();
+                if (selected_triangle) {
+                    add_thick_line(p[0], p[1], 4.0f, 0.0f, 0.0f, 0.0f);
+                    add_thick_line(p[1], p[2], 4.0f, 0.0f, 0.0f, 0.0f);
+                    add_thick_line(p[2], p[0], 4.0f, 0.0f, 0.0f, 0.0f);
+                    add_thick_line(p[0], p[1], 2.4f, 1.0f, 0.48f, 0.12f);
+                    add_thick_line(p[1], p[2], 2.4f, 1.0f, 0.48f, 0.12f);
+                    add_thick_line(p[2], p[0], 2.4f, 1.0f, 0.48f, 0.12f);
+                } else {
+                    add_thick_line(p[0], p[1], 1.35f, 0.015f, 0.018f, 0.020f);
+                    add_thick_line(p[1], p[2], 1.35f, 0.015f, 0.018f, 0.020f);
+                    add_thick_line(p[2], p[0], 1.35f, 0.015f, 0.018f, 0.020f);
+                }
+            }
+            if (!mesh_edit_.show_vertices) continue;
+            for (size_t vertex_index = 0; vertex_index < batch.cpu_positions.size(); ++vertex_index) {
+                std::pair<int, int> key = mesh_edit_source_key(batch, vertex_index);
+                if (key.first < 0 || key.second < 0) continue;
+                if (emitted_vertices.find(key) != emitted_vertices.end()) continue;
+                emitted_vertices.insert(key);
+                if (overlay_vertex_count++ >= kMaxMeshEditOverlayVertices) break;
+                float screen_x = 0.0f;
+                float screen_y = 0.0f;
+                if (!project_batch_position_for_view(batch, batch.cpu_positions[vertex_index], view, screen_x, screen_y)) continue;
+                const bool selected = mesh_edit_.selected_vertices.find(key) != mesh_edit_.selected_vertices.end();
+                const bool brush_affected = brush_vertices.find(key) != brush_vertices.end();
+                if (selected || brush_affected) {
+                    add_disc(ScreenPoint{screen_x, screen_y}, 6.0f, 0.0f, 0.0f, 0.0f);
+                    add_disc(ScreenPoint{screen_x, screen_y}, 4.5f, 1.0f, 0.52f, 0.12f);
+                    add_disc(ScreenPoint{screen_x, screen_y}, 2.0f, 1.0f, 0.92f, 0.28f);
+                } else {
+                    add_disc(ScreenPoint{screen_x, screen_y}, 4.2f, 0.0f, 0.0f, 0.0f);
+                    add_disc(ScreenPoint{screen_x, screen_y}, 2.8f, 0.18f, 0.82f, 1.0f);
+                }
+            }
+        }
+        draw_colored_triangles(vertices, identity, true);
     }
 
     void draw_render_view(const PreviewRenderView& view) {
@@ -3351,9 +3601,12 @@ private:
             const DirectX::XMMATRIX alignment_transform =
                 view.role == PreviewViewRole::Reference ? DirectX::XMMatrixIdentity() : alignment_preview_transform_for_batch(batch);
             const DirectX::XMMATRIX batch_world = alignment_transform * camera_world;
-            draw_preview_batch(batch, batch_world * view_projection, batch_world, tint);
+            const bool mesh_edit_flat =
+                mesh_edit_batch_editable_in_view(batch, view);
+            draw_preview_batch(batch, batch_world * view_projection, batch_world, tint, mesh_edit_flat);
         }
         draw_cloth_debug_overlays(view, world_view_projection);
+        draw_mesh_edit_overlay(view);
         if (!icon_capture_mode_) {
             draw_alignment_axes(view, world_view_projection);
         }
@@ -3873,6 +4126,7 @@ private:
                 int source_vertex = vertex_index < batch.cpu_source_vertices.size()
                     ? batch.cpu_source_vertices[vertex_index]
                     : static_cast<int>(vertex_index);
+                if (!mesh_edit_source_allowed(source_submesh)) continue;
                 if (source_submesh < 0 || source_vertex < 0) continue;
                 float screen_x = 0.0f;
                 float screen_y = 0.0f;
@@ -3917,6 +4171,7 @@ private:
                     ? batch.cpu_source_vertices[vertex_index]
                     : static_cast<int>(vertex_index);
                 std::pair<int, int> key(source_submesh, source_vertex);
+                if (!mesh_edit_source_allowed(source_submesh)) continue;
                 if (mesh_edit_.selected_vertices.find(key) == mesh_edit_.selected_vertices.end() || seen.find(key) != seen.end()) {
                     continue;
                 }
@@ -4015,6 +4270,8 @@ private:
             << ",\"phase\":\"" << json_escape(phase ? phase : "") << "\""
             << ",\"mode\":\"" << (drag_mode ? "drag" : "brush") << "\""
             << ",\"tool\":\"" << json_escape(mesh_edit_.tool) << "\""
+            << ",\"delete_mode\":\"" << json_escape(mesh_edit_.delete_mode) << "\""
+            << ",\"scope_mode\":\"" << json_escape(mesh_edit_.scope_mode) << "\""
             << ",\"target_mode\":\"" << json_escape(mesh_edit_.target_mode) << "\""
             << ",\"selected_vertex_count\":" << mesh_edit_.selected_vertices.size()
             << ",\"center\":" << float3_json(center)
@@ -4062,14 +4319,21 @@ private:
         if (!mesh_edit_.enabled) return false;
         bool alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
         if (alt_down) return false;
-        bool vertex_mode = mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex";
+        bool remove_selection_mode = mesh_edit_.tool == "remove" && mesh_edit_.delete_mode == "selection";
+        bool vertex_mode = mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex" || remove_selection_mode;
         bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
         std::vector<EditorCandidate> candidates = mesh_edit_candidates_at(
             x,
             y,
-            vertex_mode ? 12.0f : mesh_edit_.radius_pixels,
-            vertex_mode);
-        if (vertex_mode && shift_down && !candidates.empty()) {
+            remove_selection_mode ? mesh_edit_.radius_pixels : (vertex_mode ? 12.0f : mesh_edit_.radius_pixels),
+            vertex_mode && !remove_selection_mode);
+        if (remove_selection_mode && !candidates.empty()) {
+            for (const EditorCandidate& candidate : candidates) {
+                mesh_edit_.selected_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.source_vertex_index));
+            }
+            send_mesh_edit_selection_event();
+        }
+        if (!remove_selection_mode && vertex_mode && shift_down && !candidates.empty()) {
             std::pair<int, int> key(candidates[0].source_submesh_index, candidates[0].source_vertex_index);
             if (mesh_edit_.selected_vertices.find(key) == mesh_edit_.selected_vertices.end()) {
                 mesh_edit_.selected_vertices.insert(key);
@@ -4079,13 +4343,13 @@ private:
             send_mesh_edit_selection_event();
             return true;
         }
-        if (vertex_mode && !candidates.empty()) {
+        if (!remove_selection_mode && vertex_mode && !candidates.empty()) {
             mesh_edit_.selected_vertices.clear();
             mesh_edit_.selected_vertices.insert(std::pair<int, int>(candidates[0].source_submesh_index, candidates[0].source_vertex_index));
             send_mesh_edit_selection_event();
         }
         std::vector<EditorCandidate> selected = mesh_edit_selected_candidates();
-        if (vertex_mode && !selected.empty()) {
+        if (!remove_selection_mode && vertex_mode && !selected.empty()) {
             candidates = std::move(selected);
         }
         if (candidates.empty()) return true;
@@ -4109,6 +4373,12 @@ private:
             ? mesh_edit_.drag_candidates
             : mesh_edit_candidates_at(x, y, mesh_edit_.radius_pixels, false);
         if (candidates.empty()) return true;
+        if (mesh_edit_.tool == "remove" && mesh_edit_.delete_mode == "selection") {
+            for (const EditorCandidate& candidate : candidates) {
+                mesh_edit_.selected_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.source_vertex_index));
+            }
+            send_mesh_edit_selection_event();
+        }
         bool ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
         send_mesh_edit_event("mesh_edit_stroke_previewed", mesh_edit_payload_json("preview", candidates, x, y, ctrl_down));
         mesh_edit_.last_x = x;
@@ -4123,6 +4393,7 @@ private:
         std::ostringstream payload;
         payload << "{\"stroke_id\":" << mesh_edit_.stroke_id
                 << ",\"phase\":\"finish\",\"tool\":\"" << json_escape(mesh_edit_.tool)
+                << "\",\"delete_mode\":\"" << json_escape(mesh_edit_.delete_mode)
                 << "\",\"previewed\":" << (mesh_edit_.previewed ? "true" : "false") << "}";
         send_mesh_edit_event("mesh_edit_stroke_finished", payload.str());
         mesh_edit_.drag_active = false;
@@ -4136,7 +4407,8 @@ private:
         if (!mesh_edit_.drag_active) return false;
         std::ostringstream payload;
         payload << "{\"stroke_id\":" << mesh_edit_.stroke_id
-                << ",\"phase\":\"cancel\",\"tool\":\"" << json_escape(mesh_edit_.tool) << "\"}";
+                << ",\"phase\":\"cancel\",\"tool\":\"" << json_escape(mesh_edit_.tool)
+                << "\",\"delete_mode\":\"" << json_escape(mesh_edit_.delete_mode) << "\"}";
         send_mesh_edit_event("mesh_edit_stroke_cancelled", payload.str());
         mesh_edit_.drag_active = false;
         mesh_edit_.drag_candidates.clear();
@@ -4319,12 +4591,18 @@ private:
         }
         if (command == "set_mesh_edit_state") {
             mesh_edit_.enabled = json_bool_field(payload, "enabled", mesh_edit_.enabled);
+            mesh_edit_.scope_mode = lower_copy(json_string_field(payload, "scope_mode", mesh_edit_.scope_mode));
             mesh_edit_.target_mode = lower_copy(json_string_field(payload, "target_mode", mesh_edit_.target_mode));
             mesh_edit_.tool = lower_copy(json_string_field(payload, "tool", mesh_edit_.tool));
+            mesh_edit_.delete_mode = lower_copy(json_string_field(payload, "delete_mode", mesh_edit_.delete_mode));
             mesh_edit_.falloff = lower_copy(json_string_field(payload, "falloff", mesh_edit_.falloff));
             mesh_edit_.radius_pixels = std::clamp(json_float_field(payload, "radius_pixels", mesh_edit_.radius_pixels), 2.0f, 512.0f);
             mesh_edit_.strength = std::clamp(json_float_field(payload, "strength", mesh_edit_.strength), 0.0f, 1.0f);
             mesh_edit_.show_vertices = json_bool_field(payload, "show_vertices", mesh_edit_.show_vertices);
+            mesh_edit_.source_submesh_indices.clear();
+            for (int value : json_int_array_field(payload, "source_submesh_indices")) {
+                if (value >= 0) mesh_edit_.source_submesh_indices.insert(value);
+            }
             if (!mesh_edit_.enabled) {
                 cancel_mesh_edit_drag();
             }
@@ -5304,6 +5582,8 @@ private:
     PreviewViewRole drag_view_role_ = PreviewViewRole::All;
     int last_mouse_x_ = 0;
     int last_mouse_y_ = 0;
+    int cursor_x_ = 0;
+    int cursor_y_ = 0;
     bool first_frame_started_ = false;
     bool first_frame_reported_ = false;
     bool render_requested_ = true;

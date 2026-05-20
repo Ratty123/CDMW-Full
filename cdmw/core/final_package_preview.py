@@ -25,7 +25,7 @@ from cdmw.core.upscale_profiles import (
 )
 from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.asset_replacement import classify_texture_binding
-from cdmw.modding.mesh_parser import parse_mesh
+from cdmw.modding.mesh_parser import _find_pac_descriptors, _parse_par_sections, parse_mesh
 
 
 FINAL_PREVIEW_READY = "ready"
@@ -45,6 +45,21 @@ FINAL_PREVIEW_PACKAGE_SIDE_EFFECT_EXTENSIONS = (
     ".txt",
     ".md",
     ".ini",
+)
+
+SOURCE_OWNED_FORBIDDEN_ORIGINAL_PARAMETER_TOKENS = (
+    "grime",
+    "detaildiffuse",
+    "detailmask",
+    "detailnormal",
+    "detailheight",
+    "detailmaterial",
+    "dyeing",
+    "texturelayer",
+    "damage",
+    "heighttexture",
+    "materialtexture",
+    "colorblending",
 )
 
 
@@ -70,6 +85,15 @@ class FinalPackageBindingRow:
     binding_source: str = FINAL_PREVIEW_BINDING_MISSING
     detail: str = ""
     preview_texture_path: str = ""
+
+
+@dataclass(slots=True, frozen=True)
+class CDMaterialBindingContract:
+    material_key: str
+    display_name: str
+    fatal_errors: Tuple[str, ...] = ()
+    warnings: Tuple[str, ...] = ()
+    source_visible_binding_count: int = 0
 
 
 @dataclass(slots=True, frozen=True)
@@ -585,6 +609,349 @@ def _material_label_for_mesh(mesh: ModelPreviewMesh, index: int) -> str:
     )
 
 
+def _pac_xml_material_wrapper_structure_errors(sidecar_text: str, sidecar_path: str) -> Tuple[str, ...]:
+    normalized_path = str(sidecar_path or "").replace("\\", "/").lower()
+    if not (normalized_path.endswith(".pac_xml") or normalized_path.endswith(".pac.xml")):
+        return ()
+    text = str(sidecar_text or "")
+    if "<ModelProperty" not in text or "<SkinnedMeshMaterialWrapper" not in text:
+        return ()
+    tag_pattern = re.compile(r"<\s*(/?)\s*([A-Za-z0-9_:.-]+)\b([^>]*)>", flags=re.IGNORECASE | re.DOTALL)
+    stack: List[Tuple[str, str, int]] = []
+    item_ids_by_container: Dict[int, Dict[str, str]] = {}
+    errors: List[str] = []
+    for match in tag_pattern.finditer(text):
+        is_close = bool(match.group(1))
+        raw_tag = match.group(2)
+        tag = raw_tag.split(":")[-1]
+        attrs = match.group(3) or ""
+        if is_close:
+            normalized_tag = tag.lower()
+            for index in range(len(stack) - 1, -1, -1):
+                if stack[index][0].lower() == normalized_tag:
+                    del stack[index:]
+                    break
+            continue
+        self_closing = attrs.rstrip().endswith("/")
+        if tag.lower() == "skinnedmeshmaterialwrapper":
+            name_match = re.search(
+                r'(?:_subMeshName|subMeshName|SubMeshName|Name|name)="([^"]+)"',
+                attrs,
+                flags=re.IGNORECASE,
+            )
+            wrapper_name = str(name_match.group(1) if name_match else "unnamed wrapper").strip()
+            submesh_vector = next(
+                (
+                    ancestor
+                    for ancestor in reversed(stack)
+                    if ancestor[0].lower() == "vector"
+                    and re.search(
+                        r'\b(?:Name|name|_name)="_subMeshResources"',
+                        ancestor[1],
+                        flags=re.IGNORECASE,
+                    )
+                ),
+                None,
+            )
+            if submesh_vector is None:
+                errors.append(
+                    f"{wrapper_name} wrapper was emitted outside _subMeshResources in {PurePosixPath(sidecar_path).name}."
+                )
+            else:
+                item_match = re.search(r'\bItemID="(\d+)"', attrs, flags=re.IGNORECASE)
+                if item_match is not None:
+                    item_id = item_match.group(1)
+                    by_id = item_ids_by_container.setdefault(submesh_vector[2], {})
+                    previous = by_id.get(item_id)
+                    if previous is not None:
+                        errors.append(
+                            f"{wrapper_name} duplicates SkinnedMeshMaterialWrapper ItemID {item_id} with {previous} "
+                            f"inside _subMeshResources in {PurePosixPath(sidecar_path).name}."
+                        )
+                    else:
+                        by_id[item_id] = wrapper_name
+        if not self_closing:
+            stack.append((tag, attrs, match.start()))
+    wrapper_pattern = re.compile(
+        r"<SkinnedMeshMaterialWrapper\b(?P<attrs>[^>]*)>(?P<body>.*?)</SkinnedMeshMaterialWrapper>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    parameter_pattern = re.compile(
+        r"<MaterialParameter[A-Za-z0-9_:.-]*\b(?P<attrs>[^>]*)>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for wrapper_match in wrapper_pattern.finditer(text):
+        wrapper_attrs = wrapper_match.group("attrs") or ""
+        name_match = re.search(
+            r'(?:_subMeshName|subMeshName|SubMeshName|Name|name)="([^"]+)"',
+            wrapper_attrs,
+            flags=re.IGNORECASE,
+        )
+        wrapper_name = str(name_match.group(1) if name_match else "unnamed wrapper").strip()
+        parameter_names_by_item_id: Dict[str, str] = {}
+        for parameter_match in parameter_pattern.finditer(wrapper_match.group("body") or ""):
+            parameter_attrs = parameter_match.group("attrs") or ""
+            item_match = re.search(r'\bItemID="(\d+)"', parameter_attrs, flags=re.IGNORECASE)
+            if item_match is None:
+                continue
+            parameter_name_match = re.search(
+                r'(?:StringItemID|_name|Name|name)="([^"]+)"',
+                parameter_attrs,
+                flags=re.IGNORECASE,
+            )
+            parameter_name = str(parameter_name_match.group(1) if parameter_name_match else "unnamed parameter").strip()
+            item_id = item_match.group(1)
+            previous = parameter_names_by_item_id.get(item_id)
+            if previous is not None and previous != parameter_name:
+                errors.append(
+                    f"{wrapper_name} duplicates material parameter ItemID {item_id} for {previous} and {parameter_name} "
+                    f"in {PurePosixPath(sidecar_path).name}."
+                )
+            else:
+                parameter_names_by_item_id[item_id] = parameter_name
+    return tuple(_dedupe(errors))
+
+
+def _pac_xml_submesh_resource_wrapper_names(sidecar_text: str, sidecar_path: str) -> Tuple[str, ...]:
+    normalized_path = str(sidecar_path or "").replace("\\", "/").lower()
+    if not (normalized_path.endswith(".pac_xml") or normalized_path.endswith(".pac.xml")):
+        return ()
+    text = str(sidecar_text or "")
+    if "<ModelProperty" not in text or "<SkinnedMeshMaterialWrapper" not in text:
+        return ()
+    tag_pattern = re.compile(r"<\s*(/?)\s*([A-Za-z0-9_:.-]+)\b([^>]*)>", flags=re.IGNORECASE | re.DOTALL)
+    stack: List[Tuple[str, str, int]] = []
+    names: List[str] = []
+    for match in tag_pattern.finditer(text):
+        is_close = bool(match.group(1))
+        tag = match.group(2).split(":")[-1]
+        attrs = match.group(3) or ""
+        if is_close:
+            normalized_tag = tag.lower()
+            for index in range(len(stack) - 1, -1, -1):
+                if stack[index][0].lower() == normalized_tag:
+                    del stack[index:]
+                    break
+            continue
+        self_closing = attrs.rstrip().endswith("/")
+        if tag.lower() == "skinnedmeshmaterialwrapper":
+            submesh_vector = next(
+                (
+                    ancestor
+                    for ancestor in reversed(stack)
+                    if ancestor[0].lower() == "vector"
+                    and re.search(
+                        r'\b(?:Name|name|_name)="_subMeshResources"',
+                        ancestor[1],
+                        flags=re.IGNORECASE,
+                    )
+                ),
+                None,
+            )
+            if submesh_vector is not None:
+                name_match = re.search(
+                    r'(?:_subMeshName|subMeshName|SubMeshName|Name|name)="([^"]+)"',
+                    attrs,
+                    flags=re.IGNORECASE,
+                )
+                wrapper_name = str(name_match.group(1) if name_match else "").strip()
+                if wrapper_name:
+                    names.append(wrapper_name)
+        if not self_closing:
+            stack.append((tag, attrs, match.start()))
+    return tuple(_dedupe(names))
+
+
+def _pac_xml_material_shader_name_errors(sidecar_text: str, sidecar_path: str) -> Tuple[str, ...]:
+    normalized_path = str(sidecar_path or "").replace("\\", "/").lower()
+    if not (normalized_path.endswith(".pac_xml") or normalized_path.endswith(".pac.xml")):
+        return ()
+    errors: List[str] = []
+    wrapper_pattern = re.compile(
+        r"<SkinnedMeshMaterialWrapper\b(?P<attrs>[^>]*)>.*?</SkinnedMeshMaterialWrapper>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for match in wrapper_pattern.finditer(str(sidecar_text or "")):
+        block = match.group(0)
+        attrs = match.group("attrs") or ""
+        name_match = re.search(
+            r'(?:_subMeshName|subMeshName|SubMeshName|Name|name)="([^"]+)"',
+            attrs,
+            flags=re.IGNORECASE,
+        )
+        material_match = re.search(r'<Material\b[^>]*\b_materialName="([^"]*)"', block, flags=re.IGNORECASE | re.DOTALL)
+        wrapper_name = str(name_match.group(1) if name_match else "unnamed wrapper").strip()
+        material_name = str(material_match.group(1) if material_match else "").strip()
+        if not material_name:
+            continue
+        if _material_key(material_name) == _material_key(wrapper_name):
+            errors.append(
+                f"{wrapper_name} material shader name is the source material label ({material_name}) in {PurePosixPath(sidecar_path).name}; "
+                "complete source-owned swap must keep a game shader family such as SkinnedMeshStandard_Ver2."
+            )
+    return tuple(_dedupe(errors))
+
+
+def _pac_xml_submesh_resource_order_errors(
+    sidecar_wrapper_names: Sequence[str],
+    visible_material_names: Sequence[str],
+) -> Tuple[str, ...]:
+    visible_names = [
+        str(name or "").strip()
+        for name in tuple(visible_material_names or ())
+        if _material_key(name)
+    ]
+    if len(visible_names) <= 1:
+        return ()
+    visible_keys = [_material_key(name) for name in visible_names]
+    visible_key_set = set(visible_keys)
+    sidecar_names = [
+        str(name or "").strip()
+        for name in tuple(sidecar_wrapper_names or ())
+        if _material_key(name) in visible_key_set
+    ]
+    if len(sidecar_names) < len(visible_names):
+        return ()
+    sidecar_names = sidecar_names[: len(visible_names)]
+    sidecar_keys = [_material_key(name) for name in sidecar_names]
+    if sidecar_keys == visible_keys:
+        return ()
+    return (
+        "Complete source-owned swap PAC XML _subMeshResources wrapper order does not match rebuilt PAC draw order. "
+        f"PAC: {', '.join(visible_names[:8])}; sidecar: {', '.join(sidecar_names[:8])}."
+        + (" ..." if len(visible_names) > 8 else ""),
+    )
+
+
+def _pac_xml_submesh_resource_idbase_errors(sidecar_text: str, sidecar_path: str) -> Tuple[str, ...]:
+    normalized_path = str(sidecar_path or "").replace("\\", "/").lower()
+    if not (normalized_path.endswith(".pac_xml") or normalized_path.endswith(".pac.xml")):
+        return ()
+    text = str(sidecar_text or "")
+    errors: List[str] = []
+    tag_pattern = re.compile(r"<\s*(/?)\s*([A-Za-z0-9_:.-]+)\b([^>]*)>", flags=re.IGNORECASE | re.DOTALL)
+    stack: List[Tuple[str, bool, int, int, str]] = []
+
+    def validate_vector(attrs: str, body: str) -> None:
+        item_ids: List[int] = []
+        for item_match in re.finditer(r"<SkinnedMeshMaterialWrapper\b[^>]*\bItemID=\"(\d+)\"", body, flags=re.IGNORECASE | re.DOTALL):
+            try:
+                item_ids.append(int(item_match.group(1)))
+            except ValueError:
+                continue
+        if not item_ids:
+            return
+        idbase_match = re.search(r'\bIdBase="(\d+)"', attrs, flags=re.IGNORECASE)
+        if idbase_match is None:
+            errors.append(
+                f"_subMeshResources in {PurePosixPath(sidecar_path).name} has material wrapper ItemID(s) but no IdBase."
+            )
+            return
+        try:
+            idbase = int(idbase_match.group(1))
+        except ValueError:
+            idbase = -1
+        required = max(item_ids)
+        if idbase < required:
+            errors.append(
+                f"_subMeshResources IdBase {idbase} is lower than source-owned material wrapper ItemID {required} in {PurePosixPath(sidecar_path).name}."
+            )
+
+    for match in tag_pattern.finditer(text):
+        is_close = bool(match.group(1))
+        tag = match.group(2).split(":")[-1].lower()
+        attrs = match.group(3) or ""
+        if is_close:
+            for index in range(len(stack) - 1, -1, -1):
+                open_tag, is_target, _start, open_end, open_attrs = stack[index]
+                if open_tag.lower() != tag:
+                    continue
+                del stack[index:]
+                if is_target:
+                    validate_vector(open_attrs, text[open_end:match.start()])
+                break
+            continue
+        if attrs.rstrip().endswith("/"):
+            continue
+        is_target = (
+            tag == "vector"
+            and re.search(r'\b(?:Name|name|_name)="_subMeshResources"', attrs, flags=re.IGNORECASE) is not None
+        )
+        stack.append((tag, is_target, match.start(), match.end(), attrs))
+    return tuple(_dedupe(errors))
+
+
+def _pac_runtime_abi_preflight_errors(
+    rebuilt_data: bytes,
+    preview_result: MeshImportPreviewResult,
+) -> Tuple[str, ...]:
+    data = bytes(rebuilt_data or b"")
+    parsed_mesh = getattr(preview_result, "parsed_mesh", None)
+    if not data or data[:4] != b"PAR " or not str(getattr(parsed_mesh, "format", "") or "").lower() == "pac":
+        return ()
+    planned_sections = tuple(getattr(preview_result, "source_owned_output_draw_sections", ()) or ())
+    if not planned_sections:
+        return ()
+    try:
+        sections = _parse_par_sections(data)
+        sec0 = next((section for section in sections if int(section.get("index", -1)) == 0), None)
+        if not sec0:
+            return ("Complete source-owned swap PAC runtime ABI validation failed: section 0 is missing.",)
+        n_lods = data[int(sec0["offset"]) + 4] if int(sec0["size"]) >= 5 else 0
+        descriptors = _find_pac_descriptors(data, int(sec0["offset"]), int(sec0["size"]), n_lods)
+    except Exception as exc:
+        return (f"Complete source-owned swap PAC runtime ABI validation failed: {exc}",)
+
+    errors: List[str] = []
+    if len(descriptors) != len(planned_sections):
+        errors.append(
+            "Complete source-owned swap PAC runtime ABI changed descriptor count: "
+            f"{len(descriptors):,} descriptor(s), expected {len(planned_sections):,} original runtime slot(s)."
+        )
+
+    total_vertices = int(getattr(parsed_mesh, "total_vertices", 0) or 0)
+    if total_vertices > 1000 and int(sec0.get("size", 0) or 0) < 1024:
+        errors.append(
+            "Complete source-owned swap PAC runtime ABI has a suspiciously small section 0 "
+            f"({int(sec0.get('size', 0) or 0):,} bytes); original descriptor/metadata tail was likely rebuilt instead of preserved."
+        )
+
+    for index, (desc, planned) in enumerate(zip(descriptors, planned_sections)):
+        expected_name = str(getattr(planned, "runtime_slot_name", "") or "").strip()
+        expected_material = str(getattr(planned, "runtime_material_name", "") or "").strip()
+        if expected_name and _material_key(getattr(desc, "name", "")) != _material_key(expected_name):
+            errors.append(
+                f"Complete source-owned swap PAC runtime ABI changed draw slot {index} name: "
+                f"{getattr(desc, 'name', '')} != {expected_name}."
+            )
+        if expected_material and _material_key(getattr(desc, "material", "")) != _material_key(expected_material):
+            errors.append(
+                f"Complete source-owned swap PAC runtime ABI changed draw slot {index} material: "
+                f"{getattr(desc, 'material', '')} != {expected_material}."
+            )
+        vertex_counts = [int(value or 0) for value in tuple(getattr(desc, "vertex_counts", ()) or ())]
+        index_counts = [int(value or 0) for value in tuple(getattr(desc, "index_counts", ()) or ())]
+        active_vertex_counts = [value for value in vertex_counts[: int(getattr(desc, "stored_lod_count", 0) or 0)] if value > 0]
+        active_index_counts = [value for value in index_counts[: int(getattr(desc, "stored_lod_count", 0) or 0)] if value > 0]
+        if len(active_vertex_counts) > 1 and any(active_vertex_counts[i] > active_vertex_counts[i - 1] for i in range(1, len(active_vertex_counts))):
+            errors.append(f"Complete source-owned swap PAC draw slot {index} has non-monotonic LOD vertex counts: {active_vertex_counts}.")
+        if len(active_index_counts) > 1 and any(active_index_counts[i] > active_index_counts[i - 1] for i in range(1, len(active_index_counts))):
+            errors.append(f"Complete source-owned swap PAC draw slot {index} has non-monotonic LOD index counts: {active_index_counts}.")
+        if (
+            len(active_vertex_counts) > 1
+            and len(set(active_vertex_counts)) == 1
+            and len(active_index_counts) > 1
+            and len(set(active_index_counts)) == 1
+            and active_vertex_counts[0] > 8
+            and active_index_counts[0] > 24
+        ):
+            errors.append(
+                f"Complete source-owned swap PAC draw slot {index} duplicates full LOD geometry across all LODs "
+                f"({active_vertex_counts[0]:,} vertices, {active_index_counts[0]:,} indices)."
+            )
+    return tuple(_dedupe(errors))
+
+
 def _material_key(value: object) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value or "").strip().lower())
 
@@ -711,6 +1078,136 @@ def _slot_role(parameter_name: str, texture_path: str) -> Tuple[str, str, bool]:
     return "material", "Material / Mask", bool(getattr(classification, "visualized", False))
 
 
+def _binding_row_parameter_key(row: FinalPackageBindingRow) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(row.parameter_name or "").strip().lower())
+
+
+def _binding_row_is_exact_generated_ready(row: FinalPackageBindingRow) -> bool:
+    return (
+        row.status == FINAL_PREVIEW_READY
+        and row.binding_source == FINAL_PREVIEW_BINDING_GENERATED
+        and row.confidence == "exact"
+    )
+
+
+def _binding_row_is_source_visible_authority(row: FinalPackageBindingRow) -> bool:
+    if not _binding_row_is_exact_generated_ready(row):
+        return False
+    parameter_key = _binding_row_parameter_key(row)
+    if row.role in {"Base / Color", "Emissive"}:
+        return True
+    if any(
+        token in parameter_key
+        for token in (
+            "overlaycolor",
+            "basecolor",
+            "diffuse",
+            "albedo",
+            "colortexture",
+            "emissive",
+        )
+    ):
+        return True
+    return row.role == "Material / Mask" and "colorblendingmask" in parameter_key
+
+
+def _source_owned_material_binding_contract(
+    material_key: str,
+    display_name: str,
+    rows: Sequence[FinalPackageBindingRow],
+    *,
+    strict: bool = False,
+) -> CDMaterialBindingContract:
+    fatal_errors: List[str] = []
+    contract_warnings: List[str] = []
+    source_visible_rows = [row for row in rows if _binding_row_is_source_visible_authority(row)]
+    generated_rows = [row for row in rows if _binding_row_is_exact_generated_ready(row)]
+    original_visible_rows = [
+        row
+        for row in rows
+        if row.role in {"Base / Color", "Emissive"}
+        and row.binding_source == FINAL_PREVIEW_BINDING_ORIGINAL
+        and row.status == FINAL_PREVIEW_READY
+    ]
+    original_support_rows = [
+        row
+        for row in rows
+        if row.role in {"Normal", "Height", "Material / Mask", "Detail Mask"}
+        and row.binding_source == FINAL_PREVIEW_BINDING_ORIGINAL
+    ]
+    missing_support_roles = [
+        role
+        for role in ("Normal", "Height", "Material / Mask", "Detail Mask")
+        if not any(
+            row.role == role and _binding_row_is_exact_generated_ready(row)
+            for row in rows
+        )
+    ]
+
+    if original_visible_rows:
+        detail = ", ".join(
+            f"{row.parameter_name or row.role}->{row.texture_path or '(empty)'}"
+            for row in original_visible_rows[:3]
+        )
+        fatal_errors.append(
+            f"Complete source-owned swap still inherits visible color from the game archive: {display_name} ({detail})."
+        )
+    if not source_visible_rows:
+        message = (
+            "Complete source-owned draw slot has no exact generated source-visible color authority binding: "
+            f"{display_name}. CD may render through original tint/mask response until the wrapper/profile exposes "
+            "_overlayColorTexture or a calibrated _colorBlendingMaskTexture path."
+        )
+        if strict:
+            fatal_errors.append(message)
+        else:
+            contract_warnings.append(message)
+    elif not any(row.role in {"Base / Color", "Emissive"} for row in source_visible_rows):
+        contract_warnings.append(
+            "Complete source-owned draw slot uses generated CD mask/color-blend data as color authority, "
+            f"not a native base/overlay texture: {display_name}."
+        )
+
+    if missing_support_roles:
+        message = (
+            f"Complete source-owned draw slot is missing generated optional support binding(s): {display_name} "
+            f"({', '.join(missing_support_roles)})."
+        )
+        if strict:
+            fatal_errors.append(message)
+        else:
+            contract_warnings.append(message)
+    if original_support_rows:
+        detail = ", ".join(
+            f"{row.parameter_name or row.role}->{row.texture_path or '(empty)'}"
+            for row in original_support_rows[:4]
+        )
+        message = f"Complete source-owned draw slot keeps original support texture binding(s): {display_name} ({detail})."
+        if strict:
+            fatal_errors.append(message)
+        else:
+            contract_warnings.append(message)
+    if not rows:
+        message = (
+            f"Complete source-owned draw slot has no parsed texture parameters in the patched sidecar wrapper: {display_name}."
+        )
+        if strict:
+            fatal_errors.append(message)
+        else:
+            contract_warnings.append(message)
+    elif not generated_rows:
+        contract_warnings.append(
+            f"Complete source-owned draw slot has no exact generated DDS binding in parsed sidecar rows: {display_name}."
+        )
+    return CDMaterialBindingContract(
+        material_key=material_key,
+        display_name=display_name,
+        fatal_errors=tuple(_dedupe(fatal_errors)),
+        warnings=tuple(_dedupe(contract_warnings)),
+        source_visible_binding_count=len(source_visible_rows),
+    )
+
+
 def _assign_row_to_meshes(
     preview_model: ModelPreviewData,
     mesh_indices: Sequence[int],
@@ -728,9 +1225,9 @@ def _assign_row_to_meshes(
         if mesh_index < 0 or mesh_index >= len(meshes):
             continue
         mesh = meshes[mesh_index]
-        if role_key in {"base", "emissive"}:
+        if role_key == "base" or (role_key == "emissive" and not str(getattr(mesh, "preview_texture_path", "") or "").strip()):
             mesh.preview_texture_path = preview_texture_path
-            mesh.texture_name = texture_name
+            mesh.preview_base_texture_default_name = texture_name
             mesh.preview_texture_flip_vertical = False
         elif role_key == "normal":
             mesh.preview_normal_texture_path = preview_texture_path
@@ -751,7 +1248,7 @@ def _assign_row_to_meshes(
 def _assign_unmatched_visible_textures_by_order(
     preview_model: ModelPreviewData,
     binding_rows: Sequence[FinalPackageBindingRow],
-) -> int:
+) -> Tuple[int, Tuple[str, ...]]:
     ready_visible_rows = [
         row
         for row in binding_rows
@@ -761,14 +1258,19 @@ def _assign_unmatched_visible_textures_by_order(
         and str(row.preview_texture_path or "").strip()
     ]
     if not ready_visible_rows:
-        return 0
+        return 0, ()
     unmatched_meshes = [
         (index, mesh)
         for index, mesh in enumerate(getattr(preview_model, "meshes", []) or [])
         if not str(getattr(mesh, "preview_texture_path", "") or "").strip()
     ]
     assigned_count = 0
+    assignment_details: List[str] = []
     for (mesh_index, _mesh), row in zip(unmatched_meshes, ready_visible_rows):
+        target_name = _material_label_for_mesh(_mesh, mesh_index)
+        source_name = str(row.material_name or row.part_name or row.parameter_name or "source material").strip()
+        if source_name or target_name:
+            assignment_details.append(f"{source_name or 'source material'} -> {target_name or f'mesh {mesh_index}'}")
         _assign_row_to_meshes(
             preview_model,
             (mesh_index,),
@@ -779,7 +1281,14 @@ def _assign_unmatched_visible_textures_by_order(
             texture_path=row.texture_path,
         )
         assigned_count += 1
-    return assigned_count
+    return assigned_count, tuple(assignment_details)
+
+
+def _fallback_assignment_detail(details: Sequence[str]) -> str:
+    clean = _dedupe(str(detail) for detail in details if str(detail or "").strip())
+    if not clean:
+        return ""
+    return " Examples: " + ", ".join(clean[:4]) + (" ..." if len(clean) > 4 else "")
 
 
 def _dedupe(values: Iterable[str]) -> List[str]:
@@ -1099,6 +1608,7 @@ def build_final_package_preview(
     original_dds_basename_resolver: Optional[Callable[[str], Sequence[Path]]] = None,
     package_root: Optional[Path] = None,
     require_source_owned_colors: bool = False,
+    strict_source_owned_material_contract: bool = False,
 ) -> FinalPackagePreviewResult:
     """Build the texture-authoritative mesh preview for the package payloads that would be exported."""
 
@@ -1184,8 +1694,15 @@ def build_final_package_preview(
         mesh_indices_by_material.setdefault(key, []).append(index)
 
     binding_sources: List[Tuple[str, object]] = []
+    sidecar_structure_errors: List[str] = []
+    sidecar_submesh_resource_names: List[str] = []
     for sidecar_path, spec in sidecars.values():
         sidecar_text = _spec_payload_text(spec)
+        if require_source_owned_colors:
+            sidecar_structure_errors.extend(_pac_xml_material_wrapper_structure_errors(sidecar_text, sidecar_path))
+            sidecar_structure_errors.extend(_pac_xml_material_shader_name_errors(sidecar_text, sidecar_path))
+            sidecar_structure_errors.extend(_pac_xml_submesh_resource_idbase_errors(sidecar_text, sidecar_path))
+            sidecar_submesh_resource_names.extend(_pac_xml_submesh_resource_wrapper_names(sidecar_text, sidecar_path))
         for binding in parse_texture_sidecar_bindings(sidecar_text, sidecar_path=sidecar_path):
             binding_sources.append((sidecar_path, binding))
     if not binding_sources:
@@ -1297,7 +1814,7 @@ def build_final_package_preview(
                     material_key = _material_key(material_name) or f"mesh{mesh_index}"
                     material_display_by_key.setdefault(material_key, material_name)
                     rows_by_material.setdefault(material_key, [])
-                if status == FINAL_PREVIEW_READY and confidence == "exact":
+                if status == FINAL_PREVIEW_READY and confidence == "exact" and visualized:
                     _assign_row_to_meshes(
                         preview_model,
                         mesh_indices,
@@ -1357,11 +1874,12 @@ def build_final_package_preview(
             + (" ..." if len(orphan_payload_paths) > 8 else "")
         )
 
-    fallback_assignment_count = _assign_unmatched_visible_textures_by_order(preview_model, binding_rows)
+    fallback_assignment_count, fallback_assignment_details = _assign_unmatched_visible_textures_by_order(preview_model, binding_rows)
     if fallback_assignment_count:
         warnings.append(
             "Final preview assigned visible textures by draw-order fallback for "
             f"{fallback_assignment_count:,} unmatched mesh batch(es). This is preview-only; material names did not match final sidecar bindings exactly."
+            + _fallback_assignment_detail(fallback_assignment_details)
         )
 
     source_visible_texture_count = _visible_preview_texture_count(getattr(preview_result, "preview_model", None))
@@ -1438,9 +1956,7 @@ def build_final_package_preview(
     source_owned_color_count = sum(
         1
         for row in binding_rows
-        if row.role in {"Base / Color", "Emissive"}
-        and row.binding_source == FINAL_PREVIEW_BINDING_GENERATED
-        and row.status == FINAL_PREVIEW_READY
+        if _binding_row_is_source_visible_authority(row)
     )
     inherited_color_count = sum(
         1
@@ -1467,8 +1983,54 @@ def build_final_package_preview(
         if _is_stock_or_shared_texture_path(row.texture_path)
         and row.binding_source == FINAL_PREVIEW_BINDING_ORIGINAL
     )
+    planned_placeholder_material_keys: set[str] = set()
+    planned_source_owned_material_keys: set[str] = set()
+    planned_source_owned_material_display: Dict[str, str] = {}
+    if require_source_owned_colors:
+        available_source_owned_contract_keys = set(rows_by_material) | {
+            _material_key(name)
+            for name in tuple(sidecar_submesh_resource_names or ())
+            if _material_key(name)
+        }
+
+        def select_source_owned_contract_name(section: object) -> str:
+            candidates = _dedupe(
+                str(name or "").strip()
+                for name in (
+                    getattr(section, "target_submesh_name", ""),
+                    getattr(section, "runtime_material_name", ""),
+                    getattr(section, "runtime_slot_name", ""),
+                    getattr(section, "atlas_material_name", ""),
+                    getattr(section, "source_material_name", ""),
+                )
+                if str(name or "").strip()
+            )
+            for candidate in candidates:
+                key = _material_key(candidate)
+                if key and key in available_source_owned_contract_keys:
+                    return candidate
+            return candidates[0] if candidates else ""
+
+        for section in getattr(preview_result, "source_owned_output_draw_sections", ()) or ():
+            if tuple(getattr(section, "source_submesh_indices", ()) or ()):
+                name = select_source_owned_contract_name(section)
+                key = _material_key(name)
+                if key:
+                    planned_source_owned_material_keys.add(key)
+                    planned_source_owned_material_display.setdefault(key, str(name or "").strip() or key)
+                continue
+            for name in (
+                getattr(section, "target_submesh_name", ""),
+                getattr(section, "donor_material_name", ""),
+            ):
+                key = _material_key(name)
+                if key:
+                    planned_placeholder_material_keys.add(key)
     preflight_errors: List[str] = []
     for row in binding_rows:
+        row_material_key = _material_key(getattr(row, "material_name", ""))
+        row_is_planned_placeholder = bool(row_material_key and row_material_key in planned_placeholder_material_keys)
+        row_is_planned_source_owned = bool(row_material_key and row_material_key in planned_source_owned_material_keys)
         basename = PurePosixPath(str(row.texture_path or "").replace("\\", "/")).name.lower()
         stem = PurePosixPath(basename).stem.lower()
         parameter_key = re.sub(r"[^a-z0-9]+", "", str(row.parameter_name or "").lower())
@@ -1476,15 +2038,35 @@ def build_final_package_preview(
             preflight_errors.append(
                 f"Exact texture path mismatch: {row.sidecar_path} -> {row.texture_path}. A same-basename DDS exists, but the packaged path does not match."
             )
-        if row.role in {"Base / Color", "Emissive"} and row.status in {FINAL_PREVIEW_MISSING_DDS, FINAL_PREVIEW_DECODE_FAILED}:
-            preflight_errors.append(
-                f"Visible color texture is not package-resolved: {row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
+        if (
+            not row_is_planned_placeholder
+            and row.role in {"Base / Color", "Emissive"}
+            and row.status in {FINAL_PREVIEW_MISSING_DDS, FINAL_PREVIEW_DECODE_FAILED}
+        ):
+            message = (
+                f"Visible color texture is not package-resolved: "
+                f"{row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
             )
-        if row.role == "Base / Color" and stem.endswith(("_mg", "_sp", "_n", "_normal", "_disp", "_height")):
+            if (
+                require_source_owned_colors
+                and row_is_planned_source_owned
+                and any(token in parameter_key for token in SOURCE_OWNED_FORBIDDEN_ORIGINAL_PARAMETER_TOKENS)
+                and not strict_source_owned_material_contract
+            ):
+                warnings.append(message)
+            else:
+                preflight_errors.append(message)
+        if (
+            not row_is_planned_placeholder
+            and row.role == "Base / Color"
+            and stem.endswith(("_mg", "_sp", "_n", "_normal", "_disp", "_height"))
+        ):
             preflight_errors.append(
                 f"Support map is bound as visible base color: {row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
             )
         if (
+            not row_is_planned_placeholder
+            and
             any(token in parameter_key for token in ("basecolor", "overlaycolor", "diffuse", "albedo", "colortexture"))
             and stem.endswith(("_mg", "_sp", "_n", "_normal", "_disp", "_height"))
         ):
@@ -1496,10 +2078,56 @@ def build_final_package_preview(
             and row.role in {"Base / Color", "Emissive"}
             and row.status == FINAL_PREVIEW_READY
             and row.binding_source != FINAL_PREVIEW_BINDING_GENERATED
+            and row_is_planned_source_owned
+            and not row_is_planned_placeholder
         ):
             preflight_errors.append(
                 f"Complete source-owned swap still inherits visible color from the game archive: {row.material_name} -> {row.texture_path}."
             )
+        if (
+            require_source_owned_colors
+            and row_is_planned_source_owned
+            and not row_is_planned_placeholder
+            and row.role in {"Base / Color", "Emissive", "Normal", "Height", "Material / Mask", "Detail Mask"}
+            and row.binding_source == FINAL_PREVIEW_BINDING_ORIGINAL
+        ):
+            message = (
+                f"Complete source-owned slot still inherits original {row.role} binding: "
+                f"{row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
+            )
+            if row.role in {"Base / Color", "Emissive"} or strict_source_owned_material_contract:
+                preflight_errors.append(message)
+            else:
+                warnings.append(message)
+        if (
+            require_source_owned_colors
+            and row_is_planned_source_owned
+            and not row_is_planned_placeholder
+            and row.binding_source != FINAL_PREVIEW_BINDING_GENERATED
+            and any(token in parameter_key for token in SOURCE_OWNED_FORBIDDEN_ORIGINAL_PARAMETER_TOKENS)
+        ):
+            message = (
+                f"Complete source-owned wrapper still has non-generated original/support material parameter: "
+                f"{row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
+            )
+            if strict_source_owned_material_contract:
+                preflight_errors.append(message)
+            else:
+                warnings.append(message)
+    if require_source_owned_colors and planned_source_owned_material_keys:
+        for material_key in sorted(planned_source_owned_material_keys):
+            if material_key in planned_placeholder_material_keys:
+                continue
+            rows = rows_by_material.get(material_key, [])
+            display_name = planned_source_owned_material_display.get(material_key) or material_display_by_key.get(material_key) or material_key
+            contract = _source_owned_material_binding_contract(
+                material_key,
+                display_name,
+                rows,
+                strict=bool(strict_source_owned_material_contract),
+            )
+            preflight_errors.extend(contract.fatal_errors)
+            warnings.extend(contract.warnings)
     if orphan_payload_paths:
         preflight_errors.append(
             "Generated/copied DDS payloads are not referenced by parsed material sidecars: "
@@ -1509,10 +2137,91 @@ def build_final_package_preview(
     if require_source_owned_colors and not sidecars:
         preflight_errors.append("Complete source-owned swap has no packaged material sidecar payload to control visible color.")
     if require_source_owned_colors and source_visible_texture_count > final_visible_texture_count:
-        preflight_errors.append(
+        message = (
             "Complete source-owned swap lost visible texture coverage in the final package contract "
             f"({final_visible_texture_count:,}/{source_visible_texture_count:,})."
         )
+        if strict_source_owned_material_contract:
+            preflight_errors.append(message)
+        else:
+            warnings.append(message)
+    if require_source_owned_colors and fallback_assignment_count:
+        message = (
+            "Complete source-owned swap final preview used draw-order fallback for "
+            f"{fallback_assignment_count:,} mesh batch(es); generated material names did not match patched sidecar bindings."
+            + _fallback_assignment_detail(fallback_assignment_details)
+        )
+        if strict_source_owned_material_contract:
+            preflight_errors.append(message)
+        else:
+            warnings.append(message)
+    if require_source_owned_colors:
+        preflight_errors.extend(_pac_runtime_abi_preflight_errors(bytes(getattr(effective_preview_result, "rebuilt_data", b"") or b""), preview_result))
+        source_meshes = list(getattr(getattr(preview_result, "preview_model", None), "meshes", []) or [])
+        visible_material_names = [_material_label_for_mesh(mesh, index) for index, mesh in enumerate(getattr(preview_model, "meshes", []) or [])]
+        preflight_errors.extend(
+            _pac_xml_submesh_resource_order_errors(sidecar_submesh_resource_names, visible_material_names)
+        )
+        visible_material_keys = {_material_key(name) for name in visible_material_names if _material_key(name)}
+        parsed_material_keys: set[str] = set()
+        parsed_mesh = getattr(preview_result, "parsed_mesh", None)
+        for submesh in getattr(parsed_mesh, "submeshes", ()) or ():
+            parsed_material_keys.update(
+                _material_key(name)
+                for name in (
+                    getattr(submesh, "material", ""),
+                    getattr(submesh, "name", ""),
+                    getattr(submesh, "texture", ""),
+                )
+                if _material_key(name)
+            )
+        planned_material_keys: set[str] = set()
+        for section in getattr(preview_result, "source_owned_output_draw_sections", ()) or ():
+            planned_material_keys.update(
+                _material_key(name)
+                for name in (
+                    getattr(section, "target_submesh_name", ""),
+                    getattr(section, "donor_material_name", ""),
+                )
+                if _material_key(name)
+            )
+        valid_sidecar_material_keys = visible_material_keys | parsed_material_keys | planned_material_keys
+        stale_sidecar_names = [
+            name
+            for name in sidecar_submesh_resource_names
+            if _material_key(name) and _material_key(name) not in valid_sidecar_material_keys
+        ]
+        if stale_sidecar_names:
+            stale_names = _dedupe(stale_sidecar_names)
+            preflight_errors.append(
+                "Complete source-owned swap PAC XML still contains stale original _subMeshResources wrapper(s) "
+                "that are not rebuilt PAC draw sections: "
+                + ", ".join(stale_names[:8])
+                + (" ..." if len(stale_names) > 8 else "")
+            )
+        missing_source_owned_materials: List[str] = []
+        for index, mesh in enumerate(getattr(preview_model, "meshes", []) or []):
+            source_mesh = source_meshes[index] if index < len(source_meshes) else None
+            if source_mesh is not None and not str(getattr(source_mesh, "preview_texture_path", "") or "").strip():
+                continue
+            if str(getattr(mesh, "preview_texture_path", "") or "").strip():
+                continue
+            material_name = _material_label_for_mesh(mesh, index)
+            if material_name:
+                missing_source_owned_materials.append(material_name)
+        if missing_source_owned_materials:
+            missing_names = _dedupe(missing_source_owned_materials)
+            message = (
+                "Complete source-owned swap has no exact generated visible sidecar/DDS binding for: "
+                + ", ".join(missing_names[:8])
+                + (" ..." if len(missing_names) > 8 else "")
+            )
+            if strict_source_owned_material_contract:
+                preflight_errors.append(message)
+            else:
+                warnings.append(message)
+    if require_source_owned_colors and sidecar_structure_errors:
+        preflight_errors.extend(sidecar_structure_errors)
     preflight_errors = _dedupe(preflight_errors)
 
     summary_lines = [

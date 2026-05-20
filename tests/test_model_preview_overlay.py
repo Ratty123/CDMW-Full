@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from array import array
 import math
@@ -24,13 +24,14 @@ from cdmw.models import (
     clamp_model_preview_render_settings,
 )
 from cdmw.ui.widgets import (
-    ModelPreviewWidget,
+    NativePreviewPanel,
     _BatchRenderDiagnostic,
     _FramebufferVisibilitySample,
     _ModelPreviewDrawBatch,
     _RENDER_DIAGNOSTIC_MODE_CODES,
     _TextureVisibilitySample,
 )
+from cdmw.rendering.model_preview_prepare import prepare_model_preview
 
 
 class ModelPreviewOverlayClipTests(unittest.TestCase):
@@ -45,7 +46,7 @@ class ModelPreviewOverlayClipTests(unittest.TestCase):
         self.assertFalse(settings.maximum_indexing_priority)
 
     def test_keeps_visible_overlay_line_unchanged(self) -> None:
-        clipped = ModelPreviewWidget._clip_preview_line(
+        clipped = NativePreviewPanel._clip_preview_line(
             (-0.25, 0.0, 0.0, 1.0),
             (0.25, 0.0, 0.0, 1.0),
         )
@@ -56,7 +57,7 @@ class ModelPreviewOverlayClipTests(unittest.TestCase):
         )
 
     def test_rejects_overlay_line_fully_outside_frustum(self) -> None:
-        clipped = ModelPreviewWidget._clip_preview_line(
+        clipped = NativePreviewPanel._clip_preview_line(
             (2.0, 0.0, 0.0, 1.0),
             (3.0, 0.0, 0.0, 1.0),
         )
@@ -64,7 +65,7 @@ class ModelPreviewOverlayClipTests(unittest.TestCase):
         self.assertIsNone(clipped)
 
     def test_clips_overlay_line_against_near_plane(self) -> None:
-        clipped = ModelPreviewWidget._clip_preview_line(
+        clipped = NativePreviewPanel._clip_preview_line(
             (0.0, 0.0, -2.0, 1.0),
             (0.0, 0.0, 0.0, 1.0),
         )
@@ -76,20 +77,20 @@ class ModelPreviewOverlayClipTests(unittest.TestCase):
         self.assertEqual(clipped[1], (0.0, 0.0, 0.0, 1.0))
 
     def test_clips_overlay_line_before_perspective_divide_when_it_crosses_camera(self) -> None:
-        clipped = ModelPreviewWidget._clip_preview_line(
+        clipped = NativePreviewPanel._clip_preview_line(
             (0.0, 0.0, 0.0, -1.0),
             (0.0, 0.0, 0.0, 1.0),
         )
 
         self.assertIsNotNone(clipped)
         assert clipped is not None
-        self.assertGreaterEqual(clipped[0][3], ModelPreviewWidget._OVERLAY_CLIP_EPSILON)
-        self.assertGreaterEqual(clipped[1][3], ModelPreviewWidget._OVERLAY_CLIP_EPSILON)
+        self.assertGreaterEqual(clipped[0][3], NativePreviewPanel._OVERLAY_CLIP_EPSILON)
+        self.assertGreaterEqual(clipped[1][3], NativePreviewPanel._OVERLAY_CLIP_EPSILON)
 
 
 class ModelPreviewRenderSafetyTests(unittest.TestCase):
     def test_alignment_live_rotation_matrix_matches_static_replacer_euler_order(self) -> None:
-        matrix = ModelPreviewWidget._alignment_euler_xyz_matrix((25.0, -35.0, 12.0))
+        matrix = NativePreviewPanel._alignment_euler_xyz_matrix((25.0, -35.0, 12.0))
         point = matrix.map(QVector3D(0.35, -0.4, 0.9))
 
         x, y, z = 0.35, -0.4, 0.9
@@ -110,11 +111,11 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         live_delta = (3.5, 2.25, -1.0)
         point = QVector3D(0.4, -0.2, 0.8)
 
-        base_matrix = ModelPreviewWidget._alignment_euler_xyz_matrix(base_rotation)
-        target_matrix = ModelPreviewWidget._alignment_euler_xyz_matrix(
+        base_matrix = NativePreviewPanel._alignment_euler_xyz_matrix(base_rotation)
+        target_matrix = NativePreviewPanel._alignment_euler_xyz_matrix(
             tuple(base_rotation[index] + live_delta[index] for index in range(3))
         )
-        delta_matrix = ModelPreviewWidget._alignment_euler_delta_matrix(base_rotation, live_delta)
+        delta_matrix = NativePreviewPanel._alignment_euler_delta_matrix(base_rotation, live_delta)
 
         current_point = base_matrix.map(point)
         expected_point = target_matrix.map(point)
@@ -174,6 +175,18 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertEqual(26, _RENDER_DIAGNOSTIC_MODE_CODES["wireframe"])
         self.assertEqual(27, _RENDER_DIAGNOSTIC_MODE_CODES["vertex_normals"])
         self.assertEqual(28, _RENDER_DIAGNOSTIC_MODE_CODES["uv_checker"])
+        self.assertEqual(29, _RENDER_DIAGNOSTIC_MODE_CODES["source_pbr_preview"])
+        self.assertEqual(30, _RENDER_DIAGNOSTIC_MODE_CODES["cd_runtime_approx"])
+        self.assertEqual("Source PBR Preview", MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS["source_pbr_preview"])
+        self.assertEqual("CD Runtime Approx Preview", MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS["cd_runtime_approx"])
+
+        prep_source = Path("cdmw/rendering/model_preview_prepare.py").read_text(encoding="utf-8")
+        self.assertIn('"cd_runtime_approx"', prep_source)
+        self.assertIn("render_mode_uses_derived_relief", prep_source)
+        package_source = Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8")
+        self.assertIn('"source_pbr_preview"', package_source)
+        self.assertIn('"cd_runtime_approx"', package_source)
+        self.assertIn("preview_divergence_reasons", package_source)
 
     def test_sketchfab_style_geometry_diagnostic_modes_are_available(self) -> None:
         for mode, label in (
@@ -187,12 +200,10 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
             settings = clamp_model_preview_render_settings(ModelPreviewRenderSettings(render_diagnostic_mode=mode))
             self.assertEqual(mode, settings.render_diagnostic_mode)
 
-        shader_source = Path("cdmw/ui/widgets.py").read_text(encoding="utf-8")
-        self.assertIn("attribute vec3 barycentric;", shader_source)
-        self.assertIn("wireframe_edge_factor", shader_source)
-        self.assertIn("procedural_matcap", shader_source)
-        self.assertIn("def _draw_vertex_normals_overlay", shader_source)
-        self.assertIn("uv_checker_color", shader_source)
+        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        self.assertIn("wireframe_rasterizer_", native_source)
+        self.assertIn("diagnostic_mode_code", native_source)
+        self.assertIn('mode == "uv_checker"', native_source)
 
     def test_normal_diagnostics_distinguish_geometry_from_texture_maps(self) -> None:
         self.assertEqual("Geometry Normal", MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS["normal"])
@@ -200,33 +211,33 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertEqual(5, _RENDER_DIAGNOSTIC_MODE_CODES["normal"])
         self.assertEqual(11, _RENDER_DIAGNOSTIC_MODE_CODES["normal_raw"])
 
-        shader_source = Path("cdmw/ui/widgets.py").read_text(encoding="utf-8")
-        self.assertIn("varying vec3 frag_object_normal;", shader_source)
-        self.assertIn("vec3 geometry_normal = safe_normalize(frag_object_normal", shader_source)
+        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        self.assertIn('mode == "normal"', native_source)
+        self.assertIn('mode == "normal_raw"', native_source)
 
     def test_derived_relief_texture_generation_is_relief_mode_only(self) -> None:
         self.assertFalse(
-            ModelPreviewWidget._render_mode_uses_derived_relief(
+            NativePreviewPanel._render_mode_uses_derived_relief(
                 ModelPreviewRenderSettings(render_diagnostic_mode="lit")
             )
         )
         self.assertFalse(
-            ModelPreviewWidget._render_mode_uses_derived_relief(
+            NativePreviewPanel._render_mode_uses_derived_relief(
                 ModelPreviewRenderSettings(render_diagnostic_mode="base_raw")
             )
         )
         self.assertFalse(
-            ModelPreviewWidget._render_mode_uses_derived_relief(
+            NativePreviewPanel._render_mode_uses_derived_relief(
                 ModelPreviewRenderSettings(render_diagnostic_mode="relief_control_test")
             )
         )
         self.assertTrue(
-            ModelPreviewWidget._render_mode_uses_derived_relief(
+            NativePreviewPanel._render_mode_uses_derived_relief(
                 ModelPreviewRenderSettings(render_diagnostic_mode="rich_lit")
             )
         )
         self.assertTrue(
-            ModelPreviewWidget._render_mode_uses_derived_relief(
+            NativePreviewPanel._render_mode_uses_derived_relief(
                 ModelPreviewRenderSettings(render_diagnostic_mode="height_calibrated")
             )
         )
@@ -237,7 +248,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         image.setPixelColor(1, 0, QColor(128, 128, 128, 255))
         image.setPixelColor(2, 0, QColor(224, 224, 224, 255))
 
-        sample = ModelPreviewWidget._sample_base_texture_visibility(
+        sample = NativePreviewPanel._sample_base_texture_visibility(
             image,
             [(0.0, 0.0), (0.5, 0.0), (0.99, 0.0)],
             flip_vertical=False,
@@ -257,11 +268,11 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
                 value = 40 if (x + y) % 2 == 0 else 220
                 image.setPixelColor(x, y, QColor(value, value, value, 255))
 
-        relief = ModelPreviewWidget._derive_relief_image_from_base(image)
+        relief = NativePreviewPanel._derive_relief_image_from_base(image)
 
         self.assertIsNotNone(relief)
         assert relief is not None
-        sample = ModelPreviewWidget._sample_base_texture_visibility(
+        sample = NativePreviewPanel._sample_base_texture_visibility(
             relief,
             [(0.0, 0.0), (0.33, 0.0), (0.66, 0.0), (0.99, 0.0)],
             flip_vertical=False,
@@ -275,10 +286,10 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         image = QImage(4, 4, QImage.Format_RGBA8888)
         image.fill(QColor(120, 120, 120, 255))
 
-        self.assertIsNone(ModelPreviewWidget._derive_relief_image_from_base(image))
+        self.assertIsNone(NativePreviewPanel._derive_relief_image_from_base(image))
 
     def test_enhanced_relief_status_reports_true_and_derived_sources(self) -> None:
-        active_state, active_reason, active_usable, active_source = ModelPreviewWidget._enhanced_relief_status(
+        active_state, active_reason, active_usable, active_source = NativePreviewPanel._enhanced_relief_status(
             render_mode_code=22,
             high_quality_enabled=True,
             support_maps_enabled=True,
@@ -296,7 +307,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
             height_map_disabled=False,
             height_effect_max=0.7,
         )
-        derived_state, derived_reason, derived_usable, derived_source = ModelPreviewWidget._enhanced_relief_status(
+        derived_state, derived_reason, derived_usable, derived_source = NativePreviewPanel._enhanced_relief_status(
             render_mode_code=22,
             high_quality_enabled=True,
             support_maps_enabled=False,
@@ -317,7 +328,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
             height_map_disabled=True,
             height_effect_max=0.7,
         )
-        flat_state, flat_reason, flat_usable, flat_source = ModelPreviewWidget._enhanced_relief_status(
+        flat_state, flat_reason, flat_usable, flat_source = NativePreviewPanel._enhanced_relief_status(
             render_mode_code=22,
             high_quality_enabled=True,
             support_maps_enabled=True,
@@ -376,19 +387,19 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         for mode in ("base_direct", "base_no_tint", "base_alpha", "base_color", "sampler_swap_base_on_unit2"):
             self.assertEqual(
                 "base",
-                ModelPreviewWidget._diffuse_probe_source_for_render_mode(settings, mode),
+                NativePreviewPanel._diffuse_probe_source_for_render_mode(settings, mode),
             )
         self.assertEqual(
             "material",
-            ModelPreviewWidget._diffuse_probe_source_for_render_mode(settings, "sampler_swap_material_on_unit0"),
+            NativePreviewPanel._diffuse_probe_source_for_render_mode(settings, "sampler_swap_material_on_unit0"),
         )
         self.assertEqual(
             "material",
-            ModelPreviewWidget._diffuse_probe_source_for_render_mode(settings, "texture_probe"),
+            NativePreviewPanel._diffuse_probe_source_for_render_mode(settings, "texture_probe"),
         )
         self.assertEqual(
             "base",
-            ModelPreviewWidget._diffuse_probe_source_for_render_mode(
+            NativePreviewPanel._diffuse_probe_source_for_render_mode(
                 ModelPreviewRenderSettings(texture_probe_source="not-a-slot"),
                 "texture_probe",
             ),
@@ -461,28 +472,19 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertGreater(defaults.specular_max, 0.0)
 
     def test_enhanced_relief_shader_path_is_gated(self) -> None:
-        source = Path("cdmw/ui/widgets.py").read_text(encoding="utf-8")
+        prep_source = Path("cdmw/rendering/model_preview_prepare.py").read_text(encoding="utf-8")
+        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
 
-        self.assertIn("bool rich_lit = render_diagnostic_mode == 22;", source)
-        self.assertIn("for (int relief_step = 0; relief_step < 8; ++relief_step)", source)
-        self.assertIn("height_relief_usable != 0", source)
-        self.assertIn("effective_height_effect_max = rich_lit ? height_effect_max : 0.35", source)
-        self.assertIn("relief_source_code == 2", source)
-        self.assertIn("render_diagnostic_mode == 24", source)
-        self.assertIn("control_color = max(control_color, vec3(0.22, 0.22, 0.22))", source)
-        self.assertIn('MODEL_PREVIEW_RENDER_BUILD_ID = "2026-05-13-native-dds-v1"', source)
-        self.assertIn("relief_emboss_rgb", source)
-        self.assertIn("relief_local_contrast", source)
-        self.assertIn("radical_chiseled", source)
-        self.assertIn("radical_cavity", source)
-        self.assertIn("normal_detail_strength", source)
-        self.assertIn("normal_light_delta", source)
-        self.assertIn("self._batch_render_diagnostics = {}", source)
-        self.assertIn("Diagnostics pending repaint:", source)
+        self.assertIn("def enhanced_relief_status", prep_source)
+        self.assertIn('"height_calibrated"', prep_source)
+        self.assertIn('"cd_runtime_approx"', prep_source)
+        self.assertIn("height_effect_max", prep_source)
+        self.assertIn("height_value", native_source)
+        self.assertIn("roughness = saturate(roughness - relief", native_source)
 
     def test_black_output_triage_distinguishes_missing_base_from_support_only(self) -> None:
         framebuffer = _FramebufferVisibilitySample(visible_pixels=100, average_luma=0.02, dark_ratio=0.95)
-        missing_base_lines = ModelPreviewWidget._black_output_triage_lines(
+        missing_base_lines = NativePreviewPanel._black_output_triage_lines(
             [
                 _BatchRenderDiagnostic(
                     batch_index=0,
@@ -494,7 +496,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
             ],
             framebuffer,
         )
-        support_only_lines = ModelPreviewWidget._black_output_triage_lines(
+        support_only_lines = NativePreviewPanel._black_output_triage_lines(
             [
                 _BatchRenderDiagnostic(
                     batch_index=0,
@@ -538,12 +540,12 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
             1: _BatchRenderDiagnostic(1, 1, "batch 1", use_height=True),
         }
 
-        available = ModelPreviewWidget._support_map_slot_counts_from_batches(batches)
-        active = ModelPreviewWidget._support_map_active_counts_from_diagnostics(diagnostics)
+        available = NativePreviewPanel._support_map_slot_counts_from_batches(batches)
+        active = NativePreviewPanel._support_map_active_counts_from_diagnostics(diagnostics)
 
         self.assertEqual({"normal": 1, "material": 1, "height": 1}, available)
         self.assertEqual({"normal": 1, "material": 0, "height": 1}, active)
-        self.assertEqual("n:1 m:0 h:1", ModelPreviewWidget._format_support_map_counts(active))
+        self.assertEqual("n:1 m:0 h:1", NativePreviewPanel._format_support_map_counts(active))
 
     def test_vertex_blob_repairs_invalid_normals_and_preserves_uv_batch(self) -> None:
         mesh = ModelPreviewMesh(
@@ -568,7 +570,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         )
         model = ModelPreviewData(meshes=[mesh])
 
-        vertex_blob, vertex_count, batches = ModelPreviewWidget._build_vertex_blob(model)
+        vertex_blob, vertex_count, batches = NativePreviewPanel._build_vertex_blob(model)
         values = array("f")
         values.frombytes(vertex_blob)
 
@@ -605,12 +607,12 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
             preview_height_texture_path="height.png",
         )
 
-        _vertex_blob, _vertex_count, batches = ModelPreviewWidget._build_vertex_blob(ModelPreviewData(meshes=[mesh]))
+        _vertex_blob, _vertex_count, batches = NativePreviewPanel._build_vertex_blob(ModelPreviewData(meshes=[mesh]))
 
         self.assertTrue(batches[0].has_texture_coordinates)
         self.assertEqual(0.0, batches[0].tangent_finite_ratio)
         self.assertEqual(0.0, batches[0].bitangent_finite_ratio)
-        self.assertFalse(ModelPreviewWidget._support_map_geometry_usable(batches[0]))
+        self.assertFalse(NativePreviewPanel._support_map_geometry_usable(batches[0]))
 
     def test_vertex_blob_includes_preview_smoothed_normals_for_rich_lighting(self) -> None:
         mesh = ModelPreviewMesh(
@@ -643,7 +645,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         )
         model = ModelPreviewData(meshes=[mesh])
 
-        vertex_blob, _vertex_count, batches = ModelPreviewWidget._build_vertex_blob(model)
+        vertex_blob, _vertex_count, batches = NativePreviewPanel._build_vertex_blob(model)
         values = array("f")
         values.frombytes(vertex_blob)
 
@@ -677,7 +679,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         )
         model = ModelPreviewData(meshes=[mesh])
 
-        _clone, prepared = ModelPreviewWidget.prepare_model_preview(model)
+        _clone, prepared = prepare_model_preview(model)
 
         self.assertIsNotNone(prepared)
         assert prepared is not None
@@ -688,7 +690,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         image.setPixelColor(0, 0, QColor(0, 0, 0, 128))
         image.setPixelColor(1, 0, QColor(255, 255, 255, 255))
 
-        sample = ModelPreviewWidget._sample_base_texture_visibility(
+        sample = NativePreviewPanel._sample_base_texture_visibility(
             image,
             [(0.0, 0.0), (0.99, 0.0)],
             flip_vertical=False,
@@ -709,7 +711,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         image.setPixelColor(1, 1, QColor(220, 220, 220))
         image.setPixelColor(2, 1, QColor(8, 8, 8))
 
-        sample = ModelPreviewWidget._sample_framebuffer_visibility(
+        sample = NativePreviewPanel._sample_framebuffer_visibility(
             image,
             background,
             max_samples=64,
@@ -722,113 +724,52 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
     def test_enabling_textures_rebuilds_derived_relief_textures(self) -> None:
         source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
         self.assertIn("def set_use_textures", source)
-        self.assertIn("previous != self._use_textures", source)
-        self.assertIn("self._gl_ready", source)
-        self.assertIn("self._clear_gl_textures()", source)
-        self.assertIn("self._rebuild_gl_textures()", source)
+        self.assertIn("self._use_textures = bool(use_textures)", source)
+        self.assertNotIn("_rebuild_gl_textures", source)
+        self.assertNotIn("_texture_objects", source)
 
     def test_model_preview_reuses_textures_for_transform_only_updates(self) -> None:
         source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
-        upload_start = source.index("def _upload_geometry")
-        upload_end = source.index("def _current_texture_upload_cache_signature", upload_start)
-        upload_block = source[upload_start:upload_end]
-        self.assertIn("texture_cache_signature = self._current_texture_upload_cache_signature()", upload_block)
-        self.assertIn("if texture_cache_signature != self._texture_upload_cache_signature:", upload_block)
-        self.assertIn("self._texture_upload_cache_signature = texture_cache_signature", upload_block)
-        self.assertNotIn("        self._clear_gl_textures()\n        self._program.bind()", upload_block)
-        self.assertIn("def _current_texture_upload_cache_signature", source)
-        self.assertIn("upload_support_maps = bool(", source)
-        self.assertIn("if upload_support_maps:", source)
-        self.assertIn("existing_texture = self._texture_objects.get(cache_key)", source)
-        self.assertIn("continue", source[source.index("existing_texture = self._texture_objects.get(cache_key)"):])
+        prep_source = (Path(__file__).resolve().parents[1] / "cdmw" / "rendering" / "model_preview_prepare.py").read_text(encoding="utf-8")
+        self.assertNotIn("def _upload_geometry", source)
+        self.assertNotIn("_texture_upload_cache_signature", source)
+        self.assertIn("def prepare_model_preview", prep_source)
+        self.assertIn("def build_vertex_blob", prep_source)
 
     def test_model_preview_has_committed_transform_fast_path_and_timing_diagnostics(self) -> None:
         source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
         self.assertIn("def set_alignment_committed_preview_transform", source)
-        self.assertIn("_alignment_committed_preview_translation", source)
-        self.assertIn("_alignment_committed_preview_rotation", source)
-        self.assertIn("_alignment_committed_preview_scale", source)
-        self.assertIn("or has_committed_transform", source)
-        self.assertIn("self._alignment_committed_preview_translation = QVector3D(0.0, 0.0, 0.0)", source)
-        self.assertIn("self._last_model_prepare_ms", source)
-        self.assertIn("prepare_elapsed_ms: Optional[float] = None", source)
-        self.assertIn("self.set_prepared_model(cloned_model, prepared_preview, prepare_elapsed_ms=prepare_elapsed_ms)", source)
-        self.assertIn("self._last_gl_upload_ms", source)
-        self.assertIn("def _read_opengl_renderer_info", source)
-        self.assertIn("functions.glGetString", source)
-        self.assertIn("string_at(raw)", source)
-        self.assertIn('"Renderer: "', source)
+        self.assertIn("class NativePreviewPanel(QWidget)", source)
+        self.assertIn("prepare_model_preview = staticmethod(_prep.prepare_model_preview)", source)
+        self.assertNotIn("functions.glGetString", source)
+        self.assertNotIn("_read_green_up_renderer_info", source)
 
     def test_hkx_physics_overlay_supports_hover_and_ctrl_click_selection(self) -> None:
-        source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
-        self.assertIn("_physics_overlay_target_at", source)
-        self.assertIn("_physics_hover_target", source)
-        self.assertIn("_physics_selected_target", source)
-        self.assertIn("_physics_edited_viewer_ids", source)
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
+        main_source = (root / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
+        native_source = (root / "native" / "cdmw_d3d11_preview" / "src" / "main.cpp").read_text(encoding="utf-8")
+        package_source = (root / "cdmw" / "rendering" / "native_preview_package.py").read_text(encoding="utf-8")
         self.assertIn("set_physics_overlay_edited_targets", source)
-        self.assertIn("_draw_physics_edited_badge", source)
-        self.assertIn("edited shape", source)
-        self.assertIn("edited constraint", source)
         self.assertIn("physics_overlay_target_selected = Signal", source)
-        self.assertIn("_set_physics_overlay_selected_target", source)
-        self.assertIn("_physics_overlay_anchor_is_context_skeleton", source)
-        self.assertIn("_physics_overlay_shape_is_context_skeleton", source)
-        self.assertIn("_physics_overlay_constraint_is_context_skeleton", source)
-        self.assertIn("_physics_simulation_shape_is_dynamic", source)
-        self.assertIn("_physics_simulation_constraint_is_dynamic", source)
-        self.assertIn("context skeleton hidden", source)
-        self.assertIn("Click/Ctrl-click overlay: show linked HKX rows", source)
-        self.assertIn("Qt.PointingHandCursor", source)
-        self.assertIn("max_labels = 0", source)
-        self.assertIn("_physics_simulation_role_color", source)
-        self.assertIn("_draw_physics_motion_envelope", source)
-        self.assertIn("simulation_role_counts", source)
-        self.assertIn("_step_physics_simulation_preview", source)
-        self.assertIn("_physics_simulation_state", source)
-        self.assertIn("_physics_shape_simulation_key", source)
-        self.assertIn("_physics_shape_rest_position", source)
-        self.assertIn("_draw_simulated_physics_shape", source)
-        self.assertIn("shape:" , source)
-        self.assertIn("Physics Animation Preview", source)
-        self.assertIn("dynamic_shapes", source)
-        self.assertIn("disabled: approximate animation off", source)
-        self.assertIn("disabled: overlay hidden", source)
-        self.assertIn("wind_scale * 2.4", source)
-        self.assertIn("live sim", source)
-        self.assertIn("cloth_preview_strength", source)
-        self.assertIn("_batch_cloth_deformation_strength", source)
-        self.assertIn("mesh_deform_batches", source)
-        self.assertIn("cloak", source)
-        self.assertIn("cloth mesh physics preview", source)
-        self.assertIn("cloth_preview_offset", source)
-        self.assertIn("_cloth_deformation_preview_offset", source)
-        self.assertIn("_last_emitted_debug_details_text", source)
-        self.assertIn("_physics_simulation_last_debug_refresh", source)
-        self.assertIn(">= 0.50", source)
-        self.assertIn("wave_a * 0.060", source)
-        self.assertIn("Native Texture Backend", source)
-        self.assertIn("_load_native_texture_report", source)
-        self.assertIn("native_texture_backend", source)
+        self.assertIn("physics_overlay_bones_visible", source)
+        self.assertNotIn("_step_physics_simulation_preview", source)
+        self.assertIn("physics_overlay_target_selected.connect(_show_preview_overlay_target_in_hkx_editor)", main_source)
+        self.assertIn("preview.set_physics_overlay_edited_targets(edited_targets)", main_source)
+        self.assertIn("shape:", main_source)
+        self.assertIn("physics_overlay_enabled", native_source)
+        self.assertIn("physics_overlay_cloth", native_source)
+        self.assertIn("cloth_preview_active", native_source)
+        self.assertIn("reset_tool_pbd_cloth_preview", native_source)
+        self.assertIn("physics_overlays", package_source)
+        self.assertIn("cloth_particle_count", package_source)
 
     def test_hkx_skeleton_context_is_static_for_approx_motion_preview(self) -> None:
-        widget = ModelPreviewWidget.__new__(ModelPreviewWidget)
+        widget = NativePreviewPanel.__new__(NativePreviewPanel)
 
-        self.assertFalse(
-            widget._physics_simulation_constraint_is_dynamic(
-                HkxPhysicsOverlayConstraint(simulation_role="cloth", confidence="skeleton_context")
-            )
-        )
-        self.assertTrue(
-            widget._physics_simulation_constraint_is_dynamic(
-                HkxPhysicsOverlayConstraint(simulation_role="cloth", confidence="descriptor_context")
-            )
-        )
-        self.assertFalse(
-            widget._physics_simulation_shape_is_dynamic(
-                HkxPhysicsOverlayShape(simulation_role="cloth", placement_source="skeleton_socket")
-            )
-        )
-        self.assertTrue(widget._physics_simulation_shape_is_dynamic(HkxPhysicsOverlayShape(simulation_role="cloth")))
+        self.assertFalse(hasattr(widget, "_physics_simulation_constraint_is_dynamic"))
+        self.assertFalse(hasattr(widget, "_physics_simulation_shape_is_dynamic"))
+        self.assertTrue(hasattr(NativePreviewPanel, "physics_overlay_bones_visible"))
 
     def test_referenced_hkx_previews_disable_legacy_guide_motion(self) -> None:
         source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
@@ -851,14 +792,13 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertIn("show_physics_simulation_preview=False", main_apply_source)
 
     def test_framebuffer_visibility_probe_is_throttled(self) -> None:
-        source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
-        self.assertIn("_framebuffer_visibility_sampled_at", source)
-        self.assertIn("time.monotonic()", source)
-        self.assertIn(">= 0.50", source)
-        self.assertIn("self.grabFramebuffer()", source)
+        source = (Path(__file__).resolve().parents[1] / "cdmw" / "rendering" / "model_preview_prepare.py").read_text(encoding="utf-8")
+        self.assertIn("def sample_framebuffer_visibility", source)
+        self.assertIn("background_ratio", source)
+        self.assertNotIn("grabFramebuffer", (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8"))
 
     def test_render_sampling_diagnostics_include_geometry_and_output_buckets(self) -> None:
-        widget = ModelPreviewWidget.__new__(ModelPreviewWidget)
+        widget = NativePreviewPanel.__new__(NativePreviewPanel)
         widget._mesh_batches = [
             _ModelPreviewDrawBatch(mesh_index=0, material_name="mat", texture_name="", first_vertex=0, vertex_count=3)
         ]
@@ -892,14 +832,9 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         )
         widget._render_settings = ModelPreviewRenderSettings(render_diagnostic_mode="base_color")
 
-        text = "\n".join(widget._render_sampling_diagnostic_lines())
-
-        self.assertIn("Diagnostic Render Mode: Base Color", text)
-        self.assertIn("Framebuffer probe:", text)
-        self.assertIn("rich_material=no", text)
-        self.assertIn("normals=67% repaired=1", text)
-        self.assertIn("tangent=100%", text)
-        self.assertIn("final_bucket=invalid normals repaired", text)
+        self.assertFalse(hasattr(widget, "_render_sampling_diagnostic_lines"))
+        text = "\n".join(NativePreviewPanel._black_output_triage_lines((), widget._framebuffer_visibility_diagnostic))
+        self.assertIn("Native renderer diagnostics", text)
 
 
 if __name__ == "__main__":

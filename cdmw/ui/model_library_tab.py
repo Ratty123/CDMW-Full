@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -67,14 +67,15 @@ from cdmw.core.model_catalogue import (
     search_catalogue_records,
     zip_contains_importable_model,
 )
+from cdmw.rendering.model_preview_prepare import prepare_model_preview
 from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.scene_importer import SceneImportResult
 from cdmw.rendering.material_channels import resolve_preview_batch_material_channels
-from cdmw.rendering.qtquick3d_preview_package import write_isolated_qtquick3d_preview_package
+from cdmw.rendering.native_preview_package import write_isolated_d3d11_preview_package
 from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame, native_d3d11_renderer_command
 from cdmw.ui.themes import get_theme
 from cdmw.ui.widgets import responsive_sidebar_bounds
-from cdmw.ui.widgets import ModelPreviewWidget
+from cdmw.ui.widgets import NativePreviewPanel
 
 
 class _ModelLibraryTaskWorker(QObject):
@@ -130,6 +131,8 @@ class ModelLibraryTab(QWidget):
         self._inline_d3d11_active_package: Optional[Path] = None
         self._inline_d3d11_status_file: Optional[Path] = None
         self._inline_d3d11_status_mtime = 0.0
+        self._inline_preview_loaded_texture_count = 0
+        self._inline_preview_loaded_renderer_backend = ""
         self._pending_icon_generation_request_id = 0
         self._task_status_active = False
         self._result_sort_column = int(self.settings.value("model_library/result_sort_column", 1) or 1)
@@ -565,7 +568,7 @@ class ModelLibraryTab(QWidget):
         preview_layout = QVBoxLayout(preview_group)
         preview_layout.setContentsMargins(8, 8, 8, 8)
         preview_layout.setSpacing(6)
-        self.inline_preview_widget = ModelPreviewWidget(
+        self.inline_preview_widget = NativePreviewPanel(
             "Select a downloaded or local model to preview it here.",
             theme_key=self.theme_key,
         )
@@ -588,10 +591,27 @@ class ModelLibraryTab(QWidget):
         self.inline_d3d11_preview_host.setMinimumHeight(280)
         self.inline_preview_stack.addWidget(self.inline_d3d11_preview_host)
         preview_layout.addWidget(self.inline_preview_stack, stretch=1)
+        orientation_controls_layout = QHBoxLayout()
+        orientation_controls_layout.setContentsMargins(0, 0, 0, 0)
+        orientation_controls_layout.setSpacing(8)
+        self.inline_preview_flip_v_checkbox = QCheckBox("Flip V")
+        self.inline_preview_flip_v_checkbox.setToolTip(
+            "Temporarily invert the texture V direction for the current Model Library preview only."
+        )
+        self.inline_preview_reset_orientation_button = QPushButton("Reset")
+        self.inline_preview_reset_orientation_button.setToolTip("Clear temporary Model Library texture orientation overrides.")
+        self.inline_preview_flip_v_checkbox.setEnabled(False)
+        self.inline_preview_reset_orientation_button.setEnabled(False)
+        orientation_controls_layout.addWidget(self.inline_preview_flip_v_checkbox)
+        orientation_controls_layout.addWidget(self.inline_preview_reset_orientation_button)
+        orientation_controls_layout.addStretch(1)
+        preview_layout.addLayout(orientation_controls_layout)
         self.inline_preview_status_label = QLabel("Local preview resolves glTF/GLB/OBJ/DAE textures from the model folder and uses native D3D11 when available.")
         self.inline_preview_status_label.setObjectName("HintLabel")
         self.inline_preview_status_label.setWordWrap(True)
         preview_layout.addWidget(self.inline_preview_status_label)
+        self.inline_preview_flip_v_checkbox.toggled.connect(self._handle_inline_preview_flip_v_toggled)
+        self.inline_preview_reset_orientation_button.clicked.connect(self._handle_inline_preview_orientation_reset_clicked)
         layout.addWidget(preview_group, stretch=1)
         self.status_label = QLabel("")
         self.status_label.setObjectName("HintLabel")
@@ -1191,9 +1211,6 @@ class ModelLibraryTab(QWidget):
         self._load_inline_model_preview(import_path, payload)
 
     def _inline_preview_renderer_backend(self) -> str:
-        value = str(self.settings.value("preview/archive_renderer_backend", "") or "").strip().lower()
-        if value in {"legacy", "opengl", "legacy_opengl"}:
-            return "inline_opengl"
         return "native_d3d11"
 
     def _inline_d3d11_theme_payload(self) -> dict[str, str]:
@@ -1313,7 +1330,66 @@ class ModelLibraryTab(QWidget):
         except RuntimeError:
             return
 
-    def _load_inline_model_preview(self, import_path: Path, payload: dict[str, object]) -> None:
+    def _prepare_inline_preview_orientation_for_load(self, *, reset_orientation: bool) -> None:
+        if reset_orientation:
+            self._set_inline_preview_flip_v_checked(False)
+            self._apply_inline_preview_flip_v_render_setting(False)
+        self._inline_preview_loaded_texture_count = 0
+        self._inline_preview_loaded_renderer_backend = ""
+        self._sync_inline_preview_orientation_controls()
+
+    def _set_inline_preview_flip_v_checked(self, checked: bool) -> None:
+        if not hasattr(self, "inline_preview_flip_v_checkbox"):
+            return
+        self.inline_preview_flip_v_checkbox.blockSignals(True)
+        self.inline_preview_flip_v_checkbox.setChecked(bool(checked))
+        self.inline_preview_flip_v_checkbox.blockSignals(False)
+
+    def _apply_inline_preview_flip_v_render_setting(self, checked: bool) -> None:
+        settings = self.inline_preview_widget.render_settings()
+        settings.flip_texture_v = bool(checked)
+        self.inline_preview_widget.set_render_settings(settings)
+
+    def _sync_inline_preview_orientation_controls(self) -> None:
+        if not hasattr(self, "inline_preview_flip_v_checkbox"):
+            return
+        enabled = bool(
+            self._inline_preview_loaded_import_path is not None
+            and int(self._inline_preview_loaded_texture_count) > 0
+        )
+        self.inline_preview_flip_v_checkbox.setEnabled(enabled)
+        self.inline_preview_reset_orientation_button.setEnabled(enabled)
+
+    def _reload_inline_preview_for_orientation(self) -> None:
+        loaded_path = self._inline_preview_loaded_import_path
+        payload = dict(self._inline_preview_loaded_payload or {})
+        if loaded_path is None or not payload:
+            return
+        self._load_inline_model_preview(loaded_path, payload, reset_orientation=False)
+
+    def _handle_inline_preview_flip_v_toggled(self, checked: bool) -> None:
+        self._apply_inline_preview_flip_v_render_setting(bool(checked))
+        self._sync_inline_preview_orientation_controls()
+        if int(self._inline_preview_loaded_texture_count) <= 0:
+            return
+        if str(self._inline_preview_loaded_renderer_backend or "").strip().lower() == "native_d3d11":
+            self._reload_inline_preview_for_orientation()
+            return
+        self._set_inline_preview_status("Flip V preview override applied." if checked else "Texture orientation preview reset.")
+
+    def _handle_inline_preview_orientation_reset_clicked(self) -> None:
+        if hasattr(self, "inline_preview_flip_v_checkbox") and self.inline_preview_flip_v_checkbox.isChecked():
+            self.inline_preview_flip_v_checkbox.setChecked(False)
+            return
+        self._handle_inline_preview_flip_v_toggled(False)
+
+    def _load_inline_model_preview(
+        self,
+        import_path: Path,
+        payload: dict[str, object],
+        *,
+        reset_orientation: bool = True,
+    ) -> None:
         if self._task_thread is not None and self._task_thread.isRunning():
             self._set_inline_preview_status("A model library task is already running.", error=True)
             return
@@ -1321,6 +1397,7 @@ class ModelLibraryTab(QWidget):
         request_id = self._inline_preview_request_id
         model_name = str(payload.get("name", "") or import_path.stem or "model")
         renderer_backend = self._inline_preview_renderer_backend()
+        self._prepare_inline_preview_orientation_for_load(reset_orientation=reset_orientation)
         self._set_inline_preview_status(f"Preparing preview for {model_name}...")
         self.inline_preview_widget.clear_model(f"Preparing preview for {model_name}...")
         self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
@@ -1333,7 +1410,7 @@ class ModelLibraryTab(QWidget):
             scene_result = import_scene_mesh_with_report(import_path)
             preview_model = parsed_mesh_to_preview_model(scene_result.mesh)
             texture_count = self._attach_inline_preview_textures(preview_model, scene_result, import_path)
-            prepared_model, prepared_preview = ModelPreviewWidget.prepare_model_preview(
+            prepared_model, prepared_preview = prepare_model_preview(
                 preview_model,
                 render_settings=preview_render_settings,
                 enable_material_combiner=False,
@@ -1343,7 +1420,7 @@ class ModelLibraryTab(QWidget):
             if renderer_backend == "native_d3d11":
                 package_started = time.perf_counter()
                 package_dir = str(
-                    write_isolated_qtquick3d_preview_package(
+                    write_isolated_d3d11_preview_package(
                         prepared_model,
                         prepared_preview,
                         render_settings=preview_render_settings,
@@ -1392,21 +1469,24 @@ class ModelLibraryTab(QWidget):
             preview_model = result.get("preview_model")
             prepared_preview = result.get("prepared_preview")
             active_renderer = str(result.get("renderer_backend", "") or "").strip().lower()
-            renderer_note = " | renderer: inline OpenGL"
+            renderer_note = " | renderer: native D3D11"
+            loaded_renderer_backend = "native_d3d11"
             if active_renderer == "native_d3d11" and str(result.get("d3d11_package_dir", "") or "").strip():
                 package_dir = Path(str(result.get("d3d11_package_dir", "") or ""))
                 if self._start_inline_d3d11_process(package_dir, render_settings=preview_render_settings):
+                    loaded_renderer_backend = "native_d3d11"
                     renderer_note = f" | renderer: native D3D11 package ({float(result.get('d3d11_package_ms', 0.0) or 0.0):.1f} ms)"
                 else:
-                    self.inline_preview_widget.set_prepared_model(preview_model, prepared_preview)
-                    self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
-                    renderer_note = " | renderer: inline OpenGL fallback"
+                    self._set_inline_preview_status("Native D3D11 preview failed to start.", error=True)
+                    return
             else:
-                self.inline_preview_widget.set_prepared_model(preview_model, prepared_preview)
-                self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
+                self._set_inline_preview_status("Native D3D11 preview package was not built.", error=True)
+                return
             self._inline_preview_loaded_import_path = Path(str(result.get("import_path", "") or import_path))
             self._inline_preview_loaded_payload = dict(payload)
+            self._inline_preview_loaded_renderer_backend = loaded_renderer_backend
             texture_count = int(result.get("textures", 0) or 0)
+            self._inline_preview_loaded_texture_count = texture_count
             payload["texture_status"] = f"Resolved ({texture_count})" if texture_count > 0 else "None resolved"
             audit_category = str(result.get("audit_category", "") or "")
             if audit_category:
@@ -1428,6 +1508,7 @@ class ModelLibraryTab(QWidget):
                 f"{int(result.get('vertices', 0)):,} vertices, {int(result.get('faces', 0)):,} faces, "
                 f"{texture_count:,} resolved texture slot(s){audit_text}{material_channel_text}{renderer_note}."
             )
+            self._sync_inline_preview_orientation_controls()
             self._update_selection_state()
             if int(self._pending_icon_generation_request_id) == int(request_id):
                 self._pending_icon_generation_request_id = 0
@@ -1435,6 +1516,7 @@ class ModelLibraryTab(QWidget):
 
         def handle_error(message: str) -> None:
             self._pending_icon_generation_request_id = 0
+            self._sync_inline_preview_orientation_controls()
             self._set_inline_preview_status(f"Preview failed: {message}", error=True)
 
         self._run_task(
@@ -1501,7 +1583,8 @@ class ModelLibraryTab(QWidget):
             return
         try:
             self.inline_preview_widget.repaint()
-            image = self.inline_preview_widget.grabFramebuffer()
+            pixmap = self.inline_preview_widget.grab()
+            image = pixmap.toImage() if not pixmap.isNull() else QImage()
         except Exception as exc:
             self._set_inline_preview_status(f"Icon capture failed: {exc}", error=True)
             return
@@ -1718,7 +1801,10 @@ class ModelLibraryTab(QWidget):
             self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
             self._inline_preview_loaded_import_path = None
             self._inline_preview_loaded_payload = None
+            self._inline_preview_loaded_texture_count = 0
+            self._inline_preview_loaded_renderer_backend = ""
             self._pending_icon_generation_request_id = 0
+            self._prepare_inline_preview_orientation_for_load(reset_orientation=True)
             self._clear_deleted_local_state(deleted)
             if self._active_results_view == "local" and self.local_roots:
                 self.scan_local_roots()

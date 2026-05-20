@@ -16,4 +16,4 @@ cdmw-d3d11-preview.exe --self-test
 cdmw-d3d11-preview.exe --backend d3d11 --preview-package <package-dir> --status-file <status.json>
 ```
 
-This first native target owns the D3D11 process, status-file protocol, and package-v2 discovery. It is intentionally separate from the former Qt Quick host so native DDS upload can be developed without Qt Quick/OpenGL mixing.
+This first native target owns the D3D11 process, status-file protocol, and package-v2 discovery. It is intentionally separate from the former Qt Quick host so native DDS upload can be developed without mixed renderer state.

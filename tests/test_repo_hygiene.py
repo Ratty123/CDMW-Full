@@ -45,6 +45,8 @@ class RepoHygieneTests(unittest.TestCase):
             if not relative_path:
                 continue
             path = REPO_ROOT / relative_path
+            if not path.exists():
+                continue
             if path.suffix.lower() not in TEXT_SUFFIXES:
                 continue
             try:

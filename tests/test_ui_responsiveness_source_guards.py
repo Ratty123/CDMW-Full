@@ -108,10 +108,15 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         refresh_body = source[refresh_start: source.index("        def _refresh_or_defer_archive_browser_view", refresh_start)]
         self.assertIn("self.archive_browser_first_visible_started_at = time.perf_counter()", activation_body)
         self.assertIn("if self._archive_browser_render_is_ready():", activation_body)
+        self.assertNotIn("_schedule_archive_pending_enhanced_filter_refresh", activation_body)
         self.assertIn("def _schedule_archive_browser_first_visible_paint_marker", source)
         self.assertIn("QTimer.singleShot(max(0, int(delay_ms)), self._handle_archive_browser_first_visible_paint)", source)
         self.assertIn("def _refresh_archive_browser_view_stage_controls", source)
         self.assertIn("def _refresh_archive_browser_view_stage_populate", source)
+        controls_start = source.index("        def _refresh_archive_browser_view_stage_controls")
+        controls_body = source[controls_start: source.index("        def _refresh_archive_browser_view_stage_populate", controls_start)]
+        self.assertIn("defer_missing_children=True", controls_body)
+        self.assertNotIn("build_archive_structure_children_map(self.archive_entries)", controls_body)
         self.assertIn('self._log_archive_browser_render_stage("model_reset"', source)
         self.assertIn("if self._archive_browser_render_is_ready():", refresh_body)
         self.assertIn("self.archive_browser_refresh_pending = False", refresh_body)
@@ -151,17 +156,18 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_browser_first_visible_paint_done", allowed_body)
         self.assertIn("return False", allowed_body)
         self.assertNotIn("self.archive_browser_ready_at", allowed_body)
-        self.assertIn("self.archive_deferred_enhanced_index_start_pending = True", finalize_body)
+        self.assertNotIn("self.archive_deferred_enhanced_index_start_pending = True", finalize_body)
         self.assertIn("self.archive_deferred_sidecar_start_pending = True", finalize_body)
         self.assertIn("self._schedule_archive_post_ready_background_work()", finalize_body)
         self.assertIn("if not self._archive_browser_background_work_allowed():", icon_body)
         self.assertIn("self.archive_item_icon_preload_pending_after_ready = bool(self.archive_item_asset_catalog)", icon_body)
 
-    def test_startup_splash_progress_has_reserved_label(self) -> None:
+    def test_startup_splash_progress_uses_single_text_source(self) -> None:
         source = _read("cdmw/ui/startup_splash_host.py")
-        self.assertIn("self.progress_label = QLabel", source)
-        self.assertIn("self.progress_label.setMaximumHeight(16)", source)
         self.assertIn("self.detail_label.setMaximumHeight(34)", source)
+        self.assertNotIn("self.progress_label = QLabel", source)
+        self.assertNotIn("self.progress_label.setText", source)
+        self.assertNotIn('f"{self._current:,} / {self._total:,}"', source)
         self.assertNotIn("painter.drawText(QRectF(rail.left(), rail.top() - 20", source)
 
     def test_hidden_model_previews_stop_background_render_timers(self) -> None:
@@ -194,6 +200,24 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_tree.takeTopLevelItem(0)", source)
         self.assertIn("clear_children: bool = True", source)
         self.assertIn("clear_children=False", source)
+
+    def test_archive_ready_avoids_ui_thread_full_archive_scans(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        busy_start = source.index("        def set_busy(")
+        busy_body = source[busy_start: source.index("        def reset_progress", busy_start)]
+        self.assertIn('filtered_has_dds = int(getattr(self, "archive_filtered_dds_count", 0) or 0) > 0', busy_body)
+        self.assertNotIn('any(entry.extension == ".dds" for entry in self.archive_filtered_entries)', busy_body)
+        self.assertNotIn("ArchiveEnhancedIndexWorker(tuple(self.archive_entries))", source)
+        self.assertNotIn("ArchiveStructureFilterWorker(tuple(self.archive_entries))", source)
+
+    def test_archive_asset_family_graph_cache_is_bounded_and_logged(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        self.assertIn("self.archive_asset_family_cache: OrderedDict", source)
+        self.assertIn("self.archive_asset_family_cache_limit = 512", source)
+        self.assertIn("def _archive_asset_family_cache_key", source)
+        self.assertIn("def _remember_archive_asset_family_graph", source)
+        self.assertIn("Asset family cache hit:", source)
+        self.assertIn("Asset family cache miss; rebuilding:", source)
 
     def test_preview_limits_and_timers_target_interactive_frame_budget(self) -> None:
         text_search = _read("cdmw/ui/text_search_tab.py")

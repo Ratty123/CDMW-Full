@@ -1831,6 +1831,8 @@ def _apply_gltf_preview_material_metadata(
         submesh.preview_color = tuple(float(component) for component in color[:3])
     slots = material_texture_slots.get(material_index, {})
     preview_parameters = tuple(material_preview_parameters.get(material_index, ()) or ())
+    if preview_parameters:
+        submesh.preview_material_parameters = preview_parameters
     material_inputs: list[PreviewMaterialTextureInput] = []
 
     def add_material_input(
@@ -2482,6 +2484,7 @@ def _copy_submesh_with_transform(
         "preview_material_texture_subtype",
         "preview_material_texture_packed_channels",
         "preview_material_texture_inputs",
+        "preview_material_parameters",
         "preview_height_texture_path",
         "preview_height_texture_name",
         "preview_sidecar_shader_family",

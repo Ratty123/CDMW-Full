@@ -4874,7 +4874,7 @@ static const std::vector<std::string>& material_identity_specific_part_tokens() 
     static const std::vector<std::string> tokens = {
         "hand", "head", "foot", "eye", "eyecover", "hair", "beard", "fur", "arm", "leg", "lb", "ub",
         "uw", "underwear", "nude",
-        "hel", "helmet", "mask", "blade", "guard", "handle", "acc", "belt", "cloak", "sho"
+        "hel", "helmet", "mask", "blade", "guard", "handle", "acc", "belt", "cloak", "flag", "cloth", "fabric", "sho"
     };
     return tokens;
 }
@@ -5052,6 +5052,44 @@ static int support_role_identity_threshold(const std::string& desired_role) {
     return 0;
 }
 
+static bool texture_family_clearly_matches_mesh(const std::string& texture_family_key, const NativeSubmesh& mesh) {
+    if (texture_family_key.empty()) return false;
+    const std::string mesh_material_key = normalized_material_key(mesh.material);
+    const std::string mesh_name_key = normalized_material_key(mesh.name);
+    return material_keys_match_for_identity(texture_family_key, mesh_material_key)
+        || material_keys_match_for_identity(texture_family_key, mesh_name_key);
+}
+
+static bool base_binding_has_unsafe_cross_part_texture_family(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
+    if (!material_identity_has_conflicting_specific_part(
+        texture_family_key,
+        normalized_material_key(mesh.material),
+        normalized_material_key(mesh.name))) {
+        return false;
+    }
+    return !texture_family_clearly_matches_mesh(texture_family_key, mesh);
+}
+
+static void append_rejected_binding_example(
+    std::vector<std::string>* rejected_examples,
+    const std::string& desired_role,
+    const std::string& reason,
+    const TextureBinding& binding,
+    const NativeSubmesh& mesh,
+    int identity_score = -1
+) {
+    if (rejected_examples == nullptr || rejected_examples->size() >= 16) return;
+    std::string text =
+        desired_role + " rejected " + reason + " candidate "
+        + (binding.texture_name.empty() ? basename_from_path(binding.archive_path) : binding.texture_name)
+        + " for " + mesh.material;
+    if (identity_score >= 0) {
+        text += " identity=" + std::to_string(identity_score);
+    }
+    rejected_examples->push_back(text);
+}
+
 static const TextureBinding* best_binding_for_role(
     const std::vector<TextureBinding>& bindings,
     const NativeSubmesh& mesh,
@@ -5169,7 +5207,8 @@ static const TextureBinding* best_base_binding_for_mode(
     const std::vector<TextureBinding>& bindings,
     const NativeSubmesh& mesh,
     const EntryJob& job,
-    int* selected_score = nullptr
+    int* selected_score = nullptr,
+    std::vector<std::string>* rejected_examples = nullptr
 ) {
     const std::string mode = normalize_visible_texture_mode(job.visible_texture_mode);
     bool has_authoritative_sidecar_base_for_mesh = false;
@@ -5182,6 +5221,9 @@ static const TextureBinding* best_base_binding_for_mode(
         const int identity_score = material_identity_match_score(binding, mesh);
         const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
         const bool authoritative_wrapper_match = material_wrapper_matches_mesh_local_index(binding, mesh);
+        if (base_binding_has_unsafe_cross_part_texture_family(binding, mesh)) {
+            continue;
+        }
         if (!authoritative_wrapper_match && material_identity_has_conflicting_specific_part(
             texture_family_key,
             normalized_material_key(mesh.material),
@@ -5227,10 +5269,15 @@ static const TextureBinding* best_base_binding_for_mode(
         const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
         const bool embedded = binding.source_authority == "embedded_mesh";
         const bool authoritative_wrapper_match = material_wrapper_matches_mesh_local_index(binding, mesh);
+        if (base_binding_has_unsafe_cross_part_texture_family(binding, mesh)) {
+            append_rejected_binding_example(rejected_examples, "base", "cross-part", binding, mesh, identity_score);
+            continue;
+        }
         if (!authoritative_wrapper_match && material_identity_has_conflicting_specific_part(
             texture_family_key,
             normalized_material_key(mesh.material),
             normalized_material_key(mesh.name))) {
+            append_rejected_binding_example(rejected_examples, "base", "cross-part", binding, mesh, identity_score);
             continue;
         }
         if (
@@ -7268,7 +7315,8 @@ static const TextureBinding* best_visible_layer_base_fallback(
     const std::vector<TextureBinding>& bindings,
     const NativeSubmesh& mesh,
     const TextureBinding* selected_base,
-    int* selected_score = nullptr
+    int* selected_score = nullptr,
+    std::vector<std::string>* rejected_examples = nullptr
 ) {
     const TextureBinding* best = nullptr;
     int best_score = 86;
@@ -7287,6 +7335,10 @@ static const TextureBinding* best_visible_layer_base_fallback(
         }
         const int identity_score = material_identity_match_score(binding, mesh);
         if (binding.material_wrapper_order_authoritative && identity_score < 120) continue;
+        if (base_binding_has_unsafe_cross_part_texture_family(binding, mesh)) {
+            append_rejected_binding_example(rejected_examples, "base", "cross-part", binding, mesh, identity_score);
+            continue;
+        }
         int score = material_match_score(binding, mesh, "base") + visible_class_priority(binding.visible_class) * 22;
         const std::string parameter_key = normalized_key(binding.parameter_name);
         if (binding.visible_class == "layer_visible") score += 72;
@@ -7803,12 +7855,12 @@ static NativePackage write_d3d11_package(
         int height_score = 0;
         int specular_score = 0;
         int detail_score = 0;
-        const TextureBinding* base = job_allows_texture_role(job, "base") ? best_base_binding_for_mode(bindings, mesh, job, &base_score) : nullptr;
+        const TextureBinding* base = job_allows_texture_role(job, "base") ? best_base_binding_for_mode(bindings, mesh, job, &base_score, &package.rejected_texture_examples) : nullptr;
         bool visible_layer_albedo_used = false;
         bool base_low_authority_overlay_selected = base_binding_is_low_authority_overlay(base);
         int visible_layer_albedo_score = 0;
         if (job_allows_texture_role(job, "base") && (base == nullptr || base_low_authority_overlay_selected)) {
-            if (const TextureBinding* layer_base = best_visible_layer_base_fallback(bindings, mesh, base, &visible_layer_albedo_score)) {
+            if (const TextureBinding* layer_base = best_visible_layer_base_fallback(bindings, mesh, base, &visible_layer_albedo_score, &package.rejected_texture_examples)) {
                 if (base == nullptr || visible_layer_albedo_score >= base_score - 20 || base_low_authority_overlay_selected) {
                     base = layer_base;
                     base_score = visible_layer_albedo_score;

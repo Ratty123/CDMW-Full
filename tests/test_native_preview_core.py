@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -607,12 +607,36 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('binding.visible_class != "visible_generic"', selector)
         self.assertIn("material_identity_text_match_score", source)
         self.assertIn('"hel", "helmet", "mask"', source)
+        self.assertIn('"cloak", "flag", "cloth", "fabric"', source)
         self.assertIn("submesh_specific_match", source)
         self.assertIn("return 220 + std::min(std::max(text_score, 0), 180)", source)
         self.assertIn("!base_low_authority", source)
         self.assertIn("lookup_relevant", source)
         self.assertIn("if (!result.empty() || job.package_root.empty()) return result;", source)
         self.assertNotIn("by_path", source)
+
+    def test_native_base_selection_rejects_cross_part_texture_family_before_scoring(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        base_start = source.index("static const TextureBinding* best_base_binding_for_mode")
+        base_end = source.index("static std::string shader_rule_for_family", base_start)
+        base_selector = source[base_start:base_end]
+        fallback_start = source.index("static const TextureBinding* best_visible_layer_base_fallback")
+        fallback_end = source.index("static bool evidence_token_boundary", fallback_start)
+        fallback_selector = source[fallback_start:fallback_end]
+
+        self.assertIn("base_binding_has_unsafe_cross_part_texture_family", source)
+        self.assertIn("texture_family_clearly_matches_mesh", source)
+        self.assertIn('append_rejected_binding_example(rejected_examples, "base", "cross-part"', base_selector)
+        self.assertIn('append_rejected_binding_example(rejected_examples, "base", "cross-part"', fallback_selector)
+        self.assertLess(
+            base_selector.index("base_binding_has_unsafe_cross_part_texture_family(binding, mesh)"),
+            base_selector.index('int score = material_match_score(binding, mesh, "base")'),
+        )
+        self.assertLess(
+            fallback_selector.index("base_binding_has_unsafe_cross_part_texture_family(binding, mesh)"),
+            fallback_selector.index('int score = material_match_score(binding, mesh, "base")'),
+        )
+        self.assertIn("&package.rejected_texture_examples", source)
 
     def test_native_layer_stack_does_not_treat_skinned_standard_as_skin(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
@@ -711,6 +735,21 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("CREATETEX_FORCE_SRGB", source)
         self.assertIn('compile_shader(kShaderSource, "ps_main", "ps_4_0"', source)
 
+    def test_d3d11_mesh_edit_mode_draws_blender_style_topology_overlay(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("void draw_mesh_edit_overlay(const PreviewRenderView& view)", source)
+        self.assertIn("mesh_edit_batch_editable_in_view(batch, view)", source)
+        self.assertIn("constants.base_color_flip = mesh_edit_flat", source)
+        self.assertIn("mesh_edit_flat ? nullptr : batch.base_srv.Get()", source)
+        self.assertIn("mesh_edit_.show_vertices", source)
+        self.assertIn("mesh_edit_source_vertex_selected", source)
+        self.assertIn("add_thick_line(p[0], p[1], 2.4f, 1.0f, 0.48f, 0.12f)", source)
+        self.assertIn("mesh_edit_.tool == \"remove\"", source)
+        self.assertIn("add_ring(ScreenPoint{static_cast<float>(cursor_x_), static_cast<float>(cursor_y_)}, mesh_edit_.radius_pixels + 2.0f", source)
+        self.assertIn("add_disc(ScreenPoint{screen_x, screen_y}, 4.5f, 1.0f, 0.52f, 0.12f)", source)
+        self.assertIn("add_disc(ScreenPoint{screen_x, screen_y}, 2.8f, 0.18f, 0.82f, 1.0f)", source)
+
     def test_native_core_scopes_sidecar_wrappers_before_dds_extraction(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
 
@@ -783,7 +822,7 @@ class NativePreviewCoreTests(unittest.TestCase):
 
     def test_d3d11_preview_has_first_class_emissive_slot(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
-        package_source = Path("cdmw/rendering/qtquick3d_preview_package.py").read_text(encoding="utf-8")
+        package_source = Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8")
 
         self.assertIn('"emissive"', package_source)
         self.assertIn('"emissive_intensity"', package_source)
@@ -798,7 +837,7 @@ class NativePreviewCoreTests(unittest.TestCase):
 
     def test_d3d11_preview_uses_procedural_reflection_for_metal_materials(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
-        package_source = Path("cdmw/rendering/qtquick3d_preview_package.py").read_text(encoding="utf-8")
+        package_source = Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8")
 
         self.assertIn("float3 reflected_view = normalize(reflect(-view_dir, n));", source)
         self.assertIn("key_glint", source)
