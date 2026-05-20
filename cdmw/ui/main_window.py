@@ -46133,18 +46133,49 @@ def run_gui() -> int:
                         rotation_degrees_per_pixel=0.18,
                     )
 
+            def _preview_mode_qt_widgets(mode: str) -> tuple[NativePreviewPanel, ...]:
+                normalized_mode = str(mode or "side_by_side")
+                if normalized_mode == "replacement_only":
+                    return (replacement_only_preview,)
+                if normalized_mode == "overlay":
+                    return (overlay_dialog_preview,)
+                return (original_dialog_preview, static_dialog_preview)
+
+            def _preview_mode_needs_static_refresh(mode: str) -> bool:
+                if _alignment_d3d11_preview_active():
+                    process = alignment_d3d11_state.get("process")
+                    package_active = alignment_d3d11_state.get("active_package") is not None
+                    renderer_active = isinstance(process, QProcess) and process.state() != QProcess.NotRunning
+                    queued = isinstance(alignment_d3d11_state.get("queued_model"), ModelPreviewData)
+                    pending = isinstance(alignment_d3d11_state.get("pending_model"), ModelPreviewData)
+                    return not bool(package_active or renderer_active or queued or pending)
+                return any(
+                    getattr(widget, "_current_model", None) is None
+                    for widget in _preview_mode_qt_widgets(mode)
+                )
+
             def _set_preview_mode() -> None:
                 mode = str(preview_mode_combo.currentData() or "side_by_side")
+                previous_mode = str(alignment_preview_mode_state.get("current", "side_by_side") or "side_by_side")
+                if previous_mode != mode:
+                    _save_alignment_preview_mode_view_state(previous_mode)
+                alignment_preview_mode_state["current"] = mode
+                needs_static_refresh = _preview_mode_needs_static_refresh(mode)
                 if _alignment_d3d11_preview_active():
-                    alignment_d3d11_preview_host.set_display_mode(mode)
+                    if not needs_static_refresh:
+                        alignment_d3d11_preview_host.set_display_mode(mode)
                     preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
+                    _restore_alignment_preview_mode_view_state(mode)
+                    _replay_alignment_d3d11_fast_transform()
                 else:
                     preview_stack.setCurrentIndex({"side_by_side": 0, "overlay": 1, "replacement_only": 2}.get(mode, 0))
+                    _restore_alignment_preview_mode_view_state(mode)
                 overlay_original_locked_checkbox.blockSignals(True)
                 overlay_original_locked_checkbox.setChecked(True)
                 overlay_original_locked_checkbox.blockSignals(False)
                 overlay_original_locked_checkbox.setEnabled(False)
-                _queue_static_preview_refresh()
+                if needs_static_refresh:
+                    _queue_static_preview_refresh()
 
             def _set_preview_detail() -> None:
                 static_preview_geometry_cache.clear()
@@ -55243,9 +55274,16 @@ def run_gui() -> int:
 
                 back_to_live_preview_button.clicked.connect(_return_to_live_alignment_preview)
 
-                try:
-                    texconv_text = self.texconv_path_edit.text().strip()
-                    if original_reference_preview_model is not None:
+                def _load_original_reference_texture_preview() -> None:
+                    if bool(original_reference_texture_preview_state.get("loaded")):
+                        return
+                    if bool(original_reference_texture_preview_state.get("loading")):
+                        return
+                    if not bool(original_texture_preview_state.get("enabled")) or original_reference_preview_model is None:
+                        return
+                    original_reference_texture_preview_state["loading"] = True
+                    try:
+                        texconv_text = self.texconv_path_edit.text().strip()
                         texconv_path = Path(texconv_text).expanduser() if texconv_text else None
                         normalized_visible_texture_mode = _normalize_model_visible_texture_mode(
                             str(preview_render_settings.visible_texture_mode)
@@ -55319,14 +55357,24 @@ def run_gui() -> int:
                             sidecar_texts_by_basename=sidecar_texts_by_basename,
                         )
                         self._attach_archive_model_preview_images(original_reference_preview_model)
+                        original_reference_texture_preview_state["loaded"] = True
                         if _alignment_d3d11_preview_active():
                             original_dialog_preview.clear_model("Original reference will load in native D3D11 preview.")
                         else:
                             original_dialog_preview.set_model(original_reference_preview_model)
                             original_dialog_preview.set_use_textures(True)
                             original_dialog_preview.set_high_quality_textures(True)
-                except Exception:
-                    pass
+                        _queue_static_preview_refresh()
+                    except Exception as exc:
+                        _record_runtime_event(
+                            "mesh_alignment_original_texture_preview_failed",
+                            path=getattr(entry, "path", ""),
+                            dialog_title=dialog_title,
+                            message=str(exc),
+                            modify_original_clone=modify_original_clone_mode,
+                        )
+                    finally:
+                        original_reference_texture_preview_state["loading"] = False
 
                 texture_sets = group_replacement_texture_sets(texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
                 _apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
@@ -56114,6 +56162,8 @@ def run_gui() -> int:
 
                 def _set_original_texture_preview_enabled(checked: bool) -> None:
                     original_texture_preview_state["enabled"] = bool(checked and modify_original_clone_mode)
+                    if bool(original_texture_preview_state.get("enabled")):
+                        _load_original_reference_texture_preview()
                     _queue_texture_preview_refresh()
 
                 original_texture_preview_checkbox.toggled.connect(_set_original_texture_preview_enabled)
@@ -57510,25 +57560,6 @@ def run_gui() -> int:
                     * max(1, len(texture_files_for_mapping))
                 )
                 initial_static_preview_refreshed = False
-                if False and deferred_sidecar_bindings_for_advanced:
-                    texture_assignment_rows_skipped = True
-                    skipped_texture_group = QGroupBox("Texture Assignments")
-                    skipped_texture_layout = QVBoxLayout(skipped_texture_group)
-                    skipped_texture_layout.setContentsMargins(5, 3, 5, 3)
-                    skipped_texture_layout.setSpacing(3)
-                    skipped_texture_label = QLabel(
-                        "Advanced DDS Overrides can be expanded after the material contract loads."
-                    )
-                    skipped_texture_label.setWordWrap(True)
-                    skipped_texture_label.setObjectName("HintLabel")
-                    skipped_texture_label.setToolTip(
-                        "The original sidecar DDS slot table can contain thousands of widget combinations. "
-                        "Keeping it out of startup lets the alignment preview open first."
-                    )
-                    skipped_texture_layout.addWidget(skipped_texture_label)
-                    textures_layout.addWidget(skipped_texture_group, 0)
-                    sidecar_bindings_for_advanced = ()
-                    apply_texture_plan_button.setEnabled(False)
 
                 if sidecar_bindings_for_advanced:
                     texture_group = QGroupBox("Advanced DDS Overrides")
@@ -57564,6 +57595,25 @@ def run_gui() -> int:
                         no_sources_hint.setWordWrap(True)
                         no_sources_hint.setObjectName("HintLabel")
                         texture_layout.addWidget(no_sources_hint)
+
+                    advanced_dds_lazy_placeholder = QWidget(texture_group)
+                    advanced_dds_lazy_layout = QHBoxLayout(advanced_dds_lazy_placeholder)
+                    advanced_dds_lazy_layout.setContentsMargins(5, 3, 5, 3)
+                    advanced_dds_lazy_layout.setSpacing(6)
+                    advanced_dds_lazy_label = QLabel(
+                        "Advanced DDS Overrides can be expanded after the material contract loads."
+                    )
+                    advanced_dds_lazy_label.setWordWrap(True)
+                    advanced_dds_lazy_label.setObjectName("HintLabel")
+                    advanced_dds_lazy_label.setToolTip(
+                        "The original sidecar DDS slot table can contain thousands of candidate rows. "
+                        "Loading it lazily keeps Mesh Replacement Builder responsive at startup."
+                    )
+                    advanced_dds_load_button = QPushButton("Load Advanced DDS Overrides")
+                    advanced_dds_load_button.setToolTip("Build original sidecar DDS override rows now.")
+                    advanced_dds_lazy_layout.addWidget(advanced_dds_lazy_label, 1)
+                    advanced_dds_lazy_layout.addWidget(advanced_dds_load_button, 0)
+                    texture_layout.addWidget(advanced_dds_lazy_placeholder)
 
                     texture_action_row = QHBoxLayout()
                     texture_action_row.setContentsMargins(0, 0, 0, 0)
@@ -57613,77 +57663,105 @@ def run_gui() -> int:
                     texture_rows_by_target: Dict[str, List[Dict[str, Any]]] = {}
                     texture_target_source_indices: Dict[str, Tuple[int, ...]] = {}
                     seen_texture_rows: set[tuple[str, str, str, str]] = set()
-                    _alignment_startup_step("Preparing advanced DDS override rows...")
-                    advanced_binding_scan_count = 0
-                    for mapping_index, mapping in enumerate(list(suggested_mappings or [])):
-                        if mapping_index and mapping_index % 8 == 0:
-                            _alignment_startup_step(f"Preparing advanced DDS override rows... {mapping_index}")
-                        target_rows = texture_rows_by_target.setdefault(mapping.target_submesh_name, [])
-                        texture_target_source_indices[mapping.target_submesh_name] = tuple(mapping.source_submesh_indices)
-                        for binding in sidecar_bindings_for_advanced:
-                            advanced_binding_scan_count += 1
-                            if advanced_binding_scan_count % 150 == 0:
-                                _alignment_startup_step(f"Scanning DDS override candidates... {advanced_binding_scan_count}")
-                            target_path = str(getattr(binding, "texture_path", "") or "").replace("\\", "/").strip()
-                            if not target_path.lower().endswith(".dds"):
-                                continue
-                            if not _binding_matches_target(binding, mapping.target_submesh_name):
-                                continue
-                            parameter_name = str(getattr(binding, "parameter_name", "") or "").strip()
-                            texture_classification = classify_texture_binding(parameter_name, target_path)
-                            slot_kind = texture_classification.slot_kind
-                            row_key = (
-                                mapping.target_submesh_name.lower(),
-                                parameter_name.lower(),
-                                target_path.lower(),
-                                slot_kind,
-                            )
-                            if row_key in seen_texture_rows:
-                                continue
-                            seen_texture_rows.add(row_key)
-                            binding_part_name = str(getattr(binding, "part_name", "") or getattr(binding, "submesh_name", "") or "").strip()
-                            binding_shader_family = str(getattr(binding, "shader_family", "") or "").strip()
-                            binding_sidecar_kind = str(getattr(binding, "sidecar_kind", "") or "").strip()
-                            binding_linked_mesh = str(getattr(binding, "linked_mesh_path", "") or "").strip()
-                            suggested_source = (
-                                ""
-                                if is_shared_material_layer_texture(target_path)
-                                else _best_source_for_slot(
-                                    mapping.target_submesh_name,
-                                    mapping.source_submesh_indices,
-                                    slot_kind,
-                                    texture_sets,
-                                    parameter_name=parameter_name,
-                                    target_texture_path=target_path,
-                                    target_shader_family=binding_shader_family,
-                                )
-                            )
-                            row_state: Dict[str, Any] = {
-                                "target_name": mapping.target_submesh_name,
-                                "source_indices": tuple(mapping.source_submesh_indices),
-                                "target_path": target_path,
-                                "slot_kind": slot_kind,
-                                "original_slot_kind": slot_kind,
-                                "role_label": texture_classification.slot_label or slot_kind.title(),
-                                "original_role_label": texture_classification.slot_label or slot_kind.title(),
-                                "parameter_name": parameter_name,
-                                "part_display": binding_part_name or mapping.target_submesh_name,
-                                "shader_family": binding_shader_family,
-                                "sidecar_kind": binding_sidecar_kind,
-                                "sidecar_path": str(getattr(binding, "sidecar_path", "") or "").strip(),
-                                "linked_mesh": binding_linked_mesh,
-                                "classification": texture_classification,
-                                "visualized": bool(texture_classification.visualized),
-                                "suggested_source": suggested_source,
-                                "source_path": "",
-                                "checked": False,
-                                "override_key": row_key[:3],
-                                "advanced": True,
-                                "state_label": "Needs review",
-                                "confidence": "manual",
-                            }
-                            target_rows.append(row_state)
-                            texture_override_rows.append(row_state)
+                    advanced_dds_overrides_state = {"loaded": False, "loading": False, "load_requested": False}
+
+                    def _load_advanced_dds_override_rows(*, reason: str = "manual") -> bool:
+                        if bool(advanced_dds_overrides_state.get("loaded")):
+                            return True
+                        if bool(advanced_dds_overrides_state.get("loading")):
+                            return False
+                        advanced_dds_overrides_state["loading"] = True
+                        advanced_dds_overrides_state["load_requested"] = True
+                        texture_busy_bar.setFormat("Loading advanced DDS override rows...")
+                        texture_busy_bar.setVisible(True)
+                        QApplication.processEvents()
+                        try:
+                            _alignment_startup_step(f"Loading advanced DDS override rows ({reason})...")
+                            advanced_binding_scan_count = 0
+                            for mapping_index, mapping in enumerate(list(suggested_mappings or [])):
+                                if mapping_index and mapping_index % 8 == 0:
+                                    _alignment_startup_step(f"Preparing advanced DDS override rows... {mapping_index}")
+                                target_rows = texture_rows_by_target.setdefault(mapping.target_submesh_name, [])
+                                texture_target_source_indices[mapping.target_submesh_name] = tuple(mapping.source_submesh_indices)
+                                for binding in sidecar_bindings_for_advanced:
+                                    advanced_binding_scan_count += 1
+                                    if advanced_binding_scan_count % 150 == 0:
+                                        _alignment_startup_step(f"Scanning DDS override candidates... {advanced_binding_scan_count}")
+                                    target_path = str(getattr(binding, "texture_path", "") or "").replace("\\", "/").strip()
+                                    if not target_path.lower().endswith(".dds"):
+                                        continue
+                                    if not _binding_matches_target(binding, mapping.target_submesh_name):
+                                        continue
+                                    parameter_name = str(getattr(binding, "parameter_name", "") or "").strip()
+                                    texture_classification = classify_texture_binding(parameter_name, target_path)
+                                    slot_kind = texture_classification.slot_kind
+                                    row_key = (
+                                        mapping.target_submesh_name.lower(),
+                                        parameter_name.lower(),
+                                        target_path.lower(),
+                                        slot_kind,
+                                    )
+                                    if row_key in seen_texture_rows:
+                                        continue
+                                    seen_texture_rows.add(row_key)
+                                    binding_part_name = str(getattr(binding, "part_name", "") or getattr(binding, "submesh_name", "") or "").strip()
+                                    binding_shader_family = str(getattr(binding, "shader_family", "") or "").strip()
+                                    binding_sidecar_kind = str(getattr(binding, "sidecar_kind", "") or "").strip()
+                                    binding_linked_mesh = str(getattr(binding, "linked_mesh_path", "") or "").strip()
+                                    suggested_source = (
+                                        ""
+                                        if is_shared_material_layer_texture(target_path)
+                                        else _best_source_for_slot(
+                                            mapping.target_submesh_name,
+                                            mapping.source_submesh_indices,
+                                            slot_kind,
+                                            texture_sets,
+                                            parameter_name=parameter_name,
+                                            target_texture_path=target_path,
+                                            target_shader_family=binding_shader_family,
+                                        )
+                                    )
+                                    row_state: Dict[str, Any] = {
+                                        "target_name": mapping.target_submesh_name,
+                                        "source_indices": tuple(mapping.source_submesh_indices),
+                                        "target_path": target_path,
+                                        "slot_kind": slot_kind,
+                                        "original_slot_kind": slot_kind,
+                                        "role_label": texture_classification.slot_label or slot_kind.title(),
+                                        "original_role_label": texture_classification.slot_label or slot_kind.title(),
+                                        "parameter_name": parameter_name,
+                                        "part_display": binding_part_name or mapping.target_submesh_name,
+                                        "shader_family": binding_shader_family,
+                                        "sidecar_kind": binding_sidecar_kind,
+                                        "sidecar_path": str(getattr(binding, "sidecar_path", "") or "").strip(),
+                                        "linked_mesh": binding_linked_mesh,
+                                        "classification": texture_classification,
+                                        "visualized": bool(texture_classification.visualized),
+                                        "suggested_source": suggested_source,
+                                        "source_path": "",
+                                        "checked": False,
+                                        "override_key": row_key[:3],
+                                        "advanced": True,
+                                        "state_label": "Needs review",
+                                        "confidence": "manual",
+                                    }
+                                    target_rows.append(row_state)
+                                    texture_override_rows.append(row_state)
+                            advanced_dds_overrides_state["loaded"] = True
+                            advanced_dds_lazy_placeholder.setVisible(False)
+                            try:
+                                _refresh_texture_row_guidance()
+                                _refresh_texture_table(selected_texture_row.get("row"))
+                                _queue_texture_preview_refresh()
+                            except NameError:
+                                pass
+                            return True
+                        finally:
+                            advanced_dds_overrides_state["loading"] = False
+                            texture_busy_bar.setVisible(False)
+
+                    def _ensure_advanced_dds_overrides_loaded(reason: str = "manual") -> bool:
+                        return _load_advanced_dds_override_rows(reason=reason)
 
                     def _texture_role_label_for_slot(slot_kind: str) -> str:
                         return {
@@ -59132,6 +59210,8 @@ def run_gui() -> int:
                             return confirm_dialog.exec() == QDialog.Accepted
 
                         def _apply_replacement_texture_plan_to_overrides() -> None:
+                            if not _ensure_advanced_dds_overrides_loaded(reason="apply-suggested"):
+                                return
                             _refresh_texture_row_guidance()
                             planned_rows: List[Tuple[Dict[str, Any], str, str]] = []
                             for row_state in texture_override_rows:
@@ -59191,6 +59271,8 @@ def run_gui() -> int:
                             return None
 
                         def _apply_selected_source_material_textures() -> None:
+                            if not _ensure_advanced_dds_overrides_loaded(reason="use-selected"):
+                                return
                             texture_set = _texture_set_for_selected_source_material()
                             if texture_set is None:
                                 QMessageBox.information(
@@ -59255,6 +59337,8 @@ def run_gui() -> int:
                             _queue_texture_preview_refresh()
 
                         def _apply_all_suggested_override_sources() -> None:
+                            if not _ensure_advanced_dds_overrides_loaded(reason="apply-all-suggested"):
+                                return
                             _refresh_texture_row_guidance()
                             planned_rows: List[Tuple[Dict[str, Any], str, str]] = []
                             for row_state in texture_override_rows:
@@ -59282,6 +59366,8 @@ def run_gui() -> int:
                             _queue_texture_preview_refresh()
 
                         def _clear_target_texture_assignments() -> None:
+                            if not _ensure_advanced_dds_overrides_loaded(reason="clear-target"):
+                                return
                             target_name = _current_texture_target_name()
                             for row_state in texture_rows_by_target.get(target_name, []):
                                 _set_texture_row_assignment(row_state, "", False)
@@ -59289,6 +59375,8 @@ def run_gui() -> int:
                             _queue_texture_preview_refresh()
 
                         def _selected_material_override_rows() -> List[Dict[str, Any]]:
+                            if not _ensure_advanced_dds_overrides_loaded(reason="material-route"):
+                                return []
                             selected_sources = {
                                 int(raw_source_index)
                                 for raw_source_index in tuple(selected_texture_plan_source.get("source_indices", ()) or ())
@@ -59426,9 +59514,15 @@ def run_gui() -> int:
                         do_not_emit_texture_button.clicked.connect(_clear_target_texture_assignments)
                         add_textures_button.clicked.connect(_add_missing_texture_sources)
                         add_texture_folder_button.clicked.connect(_add_missing_texture_folder)
+                        advanced_dds_load_button.clicked.connect(
+                            lambda _checked=False: _ensure_advanced_dds_overrides_loaded(reason="button")
+                        )
                         texture_layout.addWidget(texture_workflow, 1)
                         _refresh_texture_table()
                     advanced_texture_section = CollapsibleSection("Advanced Original DDS Overrides", expanded=False)
+                    advanced_texture_section.toggled.connect(
+                        lambda expanded: _ensure_advanced_dds_overrides_loaded(reason="section") if expanded else None
+                    )
                     advanced_texture_section.body_layout.addWidget(texture_group)
                     textures_layout.addWidget(advanced_texture_section, 0)
                     _queue_alignment_post_open_task(_queue_static_preview_refresh)
@@ -61189,6 +61283,7 @@ def run_gui() -> int:
             _queue_alignment_post_open_task(_set_preview_renderer)
             _queue_alignment_post_open_task(_capture_initial_geometry_snapshot)
             _queue_alignment_post_open_task(_queue_static_preview_refresh)
+            _queue_alignment_post_open_task(_load_original_reference_texture_preview)
             _queue_alignment_post_open_task(_clear_all_part_selections)
 
             buttons = QHBoxLayout()

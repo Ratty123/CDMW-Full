@@ -738,9 +738,15 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
 
     def test_model_preview_has_committed_transform_fast_path_and_timing_diagnostics(self) -> None:
         source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
+        main_source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
         self.assertIn("def set_alignment_committed_preview_transform", source)
         self.assertIn("class NativePreviewPanel(QWidget)", source)
         self.assertIn("prepare_model_preview = staticmethod(_prep.prepare_model_preview)", source)
+        self.assertIn("alignment_d3d11_state[\"pending_fast_transform\"] = payload", main_source)
+        self.assertIn("def _replay_alignment_d3d11_fast_transform() -> None:", main_source)
+        self.assertIn("if not bool(alignment_d3d11_drag_transaction.get(\"active\")):", main_source)
+        self.assertIn("_replay_alignment_d3d11_fast_transform()", main_source)
+        self.assertIn("_queue_static_preview_rebuild()", main_source)
         self.assertNotIn("functions.glGetString", source)
         self.assertNotIn("_read_green_up_renderer_info", source)
 
