@@ -43369,6 +43369,8 @@ def run_gui() -> int:
             root_layout = QVBoxLayout(dialog)
             alignment_control_min_width = 520
             alignment_control_content_min_width = 560
+            mesh_edit_control_min_width = 300
+            mesh_edit_control_content_min_width = 320
             alignment_preview_min_width = 420
             main_splitter = QSplitter(Qt.Horizontal, dialog)
             main_splitter.setChildrenCollapsible(False)
@@ -43444,6 +43446,7 @@ def run_gui() -> int:
             preview_detail_combo.addItem("Fast detail", "fast")
             preview_detail_combo.setToolTip(
                 "Auto uses full geometry for dense but practical imports and falls back to lighter previews for very large scenes. "
+                "Modify Original uses a faster material package in Auto so the first editable preview opens sooner. "
                 "Full geometry disables live preview face sampling and can make camera movement slow on very dense models. "
                 "Fast detail keeps editing responsive."
             )
@@ -44051,12 +44054,17 @@ def run_gui() -> int:
                 mode = "compact" if compact else "wide"
                 mode_changed = str(alignment_dialog_layout_state.get("mode") or "") != mode
                 alignment_dialog_layout_state["mode"] = mode
+                try:
+                    mesh_edit_tools_active = control_tabs.widget(control_tabs.currentIndex()) is mesh_edit_tab
+                except Exception:
+                    mesh_edit_tools_active = False
                 if compact:
                     if main_splitter.orientation() != Qt.Vertical:
                         main_splitter.setOrientation(Qt.Vertical)
                     main_splitter.setHandleWidth(8)
                     controls_panel.setMaximumWidth(16777215)
                     controls_panel.setMinimumWidth(0)
+                    content_container.setMinimumWidth(0)
                     preview_panel.setMinimumWidth(0)
                     if preview_splitter.orientation() != Qt.Horizontal:
                         preview_splitter.setOrientation(Qt.Horizontal)
@@ -44067,13 +44075,19 @@ def run_gui() -> int:
                     if main_splitter.orientation() != Qt.Horizontal:
                         main_splitter.setOrientation(Qt.Horizontal)
                     main_splitter.setHandleWidth(10)
-                    controls_panel.setMinimumWidth(alignment_control_min_width)
-                    controls_panel.setMaximumWidth(16777215)
+                    active_control_min_width = mesh_edit_control_min_width if mesh_edit_tools_active else alignment_control_min_width
+                    active_content_min_width = mesh_edit_control_content_min_width if mesh_edit_tools_active else alignment_control_content_min_width
+                    controls_panel.setMinimumWidth(active_control_min_width)
+                    content_container.setMinimumWidth(active_content_min_width)
+                    controls_panel.setMaximumWidth(460 if mesh_edit_tools_active else 16777215)
                     preview_panel.setMinimumWidth(alignment_preview_min_width)
                     if preview_splitter.orientation() != Qt.Horizontal:
                         preview_splitter.setOrientation(Qt.Horizontal)
                     if force_sizes or mode_changed:
-                        control_width = max(620, min(1040, int(width * 0.42)))
+                        if mesh_edit_tools_active:
+                            control_width = max(mesh_edit_control_min_width, min(420, int(width * 0.18)))
+                        else:
+                            control_width = max(620, min(1040, int(width * 0.42)))
                         main_splitter.setSizes([control_width, max(760, width - control_width)])
                         preview_splitter.setSizes([max(280, int((width - control_width) * 0.38)), max(360, int((width - control_width) * 0.58))])
 
@@ -44109,6 +44123,7 @@ def run_gui() -> int:
             setup_tab, setup_page, setup_layout = _new_alignment_scroll_tab("MeshAlignmentSetupScrollTab")
             parts_tab, parts_page, parts_layout = _new_alignment_scroll_tab("MeshAlignmentPartsScrollTab")
             mesh_edit_tab, mesh_edit_page, mesh_edit_layout_page = _new_alignment_scroll_tab("MeshAlignmentMeshEditingScrollTab")
+            mesh_edit_page.setMinimumWidth(mesh_edit_control_content_min_width)
             textures_tab, textures_page, textures_layout = _new_alignment_scroll_tab("MeshAlignmentMaterialsScrollTab")
             control_tabs.addTab(setup_tab, "Setup")
             control_tabs.addTab(parts_tab, "Parts && Routing")
@@ -44671,7 +44686,7 @@ def run_gui() -> int:
 
             def _alignment_preview_source_face_limit() -> int:
                 try:
-                    if mesh_edit_enabled_checkbox.isChecked():
+                    if mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active():
                         return 0
                 except NameError:
                     pass
@@ -44742,7 +44757,7 @@ def run_gui() -> int:
 
             def _alignment_preview_selected_source_face_limit(source_indices: Sequence[int]) -> int:
                 try:
-                    if mesh_edit_enabled_checkbox.isChecked():
+                    if mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active():
                         return 0
                 except NameError:
                     pass
@@ -44786,7 +44801,7 @@ def run_gui() -> int:
 
             def _alignment_preview_background_source_face_limit(source_indices: Sequence[int]) -> int:
                 try:
-                    if mesh_edit_enabled_checkbox.isChecked():
+                    if mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active():
                         return 0
                 except NameError:
                     pass
@@ -45415,6 +45430,12 @@ def run_gui() -> int:
                 except Exception:
                     return False
 
+            def _alignment_mesh_edit_tab_active() -> bool:
+                try:
+                    return control_tabs.widget(control_tabs.currentIndex()) is mesh_edit_tab
+                except Exception:
+                    return False
+
             def _alignment_d3d11_editor_ids_for_source_indices(source_indices: Sequence[int]) -> tuple[int, ...]:
                 source_to_editor = alignment_d3d11_state.get("source_to_d3d11_ids")
                 has_editor_map = isinstance(source_to_editor, Mapping) and bool(source_to_editor)
@@ -45659,6 +45680,8 @@ def run_gui() -> int:
                 if detail_mode == "full":
                     return True
                 if detail_mode == "fast":
+                    return False
+                if modify_original_clone_mode and detail_mode == "auto":
                     return False
                 try:
                     face_count = int(getattr(model, "face_count", 0) or 0)
@@ -51990,7 +52013,11 @@ def run_gui() -> int:
 
                 def _sync_mesh_edit_preview_settings() -> None:
                     allowed_indices = _mesh_edit_allowed_source_indices()
-                    active = bool(mesh_edit_enabled_checkbox.isChecked()) and _mesh_edit_can_edit_scope()[0]
+                    active = (
+                        bool(mesh_edit_enabled_checkbox.isChecked())
+                        and _alignment_mesh_edit_tab_active()
+                        and _mesh_edit_can_edit_scope()[0]
+                    )
                     tool = _mesh_edit_current_tool()
                     target_mode = _mesh_edit_target_mode_for_tool()
                     delete_mode = str(mesh_edit_delete_mode_combo.currentData() or "release")
@@ -52035,7 +52062,11 @@ def run_gui() -> int:
                         mesh_edit_enabled_checkbox.blockSignals(True)
                         mesh_edit_enabled_checkbox.setChecked(False)
                         mesh_edit_enabled_checkbox.blockSignals(False)
-                    editing_requested = bool(mesh_edit_enabled_checkbox.isChecked()) and mesh_edit_supported
+                    editing_requested = (
+                        bool(mesh_edit_enabled_checkbox.isChecked())
+                        and mesh_edit_supported
+                        and _alignment_mesh_edit_tab_active()
+                    )
                     editing_active = editing_requested and can_edit
                     remove_tool = _mesh_edit_current_tool() == "remove"
                     for widget in (
@@ -52235,7 +52266,7 @@ def run_gui() -> int:
                     if replacement_mesh_for_mapping is None or not isinstance(payload, Mapping):
                         return
                     can_edit, _reason = _mesh_edit_can_edit_scope()
-                    if not can_edit or not mesh_edit_enabled_checkbox.isChecked():
+                    if not can_edit or not mesh_edit_enabled_checkbox.isChecked() or not _alignment_mesh_edit_tab_active():
                         return
                     stroke_id = _mesh_edit_stroke_id(payload)
                     if stroke_id <= 0:
@@ -52341,7 +52372,7 @@ def run_gui() -> int:
                     if stroke_id <= 0 or int(mesh_edit_active_stroke.get("id", 0) or 0) != stroke_id:
                         return
                     can_edit, _reason = _mesh_edit_can_edit_scope()
-                    if not can_edit or not mesh_edit_enabled_checkbox.isChecked():
+                    if not can_edit or not mesh_edit_enabled_checkbox.isChecked() or not _alignment_mesh_edit_tab_active():
                         return
                     tool = str(payload.get("tool") or mesh_edit_active_stroke.get("tool") or _mesh_edit_current_tool()).strip().lower()
                     if tool == "remove":
@@ -52689,12 +52720,23 @@ def run_gui() -> int:
                                     selected.add(vertex_index)
                     selected_count = sum(len(vertices) for vertices in mesh_edit_selected_vertices_by_submesh.values())
                     can_edit, reason = _mesh_edit_can_edit_scope()
-                    if can_edit and mesh_edit_enabled_checkbox.isChecked():
+                    if can_edit and mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active():
                         revision_text = int(mesh_edit_revision.get("value", 0) or 0)
                         mesh_edit_status_label.setText(
                             f"{reason} Selected vertices {selected_count:,}. Edited revision {revision_text}."
                         )
                     _refresh_mesh_edit_controls()
+
+                def _mesh_edit_control_tab_changed(index: int) -> None:
+                    if control_tabs.widget(index) is not mesh_edit_tab and mesh_edit_enabled_checkbox.isChecked():
+                        mesh_edit_enabled_checkbox.blockSignals(True)
+                        mesh_edit_enabled_checkbox.setChecked(False)
+                        mesh_edit_enabled_checkbox.blockSignals(False)
+                        _refresh_mesh_edit_controls()
+                        _queue_static_preview_refresh()
+                    elif control_tabs.widget(index) is mesh_edit_tab:
+                        _refresh_mesh_edit_controls()
+                    _apply_alignment_dialog_responsive_layout(force_sizes=True)
 
                 for widget in (
                     mesh_edit_enabled_checkbox,
@@ -52726,6 +52768,7 @@ def run_gui() -> int:
                 original_tree.currentItemChanged.connect(_original_selection_changed)
                 mapping_tree.currentItemChanged.connect(_target_selection_changed)
                 control_tabs.currentChanged.connect(_clear_part_selections_when_leaving_geometry)
+                control_tabs.currentChanged.connect(_mesh_edit_control_tab_changed)
                 control_tabs.currentChanged.connect(lambda _index: _update_selection_context())
                 _refresh_source_assignment_columns()
                 _load_selected_part_controls()
@@ -54224,7 +54267,10 @@ def run_gui() -> int:
                     source_preview_cache_key = ""
                     active_preview_mode = str(preview_mode_combo.currentData() or "side_by_side")
                     raw_direct_source_preview_indices = set(selected_source_highlight_indices)
-                    if mesh_edit_enabled_checkbox.isChecked():
+                    mesh_edit_direct_source_preview = bool(
+                        mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active()
+                    )
+                    if mesh_edit_direct_source_preview:
                         raw_direct_source_preview_indices.update(_mesh_edit_allowed_source_indices())
                     direct_source_preview_indices = {
                         int(source_index)
@@ -54234,7 +54280,6 @@ def run_gui() -> int:
                     mapped_preview_source_indices = _mapped_source_indices(current_mappings)
                     direct_source_indices_have_appended = bool(direct_source_preview_indices & appended_source_indices)
                     direct_source_indices_have_mapped = bool(direct_source_preview_indices & mapped_preview_source_indices)
-                    mesh_edit_direct_source_preview = bool(mesh_edit_enabled_checkbox.isChecked())
                     use_direct_source_preview = bool(
                         direct_source_preview_indices
                         and (mesh_edit_direct_source_preview or not direct_source_indices_have_appended)
