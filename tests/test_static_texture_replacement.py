@@ -1377,8 +1377,8 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertIn("character/texture/source_ma.dds", patched)
         self.assertIn('_name="_screenSpaceDisplacementScale" _value="0.000000"', patched)
         self.assertIn('_name="_detailScreenSpaceDisplacementScale" _value="0.000000"', patched)
-        self.assertIn('_name="_tintColorR" _value="#c4c4c4ff"', patched)
-        self.assertIn('_name="_scratchTintColorR" _value="#c4c4c436"', patched)
+        self.assertIn('_name="_tintColorR" _value="#ccccccff"', patched)
+        self.assertIn('_name="_scratchTintColorR" _value="#cccccc36"', patched)
         self.assertIn('_name="_grimeBlendingParameterR" _value="0"', patched)
 
     def test_material_authority_bruteforce_tuned_adds_missing_layer_byte_values(self) -> None:
@@ -1518,7 +1518,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             patched = next(payload.payload_data.decode("utf-8") for payload in payloads if payload.kind == "sidecar_generated")
             self.assertIn("gem_outside_base", patched.lower())
             self.assertNotIn("lambert1", patched.lower())
-            self.assertIn("#c4c4c4ff", patched)
+            self.assertIn("#ccccccff", patched)
             texture_targets = "\n".join(payload.target_path.lower() for payload in payloads if payload.kind == "texture_generated")
             self.assertIn("gem_outside_base", texture_targets)
 
