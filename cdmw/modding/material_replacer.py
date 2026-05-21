@@ -148,6 +148,7 @@ class CDMaterialRuntimeProfile:
     allow_factor_only_authority: bool = False
     bruteforce_texture_scope: str = "all"
     force_neutral_layer_support: bool = False
+    preserve_target_layer_response: bool = False
     note: str = ""
 
 
@@ -315,6 +316,20 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
                 "but route height/detail-height to neutral support maps and disable displacement shimmer."
             ),
         ),
+        CDMaterialRuntimeProfile(
+            name="material_authority_detail_preserve",
+            label="Material Authority Detail Preserve",
+            ma_layout="arm",
+            material_mask_layout="ao_roughness_metallic_alpha",
+            ao_mode="white",
+            support_policy="keep_original_support",
+            allow_factor_only_authority=True,
+            preserve_target_layer_response=True,
+            note=(
+                "Comparison profile: patch source base/normal/factor color while preserving the target "
+                "CD height/material/detail layer response that carries edge detail and non-gloss calibration."
+            ),
+        ),
     )
 
 
@@ -335,6 +350,9 @@ def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRunt
         "bruteforce_tuned": "material_authority_bruteforce_tuned",
         "material_bruteforce_tuned": "material_authority_bruteforce_tuned",
         "bitbright_tune": "material_authority_bruteforce_tuned",
+        "detail_preserve": "material_authority_detail_preserve",
+        "target_detail_preserve": "material_authority_detail_preserve",
+        "stock_detail_preserve": "material_authority_detail_preserve",
     }
     normalized = aliases.get(normalized, normalized)
     profiles = {profile.name: profile for profile in complete_swap_material_runtime_profiles()}
@@ -371,6 +389,7 @@ def complete_swap_material_profile_to_dict(profile: CDMaterialRuntimeProfile) ->
         "allow_factor_only_authority": bool(profile.allow_factor_only_authority),
         "bruteforce_texture_scope": profile.bruteforce_texture_scope,
         "force_neutral_layer_support": bool(profile.force_neutral_layer_support),
+        "preserve_target_layer_response": bool(profile.preserve_target_layer_response),
         "note": profile.note,
     }
 
@@ -446,6 +465,7 @@ def complete_swap_material_probe_manifest(
             "allow_factor_only_authority": bool(profile.allow_factor_only_authority),
             "bruteforce_texture_scope": profile.bruteforce_texture_scope,
             "force_neutral_layer_support": bool(profile.force_neutral_layer_support),
+            "preserve_target_layer_response": bool(profile.preserve_target_layer_response),
         },
     }
 
@@ -1973,7 +1993,7 @@ def _build_source_driven_pac_material_payloads(
                 f"Skipped source-driven sidecar {PurePosixPath(sidecar_path).name}; no compatible material wrapper texture slot could be patched."
             )
             continue
-        if complete_external_material_reset and (
+        if complete_external_material_reset and not _profile_preserves_target_layer_response(material_profile) and (
             target_pbr_scalars
             or material_profile.scratch_roughness is not None
             or material_profile.scratch_metallic is not None
@@ -2659,6 +2679,10 @@ def _profile_bruteforce_texture_scope(material_profile: Optional[CDMaterialRunti
 
 def _profile_forces_neutral_layer_support(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
     return bool(getattr(material_profile, "force_neutral_layer_support", False))
+
+
+def _profile_preserves_target_layer_response(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
+    return bool(getattr(material_profile, "preserve_target_layer_response", False))
 
 
 def _profile_neutral_color_rgb(material_profile: Optional[CDMaterialRuntimeProfile]) -> Optional[tuple[int, int, int]]:
@@ -7729,6 +7753,7 @@ def _neutralize_inherited_material_layers(
     displacement_multiplier = _profile_displacement_scale_multiplier(material_profile)
     displacement_max = _profile_displacement_scale_max(material_profile)
     preserve_scratch_alpha = bool(getattr(material_profile, "preserve_scratch_alpha", False)) if material_profile is not None else False
+    preserve_target_layer_response = _profile_preserves_target_layer_response(material_profile)
     edited_wrappers = 0
     edited_parameters = 0
 
@@ -7749,7 +7774,7 @@ def _neutralize_inherited_material_layers(
         if not wrapper_selected(attrs):
             return match.group(0)
         wrapper_edits = 0
-        if complete_external_reset:
+        if complete_external_reset and not preserve_target_layer_response:
             target_shader = (
                 "SkinnedMeshEmissive_Ver2"
                 if re.search(r"_emissive(?:Intensity|Progress)?Texture", body, flags=re.IGNORECASE)
@@ -7781,6 +7806,8 @@ def _neutralize_inherited_material_layers(
             if (parameter_name, texture_path) in keep or texture_path in keep_paths:
                 return block
             if any(token in parameter_name for token in neutral_texture_tokens):
+                if preserve_target_layer_response:
+                    return block
                 wrapper_edits += 1
                 return ""
             return block
@@ -7792,11 +7819,15 @@ def _neutralize_inherited_material_layers(
             parameter_name = str(flag_match.group(2) or "").strip().lower()
             normalized_parameter = re.sub(r"[^a-z0-9]+", "", parameter_name)
             if complete_external_reset and parameter_name == "_rendersettingflag":
+                if preserve_target_layer_response:
+                    return flag_match.group(0)
                 if str(flag_match.group(3) or "") == "4":
                     return flag_match.group(0)
                 wrapper_edits += 1
                 return f"{flag_match.group(1)}4{flag_match.group(4)}"
             if parameter_name not in neutral_flag_names:
+                return flag_match.group(0)
+            if preserve_target_layer_response:
                 return flag_match.group(0)
             wrapper_edits += 1
             return f"{flag_match.group(1)}0{flag_match.group(4)}"
@@ -7807,7 +7838,7 @@ def _neutralize_inherited_material_layers(
             patched_body,
             flags=re.IGNORECASE | re.DOTALL,
         )
-        if complete_external_reset and not re.search(
+        if complete_external_reset and not preserve_target_layer_response and not re.search(
             r'<MaterialParameterBitFlag32\b[^>]*_name="_renderSettingFlag"',
             patched_body,
             flags=re.IGNORECASE | re.DOTALL,
@@ -7828,6 +7859,8 @@ def _neutralize_inherited_material_layers(
             parameter_name = str(float_match.group(2) or "").strip().lower()
             normalized_parameter = re.sub(r"[^a-z0-9]+", "", parameter_name)
             if not complete_external_reset:
+                return float_match.group(0)
+            if preserve_target_layer_response:
                 return float_match.group(0)
             if any(token in normalized_parameter for token in reset_zero_float_tokens):
                 if displacement_multiplier is not None:
@@ -7857,7 +7890,7 @@ def _neutralize_inherited_material_layers(
             flags=re.IGNORECASE | re.DOTALL,
         )
 
-        if complete_external_reset:
+        if complete_external_reset and not preserve_target_layer_response:
             def remove_reset_parameter(parameter_match: re.Match[str]) -> str:
                 nonlocal wrapper_edits
                 block = parameter_match.group(0)
@@ -7879,6 +7912,8 @@ def _neutralize_inherited_material_layers(
             nonlocal wrapper_edits
             parameter_name = str(color_match.group(2) or "").strip().lower()
             if not any(token in parameter_name for token in neutral_color_tokens):
+                return color_match.group(0)
+            if preserve_target_layer_response:
                 return color_match.group(0)
             original_value = str(color_match.group(3) or "").strip()
             if neutral_rgb is not None:
@@ -7915,6 +7950,8 @@ def _neutralize_inherited_material_layers(
             parameter_name = str(byte_match.group(2) or "").strip().lower()
             if not any(token in parameter_name for token in neutral_byte_tokens):
                 return byte_match.group(0)
+            if preserve_target_layer_response:
+                return byte_match.group(0)
             wrapper_edits += 1
             return f"{byte_match.group(1)}0{byte_match.group(4)}"
 
@@ -7932,6 +7969,8 @@ def _neutralize_inherited_material_layers(
                 return block
             parameter_name = _sidecar_parameter_name(block).strip().lower()
             if not any(token in parameter_name for token in neutral_byte_tokens):
+                return block
+            if preserve_target_layer_response:
                 return block
             wrapper_edits += 1
             if block.endswith("/>"):

@@ -681,7 +681,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertEqual((33, 56, 0, 0), pixels["arm_nonmetal_matte"])
 
             manifests = write_complete_swap_material_probe_manifests(root / "probes")
-            self.assertEqual(8, len(manifests))
+            self.assertEqual(9, len(manifests))
             data = json.loads(manifests[0].read_text(encoding="utf-8"))
             self.assertEqual("wolf_gravestone_sword_free (1).zip", data["source_package"])
             self.assertIn("material_profile", data)
@@ -772,7 +772,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 build_variant_payloads=build_payloads,
             )
 
-            self.assertEqual(8, len(result.variant_dirs))
+            self.assertEqual(9, len(result.variant_dirs))
             manifest = json.loads(result.manifests[0].read_text(encoding="utf-8"))
             self.assertEqual(source_zip.as_posix(), manifest["source_package"])
             self.assertEqual("character/cd_phm_02_sword_0039.pac", manifest["target_pac_path"])
@@ -1481,6 +1481,67 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertIn('_name="_tintColorR" _value="#ffffffff"', patched)
         self.assertIn('_name="_scratchTintColorR" _value="#ffffffff"', patched)
         self.assertNotIn("#d8d8d8", patched)
+
+    def test_material_authority_detail_preserve_keeps_target_layer_response(self) -> None:
+        sidecar_text = (
+            '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade"><Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterBitFlag32 _name="_renderSettingFlag" _value="6" Index="0"/>'
+            '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/source_base.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/source_n.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_detailHeightMaskR"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0001_disp.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterFloat _name="_screenSpaceDisplacementScale" _value="0.097000" Index="4"/>'
+            '<MaterialParameterFloat _name="_detailScreenSpaceDisplacementScale" _value="0.044000" Index="5"/>'
+            '<MaterialParameterBitFlag32 _name="_colorBlendingFlag" _value="4095" Index="6"/>'
+            '<MaterialParameterColor _name="_tintColorR" _value="#818cb1ff" Index="7"/>'
+            '<MaterialParameterByte4 _name="_grimeBlendingParameterR" _value="285215788" Index="8"/>'
+            '<MaterialParameterByte4 _name="_scratchRoughness" _value="12418864" Index="9"/>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+        )
+
+        patched, wrappers, parameters = _neutralize_inherited_material_layers(
+            sidecar_text,
+            material_names=("Blade",),
+            keep_rules=(
+                ("_overlayColorTexture", "character/texture/source_base.dds"),
+                ("_normalTexture", "character/texture/source_n.dds"),
+            ),
+            complete_external_reset=True,
+            material_profile=get_complete_swap_material_profile("material_authority_detail_preserve"),
+        )
+
+        self.assertEqual(0, wrappers)
+        self.assertEqual(0, parameters)
+        self.assertIn('_name="_renderSettingFlag" _value="6"', patched)
+        self.assertIn("cd_texturelayer_003_0001_disp.dds", patched)
+        self.assertIn('_name="_screenSpaceDisplacementScale" _value="0.097000"', patched)
+        self.assertIn('_name="_detailScreenSpaceDisplacementScale" _value="0.044000"', patched)
+        self.assertIn('_name="_colorBlendingFlag" _value="4095"', patched)
+        self.assertIn('_name="_tintColorR" _value="#818cb1ff"', patched)
+        self.assertIn('_name="_grimeBlendingParameterR" _value="285215788"', patched)
+        self.assertIn('_name="_scratchRoughness" _value="12418864"', patched)
+
+    def test_material_authority_detail_preserve_routes_only_source_color_and_normal(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            texture_set = ReplacementTextureSet("lambert1")
+            texture_set.slots["base"] = ReplacementTextureSlot("lambert1", "base", root / "base.png")
+            texture_set.slots["normal"] = ReplacementTextureSlot("lambert1", "normal", root / "normal.png")
+            texture_set.slots["material"] = ReplacementTextureSlot(
+                material_name="lambert1",
+                slot_kind="material",
+                source_path=root / "metallicRoughness.png",
+                semantic_subtype="metallic_roughness",
+                packed_channels=("roughness", "metallic"),
+                source_authority="gltf",
+            )
+
+            slots = _source_driven_slots(
+                texture_set,
+                include_complete_support_fallbacks=True,
+                material_profile=get_complete_swap_material_profile("material_authority_detail_preserve"),
+            )
+
+        self.assertEqual(["base", "normal"], [slot.slot_kind for slot in slots])
 
     def test_material_authority_bruteforce_tuned_allows_exact_factor_only_gem_authority(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
