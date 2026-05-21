@@ -39,6 +39,7 @@ from cdmw.modding.material_replacer import (
     _attach_source_face_counts,
     _append_texture_contract_warnings,
     _apply_source_pbr_scalar_parameters,
+    _bruteforce_source_authority_texture_parameters,
     _build_source_driven_sidecar_text,
     _choose_source_materials_for_targets,
     _complete_swap_runtime_material_mask_png_path,
@@ -1374,11 +1375,60 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertGreater(parameters, 0)
         self.assertIn("character/texture/source_base.dds", patched)
         self.assertIn("character/texture/source_ma.dds", patched)
-        self.assertIn('_name="_screenSpaceDisplacementScale" _value="0.028000"', patched)
-        self.assertIn('_name="_detailScreenSpaceDisplacementScale" _value="0.040000"', patched)
-        self.assertIn('_name="_tintColorR" _value="#d8d8d8ff"', patched)
-        self.assertIn('_name="_scratchTintColorR" _value="#d8d8d836"', patched)
+        self.assertIn('_name="_screenSpaceDisplacementScale" _value="0.000000"', patched)
+        self.assertIn('_name="_detailScreenSpaceDisplacementScale" _value="0.000000"', patched)
+        self.assertIn('_name="_tintColorR" _value="#c4c4c4ff"', patched)
+        self.assertIn('_name="_scratchTintColorR" _value="#c4c4c436"', patched)
         self.assertIn('_name="_grimeBlendingParameterR" _value="0"', patched)
+
+    def test_material_authority_bruteforce_tuned_adds_missing_layer_byte_values(self) -> None:
+        sidecar_text = (
+            '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade"><Material><Vector Name="_parameters">'
+            '<MaterialParameterByte4 _name="_grimeBlendingOpacityParameter" Index="1"/>'
+            '<MaterialParameterByte4 _name="_dyeingMask" Index="2"/>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+        )
+
+        patched, wrappers, parameters = _neutralize_inherited_material_layers(
+            sidecar_text,
+            material_names=("Blade",),
+            complete_external_reset=True,
+            material_profile=get_complete_swap_material_profile("material_authority_bruteforce_tuned"),
+        )
+
+        self.assertEqual(1, wrappers)
+        self.assertGreaterEqual(parameters, 2)
+        self.assertIn('_name="_grimeBlendingOpacityParameter" Index="0" _value="0"', patched)
+        self.assertIn('_name="_dyeingMask" Index="1" _value="0"', patched)
+
+    def test_material_authority_bruteforce_tuned_routes_height_layers_to_neutral_support(self) -> None:
+        wrapper_text = (
+            '<SkinnedMeshMaterialWrapper _subMeshName="Blade"><Material><Vector Name="_parameters">'
+            '<MaterialParameterTexture _name="_heightTexture"><ResourceReferencePath_ITexture _path="character/texture/old_disp.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_detailHeightMaskR"><ResourceReferencePath_ITexture _path="character/texture/old_dh.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_detailDiffuseMaskR"><ResourceReferencePath_ITexture _path="character/texture/old_diff.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_detailMaterialMaskR"><ResourceReferencePath_ITexture _path="character/texture/old_mat.dds"/></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper>"
+        )
+
+        patched, changed, used_paths = _bruteforce_source_authority_texture_parameters(
+            wrapper_text,
+            (
+                ("_overlayColorTexture", "character/texture/source_base.dds", "base"),
+                ("_normalTexture", "character/texture/source_n.dds", "normal"),
+                ("_heightTexture", "character/texture/neutral_height.dds", "height"),
+                ("_colorBlendingMaskTexture", "character/texture/source_ma.dds", "material_mask"),
+                ("_detailMaskTexture", "character/texture/neutral_detail.dds", "detail_mask"),
+            ),
+            material_profile=get_complete_swap_material_profile("material_authority_bruteforce_tuned"),
+        )
+
+        self.assertTrue(changed)
+        self.assertIn("character/texture/neutral_height.dds", used_paths)
+        self.assertIn('_name="_heightTexture"><ResourceReferencePath_ITexture _path="character/texture/neutral_height.dds"', patched)
+        self.assertIn('_name="_detailHeightMaskR"><ResourceReferencePath_ITexture _path="character/texture/neutral_height.dds"', patched)
+        self.assertIn('_name="_detailDiffuseMaskR"><ResourceReferencePath_ITexture _path="character/texture/source_base.dds"', patched)
+        self.assertIn('_name="_detailMaterialMaskR"><ResourceReferencePath_ITexture _path="character/texture/source_ma.dds"', patched)
 
     def test_material_authority_bruteforce_default_neutralization_stays_white_zero(self) -> None:
         sidecar_text = (
@@ -1468,7 +1518,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             patched = next(payload.payload_data.decode("utf-8") for payload in payloads if payload.kind == "sidecar_generated")
             self.assertIn("gem_outside_base", patched.lower())
             self.assertNotIn("lambert1", patched.lower())
-            self.assertIn("#d8d8d8ff", patched)
+            self.assertIn("#c4c4c4ff", patched)
             texture_targets = "\n".join(payload.target_path.lower() for payload in payloads if payload.kind == "texture_generated")
             self.assertIn("gem_outside_base", texture_targets)
 

@@ -146,6 +146,8 @@ class CDMaterialRuntimeProfile:
     displacement_scale_multiplier: Optional[float] = None
     displacement_scale_max: Optional[float] = None
     allow_factor_only_authority: bool = False
+    bruteforce_texture_scope: str = "all"
+    force_neutral_layer_support: bool = False
     note: str = ""
 
 
@@ -296,17 +298,19 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
             ao_mode="white",
             emissive_mode="intensity",
             support_policy="source_only",
-            scratch_roughness=0.88,
+            scratch_roughness=0.95,
             scratch_metallic=0.0,
-            shine_scalar=0.20,
-            neutral_color_rgb=(216, 216, 216),
+            shine_scalar=0.08,
+            neutral_color_rgb=(196, 196, 196),
             preserve_scratch_alpha=True,
-            displacement_scale_multiplier=0.35,
-            displacement_scale_max=0.04,
+            displacement_scale_multiplier=0.0,
+            displacement_scale_max=0.0,
             allow_factor_only_authority=True,
+            bruteforce_texture_scope="quality_safe",
+            force_neutral_layer_support=True,
             note=(
-                "Opt-in brute-force fine tune: keep source-owned texture authority, mute neutralized tint/dye response, "
-                "preserve limited displacement edge definition, and allow exact factor-only gem materials."
+                "Opt-in brute-force fine tune: keep source-owned texture authority and exact factor-only gems, "
+                "but route height/detail-height to neutral support maps and disable displacement shimmer."
             ),
         ),
     )
@@ -363,6 +367,8 @@ def complete_swap_material_profile_to_dict(profile: CDMaterialRuntimeProfile) ->
         "displacement_scale_multiplier": profile.displacement_scale_multiplier,
         "displacement_scale_max": profile.displacement_scale_max,
         "allow_factor_only_authority": bool(profile.allow_factor_only_authority),
+        "bruteforce_texture_scope": profile.bruteforce_texture_scope,
+        "force_neutral_layer_support": bool(profile.force_neutral_layer_support),
         "note": profile.note,
     }
 
@@ -436,6 +442,8 @@ def complete_swap_material_probe_manifest(
             "displacement_scale_multiplier": profile.displacement_scale_multiplier,
             "displacement_scale_max": profile.displacement_scale_max,
             "allow_factor_only_authority": bool(profile.allow_factor_only_authority),
+            "bruteforce_texture_scope": profile.bruteforce_texture_scope,
+            "force_neutral_layer_support": bool(profile.force_neutral_layer_support),
         },
     }
 
@@ -1931,6 +1939,7 @@ def _build_source_driven_pac_material_payloads(
             shader_name=material_profile.shader if complete_external_material_reset else "",
             insert_missing_slots=bool(complete_external_material_reset),
             material_authority_bruteforce=material_authority_bruteforce,
+            material_profile=material_profile,
         )
         neutralized_parameters = 0
         if neutralize_inherited_material_layers and changed_wrappers > 0:
@@ -2534,6 +2543,17 @@ def _source_driven_slots(
             break
     if source_only:
         existing_kinds = {str(slot.slot_kind or "").strip().lower() for slot in slots}
+        if include_complete_support_fallbacks and _profile_forces_neutral_layer_support(profile):
+            for fallback_kind in ("normal", "height", "material_mask", "detail_mask"):
+                if fallback_kind in existing_kinds:
+                    continue
+                source_slot = _complete_swap_neutral_support_slot(texture_set, fallback_kind, material_profile=profile)
+                key = (str(source_slot.source_path.expanduser().resolve()).lower(), str(source_slot.slot_kind).lower())
+                if key in seen_paths:
+                    continue
+                seen_paths.add(key)
+                slots.append(source_slot)
+                existing_kinds.add(fallback_kind)
         if (
             include_complete_support_fallbacks
             and "material_mask" not in existing_kinds
@@ -2626,6 +2646,14 @@ def _profile_is_material_authority_bruteforce(material_profile: CDMaterialRuntim
 
 def _profile_allows_factor_only_authority(material_profile: CDMaterialRuntimeProfile) -> bool:
     return bool(getattr(material_profile, "allow_factor_only_authority", False))
+
+
+def _profile_bruteforce_texture_scope(material_profile: Optional[CDMaterialRuntimeProfile]) -> str:
+    return _sanitize_texture_component(str(getattr(material_profile, "bruteforce_texture_scope", "") or "all")) or "all"
+
+
+def _profile_forces_neutral_layer_support(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
+    return bool(getattr(material_profile, "force_neutral_layer_support", False))
 
 
 def _profile_neutral_color_rgb(material_profile: Optional[CDMaterialRuntimeProfile]) -> Optional[tuple[int, int, int]]:
@@ -3452,6 +3480,7 @@ def _build_source_driven_sidecar_text(
     shader_name: str = "",
     insert_missing_slots: bool = False,
     material_authority_bruteforce: bool = False,
+    material_profile: Optional[CDMaterialRuntimeProfile] = None,
 ) -> tuple[str, int, set[str], set[str]]:
     wrapper_pattern = re.compile(
         r"\s*<(?P<tag>[A-Za-z0-9_:.-]*MaterialWrapper)\b[^>]*>.*?</(?P=tag)>",
@@ -3486,6 +3515,7 @@ def _build_source_driven_sidecar_text(
             shader_name=shader_name,
             insert_missing_slots=insert_missing_slots,
             material_authority_bruteforce=material_authority_bruteforce,
+            material_profile=material_profile,
         )
         if changed:
             changed_count += 1
@@ -3510,6 +3540,7 @@ def _patch_source_driven_wrapper_texture_slots(
     shader_name: str = "",
     insert_missing_slots: bool = False,
     material_authority_bruteforce: bool = False,
+    material_profile: Optional[CDMaterialRuntimeProfile] = None,
 ) -> tuple[str, bool, set[str]]:
     patched = wrapper_text
     changed = False
@@ -3642,7 +3673,11 @@ def _patch_source_driven_wrapper_texture_slots(
             changed = True
             used_paths.add(texture_value)
     if material_authority_bruteforce:
-        patched, brute_changed, brute_used_paths = _bruteforce_source_authority_texture_parameters(patched, bindings)
+        patched, brute_changed, brute_used_paths = _bruteforce_source_authority_texture_parameters(
+            patched,
+            bindings,
+            material_profile=material_profile,
+        )
         if brute_changed:
             changed = True
             used_paths.update(brute_used_paths)
@@ -3654,6 +3689,8 @@ def _patch_source_driven_wrapper_texture_slots(
 def _bruteforce_source_authority_texture_parameters(
     wrapper_text: str,
     bindings: Sequence[tuple[str, str, str]],
+    *,
+    material_profile: Optional[CDMaterialRuntimeProfile] = None,
 ) -> tuple[str, bool, set[str]]:
     """Repoint every shader texture parameter to source-derived authority maps.
 
@@ -3663,6 +3700,8 @@ def _bruteforce_source_authority_texture_parameters(
     surviving inside a source-owned wrapper.
     """
 
+    scope = _profile_bruteforce_texture_scope(material_profile)
+    quality_safe = scope in {"quality_safe", "qualitysafe", "stable", "safe"}
     source_paths: dict[str, str] = {}
     for parameter_name, texture_path, slot_kind in tuple(bindings or ()):
         slot = str(slot_kind or "").strip().lower()
@@ -3674,6 +3713,10 @@ def _bruteforce_source_authority_texture_parameters(
             source_paths.setdefault("base", path)
         elif slot == "normal":
             source_paths.setdefault("normal", path)
+        elif slot == "height" and quality_safe:
+            source_paths.setdefault("height", path)
+        elif slot == "detail_mask" and quality_safe:
+            source_paths.setdefault("detail_mask", path)
         elif slot in {"material", "material_mask", "detail_mask", "height"}:
             source_paths.setdefault("material", path)
     if "material" not in source_paths:
@@ -3695,8 +3738,16 @@ def _bruteforce_source_authority_texture_parameters(
     def replacement_for_parameter(parameter_name: str) -> str:
         normalized = str(parameter_name or "").strip().lower()
         compact = re.sub(r"[^a-z0-9]+", "", normalized)
+        if quality_safe and any(token in compact for token in ("height", "displacement", "parallax", "bump")):
+            return source_paths.get("height") or source_paths.get("detail_mask") or source_paths.get("material") or fallback
         if "normal" in compact:
             return source_paths.get("normal") or source_paths.get("base") or fallback
+        if quality_safe and compact in {"detailmasktexture", "detailmask", "layermask"}:
+            return source_paths.get("detail_mask") or source_paths.get("material") or source_paths.get("base") or fallback
+        if quality_safe and any(token in compact for token in ("detailheight", "grimeheight", "damageheight")):
+            return source_paths.get("height") or source_paths.get("detail_mask") or source_paths.get("material") or fallback
+        if quality_safe and any(token in compact for token in ("detailmaterial", "grimematerial", "damagematerial", "colorblendingmask")):
+            return source_paths.get("material") or source_paths.get("detail_mask") or source_paths.get("base") or fallback
         if any(token in compact for token in ("color", "colour", "diffuse", "albedo", "overlay", "emissive", "rgbtexture")):
             if "colorblendingmask" not in compact:
                 return source_paths.get("base") or fallback
@@ -7865,6 +7916,26 @@ def _neutralize_inherited_material_layers(
         patched_body = re.sub(
             r'(<MaterialParameterByte4\b[^>]*(?:_name|Name)="([^"]*)"[^>]*(?:_value|Value)=")([^"]*)(")',
             replace_byte,
+            patched_body,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+
+        def add_missing_neutral_byte_value(byte_match: re.Match[str]) -> str:
+            nonlocal wrapper_edits
+            block = byte_match.group(0)
+            if re.search(r'\b(?:_value|Value)="', block, flags=re.IGNORECASE):
+                return block
+            parameter_name = _sidecar_parameter_name(block).strip().lower()
+            if not any(token in parameter_name for token in neutral_byte_tokens):
+                return block
+            wrapper_edits += 1
+            if block.endswith("/>"):
+                return block[:-2].rstrip() + ' _value="0"/>'
+            return re.sub(r">$", ' _value="0">', block, count=1)
+
+        patched_body = re.sub(
+            r"<MaterialParameterByte4\b[^>]*/?>",
+            add_missing_neutral_byte_value,
             patched_body,
             flags=re.IGNORECASE | re.DOTALL,
         )
