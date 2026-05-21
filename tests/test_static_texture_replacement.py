@@ -1472,6 +1472,85 @@ class StaticTextureReplacementTests(unittest.TestCase):
             texture_targets = "\n".join(payload.target_path.lower() for payload in payloads if payload.kind == "texture_generated")
             self.assertIn("gem_outside_base", texture_targets)
 
+    def test_material_authority_bruteforce_tuned_drops_unreferenced_factor_emissive_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            texconv = root / "texconv.exe"
+            texconv.write_bytes(b"fake")
+            base_template = root / "base.dds"
+            base_template.write_bytes(_fake_dds_bytes(16, 16, mips=1, fourcc=b"DXT1"))
+            base_entry = _entry("character/texture/original_base.dds", root)
+            sidecar_entry = _entry("character/modelproperty/gem.pac_xml", root)
+            mesh = ParsedMesh(
+                submeshes=[
+                    SubMesh(name="Gem", material="Gem_inside", vertices=[(0.0, 0.0, 0.0)], faces=[(0, 0, 0)]),
+                ]
+            )
+            mesh.submeshes[0].preview_color = (1.0, 0.0, 0.0)
+            mesh.submeshes[0].preview_material_parameters = (
+                PreviewMaterialParameterInput(
+                    parameter_kind="color",
+                    parameter_name="_emissiveColor",
+                    color_value=(1.0, 0.0, 0.0),
+                ),
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_emissiveIntensity",
+                    numeric_value=8.0,
+                ),
+            )
+            sidecar_text = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Gem_0015"><Material><Vector Name="_parameters">'
+                '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/original_base.dds"/></MaterialParameterTexture>'
+                "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+            )
+
+            def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
+                out_dir = Path(command[command.index("-o") + 1])
+                produced = out_dir / f"{Path(command[-1]).stem}.dds"
+                produced.write_bytes(_fake_dds_bytes(16, 16, mips=1, fourcc=b"DXT1"))
+                return 0, "", ""
+
+            with patch("cdmw.core.common.run_process_with_cancellation", side_effect=fake_texconv):
+                payloads, report = build_texture_replacement_payloads(
+                    obj_mesh=mesh,
+                    rebuilt_mesh=ParsedMesh(
+                        submeshes=[
+                            SubMesh(name="CD_PHM_02_Gem_0015", material="CD_PHM_02_Gem_0015", vertices=[(0.0, 0.0, 0.0)], faces=[(0, 0, 0)]),
+                        ]
+                    ),
+                    texture_files=(),
+                    original_texture_refs=(
+                        ArchiveModelTextureReference(
+                            reference_name=base_entry.path,
+                            material_name="CD_PHM_02_Gem_0015",
+                            sidecar_parameter_name="_overlayColorTexture",
+                            resolved_archive_path=base_entry.path,
+                            resolved_entry=base_entry,
+                        ),
+                    ),
+                    original_sidecars=((sidecar_entry, sidecar_text),),
+                    submesh_mappings=(),
+                    texconv_path=texconv,
+                    read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
+                    original_texture_source_path=lambda _entry: base_template,
+                    pac_driven_sidecar=True,
+                    neutralize_inherited_material_layers=True,
+                    complete_external_material_reset=True,
+                    complete_swap_material_profile="material_authority_bruteforce_tuned",
+                    output_draw_sections=(
+                        StaticOutputDrawSection(0, 0, "CD_PHM_02_Gem_0015", [0], 0, 0, "CD_PHM_02_Gem_0015", 1, False),
+                    ),
+                )
+
+            patched = next(payload.payload_data.decode("utf-8") for payload in payloads if payload.kind == "sidecar_generated")
+            self.assertIn("gem_inside_base", patched.lower())
+            self.assertNotIn("gem_inside_emissive", patched.lower())
+            texture_targets = "\n".join(payload.target_path.lower() for payload in payloads if payload.kind == "texture_generated")
+            self.assertIn("gem_inside_base", texture_targets)
+            self.assertNotIn("gem_inside_emissive", texture_targets)
+            self.assertNotIn("generated DDS is not referenced", "\n".join(report.warnings))
+
     def test_active_file_authority_audit_detects_stale_dmmsa_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

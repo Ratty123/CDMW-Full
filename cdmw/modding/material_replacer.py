@@ -2050,7 +2050,16 @@ def _build_source_driven_pac_material_payloads(
                 report.warnings.append(
                     "Complete external swap updated _subMeshResources IdBase for source-owned material wrapper IDs."
                 )
-        used_source_texture_paths.update(_normalize_texture_path(path) for path in used_paths)
+        final_sidecar_refs = {
+            _normalize_texture_path(texture_path)
+            for _parameter_name, texture_path in _sidecar_texture_parameter_rows(patched_text)
+            if str(texture_path or "").strip()
+        }
+        used_source_texture_paths.update(
+            _normalize_texture_path(path)
+            for path in used_paths
+            if _normalize_texture_path(path) in final_sidecar_refs
+        )
         sidecar_payloads.append(
             TextureReplacementPayload(
                 target_path=sidecar_path,
