@@ -95,6 +95,7 @@ from cdmw.core.archive_modding import (
     export_archive_audio_as_wav,
     export_archive_mesh,
     list_archive_patch_backups,
+    mesh_import_runtime_sibling_mesh_candidates,
     patch_archive_entries,
     parsed_mesh_to_preview_model,
     restore_archive_patch_backup,
@@ -263,6 +264,7 @@ class MeshImportSetupSelection:
     placement_context_note: str = ""
     source_texture_evidence: Tuple[Mapping[str, object], ...] = ()
     defer_original_texture_preview: bool = False
+    runtime_target_entry: Optional[ArchiveEntry] = None
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
@@ -42495,6 +42497,112 @@ def run_gui() -> int:
             if failed_count:
                 self.append_archive_log(f"Skipped {failed_count:,} stale Modify Original session folder(s) that were locked or unavailable.")
 
+        def _modify_original_runtime_target_entry(
+            self,
+            entry: ArchiveEntry,
+            mesh: Optional[ParsedMesh],
+        ) -> Optional[ArchiveEntry]:
+            if not isinstance(entry, ArchiveEntry) or not isinstance(mesh, ParsedMesh):
+                return None
+            source_path = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lower()
+            if "/2_mon/" not in source_path:
+                return None
+            candidates = mesh_import_runtime_sibling_mesh_candidates(
+                entry,
+                mesh,
+                self.archive_entries_by_basename,
+            )
+            for candidate in candidates:
+                candidate_path = str(getattr(candidate, "path", "") or "").replace("\\", "/").strip().lower()
+                if "/1_pc/" in candidate_path and not self._same_archive_entry(candidate, entry):
+                    return candidate
+            return None
+
+        def _retarget_static_options_for_runtime_entry(
+            self,
+            selected_entry: ArchiveEntry,
+            runtime_entry: ArchiveEntry,
+            options: Optional[StaticMeshReplacementOptions],
+            fallback_source_mesh: Optional[ParsedMesh],
+            *,
+            on_log: Optional[Callable[[str], None]] = None,
+        ) -> Optional[StaticMeshReplacementOptions]:
+            if options is None or self._same_archive_entry(selected_entry, runtime_entry):
+                return options
+            source_mesh = (
+                options.edited_source_mesh
+                if isinstance(getattr(options, "edited_source_mesh", None), ParsedMesh)
+                else fallback_source_mesh
+            )
+            if not isinstance(source_mesh, ParsedMesh):
+                return options
+            try:
+                runtime_data = read_archive_entry_baseline_data(
+                    runtime_entry,
+                    read_entry_data=read_archive_entry_data,
+                ).data
+                runtime_mesh = parse_mesh(runtime_data, runtime_entry.path)
+            except Exception as exc:
+                if on_log is not None:
+                    on_log(f"Runtime target remap skipped; could not parse {runtime_entry.path}: {exc}")
+                return options
+            if len(runtime_mesh.submeshes) != 1:
+                return options
+
+            disabled_source_indices = {
+                int(getattr(adjustment, "source_submesh_index", -1))
+                for adjustment in tuple(getattr(options, "source_part_adjustments", ()) or ())
+                if not bool(getattr(adjustment, "enabled", True))
+            }
+
+            def source_is_output_candidate(source_index: int) -> bool:
+                if source_index in disabled_source_indices:
+                    return False
+                if source_index < 0 or source_index >= len(source_mesh.submeshes):
+                    return False
+                source = source_mesh.submeshes[source_index]
+                name = str(getattr(source, "name", "") or "").strip().lower()
+                if name.startswith("cdmw_anchor") or name.startswith("cft_anchor"):
+                    return False
+                return bool(getattr(source, "vertices", None)) and bool(getattr(source, "faces", None))
+
+            source_indices: list[int] = []
+            for mapping in tuple(getattr(options, "submesh_mappings", ()) or ()):
+                for raw_source_index in tuple(getattr(mapping, "source_submesh_indices", ()) or ()):
+                    try:
+                        source_index = int(raw_source_index)
+                    except (TypeError, ValueError):
+                        continue
+                    if source_index not in source_indices and source_is_output_candidate(source_index):
+                        source_indices.append(source_index)
+            if not source_indices:
+                for source_index in range(len(source_mesh.submeshes)):
+                    if source_is_output_candidate(source_index):
+                        source_indices.append(source_index)
+            if not source_indices:
+                return options
+
+            target = runtime_mesh.submeshes[0]
+            target_name = str(getattr(target, "material", "") or getattr(target, "name", "") or "target 0").strip()
+            if on_log is not None:
+                on_log(
+                    "Runtime target override: routing edited source part(s) "
+                    f"{source_indices} into {runtime_entry.path} target 0 ({target_name})."
+                )
+            return dataclasses.replace(
+                options,
+                submesh_mappings=[
+                    StaticSubmeshMapping(
+                        target_submesh_index=0,
+                        target_submesh_name=target_name,
+                        source_submesh_indices=source_indices,
+                        target_material_slot_index=0,
+                        merge_sources=True,
+                    )
+                ],
+                removed_target_submesh_indices=[],
+            )
+
         def _start_archive_modify_original_workspace(self, entry: ArchiveEntry) -> None:
             if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
                 self.set_status_message("Select a supported archive mesh first.", error=True)
@@ -42676,6 +42784,16 @@ def run_gui() -> int:
             original_mesh = result.get("original_mesh")
             if not isinstance(original_mesh, ParsedMesh):
                 original_mesh = None
+            runtime_target_entry = self._modify_original_runtime_target_entry(
+                entry,
+                scene_import_result.mesh if isinstance(scene_import_result, SceneImportResult) else original_mesh,
+            )
+            runtime_target_note = ""
+            if isinstance(runtime_target_entry, ArchiveEntry):
+                runtime_target_note = (
+                    " The selected archive mesh is a display/monster clone; final preview/export will target "
+                    f"the likely equipped runtime mesh instead: {runtime_target_entry.path}"
+                )
             if not bool(result.get("create_workspace")):
                 setup = MeshImportSetupSelection(
                     scene_path=obj_path,
@@ -42688,8 +42806,10 @@ def run_gui() -> int:
                     placement_context_note=(
                         "This is an internal clone of the selected archive mesh. "
                         "Geometry can resize or move existing parts; no workspace export was required, and output is written only through loose-mod save."
+                        f"{runtime_target_note}"
                     ),
                     defer_original_texture_preview=True,
+                    runtime_target_entry=runtime_target_entry,
                 )
                 self._start_archive_mesh_patch(entry, preset_setup=setup)
                 return
@@ -42712,6 +42832,9 @@ def run_gui() -> int:
             setup.supplemental_files = supplemental_files
             setup.source_label = setup.source_label or f"Modify Original clone: {obj_path}"
             setup.defer_original_texture_preview = True
+            if runtime_target_note:
+                setup.placement_context_note = f"{setup.placement_context_note}{runtime_target_note}"
+            setup.runtime_target_entry = runtime_target_entry
             self._start_archive_mesh_patch(entry, preset_setup=setup)
 
         def _show_modify_original_workspace_ready_dialog(
@@ -43228,6 +43351,7 @@ def run_gui() -> int:
             source_texture_evidence: Sequence[Mapping[str, object]] = (),
             extra_supplemental_specs: Sequence[MeshImportSupplementalFileSpec] = (),
             defer_original_texture_preview: bool = False,
+            runtime_export_target_entry: Optional[ArchiveEntry] = None,
             continue_build_callback: Optional[
                 Callable[
                     [
@@ -43246,6 +43370,11 @@ def run_gui() -> int:
             if self._activate_modeless_alignment_dialog(alignment_dialog_key):
                 self.set_status_message("Mesh Replacement Builder is already open for this target/source pair.")
                 return
+            preview_build_entry = (
+                runtime_export_target_entry
+                if isinstance(runtime_export_target_entry, ArchiveEntry)
+                else entry
+            )
             modify_original_clone_mode = (
                 obj_path.suffix.lower() == ".obj"
                 and self._has_valid_obj_roundtrip_sidecar(obj_path)
@@ -61931,6 +62060,12 @@ def run_gui() -> int:
                 static_options = _build_static_options_from_dialog(show_messages=True)
                 if static_options is None:
                     return
+                static_options = self._retarget_static_options_for_runtime_entry(
+                    entry,
+                    preview_build_entry,
+                    static_options,
+                    scene_import_result.mesh if isinstance(scene_import_result, SceneImportResult) else replacement_mesh_for_mapping,
+                )
                 preview_supplemental_files = tuple(supplemental_files or ()) + tuple(dialog_added_supplemental_files)
                 progress = QProgressDialog("Building final test preview...", "", 0, 0, dialog)
                 progress.setWindowTitle("Test Build Preview")
@@ -61948,7 +62083,7 @@ def run_gui() -> int:
                     progress.setLabelText("Rebuilding mesh and generated texture payloads in memory...")
                     QApplication.processEvents()
                     preview_result = build_mesh_import_preview(
-                        entry,
+                        preview_build_entry,
                         obj_path,
                         import_mode="static_replacement",
                         static_replacement_options=static_options,
@@ -62298,8 +62433,18 @@ def run_gui() -> int:
                 setup = preset_setup
             scene_path_obj = setup.scene_path
             import_mode = setup.import_mode
+            build_entry = (
+                setup.runtime_target_entry
+                if isinstance(getattr(setup, "runtime_target_entry", None), ArchiveEntry)
+                else entry
+            )
             if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}:
                 self.append_archive_log(f"{scene_path_obj.suffix.upper().lstrip('.')} imports use Mesh Replacement mode.")
+            if not self._same_archive_entry(build_entry, entry):
+                self.append_archive_log(
+                    "Modify Original runtime target override: "
+                    f"{entry.path} -> {build_entry.path}"
+                )
 
             destination = "loose"
 
@@ -62347,7 +62492,7 @@ def run_gui() -> int:
                     return False
                 _set_builder_status("Choosing optional related files for loose package...")
                 selected_related_entries_result = self._prompt_archive_mesh_related_file_selection(
-                    entry,
+                    build_entry,
                     title="Include Additional Referenced Files",
                     intro_text=(
                         "Select any original archive companion files that should be copied into the loose mod. "
@@ -62365,19 +62510,26 @@ def run_gui() -> int:
                 _set_builder_status("Building loose mod package...")
 
                 paired_entry = None
-                if entry.extension == ".pam":
-                    paired_entry = self._find_archive_entry_by_virtual_path(str(PurePosixPath(entry.path).with_suffix(".pamlod")))
+                if build_entry.extension == ".pam":
+                    paired_entry = self._find_archive_entry_by_virtual_path(str(PurePosixPath(build_entry.path).with_suffix(".pamlod")))
                 texconv_text = self.texconv_path_edit.text().strip()
                 require_source_owned_colors = bool(getattr(static_replacement_options, "complete_external_swap", False))
 
                 def _preview_task(log: Callable[[str], None]) -> MeshImportPreviewResult:
-                    log(f"Rebuilding {entry.path} from {scene_path_obj.name}...")
-                    preview_settings = self._current_model_preview_render_settings()
-                    return build_mesh_import_preview(
+                    active_static_options = self._retarget_static_options_for_runtime_entry(
                         entry,
+                        build_entry,
+                        static_replacement_options,
+                        setup.scene_import_result.mesh if isinstance(setup.scene_import_result, SceneImportResult) else None,
+                        on_log=log,
+                    )
+                    log(f"Rebuilding {build_entry.path} from {scene_path_obj.name}...")
+                    preview_settings = self._current_model_preview_render_settings()
+                    preview_result = build_mesh_import_preview(
+                        build_entry,
                         scene_path_obj,
                         import_mode=import_mode,
-                        static_replacement_options=static_replacement_options,
+                        static_replacement_options=active_static_options,
                         scene_import_result=setup.scene_import_result,
                         source_display_label=setup.source_label,
                         archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
@@ -62387,6 +62539,12 @@ def run_gui() -> int:
                         visible_texture_mode=preview_settings.visible_texture_mode,
                         supplemental_files=supplemental_files,
                     )
+                    if not self._same_archive_entry(build_entry, entry):
+                        preview_result.summary_lines.append(
+                            "Runtime target override: Modify Original selected a display/monster clone; "
+                            f"export payload targets {build_entry.path}."
+                        )
+                    return preview_result
 
                 def _archive_dds_preview_source_for_path(texture_path: str) -> Optional[Path]:
                     normalized_path = str(texture_path or "").replace("\\", "/").strip().strip("/").lower()
@@ -62422,8 +62580,8 @@ def run_gui() -> int:
                 def _start_commit(preview_result: MeshImportPreviewResult) -> None:
                     def _commit_task(log: Callable[[str], None]) -> object:
                         request_by_normalized_path: dict[str, ArchivePatchRequest] = {
-                            entry.path.replace("\\", "/").strip().lower(): ArchivePatchRequest(
-                                entry=entry,
+                            build_entry.path.replace("\\", "/").strip().lower(): ArchivePatchRequest(
+                                entry=build_entry,
                                 payload_data=preview_result.rebuilt_data,
                             )
                         }
@@ -62510,7 +62668,7 @@ def run_gui() -> int:
                         log(f"Writing {len(requests)} rebuilt entrie(s) into a mod-ready loose package...")
                         loose_result = export_archive_mesh_payloads_to_mod_ready_loose(
                             requests,
-                            primary_entry=entry,
+                            primary_entry=build_entry,
                             preview_result=preview_result,
                             source_obj_path=scene_path_obj,
                             source_display_label=setup.source_label,
@@ -62620,7 +62778,7 @@ def run_gui() -> int:
                             _finish_builder_status("Mesh loose export finished with an incomplete result payload.", False)
                             return
                         self._show_archive_import_preview(
-                            entry,
+                            build_entry,
                             preview_payload,
                             patched=False,
                             loose_package_root=loose_result.package_root,
@@ -62648,12 +62806,12 @@ def run_gui() -> int:
                         export_box.setMinimumSize(QSize(560, 180))
                         export_box.exec()
                         _finish_builder_status(
-                            f"Wrote rebuilt {entry.basename} into a mod-ready loose package.",
+                            f"Wrote rebuilt {build_entry.basename} into a mod-ready loose package.",
                             True,
                         )
 
                     self._run_utility_task_when_idle(
-                        status_message=f"Writing {entry.basename} into a mod-ready loose package...",
+                        status_message=f"Writing {build_entry.basename} into a mod-ready loose package...",
                         task=_commit_task,
                         on_complete=_handle_commit_complete,
                         on_error=lambda message: _finish_builder_status(
@@ -62668,9 +62826,9 @@ def run_gui() -> int:
                         _finish_builder_status("Mesh import preview finished with an unexpected result payload.", False)
                         return
                     if static_replacement_options is None:
-                        self._show_archive_import_preview(entry, result, patched=False)
+                        self._show_archive_import_preview(build_entry, result, patched=False)
                         if not self._confirm_archive_mesh_import_commit(
-                            entry,
+                            build_entry,
                             result,
                             destination=destination,
                             source_obj_path=scene_path_obj,
@@ -62681,7 +62839,7 @@ def run_gui() -> int:
                     _start_commit(result)
 
                 self._run_utility_task(
-                    status_message=f"Rebuilding mesh preview for {entry.basename}...",
+                    status_message=f"Rebuilding mesh preview for {build_entry.basename}...",
                     task=_preview_task,
                     on_complete=_handle_preview_complete,
                     on_error=lambda message: _finish_builder_status(
@@ -62708,6 +62866,7 @@ def run_gui() -> int:
                     source_texture_evidence=setup.source_texture_evidence,
                     extra_supplemental_specs=setup.extra_supplemental_specs,
                     defer_original_texture_preview=bool(setup.defer_original_texture_preview),
+                    runtime_export_target_entry=build_entry,
                     continue_build_callback=_start_build_with_static_options,
                 )
                 return

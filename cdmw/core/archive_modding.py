@@ -4491,6 +4491,22 @@ def _mesh_import_runtime_sibling_mesh_candidates(
     return tuple(candidates[:12])
 
 
+def mesh_import_runtime_sibling_mesh_candidates(
+    entry: ArchiveEntry,
+    mesh: ParsedMesh,
+    archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+    original_sidecars: Sequence[Tuple[ArchiveEntry, str]] = (),
+) -> Tuple[ArchiveEntry, ...]:
+    """Return likely runtime mesh targets for display/preview clone sources."""
+
+    return _mesh_import_runtime_sibling_mesh_candidates(
+        entry,
+        mesh,
+        archive_entries_by_basename,
+        original_sidecars,
+    )
+
+
 def _mesh_import_runtime_sibling_warning_lines(
     entry: ArchiveEntry,
     mesh: ParsedMesh,

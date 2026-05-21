@@ -225,9 +225,15 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
                 mesh,
                 {"cd_phm_00_cloak_0009.pac": (player_entry,)},
             )
+            candidates = archive_modding.mesh_import_runtime_sibling_mesh_candidates(
+                display_entry,
+                mesh,
+                {"cd_phm_00_cloak_0009.pac": (player_entry,)},
+            )
 
         self.assertIn("Runtime target warning", "\n".join(lines))
         self.assertIn(player_entry.path, "\n".join(lines))
+        self.assertEqual((player_entry,), candidates)
 
     def test_loose_export_auto_copies_exact_sidecars_but_omits_physics_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

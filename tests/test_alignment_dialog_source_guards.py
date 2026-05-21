@@ -39,6 +39,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('startswith("Runtime target warning:")', source)
         self.assertIn("runtime_target_warning", source)
         self.assertIn("def _mesh_import_runtime_sibling_warning_lines", archive_source)
+        self.assertIn("def mesh_import_runtime_sibling_mesh_candidates", archive_source)
+        self.assertIn("runtime_target_entry: Optional[ArchiveEntry] = None", source)
+        self.assertIn("def _modify_original_runtime_target_entry", source)
+        self.assertIn("def _retarget_static_options_for_runtime_entry", source)
+        self.assertIn("Modify Original runtime target override", source)
+        self.assertIn("runtime_export_target_entry=build_entry", source)
         self.assertIn("Auto-including exact mesh companion file(s)", archive_source)
 
     def test_alignment_modes_are_simplified_and_default_grid_flat(self) -> None:
