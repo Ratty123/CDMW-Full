@@ -1343,14 +1343,14 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertIn("character/texture/source_base.dds", patched)
         self.assertIn("character/texture/source_n.dds", patched)
         self.assertIn("character/texture/source_ma.dds", patched)
-        self.assertIn("character/texture/neutral_detail.dds", patched)
         self.assertIn("character/texture/neutral_n.dds", patched)
         self.assertIn("character/texture/neutral_height.dds", patched)
         self.assertIn("character/texture/neutral_material.dds", patched)
         self.assertRegex(patched, r'_name="_heightTexture"[\s\S]*?neutral_height\.dds')
         self.assertRegex(patched, r'_name="_detailHeightMaskR"[\s\S]*?neutral_height\.dds')
         self.assertRegex(patched, r'_name="_detailNormalMaskR"[\s\S]*?neutral_n\.dds')
-        self.assertRegex(patched, r'_name="_grimeDiffuseTextureR"[\s\S]*?neutral_detail\.dds')
+        self.assertRegex(patched, r'_name="_grimeDiffuseTextureR"[\s\S]*?source_base\.dds')
+        self.assertRegex(patched, r'_name="_detailDiffuseMaskG"[\s\S]*?source_base\.dds')
         self.assertRegex(patched, r'_name="_detailMaterialMaskB"[\s\S]*?neutral_material\.dds')
         self.assertEqual(
             {
@@ -1360,7 +1360,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 "character/texture/neutral_n.dds",
                 "character/texture/neutral_height.dds",
                 "character/texture/neutral_material.dds",
-                "character/texture/neutral_detail.dds",
             },
             used_paths,
         )
@@ -2494,6 +2493,26 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     material_profile=get_complete_swap_material_profile("material_authority_bruteforce"),
                 )
                 _build_texture_payload(
+                    ReplacementTextureSlot("Blade", "base", base_png),
+                    target_entry=object(),
+                    texconv_path=None,
+                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                    original_texture_source_path=lambda _entry: original_dds,
+                    report=report,
+                    on_log=None,
+                    material_profile=get_complete_swap_material_profile("format_probe_bc7"),
+                )
+                _build_texture_payload(
+                    ReplacementTextureSlot("Blade", "material_mask", mask_png),
+                    target_entry=object(),
+                    texconv_path=None,
+                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                    original_texture_source_path=lambda _entry: original_dds,
+                    report=report,
+                    on_log=None,
+                    material_profile=get_complete_swap_material_profile("format_probe_bc7"),
+                )
+                _build_texture_payload(
                     ReplacementTextureSlot("Blade", "material_mask", mask_png),
                     target_entry=object(),
                     texconv_path=None,
@@ -2504,7 +2523,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     material_profile=get_complete_swap_material_profile("format_probe_bc3"),
                 )
 
-            self.assertEqual(["BC7_UNORM_SRGB", "BC5_UNORM", "BC7_UNORM", "BC3_UNORM"], seen_formats)
+            self.assertEqual(["BC3_UNORM_SRGB", "BC5_UNORM", "BC3_UNORM", "BC7_UNORM_SRGB", "BC7_UNORM", "BC3_UNORM"], seen_formats)
             self.assertTrue(any("source-owned close-up quality" in warning for warning in report.warnings))
 
     def test_non_material_bc1_encode_keeps_source_alpha(self) -> None:
