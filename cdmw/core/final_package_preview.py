@@ -1111,12 +1111,22 @@ def _binding_row_is_source_visible_authority(row: FinalPackageBindingRow) -> boo
     return row.role == "Material / Mask" and "colorblendingmask" in parameter_key
 
 
+def _binding_row_is_preserved_layer_color(row: FinalPackageBindingRow) -> bool:
+    if row.role not in {"Base / Color", "Emissive"}:
+        return False
+    parameter_key = _binding_row_parameter_key(row)
+    if not any(token in parameter_key for token in ("grimediffuse", "detaildiffuse")):
+        return False
+    return _is_stock_or_shared_texture_path(row.texture_path)
+
+
 def _source_owned_material_binding_contract(
     material_key: str,
     display_name: str,
     rows: Sequence[FinalPackageBindingRow],
     *,
     strict: bool = False,
+    allow_inherited_layer_color_bindings: bool = False,
 ) -> CDMaterialBindingContract:
     fatal_errors: List[str] = []
     contract_warnings: List[str] = []
@@ -1128,6 +1138,10 @@ def _source_owned_material_binding_contract(
         if row.role in {"Base / Color", "Emissive"}
         and row.binding_source == FINAL_PREVIEW_BINDING_ORIGINAL
         and row.status == FINAL_PREVIEW_READY
+        and not (
+            allow_inherited_layer_color_bindings
+            and _binding_row_is_preserved_layer_color(row)
+        )
     ]
     original_support_rows = [
         row
@@ -1609,6 +1623,7 @@ def build_final_package_preview(
     package_root: Optional[Path] = None,
     require_source_owned_colors: bool = False,
     strict_source_owned_material_contract: bool = False,
+    allow_inherited_layer_color_bindings: bool = False,
 ) -> FinalPackagePreviewResult:
     """Build the texture-authoritative mesh preview for the package payloads that would be exported."""
 
@@ -2080,6 +2095,10 @@ def build_final_package_preview(
             and row.binding_source != FINAL_PREVIEW_BINDING_GENERATED
             and row_is_planned_source_owned
             and not row_is_planned_placeholder
+            and not (
+                allow_inherited_layer_color_bindings
+                and _binding_row_is_preserved_layer_color(row)
+            )
         ):
             preflight_errors.append(
                 f"Complete source-owned swap still inherits visible color from the game archive: {row.material_name} -> {row.texture_path}."
@@ -2095,7 +2114,13 @@ def build_final_package_preview(
                 f"Complete source-owned slot still inherits original {row.role} binding: "
                 f"{row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
             )
-            if row.role in {"Base / Color", "Emissive"} or strict_source_owned_material_contract:
+            if (
+                allow_inherited_layer_color_bindings
+                and _binding_row_is_preserved_layer_color(row)
+                and not strict_source_owned_material_contract
+            ):
+                warnings.append(message)
+            elif row.role in {"Base / Color", "Emissive"} or strict_source_owned_material_contract:
                 preflight_errors.append(message)
             else:
                 warnings.append(message)
@@ -2125,6 +2150,7 @@ def build_final_package_preview(
                 display_name,
                 rows,
                 strict=bool(strict_source_owned_material_contract),
+                allow_inherited_layer_color_bindings=bool(allow_inherited_layer_color_bindings),
             )
             preflight_errors.extend(contract.fatal_errors)
             warnings.extend(contract.warnings)

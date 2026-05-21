@@ -60548,6 +60548,20 @@ def run_gui() -> int:
                     except Exception:
                         pass
 
+            def _complete_swap_allows_inherited_layer_color_bindings(options: object = None) -> bool:
+                raw_profile_name = (
+                    getattr(options, "complete_swap_material_profile", "")
+                    if options is not None
+                    else complete_swap_material_profile_combo.currentData()
+                )
+                profile_name = str(raw_profile_name or "").strip().casefold()
+                return profile_name in {
+                    "material_authority_detail_preserve",
+                    "detail_preserve",
+                    "target_detail_preserve",
+                    "stock_detail_preserve",
+                }
+
             complete_swap_profile_store_path = self.settings_file_path.parent / "complete_swap_material_profile.json"
             stored_complete_swap_material_profile = read_complete_swap_calibrated_material_profile(
                 complete_swap_profile_store_path,
@@ -62354,6 +62368,7 @@ def run_gui() -> int:
                         original_dds_basename_resolver=_archive_dds_preview_sources_for_basename,
                         package_root=final_test_package_root,
                         require_source_owned_colors=bool(_complete_external_swap_enabled()),
+                        allow_inherited_layer_color_bindings=_complete_swap_allows_inherited_layer_color_bindings(static_options),
                     )
                     _refresh_material_plan_from_final_preview(final_preview)
                     final_model_for_display = final_preview.preview_model
@@ -62922,6 +62937,7 @@ def run_gui() -> int:
                                 original_dds_resolver=_archive_dds_preview_source_for_path,
                                 original_dds_basename_resolver=_archive_dds_preview_sources_for_basename,
                                 require_source_owned_colors=require_source_owned_colors,
+                                allow_inherited_layer_color_bindings=_complete_swap_allows_inherited_layer_color_bindings(static_replacement_options),
                             )
                         except Exception as exc:
                             blocker_lines = (
@@ -63008,6 +63024,7 @@ def run_gui() -> int:
                                 original_dds_basename_resolver=_archive_dds_preview_sources_for_basename,
                                 package_root=loose_result.package_root,
                                 require_source_owned_colors=require_source_owned_colors,
+                                allow_inherited_layer_color_bindings=_complete_swap_allows_inherited_layer_color_bindings(static_replacement_options),
                             )
                             if final_preview.preflight_errors:
                                 for blocker in final_preview.preflight_errors[:12]:
