@@ -178,6 +178,32 @@ class ArchivePatchResult:
 class ArchiveLooseExportResult:
     package_root: Path
     written_files: List[Path]
+    authority_audit_path: Optional[Path] = None
+    authority_mismatch_count: int = 0
+
+
+@dataclass(slots=True)
+class ActiveFileAuthorityAuditRow:
+    virtual_path: str
+    local_path: str
+    local_size: int
+    local_sha256: str
+    active_source: str = ""
+    active_size: int = 0
+    active_sha256: str = ""
+    duplicate_count: int = 0
+    status: str = "not_found"
+    note: str = ""
+
+
+@dataclass(slots=True)
+class ActiveFileAuthorityAuditResult:
+    package_root: Path
+    game_root: Path
+    rows: List[ActiveFileAuthorityAuditRow] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    mismatch_count: int = 0
+    audit_path: Optional[Path] = None
 
 
 @dataclass(slots=True)
@@ -1072,6 +1098,11 @@ def _mesh_import_auto_companion_entries(
     for reference in tuple(getattr(preview_result, "texture_references", ()) or ()):
         related_entry = getattr(reference, "resolved_entry", None)
         if not isinstance(related_entry, ArchiveEntry):
+            continue
+        if str(getattr(related_entry, "extension", "") or "").strip().lower() in {".hkx", ".hkt"}:
+            # Physics/collision companions are often unchanged archive data.  Keep
+            # them out of source-owned loose packages unless the user explicitly
+            # selects them in the related-file picker.
             continue
         if not _mesh_import_is_exact_runtime_companion(primary_entry, related_entry):
             continue
@@ -2711,6 +2742,32 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         game_build=str(game_metadata.get("game_build", "") or ""),
         game_metadata=game_metadata,
     )
+    authority_audit: Optional[ActiveFileAuthorityAuditResult] = None
+    try:
+        authority_audit = audit_loose_package_active_file_authority(
+            package_root,
+            game_root=_package_root_from_entry(primary_entry),
+            payload_files=written_files,
+            write_audit_file=False,
+            on_log=on_log,
+        )
+        if authority_audit.audit_path is not None:
+            metadata_files.append(authority_audit.audit_path)
+            _safe_log(
+                on_log,
+                "Active file authority audit written: "
+                f"{authority_audit.audit_path.relative_to(package_root).as_posix()}",
+            )
+        for warning in authority_audit.warnings[:12]:
+            _safe_log(on_log, warning)
+        if authority_audit.mismatch_count:
+            _safe_log(
+                on_log,
+                f"Active file authority audit found {authority_audit.mismatch_count:,} mismatch(es); "
+                "clean/disable stale active archives before judging in-game materials.",
+            )
+    except Exception as exc:
+        _safe_log(on_log, f"Warning: active file authority audit failed: {exc}")
     _safe_log(
         on_log,
         f"Finished mod-ready mesh package with {len(written_files):,} payload file(s) and {len(metadata_files):,} metadata file(s).",
@@ -2719,6 +2776,8 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
     return ArchiveLooseExportResult(
         package_root=package_root,
         written_files=[*written_files, *metadata_files],
+        authority_audit_path=authority_audit.audit_path if authority_audit is not None else None,
+        authority_mismatch_count=authority_audit.mismatch_count if authority_audit is not None else 0,
     )
 
 
@@ -2745,6 +2804,178 @@ def _clear_existing_mesh_loose_package_root(
             shutil.rmtree(child)
         else:
             child.unlink()
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _loose_authority_virtual_path(package_root: Path, local_path: Path) -> str:
+    try:
+        relative = local_path.resolve().relative_to(package_root.resolve()).as_posix()
+    except ValueError:
+        relative = local_path.as_posix()
+    parts = tuple(part for part in PurePosixPath(relative).parts if part)
+    if not parts:
+        return ""
+    if parts[0].casefold() == "files" and len(parts) > 1:
+        parts = parts[1:]
+    if parts[0].casefold() in {"assets", "metadata"}:
+        return ""
+    if PurePosixPath(*parts).name.casefold() in {
+        "manifest.json",
+        "mod.json",
+        "modinfo.json",
+        "info.json",
+        "readme.txt",
+        ".no_encrypt",
+        "cdmw_active_file_authority_audit.json",
+    }:
+        return ""
+    return PurePosixPath(*parts).as_posix()
+
+
+def audit_loose_package_active_file_authority(
+    package_root: Path,
+    *,
+    game_root: Path,
+    payload_files: Sequence[Path],
+    write_audit_file: bool = True,
+    on_log: Optional[Callable[[str], None]] = None,
+) -> ActiveFileAuthorityAuditResult:
+    """Compare loose package payload hashes with active archive entries.
+
+    This catches stale DMM/archive installs where preview validates the newly
+    exported loose folder but the game loads an older active package instead.
+    """
+
+    from cdmw.core.archive import (
+        active_archive_entry_for_virtual_path,
+        discover_pamt_files,
+        parse_archive_pamt,
+        read_archive_entry_data,
+    )
+
+    root = Path(package_root).expanduser().resolve()
+    resolved_game_root = Path(game_root).expanduser().resolve()
+    wanted: dict[str, tuple[str, Path, int, str]] = {}
+    for raw_path in tuple(payload_files or ()):
+        local_path = Path(raw_path)
+        if not local_path.is_file():
+            continue
+        virtual_path = _loose_authority_virtual_path(root, local_path)
+        if not virtual_path:
+            continue
+        try:
+            size = local_path.stat().st_size
+            digest = _sha256_file(local_path)
+        except OSError:
+            continue
+        wanted[virtual_path.casefold()] = (virtual_path, local_path, size, digest)
+
+    result = ActiveFileAuthorityAuditResult(package_root=root, game_root=resolved_game_root)
+    if not wanted:
+        return result
+    if not resolved_game_root.is_dir():
+        result.warnings.append(f"Active file authority audit skipped; game root not found: {resolved_game_root}")
+        return result
+
+    entries_by_path: dict[str, list[ArchiveEntry]] = defaultdict(list)
+    for pamt_path in discover_pamt_files(resolved_game_root):
+        try:
+            entries = parse_archive_pamt(pamt_path)
+        except Exception as exc:
+            _safe_log(on_log, f"Authority audit skipped unreadable PAMT {pamt_path}: {exc}")
+            continue
+        for entry in entries:
+            key = str(entry.path or "").replace("\\", "/").strip().casefold()
+            if key in wanted:
+                entries_by_path[key].append(entry)
+
+    for key, (virtual_path, local_path, local_size, local_sha) in sorted(wanted.items()):
+        row = ActiveFileAuthorityAuditRow(
+            virtual_path=virtual_path,
+            local_path=local_path.as_posix(),
+            local_size=int(local_size),
+            local_sha256=local_sha,
+        )
+        candidates = entries_by_path.get(key, [])
+        direct_loose_path = resolved_game_root.joinpath(*PurePosixPath(virtual_path).parts)
+        direct_loose_exists = direct_loose_path.is_file()
+        row.duplicate_count = len(candidates) + (1 if direct_loose_exists else 0)
+        if direct_loose_exists:
+            try:
+                row.active_source = f"loose/{virtual_path}"
+                row.active_size = direct_loose_path.stat().st_size
+                row.active_sha256 = _sha256_file(direct_loose_path)
+            except OSError as exc:
+                row.status = "active_read_failed"
+                row.note = str(exc)
+                result.warnings.append(f"Authority audit could not read active loose payload for {virtual_path}: {exc}")
+                result.rows.append(row)
+                continue
+            if row.active_sha256 == local_sha and row.active_size == local_size:
+                row.status = "match"
+            else:
+                row.status = "mismatch"
+                row.note = "Active loose payload differs from final package; in-game test may be using stale data."
+                result.mismatch_count += 1
+                result.warnings.append(
+                    f"IN-GAME TEST BLOCKED: active loose file differs from package {virtual_path} "
+                    f"(active {row.active_sha256[:16]}, loose {local_sha[:16]})."
+                )
+            result.rows.append(row)
+            continue
+        active_entry = active_archive_entry_for_virtual_path(candidates) if candidates else None
+        if active_entry is None:
+            row.status = "loose_only"
+            row.note = "No active archive entry with this virtual path was found."
+            result.rows.append(row)
+            continue
+        row.active_source = f"{active_entry.pamt_path.parent.name}/{active_entry.pamt_path.name}"
+        row.active_size = int(getattr(active_entry, "orig_size", 0) or 0)
+        try:
+            active_data, _decompressed, _note = read_archive_entry_data(active_entry)
+            row.active_sha256 = hashlib.sha256(active_data).hexdigest()
+            row.active_size = len(active_data)
+        except Exception as exc:
+            row.status = "active_read_failed"
+            row.note = str(exc)
+            result.warnings.append(f"Authority audit could not read active archive payload for {virtual_path}: {exc}")
+            result.rows.append(row)
+            continue
+        if row.active_sha256 == local_sha and row.active_size == local_size:
+            row.status = "match"
+        else:
+            row.status = "mismatch"
+            row.note = "Active archive payload differs from final loose package; in-game test may be using stale data."
+            result.mismatch_count += 1
+            result.warnings.append(
+                f"IN-GAME TEST BLOCKED: active {row.active_source} differs from loose {virtual_path} "
+                f"(active {row.active_sha256[:16]}, loose {local_sha[:16]})."
+            )
+        result.rows.append(row)
+
+    if write_audit_file:
+        audit_doc = {
+            "schema": "cdmw_active_file_authority_audit_v1",
+            "package_root": root.as_posix(),
+            "game_root": resolved_game_root.as_posix(),
+            "mismatch_count": result.mismatch_count,
+            "warnings": list(result.warnings),
+            "rows": [dataclasses.asdict(row) for row in result.rows],
+        }
+        audit_path = root / "cdmw_active_file_authority_audit.json"
+        try:
+            audit_path.write_text(json.dumps(audit_doc, indent=2, sort_keys=True), encoding="utf-8")
+            result.audit_path = audit_path
+        except OSError as exc:
+            result.warnings.append(f"Could not write active file authority audit: {exc}")
+    return result
 
 
 def _refresh_changed_entries(pamt_paths: Iterable[Path], changed_paths: Iterable[str]) -> Dict[str, ArchiveEntry]:
@@ -4976,8 +5207,12 @@ def build_mesh_import_preview(
         getattr(static_replacement_options, "complete_external_material_reset", False)
     )
     complete_swap_material_profile = str(
-        getattr(static_replacement_options, "complete_swap_material_profile", "arm_standard")
-        or "arm_standard"
+        getattr(
+            static_replacement_options,
+            "complete_swap_material_profile",
+            "source_graph_strict" if complete_external_material_reset else "arm_standard",
+        )
+        or ("source_graph_strict" if complete_external_material_reset else "arm_standard")
     )
     if (
         normalized_import_mode == "static_replacement"

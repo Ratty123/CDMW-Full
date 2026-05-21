@@ -229,7 +229,7 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
         self.assertIn("Runtime target warning", "\n".join(lines))
         self.assertIn(player_entry.path, "\n".join(lines))
 
-    def test_loose_export_auto_copies_exact_mesh_companions(self) -> None:
+    def test_loose_export_auto_copies_exact_sidecars_but_omits_physics_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             primary = _entry("character/model/armor/test_cloak.pac", root)
@@ -284,10 +284,29 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
                     package_info=ModPackageInfo(title="Mesh Mod"),
                     related_entries_to_include=(),
                 )
+                explicit_physics_result = archive_modding.export_archive_mesh_payloads_to_mod_ready_loose(
+                    (archive_modding.ArchivePatchRequest(primary, b"rebuilt"),),
+                    primary_entry=primary,
+                    preview_result=preview,
+                    source_obj_path=root / "source.obj",
+                    parent_root=root,
+                    package_info=ModPackageInfo(title="Mesh Mod Physics"),
+                    related_entries_to_include=(physics,),
+                )
 
             self.assertTrue((result.package_root / "character" / "modelproperty" / "armor" / "test_cloak.pac_xml").exists())
-            self.assertTrue((result.package_root / "character" / "bin__" / "meshphysics" / "armor" / "test_cloak.hkx").exists())
+            self.assertFalse((result.package_root / "character" / "bin__" / "meshphysics" / "armor" / "test_cloak.hkx").exists())
             self.assertFalse((result.package_root / "character" / "modelproperty" / "armor" / "other_cloak.pac_xml").exists())
+            self.assertTrue(
+                (
+                    explicit_physics_result.package_root
+                    / "character"
+                    / "bin__"
+                    / "meshphysics"
+                    / "armor"
+                    / "test_cloak.hkx"
+                ).exists()
+            )
 
 
 if __name__ == "__main__":

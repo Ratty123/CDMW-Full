@@ -268,9 +268,29 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         flush_start = source.index("        def _flush_scheduled_archive_preview_request(")
         render_body = source[render_start:flush_start]
         flush_body = source[flush_start: source.index("        def _archive_native_prefetch_candidate_entries(")]
-        self.assertIn("self.scheduled_archive_preview_request = (request_id, entry, include_loose_preview_assets)", render_body)
+        self.assertIn("force: bool = False", render_body)
+        self.assertIn("if not force and self._mesh_replacement_builder_active():", render_body)
+        self.assertIn("self._defer_archive_preview_refresh_for_builder(entry)", render_body)
+        self.assertIn("self.scheduled_archive_preview_request = (request_id, entry, include_loose_preview_assets, bool(force))", render_body)
         self.assertNotIn('self.archive_preview_info_edit.setPlainText("Preparing archive preview...")', render_body)
+        self.assertIn("if not force and self._mesh_replacement_builder_active():", flush_body)
         self.assertIn("self._show_archive_preview_loading_state(entry)", flush_body)
+
+    def test_archive_preview_refresh_replaces_dark_toolbar_and_bypasses_builder_pause(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        self.assertIn('self.archive_model_preview_refresh_button = QPushButton("Refresh")', source)
+        self.assertIn(
+            'self.archive_model_preview_refresh_button.clicked.connect(self._force_refresh_current_model_preview_assets)',
+            source,
+        )
+        self.assertIn("def _mesh_replacement_builder_active(self) -> bool:", source)
+        self.assertIn("def _defer_archive_preview_refresh_for_builder", source)
+        self.assertIn("def _resume_archive_preview_after_builder(self) -> None:", source)
+        self.assertIn("def _force_refresh_current_model_preview_assets(self) -> None:", source)
+        self.assertIn("self._refresh_current_model_preview_assets(force=True)", source)
+        self.assertIn("Archive Preview auto-refresh paused while Mesh Replacement Builder is open", source)
+        self.assertNotIn("archive_model_preview_darkmode_button", source)
+        self.assertNotIn("Preview Window Darkmode", source)
 
     def test_settings_expose_performance_page_and_new_fields(self) -> None:
         source = Path("cdmw/ui/settings_tab.py").read_text(encoding="utf-8")

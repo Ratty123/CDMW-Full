@@ -249,8 +249,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('str(label or "").strip().casefold() == "final test build preview"', source)
         self.assertIn('if detail_mode == "full":', source)
         self.assertIn('if detail_mode == "fast":', source)
-        self.assertIn('if modify_original_clone_mode and detail_mode == "auto":', source)
-        self.assertIn("return face_count <= 120_000", source)
+        self.assertIn('if detail_mode == "auto":', source)
+        self.assertNotIn('if modify_original_clone_mode and detail_mode == "auto":', source)
+        self.assertNotIn("return face_count <= 120_000", source)
         self.assertIn("_alignment_d3d11_package_quality(label, model)", source)
         self.assertIn("fast_settings.disable_all_support_maps = True", source)
         self.assertIn("fast_settings.disable_normal_map = True", source)
@@ -261,7 +262,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('return clamp_model_preview_render_settings(fast_settings), False, False, "fast"', source)
         self.assertIn("high_quality_textures=high_quality_textures", source)
         self.assertIn("enable_material_combiner=enable_material_combiner", source)
-        self.assertIn("original_reference_material_parity=enable_material_combiner", source)
+        self.assertIn("original_reference_material_parity=True", source)
+        self.assertNotIn("original_reference_material_parity=enable_material_combiner", source)
         self.assertIn('f"Preparing D3D11 {package_quality} preview package..."', source)
         self.assertIn("alignment_d3d11_state.get('package_quality', 'fast')", source)
         self.assertIn('"modify_original_alignment" if modify_original_clone_mode else "mesh_replacement_alignment"', source)
@@ -698,7 +700,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('controls_panel.setObjectName("MeshAlignmentStickyControlPanel")', source)
         self.assertIn('control_tabs.setObjectName("MeshAlignmentStickyWorkflowTabs")', source)
         self.assertIn("control_tabs.setUsesScrollButtons(True)", source)
-        self.assertIn("control_tabs.setElideMode(Qt.ElideRight)", source)
+        self.assertIn("control_tabs.setElideMode(Qt.ElideNone)", source)
+        self.assertIn("control_tabs.tabBar().setExpanding(False)", source)
+        self.assertIn("control_tabs.setTabToolTip(tab_index, tab_label)", source)
         self.assertIn('setup_tab, setup_page, setup_layout = _new_alignment_scroll_tab("MeshAlignmentSetupScrollTab")', source)
         self.assertIn('parts_tab, parts_page, parts_layout = _new_alignment_scroll_tab("MeshAlignmentPartsScrollTab")', source)
         self.assertIn('textures_tab, textures_page, textures_layout = _new_alignment_scroll_tab("MeshAlignmentMaterialsScrollTab")', source)
@@ -762,11 +766,24 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_apply_alignment_part_rotation_delta(part_source_indices, (dx, dy, dz))", commit_block)
         self.assertIn("_queue_global_transform_preview_update()", commit_block)
         self.assertNotIn("_queue_static_preview_rebuild()", commit_block)
+        d3d11_finish_start = main_source.index("def _finish_alignment_d3d11_translation")
+        d3d11_finish_end = main_source.index("def _commit_alignment_preview_translation", d3d11_finish_start)
+        d3d11_finish_block = main_source[d3d11_finish_start:d3d11_finish_end]
+        self.assertIn("_replay_alignment_d3d11_fast_transform()", d3d11_finish_block)
+        self.assertNotIn("_queue_static_preview_rebuild()", d3d11_finish_block)
         self.assertIn("preview_widget.alignment_rotation_finished.connect(_commit_alignment_preview_rotation)", main_source)
         self.assertIn("preview_widget.set_alignment_translation_sensitivity(0.85)", main_source)
         self.assertIn("def set_alignment_translation_sensitivity", widget_source)
         self.assertIn("alignment_d3d11_preview_host.alignment_drag_finished.connect(_finish_alignment_d3d11_translation)", main_source)
         self.assertIn("alignment_d3d11_preview_host.alignment_rotation_finished.connect(_finish_alignment_d3d11_rotation)", main_source)
+        self.assertIn("void drop_pending_package_reload", native_source)
+        self.assertIn('drop_pending_package_reload("alignment_translation_start")', native_source)
+        self.assertIn('drop_pending_package_reload("alignment_rotation_start")', native_source)
+        process_start = native_source.index("bool process_pending_commands")
+        process_end = native_source.index("private:", process_start)
+        process_block = native_source[process_start:process_end]
+        self.assertIn("alignment_.drag_active || alignment_.rotation_drag_active", process_block)
+        self.assertIn('drop_pending_package_reload("alignment_drag_active")', process_block)
 
     def test_alignment_dialog_has_obj_mesh_edit_controls_and_revision_hooks(self) -> None:
         main_source = _main_window_source()
@@ -1178,10 +1195,27 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def _replay_alignment_d3d11_fast_transform", source)
         self.assertIn("_replay_alignment_d3d11_fast_transform()", source)
         self.assertIn("alignment_d3d11_drag_generation", source)
+        self.assertIn("alignment_transform_generation", source)
         self.assertIn("def _alignment_d3d11_drag_reload_stale(request_id: int = 0) -> bool:", source)
         self.assertIn("request_drag_generation", source)
+        self.assertIn("request_transform_generation", source)
+        self.assertIn("request_transform_generations", source)
+        self.assertIn("active_package_request_id", source)
+        self.assertIn("_mark_alignment_transform_changed()", source)
+        self.assertIn("alignment_d3d11_reload_timer.stop()", source)
+        self.assertIn('alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1', source)
+        self.assertIn('alignment_d3d11_state["queued_model"] = None', source)
+        self.assertIn('alignment_d3d11_state["pending_model"] = None', source)
+        self.assertIn("_alignment_d3d11_stop_worker()", source)
+        self.assertIn('"transform_generation": _current_alignment_transform_generation()', source)
+        self.assertIn("active_request_id = int(alignment_d3d11_state.get(\"active_package_request_id\", 0) or 0)", source)
+        self.assertIn("Native D3D11 preview loaded stale package; keeping live transform.", source)
+        self.assertNotIn("Native D3D11 preview loaded stale package; refreshing after transform.", source)
         self.assertIn("if bool(alignment_d3d11_drag_transaction.get(\"active\")):", source)
-        self.assertIn("if not bool(alignment_d3d11_drag_transaction.get(\"active\")):", source)
+        self.assertIn(
+            "if not bool(alignment_d3d11_drag_transaction.get(\"active\")) and capture_generation >= committed_generation:",
+            source,
+        )
         self.assertIn("preview_widget.set_alignment_committed_preview_transform", source)
         self.assertIn("static_preview_settle_timer.stop()", source)
         update_start = source.index("def _queue_global_transform_preview_update")
@@ -1189,7 +1223,17 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         update_block = source[update_start:update_end]
         self.assertNotIn("static_preview_settle_timer.start()", update_block)
         self.assertIn("if not applied:\n                    static_preview_refresh_timer.start()", update_block)
-        self.assertIn("_capture_static_preview_baked_transform_state(selected_preview_indices)", source)
+        start_process_start = source.index("def _start_alignment_d3d11_process")
+        start_process_end = source.index("def _check_alignment_d3d11_start_timeout", start_process_start)
+        start_process_block = source[start_process_start:start_process_end]
+        self.assertIn("_replay_alignment_d3d11_fast_transform()", start_process_block)
+        self.assertNotIn("_queue_static_preview_rebuild()", start_process_block)
+        status_start = source.index("def _poll_alignment_d3d11_status")
+        status_end = source.index("def _set_preview_renderer", status_start)
+        status_block = source[status_start:status_end]
+        self.assertIn("Native D3D11 preview loaded stale package; keeping live transform.", status_block)
+        self.assertNotIn("_queue_static_preview_rebuild()", status_block)
+        self.assertIn("transform_generation=refresh_transform_generation", source)
         self.assertIn('preview_performance_label = QLabel("Preview timing: waiting for first refresh.")', source)
         self.assertIn("preview_performance_label.setWordWrap(False)", source)
         self.assertIn("preview_performance_label.setMaximumHeight(24)", source)
@@ -1203,11 +1247,56 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("preview_widget.set_alignment_editable_mesh_range(0, -1)", source)
         self.assertIn("def _set_part_fast_preview_edit_scope", source)
 
+    def test_alignment_texture_uv_refresh_skips_slow_settle_debounce(self) -> None:
+        source = _main_window_source()
+        self.assertIn("alignment_d3d11_fast_reload_interval_ms = 180", source)
+        self.assertIn("alignment_d3d11_package_reload_interval_ms = 560", source)
+        self.assertIn("alignment_d3d11_reload_timer.setInterval(alignment_d3d11_fast_reload_interval_ms)", source)
+        self.assertIn("alignment_d3d11_reload_timer.setInterval(alignment_d3d11_package_reload_interval_ms)", source)
+        self.assertIn('"texture_uv": False', source)
+        self.assertIn("def _queue_texture_uv_preview_refresh(*_args: object) -> None:", source)
+        uv_queue_start = source.index("def _queue_texture_uv_preview_refresh")
+        uv_queue_end = source.index("def _run_static_preview_batch", uv_queue_start)
+        uv_queue_block = source[uv_queue_start:uv_queue_end]
+        self.assertIn('static_preview_batch_state["texture_uv"] = True', uv_queue_block)
+        self.assertIn("static_preview_geometry_cache.clear()", uv_queue_block)
+        self.assertIn("static_preview_prepared_cache.clear()", uv_queue_block)
+        self.assertIn('texture_overrides_dirty["dirty"] = True', uv_queue_block)
+        self.assertIn("static_preview_refresh_timer.start()", uv_queue_block)
+        self.assertNotIn("static_preview_settle_timer.start()", uv_queue_block)
+
+        batch_start = source.index("def _run_static_preview_batch")
+        batch_end = source.index("def _commit_spinbox_text", batch_start)
+        batch_block = source[batch_start:batch_end]
+        self.assertIn('wants_texture_uv = bool(static_preview_batch_state.get("texture_uv"))', batch_block)
+        self.assertIn('static_preview_batch_state["texture_uv"] = False', batch_block)
+        self.assertIn("elif wants_texture_uv:\n                    _queue_texture_uv_preview_refresh()", batch_block)
+
+        save_start = source.index("def _save_texture_transform_controls")
+        save_end = source.index("def _sync_texture_transform_materials", save_start)
+        save_block = source[save_start:save_end]
+        self.assertIn("_queue_texture_uv_preview_refresh()", save_block)
+        self.assertNotIn("_queue_static_preview_rebuild()", save_block)
+
+        reset_start = source.index("def _reset_selected_texture_transform")
+        reset_end = source.index("texture_transform_material_combo.currentIndexChanged.connect", reset_start)
+        reset_block = source[reset_start:reset_end]
+        self.assertIn("_queue_texture_uv_preview_refresh()", reset_block)
+        self.assertNotIn("_queue_static_preview_rebuild()", reset_block)
+
+        setup_start = source.index("def _save_setup_texture_orientation")
+        setup_end = source.index("def _reset_setup_texture_orientation", setup_start)
+        setup_block = source[setup_start:setup_end]
+        self.assertIn("_try_apply_global_flip_v_fast_preview()", setup_block)
+        self.assertIn("_queue_texture_uv_preview_refresh()", setup_block)
+        self.assertNotIn("_queue_static_preview_rebuild()", setup_block)
+
     def test_alignment_d3d11_gizmo_defaults_to_whole_replacement_mesh(self) -> None:
         source = _main_window_source()
         prep_source = (ROOT / "cdmw" / "rendering" / "model_preview_prepare.py").read_text(encoding="utf-8")
         self.assertIn('preview_gizmo_checkbox = QCheckBox("Gizmo")', source)
-        self.assertIn("preview_gizmo_checkbox.setChecked(True)", source)
+        self.assertIn("preview_gizmo_checkbox.setChecked(False)", source)
+        self.assertNotIn("preview_gizmo_checkbox.setChecked(True)", source)
         self.assertIn("preview_gizmo_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())", source)
         self.assertIn("gizmo_enabled = bool(preview_gizmo_checkbox.isChecked())", source)
         self.assertIn("enabled=gizmo_enabled", source)
@@ -1555,6 +1644,26 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("Advanced DDS Overrides can be expanded after the material contract loads.", source)
         self.assertIn("def _load_original_reference_texture_preview() -> None:", source)
         self.assertIn("_queue_alignment_post_open_task(_load_original_reference_texture_preview)", source)
+        post_open_start = source.index("dialog.finished.connect(_modeless_alignment_dialog_finished)")
+        post_open_end = source.index("buttons = QHBoxLayout()", post_open_start)
+        post_open_block = source[post_open_start:post_open_end]
+        self.assertLess(
+            post_open_block.index("_queue_alignment_post_open_task(_load_original_reference_texture_preview)"),
+            post_open_block.index("_queue_alignment_post_open_task(_queue_static_preview_refresh)"),
+        )
+        self.assertIn("def _ensure_original_reference_texture_preview_ready", source)
+        self.assertIn("Loading original textures: base/sidecar/support maps...", source)
+        self.assertIn("Original texture preview failed; continuing untextured", source)
+        self.assertIn("static_preview_geometry_cache.clear()", source)
+        self.assertIn("static_preview_prepared_cache.clear()", source)
+        reference_required_start = source.index("def _original_reference_texture_preview_required")
+        reference_required_end = source.index("def _ensure_original_reference_texture_preview_ready", reference_required_start)
+        reference_required_block = source[reference_required_start:reference_required_end]
+        self.assertNotIn("original_texture_preview_state", reference_required_block)
+        original_load_start = source.index("def _load_original_reference_texture_preview() -> None:")
+        original_load_end = source.index("texture_sets = group_replacement_texture_sets", original_load_start)
+        original_load_block = source[original_load_start:original_load_end]
+        self.assertNotIn("original_texture_preview_state", original_load_block)
         self.assertIn("source_display_label_cache: Dict[int, str] = {}", source)
         self.assertIn("def _invalidate_source_display_cache() -> None:", source)
         self.assertIn("def _preview_mode_needs_static_refresh(mode: str) -> bool:", source)
@@ -1571,11 +1680,19 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             "",
         ))
         self.assertIn("alignment_d3d11_drag_generation", source)
+        self.assertIn("alignment_transform_generation", source)
         self.assertIn("def _alignment_d3d11_drag_reload_stale(request_id: int = 0) -> bool:", source)
         self.assertIn("request_drag_generation", source)
+        self.assertIn("request_transform_generation", source)
         self.assertNotIn("Manual DDS overrides are deferred.", source)
         self.assertNotIn("dict(self.archive_entries_by_normalized_path)", source)
         self.assertNotIn("dict(self.archive_entries_by_basename)", source)
+        package_worker_func_start = source.index("def _start_alignment_d3d11_package_worker(")
+        package_worker_start = source.index("worker = AlignmentD3D11PackageWorker(", package_worker_func_start)
+        package_worker_end = source.index("thread = QThread(dialog)", package_worker_start)
+        package_worker_block = source[package_worker_start:package_worker_end]
+        self.assertIn("original_reference_material_parity=True", package_worker_block)
+        self.assertNotIn("original_reference_material_parity=enable_material_combiner", package_worker_block)
 
     def test_alignment_dialog_routes_visible_dds_contract_and_prune_intent(self) -> None:
         source = _main_window_source()
@@ -1623,6 +1740,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         viewport_select_connect = source.index("alignment_d3d11_preview_host.source_part_selected.connect(_d3d11_source_part_selected)")
         self.assertLess(fallback_viewport_select, viewport_select_connect)
         self.assertIn("prune_unmapped_original_dds_checkbox.setChecked(True)", source)
+        self.assertIn('_select_complete_swap_material_profile("source_graph_strict", persist=True)', source)
         self.assertIn('complete_external_swap_checkbox.setProperty(  # type: ignore[name-defined]\n                            "previous_forced_child_states"', source)
         self.assertIn('previous_states = complete_external_swap_checkbox.property("previous_forced_child_states")', source)
         self.assertIn("rebuild_sidecar_checkbox.setEnabled(not complete_mode)", source)
@@ -1701,7 +1819,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         end = source.index("texture_sets = group_replacement_texture_sets", start)
         startup_original_preview = source[start:end]
         self.assertIn("if _alignment_d3d11_preview_active():", startup_original_preview)
-        self.assertIn('original_dialog_preview.clear_model("Original reference will load in native D3D11 preview.")', startup_original_preview)
+        self.assertIn('original_dialog_preview.clear_model("Original textures loaded in native D3D11 preview.")', startup_original_preview)
         self.assertIn("else:\n                            original_dialog_preview.set_model(original_reference_preview_model)", startup_original_preview)
 
     def test_modify_original_transform_helpers_are_available_before_preview_refresh(self) -> None:

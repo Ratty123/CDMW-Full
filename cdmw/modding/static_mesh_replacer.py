@@ -197,7 +197,7 @@ class StaticMeshReplacementOptions:
     source_owned_target_names: list[str] = field(default_factory=list)
     dense_export_mode: str = "preserve_split"
     complete_swap_atlas_mode: str = "auto_when_needed"
-    complete_swap_material_profile: str = "arm_standard"
+    complete_swap_material_profile: str = "source_graph_strict"
     removed_target_submesh_indices: list[int] = field(default_factory=list)
     prune_removed_target_texture_parameters: bool = False
     prune_unmapped_original_texture_parameters: bool = False

@@ -2617,6 +2617,11 @@ public:
 
     bool process_pending_commands() {
         if (pending_package_dir_.empty()) return false;
+        if (alignment_.drag_active || alignment_.rotation_drag_active) {
+            drop_pending_package_reload("alignment_drag_active");
+            request_render();
+            return false;
+        }
         fs::path package_dir = pending_package_dir_;
         fs::path status_file = pending_status_file_;
         bool reset_view_state = pending_reset_view_;
@@ -3863,6 +3868,19 @@ private:
         send_json_event(out.str());
     }
 
+    void drop_pending_package_reload(const char* reason) {
+        if (pending_package_dir_.empty()) return;
+        cdmw_native_diag::event(
+            "pending_package_reload_dropped",
+            {
+                {"reason", reason ? reason : ""},
+                {"package_dir", cdmw_native_diag::path_to_utf8(fs::path(pending_package_dir_))}
+            });
+        pending_package_dir_.clear();
+        pending_status_file_.clear();
+        pending_reset_view_ = false;
+    }
+
     bool begin_alignment_drag(WPARAM wparam, int x, int y) {
         if (!alignment_.enabled || mesh_edit_.enabled) return false;
         if (input_view_role_at(x, y) == PreviewViewRole::Reference && side_by_side_workspace_active()) {
@@ -3871,6 +3889,7 @@ private:
         bool alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
         bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
         if (alt_down) {
+            drop_pending_package_reload("alignment_rotation_start");
             alignment_.rotation_drag_active = true;
             alignment_.rotation_drag_roll = shift_down;
             alignment_.rotation_drag_base = alignment_.rotation_total;
@@ -3884,6 +3903,7 @@ private:
         }
         std::string rotation_handle = alignment_rotation_handle_at(x, y);
         if (!rotation_handle.empty()) {
+            drop_pending_package_reload("alignment_rotation_start");
             alignment_.rotation_drag_active = true;
             alignment_.rotation_drag_roll = rotation_handle == "roll" || shift_down;
             alignment_.rotation_drag_base = alignment_.rotation_total;
@@ -3897,6 +3917,7 @@ private:
         }
         std::string axis = alignment_axis_at(x, y);
         if (axis.empty()) return false;
+        drop_pending_package_reload("alignment_translation_start");
         alignment_.drag_axis = axis;
         alignment_.hover_axis = axis;
         alignment_.drag_active = true;
@@ -4578,6 +4599,43 @@ private:
             std::ostringstream event;
             event << "{\"event\":\"part_visibility\",\"hidden_parts\":" << hidden_source_submeshes_.size()
                   << ",\"visible_batches\":" << visible_batches << "}";
+            send_json_event(event.str());
+            return true;
+        }
+        if (command == "set_texture_flip_vertical") {
+            const bool enabled = json_bool_field(payload, "enabled", false);
+            const std::string requested_role = lower_copy(json_string_field(payload, "editor_role", "replacement_preview"));
+            std::set<int> source_filter;
+            for (int value : json_int_array_field(payload, "source_submesh_indices")) {
+                if (value >= 0) source_filter.insert(value);
+            }
+            int changed_batches = 0;
+            int matched_batches = 0;
+            for (PreviewBatch& batch : batches_) {
+                const std::string role = lower_copy(batch.editor_role);
+                if (!requested_role.empty() && requested_role != "all" && role != requested_role) {
+                    continue;
+                }
+                if (!source_filter.empty() && source_filter.find(batch.source_submesh_index) == source_filter.end()) {
+                    continue;
+                }
+                ++matched_batches;
+                if (batch.flip_v != enabled) {
+                    batch.flip_v = enabled;
+                    ++changed_batches;
+                }
+            }
+            if (changed_batches > 0) {
+                request_render();
+                if (hwnd_) {
+                    InvalidateRect(hwnd_, nullptr, FALSE);
+                }
+            }
+            std::ostringstream event;
+            event << "{\"event\":\"texture_flip_vertical\",\"enabled\":" << (enabled ? "true" : "false")
+                  << ",\"matched_batches\":" << matched_batches
+                  << ",\"changed_batches\":" << changed_batches
+                  << "}";
             send_json_event(event.str());
             return true;
         }

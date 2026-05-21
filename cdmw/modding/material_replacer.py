@@ -259,6 +259,30 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
             shine_scalar=0.20,
             note="Runtime-safe calibration profile: high roughness and no metallic response.",
         ),
+        CDMaterialRuntimeProfile(
+            name="source_graph_strict",
+            label="Source Graph Strict",
+            ma_layout="arm",
+            material_mask_layout="ao_roughness_metallic_alpha",
+            ao_mode="white",
+            support_policy="source_only",
+            note=(
+                "Strict source-owned mode: route only texture roles proven by the imported material graph "
+                "or explicit source files; generate _ma only from real source PBR inputs."
+            ),
+        ),
+        CDMaterialRuntimeProfile(
+            name="material_authority_bruteforce",
+            label="Material Authority Brute Force",
+            ma_layout="arm",
+            material_mask_layout="ao_roughness_metallic_alpha",
+            ao_mode="white",
+            support_policy="source_only",
+            note=(
+                "Emergency source-owned probe: keep target shader texture slots but repoint every "
+                "color/normal/material slot to source-derived DDS so CD layer stacks cannot use stock textures."
+            ),
+        ),
     )
 
 
@@ -270,6 +294,12 @@ def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRunt
         "source_pbr_roughness_inverted": "arm_gloss",
         "source_pbr_metallic_inverted": "arm_metal_invert",
         "source_pbr_nonmetal_matte": "arm_nonmetal_matte",
+        "source_triplet_strict": "source_graph_strict",
+        "strict_source": "source_graph_strict",
+        "strict_source_owned": "source_graph_strict",
+        "bruteforce": "material_authority_bruteforce",
+        "material_bruteforce": "material_authority_bruteforce",
+        "authority_bruteforce": "material_authority_bruteforce",
     }
     normalized = aliases.get(normalized, normalized)
     profiles = {profile.name: profile for profile in complete_swap_material_runtime_profiles()}
@@ -330,6 +360,8 @@ def read_complete_swap_calibrated_material_profile(path: Path | str, default_pro
 def complete_swap_material_probe_variants() -> tuple[CDMaterialProbeVariant, ...]:
     variants: list[CDMaterialProbeVariant] = []
     for profile in complete_swap_material_runtime_profiles():
+        if _profile_is_source_only(profile):
+            continue
         variants.append(
             CDMaterialProbeVariant(
                 name=f"probe_{profile.name}",
@@ -1256,6 +1288,7 @@ def _build_rebuilt_pac_driven_payloads(
     the visible replacement texture set.
     """
     del obj_mesh
+    material_profile = get_complete_swap_material_profile(complete_swap_material_profile)
     references_by_material = _references_by_material(original_texture_refs)
     references_by_target_path = _references_by_target_path(original_texture_refs)
     if complete_external_material_reset and output_draw_sections:
@@ -1291,6 +1324,8 @@ def _build_rebuilt_pac_driven_payloads(
         )
         if source_driven_payloads:
             return source_driven_payloads
+        if complete_external_material_reset and _profile_is_source_only(material_profile):
+            return []
 
     payloads: list[TextureReplacementPayload] = []
     sidecar_replacements_by_path: dict[str, str] = {}
@@ -1616,6 +1651,7 @@ def _build_source_driven_pac_material_payloads(
     output_draw_sections: Sequence[StaticOutputDrawSection] = (),
 ) -> list[TextureReplacementPayload]:
     material_profile = get_complete_swap_material_profile(complete_swap_material_profile)
+    material_authority_bruteforce = bool(_profile_is_material_authority_bruteforce(material_profile))
     removed_target_material_names = tuple(
         str(name or "").strip()
         for name in tuple(removed_target_material_names or ())
@@ -1623,6 +1659,12 @@ def _build_source_driven_pac_material_payloads(
     )
     prune_removed_target_texture_parameters = bool(prune_removed_target_texture_parameters and removed_target_material_names)
     prune_unmapped_original_texture_parameters = bool(prune_unmapped_original_texture_parameters)
+    if material_authority_bruteforce:
+        prune_unmapped_original_texture_parameters = False
+        _warn_once(
+            report,
+            "Material authority brute force: preserving target shader texture parameter slots and repointing them to source-derived DDS.",
+        )
     if not original_sidecars or (
         not active_target_names
         and not prune_removed_target_texture_parameters
@@ -1639,6 +1681,45 @@ def _build_source_driven_pac_material_payloads(
     texture_parent = _source_driven_texture_parent(original_texture_refs)
     texture_prefix = _source_driven_texture_prefix(original_sidecars)
     atlas_sections_by_target = _atlas_sections_by_target_name(output_draw_sections)
+
+    def source_graph_texture_set_for_target(
+        target_name: str,
+        texture_set: ReplacementTextureSet,
+    ) -> Optional[ReplacementTextureSet]:
+        if not complete_external_material_reset or not _profile_is_source_only(material_profile):
+            return texture_set
+        if _texture_set_has_real_source_texture(texture_set):
+            return texture_set
+        fallback_candidates = [
+            candidate
+            for candidate in texture_sets.values()
+            if _texture_set_has_real_source_texture(candidate)
+        ]
+        if len(fallback_candidates) == 1:
+            fallback = fallback_candidates[0]
+            _warn_once(
+                report,
+                f"Strict source-owned routing inherited real source texture set {fallback.material_name} "
+                f"for factor-only material {texture_set.material_name} on {target_name}.",
+            )
+            return fallback
+        if len(fallback_candidates) > 1:
+            names = ", ".join(
+                str(candidate.material_name or "").strip()
+                for candidate in fallback_candidates
+                if str(candidate.material_name or "").strip()
+            )
+            report.errors.append(
+                f"Strict source-owned routing cannot choose a texture fallback for factor-only material "
+                f"{texture_set.material_name} on {target_name}: multiple source texture sets are available ({names}). "
+                "Choose a source material override or split the draw section."
+            )
+            return None
+        report.warnings.append(
+            f"Strict source-owned routing found no real source texture set for factor-only material "
+            f"{texture_set.material_name} on {target_name}."
+        )
+        return None
 
     for target_name in active_target_names:
         if is_static_replacement_helper_material_name(target_name):
@@ -1676,6 +1757,9 @@ def _build_source_driven_pac_material_payloads(
             texture_set = next(iter(texture_sets.values()))
         if texture_set is None:
             report.warnings.append(f"No replacement texture set was selected for rebuilt draw section {target_name}.")
+            continue
+        texture_set = source_graph_texture_set_for_target(target_name, texture_set)
+        if texture_set is None:
             continue
         if complete_external_material_reset:
             material_key = str(texture_set.material_name or "").strip().lower()
@@ -1805,6 +1889,7 @@ def _build_source_driven_pac_material_payloads(
             exact_only=bool(complete_external_material_reset),
             shader_name=material_profile.shader if complete_external_material_reset else "",
             insert_missing_slots=bool(complete_external_material_reset),
+            material_authority_bruteforce=material_authority_bruteforce,
         )
         neutralized_parameters = 0
         if neutralize_inherited_material_layers and changed_wrappers > 0:
@@ -2345,6 +2430,7 @@ def _source_driven_slots(
     base_binding_mode = _profile_base_binding_mode(profile)
     mask_binding_mode = _profile_mask_binding_mode(profile)
     support_policy = _profile_support_policy(profile)
+    source_only = _profile_is_source_only(profile)
     order = ("base", "normal", "height", "material_mask", "detail_mask", "emissive")
     slots: list[ReplacementTextureSlot] = []
     seen_paths: set[tuple[str, str]] = set()
@@ -2357,6 +2443,8 @@ def _source_driven_slots(
             continue
         source_slot = texture_set.slots.get(slot_kind)
         if source_slot is None:
+            continue
+        if source_only and not _source_slot_is_real_texture(source_slot):
             continue
         key = (str(source_slot.source_path.expanduser().resolve()).lower(), str(source_slot.slot_kind).lower())
         if key in seen_paths:
@@ -2391,6 +2479,20 @@ def _source_driven_slots(
                 )
             )
             break
+    if source_only:
+        existing_kinds = {str(slot.slot_kind or "").strip().lower() for slot in slots}
+        if (
+            include_complete_support_fallbacks
+            and "material_mask" not in existing_kinds
+            and mask_binding_mode != "disabled"
+            and _texture_set_has_explicit_source_pbr(texture_set)
+        ):
+            source_slot = _complete_swap_runtime_material_mask_slot(texture_set, profile)
+            key = (str(source_slot.source_path.expanduser().resolve()).lower(), str(source_slot.slot_kind).lower())
+            if key not in seen_paths:
+                seen_paths.add(key)
+                slots.append(source_slot)
+        return slots
     if include_complete_support_fallbacks and support_policy != "keep_original_support":
         existing_kinds = {str(slot.slot_kind or "").strip().lower() for slot in slots}
         for fallback_kind in ("normal", "height", "material_mask", "detail_mask"):
@@ -2450,8 +2552,20 @@ def _profile_support_policy(material_profile: CDMaterialRuntimeProfile) -> str:
         "keeporiginalsupport": "keep_original_support",
         "generated": "generated_only",
         "generatedonly": "generated_only",
+        "sourceonly": "source_only",
+        "strict": "source_only",
+        "strictsource": "source_only",
+        "strictsourceonly": "source_only",
     }
-    return aliases.get(policy, policy if policy in {"generated_or_neutral", "keep_original_support", "generated_only"} else "generated_or_neutral")
+    return aliases.get(policy, policy if policy in {"generated_or_neutral", "keep_original_support", "generated_only", "source_only"} else "generated_or_neutral")
+
+
+def _profile_is_source_only(material_profile: CDMaterialRuntimeProfile) -> bool:
+    return _profile_support_policy(material_profile) == "source_only"
+
+
+def _profile_is_material_authority_bruteforce(material_profile: CDMaterialRuntimeProfile) -> bool:
+    return _sanitize_texture_component(str(getattr(material_profile, "name", "") or "")) == "material_authority_bruteforce"
 
 
 def _complete_swap_material_divergence_reasons(
@@ -2493,6 +2607,29 @@ def _complete_swap_material_divergence_reasons(
     ):
         reasons.append("missing source AO uses profile default")
     return tuple(reasons)
+
+
+def _source_slot_is_real_texture(source_slot: ReplacementTextureSlot) -> bool:
+    authority = str(getattr(source_slot, "source_authority", "") or "").strip().lower()
+    return authority != "synthetic"
+
+
+def _texture_set_has_real_source_texture(texture_set: ReplacementTextureSet) -> bool:
+    return any(
+        _source_slot_is_real_texture(slot)
+        for slot in (getattr(texture_set, "slots", {}) or {}).values()
+    )
+
+
+def _texture_set_has_explicit_source_pbr(texture_set: ReplacementTextureSet) -> bool:
+    return any(
+        _source_slot_is_real_texture(slot) and _source_slot_is_explicit_pbr(slot)
+        for slot in (
+            (getattr(texture_set, "slots", {}) or {}).get("material"),
+            (getattr(texture_set, "slots", {}) or {}).get("roughness"),
+        )
+        if slot is not None
+    )
 
 
 def _complete_swap_neutral_support_slot(
@@ -3191,6 +3328,7 @@ def _build_source_driven_sidecar_text(
     exact_only: bool = False,
     shader_name: str = "",
     insert_missing_slots: bool = False,
+    material_authority_bruteforce: bool = False,
 ) -> tuple[str, int, set[str], set[str]]:
     wrapper_pattern = re.compile(
         r"\s*<(?P<tag>[A-Za-z0-9_:.-]*MaterialWrapper)\b[^>]*>.*?</(?P=tag)>",
@@ -3224,6 +3362,7 @@ def _build_source_driven_sidecar_text(
             bindings,
             shader_name=shader_name,
             insert_missing_slots=insert_missing_slots,
+            material_authority_bruteforce=material_authority_bruteforce,
         )
         if changed:
             changed_count += 1
@@ -3247,6 +3386,7 @@ def _patch_source_driven_wrapper_texture_slots(
     *,
     shader_name: str = "",
     insert_missing_slots: bool = False,
+    material_authority_bruteforce: bool = False,
 ) -> tuple[str, bool, set[str]]:
     patched = wrapper_text
     changed = False
@@ -3378,8 +3518,107 @@ def _patch_source_driven_wrapper_texture_slots(
         if did_change:
             changed = True
             used_paths.add(texture_value)
+    if material_authority_bruteforce:
+        patched, brute_changed, brute_used_paths = _bruteforce_source_authority_texture_parameters(patched, bindings)
+        if brute_changed:
+            changed = True
+            used_paths.update(brute_used_paths)
     if changed and str(shader_name or "").strip():
         patched = _set_source_driven_wrapper_shader_name(patched, shader_name)
+    return patched, changed, used_paths
+
+
+def _bruteforce_source_authority_texture_parameters(
+    wrapper_text: str,
+    bindings: Sequence[tuple[str, str, str]],
+) -> tuple[str, bool, set[str]]:
+    """Repoint every shader texture parameter to source-derived authority maps.
+
+    CD weapon shaders often route visible color through grime/detail/layer slots,
+    not just ``_overlayColorTexture``.  This probe keeps original parameter names
+    so the shader ABI stays intact, but prevents any stock texture path from
+    surviving inside a source-owned wrapper.
+    """
+
+    source_paths: dict[str, str] = {}
+    for parameter_name, texture_path, slot_kind in tuple(bindings or ()):
+        slot = str(slot_kind or "").strip().lower()
+        path = str(texture_path or "").replace("\\", "/").strip()
+        parameter_key = str(parameter_name or "").strip().lower()
+        if not path:
+            continue
+        if slot == "base" or parameter_key in {"_overlaycolortexture", "_basecolortexture", "_diffusetexture", "_albedotexture"}:
+            source_paths.setdefault("base", path)
+        elif slot == "normal":
+            source_paths.setdefault("normal", path)
+        elif slot in {"material", "material_mask", "detail_mask", "height"}:
+            source_paths.setdefault("material", path)
+    if "material" not in source_paths:
+        for _parameter_name, texture_path, slot_kind in tuple(bindings or ()):
+            if str(slot_kind or "").strip().lower() in {"material_mask", "material"} and str(texture_path or "").strip():
+                source_paths["material"] = str(texture_path or "").replace("\\", "/").strip()
+                break
+    fallback = source_paths.get("base") or source_paths.get("material") or source_paths.get("normal") or ""
+    if not fallback:
+        return wrapper_text, False, set()
+
+    texture_pattern = re.compile(
+        r"<MaterialParameterTexture\b[^>]*>.*?</MaterialParameterTexture>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    changed = False
+    used_paths: set[str] = set()
+
+    def replacement_for_parameter(parameter_name: str) -> str:
+        normalized = str(parameter_name or "").strip().lower()
+        compact = re.sub(r"[^a-z0-9]+", "", normalized)
+        if "normal" in compact:
+            return source_paths.get("normal") or source_paths.get("base") or fallback
+        if any(token in compact for token in ("color", "colour", "diffuse", "albedo", "overlay", "emissive", "rgbtexture")):
+            if "colorblendingmask" not in compact:
+                return source_paths.get("base") or fallback
+        if any(
+            token in compact
+            for token in (
+                "mask",
+                "material",
+                "roughness",
+                "metallic",
+                "metalness",
+                "specular",
+                "gloss",
+                "height",
+                "displacement",
+                "detail",
+                "grime",
+                "damage",
+                "ao",
+                "occlusion",
+            )
+        ):
+            return source_paths.get("material") or source_paths.get("base") or fallback
+        return source_paths.get("base") or fallback
+
+    def patch_block(match: re.Match[str]) -> str:
+        nonlocal changed
+        block = match.group(0)
+        parameter_name = _sidecar_parameter_name(block)
+        texture_value = replacement_for_parameter(parameter_name)
+        if not texture_value:
+            return block
+        path_match = re.search(r'(\b(?:_path|path|Path|_value|Value|value)=")([^"]*)(")', block, flags=re.IGNORECASE)
+        if path_match is None:
+            return block
+        if str(path_match.group(2) or "").replace("\\", "/").strip() == texture_value:
+            used_paths.add(texture_value)
+            return block
+        changed = True
+        used_paths.add(texture_value)
+        return block[: path_match.start()] + f"{path_match.group(1)}{_escape_xml_attr(texture_value)}{path_match.group(3)}" + block[path_match.end() :]
+
+    patched = texture_pattern.sub(patch_block, wrapper_text)
+    if changed:
+        patched = _renumber_sidecar_parameter_indexes(patched)
     return patched, changed, used_paths
 
 

@@ -1032,6 +1032,22 @@ def run_gui() -> int:
                 }
             )
 
+        def set_texture_flip_vertical(
+            self,
+            enabled: bool,
+            *,
+            source_submesh_indices: Sequence[int] = (),
+            editor_role: str = "replacement_preview",
+        ) -> bool:
+            return self._send_host_json_command(
+                {
+                    "command": "set_texture_flip_vertical",
+                    "enabled": bool(enabled),
+                    "source_submesh_indices": [int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0],
+                    "editor_role": str(editor_role or "replacement_preview"),
+                }
+            )
+
         def set_icon_capture_mode(self, enabled: bool) -> bool:
             return self._send_host_json_command(
                 {
@@ -5062,6 +5078,8 @@ def run_gui() -> int:
             self._startup_splash_finish_pending = False
             self._responsive_screen_signal_connected = False
             self._modeless_alignment_dialogs: Dict[str, QDialog] = {}
+            self.archive_preview_refresh_deferred_by_builder = False
+            self.archive_model_preview_dark_background_enabled = True
             self._current_responsive_control_scale = 0.0
             self._applying_responsive_layout = False
             self._responsive_metrics_dirty = True
@@ -5148,7 +5166,7 @@ def run_gui() -> int:
             self.archive_preview_worker: Optional[ArchivePreviewWorker] = None
             self.archive_preview_request_id = 0
             self.pending_archive_preview_request: Optional[Tuple[int, Optional[ArchiveEntry], bool]] = None
-            self.scheduled_archive_preview_request: Optional[Tuple[int, Optional[ArchiveEntry], bool]] = None
+            self.scheduled_archive_preview_request: Optional[Tuple[int, Optional[ArchiveEntry], bool, bool]] = None
             self.current_archive_preview_result: Optional[ArchivePreviewResult] = None
             self.current_archive_model_texture_references: List[ArchiveModelTextureReference] = []
             self.current_archive_used_by_references: List[ArchiveModelTextureReference] = []
@@ -7310,13 +7328,10 @@ def run_gui() -> int:
                 "Temporarily ignore normal, material, and height support textures for this preview."
             )
             self.archive_model_preview_disable_support_checkbox.setVisible(False)
-            self.archive_model_preview_darkmode_button = QPushButton("Preview Window Darkmode")
-            self.archive_model_preview_darkmode_button.setCheckable(True)
-            self.archive_model_preview_darkmode_button.setChecked(True)
-            self.archive_model_preview_darkmode_button.setToolTip(
-                "Toggle only the 3D preview background between the themed dark background and a light background."
+            self.archive_model_preview_refresh_button = QPushButton("Refresh")
+            self.archive_model_preview_refresh_button.setToolTip(
+                "Refresh Archive Preview now. Works even while Mesh Replacement Builder is open."
             )
-            self.archive_model_preview_darkmode_button.setText("Dark")
             self.archive_isolated_renderer_button = QPushButton("Reload D3D11")
             self.archive_isolated_renderer_button.setToolTip(
                 "Rebuild and reload the active native Direct3D 11 preview package."
@@ -7569,7 +7584,7 @@ def run_gui() -> int:
                 (self.archive_preview_zoom_fit_button, 42),
                 (self.archive_preview_zoom_100_button, 52),
                 (self.archive_preview_zoom_in_button, 30),
-                (self.archive_model_preview_darkmode_button, 64),
+                (self.archive_model_preview_refresh_button, 72),
                 (self.archive_isolated_renderer_button, 136),
             ):
                 button.setMinimumWidth(width)
@@ -7602,7 +7617,7 @@ def run_gui() -> int:
             archive_view_controls_layout.addWidget(self.archive_preview_zoom_in_button)
             archive_view_controls_layout.addWidget(self.archive_preview_zoom_value)
             archive_view_controls_layout.addSpacing(8)
-            archive_view_controls_layout.addWidget(self.archive_model_preview_darkmode_button)
+            archive_view_controls_layout.addWidget(self.archive_model_preview_refresh_button)
             archive_view_controls_layout.addWidget(self.archive_isolated_renderer_button)
             archive_view_controls_layout.addWidget(self.archive_d3d11_part_visibility_button)
             archive_view_controls_layout.addWidget(self.archive_model_preview_reset_overrides_button)
@@ -8190,7 +8205,7 @@ def run_gui() -> int:
             self.archive_model_preview_disable_support_checkbox.toggled.connect(
                 self._handle_archive_model_preview_disable_support_maps_toggled
             )
-            self.archive_model_preview_darkmode_button.toggled.connect(self._handle_archive_model_preview_darkmode_toggled)
+            self.archive_model_preview_refresh_button.clicked.connect(self._force_refresh_current_model_preview_assets)
             self.archive_isolated_renderer_button.clicked.connect(self._open_archive_isolated_d3d11_preview)
             self.archive_model_preview_reset_overrides_button.clicked.connect(
                 self._handle_archive_model_preview_reset_overrides
@@ -13075,7 +13090,10 @@ def run_gui() -> int:
             preview_settings = self._current_model_preview_render_settings()
             self.settings.setValue("archive/model_use_textures", preview_settings.use_textures_by_default)
             self.settings.setValue("archive/model_high_quality", preview_settings.high_quality_by_default)
-            self.settings.setValue("archive/model_preview_dark_background", self.archive_model_preview_darkmode_button.isChecked())
+            self.settings.setValue(
+                "archive/model_preview_dark_background",
+                bool(getattr(self, "archive_model_preview_dark_background_enabled", True)),
+            )
             self.settings.setValue("preview/archive_renderer_backend", self._archive_model_renderer_backend())
             archive_performance_settings = self._current_archive_performance_settings()
             self.settings.setValue("performance/resource_profile", archive_performance_settings.resource_profile)
@@ -13398,7 +13416,7 @@ def run_gui() -> int:
             self._model_preview_render_settings = self._read_model_preview_render_settings()
             self.archive_model_renderer_backend = self._read_archive_model_renderer_backend()
             dark_background = self._read_bool("archive/model_preview_dark_background", True)
-            self.archive_model_preview_darkmode_button.setChecked(dark_background)
+            self.archive_model_preview_dark_background_enabled = bool(dark_background)
             self.archive_model_preview.set_dark_background_enabled(dark_background)
             self._archive_performance_settings = self._read_archive_performance_settings()
             self.archive_preview_cache_limit = self._archive_performance_settings.preview_cache_limit
@@ -21421,8 +21439,9 @@ def run_gui() -> int:
             )
 
         def _archive_preview_result_cacheable(self, result: ArchivePreviewResult) -> bool:
-            if str(getattr(result, "native_preview_package_path", "") or "").strip():
-                return False
+            native_package_path = str(getattr(result, "native_preview_package_path", "") or "").strip()
+            if native_package_path:
+                return Path(native_package_path).is_dir()
             if getattr(result, "preview_model", None) is None:
                 return True
             prepared_preview = getattr(result, "prepared_preview_model", None)
@@ -22065,7 +22084,11 @@ def run_gui() -> int:
             *,
             include_loose_preview_assets: bool = False,
             prefer_loose_preview: bool = False,
+            force: bool = False,
         ) -> None:
+            if not force and self._mesh_replacement_builder_active():
+                self._defer_archive_preview_refresh_for_builder(entry)
+                return
             request_id = self.archive_preview_request_id + 1
             self.archive_preview_request_id = request_id
             self.append_archive_log(
@@ -22108,14 +22131,17 @@ def run_gui() -> int:
             self.archive_preview_quick_result_active = False
             self.archive_preview_requested_loose = bool(entry is not None and prefer_loose_preview)
             self.pending_archive_preview_request = None
-            self.scheduled_archive_preview_request = (request_id, entry, include_loose_preview_assets)
+            self.scheduled_archive_preview_request = (request_id, entry, include_loose_preview_assets, bool(force))
             self.archive_preview_debounce_timer.start()
 
         def _flush_scheduled_archive_preview_request(self) -> None:
             if self.scheduled_archive_preview_request is None:
                 return
-            request_id, entry, include_loose_preview_assets = self.scheduled_archive_preview_request
+            request_id, entry, include_loose_preview_assets, force = self.scheduled_archive_preview_request
             self.scheduled_archive_preview_request = None
+            if not force and self._mesh_replacement_builder_active():
+                self._defer_archive_preview_refresh_for_builder(entry)
+                return
 
             texconv_text = self.texconv_path_edit.text().strip()
             texconv_path = Path(texconv_text).expanduser() if texconv_text else None
@@ -22711,6 +22737,7 @@ def run_gui() -> int:
             self._sync_archive_model_preview_debug_controls(self._archive_model_preview_controls_target())
 
         def _handle_archive_model_preview_darkmode_toggled(self, checked: bool) -> None:
+            self.archive_model_preview_dark_background_enabled = bool(checked)
             for widget in self._archive_model_preview_widgets():
                 if hasattr(widget, "set_dark_background_enabled"):
                     widget.set_dark_background_enabled(bool(checked))
@@ -22826,7 +22853,11 @@ def run_gui() -> int:
 
         def _archive_isolated_renderer_theme_payload(self) -> Dict[str, str]:
             theme = get_theme(self.current_theme_key)
-            background = str(theme["preview_bg"]) if self.archive_model_preview_darkmode_button.isChecked() else "#f4f6f8"
+            background = (
+                str(theme["preview_bg"])
+                if bool(getattr(self, "archive_model_preview_dark_background_enabled", True))
+                else "#f4f6f8"
+            )
             return {
                 "background": background,
                 "text": str(theme["text_muted"]),
@@ -24569,11 +24600,17 @@ def run_gui() -> int:
             current_entry = self._current_archive_entry()
             if current_entry is None or current_entry.extension not in ARCHIVE_MESH_EXTENSIONS:
                 return
+            if self._mesh_replacement_builder_active():
+                self._defer_archive_preview_refresh_for_builder(current_entry)
+                return
             self.model_preview_refresh_timer.start()
 
-        def _refresh_current_model_preview_assets(self) -> None:
+        def _refresh_current_model_preview_assets(self, *, force: bool = False) -> None:
             current_entry = self._current_archive_entry()
             if current_entry is None or current_entry.extension not in ARCHIVE_MESH_EXTENSIONS:
+                return
+            if not force and self._mesh_replacement_builder_active():
+                self._defer_archive_preview_refresh_for_builder(current_entry)
                 return
             include_loose_preview_assets = bool(
                 self.archive_preview_requested_loose
@@ -24587,7 +24624,12 @@ def run_gui() -> int:
                 current_entry,
                 include_loose_preview_assets=include_loose_preview_assets,
                 prefer_loose_preview=self.archive_preview_requested_loose,
+                force=force,
             )
+
+        def _force_refresh_current_model_preview_assets(self) -> None:
+            self.archive_preview_refresh_deferred_by_builder = False
+            self._refresh_current_model_preview_assets(force=True)
 
         def _handle_model_preview_settings_changed(self, settings: Optional[object] = None) -> None:
             previous_settings = self._current_model_preview_render_settings()
@@ -43103,6 +43145,45 @@ def run_gui() -> int:
             title_key = str(dialog_title or "Mesh Replacement Builder").strip().lower()
             return f"{entry_key}|{source_key}|{title_key}"
 
+        def _mesh_replacement_builder_active(self) -> bool:
+            for key, dialog in list(self._modeless_alignment_dialogs.items()):
+                try:
+                    if dialog is not None:
+                        dialog.windowTitle()
+                        return True
+                except RuntimeError:
+                    self._modeless_alignment_dialogs.pop(str(key or ""), None)
+            return False
+
+        def _defer_archive_preview_refresh_for_builder(
+            self,
+            entry: Optional[ArchiveEntry] = None,
+            *,
+            mark_deferred: bool = True,
+        ) -> None:
+            if mark_deferred:
+                self.archive_preview_refresh_deferred_by_builder = True
+            self.model_preview_refresh_timer.stop()
+            self.archive_preview_debounce_timer.stop()
+            message = (
+                "Archive Preview auto-refresh paused while Mesh Replacement Builder is open. "
+                "Press Refresh to update anyway."
+            )
+            try:
+                self.archive_preview_health_label.setText(message)
+                self.archive_preview_health_label.setVisible(bool(entry))
+            except RuntimeError:
+                pass
+            self.set_status_message(message)
+
+        def _resume_archive_preview_after_builder(self) -> None:
+            if self._mesh_replacement_builder_active():
+                return
+            if not bool(getattr(self, "archive_preview_refresh_deferred_by_builder", False)):
+                return
+            self.archive_preview_refresh_deferred_by_builder = False
+            self._refresh_current_model_preview_assets(force=True)
+
         def _activate_modeless_alignment_dialog(self, key: str) -> bool:
             dialog = self._modeless_alignment_dialogs.get(str(key or ""))
             if dialog is None:
@@ -43121,11 +43202,17 @@ def run_gui() -> int:
 
         def _register_modeless_alignment_dialog(self, key: str, dialog: QDialog) -> None:
             self._modeless_alignment_dialogs[str(key or "")] = dialog
+            self._defer_archive_preview_refresh_for_builder(
+                self._current_archive_entry(),
+                mark_deferred=False,
+            )
 
         def _unregister_modeless_alignment_dialog(self, key: str, dialog: QDialog) -> None:
             current = self._modeless_alignment_dialogs.get(str(key or ""))
             if current is dialog:
                 self._modeless_alignment_dialogs.pop(str(key or ""), None)
+            if not self._mesh_replacement_builder_active():
+                QTimer.singleShot(0, self._resume_archive_preview_after_builder)
 
         def _prompt_archive_static_replacement_options(
             self,
@@ -43167,7 +43254,12 @@ def run_gui() -> int:
             # Modify Original D3D11 alignment preview should match Archive Preview by default.
             original_texture_preview_default = bool(modify_original_clone_mode)
             original_texture_preview_state = {"enabled": original_texture_preview_default}
-            original_reference_texture_preview_state = {"loaded": False, "loading": False}
+            original_reference_texture_preview_state = {
+                "loaded": False,
+                "loading": False,
+                "failed": False,
+                "error": "",
+            }
 
             def _preserve_modify_original_material_preview() -> bool:
                 return bool(modify_original_clone_mode and original_texture_preview_state.get("enabled"))
@@ -43498,7 +43590,7 @@ def run_gui() -> int:
             overlay_original_locked_checkbox.setToolTip("In Overlay mode, keep the original reference fixed and move only the replacement preview.")
             preview_controls_row.addWidget(overlay_original_locked_checkbox)
             preview_gizmo_checkbox = QCheckBox("Gizmo")
-            preview_gizmo_checkbox.setChecked(True)
+            preview_gizmo_checkbox.setChecked(False)
             preview_gizmo_checkbox.setToolTip(
                 "Show move/rotate axis handles in the D3D11 alignment preview. This only affects the preview controls."
             )
@@ -43770,9 +43862,11 @@ def run_gui() -> int:
             alignment_d3d11_preview_layout.addWidget(alignment_d3d11_preview_status_label)
             alignment_d3d11_status_timer = QTimer(dialog)
             alignment_d3d11_status_timer.setInterval(250)
+            alignment_d3d11_fast_reload_interval_ms = 180
+            alignment_d3d11_package_reload_interval_ms = 560
             alignment_d3d11_reload_timer = QTimer(dialog)
             alignment_d3d11_reload_timer.setSingleShot(True)
-            alignment_d3d11_reload_timer.setInterval(650)
+            alignment_d3d11_reload_timer.setInterval(alignment_d3d11_fast_reload_interval_ms)
             alignment_d3d11_state: Dict[str, object] = {
                 "request_id": 0,
                 "thread": None,
@@ -43785,8 +43879,12 @@ def run_gui() -> int:
                 "pending_label": "",
                 "queued_model": None,
                 "queued_label": "",
+                "queued_transform_generation": 0,
                 "request_drag_generation": 0,
                 "request_drag_generations": {},
+                "request_transform_generation": 0,
+                "request_transform_generations": {},
+                "active_package_request_id": 0,
                 "prepare_ms": 0.0,
                 "package_ms": 0.0,
                 "package_quality": "fast",
@@ -44160,7 +44258,8 @@ def run_gui() -> int:
             control_tabs.setObjectName("MeshAlignmentStickyWorkflowTabs")
             control_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             control_tabs.setUsesScrollButtons(True)
-            control_tabs.setElideMode(Qt.ElideRight)
+            control_tabs.setElideMode(Qt.ElideNone)
+            control_tabs.tabBar().setExpanding(False)
 
             def _new_alignment_scroll_tab(object_name: str) -> tuple[QScrollArea, QWidget, QVBoxLayout]:
                 scroll = QScrollArea(control_tabs)
@@ -44191,6 +44290,8 @@ def run_gui() -> int:
             control_tabs.addTab(parts_tab, "Parts && Routing")
             control_tabs.addTab(mesh_edit_tab, "Mesh Editing")
             control_tabs.addTab(textures_tab, "Materials && Textures")
+            for tab_index, tab_label in enumerate(("Setup", "Parts && Routing", "Mesh Editing", "Materials && Textures")):
+                control_tabs.setTabToolTip(tab_index, tab_label)
             selection_context_frame = QFrame(content_container)
             selection_context_frame.setObjectName("SelectionContextFrame")
             selection_context_layout = QHBoxLayout(selection_context_frame)
@@ -44583,6 +44684,7 @@ def run_gui() -> int:
                 "scale_u": 1.0,
                 "scale_v": 1.0,
             }
+            alignment_d3d11_texture_uv_fast_state: Dict[str, object] = {"global_flip_v": False}
             source_material_texture_override_assignments: Dict[Tuple[str, str], str] = {}
             copied_original_texture_intents_by_source: Dict[int, List[Dict[str, str]]] = {}
             copied_original_texture_disabled_sources: set[int] = set()
@@ -44609,10 +44711,20 @@ def run_gui() -> int:
             mapping_edit_refresh_timer = QTimer(dialog)
             mapping_edit_refresh_timer.setSingleShot(True)
             mapping_edit_refresh_timer.setInterval(260)
-            static_preview_batch_state = {"depth": 0, "refresh": False, "rebuild": False, "texture": False}
+            static_preview_batch_state = {
+                "depth": 0,
+                "refresh": False,
+                "rebuild": False,
+                "texture": False,
+                "texture_uv": False,
+            }
             alignment_post_open_tasks: List[Callable[[], None]] = []
             alignment_post_open_state = {"started": False}
-            static_preview_baked_transform_state: Dict[str, object] = {"global": None, "parts": {}}
+            static_preview_baked_transform_state: Dict[str, object] = {
+                "global": None,
+                "parts": {},
+                "transform_generation": 0,
+            }
             alignment_d3d11_drag_transaction: Dict[str, object] = {
                 "active": False,
                 "generation": 0,
@@ -44621,6 +44733,7 @@ def run_gui() -> int:
                 "parts": {},
             }
             alignment_d3d11_drag_generation = {"value": 0, "active": 0, "committed": 0}
+            alignment_transform_generation = {"value": 0, "committed": 0}
             alignment_d3d11_drag_ui_state: Dict[str, object] = {
                 "global_offset": None,
                 "global_rotation": None,
@@ -44682,10 +44795,42 @@ def run_gui() -> int:
                     float(adjustment.uniform_scale or 1.0),
                 )
 
+            def _current_alignment_transform_generation() -> int:
+                return int(alignment_transform_generation.get("value", 0) or 0)
+
+            def _mark_alignment_transform_changed() -> int:
+                generation = int(alignment_transform_generation.get("value", 0) or 0) + 1
+                alignment_transform_generation["value"] = generation
+                alignment_transform_generation["committed"] = max(
+                    int(alignment_transform_generation.get("committed", 0) or 0),
+                    generation,
+                )
+                alignment_d3d11_reload_timer.stop()
+                alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
+                alignment_d3d11_state["queued_model"] = None
+                alignment_d3d11_state["queued_label"] = ""
+                alignment_d3d11_state["queued_transform_generation"] = 0
+                alignment_d3d11_state["pending_model"] = None
+                alignment_d3d11_state["pending_label"] = ""
+                alignment_d3d11_state["pending_transform_generation"] = 0
+                try:
+                    _alignment_d3d11_stop_worker()
+                except NameError:
+                    pass
+                return generation
+
             def _capture_static_preview_baked_transform_state(
                 selected_preview_indices: Optional[Sequence[int]] = None,
+                *,
+                transform_generation: Optional[int] = None,
             ) -> None:
+                capture_generation = (
+                    int(transform_generation)
+                    if transform_generation is not None
+                    else _current_alignment_transform_generation()
+                )
                 static_preview_baked_transform_state["global"] = _global_transform_values()
+                static_preview_baked_transform_state["transform_generation"] = capture_generation
                 part_state: Dict[int, object] = {}
                 if replacement_mesh_for_mapping is not None:
                     for source_index in range(len(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ())):
@@ -44696,7 +44841,8 @@ def run_gui() -> int:
                     if selected_preview_indices is not None
                     else None
                 )
-                if not bool(alignment_d3d11_drag_transaction.get("active")):
+                committed_generation = int(alignment_transform_generation.get("committed", 0) or 0)
+                if not bool(alignment_d3d11_drag_transaction.get("active")) and capture_generation >= committed_generation:
                     alignment_d3d11_state["pending_fast_transform"] = None
 
             def _adaptive_alignment_preview_face_limit(
@@ -45266,6 +45412,16 @@ def run_gui() -> int:
                 texture_overrides_dirty["dirty"] = True
                 static_preview_refresh_timer.start()
 
+            def _queue_texture_uv_preview_refresh(*_args: object) -> None:
+                if int(static_preview_batch_state.get("depth", 0) or 0) > 0:
+                    static_preview_batch_state["texture_uv"] = True
+                    return
+                _mark_final_test_preview_stale()
+                static_preview_geometry_cache.clear()
+                static_preview_prepared_cache.clear()
+                texture_overrides_dirty["dirty"] = True
+                static_preview_refresh_timer.start()
+
             def _run_static_preview_batch(callback: Callable[[], None]) -> None:
                 static_preview_batch_state["depth"] = int(static_preview_batch_state.get("depth", 0) or 0) + 1
                 try:
@@ -45275,13 +45431,17 @@ def run_gui() -> int:
                 if int(static_preview_batch_state.get("depth", 0) or 0) > 0:
                     return
                 wants_texture = bool(static_preview_batch_state.get("texture"))
+                wants_texture_uv = bool(static_preview_batch_state.get("texture_uv"))
                 wants_rebuild = bool(static_preview_batch_state.get("rebuild"))
                 wants_refresh = bool(static_preview_batch_state.get("refresh"))
                 static_preview_batch_state["texture"] = False
+                static_preview_batch_state["texture_uv"] = False
                 static_preview_batch_state["rebuild"] = False
                 static_preview_batch_state["refresh"] = False
                 if wants_texture:
                     _queue_texture_preview_refresh()
+                elif wants_texture_uv:
+                    _queue_texture_uv_preview_refresh()
                 elif wants_rebuild:
                     _queue_static_preview_rebuild()
                 elif wants_refresh:
@@ -45495,6 +45655,34 @@ def run_gui() -> int:
                     and bool(alignment_d3d11_available)
                 )
 
+            def _try_apply_global_flip_v_fast_preview() -> bool:
+                if not _alignment_d3d11_preview_active():
+                    return False
+                if any(_texture_uv_state_has_edits(state) for state in texture_uv_transform_state.values()):
+                    return False
+                try:
+                    rotate_degrees = int(texture_uv_global_transform_state.get("rotate_degrees") or 0) % 360
+                    offset_u = float(texture_uv_global_transform_state.get("offset_u") or 0.0)
+                    offset_v = float(texture_uv_global_transform_state.get("offset_v") or 0.0)
+                    scale_u = float(texture_uv_global_transform_state.get("scale_u") or 1.0)
+                    scale_v = float(texture_uv_global_transform_state.get("scale_v") or 1.0)
+                except (TypeError, ValueError, OverflowError):
+                    return False
+                if rotate_degrees or bool(texture_uv_global_transform_state.get("flip_u")):
+                    return False
+                if abs(offset_u) > 1.0e-6 or abs(offset_v) > 1.0e-6:
+                    return False
+                if abs(scale_u - 1.0) > 1.0e-6 or abs(scale_v - 1.0) > 1.0e-6:
+                    return False
+                flip_v = bool(texture_uv_global_transform_state.get("flip_v"))
+                if alignment_d3d11_preview_host.set_texture_flip_vertical(flip_v, editor_role="replacement_preview"):
+                    alignment_d3d11_texture_uv_fast_state["global_flip_v"] = flip_v
+                    _mark_final_test_preview_stale()
+                    texture_overrides_dirty["dirty"] = True
+                    _set_preview_performance_status("D3D11 texture Flip V applied without rebuilding preview package.")
+                    return True
+                return False
+
             def _alignment_geometry_tab_active() -> bool:
                 try:
                     return control_tabs.widget(control_tabs.currentIndex()) is parts_tab
@@ -45632,8 +45820,11 @@ def run_gui() -> int:
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                 alignment_d3d11_state["queued_model"] = None
                 alignment_d3d11_state["queued_label"] = ""
+                alignment_d3d11_state["queued_transform_generation"] = 0
                 alignment_d3d11_state["pending_model"] = None
                 alignment_d3d11_state["pending_label"] = ""
+                alignment_d3d11_state["pending_transform_generation"] = 0
+                alignment_d3d11_state["active_package_request_id"] = 0
                 alignment_d3d11_state["source_to_d3d11_ids"] = {}
                 alignment_d3d11_state["d3d11_id_to_source_indices"] = {}
                 _alignment_d3d11_stop_worker()
@@ -45739,9 +45930,12 @@ def run_gui() -> int:
                 if not isinstance(model, ModelPreviewData):
                     alignment_d3d11_preview_status_label.setText("Native D3D11 preview has no renderable model yet.")
                     return
+                transform_generation = _current_alignment_transform_generation()
                 alignment_d3d11_state["queued_model"] = _clone_preview_model(model)
                 alignment_d3d11_state["queued_label"] = str(label or "Live alignment preview")
+                alignment_d3d11_state["queued_transform_generation"] = transform_generation
                 alignment_d3d11_preview_status_label.setText("Queued native D3D11 alignment preview...")
+                alignment_d3d11_reload_timer.setInterval(alignment_d3d11_package_reload_interval_ms)
                 alignment_d3d11_reload_timer.start()
 
             def _alignment_d3d11_uses_accurate_package(label: str, model: object = None) -> bool:
@@ -45752,21 +45946,9 @@ def run_gui() -> int:
                     return True
                 if detail_mode == "fast":
                     return False
-                if modify_original_clone_mode and detail_mode == "auto":
+                if detail_mode == "auto":
                     return False
-                try:
-                    face_count = int(getattr(model, "face_count", 0) or 0)
-                except (TypeError, ValueError):
-                    face_count = 0
-                if face_count <= 0 and isinstance(model, ModelPreviewData):
-                    try:
-                        face_count = sum(
-                            len(tuple(getattr(mesh, "faces", ()) or ()))
-                            for mesh in tuple(getattr(model, "meshes", ()) or ())
-                        )
-                    except Exception:
-                        face_count = 0
-                return face_count <= 120_000
+                return False
 
             def _alignment_d3d11_package_quality(label: str, model: object = None) -> tuple[ModelPreviewRenderSettings, bool, bool, str]:
                 settings = _current_alignment_preview_render_settings()
@@ -45800,15 +45982,40 @@ def run_gui() -> int:
                     except (TypeError, ValueError):
                         request_generation = int(alignment_d3d11_state.get("request_drag_generation", 0) or 0)
                 committed_generation = int(alignment_d3d11_drag_generation.get("committed", 0) or 0)
-                return request_generation < committed_generation
+                request_transform_generation = int(alignment_d3d11_state.get("request_transform_generation", 0) or 0)
+                request_transform_generations = alignment_d3d11_state.get("request_transform_generations")
+                if isinstance(request_transform_generations, dict):
+                    try:
+                        request_transform_generation = int(
+                            request_transform_generations.get(int(request_id), request_transform_generation) or 0
+                        )
+                    except (TypeError, ValueError):
+                        request_transform_generation = int(
+                            alignment_d3d11_state.get("request_transform_generation", 0) or 0
+                        )
+                committed_transform_generation = int(alignment_transform_generation.get("committed", 0) or 0)
+                return (
+                    request_generation < committed_generation
+                    or request_transform_generation < committed_transform_generation
+                )
 
-            def _start_alignment_d3d11_package_worker(model: object, label: str) -> None:
+            def _start_alignment_d3d11_package_worker(
+                model: object,
+                label: str,
+                transform_generation: Optional[int] = None,
+            ) -> None:
                 if not _alignment_d3d11_preview_active() or not isinstance(model, ModelPreviewData):
                     return
+                request_transform_generation = (
+                    int(transform_generation)
+                    if transform_generation is not None
+                    else _current_alignment_transform_generation()
+                )
                 if isinstance(alignment_d3d11_state.get("thread"), QThread):
                     alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                     alignment_d3d11_state["pending_model"] = model
                     alignment_d3d11_state["pending_label"] = label
+                    alignment_d3d11_state["pending_transform_generation"] = request_transform_generation
                     _alignment_d3d11_stop_worker()
                     alignment_d3d11_preview_status_label.setText("Queued latest native D3D11 alignment preview...")
                     return
@@ -45821,6 +46028,12 @@ def run_gui() -> int:
                     request_generations = {}
                     alignment_d3d11_state["request_drag_generations"] = request_generations
                 request_generations[request_id] = request_drag_generation
+                alignment_d3d11_state["request_transform_generation"] = request_transform_generation
+                request_transform_generations = alignment_d3d11_state.get("request_transform_generations")
+                if not isinstance(request_transform_generations, dict):
+                    request_transform_generations = {}
+                    alignment_d3d11_state["request_transform_generations"] = request_transform_generations
+                request_transform_generations[request_id] = request_transform_generation
                 settings, high_quality_textures, enable_material_combiner, package_quality = _alignment_d3d11_package_quality(label, model)
                 alignment_d3d11_state["package_quality"] = package_quality
                 worker = AlignmentD3D11PackageWorker(
@@ -45830,7 +46043,7 @@ def run_gui() -> int:
                     use_textures=True,
                     high_quality_textures=high_quality_textures,
                     enable_material_combiner=enable_material_combiner,
-                    original_reference_material_parity=enable_material_combiner,
+                    original_reference_material_parity=True,
                     display_mode=str(preview_mode_combo.currentData() or "side_by_side"),
                     editor_workspace="modify_original_alignment" if modify_original_clone_mode else "mesh_replacement_alignment",
                 )
@@ -45854,9 +46067,11 @@ def run_gui() -> int:
             def _flush_alignment_d3d11_preview_request() -> None:
                 model = alignment_d3d11_state.get("queued_model")
                 label = str(alignment_d3d11_state.get("queued_label", "") or "Live alignment preview")
+                transform_generation = int(alignment_d3d11_state.get("queued_transform_generation", 0) or 0)
                 alignment_d3d11_state["queued_model"] = None
                 alignment_d3d11_state["queued_label"] = ""
-                _start_alignment_d3d11_package_worker(model, label)
+                alignment_d3d11_state["queued_transform_generation"] = 0
+                _start_alignment_d3d11_package_worker(model, label, transform_generation)
 
             def _handle_alignment_d3d11_package_ready(
                 request_id: int,
@@ -45877,7 +46092,7 @@ def run_gui() -> int:
                     return
                 alignment_d3d11_state["prepare_ms"] = float(prepare_ms)
                 alignment_d3d11_state["package_ms"] = float(package_ms)
-                _start_alignment_d3d11_process(package_dir)
+                _start_alignment_d3d11_process(package_dir, request_id=int(request_id))
 
             def _handle_alignment_d3d11_package_error(request_id: int, message: str) -> None:
                 if int(request_id) != int(alignment_d3d11_state.get("request_id", 0) or 0):
@@ -45890,15 +46105,27 @@ def run_gui() -> int:
                 alignment_d3d11_state["worker"] = None
                 pending_model = alignment_d3d11_state.get("pending_model")
                 pending_label = str(alignment_d3d11_state.get("pending_label", "") or "Live alignment preview")
+                pending_transform_generation = int(alignment_d3d11_state.get("pending_transform_generation", 0) or 0)
                 alignment_d3d11_state["pending_model"] = None
                 alignment_d3d11_state["pending_label"] = ""
+                alignment_d3d11_state["pending_transform_generation"] = 0
                 if _alignment_d3d11_preview_active() and isinstance(pending_model, ModelPreviewData):
-                    QTimer.singleShot(0, lambda model=pending_model, label=pending_label: _start_alignment_d3d11_package_worker(model, label))
+                    QTimer.singleShot(
+                        0,
+                        lambda model=pending_model, label=pending_label, generation=pending_transform_generation: (
+                            _start_alignment_d3d11_package_worker(model, label, generation)
+                        ),
+                    )
 
-            def _start_alignment_d3d11_process(package_dir: Path) -> None:
+            def _start_alignment_d3d11_process(package_dir: Path, *, request_id: int = 0) -> None:
                 if bool(alignment_d3d11_drag_transaction.get("active")):
                     _cleanup_alignment_d3d11_package(package_dir)
                     alignment_d3d11_preview_status_label.setText("Native D3D11 preview reload paused during drag.")
+                    return
+                if int(request_id or 0) > 0 and _alignment_d3d11_drag_reload_stale(int(request_id)):
+                    _cleanup_alignment_d3d11_package(package_dir)
+                    alignment_d3d11_preview_status_label.setText("Native D3D11 preview reload deferred until transform settles.")
+                    _replay_alignment_d3d11_fast_transform()
                     return
                 status_file = package_dir / "host_status.json"
                 try:
@@ -45908,7 +46135,9 @@ def run_gui() -> int:
                 existing_process = alignment_d3d11_state.get("process")
                 if isinstance(existing_process, QProcess) and existing_process.state() != QProcess.NotRunning:
                     previous_package = alignment_d3d11_state.get("active_package")
+                    previous_request_id = int(alignment_d3d11_state.get("active_package_request_id", 0) or 0)
                     alignment_d3d11_state["active_package"] = package_dir
+                    alignment_d3d11_state["active_package_request_id"] = int(request_id or 0)
                     alignment_d3d11_state["status_file"] = status_file
                     alignment_d3d11_state["status_mtime"] = 0.0
                     if alignment_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
@@ -45928,8 +46157,10 @@ def run_gui() -> int:
                         alignment_d3d11_status_timer.start()
                         return
                     alignment_d3d11_state["active_package"] = previous_package
+                    alignment_d3d11_state["active_package_request_id"] = previous_request_id
                 _alignment_d3d11_stop_process()
                 alignment_d3d11_state["active_package"] = package_dir
+                alignment_d3d11_state["active_package_request_id"] = int(request_id or 0)
                 alignment_d3d11_state["status_file"] = status_file
                 alignment_d3d11_state["status_mtime"] = 0.0
                 process = QProcess(dialog)
@@ -45951,6 +46182,7 @@ def run_gui() -> int:
                     )
                     _cleanup_alignment_d3d11_package(package_dir)
                     alignment_d3d11_state["active_package"] = None
+                    alignment_d3d11_state["active_package_request_id"] = 0
                     return
                 process.setProgram(program)
                 process.setArguments(arguments)
@@ -46015,6 +46247,7 @@ def run_gui() -> int:
                 alignment_d3d11_status_timer.stop()
                 package_dir = alignment_d3d11_state.get("active_package")
                 alignment_d3d11_state["active_package"] = None
+                alignment_d3d11_state["active_package_request_id"] = 0
                 alignment_d3d11_state["status_file"] = None
                 _cleanup_alignment_d3d11_package(package_dir)
                 if int(exit_code) != 0:
@@ -46043,6 +46276,13 @@ def run_gui() -> int:
                 if event == "loaded":
                     if bool(alignment_d3d11_drag_transaction.get("active")):
                         alignment_d3d11_preview_status_label.setText("Native D3D11 preview loaded; applying after drag settles.")
+                        return
+                    active_request_id = int(alignment_d3d11_state.get("active_package_request_id", 0) or 0)
+                    if active_request_id and _alignment_d3d11_drag_reload_stale(active_request_id):
+                        _replay_alignment_d3d11_fast_transform()
+                        alignment_d3d11_preview_status_label.setText(
+                            "Native D3D11 preview loaded stale package; keeping live transform."
+                        )
                         return
                     alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
                     alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
@@ -46108,6 +46348,9 @@ def run_gui() -> int:
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                 alignment_d3d11_state["queued_model"] = None
                 alignment_d3d11_state["pending_model"] = None
+                alignment_d3d11_state["queued_transform_generation"] = 0
+                alignment_d3d11_state["pending_transform_generation"] = 0
+                alignment_d3d11_state["active_package_request_id"] = 0
                 _alignment_d3d11_stop_worker()
                 _alignment_d3d11_stop_process()
                 preview_help.setText("Live preview. Test Build Preview validates final package paths.")
@@ -49537,6 +49780,7 @@ def run_gui() -> int:
                         external_material_reset_checkbox.setChecked(True)  # type: ignore[name-defined]
                         prune_unmapped_original_dds_checkbox.setChecked(True)  # type: ignore[name-defined]
                         texture_output_size_combo.setCurrentIndex(max(0, texture_output_size_combo.findData("source")))  # type: ignore[name-defined]
+                        _select_complete_swap_material_profile("source_graph_strict", persist=True)  # type: ignore[name-defined]
                         _refresh_sidecar_option_state()  # type: ignore[name-defined]
                         _apply_complete_external_swap_routing_to_ui(push_undo=True)
                     else:
@@ -53856,7 +54100,7 @@ def run_gui() -> int:
                     complete_external_material_reset: bool = False,
                     enable_missing_base_color_parameters: bool = False,
                     texture_output_size_mode: str = "source",
-                    complete_swap_material_profile: str = "arm_standard",
+                    complete_swap_material_profile: str = "source_graph_strict",
                     custom_item_icon_override: object | None = None,
                     prune_unmapped_original_texture_parameters: bool = False,
                 ) -> StaticMeshReplacementOptions:
@@ -53885,7 +54129,7 @@ def run_gui() -> int:
                         ),
                         donor_material_plans=list(placement_snapshot.get("donor_material_plans", []) or []),
                         texture_output_size_mode=str(texture_output_size_mode or "source"),
-                        complete_swap_material_profile=str(complete_swap_material_profile or "arm_standard"),
+                        complete_swap_material_profile=str(complete_swap_material_profile or "source_graph_strict"),
                         texture_uv_transforms=list(placement_snapshot.get("texture_uv_transforms", []) or []),
                         source_part_adjustments=list(placement_snapshot.get("source_part_adjustments", []) or []),
                         original_part_copies=list(placement_snapshot.get("original_part_copies", []) or []),
@@ -54445,9 +54689,36 @@ def run_gui() -> int:
                                 copy_matching_surface=bool(modify_original_clone_mode),
                             )
 
+                def _original_reference_texture_preview_required(active_preview_mode: str) -> bool:
+                    return bool(
+                        active_preview_mode in {"side_by_side", "overlay"}
+                        and original_reference_preview_model is not None
+                    )
+
+                def _ensure_original_reference_texture_preview_ready(
+                    active_preview_mode: str,
+                    *,
+                    reason: str,
+                ) -> bool:
+                    if not _original_reference_texture_preview_required(active_preview_mode):
+                        return True
+                    if bool(original_reference_texture_preview_state.get("loaded")):
+                        return True
+                    if bool(original_reference_texture_preview_state.get("failed")):
+                        return True
+                    message = "Loading original textures: base/sidecar/support maps..."
+                    alignment_d3d11_preview_status_label.setText(message)
+                    original_dialog_preview.clear_model(message)
+                    _set_preview_performance_status(message, details=f"reason={reason}")
+                    if bool(original_reference_texture_preview_state.get("loading")):
+                        return True
+                    _load_original_reference_texture_preview()
+                    return True
+
                 def _refresh_static_dialog_preview(*, live_mesh_edit: bool = False) -> None:
                     nonlocal texture_override_preview_specs
                     refresh_started = time.perf_counter()
+                    refresh_transform_generation = _current_alignment_transform_generation()
                     geometry_elapsed_ms = 0.0
                     prepared_elapsed_ms = 0.0
                     if replacement_preview_model is None:
@@ -54458,6 +54729,11 @@ def run_gui() -> int:
                     mapped_preview = False
                     source_preview_cache_key = ""
                     active_preview_mode = str(preview_mode_combo.currentData() or "side_by_side")
+                    if not _ensure_original_reference_texture_preview_ready(
+                        active_preview_mode,
+                        reason="preview_refresh",
+                    ):
+                        return
                     raw_direct_source_preview_indices = set(selected_source_highlight_indices)
                     mesh_edit_direct_source_preview = bool(
                         mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active()
@@ -55116,7 +55392,10 @@ def run_gui() -> int:
                                 label=f"{active_preview_mode.replace('_', ' ').title()} alignment preview",
                             )
                         _sync_mesh_edit_preview_settings()
-                        _capture_static_preview_baked_transform_state(selected_preview_indices)
+                        _capture_static_preview_baked_transform_state(
+                            selected_preview_indices,
+                            transform_generation=refresh_transform_generation,
+                        )
                         _set_preview_performance_status(
                             f"D3D11 package queued - {_alignment_preview_detail_label()} - "
                             f"refresh {(time.perf_counter() - refresh_started) * 1000.0:.0f} ms"
@@ -55254,7 +55533,10 @@ def run_gui() -> int:
                             else:
                                 overlay_dialog_preview.set_alignment_editable_mesh_range(0, -1)
                     _sync_mesh_edit_preview_settings()
-                    _capture_static_preview_baked_transform_state(selected_preview_indices)
+                    _capture_static_preview_baked_transform_state(
+                        selected_preview_indices,
+                        transform_generation=refresh_transform_generation,
+                    )
                     upload_elapsed_ms = max(
                         (
                             float(getattr(widget, "_last_gl_upload_ms", 0.0) or 0.0)
@@ -55304,9 +55586,17 @@ def run_gui() -> int:
                         return
                     if bool(original_reference_texture_preview_state.get("loading")):
                         return
-                    if not bool(original_texture_preview_state.get("enabled")) or original_reference_preview_model is None:
+                    if original_reference_preview_model is None:
                         return
                     original_reference_texture_preview_state["loading"] = True
+                    original_reference_texture_preview_state["failed"] = False
+                    original_reference_texture_preview_state["error"] = ""
+                    alignment_d3d11_preview_status_label.setText(
+                        "Loading original textures: base/sidecar/support maps..."
+                    )
+                    _set_preview_performance_status(
+                        "Loading original textures: base/sidecar/support maps..."
+                    )
                     try:
                         texconv_text = self.texconv_path_edit.text().strip()
                         texconv_path = Path(texconv_text).expanduser() if texconv_text else None
@@ -55383,14 +55673,33 @@ def run_gui() -> int:
                         )
                         self._attach_archive_model_preview_images(original_reference_preview_model)
                         original_reference_texture_preview_state["loaded"] = True
+                        original_reference_texture_preview_state["failed"] = False
+                        original_reference_texture_preview_state["error"] = ""
+                        static_preview_geometry_cache.clear()
+                        static_preview_prepared_cache.clear()
+                        alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
+                        alignment_d3d11_state["queued_model"] = None
+                        alignment_d3d11_state["queued_label"] = ""
+                        alignment_d3d11_state["queued_transform_generation"] = 0
+                        alignment_d3d11_state["pending_model"] = None
+                        alignment_d3d11_state["pending_label"] = ""
+                        alignment_d3d11_state["pending_transform_generation"] = 0
+                        _alignment_d3d11_stop_worker()
                         if _alignment_d3d11_preview_active():
-                            original_dialog_preview.clear_model("Original reference will load in native D3D11 preview.")
+                            original_dialog_preview.clear_model("Original textures loaded in native D3D11 preview.")
+                            alignment_d3d11_preview_status_label.setText(
+                                "Original textures loaded; refreshing native D3D11 alignment preview."
+                            )
                         else:
                             original_dialog_preview.set_model(original_reference_preview_model)
                             original_dialog_preview.set_use_textures(True)
                             original_dialog_preview.set_high_quality_textures(True)
+                        _set_preview_performance_status("Original textures loaded; refreshing preview.")
                         _queue_static_preview_refresh()
                     except Exception as exc:
+                        original_reference_texture_preview_state["loaded"] = False
+                        original_reference_texture_preview_state["failed"] = True
+                        original_reference_texture_preview_state["error"] = str(exc)
                         _record_runtime_event(
                             "mesh_alignment_original_texture_preview_failed",
                             path=getattr(entry, "path", ""),
@@ -55398,6 +55707,11 @@ def run_gui() -> int:
                             message=str(exc),
                             modify_original_clone=modify_original_clone_mode,
                         )
+                        message = f"Original texture preview failed; continuing untextured: {exc}"
+                        original_dialog_preview.clear_model(message)
+                        alignment_d3d11_preview_status_label.setText(message)
+                        _set_preview_performance_status("Original texture resolve failed.", details=str(exc))
+                        _queue_static_preview_refresh()
                     finally:
                         original_reference_texture_preview_state["loading"] = False
 
@@ -56188,6 +56502,8 @@ def run_gui() -> int:
                 def _set_original_texture_preview_enabled(checked: bool) -> None:
                     original_texture_preview_state["enabled"] = bool(checked and modify_original_clone_mode)
                     if bool(original_texture_preview_state.get("enabled")):
+                        original_reference_texture_preview_state["failed"] = False
+                        original_reference_texture_preview_state["error"] = ""
                         _load_original_reference_texture_preview()
                     _queue_texture_preview_refresh()
 
@@ -57050,9 +57366,7 @@ def run_gui() -> int:
                         "scale_u": float(texture_transform_scale_u_spin.value()),
                         "scale_v": float(texture_transform_scale_v_spin.value()),
                     }
-                    static_preview_geometry_cache.clear()
-                    static_preview_prepared_cache.clear()
-                    _queue_static_preview_rebuild()
+                    _queue_texture_uv_preview_refresh()
 
                 def _sync_texture_transform_materials() -> None:
                     material_names = [
@@ -57092,9 +57406,7 @@ def run_gui() -> int:
                     key = _texture_uv_transform_key(material_name)
                     texture_uv_transform_state[key] = _default_texture_uv_transform_state(material_name)
                     _load_texture_transform_controls(material_name)
-                    static_preview_geometry_cache.clear()
-                    static_preview_prepared_cache.clear()
-                    _queue_static_preview_rebuild()
+                    _queue_texture_uv_preview_refresh()
 
                 texture_transform_material_combo.currentIndexChanged.connect(_handle_texture_transform_material_changed)
                 texture_transform_rotate_combo.currentIndexChanged.connect(_save_texture_transform_controls)
@@ -59868,22 +60180,36 @@ def run_gui() -> int:
             complete_swap_material_profile_combo.setObjectName("MeshAlignmentCompleteSwapMaterialProfileCombo")
             for profile in complete_swap_material_runtime_profiles():
                 complete_swap_material_profile_combo.addItem(profile.label, profile.name)
+
+            def _select_complete_swap_material_profile(profile_name: str, *, persist: bool = False) -> None:
+                requested = str(profile_name or "").strip() or "source_graph_strict"
+                profile_index = complete_swap_material_profile_combo.findData(requested)
+                if profile_index < 0:
+                    requested = "source_graph_strict"
+                    profile_index = complete_swap_material_profile_combo.findData(requested)
+                if profile_index >= 0 and complete_swap_material_profile_combo.currentIndex() != profile_index:
+                    complete_swap_material_profile_combo.setCurrentIndex(profile_index)
+                if persist:
+                    self.settings.setValue("settings/complete_swap_material_profile", requested)
+                    try:
+                        write_complete_swap_calibrated_material_profile(complete_swap_profile_store_path, requested)
+                    except Exception:
+                        pass
+
             complete_swap_profile_store_path = self.settings_file_path.parent / "complete_swap_material_profile.json"
             stored_complete_swap_material_profile = read_complete_swap_calibrated_material_profile(
                 complete_swap_profile_store_path,
-                "arm_standard",
+                "source_graph_strict",
             ).name
             saved_complete_swap_material_profile = str(
                 self.settings.value(
                     "settings/complete_swap_material_profile",
-                    stored_complete_swap_material_profile or "arm_standard",
+                    stored_complete_swap_material_profile or "source_graph_strict",
                 )
                 or stored_complete_swap_material_profile
-                or "arm_standard"
+                or "source_graph_strict"
             )
-            saved_profile_index = complete_swap_material_profile_combo.findData(saved_complete_swap_material_profile)
-            if saved_profile_index >= 0:
-                complete_swap_material_profile_combo.setCurrentIndex(saved_profile_index)
+            _select_complete_swap_material_profile(saved_complete_swap_material_profile)
             complete_swap_material_profile_combo.setToolTip(
                 "Calibration profile for translating glTF metallic/roughness/AO/emissive data into Crimson Desert runtime material slots. "
                 "Use probe profiles when the in-game result is too shiny, too dark, or the gem/emissive color shifts."
@@ -59939,9 +60265,9 @@ def run_gui() -> int:
                         "scale_v": 1.0,
                     }
                 )
-                static_preview_geometry_cache.clear()
-                static_preview_prepared_cache.clear()
-                _queue_static_preview_rebuild()
+                if _try_apply_global_flip_v_fast_preview():
+                    return
+                _queue_texture_uv_preview_refresh()
 
             def _reset_setup_texture_orientation() -> None:
                 setup_texture_rotate_combo.setCurrentIndex(max(0, setup_texture_rotate_combo.findData(0)))
@@ -60054,7 +60380,7 @@ def run_gui() -> int:
             )
             complete_external_swap_checkbox.toggled.connect(_sync_complete_external_swap_mode)
             def _save_complete_swap_material_profile() -> None:
-                profile_name = str(complete_swap_material_profile_combo.currentData() or "arm_standard")
+                profile_name = str(complete_swap_material_profile_combo.currentData() or "source_graph_strict")
                 self.settings.setValue("settings/complete_swap_material_profile", profile_name)
                 try:
                     write_complete_swap_calibrated_material_profile(complete_swap_profile_store_path, profile_name)
@@ -60585,8 +60911,16 @@ def run_gui() -> int:
 
             def _capture_static_preview_baked_transform_state(
                 selected_preview_indices: Optional[Sequence[int]] = None,
+                *,
+                transform_generation: Optional[int] = None,
             ) -> None:
+                capture_generation = (
+                    int(transform_generation)
+                    if transform_generation is not None
+                    else _current_alignment_transform_generation()
+                )
                 static_preview_baked_transform_state["global"] = _global_transform_values()
+                static_preview_baked_transform_state["transform_generation"] = capture_generation
                 part_state: Dict[int, object] = {}
                 if replacement_mesh_for_mapping is not None:
                     for source_index in range(len(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ())):
@@ -60597,7 +60931,8 @@ def run_gui() -> int:
                     if selected_preview_indices is not None
                     else None
                 )
-                if not bool(alignment_d3d11_drag_transaction.get("active")):
+                committed_generation = int(alignment_transform_generation.get("committed", 0) or 0)
+                if not bool(alignment_d3d11_drag_transaction.get("active")) and capture_generation >= committed_generation:
                     alignment_d3d11_state["pending_fast_transform"] = None
 
             def _active_alignment_transform_preview_widgets() -> tuple[NativePreviewPanel, ...]:
@@ -60657,6 +60992,7 @@ def run_gui() -> int:
                     "translation": _triple(translation, (0.0, 0.0, 0.0)),
                     "rotation_degrees": _triple(rotation_degrees, (0.0, 0.0, 0.0)),
                     "scale_xyz": _triple(scale_xyz, (1.0, 1.0, 1.0)),
+                    "transform_generation": _current_alignment_transform_generation(),
                 }
                 alignment_d3d11_state["pending_fast_transform"] = payload
                 if not _alignment_d3d11_preview_active() or bool(alignment_d3d11_drag_transaction.get("active")):
@@ -60766,6 +61102,7 @@ def run_gui() -> int:
                 return True
 
             def _queue_global_transform_preview_update(*_args: object) -> None:
+                _mark_alignment_transform_changed()
                 _mark_final_test_preview_stale()
                 static_preview_interactive_until["time"] = time.monotonic() + 0.8
                 applied = _apply_global_transform_fast_preview()
@@ -60777,6 +61114,7 @@ def run_gui() -> int:
                     static_preview_refresh_timer.start()
 
             def _queue_part_transform_preview_update(source_index: int) -> None:
+                _mark_alignment_transform_changed()
                 _mark_final_test_preview_stale()
                 static_preview_interactive_until["time"] = time.monotonic() + 0.8
                 applied = _apply_part_transform_fast_preview(source_index)
@@ -61197,8 +61535,6 @@ def run_gui() -> int:
                 else:
                     _queue_global_transform_preview_update()
                 _replay_alignment_d3d11_fast_transform()
-                if _alignment_d3d11_preview_active():
-                    _queue_static_preview_rebuild()
 
             def _finish_alignment_d3d11_rotation(dx: float, dy: float, dz: float) -> None:
                 _apply_alignment_d3d11_rotation_total(dx, dy, dz)
@@ -61216,8 +61552,6 @@ def run_gui() -> int:
                 else:
                     _queue_global_transform_preview_update()
                 _replay_alignment_d3d11_fast_transform()
-                if _alignment_d3d11_preview_active():
-                    _queue_static_preview_rebuild()
 
             def _commit_alignment_preview_translation(dx: float, dy: float, dz: float) -> None:
                 static_preview_refresh_timer.stop()
@@ -61306,8 +61640,8 @@ def run_gui() -> int:
             dialog.finished.connect(_modeless_alignment_dialog_finished)
             _queue_alignment_post_open_task(_set_preview_renderer)
             _queue_alignment_post_open_task(_capture_initial_geometry_snapshot)
-            _queue_alignment_post_open_task(_queue_static_preview_refresh)
             _queue_alignment_post_open_task(_load_original_reference_texture_preview)
+            _queue_alignment_post_open_task(_queue_static_preview_refresh)
             _queue_alignment_post_open_task(_clear_all_part_selections)
 
             buttons = QHBoxLayout()
@@ -61553,7 +61887,7 @@ def run_gui() -> int:
                     complete_external_material_reset=bool(external_material_reset_checkbox.isChecked() or _complete_external_swap_enabled()),
                     enable_missing_base_color_parameters=bool(inject_base_color_checkbox.isChecked() or _complete_external_swap_enabled()),
                     texture_output_size_mode=str(texture_output_size_combo.currentData() or "source"),
-                    complete_swap_material_profile=str(complete_swap_material_profile_combo.currentData() or "arm_standard"),
+                    complete_swap_material_profile=str(complete_swap_material_profile_combo.currentData() or "source_graph_strict"),
                     additional_supplemental_files=list(dialog_added_supplemental_files),
                     custom_item_icon_override=custom_item_icon_override,
                     prune_unmapped_original_texture_parameters=bool(
