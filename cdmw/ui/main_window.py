@@ -41300,6 +41300,148 @@ def run_gui() -> int:
                 else:
                     self.archive_sidecar_pending_start = False
 
+        def _mesh_direct_patch_spec_is_generated(
+            self,
+            spec: MeshImportSupplementalFileSpec,
+        ) -> bool:
+            kind = str(getattr(spec, "kind", "") or "").strip().casefold()
+            return kind in {"sidecar_generated", "texture_generated", "item_icon_generated"}
+
+        def _mesh_direct_patch_spec_payload(
+            self,
+            spec: MeshImportSupplementalFileSpec,
+        ) -> Tuple[Optional[bytes], str]:
+            payload_data = bytes(getattr(spec, "payload_data", b"") or b"")
+            if payload_data:
+                return payload_data, ""
+            source_path = getattr(spec, "source_path", None)
+            if not isinstance(source_path, Path):
+                return None, "no payload data or source file"
+            try:
+                resolved_source = source_path.expanduser().resolve()
+            except Exception:
+                resolved_source = source_path
+            if not resolved_source.is_file():
+                return None, f"source file is not readable: {resolved_source}"
+            try:
+                return resolved_source.read_bytes(), ""
+            except Exception as exc:
+                return None, f"could not read {resolved_source}: {exc}"
+
+        def _build_mesh_direct_patch_requests(
+            self,
+            primary_entry: ArchiveEntry,
+            preview_result: MeshImportPreviewResult,
+            *,
+            paired_entry: Optional[ArchiveEntry] = None,
+            supplemental_specs: Sequence[MeshImportSupplementalFileSpec] = (),
+        ) -> Tuple[List[ArchivePatchRequest], List[str]]:
+            request_by_normalized_path: Dict[str, ArchivePatchRequest] = {}
+            warnings: List[str] = []
+
+            def _add_request(entry: ArchiveEntry, payload_data: bytes, label: str) -> None:
+                if not payload_data:
+                    warnings.append(f"Skipping {label}: empty payload.")
+                    return
+                target_key = str(entry.path or "").replace("\\", "/").strip().casefold()
+                if not target_key:
+                    warnings.append(f"Skipping {label}: target path is empty.")
+                    return
+                request_by_normalized_path[target_key] = ArchivePatchRequest(
+                    entry=entry,
+                    payload_data=payload_data,
+                )
+
+            _add_request(primary_entry, preview_result.rebuilt_data, primary_entry.path)
+            if paired_entry is not None and preview_result.paired_lod_data is not None:
+                _add_request(paired_entry, preview_result.paired_lod_data, paired_entry.path)
+
+            for spec in supplemental_specs:
+                if not isinstance(spec, MeshImportSupplementalFileSpec):
+                    continue
+                if not self._mesh_direct_patch_spec_is_generated(spec):
+                    continue
+                target_entry = getattr(spec, "target_entry", None)
+                target_path = str(getattr(spec, "target_path", "") or "").strip()
+                if not isinstance(target_entry, ArchiveEntry):
+                    warnings.append(
+                        "Skipping generated supplemental patch target without an existing archive entry: "
+                        f"{target_path or getattr(spec, 'source_path', '')}"
+                    )
+                    continue
+                payload_data, reason = self._mesh_direct_patch_spec_payload(spec)
+                if payload_data is None:
+                    warnings.append(
+                        f"Skipping generated supplemental patch target {target_entry.path}: {reason}"
+                    )
+                    continue
+                _add_request(target_entry, payload_data, target_entry.path)
+
+            return list(request_by_normalized_path.values()), warnings
+
+        def _mesh_direct_patch_target_paths(
+            self,
+            primary_entry: ArchiveEntry,
+            preview_result: MeshImportPreviewResult,
+            *,
+            paired_entry: Optional[ArchiveEntry] = None,
+            supplemental_specs: Sequence[MeshImportSupplementalFileSpec] = (),
+        ) -> Tuple[str, ...]:
+            paths: List[str] = []
+
+            def _add_path(raw_path: object) -> None:
+                path = str(raw_path or "").replace("\\", "/").strip()
+                if path and path.casefold() not in {existing.casefold() for existing in paths}:
+                    paths.append(path)
+
+            _add_path(primary_entry.path)
+            if paired_entry is not None and preview_result.paired_lod_data is not None:
+                _add_path(paired_entry.path)
+            for spec in supplemental_specs:
+                if not isinstance(spec, MeshImportSupplementalFileSpec):
+                    continue
+                if not self._mesh_direct_patch_spec_is_generated(spec):
+                    continue
+                target_entry = getattr(spec, "target_entry", None)
+                if isinstance(target_entry, ArchiveEntry):
+                    _add_path(target_entry.path)
+            return tuple(paths)
+
+        def _confirm_mesh_direct_archive_patch(
+            self,
+            target_paths: Sequence[str],
+            *,
+            parent: Optional[QWidget] = None,
+        ) -> bool:
+            compact_paths = [str(path or "").strip() for path in target_paths if str(path or "").strip()]
+            shown_targets = "\n".join(f"- {path}" for path in compact_paths[:8])
+            if len(compact_paths) > 8:
+                shown_targets += f"\n- ... {len(compact_paths) - 8:,} more target(s)"
+            prompt_parent = parent if parent is not None else self
+            prompt = QMessageBox(prompt_parent)
+            prompt.setIcon(QMessageBox.Warning)
+            prompt.setWindowTitle("Patch Game Files")
+            prompt.setText("Patch game archive files directly?")
+            prompt.setInformativeText(
+                "This modifies the installed game archive package files. Close the game and any mod manager before continuing.\n\n"
+                "A backup of the touched PAPGT/PAMT/PAZ files will be created first and can be restored from Archive Patch Backups.\n\n"
+                f"Targets:\n{shown_targets or '- none'}"
+            )
+            prompt.setDetailedText(
+                "Archive entries that will be patched:\n"
+                + "\n".join(compact_paths)
+                + f"\n\nBackup root:\n{ARCHIVE_PATCH_BACKUP_ROOT}"
+            )
+            prompt.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            prompt.setDefaultButton(QMessageBox.No)
+            yes_button = prompt.button(QMessageBox.Yes)
+            if yes_button is not None:
+                yes_button.setText("Patch Game Files")
+            no_button = prompt.button(QMessageBox.No)
+            if no_button is not None:
+                no_button.setText("Cancel")
+            return prompt.exec() == QMessageBox.Yes
+
         def _show_archive_import_preview(
             self,
             entry: ArchiveEntry,
@@ -41344,7 +41486,12 @@ def run_gui() -> int:
                 detail_lines.append(f"Loose export: {loose_package_root}")
             warning_badge = ""
             warning_text = ""
-            if not patched and loose_package_root is not None:
+            if patched:
+                warning_badge = "Patched archive"
+                warning_text = "This rebuilt mesh has been patched directly into the scanned game archives."
+                if backup_dir is not None:
+                    warning_text += f"\n\nBackup: {backup_dir}"
+            elif loose_package_root is not None:
                 warning_badge = "Loose export"
                 if isinstance(final_preview, FinalPackagePreviewResult):
                     warning_text = (
@@ -43359,6 +43506,7 @@ def run_gui() -> int:
                         Optional[QWidget],
                         Callable[[str], None],
                         Callable[[str, bool], None],
+                        str,
                     ],
                     bool,
                 ]
@@ -61781,6 +61929,13 @@ def run_gui() -> int:
                 "Build the current replacement in memory and show the final sidecar/DDS preview without writing a package. "
                 "For in-game character swaps this is more authoritative than the live replacement preview."
             )
+            patch_game_files_button: Optional[QPushButton] = None
+            if continue_build_callback is not None:
+                patch_game_files_button = QPushButton("Patch Game Files")
+                patch_game_files_button.setToolTip(
+                    "Directly patch the rebuilt mesh into scanned game archives for testing. "
+                    "A backup is created first and can be restored from Archive Patch Backups."
+                )
             import_button = QPushButton("Build Mod" if continue_build_callback is not None else "Continue")
             import_button.setDefault(True)
             if continue_build_callback is not None:
@@ -61793,8 +61948,16 @@ def run_gui() -> int:
                     replacement_export_allowed["reason"]
                     or "This asset is not currently safe to export through Mesh Replacement."
                 )
+                if patch_game_files_button is not None:
+                    patch_game_files_button.setEnabled(False)
+                    patch_game_files_button.setToolTip(
+                        replacement_export_allowed["reason"]
+                        or "This asset is not currently safe to patch through Mesh Replacement."
+                    )
             buttons.addWidget(cancel_button)
             buttons.addWidget(test_build_preview_button)
+            if patch_game_files_button is not None:
+                buttons.addWidget(patch_game_files_button)
             buttons.addWidget(import_button)
             root_layout.addLayout(buttons)
             build_status_row = QHBoxLayout()
@@ -61831,6 +61994,8 @@ def run_gui() -> int:
                     build_status_bar.setVisible(False)
                     if replacement_export_allowed["allowed"]:
                         import_button.setEnabled(True)
+                        if patch_game_files_button is not None:
+                            patch_game_files_button.setEnabled(True)
                 except RuntimeError:
                     pass
                 if text:
@@ -62186,7 +62351,7 @@ def run_gui() -> int:
                     progress.close()
                     QApplication.processEvents()
 
-            def _accept_static_options() -> None:
+            def _accept_static_options(output_mode: str = "loose") -> None:
                 static_options = _build_static_options_from_dialog(show_messages=True)
                 if static_options is None:
                     return
@@ -62194,7 +62359,10 @@ def run_gui() -> int:
                 dialog._static_options = static_options  # type: ignore[attr-defined]
                 if continue_build_callback is not None:
                     import_button.setEnabled(False)
-                    _set_alignment_build_status("Collecting mesh replacement build settings...")
+                    if patch_game_files_button is not None:
+                        patch_game_files_button.setEnabled(False)
+                    action_label = "archive patch" if output_mode == "patch" else "mod build"
+                    _set_alignment_build_status(f"Collecting mesh replacement {action_label} settings...")
                     try:
                         started = bool(
                             continue_build_callback(
@@ -62202,19 +62370,28 @@ def run_gui() -> int:
                                 dialog,
                                 _set_alignment_build_status,
                                 _finish_alignment_build_state,
+                                output_mode,
                             )
                         )
                     except Exception as exc:
-                        QMessageBox.warning(dialog, "Build Mod", str(exc))
+                        QMessageBox.warning(
+                            dialog,
+                            "Patch Game Files" if output_mode == "patch" else "Build Mod",
+                            str(exc),
+                        )
                         _finish_alignment_build_state(f"Mesh replacement build failed: {exc}", False)
                         started = False
                     if not started:
                         if replacement_export_allowed["allowed"]:
                             import_button.setEnabled(True)
+                            if patch_game_files_button is not None:
+                                patch_game_files_button.setEnabled(True)
                         build_status_bar.setVisible(False)
                     if started:
                         self.set_status_message(
-                            "Started mesh replacement build. Builder window remains open for more edits."
+                            "Started mesh replacement archive patch. Builder window remains open for more edits."
+                            if output_mode == "patch"
+                            else "Started mesh replacement build. Builder window remains open for more edits."
                         )
                     return
                 dialog_accepted_state["accepted"] = True
@@ -62222,7 +62399,9 @@ def run_gui() -> int:
                 if on_accept is not None:
                     QTimer.singleShot(0, lambda options=static_options: _dispatch_alignment_accept(options))
 
-            import_button.clicked.connect(_accept_static_options)
+            import_button.clicked.connect(lambda _checked=False: _accept_static_options("loose"))
+            if patch_game_files_button is not None:
+                patch_game_files_button.clicked.connect(lambda _checked=False: _accept_static_options("patch"))
             test_build_preview_button.clicked.connect(_test_build_final_preview)
 
             def _fit_alignment_dialog_to_screen() -> None:
@@ -62446,15 +62625,15 @@ def run_gui() -> int:
                     f"{entry.path} -> {build_entry.path}"
                 )
 
-            destination = "loose"
-
             def _start_build_with_static_options(
                 static_replacement_options: Optional[StaticMeshReplacementOptions],
                 dialog_parent: Optional[QWidget] = None,
                 build_status_callback: Optional[Callable[[str], None]] = None,
                 build_finished_callback: Optional[Callable[[str, bool], None]] = None,
+                output_mode: str = "loose",
             ) -> bool:
                 build_dialog_parent = dialog_parent if dialog_parent is not None else self
+                destination = "patch" if str(output_mode or "").strip().casefold() == "patch" else "loose"
 
                 def _set_builder_status(message: str) -> None:
                     if build_status_callback is not None:
@@ -62468,7 +62647,6 @@ def run_gui() -> int:
                     else:
                         self.set_status_message(message, error=not bool(success))
 
-                _set_builder_status("Choosing mesh replacement export metadata...")
                 supplemental_files = setup.supplemental_files
                 if static_replacement_options is not None:
                     supplemental_files = tuple(supplemental_files or ()) + tuple(
@@ -62477,37 +62655,43 @@ def run_gui() -> int:
                         if isinstance(path, Path)
                     )
 
-                loose_export_settings = self._collect_archive_mod_ready_export_target(
-                    browse_title="Select Mod-Ready Export Parent Root",
-                    prompt_for_metadata=True,
-                    initial_include_related_files=False,
-                    show_include_related_files_option=False,
-                    dialog_title="Mesh Loose Export Metadata",
-                    allow_dmm_texture_structure=False,
-                    show_texture_resolution_manifest_option=True,
-                    parent=build_dialog_parent,
-                )
-                if loose_export_settings is None:
-                    _finish_builder_status("Mesh replacement build cancelled before export target selection.", False)
-                    return False
-                _set_builder_status("Choosing optional related files for loose package...")
-                selected_related_entries_result = self._prompt_archive_mesh_related_file_selection(
-                    build_entry,
-                    title="Include Additional Referenced Files",
-                    intro_text=(
-                        "Select any original archive companion files that should be copied into the loose mod. "
-                        "Generated replacement textures and patched material sidecars are included automatically when enabled; "
-                        "original .pac_xml, .pab, .hkx, and old DDS files are unchecked by default."
-                    ),
-                    confirm_button_text="Continue",
-                    default_checked=False,
-                    parent=build_dialog_parent,
-                )
-                if selected_related_entries_result is None:
-                    _finish_builder_status("Mesh replacement build cancelled before related file selection.", False)
-                    return False
-                selected_related_entries = selected_related_entries_result
-                _set_builder_status("Building loose mod package...")
+                loose_export_settings = None
+                selected_related_entries: Sequence[ArchiveEntry] = ()
+                if destination == "loose":
+                    _set_builder_status("Choosing mesh replacement export metadata...")
+                    loose_export_settings = self._collect_archive_mod_ready_export_target(
+                        browse_title="Select Mod-Ready Export Parent Root",
+                        prompt_for_metadata=True,
+                        initial_include_related_files=False,
+                        show_include_related_files_option=False,
+                        dialog_title="Mesh Loose Export Metadata",
+                        allow_dmm_texture_structure=False,
+                        show_texture_resolution_manifest_option=True,
+                        parent=build_dialog_parent,
+                    )
+                    if loose_export_settings is None:
+                        _finish_builder_status("Mesh replacement build cancelled before export target selection.", False)
+                        return False
+                    _set_builder_status("Choosing optional related files for loose package...")
+                    selected_related_entries_result = self._prompt_archive_mesh_related_file_selection(
+                        build_entry,
+                        title="Include Additional Referenced Files",
+                        intro_text=(
+                            "Select any original archive companion files that should be copied into the loose mod. "
+                            "Generated replacement textures and patched material sidecars are included automatically when enabled; "
+                            "original .pac_xml, .pab, .hkx, and old DDS files are unchecked by default."
+                        ),
+                        confirm_button_text="Continue",
+                        default_checked=False,
+                        parent=build_dialog_parent,
+                    )
+                    if selected_related_entries_result is None:
+                        _finish_builder_status("Mesh replacement build cancelled before related file selection.", False)
+                        return False
+                    selected_related_entries = selected_related_entries_result
+                    _set_builder_status("Building loose mod package...")
+                else:
+                    _set_builder_status("Preparing direct archive patch...")
 
                 paired_entry = None
                 if build_entry.extension == ".pam":
@@ -62579,33 +62763,16 @@ def run_gui() -> int:
 
                 def _start_commit(preview_result: MeshImportPreviewResult) -> None:
                     def _commit_task(log: Callable[[str], None]) -> object:
-                        request_by_normalized_path: dict[str, ArchivePatchRequest] = {
-                            build_entry.path.replace("\\", "/").strip().lower(): ArchivePatchRequest(
-                                entry=build_entry,
-                                payload_data=preview_result.rebuilt_data,
-                            )
-                        }
-                        if paired_entry is not None and preview_result.paired_lod_data is not None:
-                            request_by_normalized_path[paired_entry.path.replace("\\", "/").strip().lower()] = ArchivePatchRequest(
-                                entry=paired_entry,
-                                payload_data=preview_result.paired_lod_data,
-                            )
-                        skipped_supplemental_specs = 0
-                        if destination == "patch":
-                            for spec in preview_result.supplemental_file_specs:
-                                if not isinstance(spec.target_entry, ArchiveEntry):
-                                    skipped_supplemental_specs += 1
-                                    continue
-                                request_by_normalized_path[spec.target_entry.path.replace("\\", "/").strip().lower()] = ArchivePatchRequest(
-                                    entry=spec.target_entry,
-                                    payload_data=spec.source_path.read_bytes(),
-                                )
-                        requests = list(request_by_normalized_path.values())
-                        if skipped_supplemental_specs > 0:
-                            log(
-                                f"Skipping {skipped_supplemental_specs} selected supplemental file(s) that could not be mapped to an archive patch target."
-                            )
-                        parent_root, package_info, create_no_encrypt, include_related_files, export_options = loose_export_settings
+                        export_options = None
+                        parent_root = None
+                        package_info = None
+                        create_no_encrypt = False
+                        include_related_files = False
+                        if destination == "loose":
+                            if loose_export_settings is None:
+                                raise ValueError("Loose export settings were not collected.")
+                            parent_root, package_info, create_no_encrypt, include_related_files, export_options = loose_export_settings
+
                         custom_icon_specs: Tuple[MeshImportSupplementalFileSpec, ...] = ()
                         custom_icon_override = (
                             getattr(static_replacement_options, "custom_item_icon_override", None)
@@ -62620,11 +62787,57 @@ def run_gui() -> int:
                                     on_log=log,
                                 ),
                             )
-                        supplemental_specs_to_include = tuple(setup.extra_supplemental_specs or ()) + tuple(
+                        loose_supplemental_specs = tuple(setup.extra_supplemental_specs or ()) + tuple(
                             preview_result.supplemental_file_specs or ()
                         )
-                        supplemental_specs_to_include = supplemental_specs_to_include + custom_icon_specs
-                        log("Running final package texture preflight before export...")
+                        loose_supplemental_specs = loose_supplemental_specs + custom_icon_specs
+                        direct_patch_supplemental_specs = tuple(
+                            spec
+                            for spec in tuple(preview_result.supplemental_file_specs or ()) + custom_icon_specs
+                            if isinstance(spec, MeshImportSupplementalFileSpec)
+                            and isinstance(getattr(spec, "target_entry", None), ArchiveEntry)
+                            and self._mesh_direct_patch_spec_is_generated(spec)
+                        )
+                        supplemental_specs_to_include = (
+                            direct_patch_supplemental_specs
+                            if destination == "patch"
+                            else loose_supplemental_specs
+                        )
+                        if destination == "patch":
+                            requests, request_warnings = self._build_mesh_direct_patch_requests(
+                                build_entry,
+                                preview_result,
+                                paired_entry=paired_entry,
+                                supplemental_specs=direct_patch_supplemental_specs,
+                            )
+                            for warning in request_warnings:
+                                log(warning)
+                        else:
+                            request_by_normalized_path: Dict[str, ArchivePatchRequest] = {
+                                build_entry.path.replace("\\", "/").strip().casefold(): ArchivePatchRequest(
+                                    entry=build_entry,
+                                    payload_data=preview_result.rebuilt_data,
+                                )
+                            }
+                            if paired_entry is not None and preview_result.paired_lod_data is not None:
+                                request_by_normalized_path[paired_entry.path.replace("\\", "/").strip().casefold()] = ArchivePatchRequest(
+                                    entry=paired_entry,
+                                    payload_data=preview_result.paired_lod_data,
+                                )
+                            requests = list(request_by_normalized_path.values())
+
+                        if destination == "patch":
+                            preflight_failed_prefix = "Final package texture preflight failed before direct archive patch: "
+                            preflight_failed_log = (
+                                "Final package texture preflight failed before direct archive patch; no files were written:\n"
+                            )
+                            log("Running final package texture preflight before direct archive patch...")
+                        else:
+                            preflight_failed_prefix = "Final package texture preflight failed before export: "
+                            preflight_failed_log = (
+                                "Final package texture preflight failed before export; no files were written:\n"
+                            )
+                            log("Running final package texture preflight before export...")
                         try:
                             pre_export_preview = build_final_package_preview(
                                 preview_result,
@@ -62637,16 +62850,16 @@ def run_gui() -> int:
                             )
                         except Exception as exc:
                             blocker_lines = (
-                                "Final package texture preflight failed before export: "
-                                f"{exc}",
+                                f"{preflight_failed_prefix}{exc}",
                             )
                             log(
-                                "Final package texture preflight failed before export; loose package was not written:\n"
+                                preflight_failed_log
                                 + "\n".join(f"- {line}" for line in blocker_lines)
                             )
                             return {
                                 "preview": preview_result,
                                 "loose": None,
+                                "patch": None,
                                 "final_preview": None,
                                 "preflight_blocked": blocker_lines,
                             }
@@ -62662,10 +62875,22 @@ def run_gui() -> int:
                             return {
                                 "preview": preview_result,
                                 "loose": None,
+                                "patch": None,
                                 "final_preview": pre_export_preview,
                                 "preflight_blocked": blocker_lines,
                             }
-                        log(f"Writing {len(requests)} rebuilt entrie(s) into a mod-ready loose package...")
+                        if destination == "patch":
+                            if not requests:
+                                raise ValueError("No archive patch requests could be built for the rebuilt mesh.")
+                            log(f"Patching {len(requests)} rebuilt/generated entries directly into game archives...")
+                            patch_result = patch_archive_entries(requests, on_log=log)
+                            return {
+                                "preview": preview_result,
+                                "patch": patch_result,
+                                "final_preview": pre_export_preview,
+                            }
+
+                        log(f"Writing {len(requests)} rebuilt entries into a mod-ready loose package...")
                         loose_result = export_archive_mesh_payloads_to_mod_ready_loose(
                             requests,
                             primary_entry=build_entry,
@@ -62720,6 +62945,7 @@ def run_gui() -> int:
                         return {
                             "preview": preview_result,
                             "loose": loose_result,
+                            "patch": None,
                             "final_preview": final_preview,
                         }
 
@@ -62729,6 +62955,7 @@ def run_gui() -> int:
                             return
                         preview_payload = result.get("preview")
                         loose_result = result.get("loose")
+                        patch_result = result.get("patch")
                         preflight_blockers = tuple(
                             str(line)
                             for line in tuple(result.get("preflight_blocked") or ())
@@ -62751,8 +62978,12 @@ def run_gui() -> int:
                             blocker_layout.setContentsMargins(14, 14, 14, 14)
                             blocker_layout.setSpacing(10)
                             blocker_summary = QLabel(
-                                "<b>Loose package was not written.</b><br><br>"
-                                "Complete source-owned swap requires the final package preview to match exact material bindings."
+                                (
+                                    "<b>Game archive files were not patched.</b><br><br>"
+                                    if destination == "patch"
+                                    else "<b>Loose package was not written.</b><br><br>"
+                                )
+                                + "Complete source-owned swap requires the final package preview to match exact material bindings."
                             )
                             blocker_summary.setWordWrap(True)
                             blocker_layout.addWidget(blocker_summary)
@@ -62760,7 +62991,11 @@ def run_gui() -> int:
                             blocker_details.setReadOnly(True)
                             blocker_details.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
                             blocker_details.setPlainText(
-                                "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
+                                (
+                                    "Final package texture preflight blocked direct archive patch because the package contract would not be WYSIWYG:\n"
+                                    if destination == "patch"
+                                    else "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
+                                )
                                 + blocker_text
                             )
                             blocker_details.setMinimumSize(QSize(860, 390))
@@ -62773,6 +63008,48 @@ def run_gui() -> int:
                             blocker_layout.addLayout(blocker_button_row)
                             blocker_dialog.exec()
                             _finish_builder_status("Mesh replacement build blocked by final package texture preflight.", False)
+                            return
+                        if destination == "patch":
+                            if not isinstance(patch_result, ArchivePatchResult):
+                                _finish_builder_status("Mesh archive patch finished with an incomplete result payload.", False)
+                                return
+                            self._apply_archive_patch_result(patch_result)
+                            final_preview = (
+                                result.get("final_preview")
+                                if isinstance(result.get("final_preview"), FinalPackagePreviewResult)
+                                else None
+                            )
+                            self._show_archive_import_preview(
+                                build_entry,
+                                preview_payload,
+                                patched=True,
+                                backup_dir=patch_result.backup_dir,
+                                final_preview=final_preview,
+                            )
+                            updated_entry = self._find_archive_entry_by_virtual_path(build_entry.path) or build_entry
+                            self._render_archive_preview(updated_entry, force=True)
+                            try:
+                                build_dialog_parent.isVisible()
+                                patch_box_parent = build_dialog_parent
+                            except RuntimeError:
+                                patch_box_parent = self
+                            patch_box = QMessageBox(patch_box_parent)
+                            patch_box.setIcon(QMessageBox.Information)
+                            patch_box.setWindowTitle("Game Files Patched")
+                            patch_box.setText("Patched game archive files.")
+                            patch_box.setInformativeText(str(patch_result.backup_dir))
+                            patch_box.setDetailedText(
+                                "Patched archive entries:\n"
+                                + "\n".join(str(path) for path in patch_result.changed_paths)
+                                + f"\n\nBackup:\n{patch_result.backup_dir}"
+                            )
+                            patch_box.setStandardButtons(QMessageBox.Ok)
+                            patch_box.setMinimumSize(QSize(560, 180))
+                            patch_box.exec()
+                            _finish_builder_status(
+                                f"Patched rebuilt {build_entry.basename} into game archives.",
+                                True,
+                            )
                             return
                         if not isinstance(loose_result, ArchiveLooseExportResult):
                             _finish_builder_status("Mesh loose export finished with an incomplete result payload.", False)
@@ -62811,7 +63088,11 @@ def run_gui() -> int:
                         )
 
                     self._run_utility_task_when_idle(
-                        status_message=f"Writing {build_entry.basename} into a mod-ready loose package...",
+                        status_message=(
+                            f"Patching {build_entry.basename} into game archive files..."
+                            if destination == "patch"
+                            else f"Writing {build_entry.basename} into a mod-ready loose package..."
+                        ),
                         task=_commit_task,
                         on_complete=_handle_commit_complete,
                         on_error=lambda message: _finish_builder_status(
@@ -62835,7 +63116,37 @@ def run_gui() -> int:
                         ):
                             _finish_builder_status("Mesh import cancelled after validation review.", False)
                             return
-                    _set_builder_status("Writing loose mod package...")
+                    if destination == "patch":
+                        target_paths = list(
+                            self._mesh_direct_patch_target_paths(
+                                build_entry,
+                                result,
+                                paired_entry=paired_entry,
+                                supplemental_specs=tuple(result.supplemental_file_specs or ()),
+                            )
+                        )
+                        custom_icon_override = (
+                            getattr(static_replacement_options, "custom_item_icon_override", None)
+                            if static_replacement_options is not None
+                            else None
+                        )
+                        if isinstance(custom_icon_override, ItemIconOverrideSpec):
+                            custom_icon_target = getattr(custom_icon_override, "target_entry", None)
+                            if isinstance(custom_icon_target, ArchiveEntry):
+                                custom_icon_path = str(custom_icon_target.path or "").replace("\\", "/").strip()
+                                if custom_icon_path and custom_icon_path.casefold() not in {
+                                    path.casefold() for path in target_paths
+                                }:
+                                    target_paths.append(custom_icon_path)
+                        if not self._confirm_mesh_direct_archive_patch(
+                            target_paths,
+                            parent=build_dialog_parent,
+                        ):
+                            _finish_builder_status("Mesh archive patch cancelled before writing game files.", False)
+                            return
+                        _set_builder_status("Patching game archive files...")
+                    else:
+                        _set_builder_status("Writing loose mod package...")
                     _start_commit(result)
 
                 self._run_utility_task(
