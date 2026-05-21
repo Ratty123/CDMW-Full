@@ -1308,9 +1308,68 @@ class StaticTextureReplacementTests(unittest.TestCase):
             '<MaterialParameterTexture _name="_grimeDiffuseTextureR"><ResourceReferencePath_ITexture _path="character/texture/grime.dds"/></MaterialParameterTexture>'
             '<MaterialParameterTexture _name="_detailDiffuseMaskG"><ResourceReferencePath_ITexture _path="character/texture/detail_d.dds"/></MaterialParameterTexture>'
             '<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/original_n.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_detailNormalMaskR"><ResourceReferencePath_ITexture _path="character/texture/detail_n.dds"/></MaterialParameterTexture>'
             '<MaterialParameterTexture _name="_heightTexture"><ResourceReferencePath_ITexture _path="character/texture/original_disp.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_detailHeightMaskR"><ResourceReferencePath_ITexture _path="character/texture/detail_h.dds"/></MaterialParameterTexture>'
             '<MaterialParameterTexture _name="_colorBlendingMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/original_ma.dds"/></MaterialParameterTexture>'
             '<MaterialParameterTexture _name="_detailMaterialMaskB"><ResourceReferencePath_ITexture _path="character/texture/detail_ma.dds"/></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+        )
+        patched, changed_wrappers, used_paths, _changed_names = _build_source_driven_sidecar_text(
+            sidecar_text,
+            {
+                "Blade": (
+                    ("_overlayColorTexture", "character/texture/source_base.dds", "base"),
+                    ("_normalTexture", "character/texture/source_n.dds", "normal"),
+                    ("_colorBlendingMaskTexture", "character/texture/source_ma.dds", "material_mask"),
+                    ("_cdmwNeutralNormalTexture", "character/texture/neutral_n.dds", "neutral_normal"),
+                    ("_cdmwNeutralHeightTexture", "character/texture/neutral_height.dds", "neutral_height"),
+                    ("_cdmwNeutralMaterialTexture", "character/texture/neutral_material.dds", "neutral_material"),
+                    ("_cdmwNeutralDetailTexture", "character/texture/neutral_detail.dds", "neutral_detail"),
+                )
+            },
+            exact_only=True,
+            insert_missing_slots=True,
+            material_authority_bruteforce=True,
+        )
+
+        self.assertEqual(1, changed_wrappers)
+        self.assertNotIn("original_o.dds", patched)
+        self.assertNotIn("grime.dds", patched)
+        self.assertNotIn("original_disp.dds", patched)
+        self.assertNotIn("detail_h.dds", patched)
+        self.assertIn('_name="_grimeDiffuseTextureR"', patched)
+        self.assertIn('_name="_detailMaterialMaskB"', patched)
+        self.assertIn("character/texture/source_base.dds", patched)
+        self.assertIn("character/texture/source_n.dds", patched)
+        self.assertIn("character/texture/source_ma.dds", patched)
+        self.assertIn("character/texture/neutral_detail.dds", patched)
+        self.assertIn("character/texture/neutral_n.dds", patched)
+        self.assertIn("character/texture/neutral_height.dds", patched)
+        self.assertIn("character/texture/neutral_material.dds", patched)
+        self.assertRegex(patched, r'_name="_heightTexture"[\s\S]*?neutral_height\.dds')
+        self.assertRegex(patched, r'_name="_detailHeightMaskR"[\s\S]*?neutral_height\.dds')
+        self.assertRegex(patched, r'_name="_detailNormalMaskR"[\s\S]*?neutral_n\.dds')
+        self.assertRegex(patched, r'_name="_grimeDiffuseTextureR"[\s\S]*?neutral_detail\.dds')
+        self.assertRegex(patched, r'_name="_detailMaterialMaskB"[\s\S]*?neutral_material\.dds')
+        self.assertEqual(
+            {
+                "character/texture/source_base.dds",
+                "character/texture/source_n.dds",
+                "character/texture/source_ma.dds",
+                "character/texture/neutral_n.dds",
+                "character/texture/neutral_height.dds",
+                "character/texture/neutral_material.dds",
+                "character/texture/neutral_detail.dds",
+            },
+            used_paths,
+        )
+
+    def test_all_slots_saturation_probe_keeps_old_ma_to_height_behavior(self) -> None:
+        sidecar_text = (
+            '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade"><Material><Vector Name="_parameters">'
+            '<MaterialParameterTexture _name="_heightTexture"><ResourceReferencePath_ITexture _path="character/texture/original_disp.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_detailHeightMaskR"><ResourceReferencePath_ITexture _path="character/texture/detail_h.dds"/></MaterialParameterTexture>'
             "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
         )
         patched, changed_wrappers, used_paths, _changed_names = _build_source_driven_sidecar_text(
@@ -1323,27 +1382,16 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 )
             },
             exact_only=True,
-            insert_missing_slots=True,
+            insert_missing_slots=False,
             material_authority_bruteforce=True,
+            all_slots_saturation_probe=True,
         )
 
         self.assertEqual(1, changed_wrappers)
-        self.assertNotIn("original_o.dds", patched)
-        self.assertNotIn("grime.dds", patched)
         self.assertNotIn("original_disp.dds", patched)
-        self.assertIn('_name="_grimeDiffuseTextureR"', patched)
-        self.assertIn('_name="_detailMaterialMaskB"', patched)
-        self.assertIn("character/texture/source_base.dds", patched)
-        self.assertIn("character/texture/source_n.dds", patched)
-        self.assertIn("character/texture/source_ma.dds", patched)
-        self.assertEqual(
-            {
-                "character/texture/source_base.dds",
-                "character/texture/source_n.dds",
-                "character/texture/source_ma.dds",
-            },
-            used_paths,
-        )
+        self.assertRegex(patched, r'_name="_heightTexture"[\s\S]*?source_ma\.dds')
+        self.assertRegex(patched, r'_name="_detailHeightMaskR"[\s\S]*?source_ma\.dds')
+        self.assertIn("character/texture/source_ma.dds", used_paths)
 
     def test_active_file_authority_audit_detects_stale_dmmsa_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1434,6 +1482,151 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertFalse([payload for payload in payloads if payload.kind == "texture_generated"])
             self.assertTrue(report.errors)
             self.assertIn("multiple source texture sets", "\n".join(report.errors))
+
+    def test_quality_safe_bruteforce_uses_factor_only_gem_instead_of_lambert_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            lambert_base = root / "lambert1_baseColor.png"
+            Image.new("RGB", (4, 4), (40, 40, 48)).save(lambert_base)
+            base_template = root / "base.dds"
+            base_template.write_bytes(_fake_dds_bytes(4, 4))
+            base_entry = _entry("character/texture/original_base.dds", root)
+            sidecar_entry = _entry("character/modelproperty/test_weapon.pac_xml", root)
+            sidecar_text = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Gem_0015">'
+                '<Material><Vector Name="_parameters">'
+                '<MaterialParameterTexture _name="_overlayColorTexture">'
+                '<ResourceReferencePath_ITexture _path="character/texture/original_base.dds"/>'
+                '</MaterialParameterTexture>'
+                '</Vector></Material></SkinnedMeshMaterialWrapper></Root>'
+            )
+            mesh = ParsedMesh(
+                submeshes=[
+                    SubMesh(name="Blade", material="lambert1", texture=str(lambert_base), vertices=[(0.0, 0.0, 0.0)], faces=[(0, 0, 0)]),
+                    SubMesh(name="Gem", material="Gem_outside", vertices=[(0.0, 0.0, 0.0)], faces=[(0, 0, 0)]),
+                ]
+            )
+            mesh.submeshes[0].texture_slots = (("base", lambert_base),)
+            mesh.submeshes[1].preview_color = (1.0, 0.0, 0.0)
+
+            def fake_native_encode(_source: Path, target: Path, **kwargs: object) -> dict[str, object]:
+                target.write_bytes(_fake_dds_bytes(int(kwargs["width"]), int(kwargs["height"]), mips=int(kwargs["mip_count"])))
+                return {"ok": True}
+
+            with patch("cdmw.core.texture_native.encode_dds_with_directxtex", side_effect=fake_native_encode):
+                payloads, report = build_texture_replacement_payloads(
+                    obj_mesh=mesh,
+                    rebuilt_mesh=ParsedMesh(
+                        submeshes=[
+                            SubMesh(name="CD_PHM_02_Gem_0015", material="CD_PHM_02_Gem_0015", vertices=[(0.0, 0.0, 0.0)], faces=[(0, 0, 0)]),
+                        ]
+                    ),
+                    texture_files=(lambert_base,),
+                    original_texture_refs=(
+                        ArchiveModelTextureReference(
+                            reference_name=base_entry.path,
+                            material_name="CD_PHM_02_Gem_0015",
+                            sidecar_parameter_name="_overlayColorTexture",
+                            resolved_archive_path=base_entry.path,
+                            resolved_entry=base_entry,
+                        ),
+                    ),
+                    original_sidecars=((sidecar_entry, sidecar_text),),
+                    submesh_mappings=(),
+                    texconv_path=None,
+                    read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
+                    original_texture_source_path=lambda _entry: base_template,
+                    pac_driven_sidecar=True,
+                    complete_external_material_reset=True,
+                    complete_swap_material_profile="material_authority_bruteforce",
+                    output_draw_sections=(
+                        StaticOutputDrawSection(0, 0, "CD_PHM_02_Gem_0015", [1], 0, 0, "CD_PHM_02_Gem_0015", 1, False),
+                    ),
+                )
+
+            self.assertFalse(report.errors)
+            patched = next(payload.payload_data.decode("utf-8") for payload in payloads if payload.kind == "sidecar_generated")
+            self.assertIn("gem_outside_base", patched.lower())
+            self.assertNotIn("lambert1_basecolor", patched.lower())
+            texture_targets = "\n".join(payload.target_path.lower() for payload in payloads if payload.kind == "texture_generated")
+            self.assertIn("gem_outside_base", texture_targets)
+
+    def test_quality_safe_bruteforce_routes_factor_only_gem_emissive_when_mapped(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            base_template = root / "base.dds"
+            base_template.write_bytes(_fake_dds_bytes(4, 4))
+            base_entry = _entry("character/texture/original_base.dds", root)
+            sidecar_entry = _entry("character/modelproperty/test_weapon.pac_xml", root)
+            sidecar_text = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Gem_0015">'
+                '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+                '<MaterialParameterTexture _name="_overlayColorTexture">'
+                '<ResourceReferencePath_ITexture _path="character/texture/original_base.dds"/>'
+                '</MaterialParameterTexture>'
+                '</Vector></Material></SkinnedMeshMaterialWrapper></Root>'
+            )
+            mesh = ParsedMesh(
+                submeshes=[
+                    SubMesh(name="Gem", material="Gem_inside", vertices=[(0.0, 0.0, 0.0)], faces=[(0, 0, 0)]),
+                ]
+            )
+            mesh.submeshes[0].preview_color = (0.0, 1.0, 0.8)
+            mesh.submeshes[0].preview_material_parameters = (
+                PreviewMaterialParameterInput(
+                    parameter_kind="color",
+                    parameter_name="_emissiveColor",
+                    color_value=(1.0, 0.0, 0.0),
+                ),
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_emissiveIntensity",
+                    numeric_value=8.0,
+                ),
+            )
+
+            def fake_native_encode(_source: Path, target: Path, **kwargs: object) -> dict[str, object]:
+                target.write_bytes(_fake_dds_bytes(int(kwargs["width"]), int(kwargs["height"]), mips=int(kwargs["mip_count"])))
+                return {"ok": True}
+
+            with patch("cdmw.core.texture_native.encode_dds_with_directxtex", side_effect=fake_native_encode):
+                payloads, report = build_texture_replacement_payloads(
+                    obj_mesh=mesh,
+                    rebuilt_mesh=ParsedMesh(
+                        submeshes=[
+                            SubMesh(name="CD_PHM_02_Gem_0015", material="CD_PHM_02_Gem_0015", vertices=[(0.0, 0.0, 0.0)], faces=[(0, 0, 0)]),
+                        ]
+                    ),
+                    texture_files=(),
+                    original_texture_refs=(
+                        ArchiveModelTextureReference(
+                            reference_name=base_entry.path,
+                            material_name="CD_PHM_02_Gem_0015",
+                            sidecar_parameter_name="_overlayColorTexture",
+                            resolved_archive_path=base_entry.path,
+                            resolved_entry=base_entry,
+                        ),
+                    ),
+                    original_sidecars=((sidecar_entry, sidecar_text),),
+                    submesh_mappings=(),
+                    texconv_path=None,
+                    read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
+                    original_texture_source_path=lambda _entry: base_template,
+                    pac_driven_sidecar=True,
+                    complete_external_material_reset=True,
+                    complete_swap_material_profile="material_authority_bruteforce",
+                    output_draw_sections=(
+                        StaticOutputDrawSection(0, 0, "CD_PHM_02_Gem_0015", [0], 0, 0, "CD_PHM_02_Gem_0015", 1, False),
+                    ),
+                )
+
+            self.assertFalse(report.errors)
+            patched = next(payload.payload_data.decode("utf-8") for payload in payloads if payload.kind == "sidecar_generated")
+            self.assertIn("_emissiveIntensityTexture", patched)
+            self.assertIn("gem_inside_emissive", patched.lower())
+            self.assertIn('SkinnedMeshEmissive_Ver2', patched)
 
     def test_complete_swap_binds_source_materials_into_original_runtime_wrappers(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2248,6 +2441,71 @@ class StaticTextureReplacementTests(unittest.TestCase):
             output_dds = root / "output.dds"
             output_dds.write_bytes(payload)
             self.assertEqual("BC1_UNORM", parse_dds(output_dds).texconv_format)
+
+    def test_quality_safe_profiles_override_source_owned_dds_formats(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_png = root / "base.png"
+            normal_png = root / "normal.png"
+            mask_png = root / "mask.png"
+            original_dds = root / "original.dds"
+            for path in (base_png, normal_png, mask_png):
+                Image.new("RGBA", (4, 4), (128, 128, 255, 255)).save(path)
+            original_dds.write_bytes(_fake_dds_bytes(4, 4, mips=1, fourcc=b"DXT1"))
+            seen_formats: list[str] = []
+
+            def fake_native_encode(_source: Path, target: Path, **kwargs: object) -> dict[str, object]:
+                seen_formats.append(str(kwargs["dds_format"]))
+                target.write_bytes(_fake_dds_bytes(int(kwargs["width"]), int(kwargs["height"]), mips=int(kwargs["mip_count"])))
+                return {"ok": True}
+
+            report = TextureReplacementReport()
+            with patch("cdmw.core.texture_native.encode_dds_with_directxtex", side_effect=fake_native_encode):
+                _build_texture_payload(
+                    ReplacementTextureSlot("Blade", "base", base_png),
+                    target_entry=object(),
+                    texconv_path=None,
+                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                    original_texture_source_path=lambda _entry: original_dds,
+                    report=report,
+                    on_log=None,
+                    material_profile=get_complete_swap_material_profile("material_authority_bruteforce"),
+                )
+                _build_texture_payload(
+                    ReplacementTextureSlot("Blade", "normal", normal_png),
+                    target_entry=object(),
+                    texconv_path=None,
+                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                    original_texture_source_path=lambda _entry: original_dds,
+                    report=report,
+                    on_log=None,
+                    material_profile=get_complete_swap_material_profile("material_authority_bruteforce"),
+                )
+                _build_texture_payload(
+                    ReplacementTextureSlot("Blade", "material_mask", mask_png),
+                    target_entry=object(),
+                    texconv_path=None,
+                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                    original_texture_source_path=lambda _entry: original_dds,
+                    report=report,
+                    on_log=None,
+                    material_profile=get_complete_swap_material_profile("material_authority_bruteforce"),
+                )
+                _build_texture_payload(
+                    ReplacementTextureSlot("Blade", "material_mask", mask_png),
+                    target_entry=object(),
+                    texconv_path=None,
+                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                    original_texture_source_path=lambda _entry: original_dds,
+                    report=report,
+                    on_log=None,
+                    material_profile=get_complete_swap_material_profile("format_probe_bc3"),
+                )
+
+            self.assertEqual(["BC7_UNORM_SRGB", "BC5_UNORM", "BC7_UNORM", "BC3_UNORM"], seen_formats)
+            self.assertTrue(any("source-owned close-up quality" in warning for warning in report.warnings))
 
     def test_non_material_bc1_encode_keeps_source_alpha(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
