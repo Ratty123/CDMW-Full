@@ -141,6 +141,11 @@ class CDMaterialRuntimeProfile:
     scratch_roughness: Optional[float] = None
     scratch_metallic: Optional[float] = None
     shine_scalar: Optional[float] = None
+    neutral_color_rgb: tuple[int, int, int] = ()
+    preserve_scratch_alpha: bool = False
+    displacement_scale_multiplier: Optional[float] = None
+    displacement_scale_max: Optional[float] = None
+    allow_factor_only_authority: bool = False
     note: str = ""
 
 
@@ -283,6 +288,27 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
                 "color/normal/material slot to source-derived DDS so CD layer stacks cannot use stock textures."
             ),
         ),
+        CDMaterialRuntimeProfile(
+            name="material_authority_bruteforce_tuned",
+            label="Material Authority Brute Force Tuned",
+            ma_layout="arm",
+            material_mask_layout="ao_roughness_metallic_alpha",
+            ao_mode="white",
+            emissive_mode="intensity",
+            support_policy="source_only",
+            scratch_roughness=0.88,
+            scratch_metallic=0.0,
+            shine_scalar=0.20,
+            neutral_color_rgb=(216, 216, 216),
+            preserve_scratch_alpha=True,
+            displacement_scale_multiplier=0.35,
+            displacement_scale_max=0.04,
+            allow_factor_only_authority=True,
+            note=(
+                "Opt-in brute-force fine tune: keep source-owned texture authority, mute neutralized tint/dye response, "
+                "preserve limited displacement edge definition, and allow exact factor-only gem materials."
+            ),
+        ),
     )
 
 
@@ -300,6 +326,9 @@ def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRunt
         "bruteforce": "material_authority_bruteforce",
         "material_bruteforce": "material_authority_bruteforce",
         "authority_bruteforce": "material_authority_bruteforce",
+        "bruteforce_tuned": "material_authority_bruteforce_tuned",
+        "material_bruteforce_tuned": "material_authority_bruteforce_tuned",
+        "bitbright_tune": "material_authority_bruteforce_tuned",
     }
     normalized = aliases.get(normalized, normalized)
     profiles = {profile.name: profile for profile in complete_swap_material_runtime_profiles()}
@@ -329,6 +358,11 @@ def complete_swap_material_profile_to_dict(profile: CDMaterialRuntimeProfile) ->
         "scratch_roughness": profile.scratch_roughness,
         "scratch_metallic": profile.scratch_metallic,
         "shine_scalar": profile.shine_scalar,
+        "neutral_color_rgb": tuple(profile.neutral_color_rgb),
+        "preserve_scratch_alpha": bool(profile.preserve_scratch_alpha),
+        "displacement_scale_multiplier": profile.displacement_scale_multiplier,
+        "displacement_scale_max": profile.displacement_scale_max,
+        "allow_factor_only_authority": bool(profile.allow_factor_only_authority),
         "note": profile.note,
     }
 
@@ -397,6 +431,11 @@ def complete_swap_material_probe_manifest(
             "scratch_roughness": profile.scratch_roughness,
             "scratch_metallic": profile.scratch_metallic,
             "shine_scalar": profile.shine_scalar,
+            "neutral_color_rgb": tuple(profile.neutral_color_rgb),
+            "preserve_scratch_alpha": bool(profile.preserve_scratch_alpha),
+            "displacement_scale_multiplier": profile.displacement_scale_multiplier,
+            "displacement_scale_max": profile.displacement_scale_max,
+            "allow_factor_only_authority": bool(profile.allow_factor_only_authority),
         },
     }
 
@@ -1688,6 +1727,8 @@ def _build_source_driven_pac_material_payloads(
     ) -> Optional[ReplacementTextureSet]:
         if not complete_external_material_reset or not _profile_is_source_only(material_profile):
             return texture_set
+        if _profile_allows_factor_only_authority(material_profile) and _texture_set_has_source_authority_data(texture_set):
+            return texture_set
         if _texture_set_has_real_source_texture(texture_set):
             return texture_set
         fallback_candidates = [
@@ -1903,6 +1944,7 @@ def _build_source_driven_pac_material_payloads(
                 material_names=list(changed_wrapper_names) or list(target_bindings.keys()),
                 keep_rules=keep_rules,
                 complete_external_reset=bool(complete_external_material_reset),
+                material_profile=material_profile,
             )
             if neutralized_parameters:
                 if complete_external_material_reset:
@@ -2431,6 +2473,7 @@ def _source_driven_slots(
     mask_binding_mode = _profile_mask_binding_mode(profile)
     support_policy = _profile_support_policy(profile)
     source_only = _profile_is_source_only(profile)
+    allow_factor_only_authority = _profile_allows_factor_only_authority(profile)
     order = ("base", "normal", "height", "material_mask", "detail_mask", "emissive")
     slots: list[ReplacementTextureSlot] = []
     seen_paths: set[tuple[str, str]] = set()
@@ -2445,7 +2488,8 @@ def _source_driven_slots(
         if source_slot is None:
             continue
         if source_only and not _source_slot_is_real_texture(source_slot):
-            continue
+            if not (allow_factor_only_authority and _source_slot_is_synthetic_factor_authority(source_slot)):
+                continue
         key = (str(source_slot.source_path.expanduser().resolve()).lower(), str(source_slot.slot_kind).lower())
         if key in seen_paths:
             continue
@@ -2565,7 +2609,57 @@ def _profile_is_source_only(material_profile: CDMaterialRuntimeProfile) -> bool:
 
 
 def _profile_is_material_authority_bruteforce(material_profile: CDMaterialRuntimeProfile) -> bool:
-    return _sanitize_texture_component(str(getattr(material_profile, "name", "") or "")) == "material_authority_bruteforce"
+    return _sanitize_texture_component(str(getattr(material_profile, "name", "") or "")) in {
+        "material_authority_bruteforce",
+        "material_authority_bruteforce_tuned",
+    }
+
+
+def _profile_allows_factor_only_authority(material_profile: CDMaterialRuntimeProfile) -> bool:
+    return bool(getattr(material_profile, "allow_factor_only_authority", False))
+
+
+def _profile_neutral_color_rgb(material_profile: Optional[CDMaterialRuntimeProfile]) -> Optional[tuple[int, int, int]]:
+    if material_profile is None:
+        return None
+    raw = tuple(getattr(material_profile, "neutral_color_rgb", ()) or ())
+    if len(raw) < 3:
+        return None
+    try:
+        return tuple(max(0, min(255, int(component))) for component in raw[:3])  # type: ignore[return-value]
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _profile_displacement_scale_multiplier(material_profile: Optional[CDMaterialRuntimeProfile]) -> Optional[float]:
+    if material_profile is None:
+        return None
+    raw = getattr(material_profile, "displacement_scale_multiplier", None)
+    if raw is None:
+        return None
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _profile_displacement_scale_max(material_profile: Optional[CDMaterialRuntimeProfile]) -> Optional[float]:
+    if material_profile is None:
+        return None
+    raw = getattr(material_profile, "displacement_scale_max", None)
+    if raw is None:
+        return None
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _format_profile_color_hex(rgb: tuple[int, int, int], alpha: str = "ff") -> str:
+    alpha_text = re.sub(r"[^0-9a-fA-F]+", "", str(alpha or "ff"))[:2] or "ff"
+    if len(alpha_text) < 2:
+        alpha_text = alpha_text.ljust(2, "f")
+    return f"#{int(rgb[0]):02x}{int(rgb[1]):02x}{int(rgb[2]):02x}{alpha_text.lower()}"
 
 
 def _complete_swap_material_divergence_reasons(
@@ -2614,9 +2708,29 @@ def _source_slot_is_real_texture(source_slot: ReplacementTextureSlot) -> bool:
     return authority != "synthetic"
 
 
+def _source_slot_is_synthetic_factor_authority(source_slot: ReplacementTextureSlot) -> bool:
+    authority = str(getattr(source_slot, "source_authority", "") or "").strip().lower()
+    if authority != "synthetic":
+        return False
+    slot_kind = str(getattr(source_slot, "slot_kind", "") or "").strip().lower()
+    if slot_kind not in {"base", "emissive"}:
+        return False
+    if tuple(getattr(source_slot, "base_color_factor", ()) or ()):
+        return True
+    source_name = str(getattr(source_slot, "source_path", "") or "").replace("\\", "/").lower()
+    return "_base_" in source_name or "_emissive_" in source_name
+
+
 def _texture_set_has_real_source_texture(texture_set: ReplacementTextureSet) -> bool:
     return any(
         _source_slot_is_real_texture(slot)
+        for slot in (getattr(texture_set, "slots", {}) or {}).values()
+    )
+
+
+def _texture_set_has_source_authority_data(texture_set: ReplacementTextureSet) -> bool:
+    return any(
+        _source_slot_is_real_texture(slot) or _source_slot_is_synthetic_factor_authority(slot)
         for slot in (getattr(texture_set, "slots", {}) or {}).values()
     )
 
@@ -7498,6 +7612,7 @@ def _neutralize_inherited_material_layers(
     material_names: Sequence[str] = (),
     keep_rules: Sequence[tuple[str, str]] = (),
     complete_external_reset: bool = False,
+    material_profile: Optional[CDMaterialRuntimeProfile] = None,
 ) -> tuple[str, int, int]:
     target_keys = {
         _normalize_sidecar_material_name(str(name or ""))
@@ -7545,6 +7660,10 @@ def _neutralize_inherited_material_layers(
     reset_one_float_tokens = (
         "brightness",
     )
+    neutral_rgb = _profile_neutral_color_rgb(material_profile)
+    displacement_multiplier = _profile_displacement_scale_multiplier(material_profile)
+    displacement_max = _profile_displacement_scale_max(material_profile)
+    preserve_scratch_alpha = bool(getattr(material_profile, "preserve_scratch_alpha", False)) if material_profile is not None else False
     edited_wrappers = 0
     edited_parameters = 0
 
@@ -7646,7 +7765,17 @@ def _neutralize_inherited_material_layers(
             if not complete_external_reset:
                 return float_match.group(0)
             if any(token in normalized_parameter for token in reset_zero_float_tokens):
-                replacement_value = "0.000000"
+                if displacement_multiplier is not None:
+                    try:
+                        original_float = max(0.0, float(str(float_match.group(3) or "0") or 0.0))
+                    except (TypeError, ValueError, OverflowError):
+                        original_float = 0.0
+                    replacement_float = original_float * displacement_multiplier
+                    if displacement_max is not None:
+                        replacement_float = min(replacement_float, displacement_max)
+                    replacement_value = f"{max(0.0, replacement_float):.6f}"
+                else:
+                    replacement_value = "0.000000"
             elif any(token in normalized_parameter for token in reset_one_float_tokens):
                 replacement_value = "1.000000"
             else:
@@ -7687,13 +7816,23 @@ def _neutralize_inherited_material_layers(
             if not any(token in parameter_name for token in neutral_color_tokens):
                 return color_match.group(0)
             original_value = str(color_match.group(3) or "").strip()
-            replacement_value = (
-                "#ffffffff"
-                if complete_external_reset and original_value.startswith("#")
-                else "#ffffff00"
-                if original_value.startswith("#")
-                else "1.000000 1.000000 1.000000"
-            )
+            if neutral_rgb is not None:
+                if original_value.startswith("#"):
+                    alpha = "ff"
+                    hex_value = original_value[1:]
+                    if preserve_scratch_alpha and "scratchtint" in parameter_name and len(hex_value) >= 8:
+                        alpha = hex_value[6:8]
+                    replacement_value = _format_profile_color_hex(neutral_rgb, alpha)
+                else:
+                    replacement_value = " ".join(f"{component / 255.0:.6f}" for component in neutral_rgb)
+            else:
+                replacement_value = (
+                    "#ffffffff"
+                    if complete_external_reset and original_value.startswith("#")
+                    else "#ffffff00"
+                    if original_value.startswith("#")
+                    else "1.000000 1.000000 1.000000"
+                )
             if original_value == replacement_value:
                 return color_match.group(0)
             wrapper_edits += 1
