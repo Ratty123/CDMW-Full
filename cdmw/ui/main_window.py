@@ -249,6 +249,17 @@ from cdmw.core.structured_binary_editor import (
 from cdmw.core.model_catalogue import IMPORTABLE_MODEL_EXTENSIONS, is_importable_model_path
 
 
+def _complete_swap_allows_inherited_layer_color_bindings(options: object = None) -> bool:
+    raw_profile_name = getattr(options, "complete_swap_material_profile", options)
+    profile_name = str(raw_profile_name or "").strip().casefold()
+    return profile_name in {
+        "material_authority_detail_preserve",
+        "detail_preserve",
+        "target_detail_preserve",
+        "stock_detail_preserve",
+    }
+
+
 @dataclasses.dataclass(slots=True)
 class MeshImportSetupSelection:
     scene_path: Path
@@ -60547,20 +60558,6 @@ def run_gui() -> int:
                         write_complete_swap_calibrated_material_profile(complete_swap_profile_store_path, requested)
                     except Exception:
                         pass
-
-            def _complete_swap_allows_inherited_layer_color_bindings(options: object = None) -> bool:
-                raw_profile_name = (
-                    getattr(options, "complete_swap_material_profile", "")
-                    if options is not None
-                    else complete_swap_material_profile_combo.currentData()
-                )
-                profile_name = str(raw_profile_name or "").strip().casefold()
-                return profile_name in {
-                    "material_authority_detail_preserve",
-                    "detail_preserve",
-                    "target_detail_preserve",
-                    "stock_detail_preserve",
-                }
 
             complete_swap_profile_store_path = self.settings_file_path.parent / "complete_swap_material_profile.json"
             stored_complete_swap_material_profile = read_complete_swap_calibrated_material_profile(
