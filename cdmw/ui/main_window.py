@@ -41465,6 +41465,13 @@ def run_gui() -> int:
                 if final_preview.warnings:
                     detail_lines.append("Final output warnings:")
                     detail_lines.extend(f"- {warning}" for warning in final_preview.warnings[:12])
+                if final_preview.preflight_errors:
+                    detail_lines.append(
+                        "Final output preflight warnings:"
+                        if patched
+                        else "Final output preflight blockers:"
+                    )
+                    detail_lines.extend(f"- {blocker}" for blocker in final_preview.preflight_errors[:12])
                 if final_preview.missing_texture_paths:
                     detail_lines.append("Missing final texture path examples:")
                     detail_lines.extend(f"- {path}" for path in final_preview.missing_texture_paths[:8])
@@ -41491,6 +41498,11 @@ def run_gui() -> int:
                 warning_text = "This rebuilt mesh has been patched directly into the scanned game archives."
                 if backup_dir is not None:
                     warning_text += f"\n\nBackup: {backup_dir}"
+                if isinstance(final_preview, FinalPackagePreviewResult) and final_preview.preflight_errors:
+                    first_warning = str(final_preview.preflight_errors[0] or "").strip()
+                    if len(first_warning) > 320:
+                        first_warning = first_warning[:317].rstrip() + "..."
+                    warning_text += f"\n\nMaterial preflight warning: {first_warning}"
             elif loose_package_root is not None:
                 warning_badge = "Loose export"
                 if isinstance(final_preview, FinalPackagePreviewResult):
@@ -62868,17 +62880,24 @@ def run_gui() -> int:
                             blockers = "\n".join(f"- {line}" for line in blocker_lines[:12])
                             if len(pre_export_preview.preflight_errors) > 12:
                                 blockers += f"\n- ... {len(pre_export_preview.preflight_errors) - 12:,} more blocker(s)"
-                            log(
-                                "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
-                                + blockers
-                            )
-                            return {
-                                "preview": preview_result,
-                                "loose": None,
-                                "patch": None,
-                                "final_preview": pre_export_preview,
-                                "preflight_blocked": blocker_lines,
-                            }
+                            if destination == "patch":
+                                log(
+                                    "Final package texture preflight found direct archive patch warning(s); "
+                                    "continuing because Patch Game Files only writes existing archive entries:\n"
+                                    + blockers
+                                )
+                            else:
+                                log(
+                                    "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
+                                    + blockers
+                                )
+                                return {
+                                    "preview": preview_result,
+                                    "loose": None,
+                                    "patch": None,
+                                    "final_preview": pre_export_preview,
+                                    "preflight_blocked": blocker_lines,
+                                }
                         if destination == "patch":
                             if not requests:
                                 raise ValueError("No archive patch requests could be built for the rebuilt mesh.")
