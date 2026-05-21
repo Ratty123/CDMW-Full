@@ -1728,6 +1728,12 @@ def _build_source_driven_pac_material_payloads(
     )
     prune_removed_target_texture_parameters = bool(prune_removed_target_texture_parameters and removed_target_material_names)
     prune_unmapped_original_texture_parameters = bool(prune_unmapped_original_texture_parameters)
+    if _profile_preserves_target_layer_response(material_profile):
+        prune_unmapped_original_texture_parameters = False
+        _warn_once(
+            report,
+            "Material authority detail preserve: keeping target CD height/material/detail layer texture parameters.",
+        )
     if material_authority_bruteforce:
         prune_unmapped_original_texture_parameters = False
         _warn_once(
