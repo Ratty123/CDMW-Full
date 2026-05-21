@@ -302,8 +302,8 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
             support_policy="source_only",
             scratch_roughness=1.0,
             scratch_metallic=0.0,
-            shine_scalar=0.02,
-            neutral_color_rgb=(204, 204, 204),
+            shine_scalar=0.0,
+            neutral_color_rgb=(216, 216, 216),
             preserve_scratch_alpha=True,
             displacement_scale_multiplier=0.0,
             displacement_scale_max=0.0,
@@ -2546,7 +2546,10 @@ def _source_driven_slots(
     if source_only:
         existing_kinds = {str(slot.slot_kind or "").strip().lower() for slot in slots}
         if include_complete_support_fallbacks and _profile_forces_neutral_layer_support(profile):
+            has_explicit_source_pbr = _texture_set_has_explicit_source_pbr(texture_set)
             for fallback_kind in ("normal", "height", "material_mask", "detail_mask"):
+                if fallback_kind == "material_mask" and has_explicit_source_pbr and mask_binding_mode != "disabled":
+                    continue
                 if fallback_kind in existing_kinds:
                     continue
                 source_slot = _complete_swap_neutral_support_slot(texture_set, fallback_kind, material_profile=profile)

@@ -31,6 +31,7 @@ from cdmw.modding.asset_replacement import classify_texture_binding
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.material_replacer import (
     ReplacementTextureSlot,
+    ReplacementTextureSet,
     SidecarMaterialWrapperClone,
     SidecarPatchPlan,
     TextureSlotMapping,
@@ -1377,8 +1378,8 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertIn("character/texture/source_ma.dds", patched)
         self.assertIn('_name="_screenSpaceDisplacementScale" _value="0.000000"', patched)
         self.assertIn('_name="_detailScreenSpaceDisplacementScale" _value="0.000000"', patched)
-        self.assertIn('_name="_tintColorR" _value="#ccccccff"', patched)
-        self.assertIn('_name="_scratchTintColorR" _value="#cccccc36"', patched)
+        self.assertIn('_name="_tintColorR" _value="#d8d8d8ff"', patched)
+        self.assertIn('_name="_scratchTintColorR" _value="#d8d8d836"', patched)
         self.assertIn('_name="_grimeBlendingParameterR" _value="0"', patched)
 
     def test_material_authority_bruteforce_tuned_adds_missing_layer_byte_values(self) -> None:
@@ -1429,6 +1430,34 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertIn('_name="_detailHeightMaskR"><ResourceReferencePath_ITexture _path="character/texture/neutral_height.dds"', patched)
         self.assertIn('_name="_detailDiffuseMaskR"><ResourceReferencePath_ITexture _path="character/texture/source_base.dds"', patched)
         self.assertIn('_name="_detailMaterialMaskR"><ResourceReferencePath_ITexture _path="character/texture/source_ma.dds"', patched)
+
+    def test_material_authority_bruteforce_tuned_keeps_source_pbr_material_mask(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pbr_path = root / "lambert1_metallicRoughness.png"
+            pbr_path.write_bytes(b"")
+            texture_set = ReplacementTextureSet("lambert1")
+            texture_set.slots["material"] = ReplacementTextureSlot(
+                material_name="lambert1",
+                slot_kind="material",
+                source_path=pbr_path,
+                semantic_subtype="metallic_roughness",
+                packed_channels=("roughness", "metallic"),
+                source_authority="gltf",
+            )
+
+            slots = _source_driven_slots(
+                texture_set,
+                include_complete_support_fallbacks=True,
+                material_profile=get_complete_swap_material_profile("material_authority_bruteforce_tuned"),
+            )
+
+        by_kind = {slot.slot_kind: slot for slot in slots}
+        self.assertIn("height", by_kind)
+        self.assertIn("detail_mask", by_kind)
+        self.assertIn("material_mask", by_kind)
+        self.assertIn("_material_mask_material_authority_bruteforce_tuned_", by_kind["material_mask"].source_path.name)
+        self.assertNotIn("_material_mask_neutral_", by_kind["material_mask"].source_path.name)
 
     def test_material_authority_bruteforce_default_neutralization_stays_white_zero(self) -> None:
         sidecar_text = (
@@ -1518,7 +1547,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             patched = next(payload.payload_data.decode("utf-8") for payload in payloads if payload.kind == "sidecar_generated")
             self.assertIn("gem_outside_base", patched.lower())
             self.assertNotIn("lambert1", patched.lower())
-            self.assertIn("#ccccccff", patched)
+            self.assertIn("#d8d8d8ff", patched)
             texture_targets = "\n".join(payload.target_path.lower() for payload in payloads if payload.kind == "texture_generated")
             self.assertIn("gem_outside_base", texture_targets)
 
