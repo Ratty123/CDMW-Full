@@ -149,6 +149,7 @@ class CDMaterialRuntimeProfile:
     bruteforce_texture_scope: str = "all"
     force_neutral_layer_support: bool = False
     preserve_target_layer_response: bool = False
+    source_color_layer_authority: bool = False
     note: str = ""
 
 
@@ -330,6 +331,21 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
                 "CD height/material/detail layer response that carries edge detail and non-gloss calibration."
             ),
         ),
+        CDMaterialRuntimeProfile(
+            name="material_authority_source_color_relief_preserve",
+            label="Material Authority Source Color + Relief",
+            ma_layout="arm",
+            material_mask_layout="ao_roughness_metallic_alpha",
+            ao_mode="white",
+            support_policy="keep_original_support",
+            allow_factor_only_authority=True,
+            preserve_target_layer_response=True,
+            source_color_layer_authority=True,
+            note=(
+                "Comparison profile: route source base/factor color into visible CD color layers while "
+                "preserving target normal/height/material support response for edge relief."
+            ),
+        ),
     )
 
 
@@ -353,6 +369,10 @@ def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRunt
         "detail_preserve": "material_authority_detail_preserve",
         "target_detail_preserve": "material_authority_detail_preserve",
         "stock_detail_preserve": "material_authority_detail_preserve",
+        "source_color_relief": "material_authority_source_color_relief_preserve",
+        "color_relief": "material_authority_source_color_relief_preserve",
+        "source_color_target_relief": "material_authority_source_color_relief_preserve",
+        "material_authority_color_relief": "material_authority_source_color_relief_preserve",
     }
     normalized = aliases.get(normalized, normalized)
     profiles = {profile.name: profile for profile in complete_swap_material_runtime_profiles()}
@@ -390,6 +410,7 @@ def complete_swap_material_profile_to_dict(profile: CDMaterialRuntimeProfile) ->
         "bruteforce_texture_scope": profile.bruteforce_texture_scope,
         "force_neutral_layer_support": bool(profile.force_neutral_layer_support),
         "preserve_target_layer_response": bool(profile.preserve_target_layer_response),
+        "source_color_layer_authority": bool(profile.source_color_layer_authority),
         "note": profile.note,
     }
 
@@ -466,6 +487,7 @@ def complete_swap_material_probe_manifest(
             "bruteforce_texture_scope": profile.bruteforce_texture_scope,
             "force_neutral_layer_support": bool(profile.force_neutral_layer_support),
             "preserve_target_layer_response": bool(profile.preserve_target_layer_response),
+            "source_color_layer_authority": bool(profile.source_color_layer_authority),
         },
     }
 
@@ -1730,10 +1752,16 @@ def _build_source_driven_pac_material_payloads(
     prune_unmapped_original_texture_parameters = bool(prune_unmapped_original_texture_parameters)
     if _profile_preserves_target_layer_response(material_profile):
         prune_unmapped_original_texture_parameters = False
-        _warn_once(
-            report,
-            "Material authority detail preserve: keeping target CD height/material/detail layer texture parameters.",
-        )
+        if _profile_routes_source_color_to_layer_slots(material_profile):
+            _warn_once(
+                report,
+                "Material authority source color + relief: source color authoritative; target relief/support preserved.",
+            )
+        else:
+            _warn_once(
+                report,
+                "Material authority detail preserve: keeping target CD height/material/detail layer texture parameters.",
+            )
     if material_authority_bruteforce:
         prune_unmapped_original_texture_parameters = False
         _warn_once(
@@ -2689,6 +2717,10 @@ def _profile_forces_neutral_layer_support(material_profile: Optional[CDMaterialR
 
 def _profile_preserves_target_layer_response(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
     return bool(getattr(material_profile, "preserve_target_layer_response", False))
+
+
+def _profile_routes_source_color_to_layer_slots(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
+    return bool(getattr(material_profile, "source_color_layer_authority", False))
 
 
 def _profile_neutral_color_rgb(material_profile: Optional[CDMaterialRuntimeProfile]) -> Optional[tuple[int, int, int]]:
@@ -3707,6 +3739,14 @@ def _patch_source_driven_wrapper_texture_slots(
         if did_change:
             changed = True
             used_paths.add(texture_value)
+    if _profile_routes_source_color_to_layer_slots(material_profile):
+        patched, color_changed, color_used_paths = _route_source_base_to_visible_color_texture_parameters(
+            patched,
+            bindings,
+        )
+        if color_changed:
+            changed = True
+            used_paths.update(color_used_paths)
     if material_authority_bruteforce:
         patched, brute_changed, brute_used_paths = _bruteforce_source_authority_texture_parameters(
             patched,
@@ -3719,6 +3759,71 @@ def _patch_source_driven_wrapper_texture_slots(
     if changed and str(shader_name or "").strip():
         patched = _set_source_driven_wrapper_shader_name(patched, shader_name)
     return patched, changed, used_paths
+
+
+def _route_source_base_to_visible_color_texture_parameters(
+    wrapper_text: str,
+    bindings: Sequence[tuple[str, str, str]],
+) -> tuple[str, bool, set[str]]:
+    base_path = ""
+    for parameter_name, texture_path, slot_kind in tuple(bindings or ()):
+        slot = str(slot_kind or "").strip().lower()
+        parameter_key = str(parameter_name or "").strip().lower()
+        if slot == "base" or parameter_key in {"_overlaycolortexture", "_basecolortexture", "_diffusetexture", "_albedotexture"}:
+            base_path = str(texture_path or "").replace("\\", "/").strip()
+            if base_path:
+                break
+    if not base_path:
+        return wrapper_text, False, set()
+
+    texture_pattern = re.compile(
+        r"<MaterialParameterTexture\b[^>]*>.*?</MaterialParameterTexture>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    changed = False
+    used_paths: set[str] = set()
+
+    def is_visible_color_parameter(parameter_name: str, texture_path: str) -> bool:
+        parameter_key = str(parameter_name or "").strip().lower()
+        compact = re.sub(r"[^a-z0-9]+", "", parameter_key)
+        if any(token in compact for token in ("normal", "height", "displacement", "material", "roughness", "metallic", "metalness", "specular", "gloss", "ao", "occlusion")):
+            return False
+        if compact in {"colorblendingmasktexture", "detailmasktexture", "layermask"}:
+            return False
+        if any(
+            token in compact
+            for token in (
+                "overlaycolor",
+                "basecolor",
+                "diffusetexture",
+                "albedotexture",
+                "grimediffuse",
+                "detaildiffuse",
+                "emissivetexture",
+                "emissiveintensitytexture",
+                "rgbtexture",
+            )
+        ):
+            return True
+        return _texture_role_for_parameter_and_path(parameter_key, texture_path) == "base"
+
+    def patch_block(match: re.Match[str]) -> str:
+        nonlocal changed
+        block = match.group(0)
+        parameter_name = _sidecar_parameter_name(block)
+        path_match = re.search(r'(\b(?:_path|path|Path|_value|Value|value)=")([^"]*)(")', block, flags=re.IGNORECASE)
+        if path_match is None:
+            return block
+        current_path = str(path_match.group(2) or "").replace("\\", "/").strip()
+        if not is_visible_color_parameter(parameter_name, current_path):
+            return block
+        used_paths.add(base_path)
+        if current_path == base_path:
+            return block
+        changed = True
+        return block[: path_match.start()] + f"{path_match.group(1)}{_escape_xml_attr(base_path)}{path_match.group(3)}" + block[path_match.end() :]
+
+    return texture_pattern.sub(patch_block, wrapper_text), changed, used_paths
 
 
 def _bruteforce_source_authority_texture_parameters(
