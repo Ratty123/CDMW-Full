@@ -5,6 +5,7 @@ import copy
 import dataclasses
 import faulthandler
 import gc
+import hashlib
 import json
 import math
 import os
@@ -44178,9 +44179,11 @@ def run_gui() -> int:
                 "pending_model": None,
                 "pending_label": "",
                 "pending_display_mode": "",
+                "pending_reason": "",
                 "queued_model": None,
                 "queued_label": "",
                 "queued_display_mode": "",
+                "queued_reason": "",
                 "queued_transform_generation": 0,
                 "request_drag_generation": 0,
                 "request_drag_generations": {},
@@ -44188,10 +44191,19 @@ def run_gui() -> int:
                 "request_transform_generations": {},
                 "active_package_request_id": 0,
                 "active_package_display_mode": "",
+                "active_package_cache_key": "",
                 "request_display_modes": {},
+                "request_reasons": {},
+                "request_cache_keys": {},
                 "prepare_ms": 0.0,
                 "package_ms": 0.0,
                 "package_quality": "fast",
+                "package_cache": OrderedDict(),
+                "package_cache_limit": 4,
+                "last_cache_event": "miss",
+                "last_cache_reason": "geometry",
+                "last_rebuild_reason": "geometry",
+                "next_rebuild_reason": "",
                 "pending_fast_transform": None,
                 "source_to_d3d11_ids": {},
                 "d3d11_id_to_source_indices": {},
@@ -44359,6 +44371,13 @@ def run_gui() -> int:
             def _apply_alignment_preview_render_settings(*_args) -> None:
                 nonlocal preview_render_settings
                 preview_render_settings = _current_alignment_preview_render_settings()
+                if _alignment_d3d11_preview_active():
+                    alignment_d3d11_preview_host.set_render_tuning(preview_render_settings)
+                    _set_preview_performance_status(
+                        "D3D11 render tuning applied without rebuilding preview package.",
+                        details="cache=live-command reason=render_tuning",
+                    )
+                    return
                 for preview_widget in (
                     original_dialog_preview,
                     static_dialog_preview,
@@ -45113,9 +45132,11 @@ def run_gui() -> int:
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                 alignment_d3d11_state["queued_model"] = None
                 alignment_d3d11_state["queued_label"] = ""
+                alignment_d3d11_state["queued_reason"] = ""
                 alignment_d3d11_state["queued_transform_generation"] = 0
                 alignment_d3d11_state["pending_model"] = None
                 alignment_d3d11_state["pending_label"] = ""
+                alignment_d3d11_state["pending_reason"] = ""
                 alignment_d3d11_state["pending_transform_generation"] = 0
                 try:
                     _alignment_d3d11_stop_worker()
@@ -45230,6 +45251,17 @@ def run_gui() -> int:
                 preview_detail_mode = _alignment_preview_detail_mode()
                 if preview_detail_mode == "full":
                     return 0
+                try:
+                    d3d11_fast_active = _alignment_d3d11_preview_active() and preview_detail_mode == "fast"
+                except NameError:
+                    d3d11_fast_active = False
+                if d3d11_fast_active and total_faces >= 45_000:
+                    return _adaptive_alignment_preview_face_limit(
+                        render_submesh_count,
+                        target_total_faces=35_000,
+                        minimum=2_000,
+                        maximum=10_000,
+                    )
                 if _alignment_preview_is_interactive() and total_faces >= 120_000:
                     return _adaptive_alignment_preview_face_limit(
                         render_submesh_count,
@@ -45683,11 +45715,19 @@ def run_gui() -> int:
                 final_test_preview_status_label.setText(message)
                 back_to_live_preview_button.setVisible(bool(active or stale))
 
+            def _mark_alignment_d3d11_rebuild_reason(reason: str) -> None:
+                normalized = str(reason or "geometry").strip().lower()
+                if normalized not in {"geometry", "texture_uv", "material", "mode_missing_original", "final_test"}:
+                    normalized = "geometry"
+                if normalized == "final_test" or not str(alignment_d3d11_state.get("next_rebuild_reason", "") or ""):
+                    alignment_d3d11_state["next_rebuild_reason"] = normalized
+
             def _mark_final_test_preview_stale() -> None:
                 if final_test_preview_state.get("active") or final_test_preview_state.get("stale"):
                     _set_final_test_preview_state(active=False, stale=True)
 
             def _queue_static_preview_refresh(*_args: object) -> None:
+                _mark_alignment_d3d11_rebuild_reason("geometry")
                 if int(static_preview_batch_state.get("depth", 0) or 0) > 0:
                     static_preview_batch_state["refresh"] = True
                     return
@@ -45700,6 +45740,7 @@ def run_gui() -> int:
                 _queue_static_preview_refresh()
 
             def _queue_static_preview_rebuild(*_args: object) -> None:
+                _mark_alignment_d3d11_rebuild_reason("geometry")
                 if int(static_preview_batch_state.get("depth", 0) or 0) > 0:
                     static_preview_batch_state["rebuild"] = True
                     return
@@ -45709,20 +45750,24 @@ def run_gui() -> int:
                 static_preview_refresh_timer.start()
 
             def _queue_texture_preview_refresh(*_args: object) -> None:
+                _mark_alignment_d3d11_rebuild_reason("material")
                 if int(static_preview_batch_state.get("depth", 0) or 0) > 0:
                     static_preview_batch_state["texture"] = True
                     return
                 _mark_final_test_preview_stale()
+                _alignment_d3d11_invalidate_package_cache("material")
                 texture_overrides_dirty["dirty"] = True
                 static_preview_refresh_timer.start()
 
             def _queue_texture_uv_preview_refresh(*_args: object) -> None:
+                _mark_alignment_d3d11_rebuild_reason("texture_uv")
                 if int(static_preview_batch_state.get("depth", 0) or 0) > 0:
                     static_preview_batch_state["texture_uv"] = True
                     return
                 _mark_final_test_preview_stale()
                 static_preview_geometry_cache.clear()
                 static_preview_prepared_cache.clear()
+                _alignment_d3d11_invalidate_package_cache("texture_uv")
                 texture_overrides_dirty["dirty"] = True
                 static_preview_refresh_timer.start()
 
@@ -46068,7 +46113,31 @@ def run_gui() -> int:
                     "text": str(theme["text_muted"]),
                 }
 
-            def _cleanup_alignment_d3d11_package(package_dir: object, *, delay_ms: int = 0) -> None:
+            def _alignment_d3d11_cache_display_class(display_mode: str) -> str:
+                normalized = str(display_mode or "side_by_side").strip() or "side_by_side"
+                return "replacement_only" if normalized == "replacement_only" else "with_original"
+
+            def _alignment_d3d11_package_is_cached(package_dir: object) -> bool:
+                if package_dir is None:
+                    return False
+                try:
+                    package_path = Path(package_dir).resolve()
+                except (OSError, TypeError, ValueError):
+                    return False
+                package_cache = alignment_d3d11_state.get("package_cache")
+                if not isinstance(package_cache, OrderedDict):
+                    return False
+                for entry in package_cache.values():
+                    if not isinstance(entry, Mapping):
+                        continue
+                    try:
+                        if Path(entry.get("package_dir", "")).resolve() == package_path:
+                            return True
+                    except (OSError, TypeError, ValueError):
+                        continue
+                return False
+
+            def _cleanup_alignment_d3d11_package(package_dir: object, *, delay_ms: int = 0, force: bool = False) -> None:
                 if package_dir is None:
                     return
                 try:
@@ -46077,6 +46146,8 @@ def run_gui() -> int:
                     return
 
                 def _remove() -> None:
+                    if not force and _alignment_d3d11_package_is_cached(package_path):
+                        return
                     try:
                         shutil.rmtree(package_path, ignore_errors=True)
                     except OSError:
@@ -46087,12 +46158,189 @@ def run_gui() -> int:
                 else:
                     _remove()
 
+            def _alignment_d3d11_invalidate_package_cache(reason: str = "geometry") -> None:
+                package_cache = alignment_d3d11_state.get("package_cache")
+                if not isinstance(package_cache, OrderedDict) or not package_cache:
+                    return
+                active_package = alignment_d3d11_state.get("active_package")
+                active_path: Optional[Path] = None
+                try:
+                    active_path = Path(active_package).resolve() if active_package is not None else None
+                except (OSError, TypeError, ValueError):
+                    active_path = None
+                entries = list(package_cache.values())
+                package_cache.clear()
+                alignment_d3d11_state["active_package_cache_key"] = ""
+                for entry in entries:
+                    if not isinstance(entry, Mapping):
+                        continue
+                    package_dir = entry.get("package_dir")
+                    try:
+                        package_path = Path(package_dir).resolve()
+                    except (OSError, TypeError, ValueError):
+                        continue
+                    delay_ms = 5000 if active_path is not None and package_path == active_path else 0
+                    _cleanup_alignment_d3d11_package(package_path, delay_ms=delay_ms, force=True)
+                alignment_d3d11_state["last_cache_event"] = "cleared"
+                alignment_d3d11_state["last_cache_reason"] = str(reason or "geometry")
+
+            def _alignment_d3d11_model_cache_signature(model: ModelPreviewData) -> str:
+                def _sample_sequence(values: object, *, limit: int = 4) -> tuple:
+                    seq = tuple(values or ())
+                    if len(seq) <= limit * 2:
+                        return seq
+                    return seq[:limit] + seq[-limit:]
+
+                mesh_signatures = []
+                for mesh in getattr(model, "meshes", ()) or ():
+                    material_inputs = tuple(
+                        (
+                            str(getattr(item, "parameter_name", "") or ""),
+                            str(getattr(item, "slot_kind", "") or ""),
+                            str(getattr(item, "semantic_type", "") or ""),
+                            str(getattr(item, "semantic_subtype", "") or ""),
+                            str(getattr(item, "source_texture_path", "") or ""),
+                            str(getattr(item, "source_dds_path", "") or ""),
+                            str(getattr(item, "preview_texture_path", "") or ""),
+                            tuple(getattr(item, "packed_channels", ()) or ()),
+                        )
+                        for item in tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())[:24]
+                    )
+                    mesh_signatures.append(
+                        (
+                            str(getattr(mesh, "material_name", "") or ""),
+                            str(getattr(mesh, "texture_name", "") or ""),
+                            str(getattr(mesh, "preview_role", "") or ""),
+                            int(getattr(mesh, "source_submesh_index", -1) or -1),
+                            len(getattr(mesh, "positions", ()) or ()),
+                            len(getattr(mesh, "texture_coordinates", ()) or ()),
+                            len(getattr(mesh, "indices", ()) or ()),
+                            _sample_sequence(getattr(mesh, "positions", ()) or ()),
+                            _sample_sequence(getattr(mesh, "texture_coordinates", ()) or ()),
+                            _sample_sequence(getattr(mesh, "indices", ()) or ()),
+                            str(getattr(mesh, "preview_texture_path", "") or ""),
+                            str(getattr(mesh, "preview_texture_dds_path", "") or ""),
+                            str(getattr(mesh, "preview_normal_texture_path", "") or ""),
+                            str(getattr(mesh, "preview_normal_texture_dds_path", "") or ""),
+                            str(getattr(mesh, "preview_material_texture_path", "") or ""),
+                            str(getattr(mesh, "preview_material_texture_dds_path", "") or ""),
+                            str(getattr(mesh, "preview_height_texture_path", "") or ""),
+                            str(getattr(mesh, "preview_height_texture_dds_path", "") or ""),
+                            getattr(mesh, "preview_texture_flip_vertical", None),
+                            tuple(getattr(mesh, "preview_texture_tint", ()) or ()),
+                            float(getattr(mesh, "preview_texture_brightness", 1.0) or 1.0),
+                            tuple(getattr(mesh, "preview_texture_uv_scale", ()) or ()),
+                            bool(getattr(mesh, "preview_double_sided", False)),
+                            material_inputs,
+                        )
+                    )
+                signature = (
+                    str(getattr(model, "path", "") or ""),
+                    str(getattr(model, "format", "") or ""),
+                    int(getattr(model, "mesh_count", 0) or 0),
+                    int(getattr(model, "vertex_count", 0) or 0),
+                    int(getattr(model, "face_count", 0) or 0),
+                    tuple(getattr(model, "normalization_center", ()) or ()),
+                    float(getattr(model, "normalization_scale", 1.0) or 1.0),
+                    tuple(mesh_signatures),
+                )
+                encoded = repr(signature).encode("utf-8", errors="replace")
+                return hashlib.sha1(encoded).hexdigest()
+
+            def _alignment_d3d11_preview_cache_key(
+                model: ModelPreviewData,
+                settings: ModelPreviewRenderSettings,
+                *,
+                label: str,
+                display_mode: str,
+                package_quality: str,
+            ) -> str:
+                if _alignment_d3d11_uses_accurate_package(label, model):
+                    return ""
+                package_settings = (
+                    int(getattr(settings, "preview_texture_max_dimension", 0) or 0),
+                    int(getattr(settings, "low_quality_texture_max_dimension", 0) or 0),
+                    bool(getattr(settings, "disable_all_support_maps", False)),
+                    bool(getattr(settings, "disable_normal_map", False)),
+                    bool(getattr(settings, "disable_material_map", False)),
+                    bool(getattr(settings, "disable_height_map", False)),
+                    bool(getattr(settings, "flip_texture_v", False)),
+                    str(getattr(settings, "visible_texture_mode", "") or ""),
+                    str(getattr(settings, "alpha_handling_mode", "") or ""),
+                    str(package_quality or "fast"),
+                    _alignment_d3d11_cache_display_class(display_mode),
+                    bool(modify_original_clone_mode),
+                )
+                signature = (
+                    "alignment_d3d11_v2",
+                    package_settings,
+                    _alignment_d3d11_model_cache_signature(model),
+                )
+                encoded = repr(signature).encode("utf-8", errors="replace")
+                return hashlib.sha1(encoded).hexdigest()
+
+            def _alignment_d3d11_package_cache_get(cache_key: str) -> Optional[Mapping[str, object]]:
+                key = str(cache_key or "")
+                if not key:
+                    return None
+                package_cache = alignment_d3d11_state.get("package_cache")
+                if not isinstance(package_cache, OrderedDict):
+                    return None
+                entry = package_cache.get(key)
+                if not isinstance(entry, Mapping):
+                    return None
+                package_dir = entry.get("package_dir")
+                try:
+                    package_path = Path(package_dir)
+                except TypeError:
+                    package_cache.pop(key, None)
+                    return None
+                if not (package_path / "manifest.json").is_file():
+                    package_cache.pop(key, None)
+                    _cleanup_alignment_d3d11_package(package_path, force=True)
+                    return None
+                package_cache.move_to_end(key)
+                return entry
+
+            def _alignment_d3d11_package_cache_put(
+                cache_key: str,
+                package_dir: Path,
+                *,
+                display_mode: str,
+                package_quality: str,
+                prepare_ms: float,
+                package_ms: float,
+            ) -> None:
+                key = str(cache_key or "")
+                if not key:
+                    return
+                package_cache = alignment_d3d11_state.get("package_cache")
+                if not isinstance(package_cache, OrderedDict):
+                    package_cache = OrderedDict()
+                    alignment_d3d11_state["package_cache"] = package_cache
+                package_cache[key] = {
+                    "package_dir": Path(package_dir),
+                    "display_class": _alignment_d3d11_cache_display_class(display_mode),
+                    "display_mode": str(display_mode or "side_by_side"),
+                    "package_quality": str(package_quality or "fast"),
+                    "prepare_ms": float(prepare_ms or 0.0),
+                    "package_ms": float(package_ms or 0.0),
+                    "created": time.monotonic(),
+                }
+                package_cache.move_to_end(key)
+                limit = max(1, int(alignment_d3d11_state.get("package_cache_limit", 4) or 4))
+                while len(package_cache) > limit:
+                    _old_key, old_entry = package_cache.popitem(last=False)
+                    if isinstance(old_entry, Mapping):
+                        _cleanup_alignment_d3d11_package(old_entry.get("package_dir"), force=True)
+
             def _alignment_d3d11_stop_process() -> None:
                 process = alignment_d3d11_state.get("process")
                 package_dir = alignment_d3d11_state.get("active_package")
                 alignment_d3d11_state["process"] = None
                 alignment_d3d11_state["active_package"] = None
                 alignment_d3d11_state["active_package_display_mode"] = ""
+                alignment_d3d11_state["active_package_cache_key"] = ""
                 alignment_d3d11_state["status_file"] = None
                 alignment_d3d11_state["status_mtime"] = 0.0
                 alignment_d3d11_status_timer.stop()
@@ -46126,17 +46374,23 @@ def run_gui() -> int:
                 alignment_d3d11_state["queued_model"] = None
                 alignment_d3d11_state["queued_label"] = ""
                 alignment_d3d11_state["queued_display_mode"] = ""
+                alignment_d3d11_state["queued_reason"] = ""
                 alignment_d3d11_state["queued_transform_generation"] = 0
                 alignment_d3d11_state["pending_model"] = None
                 alignment_d3d11_state["pending_label"] = ""
                 alignment_d3d11_state["pending_display_mode"] = ""
+                alignment_d3d11_state["pending_reason"] = ""
                 alignment_d3d11_state["pending_transform_generation"] = 0
                 alignment_d3d11_state["active_package_request_id"] = 0
                 alignment_d3d11_state["active_package_display_mode"] = ""
+                alignment_d3d11_state["active_package_cache_key"] = ""
                 alignment_d3d11_state["request_display_modes"] = {}
+                alignment_d3d11_state["request_reasons"] = {}
+                alignment_d3d11_state["request_cache_keys"] = {}
                 alignment_d3d11_state["source_to_d3d11_ids"] = {}
                 alignment_d3d11_state["d3d11_id_to_source_indices"] = {}
                 _alignment_d3d11_stop_worker()
+                _alignment_d3d11_invalidate_package_cache("shutdown")
                 _alignment_d3d11_stop_process()
                 pending_package = alignment_d3d11_state.get("active_package")
                 _cleanup_alignment_d3d11_package(pending_package)
@@ -46233,7 +46487,12 @@ def run_gui() -> int:
                     return replacement_workspace
                 return _combine_preview_models(original_workspace, replacement_workspace)
 
-            def _queue_alignment_d3d11_preview(model: object, *, label: str = "Live alignment preview") -> None:
+            def _queue_alignment_d3d11_preview(
+                model: object,
+                *,
+                label: str = "Live alignment preview",
+                reason: str = "",
+            ) -> None:
                 if not _alignment_d3d11_preview_active():
                     return
                 if not isinstance(model, ModelPreviewData):
@@ -46241,11 +46500,20 @@ def run_gui() -> int:
                     return
                 transform_generation = _current_alignment_transform_generation()
                 display_mode = str(preview_mode_combo.currentData() or "side_by_side")
+                rebuild_reason = str(reason or alignment_d3d11_state.get("next_rebuild_reason", "") or "geometry").strip().lower()
+                if str(label or "").strip().casefold() == "final test build preview":
+                    rebuild_reason = "final_test"
+                if rebuild_reason not in {"geometry", "texture_uv", "material", "mode_missing_original", "final_test"}:
+                    rebuild_reason = "geometry"
+                alignment_d3d11_state["next_rebuild_reason"] = ""
                 alignment_d3d11_state["queued_model"] = _clone_preview_model(model)
                 alignment_d3d11_state["queued_label"] = str(label or "Live alignment preview")
                 alignment_d3d11_state["queued_display_mode"] = display_mode
+                alignment_d3d11_state["queued_reason"] = rebuild_reason
                 alignment_d3d11_state["queued_transform_generation"] = transform_generation
-                alignment_d3d11_preview_status_label.setText("Queued native D3D11 alignment preview...")
+                alignment_d3d11_preview_status_label.setText(
+                    f"Queued native D3D11 alignment preview ({rebuild_reason})..."
+                )
                 alignment_d3d11_reload_timer.setInterval(alignment_d3d11_package_reload_interval_ms)
                 alignment_d3d11_reload_timer.start()
 
@@ -46315,10 +46583,16 @@ def run_gui() -> int:
                 label: str,
                 transform_generation: Optional[int] = None,
                 display_mode: str = "",
+                reason: str = "geometry",
             ) -> None:
                 if not _alignment_d3d11_preview_active() or not isinstance(model, ModelPreviewData):
                     return
                 requested_display_mode = str(display_mode or preview_mode_combo.currentData() or "side_by_side")
+                rebuild_reason = str(reason or "geometry").strip().lower()
+                if str(label or "").strip().casefold() == "final test build preview":
+                    rebuild_reason = "final_test"
+                if rebuild_reason not in {"geometry", "texture_uv", "material", "mode_missing_original", "final_test"}:
+                    rebuild_reason = "geometry"
                 request_transform_generation = (
                     int(transform_generation)
                     if transform_generation is not None
@@ -46329,9 +46603,12 @@ def run_gui() -> int:
                     alignment_d3d11_state["pending_model"] = model
                     alignment_d3d11_state["pending_label"] = label
                     alignment_d3d11_state["pending_display_mode"] = requested_display_mode
+                    alignment_d3d11_state["pending_reason"] = rebuild_reason
                     alignment_d3d11_state["pending_transform_generation"] = request_transform_generation
                     _alignment_d3d11_stop_worker()
-                    alignment_d3d11_preview_status_label.setText("Queued latest native D3D11 alignment preview...")
+                    alignment_d3d11_preview_status_label.setText(
+                        f"Queued latest native D3D11 alignment preview ({rebuild_reason})..."
+                    )
                     return
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                 request_id = int(alignment_d3d11_state["request_id"])
@@ -46353,8 +46630,82 @@ def run_gui() -> int:
                     request_display_modes = {}
                     alignment_d3d11_state["request_display_modes"] = request_display_modes
                 request_display_modes[request_id] = requested_display_mode
+                request_reasons = alignment_d3d11_state.get("request_reasons")
+                if not isinstance(request_reasons, dict):
+                    request_reasons = {}
+                    alignment_d3d11_state["request_reasons"] = request_reasons
+                request_reasons[request_id] = rebuild_reason
                 settings, high_quality_textures, enable_material_combiner, package_quality = _alignment_d3d11_package_quality(label, model)
                 alignment_d3d11_state["package_quality"] = package_quality
+                alignment_d3d11_state["last_rebuild_reason"] = rebuild_reason
+                alignment_d3d11_state["last_cache_reason"] = rebuild_reason
+                cache_key = _alignment_d3d11_preview_cache_key(
+                    model,
+                    settings,
+                    label=label,
+                    display_mode=requested_display_mode,
+                    package_quality=package_quality,
+                )
+                request_cache_keys = alignment_d3d11_state.get("request_cache_keys")
+                if not isinstance(request_cache_keys, dict):
+                    request_cache_keys = {}
+                    alignment_d3d11_state["request_cache_keys"] = request_cache_keys
+                request_cache_keys[request_id] = cache_key
+                cache_entry = _alignment_d3d11_package_cache_get(cache_key)
+                if isinstance(cache_entry, Mapping):
+                    try:
+                        cached_package_dir = Path(cache_entry.get("package_dir", ""))
+                    except TypeError:
+                        cached_package_dir = None
+                    if isinstance(cached_package_dir, Path):
+                        alignment_d3d11_state["prepare_ms"] = float(cache_entry.get("prepare_ms", 0.0) or 0.0)
+                        alignment_d3d11_state["package_ms"] = float(cache_entry.get("package_ms", 0.0) or 0.0)
+                        alignment_d3d11_state["package_quality"] = str(cache_entry.get("package_quality", package_quality) or package_quality)
+                        alignment_d3d11_state["last_cache_event"] = "hit"
+                        existing_process = alignment_d3d11_state.get("process")
+                        active_package = alignment_d3d11_state.get("active_package")
+                        active_matches = False
+                        try:
+                            active_matches = (
+                                isinstance(existing_process, QProcess)
+                                and existing_process.state() != QProcess.NotRunning
+                                and active_package is not None
+                                and Path(active_package).resolve() == cached_package_dir.resolve()
+                            )
+                        except (OSError, TypeError, ValueError, RuntimeError):
+                            active_matches = False
+                        if active_matches:
+                            alignment_d3d11_state["active_package_request_id"] = request_id
+                            alignment_d3d11_state["active_package_display_mode"] = requested_display_mode
+                            alignment_d3d11_state["active_package_cache_key"] = cache_key
+                            alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or requested_display_mode))
+                            alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
+                            preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
+                            _sync_highlight_sets()
+                            _replay_alignment_d3d11_fast_transform()
+                            alignment_d3d11_preview_status_label.setText(
+                                f"Native D3D11 alignment preview cache hit ({rebuild_reason}); reused active package."
+                            )
+                            _set_preview_performance_status(
+                                f"D3D11 cache hit - {_alignment_preview_detail_label()} - reason {rebuild_reason}",
+                                details=(
+                                    f"cache=hit\nreason={rebuild_reason}\n"
+                                    f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.1f} ms\n"
+                                    f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.1f} ms\n"
+                                    "native load/upload 0.0 ms (active package reused)"
+                                ),
+                            )
+                            return
+                        alignment_d3d11_preview_status_label.setText(
+                            f"Loading cached native D3D11 alignment preview ({rebuild_reason})..."
+                        )
+                        _set_preview_performance_status(
+                            f"D3D11 cache hit; loading package - reason {rebuild_reason}",
+                            details=f"cache=hit\nreason={rebuild_reason}",
+                        )
+                        _start_alignment_d3d11_process(cached_package_dir, request_id=request_id)
+                        return
+                alignment_d3d11_state["last_cache_event"] = "bypass" if not cache_key else "miss"
                 worker = AlignmentD3D11PackageWorker(
                     request_id,
                     model,
@@ -46378,21 +46729,32 @@ def run_gui() -> int:
                 alignment_d3d11_state["worker"] = worker
                 alignment_d3d11_state["thread"] = thread
                 alignment_d3d11_preview_status_label.setText(
-                    f"Preparing native D3D11 {package_quality} preview package: {label}"
+                    f"Preparing native D3D11 {package_quality} preview package ({rebuild_reason}): {label}"
                 )
-                _set_preview_performance_status(f"Preparing D3D11 {package_quality} preview package...")
+                _set_preview_performance_status(
+                    f"Preparing D3D11 {package_quality} preview package...",
+                    details=f"cache={alignment_d3d11_state.get('last_cache_event')}\nreason={rebuild_reason}",
+                )
                 thread.start()
 
             def _flush_alignment_d3d11_preview_request() -> None:
                 model = alignment_d3d11_state.get("queued_model")
                 label = str(alignment_d3d11_state.get("queued_label", "") or "Live alignment preview")
                 display_mode = str(alignment_d3d11_state.get("queued_display_mode", "") or preview_mode_combo.currentData() or "side_by_side")
+                reason = str(alignment_d3d11_state.get("queued_reason", "") or "geometry")
                 transform_generation = int(alignment_d3d11_state.get("queued_transform_generation", 0) or 0)
                 alignment_d3d11_state["queued_model"] = None
                 alignment_d3d11_state["queued_label"] = ""
                 alignment_d3d11_state["queued_display_mode"] = ""
+                alignment_d3d11_state["queued_reason"] = ""
                 alignment_d3d11_state["queued_transform_generation"] = 0
-                _start_alignment_d3d11_package_worker(model, label, transform_generation, display_mode=display_mode)
+                _start_alignment_d3d11_package_worker(
+                    model,
+                    label,
+                    transform_generation,
+                    display_mode=display_mode,
+                    reason=reason,
+                )
 
             def _handle_alignment_d3d11_package_ready(
                 request_id: int,
@@ -46413,6 +46775,22 @@ def run_gui() -> int:
                     return
                 alignment_d3d11_state["prepare_ms"] = float(prepare_ms)
                 alignment_d3d11_state["package_ms"] = float(package_ms)
+                request_cache_keys = alignment_d3d11_state.get("request_cache_keys")
+                request_display_modes = alignment_d3d11_state.get("request_display_modes")
+                cache_key = ""
+                display_mode = str(preview_mode_combo.currentData() or "side_by_side")
+                if isinstance(request_cache_keys, Mapping):
+                    cache_key = str(request_cache_keys.get(int(request_id), "") or "")
+                if isinstance(request_display_modes, Mapping):
+                    display_mode = str(request_display_modes.get(int(request_id), display_mode) or display_mode)
+                _alignment_d3d11_package_cache_put(
+                    cache_key,
+                    package_dir,
+                    display_mode=display_mode,
+                    package_quality=str(alignment_d3d11_state.get("package_quality", "fast") or "fast"),
+                    prepare_ms=float(prepare_ms),
+                    package_ms=float(package_ms),
+                )
                 _start_alignment_d3d11_process(package_dir, request_id=int(request_id))
 
             def _handle_alignment_d3d11_package_error(request_id: int, message: str) -> None:
@@ -46427,16 +46805,24 @@ def run_gui() -> int:
                 pending_model = alignment_d3d11_state.get("pending_model")
                 pending_label = str(alignment_d3d11_state.get("pending_label", "") or "Live alignment preview")
                 pending_display_mode = str(alignment_d3d11_state.get("pending_display_mode", "") or preview_mode_combo.currentData() or "side_by_side")
+                pending_reason = str(alignment_d3d11_state.get("pending_reason", "") or "geometry")
                 pending_transform_generation = int(alignment_d3d11_state.get("pending_transform_generation", 0) or 0)
                 alignment_d3d11_state["pending_model"] = None
                 alignment_d3d11_state["pending_label"] = ""
                 alignment_d3d11_state["pending_display_mode"] = ""
+                alignment_d3d11_state["pending_reason"] = ""
                 alignment_d3d11_state["pending_transform_generation"] = 0
                 if _alignment_d3d11_preview_active() and isinstance(pending_model, ModelPreviewData):
                     QTimer.singleShot(
                         0,
-                        lambda model=pending_model, label=pending_label, generation=pending_transform_generation, mode=pending_display_mode: (
-                            _start_alignment_d3d11_package_worker(model, label, generation, display_mode=mode)
+                        lambda model=pending_model, label=pending_label, generation=pending_transform_generation, mode=pending_display_mode, queued_reason=pending_reason: (
+                            _start_alignment_d3d11_package_worker(
+                                model,
+                                label,
+                                generation,
+                                display_mode=mode,
+                                reason=queued_reason,
+                            )
                         ),
                     )
 
@@ -46459,14 +46845,24 @@ def run_gui() -> int:
                 package_display_mode = str(preview_mode_combo.currentData() or "side_by_side")
                 if isinstance(request_display_modes, Mapping):
                     package_display_mode = str(request_display_modes.get(int(request_id or 0), package_display_mode) or package_display_mode)
+                request_reasons = alignment_d3d11_state.get("request_reasons")
+                rebuild_reason = str(alignment_d3d11_state.get("last_rebuild_reason", "geometry") or "geometry")
+                if isinstance(request_reasons, Mapping):
+                    rebuild_reason = str(request_reasons.get(int(request_id or 0), rebuild_reason) or rebuild_reason)
+                request_cache_keys = alignment_d3d11_state.get("request_cache_keys")
+                package_cache_key = ""
+                if isinstance(request_cache_keys, Mapping):
+                    package_cache_key = str(request_cache_keys.get(int(request_id or 0), "") or "")
                 existing_process = alignment_d3d11_state.get("process")
                 if isinstance(existing_process, QProcess) and existing_process.state() != QProcess.NotRunning:
                     previous_package = alignment_d3d11_state.get("active_package")
                     previous_request_id = int(alignment_d3d11_state.get("active_package_request_id", 0) or 0)
                     previous_display_mode = str(alignment_d3d11_state.get("active_package_display_mode", "") or "")
+                    previous_cache_key = str(alignment_d3d11_state.get("active_package_cache_key", "") or "")
                     alignment_d3d11_state["active_package"] = package_dir
                     alignment_d3d11_state["active_package_request_id"] = int(request_id or 0)
                     alignment_d3d11_state["active_package_display_mode"] = package_display_mode
+                    alignment_d3d11_state["active_package_cache_key"] = package_cache_key
                     alignment_d3d11_state["status_file"] = status_file
                     alignment_d3d11_state["status_mtime"] = 0.0
                     if alignment_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
@@ -46474,24 +46870,34 @@ def run_gui() -> int:
                         alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
                         _cleanup_alignment_d3d11_package(previous_package, delay_ms=5000)
                         preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
-                        alignment_d3d11_preview_status_label.setText("Reloading native D3D11 alignment preview without restarting the renderer...")
+                        alignment_d3d11_preview_status_label.setText(
+                            f"Reloading native D3D11 alignment preview without restarting the renderer ({rebuild_reason})..."
+                        )
                         channel_debug = self._archive_material_channel_debug_from_package(package_dir)
                         timing_summary = (
                             f"D3D11 reload queued - {_alignment_preview_detail_label()} - "
                             f"{str(alignment_d3d11_state.get('package_quality', 'fast') or 'fast')} package - "
+                            f"reason {rebuild_reason} - cache {alignment_d3d11_state.get('last_cache_event', 'miss')} - "
                             f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.0f} ms, "
                             f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.0f} ms"
                         )
-                        _set_preview_performance_status(timing_summary, details=channel_debug or timing_summary)
+                        details = (
+                            f"cache={alignment_d3d11_state.get('last_cache_event', 'miss')}\n"
+                            f"reason={rebuild_reason}\n"
+                            f"{channel_debug or timing_summary}"
+                        )
+                        _set_preview_performance_status(timing_summary, details=details)
                         alignment_d3d11_status_timer.start()
                         return
                     alignment_d3d11_state["active_package"] = previous_package
                     alignment_d3d11_state["active_package_request_id"] = previous_request_id
                     alignment_d3d11_state["active_package_display_mode"] = previous_display_mode
+                    alignment_d3d11_state["active_package_cache_key"] = previous_cache_key
                 _alignment_d3d11_stop_process()
                 alignment_d3d11_state["active_package"] = package_dir
                 alignment_d3d11_state["active_package_request_id"] = int(request_id or 0)
                 alignment_d3d11_state["active_package_display_mode"] = package_display_mode
+                alignment_d3d11_state["active_package_cache_key"] = package_cache_key
                 alignment_d3d11_state["status_file"] = status_file
                 alignment_d3d11_state["status_mtime"] = 0.0
                 process = QProcess(dialog)
@@ -46515,6 +46921,7 @@ def run_gui() -> int:
                     alignment_d3d11_state["active_package"] = None
                     alignment_d3d11_state["active_package_request_id"] = 0
                     alignment_d3d11_state["active_package_display_mode"] = ""
+                    alignment_d3d11_state["active_package_cache_key"] = ""
                     return
                 process.setProgram(program)
                 process.setArguments(arguments)
@@ -46532,8 +46939,13 @@ def run_gui() -> int:
                 _set_preview_performance_status(
                     f"Starting D3D11 preview - {_alignment_preview_detail_label()} - "
                     f"{str(alignment_d3d11_state.get('package_quality', 'fast') or 'fast')} package - "
+                    f"reason {rebuild_reason} - cache {alignment_d3d11_state.get('last_cache_event', 'miss')} - "
                     f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.0f} ms, "
-                    f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.0f} ms"
+                    f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.0f} ms",
+                    details=(
+                        f"cache={alignment_d3d11_state.get('last_cache_event', 'miss')}\n"
+                        f"reason={rebuild_reason}"
+                    ),
                 )
                 alignment_d3d11_status_timer.start()
                 process.start()
@@ -46581,6 +46993,7 @@ def run_gui() -> int:
                 alignment_d3d11_state["active_package"] = None
                 alignment_d3d11_state["active_package_request_id"] = 0
                 alignment_d3d11_state["active_package_display_mode"] = ""
+                alignment_d3d11_state["active_package_cache_key"] = ""
                 alignment_d3d11_state["status_file"] = None
                 _cleanup_alignment_d3d11_package(package_dir)
                 if int(exit_code) != 0:
@@ -46637,17 +47050,29 @@ def run_gui() -> int:
                     if channel_debug.startswith("Material Channel Contract: "):
                         channel_debug = "channels " + channel_debug[len("Material Channel Contract: "):]
                     alignment_d3d11_preview_status_label.setText("Native D3D11 alignment preview loaded.")
+                    cache_event = str(alignment_d3d11_state.get("last_cache_event", "miss") or "miss")
+                    rebuild_reason = str(alignment_d3d11_state.get("last_cache_reason", "") or alignment_d3d11_state.get("last_rebuild_reason", "geometry") or "geometry")
+                    native_load_ms = (
+                        float(payload.get("manifest_read_ms", 0.0) or 0.0)
+                        + float(payload.get("texture_bind_ms", 0.0) or 0.0)
+                        + float(payload.get("geometry_upload_ms", 0.0) or 0.0)
+                    )
                     timing_summary = (
                         f"D3D11 preview loaded - {_alignment_preview_detail_label()} - "
                         f"{str(alignment_d3d11_state.get('package_quality', 'fast') or 'fast')} package - "
+                        f"reason {rebuild_reason} - cache {cache_event} - "
+                        f"native {native_load_ms:.0f} ms - "
                         f"textures {texture_text}"
                     )
                     timing_details = (
+                        f"cache {cache_event}\n"
+                        f"reason {rebuild_reason}\n"
                         f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.1f} ms\n"
                         f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.1f} ms\n"
                         f"manifest {float(payload.get('manifest_read_ms', 0.0) or 0.0):.1f} ms\n"
                         f"textures {float(payload.get('texture_bind_ms', 0.0) or 0.0):.1f} ms\n"
                         f"geometry {float(payload.get('geometry_upload_ms', 0.0) or 0.0):.1f} ms\n"
+                        f"native_load_upload {native_load_ms:.1f} ms\n"
                         f"{channel_debug}"
                     )
                     _set_preview_performance_status(timing_summary, details=timing_details)
@@ -46680,15 +47105,23 @@ def run_gui() -> int:
                     return
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                 alignment_d3d11_state["queued_model"] = None
+                alignment_d3d11_state["queued_label"] = ""
                 alignment_d3d11_state["queued_display_mode"] = ""
+                alignment_d3d11_state["queued_reason"] = ""
                 alignment_d3d11_state["pending_model"] = None
+                alignment_d3d11_state["pending_label"] = ""
                 alignment_d3d11_state["pending_display_mode"] = ""
+                alignment_d3d11_state["pending_reason"] = ""
                 alignment_d3d11_state["queued_transform_generation"] = 0
                 alignment_d3d11_state["pending_transform_generation"] = 0
                 alignment_d3d11_state["active_package_request_id"] = 0
                 alignment_d3d11_state["active_package_display_mode"] = ""
+                alignment_d3d11_state["active_package_cache_key"] = ""
                 alignment_d3d11_state["request_display_modes"] = {}
+                alignment_d3d11_state["request_reasons"] = {}
+                alignment_d3d11_state["request_cache_keys"] = {}
                 _alignment_d3d11_stop_worker()
+                _alignment_d3d11_invalidate_package_cache("renderer")
                 _alignment_d3d11_stop_process()
                 preview_help.setText("Live preview. Test Build Preview validates final package paths.")
                 preview_help.setToolTip(
@@ -46789,6 +47222,12 @@ def run_gui() -> int:
                 if _alignment_d3d11_preview_active():
                     if not needs_static_refresh:
                         alignment_d3d11_preview_host.set_display_mode(mode)
+                        _set_preview_performance_status(
+                            f"D3D11 display mode changed live: {mode}",
+                            details="cache=live-command reason=display_mode",
+                        )
+                    else:
+                        _mark_alignment_d3d11_rebuild_reason("mode_missing_original")
                     preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                     _restore_alignment_preview_mode_view_state(mode)
                     _replay_alignment_d3d11_fast_transform()
@@ -46805,6 +47244,7 @@ def run_gui() -> int:
             def _set_preview_detail() -> None:
                 static_preview_geometry_cache.clear()
                 static_preview_prepared_cache.clear()
+                _alignment_d3d11_invalidate_package_cache("geometry")
                 if not final_test_preview_state.get("active") and not final_test_preview_state.get("stale"):
                     _set_final_test_preview_state(active=False, stale=False)
                 _queue_static_preview_refresh()
@@ -56041,13 +56481,18 @@ def run_gui() -> int:
                         alignment_d3d11_state["queued_model"] = None
                         alignment_d3d11_state["queued_label"] = ""
                         alignment_d3d11_state["queued_display_mode"] = ""
+                        alignment_d3d11_state["queued_reason"] = ""
                         alignment_d3d11_state["queued_transform_generation"] = 0
                         alignment_d3d11_state["pending_model"] = None
                         alignment_d3d11_state["pending_label"] = ""
                         alignment_d3d11_state["pending_display_mode"] = ""
+                        alignment_d3d11_state["pending_reason"] = ""
                         alignment_d3d11_state["pending_transform_generation"] = 0
                         alignment_d3d11_state["request_display_modes"] = {}
+                        alignment_d3d11_state["request_reasons"] = {}
+                        alignment_d3d11_state["request_cache_keys"] = {}
                         _alignment_d3d11_stop_worker()
+                        _alignment_d3d11_invalidate_package_cache("material")
                         if _alignment_d3d11_preview_active():
                             original_dialog_preview.clear_model("Original textures loaded in native D3D11 preview.")
                             alignment_d3d11_preview_status_label.setText(
@@ -62377,7 +62822,11 @@ def run_gui() -> int:
                         preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                         d3d11_final_model = _alignment_d3d11_display_model(final_model_for_display)
                         if d3d11_final_model is not None:
-                            _queue_alignment_d3d11_preview(d3d11_final_model, label="Final Test Build Preview")
+                            _queue_alignment_d3d11_preview(
+                                d3d11_final_model,
+                                label="Final Test Build Preview",
+                                reason="final_test",
+                            )
                     else:
                         static_view_state = static_dialog_preview.view_state_snapshot()
                         replacement_only_view_state = replacement_only_preview.view_state_snapshot()

@@ -221,7 +221,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         legacy_branch = block[legacy_start:warning_start]
         self.assertIn("preview_stack.setCurrentWidget(alignment_d3d11_preview_page)", d3d11_branch)
         self.assertIn("_alignment_d3d11_display_model(final_model_for_display)", d3d11_branch)
-        self.assertIn('_queue_alignment_d3d11_preview(d3d11_final_model, label="Final Test Build Preview")', d3d11_branch)
+        self.assertIn('label="Final Test Build Preview"', d3d11_branch)
+        self.assertIn('reason="final_test"', d3d11_branch)
         self.assertNotIn("static_dialog_preview.set_model", d3d11_branch)
         self.assertNotIn("replacement_only_preview.set_model", d3d11_branch)
         self.assertNotIn("overlay_dialog_preview.set_model", d3d11_branch)
@@ -312,7 +313,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn('if detail_mode != "full":', source)
         self.assertIn("channel_debug = self._archive_material_channel_debug_from_package(package_dir)", source)
         self.assertIn("def _set_preview_performance_status(summary: str, *, details: str = \"\") -> None:", source)
-        self.assertIn("_set_preview_performance_status(timing_summary, details=channel_debug or timing_summary)", source)
+        self.assertIn("_set_preview_performance_status(timing_summary, details=details)", source)
+        self.assertIn("cache {cache_event}", source)
+        self.assertIn("native_load_upload", source)
         self.assertIn("def _clone_preview_attr_value(value: object) -> object:", source)
         self.assertIn("if isinstance(value, QImage):", source)
         self.assertIn("return value.copy()", source)
@@ -1322,6 +1325,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('static_preview_batch_state["texture_uv"] = True', uv_queue_block)
         self.assertIn("static_preview_geometry_cache.clear()", uv_queue_block)
         self.assertIn("static_preview_prepared_cache.clear()", uv_queue_block)
+        self.assertIn('_mark_alignment_d3d11_rebuild_reason("texture_uv")', uv_queue_block)
+        self.assertIn('_alignment_d3d11_invalidate_package_cache("texture_uv")', uv_queue_block)
         self.assertIn('texture_overrides_dirty["dirty"] = True', uv_queue_block)
         self.assertIn("static_preview_refresh_timer.start()", uv_queue_block)
         self.assertNotIn("static_preview_settle_timer.start()", uv_queue_block)
@@ -1351,6 +1356,35 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_try_apply_global_flip_v_fast_preview()", setup_block)
         self.assertIn("_queue_texture_uv_preview_refresh()", setup_block)
         self.assertNotIn("_queue_static_preview_rebuild()", setup_block)
+
+    def test_alignment_d3d11_preview_reuses_cached_packages_for_live_changes(self) -> None:
+        source = _main_window_source()
+        self.assertIn('"package_cache": OrderedDict()', source)
+        self.assertIn("def _alignment_d3d11_preview_cache_key(", source)
+        self.assertIn("def _alignment_d3d11_package_cache_get(cache_key: str)", source)
+        self.assertIn("def _alignment_d3d11_package_cache_put(", source)
+        self.assertIn("cache_entry = _alignment_d3d11_package_cache_get(cache_key)", source)
+        self.assertIn('alignment_d3d11_state["last_cache_event"] = "hit"', source)
+        self.assertIn("Native D3D11 alignment preview cache hit", source)
+        self.assertIn("native load/upload 0.0 ms (active package reused)", source)
+        self.assertIn('details="cache=live-command reason=display_mode"', source)
+        self.assertIn('_mark_alignment_d3d11_rebuild_reason("mode_missing_original")', source)
+        self.assertIn("native_load_upload", source)
+
+        render_settings_start = source.index("def _apply_alignment_preview_render_settings")
+        render_settings_end = source.index("def _sync_alignment_preview_controls_from_settings", render_settings_start)
+        render_settings_block = source[render_settings_start:render_settings_end]
+        self.assertIn("alignment_d3d11_preview_host.set_render_tuning(preview_render_settings)", render_settings_block)
+        self.assertIn("return", render_settings_block)
+        self.assertNotIn("_queue_static_preview_refresh()", render_settings_block.split("if _alignment_d3d11_preview_active():", 1)[1].split("return", 1)[0])
+
+        start_worker_start = source.index("def _start_alignment_d3d11_package_worker(")
+        start_worker_end = source.index("worker = AlignmentD3D11PackageWorker(", start_worker_start)
+        start_worker_block = source[start_worker_start:start_worker_end]
+        self.assertIn('reason: str = "geometry"', start_worker_block)
+        self.assertIn('"final_test"', start_worker_block)
+        self.assertIn("cache_entry = _alignment_d3d11_package_cache_get(cache_key)", start_worker_block)
+        self.assertIn("_start_alignment_d3d11_process(cached_package_dir, request_id=request_id)", start_worker_block)
 
     def test_alignment_d3d11_gizmo_defaults_to_whole_replacement_mesh(self) -> None:
         source = _main_window_source()
