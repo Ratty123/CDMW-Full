@@ -44166,14 +44166,18 @@ def run_gui() -> int:
                 "status_mtime": 0.0,
                 "pending_model": None,
                 "pending_label": "",
+                "pending_display_mode": "",
                 "queued_model": None,
                 "queued_label": "",
+                "queued_display_mode": "",
                 "queued_transform_generation": 0,
                 "request_drag_generation": 0,
                 "request_drag_generations": {},
                 "request_transform_generation": 0,
                 "request_transform_generations": {},
                 "active_package_request_id": 0,
+                "active_package_display_mode": "",
+                "request_display_modes": {},
                 "prepare_ms": 0.0,
                 "package_ms": 0.0,
                 "package_quality": "fast",
@@ -46077,6 +46081,7 @@ def run_gui() -> int:
                 package_dir = alignment_d3d11_state.get("active_package")
                 alignment_d3d11_state["process"] = None
                 alignment_d3d11_state["active_package"] = None
+                alignment_d3d11_state["active_package_display_mode"] = ""
                 alignment_d3d11_state["status_file"] = None
                 alignment_d3d11_state["status_mtime"] = 0.0
                 alignment_d3d11_status_timer.stop()
@@ -46109,11 +46114,15 @@ def run_gui() -> int:
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                 alignment_d3d11_state["queued_model"] = None
                 alignment_d3d11_state["queued_label"] = ""
+                alignment_d3d11_state["queued_display_mode"] = ""
                 alignment_d3d11_state["queued_transform_generation"] = 0
                 alignment_d3d11_state["pending_model"] = None
                 alignment_d3d11_state["pending_label"] = ""
+                alignment_d3d11_state["pending_display_mode"] = ""
                 alignment_d3d11_state["pending_transform_generation"] = 0
                 alignment_d3d11_state["active_package_request_id"] = 0
+                alignment_d3d11_state["active_package_display_mode"] = ""
+                alignment_d3d11_state["request_display_modes"] = {}
                 alignment_d3d11_state["source_to_d3d11_ids"] = {}
                 alignment_d3d11_state["d3d11_id_to_source_indices"] = {}
                 _alignment_d3d11_stop_worker()
@@ -46220,8 +46229,10 @@ def run_gui() -> int:
                     alignment_d3d11_preview_status_label.setText("Native D3D11 preview has no renderable model yet.")
                     return
                 transform_generation = _current_alignment_transform_generation()
+                display_mode = str(preview_mode_combo.currentData() or "side_by_side")
                 alignment_d3d11_state["queued_model"] = _clone_preview_model(model)
                 alignment_d3d11_state["queued_label"] = str(label or "Live alignment preview")
+                alignment_d3d11_state["queued_display_mode"] = display_mode
                 alignment_d3d11_state["queued_transform_generation"] = transform_generation
                 alignment_d3d11_preview_status_label.setText("Queued native D3D11 alignment preview...")
                 alignment_d3d11_reload_timer.setInterval(alignment_d3d11_package_reload_interval_ms)
@@ -46292,9 +46303,11 @@ def run_gui() -> int:
                 model: object,
                 label: str,
                 transform_generation: Optional[int] = None,
+                display_mode: str = "",
             ) -> None:
                 if not _alignment_d3d11_preview_active() or not isinstance(model, ModelPreviewData):
                     return
+                requested_display_mode = str(display_mode or preview_mode_combo.currentData() or "side_by_side")
                 request_transform_generation = (
                     int(transform_generation)
                     if transform_generation is not None
@@ -46304,6 +46317,7 @@ def run_gui() -> int:
                     alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                     alignment_d3d11_state["pending_model"] = model
                     alignment_d3d11_state["pending_label"] = label
+                    alignment_d3d11_state["pending_display_mode"] = requested_display_mode
                     alignment_d3d11_state["pending_transform_generation"] = request_transform_generation
                     _alignment_d3d11_stop_worker()
                     alignment_d3d11_preview_status_label.setText("Queued latest native D3D11 alignment preview...")
@@ -46323,6 +46337,11 @@ def run_gui() -> int:
                     request_transform_generations = {}
                     alignment_d3d11_state["request_transform_generations"] = request_transform_generations
                 request_transform_generations[request_id] = request_transform_generation
+                request_display_modes = alignment_d3d11_state.get("request_display_modes")
+                if not isinstance(request_display_modes, dict):
+                    request_display_modes = {}
+                    alignment_d3d11_state["request_display_modes"] = request_display_modes
+                request_display_modes[request_id] = requested_display_mode
                 settings, high_quality_textures, enable_material_combiner, package_quality = _alignment_d3d11_package_quality(label, model)
                 alignment_d3d11_state["package_quality"] = package_quality
                 worker = AlignmentD3D11PackageWorker(
@@ -46333,7 +46352,7 @@ def run_gui() -> int:
                     high_quality_textures=high_quality_textures,
                     enable_material_combiner=enable_material_combiner,
                     original_reference_material_parity=True,
-                    display_mode=str(preview_mode_combo.currentData() or "side_by_side"),
+                    display_mode=requested_display_mode,
                     editor_workspace="modify_original_alignment" if modify_original_clone_mode else "mesh_replacement_alignment",
                 )
                 thread = QThread(dialog)
@@ -46356,11 +46375,13 @@ def run_gui() -> int:
             def _flush_alignment_d3d11_preview_request() -> None:
                 model = alignment_d3d11_state.get("queued_model")
                 label = str(alignment_d3d11_state.get("queued_label", "") or "Live alignment preview")
+                display_mode = str(alignment_d3d11_state.get("queued_display_mode", "") or preview_mode_combo.currentData() or "side_by_side")
                 transform_generation = int(alignment_d3d11_state.get("queued_transform_generation", 0) or 0)
                 alignment_d3d11_state["queued_model"] = None
                 alignment_d3d11_state["queued_label"] = ""
+                alignment_d3d11_state["queued_display_mode"] = ""
                 alignment_d3d11_state["queued_transform_generation"] = 0
-                _start_alignment_d3d11_package_worker(model, label, transform_generation)
+                _start_alignment_d3d11_package_worker(model, label, transform_generation, display_mode=display_mode)
 
             def _handle_alignment_d3d11_package_ready(
                 request_id: int,
@@ -46394,15 +46415,17 @@ def run_gui() -> int:
                 alignment_d3d11_state["worker"] = None
                 pending_model = alignment_d3d11_state.get("pending_model")
                 pending_label = str(alignment_d3d11_state.get("pending_label", "") or "Live alignment preview")
+                pending_display_mode = str(alignment_d3d11_state.get("pending_display_mode", "") or preview_mode_combo.currentData() or "side_by_side")
                 pending_transform_generation = int(alignment_d3d11_state.get("pending_transform_generation", 0) or 0)
                 alignment_d3d11_state["pending_model"] = None
                 alignment_d3d11_state["pending_label"] = ""
+                alignment_d3d11_state["pending_display_mode"] = ""
                 alignment_d3d11_state["pending_transform_generation"] = 0
                 if _alignment_d3d11_preview_active() and isinstance(pending_model, ModelPreviewData):
                     QTimer.singleShot(
                         0,
-                        lambda model=pending_model, label=pending_label, generation=pending_transform_generation: (
-                            _start_alignment_d3d11_package_worker(model, label, generation)
+                        lambda model=pending_model, label=pending_label, generation=pending_transform_generation, mode=pending_display_mode: (
+                            _start_alignment_d3d11_package_worker(model, label, generation, display_mode=mode)
                         ),
                     )
 
@@ -46421,12 +46444,18 @@ def run_gui() -> int:
                     status_file.unlink(missing_ok=True)
                 except OSError:
                     pass
+                request_display_modes = alignment_d3d11_state.get("request_display_modes")
+                package_display_mode = str(preview_mode_combo.currentData() or "side_by_side")
+                if isinstance(request_display_modes, Mapping):
+                    package_display_mode = str(request_display_modes.get(int(request_id or 0), package_display_mode) or package_display_mode)
                 existing_process = alignment_d3d11_state.get("process")
                 if isinstance(existing_process, QProcess) and existing_process.state() != QProcess.NotRunning:
                     previous_package = alignment_d3d11_state.get("active_package")
                     previous_request_id = int(alignment_d3d11_state.get("active_package_request_id", 0) or 0)
+                    previous_display_mode = str(alignment_d3d11_state.get("active_package_display_mode", "") or "")
                     alignment_d3d11_state["active_package"] = package_dir
                     alignment_d3d11_state["active_package_request_id"] = int(request_id or 0)
+                    alignment_d3d11_state["active_package_display_mode"] = package_display_mode
                     alignment_d3d11_state["status_file"] = status_file
                     alignment_d3d11_state["status_mtime"] = 0.0
                     if alignment_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
@@ -46447,9 +46476,11 @@ def run_gui() -> int:
                         return
                     alignment_d3d11_state["active_package"] = previous_package
                     alignment_d3d11_state["active_package_request_id"] = previous_request_id
+                    alignment_d3d11_state["active_package_display_mode"] = previous_display_mode
                 _alignment_d3d11_stop_process()
                 alignment_d3d11_state["active_package"] = package_dir
                 alignment_d3d11_state["active_package_request_id"] = int(request_id or 0)
+                alignment_d3d11_state["active_package_display_mode"] = package_display_mode
                 alignment_d3d11_state["status_file"] = status_file
                 alignment_d3d11_state["status_mtime"] = 0.0
                 process = QProcess(dialog)
@@ -46472,6 +46503,7 @@ def run_gui() -> int:
                     _cleanup_alignment_d3d11_package(package_dir)
                     alignment_d3d11_state["active_package"] = None
                     alignment_d3d11_state["active_package_request_id"] = 0
+                    alignment_d3d11_state["active_package_display_mode"] = ""
                     return
                 process.setProgram(program)
                 process.setArguments(arguments)
@@ -46537,6 +46569,7 @@ def run_gui() -> int:
                 package_dir = alignment_d3d11_state.get("active_package")
                 alignment_d3d11_state["active_package"] = None
                 alignment_d3d11_state["active_package_request_id"] = 0
+                alignment_d3d11_state["active_package_display_mode"] = ""
                 alignment_d3d11_state["status_file"] = None
                 _cleanup_alignment_d3d11_package(package_dir)
                 if int(exit_code) != 0:
@@ -46636,10 +46669,14 @@ def run_gui() -> int:
                     return
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                 alignment_d3d11_state["queued_model"] = None
+                alignment_d3d11_state["queued_display_mode"] = ""
                 alignment_d3d11_state["pending_model"] = None
+                alignment_d3d11_state["pending_display_mode"] = ""
                 alignment_d3d11_state["queued_transform_generation"] = 0
                 alignment_d3d11_state["pending_transform_generation"] = 0
                 alignment_d3d11_state["active_package_request_id"] = 0
+                alignment_d3d11_state["active_package_display_mode"] = ""
+                alignment_d3d11_state["request_display_modes"] = {}
                 _alignment_d3d11_stop_worker()
                 _alignment_d3d11_stop_process()
                 preview_help.setText("Live preview. Test Build Preview validates final package paths.")
@@ -46695,8 +46732,31 @@ def run_gui() -> int:
                     return (overlay_dialog_preview,)
                 return (original_dialog_preview, static_dialog_preview)
 
+            def _alignment_d3d11_mode_requires_original(mode: str) -> bool:
+                return str(mode or "side_by_side") in {"side_by_side", "overlay"}
+
+            def _alignment_d3d11_package_mode_has_original(mode: str) -> bool:
+                normalized_mode = str(mode or "").strip() or "side_by_side"
+                return normalized_mode != "replacement_only"
+
+            def _alignment_d3d11_mode_refresh_needed(mode: str) -> bool:
+                if not _alignment_d3d11_mode_requires_original(mode):
+                    return False
+                active_display_mode = str(alignment_d3d11_state.get("active_package_display_mode", "") or "")
+                if active_display_mode and not _alignment_d3d11_package_mode_has_original(active_display_mode):
+                    return True
+                queued_display_mode = str(alignment_d3d11_state.get("queued_display_mode", "") or "")
+                if queued_display_mode and not _alignment_d3d11_package_mode_has_original(queued_display_mode):
+                    return True
+                pending_display_mode = str(alignment_d3d11_state.get("pending_display_mode", "") or "")
+                if pending_display_mode and not _alignment_d3d11_package_mode_has_original(pending_display_mode):
+                    return True
+                return False
+
             def _preview_mode_needs_static_refresh(mode: str) -> bool:
                 if _alignment_d3d11_preview_active():
+                    if _alignment_d3d11_mode_refresh_needed(mode):
+                        return True
                     process = alignment_d3d11_state.get("process")
                     package_active = alignment_d3d11_state.get("active_package") is not None
                     renderer_active = isinstance(process, QProcess) and process.state() != QProcess.NotRunning
@@ -55969,10 +56029,13 @@ def run_gui() -> int:
                         alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                         alignment_d3d11_state["queued_model"] = None
                         alignment_d3d11_state["queued_label"] = ""
+                        alignment_d3d11_state["queued_display_mode"] = ""
                         alignment_d3d11_state["queued_transform_generation"] = 0
                         alignment_d3d11_state["pending_model"] = None
                         alignment_d3d11_state["pending_label"] = ""
+                        alignment_d3d11_state["pending_display_mode"] = ""
                         alignment_d3d11_state["pending_transform_generation"] = 0
+                        alignment_d3d11_state["request_display_modes"] = {}
                         _alignment_d3d11_stop_worker()
                         if _alignment_d3d11_preview_active():
                             original_dialog_preview.clear_model("Original textures loaded in native D3D11 preview.")

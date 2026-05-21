@@ -398,6 +398,24 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("source_vertex_weights", native_source)
         self.assertIn("identity_file", native_source)
 
+    def test_alignment_d3d11_mode_switch_reloads_when_original_role_missing(self) -> None:
+        source = _main_window_source()
+        self.assertIn('"queued_display_mode": ""', source)
+        self.assertIn('"pending_display_mode": ""', source)
+        self.assertIn('"active_package_display_mode": ""', source)
+        self.assertIn('"request_display_modes": {}', source)
+        self.assertIn("def _alignment_d3d11_mode_requires_original(mode: str) -> bool:", source)
+        self.assertIn('return str(mode or "side_by_side") in {"side_by_side", "overlay"}', source)
+        self.assertIn("def _alignment_d3d11_package_mode_has_original(mode: str) -> bool:", source)
+        self.assertIn('return normalized_mode != "replacement_only"', source)
+        self.assertIn("def _alignment_d3d11_mode_refresh_needed(mode: str) -> bool:", source)
+        self.assertIn("if _alignment_d3d11_mode_refresh_needed(mode):", source)
+        self.assertIn('alignment_d3d11_state["queued_display_mode"] = display_mode', source)
+        self.assertIn('alignment_d3d11_state["pending_display_mode"] = requested_display_mode', source)
+        self.assertIn("request_display_modes[request_id] = requested_display_mode", source)
+        self.assertIn('display_mode=requested_display_mode', source)
+        self.assertIn('alignment_d3d11_state["active_package_display_mode"] = package_display_mode', source)
+
     def test_alignment_dialog_build_mod_keeps_window_open_for_repeat_exports(self) -> None:
         source = _main_window_source()
         self.assertIn("continue_build_callback: Optional[", source)
