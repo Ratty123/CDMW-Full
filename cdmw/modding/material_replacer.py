@@ -280,8 +280,8 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
             emissive_mode="intensity",
             support_policy="source_only",
             note=(
-                "Quality-safe source authority: keep target shader texture slots, route visible color layers "
-                "to source base color, and force height/material support layers to neutral source-owned maps."
+                "Quality-safe source authority: keep target shader texture slots, route primary source maps, "
+                "and force grime/detail/height layers to source-owned neutral support maps."
             ),
         ),
         CDMaterialRuntimeProfile(
@@ -2701,7 +2701,7 @@ def _profile_texture_format_override(
     slot_kind = str(getattr(source_slot, "slot_kind", "") or "").strip().lower()
     if slot_kind == "normal":
         return "BC5_UNORM"
-    if profile_name in {"material_authority_bruteforce", "format_probe_bc3"}:
+    if profile_name == "format_probe_bc3":
         if slot_kind in {"base", "emissive"}:
             return "BC3_UNORM_SRGB"
         if slot_kind in {"material", "material_mask", "height", "detail_mask"}:
@@ -3758,21 +3758,14 @@ def _quality_safe_source_authority_texture_parameters(
     def replacement_for_parameter(parameter_name: str) -> str:
         compact = re.sub(r"[^a-z0-9]+", "", str(parameter_name or "").strip().lower())
         layered = any(token in compact for token in ("detail", "grime", "dye", "damage", "layer"))
-        visible_color = any(token in compact for token in ("color", "colour", "diffuse", "albedo", "overlay", "base", "rgbtexture"))
-        if "colorblendingmask" in compact:
-            visible_color = False
         if layered:
             if "normal" in compact:
                 return source_paths.get("neutral_normal") or source_paths.get("normal") or fallback
             if "height" in compact or "displacement" in compact:
                 return source_paths.get("neutral_height") or source_paths.get("neutral_detail") or fallback
-            if any(token in compact for token in ("emissive", "emission", "glow", "illum")):
-                return source_paths.get("emissive") or source_paths.get("base") or fallback
-            if visible_color:
-                return source_paths.get("base") or source_paths.get("emissive") or fallback
             if any(token in compact for token in ("material", "rough", "metal", "spec", "gloss", "ao", "occlusion")):
                 return source_paths.get("neutral_material") or source_paths.get("neutral_detail") or fallback
-            return source_paths.get("base") or source_paths.get("neutral_detail") or fallback
+            return source_paths.get("neutral_detail") or source_paths.get("neutral_material") or fallback
         if compact in {"normaltexture", "basenormaltexture"} or (compact.endswith("normaltexture") and "detail" not in compact):
             return source_paths.get("normal") or source_paths.get("neutral_normal") or fallback
         if "height" in compact or "displacement" in compact:
@@ -3785,13 +3778,14 @@ def _quality_safe_source_authority_texture_parameters(
             return source_paths.get("material") or source_paths.get("neutral_material") or fallback
         if any(token in compact for token in ("emissive", "emission", "glow", "illum")):
             return source_paths.get("emissive") or source_paths.get("base") or fallback
-        if visible_color:
-            return source_paths.get("base") or source_paths.get("emissive") or fallback
+        if any(token in compact for token in ("color", "colour", "diffuse", "albedo", "overlay", "rgbtexture")):
+            if "colorblendingmask" not in compact:
+                return source_paths.get("base") or fallback
         if "normal" in compact:
             return source_paths.get("neutral_normal") or source_paths.get("normal") or fallback
         if any(token in compact for token in ("mask", "material", "roughness", "metallic", "metalness", "specular", "gloss", "ao", "occlusion")):
             return source_paths.get("neutral_material") or source_paths.get("material") or fallback
-        return source_paths.get("base") or source_paths.get("neutral_detail") or fallback
+        return source_paths.get("neutral_detail") or source_paths.get("base") or fallback
 
     def patch_block(match: re.Match[str]) -> str:
         nonlocal changed
