@@ -44158,11 +44158,26 @@ def run_gui() -> int:
             alignment_d3d11_preview_status_label.setAlignment(Qt.AlignCenter)
             alignment_d3d11_preview_status_label.setWordWrap(False)
             alignment_d3d11_preview_status_label.setMaximumHeight(24)
+            alignment_d3d11_loading_spinner_label = QLabel("")
+            alignment_d3d11_loading_spinner_label.setObjectName("HintLabel")
+            alignment_d3d11_loading_spinner_label.setAlignment(Qt.AlignCenter)
+            alignment_d3d11_loading_spinner_label.setFixedWidth(18)
+            alignment_d3d11_loading_spinner_label.setVisible(False)
+            alignment_d3d11_status_row = QHBoxLayout()
+            alignment_d3d11_status_row.setContentsMargins(0, 0, 0, 0)
+            alignment_d3d11_status_row.setSpacing(4)
+            alignment_d3d11_status_row.addStretch(1)
+            alignment_d3d11_status_row.addWidget(alignment_d3d11_loading_spinner_label)
+            alignment_d3d11_status_row.addWidget(alignment_d3d11_preview_status_label)
+            alignment_d3d11_status_row.addStretch(1)
             alignment_d3d11_preview_layout.addWidget(alignment_d3d11_preview_legend_label)
             alignment_d3d11_preview_layout.addWidget(alignment_d3d11_preview_host, 1)
-            alignment_d3d11_preview_layout.addWidget(alignment_d3d11_preview_status_label)
+            alignment_d3d11_preview_layout.addLayout(alignment_d3d11_status_row)
             alignment_d3d11_status_timer = QTimer(dialog)
             alignment_d3d11_status_timer.setInterval(250)
+            alignment_d3d11_loading_timer = QTimer(dialog)
+            alignment_d3d11_loading_timer.setInterval(120)
+            alignment_d3d11_loading_state = {"active": False, "frame": 0}
             alignment_d3d11_fast_reload_interval_ms = 180
             alignment_d3d11_package_reload_interval_ms = 560
             alignment_d3d11_reload_timer = QTimer(dialog)
@@ -44212,6 +44227,33 @@ def run_gui() -> int:
             alignment_preview_mode_view_states: Dict[str, object] = {}
             alignment_preview_mode_state = {"current": str(preview_mode_combo.currentData() or "side_by_side")}
             alignment_preview_view_sync = {"active": False}
+
+            def _tick_alignment_d3d11_loading_spinner() -> None:
+                frames = ("◐", "◓", "◑", "◒")
+                frame_index = (int(alignment_d3d11_loading_state.get("frame", 0) or 0) + 1) % len(frames)
+                alignment_d3d11_loading_state["frame"] = frame_index
+                alignment_d3d11_loading_spinner_label.setText(frames[frame_index])
+
+            def _set_alignment_d3d11_loading(active: bool, message: str = "", *, detail: str = "") -> None:
+                active = bool(active)
+                alignment_d3d11_loading_state["active"] = active
+                if message:
+                    alignment_d3d11_preview_status_label.setText(str(message))
+                if detail:
+                    alignment_d3d11_preview_status_label.setToolTip(str(detail))
+                elif message:
+                    alignment_d3d11_preview_status_label.setToolTip(str(message))
+                if active:
+                    alignment_d3d11_loading_spinner_label.setVisible(True)
+                    if not alignment_d3d11_loading_timer.isActive():
+                        _tick_alignment_d3d11_loading_spinner()
+                        alignment_d3d11_loading_timer.start()
+                else:
+                    alignment_d3d11_loading_timer.stop()
+                    alignment_d3d11_loading_spinner_label.setVisible(False)
+                    alignment_d3d11_loading_spinner_label.setText("")
+
+            alignment_d3d11_loading_timer.timeout.connect(_tick_alignment_d3d11_loading_spinner)
 
             def _handle_alignment_d3d11_view_state_payload(payload: object) -> None:
                 if not isinstance(payload, Mapping):
@@ -46496,7 +46538,7 @@ def run_gui() -> int:
                 if not _alignment_d3d11_preview_active():
                     return
                 if not isinstance(model, ModelPreviewData):
-                    alignment_d3d11_preview_status_label.setText("Native D3D11 preview has no renderable model yet.")
+                    _set_alignment_d3d11_loading(False, "Preview has no renderable model yet.")
                     return
                 transform_generation = _current_alignment_transform_generation()
                 display_mode = str(preview_mode_combo.currentData() or "side_by_side")
@@ -46511,8 +46553,10 @@ def run_gui() -> int:
                 alignment_d3d11_state["queued_display_mode"] = display_mode
                 alignment_d3d11_state["queued_reason"] = rebuild_reason
                 alignment_d3d11_state["queued_transform_generation"] = transform_generation
-                alignment_d3d11_preview_status_label.setText(
-                    f"Queued native D3D11 alignment preview ({rebuild_reason})..."
+                _set_alignment_d3d11_loading(
+                    True,
+                    "Loading preview... please wait.",
+                    detail=f"Queued preview reload. reason={rebuild_reason}",
                 )
                 alignment_d3d11_reload_timer.setInterval(alignment_d3d11_package_reload_interval_ms)
                 alignment_d3d11_reload_timer.start()
@@ -46606,8 +46650,10 @@ def run_gui() -> int:
                     alignment_d3d11_state["pending_reason"] = rebuild_reason
                     alignment_d3d11_state["pending_transform_generation"] = request_transform_generation
                     _alignment_d3d11_stop_worker()
-                    alignment_d3d11_preview_status_label.setText(
-                        f"Queued latest native D3D11 alignment preview ({rebuild_reason})..."
+                    _set_alignment_d3d11_loading(
+                        True,
+                        "Loading preview... please wait.",
+                        detail=f"Queued latest preview reload. reason={rebuild_reason}",
                     )
                     return
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
@@ -46683,8 +46729,10 @@ def run_gui() -> int:
                             preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                             _sync_highlight_sets()
                             _replay_alignment_d3d11_fast_transform()
-                            alignment_d3d11_preview_status_label.setText(
-                                f"Native D3D11 alignment preview cache hit ({rebuild_reason}); reused active package."
+                            _set_alignment_d3d11_loading(
+                                False,
+                                "Preview ready.",
+                                detail=f"Reused active cached package. reason={rebuild_reason}",
                             )
                             _set_preview_performance_status(
                                 f"D3D11 cache hit - {_alignment_preview_detail_label()} - reason {rebuild_reason}",
@@ -46696,8 +46744,10 @@ def run_gui() -> int:
                                 ),
                             )
                             return
-                        alignment_d3d11_preview_status_label.setText(
-                            f"Loading cached native D3D11 alignment preview ({rebuild_reason})..."
+                        _set_alignment_d3d11_loading(
+                            True,
+                            "Loading preview... please wait.",
+                            detail=f"Loading cached package. reason={rebuild_reason}",
                         )
                         _set_preview_performance_status(
                             f"D3D11 cache hit; loading package - reason {rebuild_reason}",
@@ -46728,11 +46778,14 @@ def run_gui() -> int:
                 thread.finished.connect(_cleanup_alignment_d3d11_package_worker_refs)
                 alignment_d3d11_state["worker"] = worker
                 alignment_d3d11_state["thread"] = thread
-                alignment_d3d11_preview_status_label.setText(
-                    f"Preparing native D3D11 {package_quality} preview package ({rebuild_reason}): {label}"
+                loading_detail = "resolving textures" if high_quality_textures else "building mesh and low-res textures"
+                _set_alignment_d3d11_loading(
+                    True,
+                    f"Loading preview... please wait, {loading_detail}.",
+                    detail=f"Building preview package. quality={package_quality} reason={rebuild_reason} label={label}",
                 )
                 _set_preview_performance_status(
-                    f"Preparing D3D11 {package_quality} preview package...",
+                    "Loading preview...",
                     details=f"cache={alignment_d3d11_state.get('last_cache_event')}\nreason={rebuild_reason}",
                 )
                 thread.start()
@@ -46771,7 +46824,7 @@ def run_gui() -> int:
                     return
                 if _alignment_d3d11_drag_reload_stale(int(request_id)):
                     _cleanup_alignment_d3d11_package(package_dir)
-                    alignment_d3d11_preview_status_label.setText("Native D3D11 preview reload deferred until drag settles.")
+                    _set_alignment_d3d11_loading(False, "Preview reload paused until movement settles.")
                     return
                 alignment_d3d11_state["prepare_ms"] = float(prepare_ms)
                 alignment_d3d11_state["package_ms"] = float(package_ms)
@@ -46796,7 +46849,7 @@ def run_gui() -> int:
             def _handle_alignment_d3d11_package_error(request_id: int, message: str) -> None:
                 if int(request_id) != int(alignment_d3d11_state.get("request_id", 0) or 0):
                     return
-                alignment_d3d11_preview_status_label.setText(f"Native D3D11 package failed: {message}")
+                _set_alignment_d3d11_loading(False, f"Preview load failed: {message}")
                 _set_preview_performance_status("D3D11 package failed.", details=str(message))
 
             def _cleanup_alignment_d3d11_package_worker_refs() -> None:
@@ -46829,11 +46882,11 @@ def run_gui() -> int:
             def _start_alignment_d3d11_process(package_dir: Path, *, request_id: int = 0) -> None:
                 if bool(alignment_d3d11_drag_transaction.get("active")):
                     _cleanup_alignment_d3d11_package(package_dir)
-                    alignment_d3d11_preview_status_label.setText("Native D3D11 preview reload paused during drag.")
+                    _set_alignment_d3d11_loading(False, "Preview reload paused during movement.")
                     return
                 if int(request_id or 0) > 0 and _alignment_d3d11_drag_reload_stale(int(request_id)):
                     _cleanup_alignment_d3d11_package(package_dir)
-                    alignment_d3d11_preview_status_label.setText("Native D3D11 preview reload deferred until transform settles.")
+                    _set_alignment_d3d11_loading(False, "Preview reload paused until transform settles.")
                     _replay_alignment_d3d11_fast_transform()
                     return
                 status_file = package_dir / "host_status.json"
@@ -46870,8 +46923,10 @@ def run_gui() -> int:
                         alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
                         _cleanup_alignment_d3d11_package(previous_package, delay_ms=5000)
                         preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
-                        alignment_d3d11_preview_status_label.setText(
-                            f"Reloading native D3D11 alignment preview without restarting the renderer ({rebuild_reason})..."
+                        _set_alignment_d3d11_loading(
+                            True,
+                            "Loading preview... please wait.",
+                            detail=f"Reloading cached renderer package. reason={rebuild_reason}",
                         )
                         channel_debug = self._archive_material_channel_debug_from_package(package_dir)
                         timing_summary = (
@@ -46909,7 +46964,7 @@ def run_gui() -> int:
                         theme_payload=_alignment_d3d11_theme_payload(),
                     )
                 except Exception as exc:
-                    alignment_d3d11_preview_status_label.setText(f"Native D3D11 unavailable: {exc}")
+                    _set_alignment_d3d11_loading(False, f"Preview unavailable: {exc}")
                     _set_preview_performance_status(
                         "Native D3D11 unavailable.",
                         details=(
@@ -46935,7 +46990,7 @@ def run_gui() -> int:
                 process.errorOccurred.connect(lambda error, process=process: _handle_alignment_d3d11_error(process, error))
                 alignment_d3d11_state["process"] = process
                 preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
-                alignment_d3d11_preview_status_label.setText("Starting native D3D11 alignment preview...")
+                _set_alignment_d3d11_loading(True, "Loading preview... please wait.")
                 _set_preview_performance_status(
                     f"Starting D3D11 preview - {_alignment_preview_detail_label()} - "
                     f"{str(alignment_d3d11_state.get('package_quality', 'fast') or 'fast')} package - "
@@ -46959,7 +47014,7 @@ def run_gui() -> int:
                     return
                 if expected_status.is_file():
                     return
-                alignment_d3d11_preview_status_label.setText("Native D3D11 host has not written status yet.")
+                _set_alignment_d3d11_loading(True, "Loading preview... starting renderer.")
                 _set_preview_performance_status(
                     "D3D11 startup timeout.",
                     details=(
@@ -46976,12 +47031,12 @@ def run_gui() -> int:
                 except RuntimeError:
                     return
                 if chunk:
-                    alignment_d3d11_preview_status_label.setText(f"Native D3D11 stderr: {chunk[-300:]}")
+                    _set_alignment_d3d11_loading(False, f"Preview renderer message: {chunk[-300:]}")
 
             def _handle_alignment_d3d11_error(process: QProcess, error: object) -> None:
                 if process is not alignment_d3d11_state.get("process"):
                     return
-                alignment_d3d11_preview_status_label.setText(f"Native D3D11 process error: {error}")
+                _set_alignment_d3d11_loading(False, f"Preview process error: {error}")
 
             def _handle_alignment_d3d11_finished(process: QProcess, exit_code: int, exit_status: object) -> None:
                 if process is not alignment_d3d11_state.get("process"):
@@ -46997,7 +47052,7 @@ def run_gui() -> int:
                 alignment_d3d11_state["status_file"] = None
                 _cleanup_alignment_d3d11_package(package_dir)
                 if int(exit_code) != 0:
-                    alignment_d3d11_preview_status_label.setText(f"Native D3D11 exited with code {int(exit_code)} ({exit_status}).")
+                    _set_alignment_d3d11_loading(False, f"Preview closed with code {int(exit_code)} ({exit_status}).")
 
             def _poll_alignment_d3d11_status() -> None:
                 status_file = alignment_d3d11_state.get("status_file")
@@ -47014,20 +47069,21 @@ def run_gui() -> int:
                 try:
                     payload = json.loads(status_file.read_text(encoding="utf-8"))
                 except Exception as exc:
-                    alignment_d3d11_preview_status_label.setText(f"Native D3D11 status read failed: {exc}")
+                    _set_alignment_d3d11_loading(False, f"Preview status read failed: {exc}")
                     return
                 if not isinstance(payload, Mapping):
                     return
                 event = str(payload.get("event", "") or "").strip().lower()
                 if event == "loaded":
                     if bool(alignment_d3d11_drag_transaction.get("active")):
-                        alignment_d3d11_preview_status_label.setText("Native D3D11 preview loaded; applying after drag settles.")
+                        _set_alignment_d3d11_loading(False, "Preview loaded; applying after movement settles.")
                         return
                     active_request_id = int(alignment_d3d11_state.get("active_package_request_id", 0) or 0)
                     if active_request_id and _alignment_d3d11_drag_reload_stale(active_request_id):
                         _replay_alignment_d3d11_fast_transform()
-                        alignment_d3d11_preview_status_label.setText(
-                            "Native D3D11 preview loaded stale package; keeping live transform."
+                        _set_alignment_d3d11_loading(
+                            False,
+                            "Preview loaded; keeping live transform.",
                         )
                         return
                     alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
@@ -47049,7 +47105,7 @@ def run_gui() -> int:
                     )
                     if channel_debug.startswith("Material Channel Contract: "):
                         channel_debug = "channels " + channel_debug[len("Material Channel Contract: "):]
-                    alignment_d3d11_preview_status_label.setText("Native D3D11 alignment preview loaded.")
+                    _set_alignment_d3d11_loading(False, "Preview ready.")
                     cache_event = str(alignment_d3d11_state.get("last_cache_event", "miss") or "miss")
                     rebuild_reason = str(alignment_d3d11_state.get("last_cache_reason", "") or alignment_d3d11_state.get("last_rebuild_reason", "geometry") or "geometry")
                     native_load_ms = (
@@ -47078,19 +47134,17 @@ def run_gui() -> int:
                     _set_preview_performance_status(timing_summary, details=timing_details)
                 elif event == "loading":
                     message = str(payload.get("message", "") or "Loading native D3D11 alignment preview...")
-                    alignment_d3d11_preview_status_label.setText(message)
+                    _set_alignment_d3d11_loading(True, "Loading preview... please wait.", detail=message)
                 elif event == "error":
                     message = str(payload.get("message", "") or "Native D3D11 renderer error.")
-                    alignment_d3d11_preview_status_label.setText(message)
+                    _set_alignment_d3d11_loading(False, f"Preview load failed: {message}")
                     _set_preview_performance_status("D3D11 renderer error.", details=message)
                 elif event == "closed":
-                    alignment_d3d11_preview_status_label.setText("Native D3D11 alignment preview closed.")
+                    _set_alignment_d3d11_loading(False, "Preview closed.")
 
             def _set_preview_renderer() -> None:
                 if str(preview_renderer_combo.currentData() or "").strip().lower() == "d3d11" and not alignment_d3d11_available:
-                    alignment_d3d11_preview_status_label.setText(
-                        "Native D3D11 preview host is unavailable."
-                    )
+                    _set_alignment_d3d11_loading(False, "Preview host is unavailable.")
                 if _alignment_d3d11_preview_active():
                     preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                     preview_help.setText("Native D3D11 alignment preview.")
@@ -55507,7 +55561,11 @@ def run_gui() -> int:
                     if bool(original_reference_texture_preview_state.get("failed")):
                         return True
                     message = "Loading original textures: base/sidecar/support maps..."
-                    alignment_d3d11_preview_status_label.setText(message)
+                    _set_alignment_d3d11_loading(
+                        True,
+                        "Loading preview... please wait, resolving textures.",
+                        detail=message,
+                    )
                     original_dialog_preview.clear_model(message)
                     _set_preview_performance_status(message, details=f"reason={reason}")
                     if bool(original_reference_texture_preview_state.get("loading")):
@@ -56367,9 +56425,7 @@ def run_gui() -> int:
                             modify_original_clone=modify_original_clone_mode,
                             defer_original_texture_preview=defer_original_texture_preview,
                         )
-                        alignment_d3d11_preview_status_label.setText(
-                            f"Native D3D11 alignment preview failed: {exc}"
-                        )
+                        _set_alignment_d3d11_loading(False, f"Preview failed: {exc}")
                         _set_preview_performance_status("D3D11 alignment preview failed.", details=str(exc))
 
                 static_preview_refresh_timer.timeout.connect(_safe_refresh_static_dialog_preview)
@@ -56391,8 +56447,10 @@ def run_gui() -> int:
                     original_reference_texture_preview_state["loading"] = True
                     original_reference_texture_preview_state["failed"] = False
                     original_reference_texture_preview_state["error"] = ""
-                    alignment_d3d11_preview_status_label.setText(
-                        "Loading original textures: base/sidecar/support maps..."
+                    _set_alignment_d3d11_loading(
+                        True,
+                        "Loading preview... please wait, resolving textures.",
+                        detail="Loading original textures: base/sidecar/support maps...",
                     )
                     _set_preview_performance_status(
                         "Loading original textures: base/sidecar/support maps..."
@@ -56495,8 +56553,10 @@ def run_gui() -> int:
                         _alignment_d3d11_invalidate_package_cache("material")
                         if _alignment_d3d11_preview_active():
                             original_dialog_preview.clear_model("Original textures loaded in native D3D11 preview.")
-                            alignment_d3d11_preview_status_label.setText(
-                                "Original textures loaded; refreshing native D3D11 alignment preview."
+                            _set_alignment_d3d11_loading(
+                                True,
+                                "Loading preview... please wait, resolving textures.",
+                                detail="Original textures loaded; refreshing preview.",
                             )
                         else:
                             original_dialog_preview.set_model(original_reference_preview_model)
@@ -56517,7 +56577,7 @@ def run_gui() -> int:
                         )
                         message = f"Original texture preview failed; continuing untextured: {exc}"
                         original_dialog_preview.clear_model(message)
-                        alignment_d3d11_preview_status_label.setText(message)
+                        _set_alignment_d3d11_loading(False, message)
                         _set_preview_performance_status("Original texture resolve failed.", details=str(exc))
                         _queue_static_preview_refresh()
                     finally:

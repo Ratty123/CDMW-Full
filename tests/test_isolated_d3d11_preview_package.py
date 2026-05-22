@@ -1405,7 +1405,7 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn("_native_preview_core_quality_fallback_reason", source)
         self.assertNotIn("material quality fallback", source)
         self.assertIn("native_preview_package_path", source)
-        self.assertIn("Reloading native D3D11 alignment preview without restarting", source)
+        self.assertIn('Loading preview... starting renderer.', source)
         self.assertIn("base_srgb", source)
         self.assertIn("find_native_d3d11_host", source)
         self.assertIn("--preview-package", source)
