@@ -7,13 +7,29 @@ import shutil
 import tempfile
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence
 
 from .asset_replacement import classify_texture_binding, infer_cd_texture_role_from_path
 from .mesh_parser import ParsedMesh
+from .pac_xml_profiles import (
+    DEFAULT_PAC_XML_CORPUS_ROOT,
+    PacXmlCorpusIndex,
+    PacXmlProfileReport,
+    PacXmlTemplateMatch,
+    PacXmlWrapperProfile,
+    build_pac_xml_profile_match_report,
+    load_or_build_pac_xml_corpus_index,
+    pac_xml_parameter_for_slot,
+    parse_pac_xml_profile,
+    select_best_pac_xml_template,
+)
 from .static_mesh_replacer import StaticOutputDrawSection, StaticSubmeshMapping, _semantic_tokens
+
+
+MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME = "material_authority_manual"
+_MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_PREFIX = f"{MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME}:"
 
 
 @dataclass(slots=True)
@@ -26,6 +42,11 @@ class ReplacementTextureSlot:
     packed_channels: tuple[str, ...] = ()
     source_authority: str = ""
     base_color_factor: tuple[float, float, float] = ()
+    base_color_scale: float = 1.0
+    base_color_lift: int = 0
+    base_color_gamma: float = 1.0
+    base_color_saturation: float = 1.0
+    base_color_value_max: int = 255
 
 
 @dataclass(slots=True)
@@ -148,9 +169,261 @@ class CDMaterialRuntimeProfile:
     allow_factor_only_authority: bool = False
     bruteforce_texture_scope: str = "all"
     force_neutral_layer_support: bool = False
+    factor_only_material_mask: bool = False
     preserve_target_layer_response: bool = False
     source_color_layer_authority: bool = False
+    base_color_lift: int = 0
+    base_color_scale: Optional[float] = None
+    base_color_gamma: Optional[float] = None
+    base_color_saturation: Optional[float] = None
+    base_color_value_max: Optional[int] = None
+    emissive_color_scale: Optional[float] = None
+    emissive_color_saturation: Optional[float] = None
+    emissive_color_value_max: Optional[int] = None
+    roughness_min: Optional[int] = None
+    roughness_scale: Optional[float] = None
+    roughness_max: Optional[int] = None
+    metallic_min: Optional[int] = None
+    metallic_scale: Optional[float] = None
+    metallic_max: Optional[int] = None
+    xml_profile_mode: str = ""
     note: str = ""
+
+
+_MANUAL_PROFILE_FIELD_NAMES = (
+    "ao_default",
+    "roughness_default",
+    "metallic_default",
+    "alpha_default",
+    "scratch_roughness",
+    "scratch_metallic",
+    "shine_scalar",
+    "neutral_color_rgb",
+    "displacement_scale_multiplier",
+    "displacement_scale_max",
+    "base_color_lift",
+    "base_color_scale",
+    "base_color_gamma",
+    "base_color_saturation",
+    "base_color_value_max",
+    "emissive_color_scale",
+    "emissive_color_saturation",
+    "emissive_color_value_max",
+    "roughness_min",
+    "roughness_scale",
+    "roughness_max",
+    "metallic_min",
+    "metallic_scale",
+    "metallic_max",
+    "roughness_inverted",
+    "roughness_invert",
+    "metallic_inverted",
+    "metallic_invert",
+    "force_nonmetal",
+    "preserve_scratch_alpha",
+    "allow_factor_only_authority",
+    "factor_only_material_mask",
+    "force_neutral_layer_support",
+    "preserve_target_layer_response",
+    "source_color_layer_authority",
+    "emissive_mode",
+    "base_binding_mode",
+    "mask_binding_mode",
+    "support_policy",
+)
+
+
+def _material_authority_clean_source_profile() -> CDMaterialRuntimeProfile:
+    return CDMaterialRuntimeProfile(
+        name="material_authority_clean_source",
+        label="Material Authority Clean Source",
+        ma_layout="arm",
+        material_mask_layout="ao_roughness_metallic_alpha",
+        ao_mode="white",
+        roughness_default=240,
+        metallic_default=0,
+        emissive_mode="intensity",
+        support_policy="source_only",
+        scratch_roughness=1.0,
+        scratch_metallic=0.0,
+        shine_scalar=0.0,
+        neutral_color_rgb=(216, 216, 216),
+        preserve_scratch_alpha=True,
+        displacement_scale_multiplier=0.0,
+        displacement_scale_max=0.0,
+        allow_factor_only_authority=True,
+        factor_only_material_mask=True,
+        base_color_lift=68,
+        base_color_scale=0.90,
+        base_color_gamma=0.62,
+        base_color_saturation=0.66,
+        base_color_value_max=218,
+        emissive_color_scale=0.18,
+        emissive_color_saturation=0.60,
+        emissive_color_value_max=72,
+        roughness_min=246,
+        metallic_scale=0.34,
+        metallic_max=112,
+        note=(
+            "Source-owned mesh replacement profile: bind source base/normal/PBR directly, "
+            "lift very dark source albedo, cap hot emissive colors, and remove inherited CD grime/detail/height layers."
+        ),
+    )
+
+
+def _material_authority_runtime_xml_profile() -> CDMaterialRuntimeProfile:
+    return CDMaterialRuntimeProfile(
+        name="material_authority_runtime_xml",
+        label="Material Authority Runtime XML",
+        ma_layout="arm",
+        material_mask_layout="ao_roughness_metallic_alpha",
+        ao_mode="white",
+        roughness_default=240,
+        metallic_default=0,
+        emissive_mode="intensity",
+        shader="",
+        mask_binding_mode="disabled",
+        support_policy="keep_original_support",
+        neutral_color_rgb=(216, 216, 216),
+        allow_factor_only_authority=True,
+        preserve_scratch_alpha=True,
+        preserve_target_layer_response=True,
+        base_color_scale=1.0,
+        base_color_gamma=1.0,
+        base_color_saturation=1.0,
+        base_color_value_max=255,
+        emissive_color_scale=0.18,
+        emissive_color_saturation=0.60,
+        emissive_color_value_max=72,
+        xml_profile_mode="runtime_xml",
+        note=(
+            "Recommended XML-first material authority: preserve the target PAC XML shader, wrapper order, "
+            "stock material/detail/height/grime/PBD response, and patch only compatible source base/normal/emissive slots."
+        ),
+    )
+
+
+def _material_authority_manual_default_profile() -> CDMaterialRuntimeProfile:
+    return replace(
+        _material_authority_runtime_xml_profile(),
+        name=MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME,
+        label="Material Authority Manual",
+        note=(
+            "Manual source-owned material profile based on Material Authority Runtime XML. "
+            "UI controls override color, emissive, roughness, metallic, tint reset, displacement, and source-routing behavior."
+        ),
+    )
+
+
+def _manual_profile_payload(profile_name: str) -> Optional[dict[str, object]]:
+    text = str(profile_name or "").strip()
+    if not text.startswith(_MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_PREFIX):
+        return None
+    payload_text = text[len(_MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_PREFIX) :]
+    if not payload_text:
+        return {}
+    try:
+        parsed = json.loads(payload_text)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return dict(parsed) if isinstance(parsed, Mapping) else {}
+
+
+def serialize_complete_swap_manual_material_profile(values: Mapping[str, object]) -> str:
+    payload = {
+        key: value
+        for key, value in dict(values or {}).items()
+        if key in _MANUAL_PROFILE_FIELD_NAMES
+    }
+    return _MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_PREFIX + json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def _coerce_optional_float(value: object, *, minimum: float = 0.0, maximum: float = 4.0) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return max(minimum, min(maximum, number))
+
+
+def _coerce_optional_byte(value: object) -> Optional[int]:
+    if value is None or value == "":
+        return None
+    try:
+        return max(0, min(255, int(value)))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _manual_material_profile_from_payload(payload: Mapping[str, object]) -> CDMaterialRuntimeProfile:
+    profile = _material_authority_manual_default_profile()
+    updates: dict[str, object] = {}
+    for key in (
+        "ao_default",
+        "roughness_default",
+        "metallic_default",
+        "alpha_default",
+        "base_color_lift",
+        "base_color_value_max",
+        "emissive_color_value_max",
+        "roughness_min",
+        "roughness_max",
+        "metallic_min",
+        "metallic_max",
+    ):
+        if key in payload:
+            value = _coerce_optional_byte(payload.get(key))
+            if value is not None:
+                updates[key] = value
+    for key in (
+        "scratch_roughness",
+        "scratch_metallic",
+        "shine_scalar",
+        "displacement_scale_multiplier",
+        "displacement_scale_max",
+        "base_color_scale",
+        "base_color_gamma",
+        "base_color_saturation",
+        "emissive_color_scale",
+        "emissive_color_saturation",
+        "roughness_scale",
+        "metallic_scale",
+    ):
+        if key in payload:
+            updates[key] = _coerce_optional_float(payload.get(key))
+    for key in (
+        "roughness_inverted",
+        "roughness_invert",
+        "metallic_inverted",
+        "metallic_invert",
+        "force_nonmetal",
+        "preserve_scratch_alpha",
+        "allow_factor_only_authority",
+        "factor_only_material_mask",
+        "force_neutral_layer_support",
+        "preserve_target_layer_response",
+        "source_color_layer_authority",
+    ):
+        if key in payload:
+            updates[key] = bool(payload.get(key))
+    for key, allowed in (
+        ("emissive_mode", {"disabled", "intensity"}),
+        ("base_binding_mode", {"overlay_texture", "overlay_from_colorblend_slot", "tint_only", "disabled"}),
+        ("mask_binding_mode", {"color_blending_mask", "scratch_scalars", "disabled"}),
+        ("support_policy", {"source_only", "generated_or_neutral", "generated_only", "keep_original_support"}),
+    ):
+        raw = str(payload.get(key, "") or "").strip().lower()
+        if raw in allowed:
+            updates[key] = raw
+    raw_rgb = payload.get("neutral_color_rgb")
+    if isinstance(raw_rgb, Sequence) and not isinstance(raw_rgb, (str, bytes)) and len(raw_rgb) >= 3:
+        try:
+            updates["neutral_color_rgb"] = tuple(max(0, min(255, int(component))) for component in tuple(raw_rgb)[:3])
+        except (TypeError, ValueError, OverflowError):
+            pass
+    return replace(profile, **updates)
 
 
 @dataclass(slots=True, frozen=True)
@@ -280,6 +553,9 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
                 "or explicit source files; generate _ma only from real source PBR inputs."
             ),
         ),
+        _material_authority_runtime_xml_profile(),
+        _material_authority_manual_default_profile(),
+        _material_authority_clean_source_profile(),
         CDMaterialRuntimeProfile(
             name="material_authority_bruteforce",
             label="Material Authority Brute Force",
@@ -313,7 +589,7 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
             bruteforce_texture_scope="quality_safe",
             force_neutral_layer_support=True,
             note=(
-                "Opt-in brute-force fine tune: keep source-owned texture authority and exact factor-only gems, "
+                "Opt-in brute-force fine tune: keep source-owned texture authority and exact factor-only materials, "
                 "but route height/detail-height to neutral support maps and disable displacement shimmer."
             ),
         ),
@@ -350,6 +626,9 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
 
 
 def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRuntimeProfile:
+    manual_payload = _manual_profile_payload(profile_name)
+    if manual_payload is not None:
+        return _manual_material_profile_from_payload(manual_payload)
     normalized = _sanitize_texture_component(profile_name or "arm_standard")
     aliases = {
         "source_pbr_runtime": "arm_emissive",
@@ -360,6 +639,19 @@ def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRunt
         "source_triplet_strict": "source_graph_strict",
         "strict_source": "source_graph_strict",
         "strict_source_owned": "source_graph_strict",
+        "manual": MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME,
+        "material_authority_user": MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME,
+        "manual_material_authority": MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME,
+        "runtime_xml": "material_authority_runtime_xml",
+        "xml_runtime": "material_authority_runtime_xml",
+        "material_authority_xml": "material_authority_runtime_xml",
+        "material_authority_runtime": "material_authority_runtime_xml",
+        "runtime_xml_authority": "material_authority_runtime_xml",
+        "corpus_xml": "material_authority_runtime_xml",
+        "xml_authority": "material_authority_runtime_xml",
+        "clean_source": "material_authority_clean_source",
+        "material_authority_clean": "material_authority_clean_source",
+        "clean_source_authority": "material_authority_clean_source",
         "bruteforce": "material_authority_bruteforce",
         "material_bruteforce": "material_authority_bruteforce",
         "authority_bruteforce": "material_authority_bruteforce",
@@ -409,8 +701,24 @@ def complete_swap_material_profile_to_dict(profile: CDMaterialRuntimeProfile) ->
         "allow_factor_only_authority": bool(profile.allow_factor_only_authority),
         "bruteforce_texture_scope": profile.bruteforce_texture_scope,
         "force_neutral_layer_support": bool(profile.force_neutral_layer_support),
+        "factor_only_material_mask": bool(profile.factor_only_material_mask),
         "preserve_target_layer_response": bool(profile.preserve_target_layer_response),
         "source_color_layer_authority": bool(profile.source_color_layer_authority),
+        "base_color_lift": int(profile.base_color_lift),
+        "base_color_scale": profile.base_color_scale,
+        "base_color_gamma": profile.base_color_gamma,
+        "base_color_saturation": profile.base_color_saturation,
+        "base_color_value_max": profile.base_color_value_max,
+        "emissive_color_scale": profile.emissive_color_scale,
+        "emissive_color_saturation": profile.emissive_color_saturation,
+        "emissive_color_value_max": profile.emissive_color_value_max,
+        "roughness_min": profile.roughness_min,
+        "roughness_scale": profile.roughness_scale,
+        "roughness_max": profile.roughness_max,
+        "metallic_min": profile.metallic_min,
+        "metallic_scale": profile.metallic_scale,
+        "metallic_max": profile.metallic_max,
+        "xml_profile_mode": profile.xml_profile_mode,
         "note": profile.note,
     }
 
@@ -436,6 +744,8 @@ def read_complete_swap_calibrated_material_profile(path: Path | str, default_pro
         return get_complete_swap_material_profile(default_profile)
     if not isinstance(data, Mapping):
         return get_complete_swap_material_profile(default_profile)
+    if str(data.get("name") or "").strip() == MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME:
+        return _manual_material_profile_from_payload(data)
     return get_complete_swap_material_profile(str(data.get("name") or default_profile))
 
 
@@ -486,8 +796,24 @@ def complete_swap_material_probe_manifest(
             "allow_factor_only_authority": bool(profile.allow_factor_only_authority),
             "bruteforce_texture_scope": profile.bruteforce_texture_scope,
             "force_neutral_layer_support": bool(profile.force_neutral_layer_support),
+            "factor_only_material_mask": bool(profile.factor_only_material_mask),
             "preserve_target_layer_response": bool(profile.preserve_target_layer_response),
             "source_color_layer_authority": bool(profile.source_color_layer_authority),
+            "base_color_lift": int(profile.base_color_lift),
+            "base_color_scale": profile.base_color_scale,
+            "base_color_gamma": profile.base_color_gamma,
+            "base_color_saturation": profile.base_color_saturation,
+            "base_color_value_max": profile.base_color_value_max,
+            "emissive_color_scale": profile.emissive_color_scale,
+            "emissive_color_saturation": profile.emissive_color_saturation,
+            "emissive_color_value_max": profile.emissive_color_value_max,
+            "roughness_min": profile.roughness_min,
+            "roughness_scale": profile.roughness_scale,
+            "roughness_max": profile.roughness_max,
+            "metallic_min": profile.metallic_min,
+            "metallic_scale": profile.metallic_scale,
+            "metallic_max": profile.metallic_max,
+            "xml_profile_mode": profile.xml_profile_mode,
         },
     }
 
@@ -1012,7 +1338,7 @@ def build_texture_replacement_payloads(
                 texture_output_size_mode=texture_output_size_mode,
                 neutralize_inherited_material_layers=bool(neutralize_inherited_material_layers),
                 complete_external_material_reset=bool(complete_external_material_reset),
-                complete_swap_material_profile=material_profile.name,
+                complete_swap_material_profile=complete_swap_material_profile,
                 removed_target_material_names=removed_target_material_names,
                 prune_removed_target_texture_parameters=prune_removed_target_texture_parameters,
                 prune_unmapped_original_texture_parameters=prune_unmapped_original_texture_parameters,
@@ -1752,7 +2078,12 @@ def _build_source_driven_pac_material_payloads(
     prune_unmapped_original_texture_parameters = bool(prune_unmapped_original_texture_parameters)
     if _profile_preserves_target_layer_response(material_profile):
         prune_unmapped_original_texture_parameters = False
-        if _profile_routes_source_color_to_layer_slots(material_profile):
+        if _profile_is_runtime_xml(material_profile):
+            _warn_once(
+                report,
+                "Material authority runtime XML: preserving target/corpus PAC XML shader, wrapper order, stock masks, detail, height, grime, dye, and PBD response; patching compatible direct source slots only.",
+            )
+        elif _profile_routes_source_color_to_layer_slots(material_profile):
             _warn_once(
                 report,
                 "Material authority source color + relief: source color authoritative; target relief/support preserved.",
@@ -1784,6 +2115,105 @@ def _build_source_driven_pac_material_payloads(
     texture_parent = _source_driven_texture_parent(original_texture_refs)
     texture_prefix = _source_driven_texture_prefix(original_sidecars)
     atlas_sections_by_target = _atlas_sections_by_target_name(output_draw_sections)
+    runtime_xml_reports: list[PacXmlProfileReport] = []
+    runtime_xml_template_insertions: dict[str, dict[str, str]] = {}
+    runtime_xml_template_note_keys: set[tuple[str, str]] = set()
+    runtime_xml_corpus_state: dict[str, object] = {"loaded": False, "index": None}
+    if _profile_is_runtime_xml(material_profile):
+        for sidecar_entry, sidecar_text in tuple(original_sidecars or ()):
+            sidecar_path = str(getattr(sidecar_entry, "path", "") or "").strip()
+            try:
+                parsed_report = parse_pac_xml_profile(sidecar_text, sidecar_path)
+            except Exception as exc:
+                _warn_once(report, f"PAC XML runtime profile parser skipped {PurePosixPath(sidecar_path).name}: {exc}")
+                continue
+            if parsed_report.wrappers:
+                runtime_xml_reports.append(parsed_report)
+
+    def runtime_xml_corpus_index() -> Optional[PacXmlCorpusIndex]:
+        if not _profile_is_runtime_xml(material_profile):
+            return None
+        if not bool(runtime_xml_corpus_state.get("loaded")):
+            runtime_xml_corpus_state["loaded"] = True
+            try:
+                corpus_index = load_or_build_pac_xml_corpus_index(DEFAULT_PAC_XML_CORPUS_ROOT)
+                runtime_xml_corpus_state["index"] = corpus_index
+                if corpus_index.xml_count:
+                    _warn_once(
+                        report,
+                        "PAC XML corpus index ready: "
+                        f"{corpus_index.xml_count:,} XML; {corpus_index.wrapper_count:,} wrappers; "
+                        f"{corpus_index.parameter_count:,} params; paired models {corpus_index.paired_model_count:,}.",
+                    )
+                else:
+                    _warn_once(report, f"PAC XML corpus index unavailable or empty: {DEFAULT_PAC_XML_CORPUS_ROOT}.")
+            except Exception as exc:
+                runtime_xml_corpus_state["index"] = None
+                _warn_once(report, f"PAC XML corpus index failed to load: {exc}")
+        loaded = runtime_xml_corpus_state.get("index")
+        return loaded if isinstance(loaded, PacXmlCorpusIndex) else None
+
+    def runtime_xml_report_and_wrapper_for_target(
+        target_name: str,
+    ) -> tuple[Optional[PacXmlProfileReport], Optional[PacXmlWrapperProfile]]:
+        exact_target = _normalize_sidecar_material_name(target_name)
+        best_report: Optional[PacXmlProfileReport] = None
+        best_wrapper: Optional[PacXmlWrapperProfile] = None
+        best_score = 0.0
+        for parsed_report in runtime_xml_reports:
+            for wrapper in parsed_report.wrappers:
+                wrapper_name = str(wrapper.wrapper_name or "").strip()
+                score = 0.0
+                if _normalize_sidecar_material_name(wrapper_name) == exact_target:
+                    score += 10.0
+                elif wrapper_name and _sidecar_material_names_match(wrapper_name, target_name):
+                    score += 7.0
+                else:
+                    score += _sidecar_material_match_score(target_name, wrapper_name)
+                if score > best_score:
+                    best_score = score
+                    best_report = parsed_report
+                    best_wrapper = wrapper
+        if best_score < 3.0:
+            return None, None
+        return best_report, best_wrapper
+
+    def runtime_xml_existing_parameter_name(target_name: str, slot_kind: str) -> str:
+        slot = str(slot_kind or "").strip().lower()
+        allowed_parameters = {
+            "base": {"_overlaycolortexture", "_basecolortexture", "_diffusetexture", "_albedotexture"},
+            "normal": {"_normaltexture"},
+            "emissive": {"_emissiveintensitytexture", "_emissivetexture", "_emissiveprogresstexture"},
+        }.get(slot, set())
+        if not allowed_parameters:
+            return ""
+        for reference in tuple(original_texture_refs or ()):
+            material_name = str(getattr(reference, "material_name", "") or "").strip()
+            if material_name and not _sidecar_material_names_match(material_name, target_name):
+                continue
+            parameter_name = str(getattr(reference, "sidecar_parameter_name", "") or "").strip()
+            if parameter_name.lower() in allowed_parameters:
+                return parameter_name
+        parsed_report, target_wrapper = runtime_xml_report_and_wrapper_for_target(target_name)
+        if parsed_report is None or target_wrapper is None:
+            return ""
+        template_map = runtime_xml_template_insertions.get(_normalize_sidecar_material_name(target_name), {})
+        if slot in template_map:
+            return template_map[slot]
+        return pac_xml_parameter_for_slot(target_wrapper, slot)
+
+    def runtime_xml_template_match_for_slot(target_name: str, slot_kind: str) -> PacXmlTemplateMatch:
+        parsed_report, target_wrapper = runtime_xml_report_and_wrapper_for_target(target_name)
+        match = select_best_pac_xml_template(parsed_report, target_wrapper, slot_kind, runtime_xml_corpus_index())
+        target_key = _normalize_sidecar_material_name(target_name)
+        slot = str(slot_kind or "").strip().lower()
+        if match.supports_slot and match.template_parameter_name:
+            runtime_xml_template_insertions.setdefault(target_key, {})[slot] = match.template_parameter_name
+        note_key = (target_key, slot)
+        if note_key not in runtime_xml_template_note_keys:
+            runtime_xml_template_note_keys.add(note_key)
+            _warn_once(report, match.summary(target_name=target_name, slot_kind=slot))
+        return match
 
     def source_graph_texture_set_for_target(
         target_name: str,
@@ -1825,6 +2255,28 @@ def _build_source_driven_pac_material_payloads(
             f"{texture_set.material_name} on {target_name}."
         )
         return None
+
+    def runtime_xml_slot_supported_by_target(target_name: str, slot_kind: str) -> bool:
+        if not _profile_is_runtime_xml(material_profile):
+            return True
+        slot = str(slot_kind or "").strip().lower()
+        parameter_sets = {
+            "base": {"_overlaycolortexture", "_basecolortexture", "_diffusetexture", "_albedotexture"},
+            "normal": {"_normaltexture"},
+            "emissive": {"_emissiveintensitytexture", "_emissivetexture", "_emissiveprogresstexture"},
+        }
+        allowed_parameters = parameter_sets.get(slot)
+        if allowed_parameters is None:
+            return False
+        for reference in tuple(original_texture_refs or ()):
+            material_name = str(getattr(reference, "material_name", "") or "").strip()
+            if material_name and not _sidecar_material_names_match(material_name, target_name):
+                continue
+            parameter_name = str(getattr(reference, "sidecar_parameter_name", "") or "").strip().lower()
+            if parameter_name in allowed_parameters:
+                return True
+        match = runtime_xml_template_match_for_slot(target_name, slot)
+        return bool(match.supports_slot)
 
     for target_name in active_target_names:
         if is_static_replacement_helper_material_name(target_name):
@@ -1885,7 +2337,15 @@ def _build_source_driven_pac_material_payloads(
             include_complete_support_fallbacks=bool(complete_external_material_reset),
             material_profile=material_profile,
         ):
-            parameter_name = _source_driven_parameter_name(source_slot.slot_kind, material_profile=material_profile)
+            if not runtime_xml_slot_supported_by_target(target_name, source_slot.slot_kind):
+                continue
+            parameter_name = (
+                runtime_xml_existing_parameter_name(target_name, source_slot.slot_kind)
+                if _profile_is_runtime_xml(material_profile)
+                else ""
+            )
+            if not parameter_name:
+                parameter_name = _source_driven_parameter_name(source_slot.slot_kind, material_profile=material_profile)
             if not parameter_name:
                 continue
             source_key = (
@@ -1992,10 +2452,11 @@ def _build_source_driven_pac_material_payloads(
             cloned_sidecar_text,
             target_bindings,
             exact_only=bool(complete_external_material_reset),
-            shader_name=material_profile.shader if complete_external_material_reset else "",
-            insert_missing_slots=bool(complete_external_material_reset),
+            shader_name=material_profile.shader if complete_external_material_reset and not _profile_is_runtime_xml(material_profile) else "",
+            insert_missing_slots=bool(complete_external_material_reset and not _profile_is_runtime_xml(material_profile)),
             material_authority_bruteforce=material_authority_bruteforce,
             material_profile=material_profile,
+            template_allowed_insertions=runtime_xml_template_insertions if _profile_is_runtime_xml(material_profile) else {},
         )
         neutralized_parameters = 0
         if neutralize_inherited_material_layers and changed_wrappers > 0:
@@ -2090,7 +2551,12 @@ def _build_source_driven_pac_material_payloads(
                         "Complete external swap derived scratch roughness/metallic values from source PBR map(s) "
                         f"for {applied_scalar_wrappers:,} material wrapper(s): {', '.join(sorted(applied_sources))}."
                     )
-        if complete_external_material_reset:
+        if complete_external_material_reset and _profile_is_runtime_xml(material_profile):
+            _warn_once(
+                report,
+                "Material authority runtime XML: preserved original PAC XML wrapper order, helper/protected wrappers, IDs, and inactive material blocks.",
+            )
+        elif complete_external_material_reset:
             ordered_material_names = list(source_owned_keep_material_names or active_target_names)
             patched_text, removed_wrapper_names = _prune_source_owned_sidecar_material_wrappers(
                 patched_text,
@@ -2125,6 +2591,24 @@ def _build_source_driven_pac_material_payloads(
             for path in used_paths
             if _normalize_texture_path(path) in final_sidecar_refs
         )
+        if _profile_is_runtime_xml(material_profile):
+            try:
+                profile_match = build_pac_xml_profile_match_report(
+                    cloned_sidecar_text,
+                    patched_text,
+                    sidecar_path,
+                    changed_wrappers=changed_wrappers,
+                    generated_dds=len(generated_payloads),
+                )
+                _warn_once(
+                    report,
+                    profile_match.chosen_profile.summary(),
+                )
+                _warn_once(report, profile_match.summary())
+                for warning in profile_match.unsafe_refs[:6]:
+                    _warn_once(report, f"PAC XML texture contract warning: {warning}")
+            except Exception:
+                pass
         sidecar_payloads.append(
             TextureReplacementPayload(
                 target_path=sidecar_path,
@@ -2547,14 +3031,60 @@ def _source_driven_slots(
     mask_binding_mode = _profile_mask_binding_mode(profile)
     support_policy = _profile_support_policy(profile)
     source_only = _profile_is_source_only(profile)
+    runtime_xml_profile = _profile_is_runtime_xml(profile)
     allow_factor_only_authority = _profile_allows_factor_only_authority(profile)
     order = ("base", "normal", "height", "material_mask", "detail_mask", "emissive")
     slots: list[ReplacementTextureSlot] = []
     seen_paths: set[tuple[str, str]] = set()
+
+    def profile_adjusted_slot(source_slot: ReplacementTextureSlot) -> ReplacementTextureSlot:
+        slot_kind = str(source_slot.slot_kind or "").strip().lower()
+        if slot_kind not in {"base", "emissive"}:
+            return source_slot
+        if not (_source_slot_is_real_texture(source_slot) or _source_slot_is_synthetic_factor_authority(source_slot)):
+            return source_slot
+        if slot_kind == "emissive":
+            scale = _profile_optional_scale(profile, "emissive_color_scale")
+            saturation = _profile_optional_scale(profile, "emissive_color_saturation")
+            value_max = _profile_optional_byte(profile, "emissive_color_value_max")
+            if scale is None and saturation is None and value_max is None:
+                return source_slot
+            return replace(
+                source_slot,
+                base_color_scale=scale if scale is not None else 1.0,
+                base_color_lift=0,
+                base_color_gamma=1.0,
+                base_color_saturation=saturation if saturation is not None else 1.0,
+                base_color_value_max=value_max if value_max is not None else 255,
+            )
+        lift = _profile_base_color_lift(profile)
+        scale = _profile_optional_scale(profile, "base_color_scale")
+        gamma = _profile_base_color_gamma(profile)
+        saturation = _profile_base_color_saturation(profile)
+        value_max = _profile_optional_byte(profile, "base_color_value_max")
+        if (
+            lift <= 0
+            and scale is None
+            and abs(gamma - 1.0) <= 0.0001
+            and abs(saturation - 1.0) <= 0.0001
+            and value_max is None
+        ):
+            return source_slot
+        return replace(
+            source_slot,
+            base_color_scale=scale if scale is not None else 1.0,
+            base_color_lift=lift,
+            base_color_gamma=gamma,
+            base_color_saturation=saturation,
+            base_color_value_max=value_max if value_max is not None else 255,
+        )
+
     for slot_kind in order:
         if slot_kind == "base" and base_binding_mode == "disabled":
             continue
         if slot_kind == "material_mask" and mask_binding_mode == "disabled":
+            continue
+        if runtime_xml_profile and slot_kind in {"height", "material_mask", "detail_mask"}:
             continue
         if slot_kind == "emissive" and include_complete_support_fallbacks and profile.emissive_mode != "intensity":
             continue
@@ -2568,7 +3098,7 @@ def _source_driven_slots(
         if key in seen_paths:
             continue
         seen_paths.add(key)
-        slots.append(source_slot)
+        slots.append(profile_adjusted_slot(source_slot))
     if (
         include_pbr_material_fallback
         and mask_binding_mode != "disabled"
@@ -2620,6 +3150,18 @@ def _source_driven_slots(
             and _texture_set_has_explicit_source_pbr(texture_set)
         ):
             source_slot = _complete_swap_runtime_material_mask_slot(texture_set, profile)
+            key = (str(source_slot.source_path.expanduser().resolve()).lower(), str(source_slot.slot_kind).lower())
+            if key not in seen_paths:
+                seen_paths.add(key)
+                slots.append(source_slot)
+        elif (
+            include_complete_support_fallbacks
+            and "material_mask" not in existing_kinds
+            and mask_binding_mode != "disabled"
+            and _profile_uses_factor_only_material_mask(profile)
+            and _texture_set_has_source_authority_data(texture_set)
+        ):
+            source_slot = _complete_swap_neutral_support_slot(texture_set, "material_mask", material_profile=profile)
             key = (str(source_slot.source_path.expanduser().resolve()).lower(), str(source_slot.slot_kind).lower())
             if key not in seen_paths:
                 seen_paths.add(key)
@@ -2703,6 +3245,20 @@ def _profile_is_material_authority_bruteforce(material_profile: CDMaterialRuntim
     }
 
 
+def _profile_is_runtime_xml(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
+    if material_profile is None:
+        return False
+    name = _sanitize_texture_component(str(getattr(material_profile, "name", "") or ""))
+    if name == "material_authority_runtime_xml":
+        return True
+    return (
+        _sanitize_texture_component(str(getattr(material_profile, "xml_profile_mode", "") or "")) == "runtime_xml"
+        and _profile_mask_binding_mode(material_profile) == "disabled"
+        and _profile_support_policy(material_profile) == "keep_original_support"
+        and bool(getattr(material_profile, "preserve_target_layer_response", False))
+    )
+
+
 def _profile_allows_factor_only_authority(material_profile: CDMaterialRuntimeProfile) -> bool:
     return bool(getattr(material_profile, "allow_factor_only_authority", False))
 
@@ -2713,6 +3269,10 @@ def _profile_bruteforce_texture_scope(material_profile: Optional[CDMaterialRunti
 
 def _profile_forces_neutral_layer_support(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
     return bool(getattr(material_profile, "force_neutral_layer_support", False))
+
+
+def _profile_uses_factor_only_material_mask(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
+    return bool(getattr(material_profile, "factor_only_material_mask", False))
 
 
 def _profile_preserves_target_layer_response(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
@@ -2731,6 +3291,63 @@ def _profile_neutral_color_rgb(material_profile: Optional[CDMaterialRuntimeProfi
         return None
     try:
         return tuple(max(0, min(255, int(component))) for component in raw[:3])  # type: ignore[return-value]
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _profile_base_color_lift(material_profile: Optional[CDMaterialRuntimeProfile]) -> int:
+    if material_profile is None:
+        return 0
+    try:
+        return max(0, min(254, int(getattr(material_profile, "base_color_lift", 0) or 0)))
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
+def _profile_base_color_gamma(material_profile: Optional[CDMaterialRuntimeProfile]) -> float:
+    if material_profile is None:
+        return 1.0
+    raw = getattr(material_profile, "base_color_gamma", None)
+    if raw is None:
+        return 1.0
+    try:
+        return max(0.1, min(4.0, float(raw)))
+    except (TypeError, ValueError, OverflowError):
+        return 1.0
+
+
+def _profile_base_color_saturation(material_profile: Optional[CDMaterialRuntimeProfile]) -> float:
+    if material_profile is None:
+        return 1.0
+    raw = getattr(material_profile, "base_color_saturation", None)
+    if raw is None:
+        return 1.0
+    try:
+        return max(0.0, min(4.0, float(raw)))
+    except (TypeError, ValueError, OverflowError):
+        return 1.0
+
+
+def _profile_optional_byte(material_profile: Optional[CDMaterialRuntimeProfile], field_name: str) -> Optional[int]:
+    if material_profile is None:
+        return None
+    raw = getattr(material_profile, field_name, None)
+    if raw is None:
+        return None
+    try:
+        return max(0, min(255, int(raw)))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _profile_optional_scale(material_profile: Optional[CDMaterialRuntimeProfile], field_name: str) -> Optional[float]:
+    if material_profile is None:
+        return None
+    raw = getattr(material_profile, field_name, None)
+    if raw is None:
+        return None
+    try:
+        return max(0.0, min(4.0, float(raw)))
     except (TypeError, ValueError, OverflowError):
         return None
 
@@ -2786,11 +3403,12 @@ def _complete_swap_material_divergence_reasons(
     emissive_mode = str(getattr(material_profile, "emissive_mode", "") or "disabled").strip().lower()
     if emissive_mode == "disabled" and "emissive" in texture_set.slots:
         reasons.append("source emissive present but calibrated emissive mode disabled")
-    if "normal" not in texture_set.slots:
+    target_support_preserved = _profile_preserves_target_layer_response(material_profile)
+    if "normal" not in texture_set.slots and not target_support_preserved:
         reasons.append("missing source normal map uses neutral normal fallback")
-    if "detail_mask" not in texture_set.slots:
+    if "detail_mask" not in texture_set.slots and not target_support_preserved:
         reasons.append("missing CD detail mask uses neutral fallback")
-    if "height" not in texture_set.slots:
+    if "height" not in texture_set.slots and not target_support_preserved:
         reasons.append("missing source height/displacement uses neutral height fallback")
     pbr_slot = texture_set.slots.get("material") or texture_set.slots.get("roughness")
     has_explicit_pbr = _source_slot_is_explicit_pbr(pbr_slot)
@@ -3036,6 +3654,12 @@ def _complete_swap_runtime_material_mask_png_path(
         str(int(bool(material_profile.force_nonmetal))),
         str(factor_roughness),
         str(factor_metallic),
+        str(_profile_optional_byte(material_profile, "roughness_min")),
+        str(_profile_optional_scale(material_profile, "roughness_scale")),
+        str(_profile_optional_byte(material_profile, "roughness_max")),
+        str(_profile_optional_byte(material_profile, "metallic_min")),
+        str(_profile_optional_scale(material_profile, "metallic_scale")),
+        str(_profile_optional_byte(material_profile, "metallic_max")),
     ]
     for slot in (pbr_slot, roughness_slot, metallic_slot, ao_slot):
         if slot is not None:
@@ -3098,10 +3722,22 @@ def _complete_swap_runtime_material_mask_png_path(
     )
     if _profile_roughness_inverted(material_profile):
         roughness = Image.eval(roughness, lambda value: 255 - int(value))
+    roughness = _apply_profile_channel_adjustments(
+        roughness,
+        scale=_profile_optional_scale(material_profile, "roughness_scale"),
+        minimum=_profile_optional_byte(material_profile, "roughness_min"),
+        maximum=_profile_optional_byte(material_profile, "roughness_max"),
+    )
     if material_profile.force_nonmetal:
         metallic = Image.new("L", size, int(material_profile.metallic_default))
     elif _profile_metallic_inverted(material_profile):
         metallic = Image.eval(metallic, lambda value: 255 - int(value))
+    metallic = _apply_profile_channel_adjustments(
+        metallic,
+        scale=_profile_optional_scale(material_profile, "metallic_scale"),
+        minimum=_profile_optional_byte(material_profile, "metallic_min"),
+        maximum=_profile_optional_byte(material_profile, "metallic_max"),
+    )
     Image.merge(
         "RGBA",
         _material_mask_rgba_from_roles(
@@ -3111,6 +3747,27 @@ def _complete_swap_runtime_material_mask_png_path(
         ),
     ).save(path)
     return path
+
+
+def _apply_profile_channel_adjustments(
+    image: object,
+    *,
+    scale: Optional[float] = None,
+    minimum: Optional[int] = None,
+    maximum: Optional[int] = None,
+):
+    from PIL import Image
+
+    adjusted = image
+    if scale is not None and abs(float(scale) - 1.0) > 0.0001:
+        adjusted = Image.eval(adjusted, lambda value: max(0, min(255, int(round(int(value) * float(scale))))))
+    if minimum is not None:
+        floor = max(0, min(255, int(minimum)))
+        adjusted = Image.eval(adjusted, lambda value: max(floor, int(value)))
+    if maximum is not None:
+        ceiling = max(0, min(255, int(maximum)))
+        adjusted = Image.eval(adjusted, lambda value: min(ceiling, int(value)))
+    return adjusted
 
 
 def _factor_byte(value: Optional[float], fallback: int) -> int:
@@ -3548,6 +4205,7 @@ def _build_source_driven_sidecar_text(
     insert_missing_slots: bool = False,
     material_authority_bruteforce: bool = False,
     material_profile: Optional[CDMaterialRuntimeProfile] = None,
+    template_allowed_insertions: Mapping[str, Mapping[str, str]] = {},
 ) -> tuple[str, int, set[str], set[str]]:
     wrapper_pattern = re.compile(
         r"\s*<(?P<tag>[A-Za-z0-9_:.-]*MaterialWrapper)\b[^>]*>.*?</(?P=tag)>",
@@ -3583,6 +4241,10 @@ def _build_source_driven_sidecar_text(
             insert_missing_slots=insert_missing_slots,
             material_authority_bruteforce=material_authority_bruteforce,
             material_profile=material_profile,
+            template_allowed_insertions=template_allowed_insertions.get(
+                _normalize_sidecar_material_name(wrapper_name),
+                {},
+            ),
         )
         if changed:
             changed_count += 1
@@ -3608,10 +4270,25 @@ def _patch_source_driven_wrapper_texture_slots(
     insert_missing_slots: bool = False,
     material_authority_bruteforce: bool = False,
     material_profile: Optional[CDMaterialRuntimeProfile] = None,
+    template_allowed_insertions: Mapping[str, str] = {},
 ) -> tuple[str, bool, set[str]]:
     patched = wrapper_text
     changed = False
     used_paths: set[str] = set()
+    runtime_xml_profile = _profile_is_runtime_xml(material_profile)
+    template_allowed_insertions = {
+        str(slot or "").strip().lower(): str(parameter or "").strip()
+        for slot, parameter in dict(template_allowed_insertions or {}).items()
+        if str(slot or "").strip() and str(parameter or "").strip()
+    }
+
+    def insertion_allowed(slot_name: str) -> bool:
+        return bool(insert_missing_slots or (not runtime_xml_profile and slot_name in {"base", "emissive"}) or slot_name in template_allowed_insertions)
+
+    def insertion_parameter(slot_name: str, fallback: str) -> str:
+        value = template_allowed_insertions.get(slot_name)
+        return value if value else fallback
+
     for _parameter_name, texture_path, slot_kind in bindings:
         slot = str(slot_kind or "").strip().lower()
         requested_parameter = str(_parameter_name or "").strip()
@@ -3642,10 +4319,10 @@ def _patch_source_driven_wrapper_texture_slots(
                     preferred_existing_roles=("base",),
                     allow_unclassified_parameter=True,
                 )
-                if not did_change:
+                if not did_change and insertion_allowed("base"):
                     patched, did_change = _insert_source_driven_texture_parameter(
                         patched,
-                        "_overlayColorTexture",
+                        insertion_parameter("base", "_overlayColorTexture"),
                         texture_value,
                     )
         elif slot == "normal":
@@ -3656,10 +4333,10 @@ def _patch_source_driven_wrapper_texture_slots(
                 preferred_existing_roles=("normal",),
                 allow_unclassified_parameter=True,
             )
-            if not did_change and insert_missing_slots:
+            if not did_change and insertion_allowed("normal"):
                 patched, did_change = _insert_source_driven_texture_parameter(
                     patched,
-                    "_normalTexture",
+                    insertion_parameter("normal", "_normalTexture"),
                     texture_value,
                 )
         elif slot == "height":
@@ -3670,10 +4347,10 @@ def _patch_source_driven_wrapper_texture_slots(
                 preferred_existing_roles=("height",),
                 allow_unclassified_parameter=True,
             )
-            if not did_change and insert_missing_slots:
+            if not did_change and insertion_allowed("height"):
                 patched, did_change = _insert_source_driven_texture_parameter(
                     patched,
-                    "_heightTexture",
+                    insertion_parameter("height", "_heightTexture"),
                     texture_value,
                 )
         elif slot == "material_mask":
@@ -3684,10 +4361,10 @@ def _patch_source_driven_wrapper_texture_slots(
                 preferred_existing_roles=("material_mask",),
                 allow_unclassified_parameter=False,
             )
-            if not did_change and insert_missing_slots:
+            if not did_change and insertion_allowed("material_mask"):
                 patched, did_change = _insert_source_driven_texture_parameter(
                     patched,
-                    "_colorBlendingMaskTexture",
+                    insertion_parameter("material_mask", "_colorBlendingMaskTexture"),
                     texture_value,
                 )
         elif slot == "detail_mask":
@@ -3698,10 +4375,10 @@ def _patch_source_driven_wrapper_texture_slots(
                 preferred_existing_roles=("detail_mask",),
                 allow_unclassified_parameter=True,
             )
-            if not did_change and insert_missing_slots:
+            if not did_change and insertion_allowed("detail_mask"):
                 patched, did_change = _insert_source_driven_texture_parameter(
                     patched,
-                    "_detailMaskTexture",
+                    insertion_parameter("detail_mask", "_detailMaskTexture"),
                     texture_value,
                 )
         elif slot == "material":
@@ -3720,13 +4397,13 @@ def _patch_source_driven_wrapper_texture_slots(
                 preferred_existing_roles=("emissive", "base"),
                 allow_unclassified_parameter=True,
             )
-            if not did_change:
+            if not did_change and insertion_allowed("emissive"):
                 patched, did_change = _insert_source_driven_texture_parameter(
                     patched,
-                    "_emissiveIntensityTexture",
+                    insertion_parameter("emissive", "_emissiveIntensityTexture"),
                     texture_value,
                 )
-            if did_change:
+            if did_change and not runtime_xml_profile:
                 patched = re.sub(
                     r'(<Material\b[^>]*\b_materialName=")([^"]*)(")',
                     r"\1SkinnedMeshEmissive_Ver2\3",
@@ -8697,10 +9374,10 @@ def _build_texture_payload(
             return int(image.width), int(image.height)
 
     if source_slot.source_path.suffix.lower() == ".dds":
-        if _source_slot_needs_base_color_factor(source_slot):
+        if _source_slot_needs_base_color_factor(source_slot) or _source_slot_needs_base_color_adjustment(source_slot):
             _warn_once(
                 report,
-                f"{source_slot.source_path.name}: baseColorFactor could not be baked into DDS source; convert source base texture to PNG for source-authoritative color.",
+                f"{source_slot.source_path.name}: source color adjustment could not be baked into DDS source; convert source base texture to PNG for source-authoritative color.",
             )
         target_vpath = str(getattr(target_entry, "path", "") or "").replace("\\", "/").strip()
         _append_crimson_dds_validation_warnings(source_slot.source_path, vpath=target_vpath, report=report)
@@ -8833,30 +9510,80 @@ def _source_slot_needs_base_color_factor(source_slot: ReplacementTextureSlot) ->
     return any(abs(component - 1.0) > 0.003 for component in rgb)
 
 
+def _source_slot_needs_base_color_adjustment(source_slot: ReplacementTextureSlot) -> bool:
+    if str(source_slot.slot_kind or "").strip().lower() not in {"base", "emissive"}:
+        return False
+    if not (_source_slot_is_real_texture(source_slot) or _source_slot_is_synthetic_factor_authority(source_slot)):
+        return False
+    try:
+        scale = max(0.0, min(4.0, float(getattr(source_slot, "base_color_scale", 1.0) or 1.0)))
+        lift = max(0, min(254, int(getattr(source_slot, "base_color_lift", 0) or 0)))
+        gamma = max(0.1, min(4.0, float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0)))
+        saturation = max(0.0, min(4.0, float(getattr(source_slot, "base_color_saturation", 1.0) or 1.0)))
+        value_max = max(0, min(255, int(getattr(source_slot, "base_color_value_max", 255) or 255)))
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return (
+        abs(scale - 1.0) > 0.0001
+        or lift > 0
+        or abs(gamma - 1.0) > 0.0001
+        or abs(saturation - 1.0) > 0.0001
+        or value_max < 255
+    )
+
+
 def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTextureSlot) -> Path:
-    if not _source_slot_needs_base_color_factor(source_slot):
+    if not _source_slot_needs_base_color_factor(source_slot) and not _source_slot_needs_base_color_adjustment(source_slot):
         return source_slot.source_path
     factor = tuple(max(0.0, min(1.0, float(component))) for component in tuple(source_slot.base_color_factor[:3]))
+    if len(factor) < 3:
+        factor = (1.0, 1.0, 1.0)
+    scale_rgb = max(0.0, min(4.0, float(getattr(source_slot, "base_color_scale", 1.0) or 1.0)))
+    lift = max(0, min(254, int(getattr(source_slot, "base_color_lift", 0) or 0)))
+    gamma = max(0.1, min(4.0, float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0)))
+    saturation = max(0.0, min(4.0, float(getattr(source_slot, "base_color_saturation", 1.0) or 1.0)))
+    value_max = max(0, min(255, int(getattr(source_slot, "base_color_value_max", 255) or 255)))
     source_path = source_slot.source_path
     try:
         stat = source_path.stat()
-        fingerprint = f"{source_path}|{stat.st_mtime_ns}|{stat.st_size}|{factor}"
+        fingerprint = (
+            f"{source_path}|{stat.st_mtime_ns}|{stat.st_size}|{factor}|"
+            f"{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}"
+        )
     except OSError:
-        fingerprint = f"{source_path}|{factor}"
+        fingerprint = f"{source_path}|{factor}|{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}"
     digest = hashlib.sha1(fingerprint.encode("utf-8", errors="ignore")).hexdigest()[:12]
     root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
     root.mkdir(parents=True, exist_ok=True)
-    path = root / f"{_sanitize_texture_component(source_path.stem) or 'base'}_basecolorfactor_{digest}.png"
+    suffix = "basecolorfactor" if _source_slot_needs_base_color_factor(source_slot) else "basecolorprofile"
+    path = root / f"{_sanitize_texture_component(source_path.stem) or 'base'}_{suffix}_{digest}.png"
     if path.is_file():
         return path
-    from PIL import Image
+    from PIL import Image, ImageEnhance
 
     with Image.open(source_path) as image:
         rgba = image.convert("RGBA")
         r, g, b, a = rgba.split()
-        r = r.point(lambda value: max(0, min(255, int(round(int(value) * factor[0])))))
-        g = g.point(lambda value: max(0, min(255, int(round(int(value) * factor[1])))))
-        b = b.point(lambda value: max(0, min(255, int(round(int(value) * factor[2])))))
+        r = r.point(lambda value: max(0, min(255, int(round(int(value) * factor[0] * scale_rgb)))))
+        g = g.point(lambda value: max(0, min(255, int(round(int(value) * factor[1] * scale_rgb)))))
+        b = b.point(lambda value: max(0, min(255, int(round(int(value) * factor[2] * scale_rgb)))))
+        if abs(gamma - 1.0) > 0.0001:
+            r = r.point(lambda value: max(0, min(255, int(round(((int(value) / 255.0) ** gamma) * 255.0)))))
+            g = g.point(lambda value: max(0, min(255, int(round(((int(value) / 255.0) ** gamma) * 255.0)))))
+            b = b.point(lambda value: max(0, min(255, int(round(((int(value) / 255.0) ** gamma) * 255.0)))))
+        if lift > 0:
+            scale = (255.0 - float(lift)) / 255.0
+            r = r.point(lambda value: max(0, min(255, int(round(float(lift) + int(value) * scale)))))
+            g = g.point(lambda value: max(0, min(255, int(round(float(lift) + int(value) * scale)))))
+            b = b.point(lambda value: max(0, min(255, int(round(float(lift) + int(value) * scale)))))
+        if abs(saturation - 1.0) > 0.0001:
+            rgb = Image.merge("RGB", (r, g, b))
+            rgb = ImageEnhance.Color(rgb).enhance(saturation)
+            r, g, b = rgb.split()
+        if value_max < 255:
+            r = r.point(lambda value: min(value_max, int(value)))
+            g = g.point(lambda value: min(value_max, int(value)))
+            b = b.point(lambda value: min(value_max, int(value)))
         Image.merge("RGBA", (r, g, b, a)).save(path)
     return path
 
