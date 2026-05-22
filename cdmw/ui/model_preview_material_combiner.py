@@ -1001,6 +1001,48 @@ def _support_source_image(
     return source
 
 
+def _image_rgba8888_view(image: QImage, width: int, height: int) -> Tuple[Optional[memoryview], int]:
+    if image.isNull() or width <= 0 or height <= 0:
+        return None, 0
+    try:
+        stride = int(image.bytesPerLine())
+        view = memoryview(image.constBits())
+    except (BufferError, TypeError, ValueError, RuntimeError):
+        return None, 0
+    if stride < width * 4 or len(view) < stride * height:
+        return None, 0
+    return view, stride
+
+
+def _image_rgb888_write_view(image: QImage, width: int, height: int) -> Tuple[Optional[memoryview], int]:
+    if image.isNull() or width <= 0 or height <= 0:
+        return None, 0
+    try:
+        stride = int(image.bytesPerLine())
+        view = memoryview(image.bits())
+    except (BufferError, TypeError, ValueError, RuntimeError):
+        return None, 0
+    if stride < width * 3 or len(view) < stride * height or view.readonly:
+        return None, 0
+    return view, stride
+
+
+def _rgba8888_mask_alpha(
+    view: memoryview,
+    stride: int,
+    x: int,
+    y: int,
+    *,
+    channel: str,
+) -> float:
+    offset = (y * stride) + (x * 4)
+    channel_index = _LAYER_CHANNEL_INDEX.get(channel, 0)
+    try:
+        return _clamp(float(view[offset + channel_index]) / 255.0)
+    except (IndexError, TypeError, ValueError):
+        return 1.0
+
+
 def _image_luma_range(image: QImage) -> Tuple[float, float, float]:
     if image.isNull():
         return 0.0, 0.0, 0.0
@@ -1496,6 +1538,9 @@ def _generate_material_maps(
     height = int(source.height())
     if width <= 0 or height <= 0:
         return (), ("", "", "", "")
+    source_view, source_stride = _image_rgba8888_view(source, width, height)
+    if source_view is None:
+        return (), ("", "", "", "")
     mask_source = QImage()
     if layer_mask is not None and not layer_mask.isNull():
         mask_source = _support_source_image(layer_mask, flip_vertical=flip_vertical, max_dimension=max_dimension)
@@ -1503,6 +1548,13 @@ def _generate_material_maps(
             mask_source = mask_source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
         if not mask_source.isNull():
             mask_source = mask_source.convertToFormat(QImage.Format.Format_RGBA8888)
+    mask_view: Optional[memoryview] = None
+    mask_stride = 0
+    if not mask_source.isNull():
+        mask_view, mask_stride = _image_rgba8888_view(mask_source, width, height)
+        if mask_view is None:
+            mask_source = QImage()
+            mask_stride = 0
     mask_channel = str(layer_mask_channel or "r").strip().lower()
     effective_layer_weight = _clamp(layer_weight, 0.0, 1.0)
     if not mask_source.isNull() and effective_layer_weight <= 0.001:
@@ -1512,6 +1564,17 @@ def _generate_material_maps(
     rough_image = QImage(width, height, QImage.Format.Format_RGB888) if emit_roughness else QImage()
     metal_image = QImage(width, height, QImage.Format.Format_RGB888) if emit_metalness else QImage()
     spec_image = QImage(width, height, QImage.Format.Format_RGB888) if emit_specular else QImage()
+    ao_view, ao_stride = _image_rgb888_write_view(ao_image, width, height) if emit_occlusion else (None, 0)
+    rough_view, rough_stride = _image_rgb888_write_view(rough_image, width, height) if emit_roughness else (None, 0)
+    metal_view, metal_stride = _image_rgb888_write_view(metal_image, width, height) if emit_metalness else (None, 0)
+    spec_view, spec_stride = _image_rgb888_write_view(spec_image, width, height) if emit_specular else (None, 0)
+    if (
+        (emit_occlusion and ao_view is None)
+        or (emit_roughness and rough_view is None)
+        or (emit_metalness and metal_view is None)
+        or (emit_specular and spec_view is None)
+    ):
+        return (), ("", "", "", "")
     mode = str(decode_mode or "").strip().lower()
     shader_rule = _texture_rule_for_input(input_item) if input_item is not None else ""
     force_nonmetal_skin = bool(shader_rule == "skin" or mode in {"skin_material", "skin_detail_mask"})
@@ -1532,13 +1595,14 @@ def _generate_material_maps(
     spec_peak = 0.0
     contribution_peak = 1.0 if mask_source.isNull() else 0.0
     for y in range(height):
+        source_row = y * source_stride
         for x in range(width):
-            color = source.pixelColor(x, y)
+            source_offset = source_row + (x * 4)
             ao, roughness, metalness, specular = decode_material_sample(
-                color.redF(),
-                color.greenF(),
-                color.blueF(),
-                color.alphaF(),
+                float(source_view[source_offset]) / 255.0,
+                float(source_view[source_offset + 1]) / 255.0,
+                float(source_view[source_offset + 2]) / 255.0,
+                float(source_view[source_offset + 3]) / 255.0,
                 decode_mode,
             )
             if force_nonmetal_skin:
@@ -1556,8 +1620,11 @@ def _generate_material_maps(
                 roughness = _clamp(roughness, 0.04, 1.0)
                 metalness = _clamp(metalness)
                 specular = _clamp(specular)
-            if not mask_source.isNull():
-                layer_alpha = _clamp(_mask_alpha(mask_source, x, y, channel=mask_channel) * effective_layer_weight)
+            if mask_view is not None:
+                layer_alpha = _clamp(
+                    _rgba8888_mask_alpha(mask_view, mask_stride, x, y, channel=mask_channel)
+                    * effective_layer_weight
+                )
                 contribution_peak = max(contribution_peak, layer_alpha)
                 ao = (1.0 * (1.0 - layer_alpha)) + (ao * layer_alpha)
                 roughness = (0.58 * (1.0 - layer_alpha)) + (roughness * layer_alpha)
@@ -1567,16 +1634,20 @@ def _generate_material_maps(
             spec_peak = max(spec_peak, specular)
             if emit_occlusion:
                 ao_g = _byte(ao)
-                ao_image.setPixelColor(x, y, QColor(ao_g, ao_g, ao_g))
+                offset = (y * ao_stride) + (x * 3)
+                ao_view[offset : offset + 3] = bytes((ao_g, ao_g, ao_g))
             if emit_roughness:
                 rough_g = _byte(roughness)
-                rough_image.setPixelColor(x, y, QColor(rough_g, rough_g, rough_g))
+                offset = (y * rough_stride) + (x * 3)
+                rough_view[offset : offset + 3] = bytes((rough_g, rough_g, rough_g))
             if emit_metalness:
                 metal_g = _byte(metalness)
-                metal_image.setPixelColor(x, y, QColor(metal_g, metal_g, metal_g))
+                offset = (y * metal_stride) + (x * 3)
+                metal_view[offset : offset + 3] = bytes((metal_g, metal_g, metal_g))
             if emit_specular:
                 spec_g = _byte(specular)
-                spec_image.setPixelColor(x, y, QColor(spec_g, spec_g, spec_g))
+                offset = (y * spec_stride) + (x * 3)
+                spec_view[offset : offset + 3] = bytes((spec_g, spec_g, spec_g))
     if contribution_peak <= 0.015:
         return (), ("", "", "", "")
     output_dir.mkdir(parents=True, exist_ok=True)

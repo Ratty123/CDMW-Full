@@ -23,7 +23,7 @@ from collections import Counter, OrderedDict, defaultdict, deque
 from html import escape
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 from urllib.parse import unquote, urlparse
 
 try:
@@ -190,6 +190,7 @@ from cdmw.modding.material_replacer import (
     is_shared_material_layer_texture,
     patch_material_sidecar_text,
     read_complete_swap_calibrated_material_profile,
+    serialize_complete_swap_manual_material_profile,
     write_complete_swap_calibrated_material_profile,
 )
 from cdmw.core.model_export import export_model_preview_to_obj
@@ -42668,26 +42669,41 @@ def run_gui() -> int:
             if failed_count:
                 self.append_archive_log(f"Skipped {failed_count:,} stale Modify Original session folder(s) that were locked or unavailable.")
 
-        def _modify_original_runtime_target_entry(
+        def _modify_original_runtime_candidate_note(
             self,
             entry: ArchiveEntry,
             mesh: Optional[ParsedMesh],
-        ) -> Optional[ArchiveEntry]:
+        ) -> str:
             if not isinstance(entry, ArchiveEntry) or not isinstance(mesh, ParsedMesh):
-                return None
+                return ""
             source_path = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lower()
-            if "/2_mon/" not in source_path:
-                return None
             candidates = mesh_import_runtime_sibling_mesh_candidates(
                 entry,
                 mesh,
                 self.archive_entries_by_basename,
             )
-            for candidate in candidates:
-                candidate_path = str(getattr(candidate, "path", "") or "").replace("\\", "/").strip().lower()
-                if "/1_pc/" in candidate_path and not self._same_archive_entry(candidate, entry):
-                    return candidate
-            return None
+            if not candidates:
+                return ""
+            has_player_candidate = any(
+                "/1_pc/" in str(getattr(candidate, "path", "") or "").replace("\\", "/").lower()
+                for candidate in candidates
+            )
+            if "/2_mon/" not in source_path and not has_player_candidate:
+                return ""
+            candidate_paths = [
+                str(getattr(candidate, "path", "") or "").replace("\\", "/").strip()
+                for candidate in candidates[:3]
+                if str(getattr(candidate, "path", "") or "").strip()
+            ]
+            if not candidate_paths:
+                return ""
+            suffix = " ..." if len(candidates) > len(candidate_paths) else ""
+            return (
+                " Related runtime mesh candidate(s) found: "
+                + ", ".join(candidate_paths)
+                + suffix
+                + ". Modify Original keeps the selected PAC as the export target; open a candidate directly to edit that asset."
+            )
 
         def _retarget_static_options_for_runtime_entry(
             self,
@@ -42955,16 +42971,10 @@ def run_gui() -> int:
             original_mesh = result.get("original_mesh")
             if not isinstance(original_mesh, ParsedMesh):
                 original_mesh = None
-            runtime_target_entry = self._modify_original_runtime_target_entry(
+            runtime_target_note = self._modify_original_runtime_candidate_note(
                 entry,
                 scene_import_result.mesh if isinstance(scene_import_result, SceneImportResult) else original_mesh,
             )
-            runtime_target_note = ""
-            if isinstance(runtime_target_entry, ArchiveEntry):
-                runtime_target_note = (
-                    " The selected archive mesh is a display/monster clone; final preview/export will target "
-                    f"the likely equipped runtime mesh instead: {runtime_target_entry.path}"
-                )
             if not bool(result.get("create_workspace")):
                 setup = MeshImportSetupSelection(
                     scene_path=obj_path,
@@ -42980,7 +42990,6 @@ def run_gui() -> int:
                         f"{runtime_target_note}"
                     ),
                     defer_original_texture_preview=True,
-                    runtime_target_entry=runtime_target_entry,
                 )
                 self._start_archive_mesh_patch(entry, preset_setup=setup)
                 return
@@ -43005,7 +43014,6 @@ def run_gui() -> int:
             setup.defer_original_texture_preview = True
             if runtime_target_note:
                 setup.placement_context_note = f"{setup.placement_context_note}{runtime_target_note}"
-            setup.runtime_target_entry = runtime_target_entry
             self._start_archive_mesh_patch(entry, preset_setup=setup)
 
         def _show_modify_original_workspace_ready_dialog(
@@ -44157,11 +44165,12 @@ def run_gui() -> int:
             alignment_d3d11_preview_status_label.setObjectName("HintLabel")
             alignment_d3d11_preview_status_label.setAlignment(Qt.AlignCenter)
             alignment_d3d11_preview_status_label.setWordWrap(False)
-            alignment_d3d11_preview_status_label.setMaximumHeight(24)
+            alignment_d3d11_preview_status_label.setMaximumHeight(32)
             alignment_d3d11_loading_spinner_label = QLabel("")
-            alignment_d3d11_loading_spinner_label.setObjectName("HintLabel")
+            alignment_d3d11_loading_spinner_label.setObjectName("AlignmentD3D11LoadingSpinner")
             alignment_d3d11_loading_spinner_label.setAlignment(Qt.AlignCenter)
-            alignment_d3d11_loading_spinner_label.setFixedWidth(18)
+            alignment_d3d11_loading_spinner_label.setTextFormat(Qt.RichText)
+            alignment_d3d11_loading_spinner_label.setFixedSize(36, 30)
             alignment_d3d11_loading_spinner_label.setVisible(False)
             alignment_d3d11_status_row = QHBoxLayout()
             alignment_d3d11_status_row.setContentsMargins(0, 0, 0, 0)
@@ -44220,6 +44229,7 @@ def run_gui() -> int:
                 "last_rebuild_reason": "geometry",
                 "next_rebuild_reason": "",
                 "pending_fast_transform": None,
+                "preview_loaded": False,
                 "source_to_d3d11_ids": {},
                 "d3d11_id_to_source_indices": {},
             }
@@ -44229,10 +44239,14 @@ def run_gui() -> int:
             alignment_preview_view_sync = {"active": False}
 
             def _tick_alignment_d3d11_loading_spinner() -> None:
-                frames = ("◐", "◓", "◑", "◒")
+                frames = ("&#9679;", "&#9683;", "&#9681;", "&#9682;")
                 frame_index = (int(alignment_d3d11_loading_state.get("frame", 0) or 0) + 1) % len(frames)
                 alignment_d3d11_loading_state["frame"] = frame_index
-                alignment_d3d11_loading_spinner_label.setText(frames[frame_index])
+                alignment_d3d11_loading_spinner_label.setText(
+                    "<span style='font-size:24px; line-height:28px; color:#79c0ff; font-weight:700;'>"
+                    f"{frames[frame_index]}"
+                    "</span>"
+                )
 
             def _set_alignment_d3d11_loading(active: bool, message: str = "", *, detail: str = "") -> None:
                 active = bool(active)
@@ -46046,11 +46060,11 @@ def run_gui() -> int:
                     and bool(alignment_d3d11_available)
                 )
 
-            def _try_apply_global_flip_v_fast_preview() -> bool:
+            def _current_global_flip_v_fast_preview_value() -> Optional[bool]:
                 if not _alignment_d3d11_preview_active():
-                    return False
+                    return None
                 if any(_texture_uv_state_has_edits(state) for state in texture_uv_transform_state.values()):
-                    return False
+                    return None
                 try:
                     rotate_degrees = int(texture_uv_global_transform_state.get("rotate_degrees") or 0) % 360
                     offset_u = float(texture_uv_global_transform_state.get("offset_u") or 0.0)
@@ -46058,19 +46072,34 @@ def run_gui() -> int:
                     scale_u = float(texture_uv_global_transform_state.get("scale_u") or 1.0)
                     scale_v = float(texture_uv_global_transform_state.get("scale_v") or 1.0)
                 except (TypeError, ValueError, OverflowError):
-                    return False
+                    return None
                 if rotate_degrees or bool(texture_uv_global_transform_state.get("flip_u")):
-                    return False
+                    return None
                 if abs(offset_u) > 1.0e-6 or abs(offset_v) > 1.0e-6:
-                    return False
+                    return None
                 if abs(scale_u - 1.0) > 1.0e-6 or abs(scale_v - 1.0) > 1.0e-6:
+                    return None
+                return bool(texture_uv_global_transform_state.get("flip_v"))
+
+            def _reapply_global_flip_v_fast_preview(expected_flip_v: bool) -> None:
+                current_flip_v = _current_global_flip_v_fast_preview_value()
+                if current_flip_v is None or bool(current_flip_v) != bool(expected_flip_v):
+                    return
+                if alignment_d3d11_preview_host.set_texture_flip_vertical(bool(expected_flip_v), editor_role="replacement_preview"):
+                    alignment_d3d11_texture_uv_fast_state["global_flip_v"] = bool(expected_flip_v)
+
+            def _try_apply_global_flip_v_fast_preview() -> bool:
+                flip_v = _current_global_flip_v_fast_preview_value()
+                if flip_v is None:
                     return False
-                flip_v = bool(texture_uv_global_transform_state.get("flip_v"))
                 if alignment_d3d11_preview_host.set_texture_flip_vertical(flip_v, editor_role="replacement_preview"):
                     alignment_d3d11_texture_uv_fast_state["global_flip_v"] = flip_v
+                    alignment_d3d11_state["preview_loaded"] = True
                     _mark_final_test_preview_stale()
                     texture_overrides_dirty["dirty"] = True
+                    _set_alignment_d3d11_loading(False, "Preview ready.")
                     _set_preview_performance_status("D3D11 texture Flip V applied without rebuilding preview package.")
+                    QTimer.singleShot(160, lambda expected_flip_v=flip_v: _reapply_global_flip_v_fast_preview(bool(expected_flip_v)))
                     return True
                 return False
 
@@ -46553,6 +46582,7 @@ def run_gui() -> int:
                 alignment_d3d11_state["queued_display_mode"] = display_mode
                 alignment_d3d11_state["queued_reason"] = rebuild_reason
                 alignment_d3d11_state["queued_transform_generation"] = transform_generation
+                alignment_d3d11_state["preview_loaded"] = False
                 _set_alignment_d3d11_loading(
                     True,
                     "Loading preview... please wait.",
@@ -46649,6 +46679,7 @@ def run_gui() -> int:
                     alignment_d3d11_state["pending_display_mode"] = requested_display_mode
                     alignment_d3d11_state["pending_reason"] = rebuild_reason
                     alignment_d3d11_state["pending_transform_generation"] = request_transform_generation
+                    alignment_d3d11_state["preview_loaded"] = False
                     _alignment_d3d11_stop_worker()
                     _set_alignment_d3d11_loading(
                         True,
@@ -46685,6 +46716,7 @@ def run_gui() -> int:
                 alignment_d3d11_state["package_quality"] = package_quality
                 alignment_d3d11_state["last_rebuild_reason"] = rebuild_reason
                 alignment_d3d11_state["last_cache_reason"] = rebuild_reason
+                alignment_d3d11_state["preview_loaded"] = False
                 cache_key = _alignment_d3d11_preview_cache_key(
                     model,
                     settings,
@@ -46729,6 +46761,7 @@ def run_gui() -> int:
                             preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                             _sync_highlight_sets()
                             _replay_alignment_d3d11_fast_transform()
+                            alignment_d3d11_state["preview_loaded"] = True
                             _set_alignment_d3d11_loading(
                                 False,
                                 "Preview ready.",
@@ -46785,7 +46818,7 @@ def run_gui() -> int:
                     detail=f"Building preview package. quality={package_quality} reason={rebuild_reason} label={label}",
                 )
                 _set_preview_performance_status(
-                    "Loading preview...",
+                    f"D3D11 package preparing - {_alignment_preview_detail_label()}",
                     details=f"cache={alignment_d3d11_state.get('last_cache_event')}\nreason={rebuild_reason}",
                 )
                 thread.start()
@@ -46918,6 +46951,7 @@ def run_gui() -> int:
                     alignment_d3d11_state["active_package_cache_key"] = package_cache_key
                     alignment_d3d11_state["status_file"] = status_file
                     alignment_d3d11_state["status_mtime"] = 0.0
+                    alignment_d3d11_state["preview_loaded"] = False
                     if alignment_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
                         alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
                         alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
@@ -46955,6 +46989,7 @@ def run_gui() -> int:
                 alignment_d3d11_state["active_package_cache_key"] = package_cache_key
                 alignment_d3d11_state["status_file"] = status_file
                 alignment_d3d11_state["status_mtime"] = 0.0
+                alignment_d3d11_state["preview_loaded"] = False
                 process = QProcess(dialog)
                 try:
                     program, arguments = self._native_d3d11_renderer_command(
@@ -47075,6 +47110,7 @@ def run_gui() -> int:
                     return
                 event = str(payload.get("event", "") or "").strip().lower()
                 if event == "loaded":
+                    alignment_d3d11_state["preview_loaded"] = True
                     if bool(alignment_d3d11_drag_transaction.get("active")):
                         _set_alignment_d3d11_loading(False, "Preview loaded; applying after movement settles.")
                         return
@@ -47134,12 +47170,17 @@ def run_gui() -> int:
                     _set_preview_performance_status(timing_summary, details=timing_details)
                 elif event == "loading":
                     message = str(payload.get("message", "") or "Loading native D3D11 alignment preview...")
+                    if bool(alignment_d3d11_state.get("preview_loaded")):
+                        alignment_d3d11_preview_status_label.setToolTip(message)
+                        return
                     _set_alignment_d3d11_loading(True, "Loading preview... please wait.", detail=message)
                 elif event == "error":
+                    alignment_d3d11_state["preview_loaded"] = False
                     message = str(payload.get("message", "") or "Native D3D11 renderer error.")
                     _set_alignment_d3d11_loading(False, f"Preview load failed: {message}")
                     _set_preview_performance_status("D3D11 renderer error.", details=message)
                 elif event == "closed":
+                    alignment_d3d11_state["preview_loaded"] = False
                     _set_alignment_d3d11_loading(False, "Preview closed.")
 
             def _set_preview_renderer() -> None:
@@ -61046,14 +61087,26 @@ def run_gui() -> int:
             )
             complete_swap_material_profile_combo = QComboBox()
             complete_swap_material_profile_combo.setObjectName("MeshAlignmentCompleteSwapMaterialProfileCombo")
-            for profile in complete_swap_material_runtime_profiles():
-                complete_swap_material_profile_combo.addItem(profile.label, profile.name)
+            visible_complete_swap_material_profile_names = (
+                "material_authority_runtime_xml",
+                "material_authority_clean_source",
+                "material_authority_manual",
+            )
+            complete_swap_material_profiles_by_name = {
+                str(getattr(profile, "name", "") or ""): profile for profile in complete_swap_material_runtime_profiles()
+            }
+            for profile_name in visible_complete_swap_material_profile_names:
+                profile = complete_swap_material_profiles_by_name.get(profile_name)
+                if profile is not None:
+                    complete_swap_material_profile_combo.addItem(profile.label, profile.name)
 
             def _select_complete_swap_material_profile(profile_name: str, *, persist: bool = False) -> None:
-                requested = str(profile_name or "").strip() or "source_graph_strict"
+                requested = str(profile_name or "").strip() or "material_authority_runtime_xml"
+                if requested.startswith("material_authority_manual:"):
+                    requested = "material_authority_manual"
                 profile_index = complete_swap_material_profile_combo.findData(requested)
                 if profile_index < 0:
-                    requested = "source_graph_strict"
+                    requested = "material_authority_runtime_xml"
                     profile_index = complete_swap_material_profile_combo.findData(requested)
                 if profile_index >= 0 and complete_swap_material_profile_combo.currentIndex() != profile_index:
                     complete_swap_material_profile_combo.setCurrentIndex(profile_index)
@@ -61067,22 +61120,694 @@ def run_gui() -> int:
             complete_swap_profile_store_path = self.settings_file_path.parent / "complete_swap_material_profile.json"
             stored_complete_swap_material_profile = read_complete_swap_calibrated_material_profile(
                 complete_swap_profile_store_path,
-                "source_graph_strict",
+                "material_authority_runtime_xml",
             ).name
             saved_complete_swap_material_profile = str(
                 self.settings.value(
                     "settings/complete_swap_material_profile",
-                    stored_complete_swap_material_profile or "source_graph_strict",
+                    stored_complete_swap_material_profile or "material_authority_runtime_xml",
                 )
                 or stored_complete_swap_material_profile
-                or "source_graph_strict"
+                or "material_authority_runtime_xml"
             )
+            if saved_complete_swap_material_profile.startswith("material_authority_manual"):
+                saved_complete_swap_material_profile = "material_authority_runtime_xml"
             _select_complete_swap_material_profile(saved_complete_swap_material_profile)
             complete_swap_material_profile_combo.setToolTip(
-                "Calibration profile for translating glTF metallic/roughness/AO/emissive data into Crimson Desert runtime material slots. "
-                "Use probe profiles when the in-game result is too shiny, too dark, or the gem/emissive color shifts."
+                "Calibration profile for binding source textures into Crimson Desert PAC XML. Runtime XML is the recommended default: it preserves target shader/mask/detail/height/PBD structure and patches compatible source slots only. "
+                "Older ARM/RMA probe profiles remain backend-compatible but are hidden from the normal workflow."
             )
             complete_swap_material_profile_combo.setEnabled(False)
+            manual_profile_settings_key = "settings/complete_swap_manual_material_profile"
+            manual_profile_presets_key = "settings/complete_swap_manual_material_profile_presets"
+            manual_profile_defaults = next(
+                (
+                    profile
+                    for profile in complete_swap_material_runtime_profiles()
+                    if str(getattr(profile, "name", "") or "") == "material_authority_manual"
+                ),
+                None,
+            )
+            manual_profile_default_values: Dict[str, object] = {
+                "base_binding_mode": str(getattr(manual_profile_defaults, "base_binding_mode", "overlay_texture") or "overlay_texture"),
+                "mask_binding_mode": str(getattr(manual_profile_defaults, "mask_binding_mode", "color_blending_mask") or "color_blending_mask"),
+                "support_policy": str(getattr(manual_profile_defaults, "support_policy", "source_only") or "source_only"),
+                "emissive_mode": str(getattr(manual_profile_defaults, "emissive_mode", "intensity") or "intensity"),
+                "base_color_lift": int(getattr(manual_profile_defaults, "base_color_lift", 68) or 0),
+                "base_color_scale": float(getattr(manual_profile_defaults, "base_color_scale", 0.90) or 0.0),
+                "base_color_gamma": float(getattr(manual_profile_defaults, "base_color_gamma", 0.62) or 0.0),
+                "base_color_saturation": float(getattr(manual_profile_defaults, "base_color_saturation", 0.66) or 0.0),
+                "base_color_value_max": int(getattr(manual_profile_defaults, "base_color_value_max", 218) or 255),
+                "emissive_color_scale": float(getattr(manual_profile_defaults, "emissive_color_scale", 0.18) or 0.0),
+                "emissive_color_saturation": float(getattr(manual_profile_defaults, "emissive_color_saturation", 0.60) or 0.0),
+                "emissive_color_value_max": int(getattr(manual_profile_defaults, "emissive_color_value_max", 72) or 255),
+                "roughness_default": int(getattr(manual_profile_defaults, "roughness_default", 240) or 0),
+                "roughness_min": int(getattr(manual_profile_defaults, "roughness_min", 246) or 0),
+                "roughness_scale": float(getattr(manual_profile_defaults, "roughness_scale", 1.0) or 1.0),
+                "roughness_max": 255,
+                "metallic_default": int(getattr(manual_profile_defaults, "metallic_default", 0) or 0),
+                "metallic_min": 0,
+                "metallic_scale": float(getattr(manual_profile_defaults, "metallic_scale", 0.34) or 1.0),
+                "metallic_max": int(getattr(manual_profile_defaults, "metallic_max", 112) or 255),
+                "ao_default": int(getattr(manual_profile_defaults, "ao_default", 255) or 255),
+                "alpha_default": int(getattr(manual_profile_defaults, "alpha_default", 0) or 0),
+                "scratch_roughness": float(getattr(manual_profile_defaults, "scratch_roughness", 1.0) or 0.0),
+                "scratch_metallic": float(getattr(manual_profile_defaults, "scratch_metallic", 0.0) or 0.0),
+                "shine_scalar": float(getattr(manual_profile_defaults, "shine_scalar", 0.0) or 0.0),
+                "displacement_scale_multiplier": float(getattr(manual_profile_defaults, "displacement_scale_multiplier", 0.0) or 0.0),
+                "displacement_scale_max": float(getattr(manual_profile_defaults, "displacement_scale_max", 0.0) or 0.0),
+                "neutral_color_rgb": tuple(getattr(manual_profile_defaults, "neutral_color_rgb", (216, 216, 216)) or (216, 216, 216)),
+                "roughness_inverted": bool(getattr(manual_profile_defaults, "roughness_inverted", False)),
+                "metallic_inverted": bool(getattr(manual_profile_defaults, "metallic_inverted", False)),
+                "force_nonmetal": bool(getattr(manual_profile_defaults, "force_nonmetal", False)),
+                "preserve_scratch_alpha": bool(getattr(manual_profile_defaults, "preserve_scratch_alpha", True)),
+                "allow_factor_only_authority": bool(getattr(manual_profile_defaults, "allow_factor_only_authority", True)),
+                "factor_only_material_mask": bool(getattr(manual_profile_defaults, "factor_only_material_mask", True)),
+                "force_neutral_layer_support": bool(getattr(manual_profile_defaults, "force_neutral_layer_support", False)),
+                "preserve_target_layer_response": bool(getattr(manual_profile_defaults, "preserve_target_layer_response", False)),
+                "source_color_layer_authority": bool(getattr(manual_profile_defaults, "source_color_layer_authority", False)),
+            }
+
+            def _load_manual_profile_values() -> Dict[str, object]:
+                values = dict(manual_profile_default_values)
+                raw = self.settings.value(manual_profile_settings_key, "")
+                if isinstance(raw, str) and raw.strip():
+                    try:
+                        parsed = json.loads(raw)
+                    except Exception:
+                        parsed = {}
+                    if isinstance(parsed, Mapping):
+                        values.update({str(key): value for key, value in parsed.items() if str(key) in values})
+                return values
+
+            manual_profile_saved_values = _load_manual_profile_values()
+
+            def _coerce_manual_profile_values(raw_values: object) -> Dict[str, object]:
+                values = dict(manual_profile_default_values)
+                if isinstance(raw_values, Mapping):
+                    values.update({str(key): value for key, value in raw_values.items() if str(key) in values})
+                return values
+
+            def _load_manual_profile_presets() -> list[Dict[str, object]]:
+                raw = self.settings.value(manual_profile_presets_key, "")
+                try:
+                    parsed = json.loads(raw) if isinstance(raw, str) and raw.strip() else []
+                except Exception:
+                    parsed = []
+                presets: list[Dict[str, object]] = []
+                if not isinstance(parsed, Sequence) or isinstance(parsed, (str, bytes)):
+                    return presets
+                for item in parsed:
+                    if not isinstance(item, Mapping):
+                        continue
+                    name = str(item.get("name") or "").strip()
+                    if not name:
+                        continue
+                    presets.append(
+                        {
+                            "name": name,
+                            "details": str(item.get("details") or "").strip(),
+                            "recommended_models": str(item.get("recommended_models") or "").strip(),
+                            "values": _coerce_manual_profile_values(item.get("values")),
+                        }
+                    )
+                return presets
+
+            def _save_manual_profile_presets(presets: Sequence[Mapping[str, object]]) -> None:
+                payload = []
+                for item in presets:
+                    if not isinstance(item, Mapping):
+                        continue
+                    name = str(item.get("name") or "").strip()
+                    if not name:
+                        continue
+                    payload.append(
+                        {
+                            "schema": "cdmw_manual_material_profile_v1",
+                            "name": name,
+                            "details": str(item.get("details") or "").strip(),
+                            "recommended_models": str(item.get("recommended_models") or "").strip(),
+                            "values": _coerce_manual_profile_values(item.get("values")),
+                        }
+                    )
+                self.settings.setValue(manual_profile_presets_key, json.dumps(payload, sort_keys=True, separators=(",", ":")))
+
+            manual_profile_presets = _load_manual_profile_presets()
+            manual_profile_ready = {"ready": False}
+            manual_profile_dirty = {"dirty": False}
+            manual_profile_controls: Dict[str, object] = {}
+            manual_profile_effect_widgets: Dict[str, list[object]] = {}
+            manual_profile_control_tooltips: Dict[str, str] = {}
+            manual_profile_group = QGroupBox("Material Authority Manual")
+            manual_profile_group.setObjectName("MeshAlignmentManualMaterialProfileGroup")
+            manual_profile_layout = QGridLayout(manual_profile_group)
+            manual_profile_layout.setContentsMargins(6, 4, 6, 4)
+            manual_profile_layout.setHorizontalSpacing(6)
+            manual_profile_layout.setVerticalSpacing(3)
+
+            def _manual_profile_mark_changed() -> None:
+                if not manual_profile_ready.get("ready"):
+                    return
+                values = _current_manual_material_profile_values()
+                self.settings.setValue(manual_profile_settings_key, json.dumps(values, sort_keys=True, separators=(",", ":")))
+                _save_complete_swap_material_profile()
+                _refresh_manual_profile_control_effects(values)
+                _set_manual_profile_dirty(True)
+
+            def _manual_combo(row: int, key: str, label: str, choices: Sequence[tuple[str, str]], tooltip: str) -> None:
+                label_widget = QLabel(label)
+                label_widget.setToolTip(tooltip)
+                combo = QComboBox()
+                combo.setObjectName(f"MeshAlignmentManualMaterialProfile_{key}")
+                combo.setToolTip(tooltip)
+                for text, value in choices:
+                    combo.addItem(text, value)
+                index = combo.findData(str(manual_profile_saved_values.get(key, "")))
+                combo.setCurrentIndex(max(0, index))
+                combo.currentIndexChanged.connect(lambda _index: _manual_profile_mark_changed())
+                manual_profile_controls[key] = combo
+                manual_profile_effect_widgets[key] = [label_widget, combo]
+                manual_profile_control_tooltips[key] = tooltip
+                manual_profile_layout.addWidget(label_widget, row, 0)
+                manual_profile_layout.addWidget(combo, row, 1, 1, 3)
+
+            def _manual_int(row: int, key: str, label: str, minimum: int, maximum: int, tooltip: str) -> None:
+                label_widget = QLabel(label)
+                label_widget.setToolTip(tooltip)
+                slider = QSlider(Qt.Horizontal)
+                slider.setObjectName(f"MeshAlignmentManualMaterialProfile_{key}_Slider")
+                slider.setRange(minimum, maximum)
+                spin = QSpinBox()
+                spin.setObjectName(f"MeshAlignmentManualMaterialProfile_{key}_Spin")
+                spin.setRange(minimum, maximum)
+                value = max(minimum, min(maximum, int(manual_profile_saved_values.get(key, manual_profile_default_values.get(key, minimum)) or minimum)))
+                slider.setValue(value)
+                spin.setValue(value)
+                slider.setToolTip(tooltip)
+                spin.setToolTip(tooltip)
+                slider.valueChanged.connect(spin.setValue)
+                spin.valueChanged.connect(slider.setValue)
+                spin.valueChanged.connect(lambda _value: _manual_profile_mark_changed())
+                manual_profile_controls[key] = spin
+                manual_profile_effect_widgets[key] = [label_widget, slider, spin]
+                manual_profile_control_tooltips[key] = tooltip
+                manual_profile_layout.addWidget(label_widget, row, 0)
+                manual_profile_layout.addWidget(slider, row, 1)
+                manual_profile_layout.addWidget(spin, row, 2)
+
+            def _manual_float(row: int, key: str, label: str, minimum: float, maximum: float, step: float, tooltip: str) -> None:
+                label_widget = QLabel(label)
+                label_widget.setToolTip(tooltip)
+                slider_scale = 100
+                slider = QSlider(Qt.Horizontal)
+                slider.setObjectName(f"MeshAlignmentManualMaterialProfile_{key}_Slider")
+                slider.setRange(int(round(minimum * slider_scale)), int(round(maximum * slider_scale)))
+                spin = QDoubleSpinBox()
+                spin.setObjectName(f"MeshAlignmentManualMaterialProfile_{key}_Spin")
+                spin.setRange(minimum, maximum)
+                spin.setSingleStep(step)
+                spin.setDecimals(2)
+                value = float(manual_profile_saved_values.get(key, manual_profile_default_values.get(key, minimum)) or minimum)
+                value = max(minimum, min(maximum, value))
+                slider.setValue(int(round(value * slider_scale)))
+                spin.setValue(value)
+                slider.setToolTip(tooltip)
+                spin.setToolTip(tooltip)
+                slider.valueChanged.connect(lambda raw, target=spin: target.setValue(float(raw) / slider_scale))
+                spin.valueChanged.connect(lambda value, target=slider: target.setValue(int(round(float(value) * slider_scale))))
+                spin.valueChanged.connect(lambda _value: _manual_profile_mark_changed())
+                manual_profile_controls[key] = spin
+                manual_profile_effect_widgets[key] = [label_widget, slider, spin]
+                manual_profile_control_tooltips[key] = tooltip
+                manual_profile_layout.addWidget(label_widget, row, 0)
+                manual_profile_layout.addWidget(slider, row, 1)
+                manual_profile_layout.addWidget(spin, row, 2)
+
+            def _manual_check(row: int, key: str, text: str, tooltip: str) -> None:
+                checkbox = QCheckBox(text)
+                checkbox.setObjectName(f"MeshAlignmentManualMaterialProfile_{key}")
+                checkbox.setToolTip(tooltip)
+                checkbox.setChecked(bool(manual_profile_saved_values.get(key, manual_profile_default_values.get(key, False))))
+                checkbox.toggled.connect(lambda _checked: _manual_profile_mark_changed())
+                manual_profile_controls[key] = checkbox
+                manual_profile_effect_widgets[key] = [checkbox]
+                manual_profile_control_tooltips[key] = tooltip
+                manual_profile_layout.addWidget(checkbox, row, 0, 1, 4)
+
+            def _manual_rgb(row: int, key: str, label: str, tooltip: str) -> None:
+                label_widget = QLabel(label)
+                label_widget.setToolTip(tooltip)
+                row_layout = QHBoxLayout()
+                row_layout.setContentsMargins(0, 0, 0, 0)
+                row_layout.setSpacing(4)
+                raw_rgb = manual_profile_saved_values.get(key, manual_profile_default_values.get(key, (216, 216, 216)))
+                rgb = tuple(raw_rgb if isinstance(raw_rgb, Sequence) and not isinstance(raw_rgb, (str, bytes)) else (216, 216, 216))
+                spins: list[QSpinBox] = []
+                for channel_index, channel_name in enumerate(("R", "G", "B")):
+                    channel_spin = QSpinBox()
+                    channel_spin.setObjectName(f"MeshAlignmentManualMaterialProfile_{key}_{channel_name}")
+                    channel_spin.setRange(0, 255)
+                    try:
+                        channel_value = int(rgb[channel_index])
+                    except (TypeError, ValueError, IndexError):
+                        channel_value = 216
+                    channel_spin.setValue(max(0, min(255, channel_value)))
+                    channel_spin.setPrefix(f"{channel_name} ")
+                    channel_spin.setToolTip(tooltip)
+                    channel_spin.valueChanged.connect(lambda _value: _manual_profile_mark_changed())
+                    row_layout.addWidget(channel_spin)
+                    spins.append(channel_spin)
+                manual_profile_controls[key] = tuple(spins)
+                manual_profile_effect_widgets[key] = [label_widget, *spins]
+                manual_profile_control_tooltips[key] = tooltip
+                manual_profile_layout.addWidget(label_widget, row, 0)
+                manual_profile_layout.addLayout(row_layout, row, 1, 1, 2)
+
+            _manual_combo(
+                0,
+                "base_binding_mode",
+                "Color slot",
+                (("Overlay color texture", "overlay_texture"), ("Color-blend slot", "overlay_from_colorblend_slot"), ("Disabled", "disabled")),
+                "Where source base color is written. Overlay is safest. Color-blend is experimental. Disabled removes source base-color binding.",
+            )
+            _manual_combo(
+                1,
+                "mask_binding_mode",
+                "PBR/mask slot",
+                (("Color blending mask", "color_blending_mask"), ("Scratch scalars only", "scratch_scalars"), ("Disabled", "disabled")),
+                "Where generated AO/roughness/metal mask is written. Scratch scalars skips *_ma.dds and uses sidecar scalar response only. Disabled removes generated PBR response.",
+            )
+            _manual_combo(
+                2,
+                "support_policy",
+                "Support maps",
+                (("Source only", "source_only"), ("Source plus neutral gaps", "generated_or_neutral"), ("Keep original support", "keep_original_support")),
+                "Controls normal/height/detail support routing. Source only avoids stock contamination; source plus neutral gaps fills missing support; keep original may restore target detail but can reintroduce old grime/dark response.",
+            )
+            _manual_combo(
+                3,
+                "emissive_mode",
+                "Emissive",
+                (("Disabled", "disabled"), ("Intensity texture", "intensity")),
+                "Disabled removes glow. Intensity binds source emissive textures or emissive material colors for any glowing part.",
+            )
+            _manual_int(6, "base_color_lift", "Dark lift", 0, 128, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Right brightens black/dark pixels so detail survives. Left keeps source darker.")
+            _manual_float(7, "base_color_gamma", "Gamma lift", 0.25, 2.50, 0.05, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Left brightens midtones. Right darkens midtones.")
+            _manual_float(8, "base_color_saturation", "Color saturation", 0.00, 2.00, 0.05, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Left makes colors more muted. Right makes colors stronger.")
+            _manual_int(9, "base_color_value_max", "White cap", 128, 255, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Left makes white blade/edge less pure white. Right allows full white.")
+            _manual_float(10, "base_color_scale", "Color scale", 0.10, 2.00, 0.05, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Left dims all source color before lift/gamma. Right brightens all source color.")
+            _manual_float(11, "emissive_color_scale", "Emissive scale", 0.00, 2.00, 0.05, "Affects generated emissive DDS (*_emi.dds) only when source emissive exists. Left dims glow. Right makes glow stronger or blown out.")
+            _manual_float(12, "emissive_color_saturation", "Emissive saturation", 0.00, 2.00, 0.05, "Affects generated emissive DDS (*_emi.dds) only when source emissive exists. Left makes emissive color less pure. Right makes it stronger.")
+            _manual_int(13, "emissive_color_value_max", "Emissive cap", 0, 255, "Affects generated emissive DDS (*_emi.dds) only when source emissive exists. Left caps brightness. Right allows pure bright emissive.")
+            _manual_int(14, "roughness_default", "Roughness default", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right is dull/matte. Left is shiny if source has no roughness.")
+            _manual_int(15, "roughness_min", "Roughness floor", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right prevents glossy highlights. Left allows shiny source roughness.")
+            _manual_float(16, "roughness_scale", "Roughness scale", 0.00, 2.00, 0.05, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right increases roughness from source map. Left lowers roughness/glossier.")
+            _manual_int(17, "roughness_max", "Roughness cap", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Left limits maximum matte response. Right allows fully matte roughness.")
+            _manual_int(18, "metallic_default", "Metal default", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right makes factor-only parts more metal. Left makes them nonmetal.")
+            _manual_int(19, "metallic_min", "Metal floor", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right forces minimum metal response. Left allows nonmetal.")
+            _manual_float(20, "metallic_scale", "Metal scale", 0.00, 2.00, 0.05, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right keeps/boosts source metallic. Left makes parts less mirror-like.")
+            _manual_int(21, "metallic_max", "Metal cap", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Left limits metal response/bright reflections. Right allows full metal.")
+            _manual_float(22, "scratch_roughness", "Shader roughness", 0.00, 1.00, 0.05, "Sidecar XML scalar, not a DDS. Right tells runtime wrapper to be rougher. Left permits glossy shader response.")
+            _manual_float(23, "scratch_metallic", "Shader metal", 0.00, 1.00, 0.05, "Sidecar XML scalar, not a DDS. Right adds wrapper metallic scalar. Left removes inherited metal scalar.")
+            _manual_float(24, "shine_scalar", "Shader shine", 0.00, 1.00, 0.05, "Sidecar XML scalar, not a DDS. Left removes inherited shine. Right restores shine/gloss scalar.")
+            _manual_float(25, "displacement_scale_multiplier", "Height scale", 0.00, 1.00, 0.05, "Affects height/detail support (*_disp.dds / *_mg.dds) only when support maps write or preserve them. Left disables raised/blobby height. Right restores height relief.")
+            _manual_float(26, "displacement_scale_max", "Height cap", 0.00, 1.00, 0.05, "Affects height/detail support (*_disp.dds / *_mg.dds) only when support maps write or preserve them. Left clamps height. Right allows stronger raised relief.")
+            _manual_int(27, "ao_default", "AO default", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right is brighter/no ambient darkening. Left darkens missing-AO areas.")
+            _manual_int(28, "alpha_default", "Mask alpha", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Usually 0. Right may preserve stronger mask alpha response.")
+            _manual_rgb(29, "neutral_color_rgb", "Neutral tint RGB", "Sidecar XML color reset value. Affects tint/scratch/color scalar params only when the target wrapper has those params.")
+            _manual_check(30, "force_nonmetal", "Force nonmetal", "Material mask generation: forces metal channel to the Metal default value. No visible effect if PBR/mask output is disabled or unused by the shader.")
+            _manual_check(31, "roughness_inverted", "Invert roughness", "Material mask generation: flips roughness channel. Try when matte becomes shiny or shiny becomes matte.")
+            _manual_check(32, "metallic_inverted", "Invert metallic", "Material mask generation: flips metal channel. Try when nonmetal/metal response looks reversed.")
+            _manual_check(33, "preserve_scratch_alpha", "Preserve scratch alpha", "Sidecar XML color reset: keeps existing alpha only on scratch-tint color params. No effect if no scratch-tint params exist.")
+            _manual_check(34, "allow_factor_only_authority", "Use factor-only colors", "Allows untextured materials with glTF/source color factors to generate their own base-color DDS. No effect when every material already has base textures.")
+            _manual_check(35, "factor_only_material_mask", "Generate factor-only mask", "Generates neutral roughness/metal mask for untextured/factor-only materials. No effect for fully textured materials.")
+            _manual_check(36, "force_neutral_layer_support", "Fill missing support with neutral maps", "Source-only support routing: writes neutral normal/height/detail/mask when source support is missing. No effect when source support is complete or support mode is not Source only.")
+            _manual_check(37, "preserve_target_layer_response", "Preserve target layer response", "Sidecar XML reset: keeps more old CD layer/detail/shader response. Useful for lost detail, but can restore grime/dark tint/gloss.")
+            _manual_check(38, "source_color_layer_authority", "Route source color to layer slots", "Sidecar XML texture routing: pushes source base color into compatible visible color/detail/grime slots if those slots exist. Can improve authority or overbind.")
+            manual_profile_texture_impact = QLabel(
+                "<div style='line-height:1.35;'>"
+                "<div style='font-weight:700; color:#f0f6fc; margin-bottom:4px;'>Texture impact</div>"
+                "<div style='color:#d29922; margin-bottom:6px;'>"
+                "<b>Conditional:</b> controls need matching source maps/factors and target sidecar slots. If missing, the change may only affect generated metadata, or may have no visible in-game effect."
+                "</div>"
+                "<table cellspacing='0' cellpadding='3' style='border-collapse:collapse;'>"
+                "<tr><td><span style='color:#7ee787; font-weight:700;'>Color</span></td>"
+                "<td>base DDS <span style='color:#8b949e;'>*_base*.dds / _overlayColorTexture</span></td>"
+                "<td style='color:#8b949e;'>Affects source albedo/color.</td></tr>"
+                "<tr><td><span style='color:#ff7b72; font-weight:700;'>Emissive</span></td>"
+                "<td>emissive DDS <span style='color:#8b949e;'>*_emi.dds</span></td>"
+                "<td style='color:#8b949e;'>Only when source has emissive.</td></tr>"
+                "<tr><td><span style='color:#79c0ff; font-weight:700;'>PBR mask</span></td>"
+                "<td>material mask DDS <span style='color:#8b949e;'>*_ma.dds / _colorBlendingMaskTexture</span></td>"
+                "<td style='color:#8b949e;'>Roughness, metal, AO, mask alpha. Shared masks affect every part using that DDS.</td></tr>"
+                "<tr><td><span style='color:#ffa657; font-weight:700;'>Shader</span></td>"
+                "<td>sidecar XML <span style='color:#8b949e;'>no separate DDS</span></td>"
+                "<td style='color:#8b949e;'>Shader roughness/metal/shine, neutral tint, invert, force nonmetal.</td></tr>"
+                "<tr><td><span style='color:#c297ff; font-weight:700;'>Height</span></td>"
+                "<td>support DDS <span style='color:#8b949e;'>*_disp.dds / *_mg.dds</span></td>"
+                "<td style='color:#8b949e;'>Only when support maps write or preserve height/detail.</td></tr>"
+                "</table>"
+                "<div style='color:#8b949e; margin-top:5px;'>Exact output filenames appear in the build notes.</div>"
+                "</div>"
+            )
+            manual_profile_texture_impact.setObjectName("HintLabel")
+            manual_profile_texture_impact.setTextFormat(Qt.RichText)
+            manual_profile_texture_impact.setWordWrap(True)
+            manual_profile_layout.addWidget(manual_profile_texture_impact, 39, 0, 1, 4)
+            manual_profile_preset_group = QGroupBox("Saved Manual Profiles")
+            manual_profile_preset_group.setObjectName("MeshAlignmentManualMaterialProfilePresetGroup")
+            manual_profile_preset_layout = QGridLayout(manual_profile_preset_group)
+            manual_profile_preset_layout.setContentsMargins(6, 4, 6, 4)
+            manual_profile_preset_layout.setHorizontalSpacing(6)
+            manual_profile_preset_layout.setVerticalSpacing(3)
+            manual_profile_preset_combo = QComboBox()
+            manual_profile_preset_combo.setObjectName("MeshAlignmentManualMaterialProfilePresetCombo")
+            manual_profile_preset_combo.setToolTip("Saved manual material profiles. Pick one to inspect, then Load to apply its values.")
+            manual_profile_preset_name_edit = QLineEdit()
+            manual_profile_preset_name_edit.setObjectName("MeshAlignmentManualMaterialProfilePresetName")
+            manual_profile_preset_name_edit.setPlaceholderText("Profile name, e.g. Clean Dark Metal")
+            manual_profile_preset_name_edit.setToolTip("Name for this saved manual material profile.")
+            manual_profile_preset_details_edit = QPlainTextEdit()
+            manual_profile_preset_details_edit.setObjectName("MeshAlignmentManualMaterialProfilePresetDetails")
+            manual_profile_preset_details_edit.setPlaceholderText("What this profile changes and why")
+            manual_profile_preset_details_edit.setMaximumHeight(58)
+            manual_profile_preset_details_edit.setToolTip("Notes about the look this preset is trying to achieve.")
+            manual_profile_preset_recommended_edit = QLineEdit()
+            manual_profile_preset_recommended_edit.setObjectName("MeshAlignmentManualMaterialProfilePresetRecommended")
+            manual_profile_preset_recommended_edit.setPlaceholderText("Recommended models/materials, paths, or tags")
+            manual_profile_preset_recommended_edit.setToolTip("Optional model paths, source asset names, material names, or tags this preset works well with.")
+            manual_profile_preset_save_button = QPushButton("Save Current")
+            manual_profile_preset_save_button.setObjectName("MeshAlignmentManualMaterialProfilePresetSaveButton")
+            manual_profile_preset_save_button.setToolTip("Save the current manual slider values plus name/details/recommended models.")
+            manual_profile_preset_load_button = QPushButton("Load")
+            manual_profile_preset_load_button.setObjectName("MeshAlignmentManualMaterialProfilePresetLoadButton")
+            manual_profile_preset_load_button.setToolTip("Apply the selected saved profile values to the manual controls.")
+            manual_profile_preset_delete_button = QPushButton("Delete")
+            manual_profile_preset_delete_button.setObjectName("MeshAlignmentManualMaterialProfilePresetDeleteButton")
+            manual_profile_preset_delete_button.setToolTip("Delete the selected saved manual profile.")
+            manual_profile_preset_buttons = QHBoxLayout()
+            manual_profile_preset_buttons.setContentsMargins(0, 0, 0, 0)
+            manual_profile_preset_buttons.setSpacing(4)
+            manual_profile_preset_buttons.addWidget(manual_profile_preset_save_button)
+            manual_profile_preset_buttons.addWidget(manual_profile_preset_load_button)
+            manual_profile_preset_buttons.addWidget(manual_profile_preset_delete_button)
+            manual_profile_preset_layout.addWidget(QLabel("Saved"), 0, 0)
+            manual_profile_preset_layout.addWidget(manual_profile_preset_combo, 0, 1)
+            manual_profile_preset_layout.addWidget(QLabel("Name"), 1, 0)
+            manual_profile_preset_layout.addWidget(manual_profile_preset_name_edit, 1, 1)
+            manual_profile_preset_layout.addWidget(QLabel("Details"), 2, 0)
+            manual_profile_preset_layout.addWidget(manual_profile_preset_details_edit, 2, 1)
+            manual_profile_preset_layout.addWidget(QLabel("Recommended"), 3, 0)
+            manual_profile_preset_layout.addWidget(manual_profile_preset_recommended_edit, 3, 1)
+            manual_profile_preset_layout.addLayout(manual_profile_preset_buttons, 4, 1)
+            manual_profile_layout.addWidget(manual_profile_preset_group, 40, 0, 1, 4)
+            manual_profile_apply_button = QPushButton("Apply Manual Settings")
+            manual_profile_apply_button.setObjectName("MeshAlignmentManualMaterialProfileApplyButton")
+            manual_profile_apply_button.setToolTip("Apply current manual values to the preview/build impact. Sliders do not refresh the model until this is pressed.")
+            manual_profile_apply_button.setEnabled(False)
+            manual_profile_reset_button = QPushButton("Reset To Runtime XML")
+            manual_profile_reset_button.setObjectName("MeshAlignmentManualMaterialProfileResetButton")
+            manual_profile_reset_button.setToolTip("Reset every manual knob to the current Material Authority Runtime XML baseline.")
+            manual_profile_apply_row = QHBoxLayout()
+            manual_profile_apply_row.setContentsMargins(0, 0, 0, 0)
+            manual_profile_apply_row.setSpacing(4)
+            manual_profile_apply_row.addWidget(manual_profile_apply_button)
+            manual_profile_apply_row.addWidget(manual_profile_reset_button)
+            manual_profile_layout.addLayout(manual_profile_apply_row, 4, 0, 1, 4)
+            manual_profile_change_status = QLabel(
+                "<span style='color:#8b949e;'>Manual changes apply on button press; sliders do not refresh the model live.</span>"
+            )
+            manual_profile_change_status.setObjectName("HintLabel")
+            manual_profile_change_status.setTextFormat(Qt.RichText)
+            manual_profile_change_status.setWordWrap(True)
+            manual_profile_layout.addWidget(manual_profile_change_status, 5, 0, 1, 4)
+            manual_profile_preview_warning = QLabel(
+                "<div style='line-height:1.35;'>"
+                "<div style='font-weight:700; color:#d29922; margin-bottom:3px;'>Preview warning</div>"
+                "<table cellspacing='0' cellpadding='3' style='border-collapse:collapse;'>"
+                "<tr><td><span style='color:#ffa657; font-weight:700;'>Tool preview</span></td>"
+                "<td style='color:#c9d1d9;'>Approximation only.</td></tr>"
+                "<tr><td><span style='color:#ff7b72; font-weight:700;'>In-game render</span></td>"
+                "<td style='color:#8b949e;'>It cannot render the exact same textured look as the in-game CD shader, lighting, material layers, and post-processing.</td></tr>"
+                "</table>"
+                "</div>"
+            )
+            manual_profile_preview_warning.setWordWrap(True)
+            manual_profile_preview_warning.setTextFormat(Qt.RichText)
+            manual_profile_preview_warning.setObjectName("WarningLabel")
+            manual_profile_layout.addWidget(manual_profile_preview_warning, 41, 0, 1, 4)
+            manual_profile_group.setVisible(False)
+            manual_profile_ready["ready"] = True
+
+            def _current_manual_material_profile_values() -> Dict[str, object]:
+                values: Dict[str, object] = {}
+                for key, control in manual_profile_controls.items():
+                    if isinstance(control, QComboBox):
+                        values[key] = str(control.currentData() or "")
+                    elif isinstance(control, QSpinBox):
+                        values[key] = int(control.value())
+                    elif isinstance(control, QDoubleSpinBox):
+                        values[key] = float(control.value())
+                    elif isinstance(control, QCheckBox):
+                        values[key] = bool(control.isChecked())
+                    elif isinstance(control, tuple):
+                        rgb_values: list[int] = []
+                        for channel_control in control:
+                            if isinstance(channel_control, QSpinBox):
+                                rgb_values.append(int(channel_control.value()))
+                        if len(rgb_values) >= 3:
+                            values[key] = tuple(rgb_values[:3])
+                return values
+
+            def _refresh_manual_profile_control_effects(values: Optional[Mapping[str, object]] = None) -> None:
+                current_values = dict(values or _current_manual_material_profile_values())
+                base_mode = str(current_values.get("base_binding_mode") or "").strip()
+                mask_mode = str(current_values.get("mask_binding_mode") or "").strip()
+                support_mode = str(current_values.get("support_policy") or "").strip()
+                emissive_mode = str(current_values.get("emissive_mode") or "").strip()
+                allow_factor_colors = bool(current_values.get("allow_factor_only_authority"))
+                inactive: Dict[str, str] = {}
+
+                if base_mode in {"disabled", "tint_only"}:
+                    for key in ("base_color_lift", "base_color_gamma", "base_color_saturation", "base_color_value_max", "base_color_scale"):
+                        inactive[key] = "No effect: Color slot is disabled."
+                if emissive_mode == "disabled":
+                    for key in ("emissive_color_scale", "emissive_color_saturation", "emissive_color_value_max"):
+                        inactive[key] = "No effect: Emissive routing is disabled."
+                if mask_mode in {"disabled", "scratch_scalars"}:
+                    for key in (
+                        "roughness_default",
+                        "roughness_min",
+                        "roughness_scale",
+                        "roughness_max",
+                        "metallic_default",
+                        "metallic_min",
+                        "metallic_scale",
+                        "metallic_max",
+                        "ao_default",
+                        "alpha_default",
+                        "force_nonmetal",
+                        "roughness_inverted",
+                        "metallic_inverted",
+                        "factor_only_material_mask",
+                    ):
+                        inactive[key] = "No effect: PBR/mask slot is not generating a material-mask DDS."
+                if not allow_factor_colors:
+                    inactive["factor_only_material_mask"] = "No effect: Use factor-only colors is off."
+                if support_mode != "source_only":
+                    inactive["force_neutral_layer_support"] = "No effect: neutral support fill only applies to Source only support maps."
+                if support_mode == "keep_original_support":
+                    for key in ("displacement_scale_multiplier", "displacement_scale_max"):
+                        inactive[key] = "No effect: Support maps are preserving original target height/detail."
+
+                for key, widgets in manual_profile_effect_widgets.items():
+                    reason = inactive.get(key, "")
+                    enabled = not reason
+                    tooltip = manual_profile_control_tooltips.get(key, "")
+                    if reason:
+                        tooltip = f"{tooltip}\n\n{reason}"
+                    for widget in widgets:
+                        if hasattr(widget, "setEnabled"):
+                            widget.setEnabled(enabled)
+                        if hasattr(widget, "setToolTip"):
+                            widget.setToolTip(tooltip)
+
+            def _set_manual_profile_dirty(dirty: bool) -> None:
+                manual_profile_dirty["dirty"] = bool(dirty)
+                manual_profile_apply_button.setEnabled(bool(dirty))
+                if dirty:
+                    manual_profile_change_status.setText("Manual settings changed. Press Apply Manual Settings to rebuild the preview/impact notes.")
+                else:
+                    manual_profile_change_status.setText("Manual settings applied. Further slider changes will wait until Apply.")
+
+            def _apply_manual_material_profile_values(values: Mapping[str, object], *, persist: bool, refresh_preview: bool = False) -> None:
+                was_ready = bool(manual_profile_ready.get("ready"))
+                manual_profile_ready["ready"] = False
+                try:
+                    for key, control in manual_profile_controls.items():
+                        value = values.get(key, manual_profile_default_values.get(key))
+                        if isinstance(control, QComboBox):
+                            index = control.findData(str(value or ""))
+                            control.setCurrentIndex(max(0, index))
+                        elif isinstance(control, QSpinBox):
+                            try:
+                                control.setValue(int(value))
+                            except (TypeError, ValueError, OverflowError):
+                                pass
+                        elif isinstance(control, QDoubleSpinBox):
+                            try:
+                                control.setValue(float(value))
+                            except (TypeError, ValueError, OverflowError):
+                                pass
+                        elif isinstance(control, QCheckBox):
+                            control.setChecked(bool(value))
+                        elif isinstance(control, tuple):
+                            rgb = value if isinstance(value, Sequence) and not isinstance(value, (str, bytes)) else ()
+                            for channel_index, channel_control in enumerate(control):
+                                if not isinstance(channel_control, QSpinBox):
+                                    continue
+                                try:
+                                    channel_control.setValue(int(rgb[channel_index]))
+                                except (TypeError, ValueError, OverflowError, IndexError):
+                                    pass
+                finally:
+                    manual_profile_ready["ready"] = was_ready
+                if persist:
+                    saved = _current_manual_material_profile_values()
+                    manual_profile_saved_values.clear()
+                    manual_profile_saved_values.update(saved)
+                    self.settings.setValue(manual_profile_settings_key, json.dumps(saved, sort_keys=True, separators=(",", ":")))
+                    _save_complete_swap_material_profile()
+                    _refresh_manual_profile_control_effects(saved)
+                    if refresh_preview:
+                        _set_manual_profile_dirty(False)
+                        _refresh_output_impact_review()
+                        _queue_texture_preview_refresh()
+                    else:
+                        _set_manual_profile_dirty(True)
+
+            def _reset_manual_material_profile_to_runtime_xml() -> None:
+                _apply_manual_material_profile_values(manual_profile_default_values, persist=True, refresh_preview=False)
+
+            def _apply_current_manual_material_profile_to_preview() -> None:
+                if str(complete_swap_material_profile_combo.currentData() or "") != "material_authority_manual":
+                    return
+                values = _current_manual_material_profile_values()
+                self.settings.setValue(manual_profile_settings_key, json.dumps(values, sort_keys=True, separators=(",", ":")))
+                manual_profile_saved_values.clear()
+                manual_profile_saved_values.update(values)
+                _save_complete_swap_material_profile()
+                _set_manual_profile_dirty(False)
+                _refresh_output_impact_review()
+                _queue_texture_preview_refresh()
+
+            def _selected_manual_profile_preset() -> Optional[Dict[str, object]]:
+                name = str(manual_profile_preset_combo.currentData() or "").strip()
+                if not name:
+                    return None
+                lowered = name.casefold()
+                for preset in manual_profile_presets:
+                    if str(preset.get("name") or "").strip().casefold() == lowered:
+                        return dict(preset)
+                return None
+
+            def _refresh_manual_profile_preset_combo(select_name: str = "") -> None:
+                current_name = str(select_name or manual_profile_preset_combo.currentData() or "").strip()
+                manual_profile_preset_combo.blockSignals(True)
+                try:
+                    manual_profile_preset_combo.clear()
+                    manual_profile_preset_combo.addItem("No saved profile", "")
+                    for preset in manual_profile_presets:
+                        name = str(preset.get("name") or "").strip()
+                        if name:
+                            manual_profile_preset_combo.addItem(name, name)
+                    index = manual_profile_preset_combo.findData(current_name)
+                    manual_profile_preset_combo.setCurrentIndex(max(0, index))
+                finally:
+                    manual_profile_preset_combo.blockSignals(False)
+                _show_selected_manual_profile_preset_metadata()
+
+            def _show_selected_manual_profile_preset_metadata() -> None:
+                preset = _selected_manual_profile_preset()
+                if preset is None:
+                    return
+                manual_profile_preset_name_edit.setText(str(preset.get("name") or ""))
+                manual_profile_preset_details_edit.setPlainText(str(preset.get("details") or ""))
+                manual_profile_preset_recommended_edit.setText(str(preset.get("recommended_models") or ""))
+
+            def _save_current_manual_profile_preset() -> None:
+                name = manual_profile_preset_name_edit.text().strip()
+                if not name:
+                    QMessageBox.information(dialog, "Save Manual Profile", "Enter a profile name before saving.")
+                    return
+                preset = {
+                    "name": name,
+                    "details": manual_profile_preset_details_edit.toPlainText().strip(),
+                    "recommended_models": manual_profile_preset_recommended_edit.text().strip(),
+                    "values": _current_manual_material_profile_values(),
+                }
+                lowered = name.casefold()
+                replaced = False
+                for index, existing in enumerate(tuple(manual_profile_presets)):
+                    if str(existing.get("name") or "").strip().casefold() == lowered:
+                        manual_profile_presets[index] = preset
+                        replaced = True
+                        break
+                if not replaced:
+                    manual_profile_presets.append(preset)
+                manual_profile_presets.sort(key=lambda item: str(item.get("name") or "").casefold())
+                _save_manual_profile_presets(manual_profile_presets)
+                _refresh_manual_profile_preset_combo(name)
+                QMessageBox.information(dialog, "Save Manual Profile", f'Saved manual material profile "{name}".')
+
+            def _load_selected_manual_profile_preset() -> None:
+                preset = _selected_manual_profile_preset()
+                if preset is None:
+                    QMessageBox.information(dialog, "Load Manual Profile", "Select a saved manual profile first.")
+                    return
+                _show_selected_manual_profile_preset_metadata()
+                _apply_manual_material_profile_values(_coerce_manual_profile_values(preset.get("values")), persist=True, refresh_preview=False)
+
+            def _delete_selected_manual_profile_preset() -> None:
+                preset = _selected_manual_profile_preset()
+                if preset is None:
+                    QMessageBox.information(dialog, "Delete Manual Profile", "Select a saved manual profile first.")
+                    return
+                name = str(preset.get("name") or "").strip()
+                answer = QMessageBox.question(
+                    dialog,
+                    "Delete Manual Profile",
+                    f'Delete saved manual material profile "{name}"?',
+                )
+                if answer != QMessageBox.Yes:
+                    return
+                lowered = name.casefold()
+                manual_profile_presets[:] = [
+                    existing
+                    for existing in manual_profile_presets
+                    if str(existing.get("name") or "").strip().casefold() != lowered
+                ]
+                _save_manual_profile_presets(manual_profile_presets)
+                _refresh_manual_profile_preset_combo("")
+
+            def _current_complete_swap_material_profile_token() -> str:
+                profile_name = str(complete_swap_material_profile_combo.currentData() or "material_authority_runtime_xml")
+                if profile_name == "material_authority_manual":
+                    return serialize_complete_swap_manual_material_profile(_current_manual_material_profile_values())
+                return profile_name
+
+            def _refresh_manual_material_profile_panel() -> None:
+                manual_selected = str(complete_swap_material_profile_combo.currentData() or "") == "material_authority_manual"
+                manual_profile_group.setVisible(manual_selected)
+                manual_profile_group.setEnabled(bool(manual_selected and _complete_external_swap_enabled()))
+                _refresh_manual_profile_control_effects()
+            _refresh_manual_profile_preset_combo("")
+            manual_profile_preset_combo.currentIndexChanged.connect(lambda _index: _show_selected_manual_profile_preset_metadata())
+            manual_profile_preset_save_button.clicked.connect(_save_current_manual_profile_preset)
+            manual_profile_preset_load_button.clicked.connect(_load_selected_manual_profile_preset)
+            manual_profile_preset_delete_button.clicked.connect(_delete_selected_manual_profile_preset)
+            manual_profile_apply_button.clicked.connect(_apply_current_manual_material_profile_to_preview)
+            manual_profile_reset_button.clicked.connect(_reset_manual_material_profile_to_runtime_xml)
             sidecar_warning_label = QLabel(
                 "<span style='color:#8b949e;'>Shader wrappers preserved; added parts can emit their own DDS bindings when routed.</span>"
             )
@@ -61176,9 +61901,10 @@ def run_gui() -> int:
             form.addWidget(complete_external_swap_checkbox, 8, 0, 1, 2)
             form.addWidget(QLabel("Runtime material profile"), 9, 0)
             form.addWidget(complete_swap_material_profile_combo, 9, 1)
-            form.addWidget(sidecar_warning_label, 10, 0, 1, 2)
-            form.addWidget(QLabel("Texture size"), 11, 0)
-            form.addWidget(texture_output_size_combo, 11, 1)
+            form.addWidget(manual_profile_group, 10, 0, 1, 2)
+            form.addWidget(sidecar_warning_label, 11, 0, 1, 2)
+            form.addWidget(QLabel("Texture size"), 12, 0)
+            form.addWidget(texture_output_size_combo, 12, 1)
             setup_texture_orientation_row = QHBoxLayout()
             setup_texture_orientation_row.setContentsMargins(0, 0, 0, 0)
             setup_texture_orientation_row.setSpacing(5)
@@ -61186,9 +61912,9 @@ def run_gui() -> int:
             setup_texture_orientation_row.addWidget(setup_texture_flip_u_checkbox)
             setup_texture_orientation_row.addWidget(setup_texture_flip_v_checkbox)
             setup_texture_orientation_row.addWidget(setup_texture_reset_button)
-            form.addWidget(QLabel("Texture orientation"), 12, 0)
-            form.addLayout(setup_texture_orientation_row, 12, 1)
-            form.addWidget(custom_icon_checkbox, 13, 0, 1, 2)
+            form.addWidget(QLabel("Texture orientation"), 13, 0)
+            form.addLayout(setup_texture_orientation_row, 13, 1)
+            form.addWidget(custom_icon_checkbox, 14, 0, 1, 2)
             custom_icon_source_row = QHBoxLayout()
             custom_icon_source_row.setContentsMargins(0, 0, 0, 0)
             custom_icon_source_row.setSpacing(5)
@@ -61196,11 +61922,11 @@ def run_gui() -> int:
             custom_icon_source_row.addWidget(custom_icon_file_button)
             custom_icon_source_row.addWidget(custom_icon_folder_button)
             custom_icon_source_row.addWidget(custom_icon_library_button)
-            form.addWidget(QLabel("Item icon source"), 14, 0)
-            form.addLayout(custom_icon_source_row, 14, 1)
-            form.addWidget(QLabel("Item icon target"), 15, 0)
-            form.addWidget(custom_icon_target_combo, 15, 1)
-            form.addWidget(custom_icon_status, 16, 0, 1, 2)
+            form.addWidget(QLabel("Item icon source"), 15, 0)
+            form.addLayout(custom_icon_source_row, 15, 1)
+            form.addWidget(QLabel("Item icon target"), 16, 0)
+            form.addWidget(custom_icon_target_combo, 16, 1)
+            form.addWidget(custom_icon_status, 17, 0, 1, 2)
             setup_texture_rotate_combo.currentIndexChanged.connect(_save_setup_texture_orientation)
             setup_texture_flip_u_checkbox.toggled.connect(_save_setup_texture_orientation)
             setup_texture_flip_v_checkbox.toggled.connect(_save_setup_texture_orientation)
@@ -61223,6 +61949,7 @@ def run_gui() -> int:
                 source_color_faithful_checkbox.setEnabled(bool(enabled and not complete_mode))
                 external_material_reset_checkbox.setEnabled(bool(enabled and not complete_mode))
                 complete_swap_material_profile_combo.setEnabled(bool(complete_mode))
+                _refresh_manual_material_profile_panel()
 
             rebuild_sidecar_checkbox.toggled.connect(
                 lambda _checked: (
@@ -61248,16 +61975,25 @@ def run_gui() -> int:
             )
             complete_external_swap_checkbox.toggled.connect(_sync_complete_external_swap_mode)
             def _save_complete_swap_material_profile() -> None:
-                profile_name = str(complete_swap_material_profile_combo.currentData() or "source_graph_strict")
+                profile_name = str(complete_swap_material_profile_combo.currentData() or "material_authority_runtime_xml")
                 self.settings.setValue("settings/complete_swap_material_profile", profile_name)
+                if profile_name == "material_authority_manual":
+                    self.settings.setValue(
+                        manual_profile_settings_key,
+                        json.dumps(_current_manual_material_profile_values(), sort_keys=True, separators=(",", ":")),
+                    )
                 try:
-                    write_complete_swap_calibrated_material_profile(complete_swap_profile_store_path, profile_name)
+                    write_complete_swap_calibrated_material_profile(
+                        complete_swap_profile_store_path,
+                        _current_complete_swap_material_profile_token(),
+                    )
                 except Exception:
                     pass
 
             complete_swap_material_profile_combo.currentIndexChanged.connect(
                 lambda _index: (
                     _save_complete_swap_material_profile(),
+                    _refresh_manual_material_profile_panel(),
                     _refresh_output_impact_review(),
                     _queue_texture_preview_refresh(),
                 )
@@ -62772,7 +63508,7 @@ def run_gui() -> int:
                     complete_external_material_reset=bool(external_material_reset_checkbox.isChecked() or _complete_external_swap_enabled()),
                     enable_missing_base_color_parameters=bool(inject_base_color_checkbox.isChecked() or _complete_external_swap_enabled()),
                     texture_output_size_mode=str(texture_output_size_combo.currentData() or "source"),
-                    complete_swap_material_profile=str(complete_swap_material_profile_combo.currentData() or "source_graph_strict"),
+                    complete_swap_material_profile=str(_current_complete_swap_material_profile_token()),
                     additional_supplemental_files=list(dialog_added_supplemental_files),
                     custom_item_icon_override=custom_item_icon_override,
                     prune_unmapped_original_texture_parameters=bool(
@@ -63208,18 +63944,9 @@ def run_gui() -> int:
                 setup = preset_setup
             scene_path_obj = setup.scene_path
             import_mode = setup.import_mode
-            build_entry = (
-                setup.runtime_target_entry
-                if isinstance(getattr(setup, "runtime_target_entry", None), ArchiveEntry)
-                else entry
-            )
+            build_entry = entry
             if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}:
                 self.append_archive_log(f"{scene_path_obj.suffix.upper().lstrip('.')} imports use Mesh Replacement mode.")
-            if not self._same_archive_entry(build_entry, entry):
-                self.append_archive_log(
-                    "Modify Original runtime target override: "
-                    f"{entry.path} -> {build_entry.path}"
-                )
 
             def _start_build_with_static_options(
                 static_replacement_options: Optional[StaticMeshReplacementOptions],
@@ -63319,11 +64046,6 @@ def run_gui() -> int:
                         visible_texture_mode=preview_settings.visible_texture_mode,
                         supplemental_files=supplemental_files,
                     )
-                    if not self._same_archive_entry(build_entry, entry):
-                        preview_result.summary_lines.append(
-                            "Runtime target override: Modify Original selected a display/monster clone; "
-                            f"export payload targets {build_entry.path}."
-                        )
                     return preview_result
 
                 def _archive_dds_preview_source_for_path(texture_path: str) -> Optional[Path]:

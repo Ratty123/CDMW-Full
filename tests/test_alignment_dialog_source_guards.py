@@ -9,6 +9,7 @@ MAIN_WINDOW = ROOT / "cdmw" / "ui" / "main_window.py"
 WIDGETS = ROOT / "cdmw" / "ui" / "widgets.py"
 ARCHIVE_MODDING = ROOT / "cdmw" / "core" / "archive_modding.py"
 STATIC_REPLACER = ROOT / "cdmw" / "modding" / "static_mesh_replacer.py"
+MATERIAL_REPLACER = ROOT / "cdmw" / "modding" / "material_replacer.py"
 
 
 def _main_window_source() -> str:
@@ -27,6 +28,10 @@ def _static_replacer_source() -> str:
     return STATIC_REPLACER.read_text(encoding="utf-8")
 
 
+def _material_replacer_source() -> str:
+    return MATERIAL_REPLACER.read_text(encoding="utf-8")
+
+
 class AlignmentDialogSourceGuardTests(unittest.TestCase):
     def test_alignment_dialog_qsize_runtime_dependency_is_imported(self) -> None:
         source = _main_window_source()
@@ -41,9 +46,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def _mesh_import_runtime_sibling_warning_lines", archive_source)
         self.assertIn("def mesh_import_runtime_sibling_mesh_candidates", archive_source)
         self.assertIn("runtime_target_entry: Optional[ArchiveEntry] = None", source)
-        self.assertIn("def _modify_original_runtime_target_entry", source)
+        self.assertIn("def _modify_original_runtime_candidate_note", source)
         self.assertIn("def _retarget_static_options_for_runtime_entry", source)
-        self.assertIn("Modify Original runtime target override", source)
+        self.assertIn("Modify Original keeps the selected PAC as the export target", source)
+        self.assertNotIn("Modify Original runtime target override", source)
+        self.assertNotIn("runtime_target_entry=runtime_target_entry", source)
         self.assertIn("runtime_export_target_entry=build_entry", source)
         self.assertIn("Auto-including exact mesh companion file(s)", archive_source)
 
@@ -273,6 +280,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("original_reference_material_parity=enable_material_combiner", source)
         self.assertIn('f"Loading preview... please wait, {loading_detail}."', source)
         self.assertIn("alignment_d3d11_loading_spinner_label = QLabel(\"\")", source)
+        self.assertIn('alignment_d3d11_loading_spinner_label.setObjectName("AlignmentD3D11LoadingSpinner")', source)
+        self.assertIn("alignment_d3d11_loading_spinner_label.setTextFormat(Qt.RichText)", source)
+        self.assertIn("alignment_d3d11_loading_spinner_label.setFixedSize(36, 30)", source)
+        self.assertIn('frames = ("&#9679;", "&#9683;", "&#9681;", "&#9682;")', source)
+        self.assertIn("D3D11 package preparing - {_alignment_preview_detail_label()}", source)
+        self.assertNotIn('_set_preview_performance_status(\n                    "Loading preview...",', source)
         self.assertIn("alignment_d3d11_loading_timer = QTimer(dialog)", source)
         self.assertIn("def _set_alignment_d3d11_loading(active: bool, message: str = \"\", *, detail: str = \"\") -> None:", source)
         self.assertIn("alignment_d3d11_loading_timer.timeout.connect(_tick_alignment_d3d11_loading_spinner)", source)
@@ -1361,6 +1374,17 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_queue_texture_uv_preview_refresh()", setup_block)
         self.assertNotIn("_queue_static_preview_rebuild()", setup_block)
 
+        fast_flip_start = source.index("def _current_global_flip_v_fast_preview_value")
+        fast_flip_end = source.index("def _alignment_geometry_tab_active", fast_flip_start)
+        fast_flip_block = source[fast_flip_start:fast_flip_end]
+        self.assertIn("def _reapply_global_flip_v_fast_preview(expected_flip_v: bool) -> None:", fast_flip_block)
+        self.assertIn("alignment_d3d11_preview_host.set_texture_flip_vertical(bool(expected_flip_v)", fast_flip_block)
+        self.assertIn('_set_alignment_d3d11_loading(False, "Preview ready.")', fast_flip_block)
+        self.assertIn("QTimer.singleShot(160", fast_flip_block)
+        self.assertIn("texture_overrides_dirty[\"dirty\"] = True", fast_flip_block)
+        self.assertIn('"command": "set_texture_flip_vertical"', source)
+        self.assertIn('"enabled": bool(enabled)', source)
+
     def test_alignment_d3d11_preview_reuses_cached_packages_for_live_changes(self) -> None:
         source = _main_window_source()
         self.assertIn('"package_cache": OrderedDict()', source)
@@ -1372,6 +1396,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("Reused active cached package", source)
         self.assertIn("Loading preview... please wait.", source)
         self.assertIn("Preview ready.", source)
+        self.assertIn('"preview_loaded": False', source)
+        self.assertIn('alignment_d3d11_state["preview_loaded"] = True', source)
+        self.assertIn('if bool(alignment_d3d11_state.get("preview_loaded")):', source)
+        self.assertIn("alignment_d3d11_preview_status_label.setToolTip(message)", source)
         self.assertIn("native load/upload 0.0 ms (active package reused)", source)
         self.assertIn('details="cache=live-command reason=display_mode"', source)
         self.assertIn('_mark_alignment_d3d11_rebuild_reason("mode_missing_original")', source)
@@ -1864,6 +1892,81 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('"replacement_submesh_indices"', source)
         self.assertIn("role == \"original_reference\"", native_source)
         self.assertIn("role == \"replacement_preview\"", native_source)
+
+    def test_runtime_xml_material_profile_is_available_to_runtime_combo(self) -> None:
+        source = _main_window_source()
+        material_source = _material_replacer_source()
+        self.assertIn("complete_swap_material_profiles_by_name = {", source)
+        self.assertIn('name="material_authority_runtime_xml"', material_source)
+        self.assertIn('label="Material Authority Runtime XML"', material_source)
+        self.assertIn('"runtime_xml": "material_authority_runtime_xml"', material_source)
+        self.assertIn('"material_authority_runtime": "material_authority_runtime_xml"', material_source)
+        self.assertIn('"runtime_xml_authority": "material_authority_runtime_xml"', material_source)
+        self.assertIn('name="material_authority_clean_source"', material_source)
+        self.assertIn('label="Material Authority Clean Source"', material_source)
+        self.assertIn('"clean_source": "material_authority_clean_source"', material_source)
+        self.assertIn('"material_authority_clean": "material_authority_clean_source"', material_source)
+        self.assertIn('"clean_source_authority": "material_authority_clean_source"', material_source)
+
+    def test_manual_material_profile_exposes_runtime_controls_under_combo(self) -> None:
+        source = _main_window_source()
+        material_source = _material_replacer_source()
+        self.assertIn('label="Material Authority Manual"', material_source)
+        self.assertIn("serialize_complete_swap_manual_material_profile", source)
+        self.assertIn("MeshAlignmentManualMaterialProfileGroup", source)
+        self.assertIn("visible_complete_swap_material_profile_names = (", source)
+        self.assertIn('"material_authority_runtime_xml"', source)
+        self.assertIn('"material_authority_clean_source"', source)
+        self.assertIn('"material_authority_manual"', source)
+        self.assertIn("complete_swap_material_profiles_by_name", source)
+        self.assertIn("manual_profile_presets_key", source)
+        self.assertIn("MeshAlignmentManualMaterialProfilePresetGroup", source)
+        self.assertIn("manual_profile_preset_name_edit", source)
+        self.assertIn("manual_profile_preset_details_edit", source)
+        self.assertIn("manual_profile_preset_recommended_edit", source)
+        self.assertIn('manual_profile_preset_save_button = QPushButton("Save Current")', source)
+        self.assertIn("def _save_current_manual_profile_preset", source)
+        self.assertIn("def _load_selected_manual_profile_preset", source)
+        self.assertIn("def _delete_selected_manual_profile_preset", source)
+        self.assertIn("manual_profile_texture_impact = QLabel", source)
+        self.assertIn("manual_profile_effect_widgets", source)
+        self.assertIn("def _refresh_manual_profile_control_effects", source)
+        self.assertIn('inactive[key] = "No effect: PBR/mask slot is not generating a material-mask DDS."', source)
+        self.assertIn('inactive[key] = "No effect: Color slot is disabled."', source)
+        self.assertIn("widget.setEnabled(enabled)", source)
+        self.assertIn("<table cellspacing='0' cellpadding='3'", source)
+        self.assertIn("PBR mask", source)
+        self.assertIn("material mask DDS", source)
+        self.assertIn("<b>Conditional:</b>", source)
+        self.assertIn("may have no visible in-game effect", source)
+        self.assertIn("Shader roughness/metal/shine", source)
+        self.assertIn("No effect when every material already has base textures", source)
+        self.assertIn("No effect if no scratch-tint params exist", source)
+        self.assertIn('manual_profile_apply_button = QPushButton("Apply Manual Settings")', source)
+        self.assertIn("def _apply_current_manual_material_profile_to_preview", source)
+        self.assertIn("manual_profile_apply_button.clicked.connect(_apply_current_manual_material_profile_to_preview)", source)
+        self.assertIn("manual_profile_layout.addLayout(manual_profile_apply_row, 4, 0, 1, 4)", source)
+        self.assertIn('manual_profile_layout.addWidget(manual_profile_change_status, 5, 0, 1, 4)', source)
+        self.assertIn('_manual_int(6, "base_color_lift"', source)
+        self.assertIn("_set_manual_profile_dirty(True)", source)
+        self.assertIn('if saved_complete_swap_material_profile.startswith("material_authority_manual"):', source)
+        self.assertIn('manual_profile_reset_button = QPushButton("Reset To Runtime XML")', source)
+        self.assertIn("Reset every manual knob to the current Material Authority Runtime XML baseline.", source)
+        self.assertIn("manual_profile_preview_warning = QLabel", source)
+        self.assertIn("Preview warning</div>", source)
+        self.assertIn("cannot render the exact same textured look as the in-game CD shader", source)
+        self.assertNotIn("manual_profile_note = QLabel", source)
+        self.assertNotIn("Direction hints</div>", source)
+        self.assertIn("manual_profile_reset_button.clicked.connect(_reset_manual_material_profile_to_runtime_xml)", source)
+        self.assertIn("def _current_complete_swap_material_profile_token", source)
+        self.assertIn("complete_swap_material_profile=str(_current_complete_swap_material_profile_token())", source)
+        self.assertIn('"base_color_lift"', source)
+        self.assertIn('"emissive_color_scale"', source)
+        self.assertIn('"Emissive scale"', source)
+        self.assertIn("source emissive textures or emissive material colors for any glowing part", source)
+        self.assertNotIn('"Gem glow scale"', source)
+        self.assertIn('"roughness_min"', source)
+        self.assertIn('"metallic_scale"', source)
 
     def test_alignment_live_preview_uses_virtual_sidecar_texture_contract(self) -> None:
         source = _main_window_source()

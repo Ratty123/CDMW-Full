@@ -127,6 +127,16 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn('export_kind == "fbx" or bool(resolve_skeleton_for_obj)', archive_modding_source)
         self.assertIn("resolve_skeleton_for_obj=create_workspace", main_window_source)
 
+    def test_modify_original_preserves_selected_archive_entry_as_export_target(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+
+        self.assertIn("def _modify_original_runtime_candidate_note", source)
+        self.assertIn("Modify Original keeps the selected PAC as the export target", source)
+        self.assertIn("build_entry = entry", source)
+        self.assertNotIn("runtime_target_entry=runtime_target_entry", source)
+        self.assertNotIn("setup.runtime_target_entry = runtime_target_entry", source)
+        self.assertNotIn("Modify Original runtime target override", source)
+
     def test_roles_name_evidence_and_grouping_are_user_facing(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
 
