@@ -593,16 +593,24 @@ class ModelPreviewSettingsDialog(QDialog):
         self.preview_cache_limit_spin.setRange(12, 256)
         self.preview_cache_limit_spin.setSingleStep(4)
         self.preview_cache_limit_spin.setToolTip("Number of archive preview results kept in memory while browsing.")
+        self.native_preview_cache_mode_combo = QComboBox()
+        self.native_preview_cache_mode_combo.addItem("Off", "off")
+        self.native_preview_cache_mode_combo.addItem("Balanced", "balanced")
+        self.native_preview_cache_mode_combo.addItem("Aggressive", "aggressive")
+        self.native_preview_cache_mode_combo.setToolTip(
+            "Durable native D3D11 package cache. Balanced reuses exact previews; Aggressive also prebuilds nearby visible models."
+        )
         self.quick_then_full_checkbox = QCheckBox("Show quick metadata first, then full 3D preview")
         self.maximum_indexing_priority_checkbox = QCheckBox("Prioritize indexing over UI responsiveness")
         self.maximum_indexing_priority_checkbox.setToolTip(
             "Runs texture sidecar indexing at normal thread priority instead of low priority. This applies to the next sidecar indexing run."
         )
         self.clear_preview_cache_button = QPushButton("Clear Preview Cache")
-        self.clear_preview_cache_button.setToolTip("Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.")
+        self.clear_preview_cache_button.setToolTip("Clears in-memory Archive Browser preview results and durable native preview packages. Sidecar scan caches on disk are not removed.")
         performance_form.addRow("", self.sidecar_indexing_enabled_checkbox)
         performance_form.addRow("Sidecar workers (1-16)", worker_row)
         performance_form.addRow("Preview cache size (12-256)", self.preview_cache_limit_spin)
+        performance_form.addRow("Native preview cache", self.native_preview_cache_mode_combo)
         performance_form.addRow("", self.quick_then_full_checkbox)
         performance_form.addRow("", self.maximum_indexing_priority_checkbox)
         performance_form.addRow("", self.clear_preview_cache_button)
@@ -675,6 +683,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self.sidecar_indexing_enabled_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.sidecar_worker_spin.valueChanged.connect(self._handle_archive_performance_changed)
         self.preview_cache_limit_spin.valueChanged.connect(self._handle_archive_performance_changed)
+        self.native_preview_cache_mode_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
         self.quick_then_full_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.maximum_indexing_priority_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.clear_preview_cache_button.clicked.connect(self.clear_preview_cache_requested.emit)
@@ -856,6 +865,7 @@ class ModelPreviewSettingsDialog(QDialog):
                 enable_sidecar_indexing=self.sidecar_indexing_enabled_checkbox.isChecked(),
                 sidecar_worker_count=worker_count,
                 preview_cache_limit=self.preview_cache_limit_spin.value(),
+                native_preview_cache_mode=str(self.native_preview_cache_mode_combo.currentData() or "balanced"),
                 quick_then_full_preview=self.quick_then_full_checkbox.isChecked(),
                 maximum_indexing_priority=self.maximum_indexing_priority_checkbox.isChecked(),
             )
@@ -932,6 +942,8 @@ class ModelPreviewSettingsDialog(QDialog):
             self.sidecar_worker_spin.setEnabled(worker_controls_enabled and clamped.sidecar_worker_count > 0)
             self.maximum_indexing_priority_checkbox.setEnabled(worker_controls_enabled)
             self.preview_cache_limit_spin.setValue(clamped.preview_cache_limit)
+            native_cache_index = self.native_preview_cache_mode_combo.findData(clamped.native_preview_cache_mode)
+            self.native_preview_cache_mode_combo.setCurrentIndex(max(0, native_cache_index))
             self.quick_then_full_checkbox.setChecked(clamped.quick_then_full_preview)
             self.maximum_indexing_priority_checkbox.setChecked(
                 clamped.enable_sidecar_indexing and clamped.maximum_indexing_priority

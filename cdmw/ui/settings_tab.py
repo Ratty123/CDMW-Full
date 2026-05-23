@@ -386,6 +386,15 @@ class SettingsTab(QWidget):
         self.archive_preview_cache_limit_spin.setSingleStep(4)
         self.archive_preview_cache_limit_spin.setToolTip("Number of archive preview results kept in memory while browsing.")
         archive_performance_layout.addRow("Preview cache size (12-256)", self.archive_preview_cache_limit_spin)
+        self.archive_native_preview_cache_mode_combo = QComboBox()
+        self.archive_native_preview_cache_mode_combo.addItem("Off", "off")
+        self.archive_native_preview_cache_mode_combo.addItem("Balanced", "balanced")
+        self.archive_native_preview_cache_mode_combo.addItem("Aggressive", "aggressive")
+        self.archive_native_preview_cache_mode_combo.setToolTip(
+            "Durable D3D11 .pac preview package cache. Balanced reuses exact previews. "
+            "Aggressive also prebuilds a few nearby visible models and uses more disk."
+        )
+        archive_performance_layout.addRow("Native preview cache", self.archive_native_preview_cache_mode_combo)
         self.archive_quick_then_full_checkbox = QCheckBox("Show quick metadata first, then full 3D preview")
         self.archive_maximum_indexing_priority_checkbox = QCheckBox("Prioritize indexing over UI responsiveness")
         self.archive_maximum_indexing_priority_checkbox.setToolTip(
@@ -394,7 +403,8 @@ class SettingsTab(QWidget):
         archive_performance_layout.addRow("", self.archive_quick_then_full_checkbox)
         archive_performance_layout.addRow("", self.archive_maximum_indexing_priority_checkbox)
         archive_performance_hint = QLabel(
-            "Global sidecar indexing is optional. Leave it off for faster startup and browsing; enable it when you need DDS reverse references across the archive. Worker count range: 1-16. Preview cache range: 12-256 entries."
+            "Global sidecar indexing is optional. Leave it off for faster startup and browsing; enable it when you need DDS reverse references across the archive. "
+            "Preview cache keeps UI results in memory; native preview cache keeps validated D3D11 packages on disk."
         )
         archive_performance_hint.setWordWrap(True)
         archive_performance_hint.setObjectName("HintLabel")
@@ -815,6 +825,7 @@ class SettingsTab(QWidget):
         self.archive_sidecar_worker_mode_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
         self.archive_sidecar_worker_spin.valueChanged.connect(self._handle_archive_performance_changed)
         self.archive_preview_cache_limit_spin.valueChanged.connect(self._handle_archive_performance_changed)
+        self.archive_native_preview_cache_mode_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
         self.archive_quick_then_full_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.archive_maximum_indexing_priority_checkbox.toggled.connect(self._handle_archive_performance_changed)
         for widget in self._model_preview_setting_widgets():
@@ -1132,6 +1143,7 @@ class SettingsTab(QWidget):
         self.settings.setValue("archive/enable_sidecar_indexing", archive_performance_settings.enable_sidecar_indexing)
         self.settings.setValue("archive/sidecar_worker_count", archive_performance_settings.sidecar_worker_count)
         self.settings.setValue("archive/preview_cache_limit", archive_performance_settings.preview_cache_limit)
+        self.settings.setValue("archive/native_preview_cache_mode", archive_performance_settings.native_preview_cache_mode)
         self.settings.setValue("archive/quick_then_full_preview", archive_performance_settings.quick_then_full_preview)
         self.settings.setValue("archive/maximum_indexing_priority", archive_performance_settings.maximum_indexing_priority)
         preview_settings = self.current_model_preview_render_settings()
@@ -1294,6 +1306,10 @@ class SettingsTab(QWidget):
                     "archive/preview_cache_limit",
                     defaults.preview_cache_limit,
                 ),
+                native_preview_cache_mode=str(
+                    self.settings.value("archive/native_preview_cache_mode", defaults.native_preview_cache_mode)
+                    or defaults.native_preview_cache_mode
+                ),
                 quick_then_full_preview=self._read_bool(
                     "archive/quick_then_full_preview",
                     defaults.quick_then_full_preview,
@@ -1317,6 +1333,7 @@ class SettingsTab(QWidget):
             self.archive_sidecar_worker_mode_combo,
             self.archive_sidecar_worker_spin,
             self.archive_preview_cache_limit_spin,
+            self.archive_native_preview_cache_mode_combo,
             self.archive_quick_then_full_checkbox,
             self.archive_maximum_indexing_priority_checkbox,
         )
@@ -1350,6 +1367,7 @@ class SettingsTab(QWidget):
             self.archive_sidecar_worker_mode_combo.setCurrentIndex(1 if clamped.sidecar_worker_count > 0 else 0)
             self.archive_sidecar_worker_spin.setValue(max(1, clamped.sidecar_worker_count or 4))
             self.archive_preview_cache_limit_spin.setValue(clamped.preview_cache_limit)
+            self._set_combo_by_value(self.archive_native_preview_cache_mode_combo, clamped.native_preview_cache_mode)
             self.archive_quick_then_full_checkbox.setChecked(clamped.quick_then_full_preview)
             self.archive_maximum_indexing_priority_checkbox.setChecked(
                 clamped.enable_sidecar_indexing and clamped.maximum_indexing_priority
@@ -1376,6 +1394,7 @@ class SettingsTab(QWidget):
                 enable_sidecar_indexing=self.archive_sidecar_indexing_checkbox.isChecked(),
                 sidecar_worker_count=worker_count,
                 preview_cache_limit=self.archive_preview_cache_limit_spin.value(),
+                native_preview_cache_mode=str(self.archive_native_preview_cache_mode_combo.currentData() or "balanced"),
                 quick_then_full_preview=self.archive_quick_then_full_checkbox.isChecked(),
                 maximum_indexing_priority=(
                     self.archive_sidecar_indexing_checkbox.isChecked()

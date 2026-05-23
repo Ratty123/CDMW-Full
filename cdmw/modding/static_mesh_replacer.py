@@ -201,6 +201,8 @@ class StaticMeshReplacementOptions:
     removed_target_submesh_indices: list[int] = field(default_factory=list)
     prune_removed_target_texture_parameters: bool = False
     prune_unmapped_original_texture_parameters: bool = False
+    pac_xml_corpus_root: str = ""
+    pac_xml_profile_cache_path: str = ""
 
 
 @dataclass

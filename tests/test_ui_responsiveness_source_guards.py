@@ -210,6 +210,32 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertNotIn("ArchiveEnhancedIndexWorker(tuple(self.archive_entries))", source)
         self.assertNotIn("ArchiveStructureFilterWorker(tuple(self.archive_entries))", source)
 
+    def test_archive_search_preserves_left_controls_scroll_position(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        self.assertIn("self.archive_controls_scroll_filter_anchor: Optional[int] = None", source)
+        self.assertIn("def _capture_archive_controls_scroll_for_filter(self) -> None:", source)
+        self.assertIn("def _restore_archive_controls_scroll_after_filter(self) -> None:", source)
+        self.assertIn("QTimer.singleShot(80, _restore)", source)
+
+        apply_start = source.index("        def _apply_archive_filter(self) -> None:")
+        apply_body = source[apply_start: source.index("        def _start_archive_filter_worker", apply_start)]
+        self.assertIn("self._capture_archive_controls_scroll_for_filter()", apply_body)
+
+        worker_start = source.index("        def _start_archive_filter_worker(")
+        worker_body = source[worker_start: source.index("        def _handle_archive_filter_complete", worker_start)]
+        self.assertIn("self.set_busy(True, build_mode=False)", worker_body)
+        self.assertIn("self._restore_archive_controls_scroll_after_filter()", worker_body)
+
+        complete_start = source.index("        def _handle_archive_filter_complete(")
+        complete_body = source[complete_start: source.index("        def _finalize_archive_filter_complete", complete_start)]
+        self.assertIn("Rendering archive browser view...", complete_body)
+        self.assertIn("self._restore_archive_controls_scroll_after_filter()", complete_body)
+
+        finish_start = source.index("            def finish_filter_render() -> None:")
+        finish_body = source[finish_start: source.index("            defer_default_selection =", finish_start)]
+        self.assertIn("self._restore_archive_controls_scroll_after_filter()", finish_body)
+        self.assertIn("self.archive_controls_scroll_filter_anchor = None", finish_body)
+
     def test_archive_asset_family_graph_cache_is_bounded_and_logged(self) -> None:
         source = _read("cdmw/ui/main_window.py")
         self.assertIn("self.archive_asset_family_cache: OrderedDict", source)

@@ -207,6 +207,10 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
                 "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0009.pac",
                 root,
             )
+            sidecar_entry = _entry(
+                "character/modelproperty/2_mon/cd_m0001/armor/19_cloak/cd_m0001_00_de_pdm_cloak_21009.pac_xml",
+                root,
+            )
             mesh = ParsedMesh(
                 path=display_entry.path,
                 format="pac",
@@ -214,6 +218,54 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
                     SubMesh(
                         name="CD_PHM_00_Cloak_0009",
                         material="CD_PHM_00_Cloak_0009",
+                        vertices=[(0.0, 0.0, 0.0)],
+                        faces=[],
+                    )
+                ],
+            )
+            sidecars = (
+                (
+                    sidecar_entry,
+                    '<Param value="character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0009.pac" />',
+                ),
+            )
+
+            lines = archive_modding._mesh_import_runtime_sibling_warning_lines(
+                display_entry,
+                mesh,
+                {"cd_phm_00_cloak_0009.pac": (player_entry,)},
+                sidecars,
+            )
+            candidates = archive_modding.mesh_import_runtime_sibling_mesh_candidates(
+                display_entry,
+                mesh,
+                {"cd_phm_00_cloak_0009.pac": (player_entry,)},
+                sidecars,
+            )
+
+        self.assertIn("Runtime target warning", "\n".join(lines))
+        self.assertIn(player_entry.path, "\n".join(lines))
+        self.assertEqual((player_entry,), candidates)
+
+    def test_runtime_sibling_warning_ignores_weak_texture_family_match(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            display_entry = _entry(
+                "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_07_pdm/armor_desert/19_cloak/cd_m0001_00_de_pdm_cloak_21009.pac",
+                root,
+            )
+            player_entry = _entry(
+                "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0009.pac",
+                root,
+            )
+            mesh = ParsedMesh(
+                path=display_entry.path,
+                format="pac",
+                submeshes=[
+                    SubMesh(
+                        name="CD_PHM_00_Cloak_0009",
+                        material="CD_PHM_00_Cloak_0009",
+                        texture="cd_phm_00_cloak_0009.dds",
                         vertices=[(0.0, 0.0, 0.0)],
                         faces=[],
                     )
@@ -231,11 +283,10 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
                 {"cd_phm_00_cloak_0009.pac": (player_entry,)},
             )
 
-        self.assertIn("Runtime target warning", "\n".join(lines))
-        self.assertIn(player_entry.path, "\n".join(lines))
-        self.assertEqual((player_entry,), candidates)
+        self.assertNotIn("Runtime target warning", "\n".join(lines))
+        self.assertEqual((), candidates)
 
-    def test_loose_export_auto_copies_exact_sidecars_but_omits_physics_by_default(self) -> None:
+    def test_loose_export_omits_unchanged_sidecars_and_physics_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             primary = _entry("character/model/armor/test_cloak.pac", root)
@@ -300,7 +351,7 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
                     related_entries_to_include=(physics,),
                 )
 
-            self.assertTrue((result.package_root / "character" / "modelproperty" / "armor" / "test_cloak.pac_xml").exists())
+            self.assertFalse((result.package_root / "character" / "modelproperty" / "armor" / "test_cloak.pac_xml").exists())
             self.assertFalse((result.package_root / "character" / "bin__" / "meshphysics" / "armor" / "test_cloak.hkx").exists())
             self.assertFalse((result.package_root / "character" / "modelproperty" / "armor" / "other_cloak.pac_xml").exists())
             self.assertTrue(

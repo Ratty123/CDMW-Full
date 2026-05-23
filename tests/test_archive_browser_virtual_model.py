@@ -168,6 +168,7 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
                 archive_fetch_batch_size=99999,
                 background_worker_limit=999,
                 native_archive_acceleration=False,
+                native_preview_cache_mode="bad",
             )
         )
         self.assertEqual(settings.resource_profile, "balanced_60fps")
@@ -176,6 +177,7 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         self.assertEqual(settings.archive_fetch_batch_size, 5000)
         self.assertEqual(settings.background_worker_limit, 16)
         self.assertFalse(settings.native_archive_acceleration)
+        self.assertEqual(settings.native_preview_cache_mode, "balanced")
 
     def test_virtual_tree_view_selection_compatibility_surface(self) -> None:
         entries = [_entry(f"ui/file_{index}.dds", index) for index in range(3)]
@@ -276,6 +278,31 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("if not force and self._mesh_replacement_builder_active():", flush_body)
         self.assertIn("self._show_archive_preview_loading_state(entry)", flush_body)
 
+    def test_native_core_preview_packages_are_not_cached_after_temp_cleanup(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        cacheable_start = source.index("        def _archive_preview_result_cacheable")
+        cacheable_body = source[cacheable_start: source.index("        def _archive_preview_result_prepared_bytes", cacheable_start)]
+        cached_start = source.index("        def _get_cached_archive_preview_result")
+        cached_body = source[cached_start: source.index("        def _store_cached_archive_preview_result", cached_start)]
+        invalid_start = source.index('                            "d3d11_native_package_invalid_paths"')
+        invalid_body = source[invalid_start: source.index("                    if self._archive_isolated_renderer_process_running()", invalid_start)]
+        flush_start = source.index("        def _flush_scheduled_archive_preview_request(")
+        flush_body = source[flush_start: source.index("        def _archive_native_prefetch_candidate_entries(", flush_start)]
+
+        self.assertIn('native_package_path = str(getattr(result, "native_preview_package_path", "") or "").strip()', cacheable_body)
+        self.assertIn("is_durable_native_preview_package_path", cacheable_body)
+        self.assertIn("return bool(valid_package)", cacheable_body)
+        self.assertIn('native_package_path = str(getattr(cached, "native_preview_package_path", "") or "").strip()', cached_body)
+        self.assertIn("self.archive_preview_cache.pop(cache_key, None)", cached_body)
+        self.assertIn('"archive_preview_cache_native_package_expired"', cached_body)
+        self.assertIn('self.archive_preview_cache_last_miss_reason = "native_package_expired"', cached_body)
+        self.assertIn("def _get_durable_native_preview_package_result", source)
+        self.assertIn("lookup_native_preview_package_cache", source)
+        self.assertIn("Cached preview package expired; rebuilding preview package...", flush_body)
+        self.assertIn("Rebuilding native D3D11 preview package", flush_body)
+        self.assertIn("self._stop_archive_preview_loading_indicator(success=False)", invalid_body)
+        self.assertIn("self.archive_preview_info_edit.setPlainText(detail_text)", invalid_body)
+
     def test_archive_preview_refresh_replaces_dark_toolbar_and_bypasses_builder_pause(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
         self.assertIn('self.archive_model_preview_refresh_button = QPushButton("Refresh")', source)
@@ -298,6 +325,8 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn('"Performance"', source)
         self.assertIn("archive_resource_profile_combo", source)
         self.assertIn("archive_native_acceleration_checkbox", source)
+        self.assertIn("archive_native_preview_cache_mode_combo", source)
+        self.assertIn("archive/native_preview_cache_mode", source)
         self.assertIn("performance/archive_fetch_batch_size", source)
         self.assertNotIn('self.tabs.addTab(performance_tab, "Archive Performance")', dialog_source)
 

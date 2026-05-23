@@ -14,7 +14,6 @@ from typing import Callable, Mapping, Optional, Sequence
 from .asset_replacement import classify_texture_binding, infer_cd_texture_role_from_path
 from .mesh_parser import ParsedMesh
 from .pac_xml_profiles import (
-    DEFAULT_PAC_XML_CORPUS_ROOT,
     PacXmlCorpusIndex,
     PacXmlProfileReport,
     PacXmlTemplateMatch,
@@ -1251,6 +1250,8 @@ def build_texture_replacement_payloads(
     prune_removed_target_texture_parameters: bool = False,
     prune_unmapped_original_texture_parameters: bool = False,
     output_draw_sections: Sequence[StaticOutputDrawSection] = (),
+    pac_xml_corpus_root: str | Path | None = None,
+    pac_xml_profile_cache_path: str | Path | None = None,
 ) -> tuple[list[TextureReplacementPayload], TextureReplacementReport]:
     """Build generated DDS and patched sidecar payloads for a static replacement."""
     material_profile = get_complete_swap_material_profile(complete_swap_material_profile)
@@ -1343,6 +1344,8 @@ def build_texture_replacement_payloads(
                 prune_removed_target_texture_parameters=prune_removed_target_texture_parameters,
                 prune_unmapped_original_texture_parameters=prune_unmapped_original_texture_parameters,
                 output_draw_sections=output_draw_sections,
+                pac_xml_corpus_root=pac_xml_corpus_root,
+                pac_xml_profile_cache_path=pac_xml_profile_cache_path,
             )
         donor_sidecar_payloads = _build_donor_material_sidecar_payloads(
             original_sidecars=_overlay_original_sidecars_with_payloads(original_sidecars, generated_payloads),
@@ -1696,6 +1699,8 @@ def _build_rebuilt_pac_driven_payloads(
     prune_removed_target_texture_parameters: bool = False,
     prune_unmapped_original_texture_parameters: bool = False,
     output_draw_sections: Sequence[StaticOutputDrawSection] = (),
+    pac_xml_corpus_root: str | Path | None = None,
+    pac_xml_profile_cache_path: str | Path | None = None,
 ) -> list[TextureReplacementPayload]:
     """Build texture and sidecar payloads from final rebuilt PAC/PAM draw sections.
 
@@ -1738,6 +1743,8 @@ def _build_rebuilt_pac_driven_payloads(
             material_wrapper_clones=_material_wrapper_clones_for_output_draw_sections(output_draw_sections),
             source_owned_keep_material_names=_source_owned_keep_material_names_for_output_draw_sections(output_draw_sections),
             output_draw_sections=output_draw_sections,
+            pac_xml_corpus_root=pac_xml_corpus_root,
+            pac_xml_profile_cache_path=pac_xml_profile_cache_path,
         )
         if source_driven_payloads:
             return source_driven_payloads
@@ -2066,6 +2073,8 @@ def _build_source_driven_pac_material_payloads(
     material_wrapper_clones: Sequence[SidecarMaterialWrapperClone] = (),
     source_owned_keep_material_names: Sequence[str] = (),
     output_draw_sections: Sequence[StaticOutputDrawSection] = (),
+    pac_xml_corpus_root: str | Path | None = None,
+    pac_xml_profile_cache_path: str | Path | None = None,
 ) -> list[TextureReplacementPayload]:
     material_profile = get_complete_swap_material_profile(complete_swap_material_profile)
     material_authority_bruteforce = bool(_profile_is_material_authority_bruteforce(material_profile))
@@ -2117,6 +2126,7 @@ def _build_source_driven_pac_material_payloads(
     atlas_sections_by_target = _atlas_sections_by_target_name(output_draw_sections)
     runtime_xml_reports: list[PacXmlProfileReport] = []
     runtime_xml_template_insertions: dict[str, dict[str, str]] = {}
+    runtime_xml_template_shader_overrides: dict[str, str] = {}
     runtime_xml_template_note_keys: set[tuple[str, str]] = set()
     runtime_xml_corpus_state: dict[str, object] = {"loaded": False, "index": None}
     if _profile_is_runtime_xml(material_profile):
@@ -2136,7 +2146,10 @@ def _build_source_driven_pac_material_payloads(
         if not bool(runtime_xml_corpus_state.get("loaded")):
             runtime_xml_corpus_state["loaded"] = True
             try:
-                corpus_index = load_or_build_pac_xml_corpus_index(DEFAULT_PAC_XML_CORPUS_ROOT)
+                corpus_index = load_or_build_pac_xml_corpus_index(
+                    pac_xml_corpus_root,
+                    cache_path=pac_xml_profile_cache_path,
+                )
                 runtime_xml_corpus_state["index"] = corpus_index
                 if corpus_index.xml_count:
                     _warn_once(
@@ -2146,7 +2159,8 @@ def _build_source_driven_pac_material_payloads(
                         f"{corpus_index.parameter_count:,} params; paired models {corpus_index.paired_model_count:,}.",
                     )
                 else:
-                    _warn_once(report, f"PAC XML corpus index unavailable or empty: {DEFAULT_PAC_XML_CORPUS_ROOT}.")
+                    root_note = str(pac_xml_corpus_root or "").strip() or f"${{CDMW_PAC_XML_CORPUS_ROOT}}"
+                    _warn_once(report, f"PAC XML corpus index unavailable or empty: {root_note}.")
             except Exception as exc:
                 runtime_xml_corpus_state["index"] = None
                 _warn_once(report, f"PAC XML corpus index failed to load: {exc}")
@@ -2187,6 +2201,9 @@ def _build_source_driven_pac_material_payloads(
         }.get(slot, set())
         if not allowed_parameters:
             return ""
+        template_map = runtime_xml_template_insertions.get(_normalize_sidecar_material_name(target_name), {})
+        if slot in template_map:
+            return template_map[slot]
         for reference in tuple(original_texture_refs or ()):
             material_name = str(getattr(reference, "material_name", "") or "").strip()
             if material_name and not _sidecar_material_names_match(material_name, target_name):
@@ -2197,18 +2214,47 @@ def _build_source_driven_pac_material_payloads(
         parsed_report, target_wrapper = runtime_xml_report_and_wrapper_for_target(target_name)
         if parsed_report is None or target_wrapper is None:
             return ""
-        template_map = runtime_xml_template_insertions.get(_normalize_sidecar_material_name(target_name), {})
-        if slot in template_map:
-            return template_map[slot]
         return pac_xml_parameter_for_slot(target_wrapper, slot)
 
-    def runtime_xml_template_match_for_slot(target_name: str, slot_kind: str) -> PacXmlTemplateMatch:
+    def runtime_xml_wrapper_needs_template_fallback(
+        parsed_report: Optional[PacXmlProfileReport],
+        target_wrapper: Optional[PacXmlWrapperProfile],
+        slot_kind: str,
+    ) -> bool:
+        if parsed_report is None or target_wrapper is None:
+            return False
+        family = str(parsed_report.profile.family or "").strip().lower()
+        if family not in {"weapon", "prop", "tool", "static", "monster", "riding"}:
+            return False
+        shader_family = str(target_wrapper.shader_family or "").strip()
+        slot = str(slot_kind or "").strip().lower()
+        if shader_family in {"Cloth", "Hair", "Fur", "Skin", "SkinWrinkle", "Eye", "EyeCover"}:
+            return False
+        if shader_family in {"Emissive", "Poster", "Chain"} and slot != "emissive":
+            return True
+        return False
+
+    def runtime_xml_template_match_for_slot(
+        target_name: str,
+        slot_kind: str,
+        *,
+        unsafe_target_profile: bool = False,
+    ) -> PacXmlTemplateMatch:
         parsed_report, target_wrapper = runtime_xml_report_and_wrapper_for_target(target_name)
-        match = select_best_pac_xml_template(parsed_report, target_wrapper, slot_kind, runtime_xml_corpus_index())
+        match = select_best_pac_xml_template(
+            parsed_report,
+            target_wrapper,
+            slot_kind,
+            runtime_xml_corpus_index(),
+            allow_shader_mismatch=bool(unsafe_target_profile),
+            preferred_shader_families=("Standard_Ver2", "Standard") if unsafe_target_profile else (),
+        )
         target_key = _normalize_sidecar_material_name(target_name)
         slot = str(slot_kind or "").strip().lower()
         if match.supports_slot and match.template_parameter_name:
             runtime_xml_template_insertions.setdefault(target_key, {})[slot] = match.template_parameter_name
+            if unsafe_target_profile and match.template_shader_name:
+                runtime_xml_template_shader_overrides[target_key] = match.template_shader_name
         note_key = (target_key, slot)
         if note_key not in runtime_xml_template_note_keys:
             runtime_xml_template_note_keys.add(note_key)
@@ -2267,6 +2313,18 @@ def _build_source_driven_pac_material_payloads(
         }
         allowed_parameters = parameter_sets.get(slot)
         if allowed_parameters is None:
+            return False
+        parsed_report, target_wrapper = runtime_xml_report_and_wrapper_for_target(target_name)
+        if runtime_xml_wrapper_needs_template_fallback(parsed_report, target_wrapper, slot):
+            match = runtime_xml_template_match_for_slot(target_name, slot, unsafe_target_profile=True)
+            if match.supports_slot:
+                _warn_once(
+                    report,
+                    f"PAC XML runtime profile: unsafe target shader/profile on {target_name}; "
+                    f"using matched corpus template {match.template_path or '<none>'} "
+                    f"({match.template_shader_family or 'unknown shader'}).",
+                )
+                return True
             return False
         for reference in tuple(original_texture_refs or ()):
             material_name = str(getattr(reference, "material_name", "") or "").strip()
@@ -2457,6 +2515,7 @@ def _build_source_driven_pac_material_payloads(
             material_authority_bruteforce=material_authority_bruteforce,
             material_profile=material_profile,
             template_allowed_insertions=runtime_xml_template_insertions if _profile_is_runtime_xml(material_profile) else {},
+            template_shader_overrides=runtime_xml_template_shader_overrides if _profile_is_runtime_xml(material_profile) else {},
         )
         neutralized_parameters = 0
         if neutralize_inherited_material_layers and changed_wrappers > 0:
@@ -4206,6 +4265,7 @@ def _build_source_driven_sidecar_text(
     material_authority_bruteforce: bool = False,
     material_profile: Optional[CDMaterialRuntimeProfile] = None,
     template_allowed_insertions: Mapping[str, Mapping[str, str]] = {},
+    template_shader_overrides: Mapping[str, str] = {},
 ) -> tuple[str, int, set[str], set[str]]:
     wrapper_pattern = re.compile(
         r"\s*<(?P<tag>[A-Za-z0-9_:.-]*MaterialWrapper)\b[^>]*>.*?</(?P=tag)>",
@@ -4238,6 +4298,9 @@ def _build_source_driven_sidecar_text(
             wrapper_text,
             bindings,
             shader_name=shader_name,
+            template_shader_name=str(
+                dict(template_shader_overrides or {}).get(_normalize_sidecar_material_name(wrapper_name), "") or ""
+            ),
             insert_missing_slots=insert_missing_slots,
             material_authority_bruteforce=material_authority_bruteforce,
             material_profile=material_profile,
@@ -4267,6 +4330,7 @@ def _patch_source_driven_wrapper_texture_slots(
     bindings: Sequence[tuple[str, str, str]],
     *,
     shader_name: str = "",
+    template_shader_name: str = "",
     insert_missing_slots: bool = False,
     material_authority_bruteforce: bool = False,
     material_profile: Optional[CDMaterialRuntimeProfile] = None,
@@ -4433,8 +4497,9 @@ def _patch_source_driven_wrapper_texture_slots(
         if brute_changed:
             changed = True
             used_paths.update(brute_used_paths)
-    if changed and str(shader_name or "").strip():
-        patched = _set_source_driven_wrapper_shader_name(patched, shader_name)
+    effective_shader_name = str(template_shader_name or "").strip() or str(shader_name or "").strip()
+    if changed and effective_shader_name:
+        patched = _set_source_driven_wrapper_shader_name(patched, effective_shader_name)
     return patched, changed, used_paths
 
 

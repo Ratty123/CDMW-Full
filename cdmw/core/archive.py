@@ -1862,7 +1862,10 @@ def _collect_archive_scan_sources(
     files = list(pamt_files) if pamt_files is not None else discover_pamt_files(package_root)
     sources: List[Tuple[str, int, int]] = []
     for pamt_path in files:
-        stat_result = pamt_path.stat()
+        try:
+            stat_result = pamt_path.stat()
+        except FileNotFoundError:
+            continue
         sources.append(
             (
                 _archive_relative_source_path(base_dir, pamt_path),
@@ -1894,7 +1897,10 @@ def _collect_archive_scan_sources_from_entries(
 
     sources: List[Tuple[str, int, int]] = []
     for archive_path in sorted(unique_archive_paths.values(), key=lambda value: str(value).lower()):
-        stat_result = archive_path.stat()
+        try:
+            stat_result = archive_path.stat()
+        except FileNotFoundError:
+            continue
         sources.append(
             (
                 _archive_relative_source_path(base_dir, archive_path),
@@ -2511,10 +2517,6 @@ def discover_non_steam_base_paths() -> List[Path]:
         os.environ.get("ProgramW6432"),
         os.environ.get("LOCALAPPDATA"),
         os.environ.get("USERPROFILE"),
-        r"C:\Games",
-        r"D:\Games",
-        r"E:\Games",
-        r"F:\Games",
     ]
     for raw in env_candidates:
         if not raw:
@@ -2914,6 +2916,32 @@ def scan_archive_entries(
 
         try:
             entries = parse_archive_pamt(pamt_path)
+        except FileNotFoundError as exc:
+            if on_log:
+                on_log(f"[{index}/{total_pmts}] Skipped missing archive index {relative_label}: {exc}")
+            if on_breadcrumb is not None:
+                on_breadcrumb(
+                    {
+                        "phase": "parse_archive_pamt",
+                        "status": "skipped_missing",
+                        "package_root": str(package_root),
+                        "pamt_path": str(pamt_path),
+                        "relative_label": relative_label,
+                        "index": index,
+                        "total": total_pmts,
+                        "entries_found_before": len(all_entries),
+                        "elapsed_seconds": round(time.monotonic() - parse_started, 3),
+                        "error": str(exc),
+                        "timestamp": time.time(),
+                    }
+                )
+            if on_progress:
+                on_progress(
+                    index,
+                    total_pmts,
+                    f"{index} / {total_pmts} archive indexes | {len(all_entries):,} entries found | skipped missing: {relative_label}",
+                )
+            continue
         except Exception as exc:
             if on_breadcrumb is not None:
                 on_breadcrumb(
@@ -15118,6 +15146,211 @@ def part_in_out_rows_for_weapon_class(
     )
 
 
+_ATTACHMENT_BODY_GROUP_LABELS: Mapping[str, str] = {
+    "back": "Back",
+    "pelvis_l": "Left hip",
+    "pelvis_r": "Right hip",
+    "shoulder_l": "Left shoulder",
+    "shoulder_r": "Right shoulder",
+    "ring_l": "Left ring",
+    "ring_r": "Right ring",
+}
+
+_ATTACHMENT_SOCKET_ROLE_LABELS: Tuple[Tuple[str, str], ...] = (
+    ("spine2_b_mainweapon_socket", "main weapon"),
+    ("spine2_b_subweapon_socket", "sub weapon"),
+    ("spine2_b_rangeweapon_socket", "ranged weapon"),
+    ("spine2_b_shield_socket", "shield"),
+    ("spine1_b_socket", "upper back"),
+    ("spine0_b_socket", "lower back"),
+    ("pelvis_l_socket", "left hip"),
+    ("pelvis_r_socket", "right hip"),
+    ("pelvis_b_socket", "rear hip"),
+    ("rhand_socket", "right hand"),
+    ("lhand_socket", "left hand"),
+    ("lforearm_socket", "left forearm"),
+    ("rforearm_socket", "right forearm"),
+    ("clavicle_l_socket", "left shoulder"),
+    ("clavicle_r_socket", "right shoulder"),
+    ("rthigh_socket", "right thigh"),
+    ("lthigh_socket", "left thigh"),
+)
+
+_ATTACHMENT_BODY_LOCATION_SOCKET_TOKENS: Tuple[str, ...] = (
+    "spine",
+    "pelvis",
+    "hand",
+    "forearm",
+    "thigh",
+    "clavicle",
+    "shoulder",
+    "weapon",
+    "shield",
+    "rangeweapon",
+    "lantern",
+    "ring",
+    "earring",
+    "dock",
+)
+
+
+def _attachment_body_group_label(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "Other body"
+    normalized = text.casefold()
+    if normalized in _ATTACHMENT_BODY_GROUP_LABELS:
+        return _ATTACHMENT_BODY_GROUP_LABELS[normalized]
+    return re.sub(r"[_-]+", " ", text).strip().title()
+
+
+def _attachment_socket_role_label(socket_name: object) -> str:
+    normalized = str(socket_name or "").strip().casefold()
+    for token, label in _ATTACHMENT_SOCKET_ROLE_LABELS:
+        if normalized == token:
+            return label
+    text = str(socket_name or "").strip()
+    if text.endswith("_Socket"):
+        text = text[:-7]
+    text = re.sub(r"[_-]+", " ", text).strip()
+    return text or "socket"
+
+
+def infer_attachment_child_socket_name(
+    socket_name: str,
+    part_document: Optional[AttachmentPartInOutDocument] = None,
+    *,
+    weapon_class: str = "",
+) -> str:
+    """Infer the weapon-side child socket for a selected character-side attach socket."""
+    socket_text = str(socket_name or "").strip()
+    if not socket_text:
+        return ""
+    socket_key = socket_text.casefold()
+    class_key = str(weapon_class or "").strip().casefold()
+    scored_children: Dict[str, Tuple[int, str]] = {}
+    if isinstance(part_document, AttachmentPartInOutDocument):
+        for row in tuple(getattr(part_document, "rows", ()) or ()):
+            if str(getattr(row, "in_socket_bone", "") or "").strip().casefold() != socket_key:
+                continue
+            child = str(getattr(row, "in_child_socket_bone", "") or "").strip()
+            if not child:
+                continue
+            score = 1
+            if class_key and infer_part_in_out_weapon_class(row.part_name) == class_key:
+                score += 8
+            if str(getattr(row, "part_name", "") or "").casefold().endswith("_in"):
+                score += 1
+            current_score, current_child = scored_children.get(child.casefold(), (0, child))
+            scored_children[child.casefold()] = (current_score + score, current_child)
+    if scored_children:
+        return sorted(scored_children.values(), key=lambda item: (-item[0], item[1].casefold()))[0][1]
+
+    lowered = socket_key
+    if "pelvis_l" in lowered:
+        return "Pelvis_L_ChildSocket"
+    if "pelvis_r" in lowered:
+        return "Pelvis_R_ChildSocket"
+    if "rangeweapon" in lowered:
+        return "Spine2_B_RangeWeapon_ChildSocket"
+    if "shield" in lowered:
+        return "Spine2_B_Shield_ChildSocket"
+    if "subweapon" in lowered or "mainweapon" in lowered or "pelvis_b" in lowered:
+        return "Spine2_B_SubWeapon_ChildSocket"
+    if "hand" in lowered or "forearm" in lowered:
+        return "Basic_ChildSocket"
+    if lowered == "spine1_b_socket":
+        return "Pelvis_L_ChildSocket"
+    if lowered == "spine0_b_socket":
+        return "Pelvis_R_ChildSocket"
+    if socket_text.endswith("_Socket"):
+        return f"{socket_text[:-7]}_ChildSocket"
+    return ""
+
+
+def build_attachment_body_location_choices(
+    socket_document: Optional[AttachmentSocketDocument],
+    part_document: Optional[AttachmentPartInOutDocument] = None,
+    *,
+    weapon_class: str = "",
+) -> Tuple[AttachmentBodyLocationChoice, ...]:
+    """Build data-driven body attach choices from recovered SocketBoneData rows."""
+    if not isinstance(socket_document, AttachmentSocketDocument):
+        return ()
+    sockets_by_key = {
+        str(socket.name or "").strip().casefold(): socket
+        for socket in tuple(getattr(socket_document, "sockets", ()) or ())
+        if isinstance(socket, AttachmentSocketInfo) and str(socket.name or "").strip()
+    }
+    used_parts_by_socket: Dict[str, List[str]] = defaultdict(list)
+    if isinstance(part_document, AttachmentPartInOutDocument):
+        for row in tuple(getattr(part_document, "rows", ()) or ()):
+            socket_name = str(getattr(row, "in_socket_bone", "") or "").strip()
+            part_name = str(getattr(row, "part_name", "") or "").strip()
+            if socket_name and part_name:
+                used_parts_by_socket[socket_name.casefold()].append(part_name)
+
+    choices: List[AttachmentBodyLocationChoice] = []
+    seen: set[str] = set()
+
+    def add_choice(socket_name: str, group_name: str, source: str) -> None:
+        socket = sockets_by_key.get(str(socket_name or "").strip().casefold())
+        if not isinstance(socket, AttachmentSocketInfo):
+            return
+        clean_socket_name = str(socket.name or "").strip()
+        key = clean_socket_name.casefold()
+        if not clean_socket_name or key in seen:
+            return
+        seen.add(key)
+        group_label = _attachment_body_group_label(group_name)
+        role_label = _attachment_socket_role_label(clean_socket_name)
+        label = f"{group_label}: {role_label}" if group_name else role_label
+        child_socket = infer_attachment_child_socket_name(
+            clean_socket_name,
+            part_document,
+            weapon_class=weapon_class,
+        )
+        part_names = tuple(dict.fromkeys(used_parts_by_socket.get(key, ())))
+        note_parts = [
+            f"socket {clean_socket_name}",
+            f"parent {socket.parent or '-'}",
+        ]
+        if child_socket:
+            note_parts.append(f"child {child_socket}")
+        if part_names:
+            note_parts.append(f"used by {', '.join(part_names[:4])}" + (" ..." if len(part_names) > 4 else ""))
+        choices.append(
+            AttachmentBodyLocationChoice(
+                label=label,
+                group_name=str(group_name or "").strip(),
+                socket_name=clean_socket_name,
+                child_socket_name=child_socket,
+                parent=socket.parent,
+                translation=socket.translation,
+                rotation=socket.rotation,
+                source_path=socket.source_path or socket_document.source_path,
+                source=source,
+                note="; ".join(note_parts),
+                used_by_part_names=part_names,
+            )
+        )
+
+    for stack in tuple(getattr(socket_document, "stack_equip_infos", ()) or ()):
+        group_name = str(getattr(stack, "equip_type_name", "") or "").strip()
+        for socket_name in tuple(getattr(stack, "socket_names", ()) or ()):
+            add_choice(str(socket_name or ""), group_name, "StackEquipInfo")
+
+    for socket in tuple(getattr(socket_document, "sockets", ()) or ()):
+        socket_name = str(getattr(socket, "name", "") or "").strip()
+        key = socket_name.casefold()
+        if not socket_name or key in seen:
+            continue
+        if key in used_parts_by_socket or any(token in key for token in _ATTACHMENT_BODY_LOCATION_SOCKET_TOKENS):
+            add_choice(socket_name, "", "SocketList")
+
+    return tuple(choices)
+
+
 def _part_in_out_attr_value(attrs: Mapping[str, str], name: str) -> str:
     for attr_name, value in attrs.items():
         if str(attr_name or "").casefold() == str(name or "").casefold():
@@ -19777,4 +20010,3 @@ def build_archive_preview_result(
             loose_preview_metadata_summary=loose_preview_metadata_summary,
             loose_preview_detail_text=loose_preview_detail_text,
         )
-

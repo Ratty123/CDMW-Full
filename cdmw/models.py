@@ -847,6 +847,21 @@ class AttachmentSocketDocument:
 
 
 @dataclass(slots=True)
+class AttachmentBodyLocationChoice:
+    label: str = ""
+    group_name: str = ""
+    socket_name: str = ""
+    child_socket_name: str = ""
+    parent: str = ""
+    translation: Tuple[float, ...] = ()
+    rotation: Tuple[float, ...] = ()
+    source_path: str = ""
+    source: str = ""
+    note: str = ""
+    used_by_part_names: Tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
 class AttachmentPartInOutSocketInfo:
     part_name: str = ""
     in_socket_bone: str = ""
@@ -1620,6 +1635,7 @@ class ArchivePerformanceSettings:
     enable_sidecar_indexing: bool = False
     sidecar_worker_count: int = 0
     preview_cache_limit: int = 64
+    native_preview_cache_mode: str = "balanced"
     quick_then_full_preview: bool = True
     maximum_indexing_priority: bool = False
 
@@ -1642,6 +1658,9 @@ def clamp_archive_performance_settings(
     archive_view_backend = str(getattr(current, "archive_view_backend", "virtual_model") or "virtual_model")
     if archive_view_backend not in {"virtual_model", "legacy_widget"}:
         archive_view_backend = "virtual_model"
+    native_preview_cache_mode = str(getattr(current, "native_preview_cache_mode", "balanced") or "balanced").strip().lower()
+    if native_preview_cache_mode not in {"off", "balanced", "aggressive"}:
+        native_preview_cache_mode = "balanced"
     try:
         ui_frame_budget_ms = int(getattr(current, "ui_frame_budget_ms", 12))
     except (TypeError, ValueError):
@@ -1664,6 +1683,7 @@ def clamp_archive_performance_settings(
         enable_sidecar_indexing=bool(current.enable_sidecar_indexing),
         sidecar_worker_count=max(0, min(16, sidecar_worker_count)),
         preview_cache_limit=max(12, min(256, preview_cache_limit)),
+        native_preview_cache_mode=native_preview_cache_mode,
         quick_then_full_preview=bool(current.quick_then_full_preview),
         maximum_indexing_priority=bool(current.enable_sidecar_indexing) and bool(current.maximum_indexing_priority),
     )

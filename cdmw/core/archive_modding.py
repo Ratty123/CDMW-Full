@@ -1099,7 +1099,13 @@ def _mesh_import_auto_companion_entries(
         related_entry = getattr(reference, "resolved_entry", None)
         if not isinstance(related_entry, ArchiveEntry):
             continue
-        if str(getattr(related_entry, "extension", "") or "").strip().lower() in {".hkx", ".hkt"}:
+        related_extension = str(getattr(related_entry, "extension", "") or "").strip().lower()
+        if related_extension in MESH_IMPORT_SIDECAR_EXTENSIONS:
+            # Unchanged material XML is optional for mesh-only edits.  Generated
+            # or user-selected sidecars still flow through supplemental/related
+            # export paths with explicit manifest notes.
+            continue
+        if related_extension in {".hkx", ".hkt"}:
             # Physics/collision companions are often unchanged archive data.  Keep
             # them out of source-owned loose packages unless the user explicitly
             # selects them in the related-file picker.
@@ -2621,7 +2627,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         elif spec.kind == "sidecar":
             note = f"Selected local sidecar included for {primary_entry.path}"
         elif spec.kind == "sidecar_generated":
-            note = f"Generated patched sidecar for {primary_entry.path}"
+            note = f"Patched material sidecar generated for {primary_entry.path}"
         elif spec.kind == "texture_generated":
             note = f"Generated replacement texture for {primary_entry.path}"
         elif spec.kind == "texture":
@@ -2696,6 +2702,8 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
                 written_virtual_paths.add(output_related_path.lower())
                 if related_entry.extension == ".dds":
                     note = f"Referenced texture copied from archive for {primary_entry.path}"
+                elif related_entry.extension.lower() in MESH_IMPORT_SIDECAR_EXTENSIONS:
+                    note = f"Unchanged original sidecar copied for {primary_entry.path}"
                 else:
                     note = f"Selected archive related file copied for {primary_entry.path}"
                 file_rows.append(
@@ -2742,13 +2750,26 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         game_build=str(game_metadata.get("game_build", "") or ""),
         game_metadata=game_metadata,
     )
+    primary_lower = primary_path.casefold()
+    cloth_like = any(token in primary_lower for token in ("cloak", "cloth", "cape", "pbd"))
+    wrote_physics_companion = any(
+        str(path.suffix).casefold() in {".hkx", ".hkt", ".meshinfo"}
+        for path in written_files
+    )
+    if cloth_like and not wrote_physics_companion:
+        _safe_log(
+            on_log,
+            "Cloth/PBD note: mesh-only cloak/cloth export changed the PAC payload, but unchanged .pac_xml "
+            "alone does not update cloth physics. If the game still shows the old shape, verify the equipped "
+            "variant, paired LOD, and physics/PBD companion files.",
+        )
     authority_audit: Optional[ActiveFileAuthorityAuditResult] = None
     try:
         authority_audit = audit_loose_package_active_file_authority(
             package_root,
             game_root=_package_root_from_entry(primary_entry),
             payload_files=written_files,
-            write_audit_file=False,
+            write_audit_file=True,
             on_log=on_log,
         )
         if authority_audit.audit_path is not None:
@@ -2757,6 +2778,19 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
                 on_log,
                 "Active file authority audit written: "
                 f"{authority_audit.audit_path.relative_to(package_root).as_posix()}",
+            )
+        for row in authority_audit.rows[:8]:
+            _safe_log(
+                on_log,
+                "Active file authority: "
+                f"{row.status} {row.virtual_path} "
+                f"(package {row.local_size:,} bytes {row.local_sha256[:16]}"
+                + (
+                    f"; active {row.active_source} {row.active_size:,} bytes {row.active_sha256[:16]}"
+                    if row.active_source
+                    else "; no active archive/loose match"
+                )
+                + ").",
             )
         for warning in authority_audit.warnings[:12]:
             _safe_log(on_log, warning)
@@ -2862,11 +2896,50 @@ def audit_loose_package_active_file_authority(
 
     root = Path(package_root).expanduser().resolve()
     resolved_game_root = Path(game_root).expanduser().resolve()
+    result = ActiveFileAuthorityAuditResult(package_root=root, game_root=resolved_game_root)
+    manifest_summary: Dict[str, object] = {}
+    manifest_path = root / "manifest.json"
+    if manifest_path.is_file():
+        try:
+            manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if isinstance(manifest_payload, Mapping):
+                manifest_summary = {
+                    "structure": str(manifest_payload.get("structure", "") or ""),
+                    "files_root": str(manifest_payload.get("files_root", "") or ""),
+                    "manager_targets": list(manifest_payload.get("manager_targets", ()) or ()),
+                    "file_count": int(manifest_payload.get("file_count", 0) or 0),
+                    "assets": list(manifest_payload.get("assets", ()) or ())[:8],
+                    "files": list(manifest_payload.get("files", ()) or ())[:32],
+                }
+        except Exception as exc:
+            result_hint = f"Active file authority audit could not read manifest.json: {exc}"
+            _safe_log(on_log, result_hint)
+    structure = str(manifest_summary.get("structure", "") or "").strip().lower()
+    files_root = str(manifest_summary.get("files_root", "") or "").strip()
+    expects_files_wrapper = structure in {"files_wrapper", "custom_compact_paths"} or (files_root and files_root != ".")
     wanted: dict[str, tuple[str, Path, int, str]] = {}
     for raw_path in tuple(payload_files or ()):
         local_path = Path(raw_path)
         if not local_path.is_file():
             continue
+        try:
+            relative_parts_for_layout = tuple(part for part in local_path.resolve().relative_to(root).parts if part)
+        except ValueError:
+            relative_parts_for_layout = ()
+        if expects_files_wrapper and relative_parts_for_layout and relative_parts_for_layout[0].casefold() != (files_root or "files").casefold():
+            result_warning = (
+                f"VERIFY LOOSE MOD TARGET: package metadata expects payloads under {files_root or 'files'}/, "
+                f"but found {PurePosixPath(*relative_parts_for_layout).as_posix()}."
+            )
+            if result_warning not in result.warnings:
+                result.warnings.append(result_warning)
+        if not expects_files_wrapper and relative_parts_for_layout and relative_parts_for_layout[0].casefold() == "files":
+            result_warning = (
+                "VERIFY LOOSE MOD TARGET: package metadata is game-relative but payloads are under files/. "
+                "Pick the CDUMM/files-wrapper profile if the manager expects files/."
+            )
+            if result_warning not in result.warnings:
+                result.warnings.append(result_warning)
         virtual_path = _loose_authority_virtual_path(root, local_path)
         if not virtual_path:
             continue
@@ -2877,24 +2950,22 @@ def audit_loose_package_active_file_authority(
             continue
         wanted[virtual_path.casefold()] = (virtual_path, local_path, size, digest)
 
-    result = ActiveFileAuthorityAuditResult(package_root=root, game_root=resolved_game_root)
     if not wanted:
         return result
+    entries_by_path: dict[str, list[ArchiveEntry]] = defaultdict(list)
     if not resolved_game_root.is_dir():
         result.warnings.append(f"Active file authority audit skipped; game root not found: {resolved_game_root}")
-        return result
-
-    entries_by_path: dict[str, list[ArchiveEntry]] = defaultdict(list)
-    for pamt_path in discover_pamt_files(resolved_game_root):
-        try:
-            entries = parse_archive_pamt(pamt_path)
-        except Exception as exc:
-            _safe_log(on_log, f"Authority audit skipped unreadable PAMT {pamt_path}: {exc}")
-            continue
-        for entry in entries:
-            key = str(entry.path or "").replace("\\", "/").strip().casefold()
-            if key in wanted:
-                entries_by_path[key].append(entry)
+    else:
+        for pamt_path in discover_pamt_files(resolved_game_root):
+            try:
+                entries = parse_archive_pamt(pamt_path)
+            except Exception as exc:
+                _safe_log(on_log, f"Authority audit skipped unreadable PAMT {pamt_path}: {exc}")
+                continue
+            for entry in entries:
+                key = str(entry.path or "").replace("\\", "/").strip().casefold()
+                if key in wanted:
+                    entries_by_path[key].append(entry)
 
     for key, (virtual_path, local_path, local_size, local_sha) in sorted(wanted.items()):
         row = ActiveFileAuthorityAuditRow(
@@ -2965,8 +3036,13 @@ def audit_loose_package_active_file_authority(
             "schema": "cdmw_active_file_authority_audit_v1",
             "package_root": root.as_posix(),
             "game_root": resolved_game_root.as_posix(),
+            "manager_layout": manifest_summary,
             "mismatch_count": result.mismatch_count,
             "warnings": list(result.warnings),
+            "in_game_visibility_notes": [
+                "If this report shows the edited PAC differs but the game still shows the original, check the equipped asset variant, enabled mod-manager profile, loose path structure, game cache, paired LOD, and cloth/physics companion files.",
+                "Mesh-only cloth/cloak edits may still need matching physics/PBD companion work; unchanged .pac_xml alone does not update cloth simulation.",
+            ],
             "rows": [dataclasses.asdict(row) for row in result.rows],
         }
         audit_path = root / "cdmw_active_file_authority_audit.json"
@@ -4406,7 +4482,7 @@ def _mesh_import_runtime_stem_candidates_from_sidecars(
     stems: List[str] = []
     seen: set[str] = set()
     for _sidecar_entry, sidecar_text in tuple(original_sidecars or ()):
-        text = str(sidecar_text or "")
+        text = str(sidecar_text or "").replace("\\", "/")
         if not text:
             continue
         for pattern in (
@@ -4420,6 +4496,29 @@ def _mesh_import_runtime_stem_candidates_from_sidecars(
                     stems.append(stem)
                     seen.add(stem)
     return tuple(stems)
+
+
+def _mesh_import_runtime_mesh_paths_from_sidecars(
+    original_sidecars: Sequence[Tuple[ArchiveEntry, str]],
+) -> Tuple[str, ...]:
+    paths: List[str] = []
+    seen: set[str] = set()
+    extension_pattern = "|".join(re.escape(ext.lstrip(".")) for ext in sorted(_MESH_IMPORT_RUNTIME_MESH_EXTENSIONS))
+    path_pattern = re.compile(
+        rf"character/model/[^\s\"'<>]+?\.(?:{extension_pattern})\b",
+        flags=re.IGNORECASE,
+    )
+    for _sidecar_entry, sidecar_text in tuple(original_sidecars or ()):
+        text = str(sidecar_text or "")
+        if not text:
+            continue
+        for match in path_pattern.finditer(text):
+            path = match.group(0).replace("\\", "/").strip().strip('"').strip("'")
+            key = path.lower()
+            if key and key not in seen:
+                paths.append(path)
+                seen.add(key)
+    return tuple(paths)
 
 
 def _mesh_import_runtime_stem_candidates_from_mesh(mesh: ParsedMesh) -> Tuple[str, ...]:
@@ -4450,29 +4549,35 @@ def _mesh_import_runtime_sibling_mesh_candidates(
     source_extension = str(getattr(entry, "extension", "") or "").strip().lower()
     if source_extension not in _MESH_IMPORT_RUNTIME_MESH_EXTENSIONS:
         return ()
-    stems: List[str] = []
-    seen_stems: set[str] = set()
-    for stem in _mesh_import_runtime_stem_candidates_from_mesh(mesh) + _mesh_import_runtime_stem_candidates_from_sidecars(original_sidecars):
-        if stem and stem not in seen_stems:
-            stems.append(stem)
-            seen_stems.add(stem)
-    if not stems:
+    # Submesh names and DDS stems often describe shared material families, not
+    # runtime mesh identity. Only explicit model mesh paths from sidecars are
+    # strong enough to warn that the selected PAC may not be the runtime target.
+    runtime_paths = _mesh_import_runtime_mesh_paths_from_sidecars(original_sidecars)
+    if not runtime_paths:
         return ()
     candidates: List[ArchiveEntry] = []
     seen_paths: set[str] = set()
-    for stem in stems:
-        for extension in _MESH_IMPORT_RUNTIME_MESH_EXTENSIONS:
-            for candidate in tuple(archive_entries_by_basename.get(f"{stem}{extension}", ()) or ()):
-                candidate_path = str(getattr(candidate, "path", "") or "").replace("\\", "/").strip()
-                candidate_key = candidate_path.lower()
-                if not candidate_key or candidate_key == source_path or candidate_key in seen_paths:
-                    continue
-                if str(getattr(candidate, "extension", "") or "").strip().lower() not in _MESH_IMPORT_RUNTIME_MESH_EXTENSIONS:
-                    continue
-                if "character/model/" not in candidate_key:
-                    continue
-                candidates.append(candidate)
-                seen_paths.add(candidate_key)
+    for runtime_path in runtime_paths:
+        runtime_key = str(runtime_path or "").replace("\\", "/").strip().lower()
+        basename = PurePosixPath(runtime_key).name
+        if not basename:
+            continue
+        basename_candidates = list(archive_entries_by_basename.get(basename, ()) or ())
+        if basename != basename.lower():
+            basename_candidates.extend(archive_entries_by_basename.get(basename.lower(), ()) or ())
+        for candidate in tuple(basename_candidates):
+            candidate_path = str(getattr(candidate, "path", "") or "").replace("\\", "/").strip()
+            candidate_key = candidate_path.lower()
+            if not candidate_key or candidate_key == source_path or candidate_key in seen_paths:
+                continue
+            if candidate_key != runtime_key:
+                continue
+            if str(getattr(candidate, "extension", "") or "").strip().lower() not in _MESH_IMPORT_RUNTIME_MESH_EXTENSIONS:
+                continue
+            if "character/model/" not in candidate_key:
+                continue
+            candidates.append(candidate)
+            seen_paths.add(candidate_key)
 
     def _score(candidate: ArchiveEntry) -> Tuple[int, int, str]:
         path = str(getattr(candidate, "path", "") or "").replace("\\", "/").lower()
@@ -5302,6 +5407,8 @@ def build_mesh_import_preview(
                     prune_removed_target_texture_parameters=prune_removed_target_texture_parameters,
                     prune_unmapped_original_texture_parameters=prune_unmapped_original_texture_parameters,
                     output_draw_sections=tuple(getattr(static_report, "output_draw_sections", ()) or ()),
+                    pac_xml_corpus_root=str(getattr(static_replacement_options, "pac_xml_corpus_root", "") or ""),
+                    pac_xml_profile_cache_path=str(getattr(static_replacement_options, "pac_xml_profile_cache_path", "") or ""),
                 )
             except Exception as exc:
                 generated_payloads = []

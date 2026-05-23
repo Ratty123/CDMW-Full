@@ -197,6 +197,10 @@ class PacXmlProfileTests(unittest.TestCase):
 
         self.assertEqual(1, index.xml_count)
         self.assertEqual(1, index.paired_model_count)
+        self.assertEqual(
+            "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+            index.profiles[0].paired_model_path,
+        )
         self.assertEqual(1, index.wrapper_count)
         self.assertEqual(1, index.texture_ref_count)
         self.assertEqual(1, index.families["weapon"])
@@ -221,6 +225,7 @@ class PacXmlProfileTests(unittest.TestCase):
             second = load_or_build_pac_xml_corpus_index(root, cache_path=cache)
             self.assertEqual(1, first.xml_count)
             self.assertEqual(1, second.xml_count)
+            self.assertTrue(str(cache).endswith("pac_xml_profile_index_v1.json"))
             self.assertEqual("character/texture/cached_base.dds", second.profiles[0].wrappers[0].texture_refs[0].texture_path)
             (xml_dir / "cd_phm_02_axe_0001.pac_xml").write_text(
                 '<Root><SkinnedMeshMaterialWrapper _subMeshName="AxeHead"><Material _materialName="SkinnedMeshStandard_Ver2"/></SkinnedMeshMaterialWrapper></Root>',
@@ -284,6 +289,42 @@ class PacXmlProfileTests(unittest.TestCase):
         self.assertEqual("_baseColorTexture", match.template_parameter_name)
         self.assertGreaterEqual(match.score, 0.75)
 
+    def test_template_matching_can_recover_unsafe_weapon_shader_with_standard_template(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            corpus_xml = root / "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_standard.pac_xml"
+            model_path = root / "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_standard.pac"
+            corpus_xml.parent.mkdir(parents=True)
+            model_path.parent.mkdir(parents=True)
+            model_path.write_bytes(b"pac")
+            corpus_xml.write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Guard_0015">'
+                '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+                '<MaterialParameterTexture _name="_baseColorTexture"><ResourceReferencePath_ITexture _path="character/texture/template.dds"/></MaterialParameterTexture>'
+                "</Vector></Material></SkinnedMeshMaterialWrapper></Root>",
+                encoding="utf-8",
+            )
+            index = build_pac_xml_corpus_index(root)
+        target = parse_pac_xml_profile(
+            '<Root><SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Guard_0015">'
+            '<Material _materialName="SkinnedMeshEmissive_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterTexture _name="_emissiveIntensityTexture"><ResourceReferencePath_ITexture _path="character/texture/gem_emi.dds"/></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>",
+            "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac_xml",
+        )
+        match = select_best_pac_xml_template(
+            target,
+            target.wrappers[0],
+            "base",
+            index,
+            allow_shader_mismatch=True,
+            preferred_shader_families=("Standard_Ver2", "Standard"),
+        )
+        self.assertTrue(match.supports_slot)
+        self.assertEqual("SkinnedMeshStandard_Ver2", match.template_shader_name)
+        self.assertEqual("Standard_Ver2", match.template_shader_family)
+        self.assertEqual("character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_standard.pac", match.template_model_path)
+
     def test_transition_validation_protects_stock_support_and_special_params(self) -> None:
         original = (
             '<Root><SkinnedMeshMaterialWrapper _subMeshName="Cloak">'
@@ -302,6 +343,19 @@ class PacXmlProfileTests(unittest.TestCase):
         self.assertTrue(any("stock runtime" in warning for warning in warnings))
         self.assertTrue(any("protected PAC XML param removed" in warning for warning in warnings))
         self.assertTrue(any("protected shader changed" in warning for warning in warnings))
+
+    def test_runtime_xml_profile_engine_has_no_machine_local_default_paths(self) -> None:
+        source_root = Path(__file__).resolve().parents[1]
+        for relative in (
+            "cdmw/modding/pac_xml_profiles.py",
+            "cdmw/modding/material_replacer.py",
+            "cdmw/core/archive_modding.py",
+            "cdmw/ui/main_window.py",
+        ):
+            source = (source_root / relative).read_text(encoding="utf-8", errors="ignore")
+            self.assertNotIn("C:" + "\\Users\\Ratrider", source)
+            self.assertNotIn("C:" + "/Users/Ratrider", source)
+            self.assertNotIn("Desktop\\CTF\\archive_extract", source)
 
 
 if __name__ == "__main__":

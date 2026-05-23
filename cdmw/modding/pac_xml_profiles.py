@@ -12,14 +12,20 @@ import os
 import re
 from collections.abc import Mapping as MappingABC
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Mapping, Sequence
 
 
-DEFAULT_PAC_XML_CORPUS_ROOT = Path(r"C:\Users\Ratrider\Desktop\CTF\archive_extract")
+PAC_XML_CORPUS_ROOT_ENV = "CDMW_PAC_XML_CORPUS_ROOT"
+PAC_XML_SETTINGS_DIR_ENV = "CDMW_SETTINGS_DIR"
 PAC_XML_PROFILE_INDEX_CACHE_NAME = "pac_xml_profile_index_v1.json"
 PAC_XML_PROFILE_INDEX_SCHEMA = "cdmw_pac_xml_profile_index_v1_paths"
+
+
+def default_pac_xml_corpus_root() -> Path:
+    raw = str(os.environ.get(PAC_XML_CORPUS_ROOT_ENV, "") or "").strip()
+    return Path(raw).expanduser() if raw else Path()
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +62,7 @@ class PacXmlProfile:
 class PacXmlProfileReport:
     path: str
     profile: PacXmlProfile
+    paired_model_path: str = ""
     wrappers: tuple[PacXmlWrapperProfile, ...] = ()
     pbd_materials: tuple[str, ...] = ()
     texture_ref_count: int = 0
@@ -107,8 +114,11 @@ class PacXmlProfileMatchReport:
 @dataclass(frozen=True, slots=True)
 class PacXmlTemplateMatch:
     template_path: str = ""
+    template_model_path: str = ""
     template_wrapper_name: str = ""
     template_parameter_name: str = ""
+    template_shader_name: str = ""
+    template_shader_family: str = ""
     score: float = 0.0
     supports_slot: bool = False
     fallback_reason: str = ""
@@ -117,10 +127,12 @@ class PacXmlTemplateMatch:
         target = f" target={target_name}" if target_name else ""
         slot = f" slot={slot_kind}" if slot_kind else ""
         parameter = f" param={self.template_parameter_name}" if self.template_parameter_name else ""
+        model = f" model={self.template_model_path}" if self.template_model_path else ""
+        shader = f" shader={self.template_shader_family}" if self.template_shader_family else ""
         fallback = f" fallback={self.fallback_reason}" if self.fallback_reason else ""
         return (
             f"PAC XML corpus template:{target}{slot} template={self.template_path or '<none>'} "
-            f"wrapper={self.template_wrapper_name or '<none>'}{parameter} score={self.score:.2f}"
+            f"wrapper={self.template_wrapper_name or '<none>'}{parameter}{model}{shader} score={self.score:.2f}"
             f"{fallback}."
         )
 
@@ -191,9 +203,13 @@ def is_stock_runtime_texture_path(value: str | Path | PurePosixPath) -> bool:
     )
 
 
-def default_pac_xml_profile_cache_path() -> Path:
-    appdata = os.environ.get("APPDATA")
-    if appdata:
+def default_pac_xml_profile_cache_path(settings_dir: str | Path | None = None) -> Path:
+    if settings_dir is not None and str(settings_dir or "").strip():
+        root = Path(settings_dir).expanduser()
+    elif str(os.environ.get(PAC_XML_SETTINGS_DIR_ENV, "") or "").strip():
+        root = Path(str(os.environ.get(PAC_XML_SETTINGS_DIR_ENV, "") or "")).expanduser()
+    elif os.environ.get("APPDATA"):
+        appdata = os.environ.get("APPDATA")
         root = Path(appdata) / "CDMW"
     else:
         root = Path.home() / ".cdmw"
@@ -660,6 +676,8 @@ def expected_texture_suffixes_for_parameter(parameter_name: str) -> tuple[str, .
 
 
 def build_pac_xml_corpus_index(root: str | Path, *, limit: int | None = None) -> PacXmlCorpusIndex:
+    if not str(root or "").strip() or Path(root).expanduser() == Path():
+        return PacXmlCorpusIndex(root=Path())
     base = Path(root).expanduser()
     index = PacXmlCorpusIndex(root=base)
     if not base.exists():
@@ -692,18 +710,27 @@ def build_pac_xml_corpus_index(root: str | Path, *, limit: int | None = None) ->
             model_rel = model_rel[:-4]
         if (base / model_rel).exists():
             index.paired_model_count += 1
+            report = replace(report, paired_model_path=normalize_pac_xml_path(model_rel))
         index.profiles.append(report)
     return index
 
 
 def load_or_build_pac_xml_corpus_index(
-    root: str | Path = DEFAULT_PAC_XML_CORPUS_ROOT,
+    root: str | Path | None = None,
     *,
     cache_path: str | Path | None = None,
     limit: int | None = None,
     force: bool = False,
 ) -> PacXmlCorpusIndex:
-    base = Path(root).expanduser()
+    if root is None or not str(root or "").strip():
+        raw_root = str(os.environ.get(PAC_XML_CORPUS_ROOT_ENV, "") or "").strip()
+        if not raw_root:
+            return PacXmlCorpusIndex(root=Path())
+        base = Path(raw_root).expanduser()
+    else:
+        base = Path(root).expanduser()
+    if base == Path():
+        return PacXmlCorpusIndex(root=Path())
     cache = Path(cache_path).expanduser() if cache_path is not None else default_pac_xml_profile_cache_path()
     count, newest = pac_xml_corpus_signature(base, limit=limit)
     if not force and count > 0 and cache.is_file():
@@ -795,6 +822,9 @@ def select_best_pac_xml_template(
     target_wrapper: PacXmlWrapperProfile | None,
     slot_kind: str,
     corpus_index: PacXmlCorpusIndex | None,
+    *,
+    allow_shader_mismatch: bool = False,
+    preferred_shader_families: Sequence[str] = (),
 ) -> PacXmlTemplateMatch:
     slot = str(slot_kind or "").strip().lower()
     if corpus_index is None or not corpus_index.profiles:
@@ -805,6 +835,7 @@ def select_best_pac_xml_template(
     target_role = target_wrapper.role if target_wrapper is not None else ""
     target_shader = target_wrapper.shader_family if target_wrapper is not None else ""
     target_params = set(target_wrapper.parameter_names) if target_wrapper is not None else set()
+    preferred_shaders = {str(value or "").strip() for value in tuple(preferred_shader_families or ()) if str(value or "").strip()}
     best_score = 0.0
     best_report: PacXmlProfileReport | None = None
     best_wrapper: PacXmlWrapperProfile | None = None
@@ -824,6 +855,10 @@ def select_best_pac_xml_template(
                 score += 0.18
             if target_shader and candidate_wrapper.shader_family == target_shader:
                 score += 0.14
+            elif preferred_shaders and candidate_wrapper.shader_family in preferred_shaders:
+                score += 0.12
+            elif allow_shader_mismatch and target_shader and candidate_wrapper.shader_family != target_shader:
+                score -= 0.04
             if target_wrapper is not None and candidate_wrapper.render_setting_flag == target_wrapper.render_setting_flag:
                 score += 0.05
             if supports_slot:
@@ -840,6 +875,7 @@ def select_best_pac_xml_template(
                 supports_slot
                 and target_shader
                 and candidate_wrapper.shader_family != target_shader
+                and not allow_shader_mismatch
                 and param_overlap_ratio < 0.35
             ):
                 continue
@@ -856,8 +892,11 @@ def select_best_pac_xml_template(
     fallback = "" if supports and best_score >= 0.45 else "template lacks compatible slot" if not supports else "low template score"
     return PacXmlTemplateMatch(
         template_path=best_report.path,
+        template_model_path=best_report.paired_model_path,
         template_wrapper_name=best_wrapper.wrapper_name,
         template_parameter_name=best_parameter,
+        template_shader_name=best_wrapper.shader_name,
+        template_shader_family=best_wrapper.shader_family,
         score=round(min(1.0, best_score), 3),
         supports_slot=bool(supports and best_score >= 0.45),
         fallback_reason=fallback,
@@ -888,6 +927,7 @@ def pac_xml_parameter_for_slot(wrapper: PacXmlWrapperProfile, slot_kind: str) ->
 def _report_to_dict(report: PacXmlProfileReport) -> dict[str, object]:
     return {
         "path": report.path,
+        "paired_model_path": report.paired_model_path,
         "profile": {
             "family": report.profile.family,
             "slot": report.profile.slot,
@@ -966,6 +1006,7 @@ def _report_from_dict(payload: Mapping[str, object]) -> PacXmlProfileReport:
     return PacXmlProfileReport(
         path=str(payload.get("path") or ""),
         profile=profile,
+        paired_model_path=str(payload.get("paired_model_path") or payload.get("paired_model") or ""),
         wrappers=tuple(wrappers),
         pbd_materials=_unpack_tuple(payload.get("pbd") or payload.get("pbd_materials")),
         texture_ref_count=int(payload.get("texture_ref_count") or 0),

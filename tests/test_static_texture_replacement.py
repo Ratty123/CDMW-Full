@@ -3344,7 +3344,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertEqual(specs[0].target_entry, sidecar_entry)
             self.assertEqual(specs[0].target_path, sidecar_entry.path)
 
-    def test_auto_companion_omits_hkx_physics_by_default(self) -> None:
+    def test_auto_companion_omits_sidecar_and_hkx_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             primary = _entry(
@@ -3372,7 +3372,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
 
             companions = _mesh_import_auto_companion_entries(primary, preview)
 
-            self.assertEqual(tuple(entry.path for entry in companions), (sidecar.path,))
+            self.assertEqual(tuple(entry.path for entry in companions), ())
 
     def test_selected_pac_xml_sidecar_bindings_accept_utf16_text(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -3856,6 +3856,20 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertEqual(0, skipped_count)
         self.assertFalse(skipped_paths)
         self.assertNotIn("character/texture/new_n.dds", skipped)
+
+        unsafe_sidecar_text = sidecar_text.replace("SkinnedMeshStandard_Ver2", "SkinnedMeshEmissive_Ver2")
+        recovered, recovered_count, recovered_paths, _ = _build_source_driven_sidecar_text(
+            unsafe_sidecar_text,
+            {"Blade": (("_baseColorTexture", "character/texture/recovered_base.dds", "base"),)},
+            exact_only=True,
+            material_profile=profile,
+            template_allowed_insertions={"blade": {"base": "_baseColorTexture"}},
+            template_shader_overrides={"blade": "SkinnedMeshStandard_Ver2"},
+        )
+
+        self.assertEqual(1, recovered_count)
+        self.assertIn("character/texture/recovered_base.dds", recovered_paths)
+        self.assertIn("SkinnedMeshStandard_Ver2", recovered)
 
     def test_cd_material_family_roles_are_distinct(self) -> None:
         files = tuple(
@@ -4809,12 +4823,12 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertTrue((result.package_root / "character" / "texture" / "generated.dds").exists())
             self.assertTrue((result.package_root / "character" / "modelproperty" / "test_weapon.pac_xml").exists())
             self.assertFalse((result.package_root / "character" / "model" / "test_skeleton.pab").exists())
-            self.assertFalse((result.package_root / "cdmw_active_file_authority_audit.json").exists())
-            self.assertIsNone(result.authority_audit_path)
+            self.assertTrue((result.package_root / "cdmw_active_file_authority_audit.json").exists())
+            self.assertIsNotNone(result.authority_audit_path)
             manifest = json.loads((result.package_root / "manifest.json").read_text(encoding="utf-8"))
             files = {item["path"]: item for item in manifest["files"]}
             self.assertIn("Generated replacement texture", files["character/texture/generated.dds"]["note"])
-            self.assertIn("Generated patched sidecar", files["character/modelproperty/test_weapon.pac_xml"]["note"])
+            self.assertIn("Patched material sidecar", files["character/modelproperty/test_weapon.pac_xml"]["note"])
 
     def test_mesh_loose_export_custom_compact_paths_keeps_textures_under_character_texture(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

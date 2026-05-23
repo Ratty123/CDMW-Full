@@ -26,6 +26,24 @@ from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 from urllib.parse import unquote, urlparse
 
+
+def _d3d11_status_file_signature(stat: os.stat_result) -> Tuple[int, int]:
+    return (
+        int(getattr(stat, "st_mtime_ns", int(float(getattr(stat, "st_mtime", 0.0) or 0.0) * 1_000_000_000))),
+        int(getattr(stat, "st_size", 0) or 0),
+    )
+
+
+def _d3d11_cache_event_user_label(event: object) -> str:
+    normalized = str(event or "").strip().lower()
+    if normalized in {"miss", "bypass", "new"}:
+        return "new preview package"
+    if normalized == "hit":
+        return "cached preview package"
+    if normalized == "cleared":
+        return "preview package reset"
+    return normalized or "preview package"
+
 try:
     import shiboken6
 except Exception:  # pragma: no cover - shipped with PySide6, defensive for test-only imports.
@@ -1350,8 +1368,22 @@ def run_gui() -> int:
     from cdmw.rendering.model_preview_prepare import prepare_model_preview
     from cdmw.rendering.native_preview_core import (
         NativePreviewCoreAttempt,
+        NativePreviewCoreServiceClient,
+        find_native_preview_core_binary,
+        render_settings_to_native_preview_core_dict,
         run_native_preview_core_preview_job,
         shutdown_native_preview_core_service,
+    )
+    from cdmw.rendering.native_preview_package_cache import (
+        NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA,
+        clear_native_preview_package_cache,
+        is_durable_native_preview_package_path,
+        native_preview_package_cache_entry_dir,
+        native_preview_package_cache_budget,
+        native_preview_package_prefetch_limit,
+        lookup_native_preview_package_cache,
+        prune_native_preview_package_cache,
+        store_native_preview_package_cache,
     )
     from cdmw.ui.policy_preview_dialog import TexturePolicyPreviewDialog
     from cdmw.ui.safe_upscale_wizard import SafeUpscaleWizard
@@ -3875,6 +3907,10 @@ def run_gui() -> int:
             native_preview_core_enabled: bool = False,
             native_preview_core_cache_root: Optional[Path] = None,
             native_preview_core_package_root: Optional[Path] = None,
+            native_preview_package_cache_key: str = "",
+            native_preview_package_cache_mode: str = "off",
+            native_preview_package_cache_max_bytes: int = 0,
+            native_preview_package_cache_target_bytes: int = 0,
         ):
             super().__init__()
             self.request_id = request_id
@@ -3902,6 +3938,10 @@ def run_gui() -> int:
             self.native_preview_core_enabled = bool(native_preview_core_enabled)
             self.native_preview_core_cache_root = native_preview_core_cache_root
             self.native_preview_core_package_root = native_preview_core_package_root
+            self.native_preview_package_cache_key = str(native_preview_package_cache_key or "").strip()
+            self.native_preview_package_cache_mode = str(native_preview_package_cache_mode or "off").strip().lower()
+            self.native_preview_package_cache_max_bytes = max(0, int(native_preview_package_cache_max_bytes or 0))
+            self.native_preview_package_cache_target_bytes = max(0, int(native_preview_package_cache_target_bytes or 0))
             self.stop_event = threading.Event()
 
         def stop(self) -> None:
@@ -4118,23 +4158,132 @@ def run_gui() -> int:
             cache_root = self.native_preview_core_cache_root
             if cache_root is None:
                 return None
+            cache_mode = str(self.native_preview_package_cache_mode or "off").strip().lower()
+            durable_cache_enabled = (
+                cache_mode in {"balanced", "aggressive"}
+                and bool(self.native_preview_package_cache_key)
+                and self.native_preview_package_cache_max_bytes > 0
+            )
+            staging_entry_dir: Optional[Path] = None
+            output_root: Optional[Path] = None
+            dds_cache_max_bytes = 96 * 1024 * 1024
+            dds_cache_target_bytes = 64 * 1024 * 1024
+            if durable_cache_enabled:
+                dds_cache_max_bytes = 512 * 1024 * 1024 if cache_mode == "aggressive" else 192 * 1024 * 1024
+                dds_cache_target_bytes = 384 * 1024 * 1024 if cache_mode == "aggressive" else 128 * 1024 * 1024
+                staging_entry_dir = (
+                    Path(cache_root)
+                    / "packages"
+                    / f"_staging_{self.native_preview_package_cache_key}_{time.time_ns()}_{threading.get_ident()}"
+                )
+                output_root = staging_entry_dir / "package"
+                try:
+                    staging_entry_dir.mkdir(parents=True, exist_ok=True)
+                except OSError:
+                    staging_entry_dir = None
+                    output_root = None
             try:
-                return run_native_preview_core_preview_job(
+                native_attempt = run_native_preview_core_preview_job(
                     self.entry,
                     cache_root=cache_root,
                     render_settings=self.render_settings,
                     companion_entry=self.companion_entry,
                     package_root=self.native_preview_core_package_root,
+                    output_root=output_root,
                     timeout_seconds=8.0,
                     stop_event=self.stop_event,
+                    dds_cache_max_bytes=dds_cache_max_bytes,
+                    dds_cache_target_bytes=dds_cache_target_bytes,
                 )
+                if native_attempt.succeeded and durable_cache_enabled and staging_entry_dir is not None:
+                    metadata = {
+                        "entry_path": str(getattr(self.entry, "path", "") or ""),
+                        "companion_path": str(getattr(self.companion_entry, "path", "") or ""),
+                        "cache_mode": cache_mode,
+                        "render_settings": render_settings_to_native_preview_core_dict(self.render_settings),
+                        "diagnostics": dict(native_attempt.diagnostics),
+                    }
+                    hit = store_native_preview_package_cache(
+                        cache_root,
+                        self.native_preview_package_cache_key,
+                        staging_entry_dir,
+                        metadata,
+                        validate_package=self._validate_native_preview_core_package_basic,
+                        max_bytes=self.native_preview_package_cache_max_bytes,
+                        target_bytes=self.native_preview_package_cache_target_bytes,
+                    )
+                    diagnostics = dict(native_attempt.diagnostics)
+                    if hit is not None:
+                        diagnostics["native_preview_package_cache"] = "stored"
+                        diagnostics["native_preview_package_cache_key"] = self.native_preview_package_cache_key
+                        return dataclasses.replace(
+                            native_attempt,
+                            package_path=str(hit.package_dir),
+                            diagnostics=diagnostics,
+                        )
+                    diagnostics["native_preview_package_cache"] = "store_failed"
+                    return dataclasses.replace(native_attempt, diagnostics=diagnostics)
+                if staging_entry_dir is not None and not native_attempt.succeeded:
+                    shutil.rmtree(staging_entry_dir, ignore_errors=True)
+                return native_attempt
             except RunCancelled:
+                # The native service may already have opened job.json and may still write
+                # output_root. Leave durable staging for later cache pruning.
                 raise
             except Exception as exc:
+                if staging_entry_dir is not None:
+                    shutil.rmtree(staging_entry_dir, ignore_errors=True)
                 return NativePreviewCoreAttempt(
                     status="error",
                     fallback_reason=f"native preview-core failed before package generation: {exc}",
                 )
+
+        @staticmethod
+        def _validate_native_preview_core_package_basic(package_dir: Path) -> Tuple[bool, Tuple[str, ...]]:
+            package_dir = Path(package_dir)
+            manifest_path = package_dir / "manifest.json"
+            if not manifest_path.is_file():
+                return False, (f"missing manifest:{manifest_path}",)
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                return False, (f"invalid manifest:{exc}",)
+            if not isinstance(manifest, Mapping):
+                return False, ("manifest is not a JSON object",)
+            missing: List[str] = []
+
+            def check_path(raw_value: object, *, package_relative: bool) -> None:
+                text = str(raw_value or "").strip()
+                if not text:
+                    return
+                try:
+                    path = Path(text)
+                    if package_relative or not path.is_absolute():
+                        path = package_dir / text
+                    if not path.is_file():
+                        missing.append(str(path))
+                except (OSError, ValueError) as exc:
+                    missing.append(f"{text}:{exc}")
+
+            for batch in tuple(manifest.get("batches", ()) or ()):
+                if not isinstance(batch, Mapping):
+                    continue
+                check_path(batch.get("vertex_file"), package_relative=True)
+                if bool(batch.get("cloth_enabled")):
+                    for key in ("cloth_particle_file", "cloth_pin_file", "cloth_constraint_file"):
+                        check_path(batch.get(key), package_relative=True)
+                textures = batch.get("textures")
+                if isinstance(textures, Mapping):
+                    for value in textures.values():
+                        check_path(value, package_relative=True)
+                dds_textures = batch.get("dds_textures")
+                if isinstance(dds_textures, Mapping):
+                    for descriptor in dds_textures.values():
+                        if isinstance(descriptor, Mapping):
+                            check_path(descriptor.get("source_path"), package_relative=False)
+                if len(missing) >= 8:
+                    break
+            return not missing, tuple(missing[:8])
 
         def _archive_entry_for_native_asset_path(self, path: str) -> Optional[ArchiveEntry]:
             normalized = str(path or "").replace("\\", "/").strip().lower()
@@ -4475,16 +4624,22 @@ def run_gui() -> int:
 
         def __init__(
             self,
-            jobs: Sequence[Tuple[ArchiveEntry, Optional[ArchiveEntry]]],
+            jobs: Sequence[Tuple[ArchiveEntry, Optional[ArchiveEntry], str]],
             render_settings: ModelPreviewRenderSettings,
             cache_root: Path,
             package_root: Optional[Path],
+            cache_mode: str,
+            package_cache_max_bytes: int,
+            package_cache_target_bytes: int,
         ) -> None:
             super().__init__()
             self.jobs = tuple(jobs)
             self.render_settings = clamp_model_preview_render_settings(render_settings)
             self.cache_root = cache_root
             self.package_root = package_root
+            self.cache_mode = str(cache_mode or "off").strip().lower()
+            self.package_cache_max_bytes = max(0, int(package_cache_max_bytes or 0))
+            self.package_cache_target_bytes = max(0, int(package_cache_target_bytes or 0))
             self.stop_event = threading.Event()
 
         def stop(self) -> None:
@@ -4493,24 +4648,65 @@ def run_gui() -> int:
         @Slot()
         def run(self) -> None:
             try:
-                for entry, companion_entry in self.jobs:
+                if self.cache_mode != "aggressive" or self.package_cache_max_bytes <= 0:
+                    return
+                for entry, companion_entry, cache_key in self.jobs:
                     if self.stop_event.is_set():
                         return
                     if str(getattr(entry, "extension", "") or "").strip().lower() not in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS:
                         continue
+                    key = str(cache_key or "").strip()
+                    if not key:
+                        continue
+                    if lookup_native_preview_package_cache(
+                        self.cache_root,
+                        key,
+                        validate_package=ArchivePreviewWorker._validate_native_preview_core_package_basic,
+                    ) is not None:
+                        continue
+                    staging_entry_dir = (
+                        Path(self.cache_root)
+                        / "packages"
+                        / f"_staging_prefetch_{key}_{time.time_ns()}_{threading.get_ident()}"
+                    )
                     try:
-                        run_native_preview_core_preview_job(
+                        staging_entry_dir.mkdir(parents=True, exist_ok=True)
+                        attempt = run_native_preview_core_preview_job(
                             entry,
                             cache_root=self.cache_root,
                             render_settings=self.render_settings,
                             companion_entry=companion_entry,
                             package_root=self.package_root,
+                            output_root=staging_entry_dir / "package",
                             timeout_seconds=5.0,
                             stop_event=self.stop_event,
+                            dds_cache_max_bytes=512 * 1024 * 1024,
+                            dds_cache_target_bytes=384 * 1024 * 1024,
                         )
+                        if attempt.succeeded:
+                            store_native_preview_package_cache(
+                                self.cache_root,
+                                key,
+                                staging_entry_dir,
+                                {
+                                    "entry_path": str(getattr(entry, "path", "") or ""),
+                                    "companion_path": str(getattr(companion_entry, "path", "") or ""),
+                                    "cache_mode": self.cache_mode,
+                                    "prefetch": True,
+                                    "diagnostics": dict(attempt.diagnostics),
+                                },
+                                validate_package=ArchivePreviewWorker._validate_native_preview_core_package_basic,
+                                max_bytes=self.package_cache_max_bytes,
+                                target_bytes=self.package_cache_target_bytes,
+                            )
+                        else:
+                            shutil.rmtree(staging_entry_dir, ignore_errors=True)
                     except RunCancelled:
+                        # The native service may already be writing this staging output.
+                        # Leave it for later package-cache pruning instead of racing it.
                         return
                     except Exception:
+                        shutil.rmtree(staging_entry_dir, ignore_errors=True)
                         continue
             finally:
                 self.finished.emit()
@@ -5192,6 +5388,8 @@ def run_gui() -> int:
             self.archive_preview_cache: OrderedDict[str, ArchivePreviewResult] = OrderedDict()
             self.archive_preview_cache_keys: Dict[int, str] = {}
             self.archive_preview_cache_limit = 64
+            self.archive_preview_cache_last_miss_reason = ""
+            self.archive_preview_cache_last_miss_detail = ""
             self.archive_asset_family_cache: OrderedDict[
                 Tuple[str, str, int, int, int],
                 Tuple[AssetFamilyGraph, Tuple[ArchiveModelTextureReference, ...]],
@@ -5208,7 +5406,8 @@ def run_gui() -> int:
             self.archive_isolated_renderer_pending_package_source = ""
             self.archive_isolated_renderer_retired_packages: List[Path] = []
             self.archive_isolated_renderer_status_file: Optional[Path] = None
-            self.archive_isolated_renderer_status_mtime = 0.0
+            self.archive_isolated_renderer_status_signature: Tuple[int, int] = (0, 0)
+            self.archive_isolated_renderer_status_payload_text = ""
             self.archive_isolated_renderer_last_status_payload: Dict[str, object] = {}
             self.archive_isolated_renderer_status_timer = QTimer(self)
             self.archive_isolated_renderer_status_timer.setInterval(250)
@@ -5291,6 +5490,7 @@ def run_gui() -> int:
             self.archive_filters_dirty = False
             self.archive_filter_apply_pending = False
             self.archive_filter_requested_signature: Tuple[object, ...] = ()
+            self.archive_controls_scroll_filter_anchor: Optional[int] = None
             self.archive_tree_sort_column = -1
             self.archive_tree_sort_order = "asc"
             self.archive_initial_sort_apply_pending = False
@@ -13120,6 +13320,7 @@ def run_gui() -> int:
             self.settings.setValue("archive/enable_sidecar_indexing", archive_performance_settings.enable_sidecar_indexing)
             self.settings.setValue("archive/sidecar_worker_count", archive_performance_settings.sidecar_worker_count)
             self.settings.setValue("archive/preview_cache_limit", archive_performance_settings.preview_cache_limit)
+            self.settings.setValue("archive/native_preview_cache_mode", archive_performance_settings.native_preview_cache_mode)
             self.settings.setValue("archive/quick_then_full_preview", archive_performance_settings.quick_then_full_preview)
             self.settings.setValue("archive/maximum_indexing_priority", archive_performance_settings.maximum_indexing_priority)
             self.settings.setValue("preview/visible_texture_mode", preview_settings.visible_texture_mode)
@@ -16311,6 +16512,29 @@ def run_gui() -> int:
                     pass
             self._update_archive_filter_button_state()
 
+        def _capture_archive_controls_scroll_for_filter(self) -> None:
+            try:
+                scrollbar = self.archive_controls_scroll.verticalScrollBar()
+                self.archive_controls_scroll_filter_anchor = int(scrollbar.value())
+            except Exception:
+                self.archive_controls_scroll_filter_anchor = None
+
+        def _restore_archive_controls_scroll_after_filter(self) -> None:
+            value = getattr(self, "archive_controls_scroll_filter_anchor", None)
+            if value is None:
+                return
+
+            def _restore() -> None:
+                try:
+                    scrollbar = self.archive_controls_scroll.verticalScrollBar()
+                    scrollbar.setValue(max(0, min(int(value), int(scrollbar.maximum()))))
+                except Exception:
+                    pass
+
+            _restore()
+            QTimer.singleShot(0, _restore)
+            QTimer.singleShot(80, _restore)
+
         def _clear_archive_structure_filter_widgets(self) -> None:
             while self.archive_structure_filter_layout.count():
                 item = self.archive_structure_filter_layout.takeAt(0)
@@ -16625,6 +16849,7 @@ def run_gui() -> int:
             self._apply_archive_filter()
 
         def _apply_archive_filter(self) -> None:
+            self._capture_archive_controls_scroll_for_filter()
             self._mark_archive_browser_render_stale()
             if self.archive_active_asset_catalog_scope:
                 self.archive_active_asset_catalog_scope = ""
@@ -16740,6 +16965,7 @@ def run_gui() -> int:
             self.archive_filter_worker = worker
             self.worker_thread = thread
             self.set_busy(True, build_mode=False)
+            self._restore_archive_controls_scroll_after_filter()
             thread.start()
 
         def _handle_archive_filter_complete(self, result: object) -> None:
@@ -16807,6 +17033,7 @@ def run_gui() -> int:
                 fmt="Rendering...",
             )
             self.set_status_message("Rendering archive browser view...")
+            self._restore_archive_controls_scroll_after_filter()
             QTimer.singleShot(
                 0,
                 lambda preferred_path=preferred_path: self._finalize_archive_filter_complete(preferred_path),
@@ -16824,6 +17051,8 @@ def run_gui() -> int:
                 self._set_archive_warmup_overlay(False)
                 self.set_status_message(completion_text)
                 self.append_archive_log(completion_text)
+                self._restore_archive_controls_scroll_after_filter()
+                self.archive_controls_scroll_filter_anchor = None
 
             defer_default_selection = bool(getattr(self, "archive_startup_autoload_defer_preview", False))
             self.archive_startup_autoload_defer_preview = False
@@ -21456,7 +21685,10 @@ def run_gui() -> int:
         def _archive_preview_result_cacheable(self, result: ArchivePreviewResult) -> bool:
             native_package_path = str(getattr(result, "native_preview_package_path", "") or "").strip()
             if native_package_path:
-                return Path(native_package_path).is_dir()
+                if not is_durable_native_preview_package_path(self._native_preview_package_cache_root(), native_package_path):
+                    return False
+                valid_package, _missing_paths = self._validate_d3d11_preview_package_paths(Path(native_package_path))
+                return bool(valid_package)
             if getattr(result, "preview_model", None) is None:
                 return True
             prepared_preview = getattr(result, "prepared_preview_model", None)
@@ -21554,6 +21786,7 @@ def run_gui() -> int:
                 timings,
                 (
                     ("cache_lookup_s", "cache_lookup"),
+                    ("native_package_cache_lookup_s", "native_pkg_cache"),
                     ("worker_build_s", "worker_build"),
                     ("entry_read_s", "read"),
                     ("model_sidecar_refs_s", "sidecar_refs"),
@@ -21801,9 +22034,13 @@ def run_gui() -> int:
                 )
             return payload
 
-        def _clear_archive_preview_cache(self) -> None:
+        def _clear_archive_preview_cache(self, *, clear_native_packages: bool = False) -> None:
             self.archive_preview_cache.clear()
             self.archive_preview_cache_keys.clear()
+            self.archive_preview_cache_last_miss_reason = ""
+            self.archive_preview_cache_last_miss_detail = ""
+            if clear_native_packages:
+                clear_native_preview_package_cache(self._native_preview_package_cache_root())
 
         def _clear_archive_asset_family_cache(self) -> None:
             self.archive_asset_family_cache.clear()
@@ -21876,6 +22113,73 @@ def run_gui() -> int:
                     loose_roots_key,
                 ]
             )
+
+        def _native_preview_package_cache_root(self) -> Path:
+            return self.archive_cache_root / "native_preview_core"
+
+        def _native_preview_package_cache_mode(self) -> str:
+            return str(
+                getattr(self._current_archive_performance_settings(), "native_preview_cache_mode", "balanced")
+                or "balanced"
+            ).strip().lower()
+
+        def _native_preview_package_cache_budget(self) -> Tuple[int, int]:
+            return native_preview_package_cache_budget(self._native_preview_package_cache_mode())
+
+        def _archive_entry_native_cache_signature(self, entry: Optional[ArchiveEntry]) -> Dict[str, object]:
+            if entry is None:
+                return {}
+            return {
+                "path": str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lower(),
+                "pamt_path": str(getattr(entry, "pamt_path", "") or "").strip().lower(),
+                "pamt_stamp": self._archive_file_stamp_for_cache(getattr(entry, "pamt_path", None)),
+                "paz_file": str(getattr(entry, "paz_file", "") or "").strip().lower(),
+                "paz_stamp": self._archive_file_stamp_for_cache(getattr(entry, "paz_file", None)),
+                "offset": int(getattr(entry, "offset", 0) or 0),
+                "comp_size": int(getattr(entry, "comp_size", 0) or 0),
+                "orig_size": int(getattr(entry, "orig_size", 0) or 0),
+                "flags": int(getattr(entry, "flags", 0) or 0),
+                "paz_index": int(getattr(entry, "paz_index", 0) or 0),
+                "compression_type": int(getattr(entry, "compression_type", 0) or 0),
+            }
+
+        def _archive_native_preview_package_cache_key(
+            self,
+            entry: Optional[ArchiveEntry],
+            companion_entry: Optional[ArchiveEntry],
+            texconv_path: Optional[Path],
+            loose_search_roots: Sequence[Path],
+            *,
+            include_loose_preview_assets: bool = False,
+        ) -> str:
+            if entry is None:
+                return ""
+            binary = find_native_preview_core_binary()
+            binary_signature = NativePreviewCoreServiceClient.resolve_binary_signature(binary) if binary is not None else (0, 0)
+            base_key = self._archive_preview_cache_key(
+                entry,
+                texconv_path,
+                loose_search_roots,
+                include_loose_preview_assets=include_loose_preview_assets,
+                sidecar_generation=self.archive_sidecar_generation,
+                quality_tier="full",
+            )
+            payload = {
+                "schema": NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA,
+                "base_preview_key": base_key,
+                "entry": self._archive_entry_native_cache_signature(entry),
+                "companion": self._archive_entry_native_cache_signature(companion_entry),
+                "render_settings": render_settings_to_native_preview_core_dict(self._current_model_preview_render_settings()),
+                "support_slots": self._archive_preview_support_texture_slots(self._current_model_preview_render_settings()),
+                "renderer_backend": str(self._archive_model_renderer_backend() or "").strip().lower(),
+                "native_binary": {
+                    "path": str(binary or ""),
+                    "mtime_ns": int(binary_signature[0]),
+                    "size": int(binary_signature[1]),
+                },
+            }
+            encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8", "replace")
+            return hashlib.sha256(encoded).hexdigest()
 
         @staticmethod
         def _archive_file_stamp_for_cache(path_value: object) -> str:
@@ -21973,13 +22277,113 @@ def run_gui() -> int:
             return not missing, tuple(missing[:12])
 
         def _get_cached_archive_preview_result(self, cache_key: str) -> Optional[ArchivePreviewResult]:
+            self.archive_preview_cache_last_miss_reason = ""
+            self.archive_preview_cache_last_miss_detail = ""
             if not cache_key:
                 return None
             cached = self.archive_preview_cache.get(cache_key)
             if cached is None:
                 return None
+            native_package_path = str(getattr(cached, "native_preview_package_path", "") or "").strip()
+            if native_package_path:
+                package_dir = Path(native_package_path)
+                valid_package, missing_paths = self._validate_d3d11_preview_package_paths(package_dir)
+                if not valid_package:
+                    self.archive_preview_cache.pop(cache_key, None)
+                    detail = "; ".join(missing_paths[:4])
+                    self.archive_preview_cache_last_miss_reason = "native_package_expired"
+                    self.archive_preview_cache_last_miss_detail = detail
+                    selected_entry = self._current_archive_entry()
+                    _record_runtime_event(
+                        "archive_preview_cache_native_package_expired",
+                        request_id=self.archive_preview_request_id,
+                        selected_path=getattr(selected_entry, "path", ""),
+                        cache_key=cache_key,
+                        package_path=native_package_path,
+                        missing=list(missing_paths[:12]),
+                    )
+                    return None
             self.archive_preview_cache.move_to_end(cache_key)
             return self._attach_archive_preview_result_images(cached)
+
+        def _get_durable_native_preview_package_result(
+            self,
+            *,
+            entry: Optional[ArchiveEntry],
+            companion_entry: Optional[ArchiveEntry],
+            texconv_path: Optional[Path],
+            loose_search_roots: Sequence[Path],
+            include_loose_preview_assets: bool,
+        ) -> Optional[ArchivePreviewResult]:
+            if entry is None or include_loose_preview_assets:
+                return None
+            if self._archive_model_renderer_backend() != ARCHIVE_MODEL_RENDERER_D3D11:
+                return None
+            if str(getattr(entry, "extension", "") or "").strip().lower() not in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS:
+                return None
+            mode = self._native_preview_package_cache_mode()
+            if mode == "off":
+                return None
+            cache_key = self._archive_native_preview_package_cache_key(
+                entry,
+                companion_entry,
+                texconv_path,
+                loose_search_roots,
+                include_loose_preview_assets=include_loose_preview_assets,
+            )
+            if not cache_key:
+                return None
+            cache_root = self._native_preview_package_cache_root()
+            entry_dir = native_preview_package_cache_entry_dir(cache_root, cache_key)
+            existed_before = entry_dir.exists()
+            hit = lookup_native_preview_package_cache(
+                cache_root,
+                cache_key,
+                validate_package=self._validate_d3d11_preview_package_paths,
+            )
+            if hit is None:
+                if existed_before:
+                    _record_runtime_event(
+                        "archive_preview_cache_native_package_expired",
+                        request_id=self.archive_preview_request_id,
+                        selected_path=str(getattr(entry, "path", "") or ""),
+                        cache_key=cache_key,
+                        package_path=str(entry_dir / "package"),
+                        missing=["durable package validation failed"],
+                    )
+                    self.archive_preview_cache_last_miss_reason = "native_package_expired"
+                    self.archive_preview_cache_last_miss_detail = "Durable native preview package expired; rebuilding."
+                return None
+            return self._archive_preview_result_from_durable_native_package(entry, hit.package_dir, hit.metadata)
+
+        def _archive_preview_result_from_durable_native_package(
+            self,
+            entry: ArchiveEntry,
+            package_dir: Path,
+            metadata: Mapping[str, object],
+        ) -> ArchivePreviewResult:
+            diagnostics_source = metadata.get("diagnostics") if isinstance(metadata, Mapping) else {}
+            diagnostics = dict(diagnostics_source) if isinstance(diagnostics_source, Mapping) else {}
+            diagnostics["native_preview_package_cache"] = "hit"
+            diagnostics["native_preview_package_cache_mode"] = str(metadata.get("cache_mode", "") or "")
+            diagnostics["package_path"] = str(package_dir)
+            detail_lines = [
+                "Native Preview Core loaded a validated durable D3D11 preview package.",
+                "D3D11 package source: native-core cache",
+                f"Package: {package_dir}",
+                "Cached preview package hit; no archive package rebuild was needed.",
+            ]
+            return ArchivePreviewResult(
+                status="ok",
+                title=entry.basename,
+                metadata_summary=f"{build_archive_entry_metadata_summary(entry)} | cached preview package",
+                detail_text="\n".join(detail_lines),
+                preview_model=None,
+                native_preview_package_path=str(package_dir),
+                native_preview_diagnostics=diagnostics,
+                preferred_view="model",
+                sidecar_generation=self.archive_sidecar_generation,
+            )
 
         def _store_cached_archive_preview_result(self, cache_key: str, result: ArchivePreviewResult) -> None:
             if not cache_key:
@@ -22173,6 +22577,8 @@ def run_gui() -> int:
 
             cache_lookup_started_at = time.perf_counter()
             cached_result = self._get_cached_archive_preview_result(cache_key)
+            cache_miss_reason = str(getattr(self, "archive_preview_cache_last_miss_reason", "") or "")
+            cache_miss_detail = str(getattr(self, "archive_preview_cache_last_miss_detail", "") or "")
             self.archive_preview_request_phase_timings.setdefault(request_id, {})["cache_lookup_s"] = max(
                 0.0,
                 float(time.perf_counter() - cache_lookup_started_at),
@@ -22182,7 +22588,36 @@ def run_gui() -> int:
                 self._handle_archive_preview_ready(request_id, cached_result)
                 return
 
+            companion_entry = self._find_archive_preview_companion_entry(entry)
+            native_package_cache_started_at = time.perf_counter()
+            native_cache_result = self._get_durable_native_preview_package_result(
+                entry=entry,
+                companion_entry=companion_entry,
+                texconv_path=texconv_path,
+                loose_search_roots=loose_search_roots,
+                include_loose_preview_assets=include_loose_preview_assets,
+            )
+            self.archive_preview_request_phase_timings.setdefault(request_id, {})[
+                "native_package_cache_lookup_s"
+            ] = max(0.0, float(time.perf_counter() - native_package_cache_started_at))
+            if native_cache_result is not None:
+                self.archive_preview_request_sources[request_id] = "native_package_cache"
+                self._handle_archive_preview_ready(request_id, native_cache_result)
+                return
+            cache_miss_reason = str(getattr(self, "archive_preview_cache_last_miss_reason", "") or cache_miss_reason)
+            cache_miss_detail = str(getattr(self, "archive_preview_cache_last_miss_detail", "") or cache_miss_detail)
+
             self._show_archive_preview_loading_state(entry)
+            if cache_miss_reason == "native_package_expired":
+                rebuild_text = "Cached preview package expired; rebuilding preview package..."
+                self.archive_preview_meta_label.setText("Rebuilding preview package...")
+                self.archive_preview_health_label.setText("Rebuilding native D3D11 preview package...")
+                self._set_archive_preview_base_detail_text(
+                    f"{rebuild_text}\n{cache_miss_detail}".strip(),
+                    include_current_model_debug=False,
+                )
+                self.archive_preview_info_edit.setPlainText(f"{rebuild_text}\n{cache_miss_detail}".strip())
+                self.set_status_message("Cached preview package expired; rebuilding preview package.")
             fast_cache_key = self._archive_preview_cache_key(
                 entry,
                 texconv_path,
@@ -22201,9 +22636,6 @@ def run_gui() -> int:
                     request_started_at=self.archive_preview_request_started_at.get(request_id),
                 )
                 self.set_status_message("Fast preview loaded; refining full-quality preview...")
-            if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
-                self.archive_native_prefetch_timer.start()
-
             performance_settings = self._current_archive_performance_settings()
             if (
                 performance_settings.quick_then_full_preview
@@ -22236,10 +22668,60 @@ def run_gui() -> int:
             )
 
         def _archive_native_prefetch_candidate_entries(self) -> Tuple[ArchiveEntry, ...]:
-            # Native preview-core extracts archive DDS files to a disk cache for D3D11.
-            # Avoid speculative neighbor prefetch here; browsing large asset folders can
-            # otherwise duplicate hundreds of textures before the user opens them.
-            return ()
+            if self._native_preview_package_cache_mode() != "aggressive":
+                return ()
+            if self.archive_preview_thread is not None or self.archive_native_prefetch_thread is not None:
+                return ()
+            try:
+                memory_snapshot = _windows_process_memory_snapshot(os.getpid())
+                if int(memory_snapshot.get("private_bytes", 0) or 0) > 3500 * 1024 * 1024:
+                    return ()
+            except Exception:
+                pass
+            current_entry = self._current_archive_entry()
+            if current_entry is None:
+                return ()
+            filtered_entries = tuple(getattr(self, "archive_filtered_entries", ()) or ())
+            if not filtered_entries:
+                return ()
+            try:
+                current_index = next(
+                    index
+                    for index, candidate in enumerate(filtered_entries)
+                    if str(getattr(candidate, "path", "") or "") == str(getattr(current_entry, "path", "") or "")
+                )
+            except StopIteration:
+                return ()
+            limit = native_preview_package_prefetch_limit(self._native_preview_package_cache_mode())
+            if limit <= 0:
+                return ()
+            result: List[ArchiveEntry] = []
+            for offset in (1, -1, 2, -2):
+                if len(result) >= limit:
+                    break
+                candidate_index = current_index + offset
+                if candidate_index < 0 or candidate_index >= len(filtered_entries):
+                    continue
+                candidate = filtered_entries[candidate_index]
+                if str(getattr(candidate, "extension", "") or "").strip().lower() not in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS:
+                    continue
+                companion_entry = self._find_archive_preview_companion_entry(candidate)
+                cache_key = self._archive_native_preview_package_cache_key(
+                    candidate,
+                    companion_entry,
+                    Path(self.texconv_path_edit.text().strip()).expanduser() if self.texconv_path_edit.text().strip() else None,
+                    self._collect_archive_preview_loose_roots(),
+                )
+                if not cache_key:
+                    continue
+                if lookup_native_preview_package_cache(
+                    self._native_preview_package_cache_root(),
+                    cache_key,
+                    validate_package=self._validate_d3d11_preview_package_paths,
+                ) is not None:
+                    continue
+                result.append(candidate)
+            return tuple(result)
 
         def _start_archive_native_preview_prefetch(self) -> None:
             if self._shutting_down:
@@ -22260,12 +22742,32 @@ def run_gui() -> int:
                 if self.archive_package_root_edit.text().strip()
                 else None
             )
-            jobs = tuple((entry, self._find_archive_preview_companion_entry(entry)) for entry in entries)
+            cache_mode = self._native_preview_package_cache_mode()
+            cache_max_bytes, cache_target_bytes = self._native_preview_package_cache_budget()
+            texconv_text = self.texconv_path_edit.text().strip()
+            texconv_path = Path(texconv_text).expanduser() if texconv_text else None
+            loose_search_roots = self._collect_archive_preview_loose_roots()
+            jobs = tuple(
+                (
+                    entry,
+                    self._find_archive_preview_companion_entry(entry),
+                    self._archive_native_preview_package_cache_key(
+                        entry,
+                        self._find_archive_preview_companion_entry(entry),
+                        texconv_path,
+                        loose_search_roots,
+                    ),
+                )
+                for entry in entries
+            )
             worker = ArchiveNativePreviewPrefetchWorker(
                 jobs,
                 render_settings,
                 self.archive_cache_root / "native_preview_core",
                 package_root,
+                cache_mode,
+                cache_max_bytes,
+                cache_target_bytes,
             )
             thread = QThread(self)
             worker.moveToThread(thread)
@@ -22302,6 +22804,22 @@ def run_gui() -> int:
         ) -> None:
             companion_entry = self._find_archive_preview_companion_entry(entry)
             preview_settings = self._current_model_preview_render_settings()
+            native_cache_mode = self._native_preview_package_cache_mode()
+            native_cache_max_bytes, native_cache_target_bytes = self._native_preview_package_cache_budget()
+            native_package_cache_key = ""
+            if (
+                native_cache_mode != "off"
+                and self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
+                and entry is not None
+                and not include_loose_preview_assets
+            ):
+                native_package_cache_key = self._archive_native_preview_package_cache_key(
+                    entry,
+                    companion_entry,
+                    texconv_path,
+                    loose_search_roots,
+                    include_loose_preview_assets=include_loose_preview_assets,
+                )
             _record_runtime_event(
                 "archive_preview_worker_start",
                 request_id=request_id,
@@ -22309,6 +22827,8 @@ def run_gui() -> int:
                 companion_path=getattr(companion_entry, "path", ""),
                 backend=self._archive_model_renderer_backend(),
                 native_preview_core_enabled=(self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11),
+                native_preview_cache_mode=native_cache_mode,
+                native_preview_package_cache_key=native_package_cache_key,
             )
             worker = ArchivePreviewWorker(
                 request_id,
@@ -22332,6 +22852,10 @@ def run_gui() -> int:
                     if self.archive_package_root_edit.text().strip()
                     else None
                 ),
+                native_preview_package_cache_key=native_package_cache_key,
+                native_preview_package_cache_mode=native_cache_mode,
+                native_preview_package_cache_max_bytes=native_cache_max_bytes,
+                native_preview_package_cache_target_bytes=native_cache_target_bytes,
             )
             thread = QThread(self)
             worker.moveToThread(thread)
@@ -22415,6 +22939,11 @@ def run_gui() -> int:
                     else:
                         self._stop_archive_preview_loading_indicator(success=True)
                         self._record_archive_memory_audit("archive_preview_ready", log_if_high=True)
+                        if (
+                            self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
+                            and self._native_preview_package_cache_mode() == "aggressive"
+                        ):
+                            self.archive_native_prefetch_timer.start()
             except Exception as exc:
                 _write_crash_report(
                     "archive_preview_ready_error",
@@ -23209,7 +23738,8 @@ def run_gui() -> int:
                 self.archive_isolated_renderer_active_package = None
                 self.archive_isolated_renderer_active_process = None
                 self.archive_isolated_renderer_status_file = None
-                self.archive_isolated_renderer_status_mtime = 0.0
+                self.archive_isolated_renderer_status_signature = (0, 0)
+                self.archive_isolated_renderer_status_payload_text = ""
                 self.archive_isolated_renderer_last_status_payload = {}
                 self.archive_isolated_renderer_package_source = ""
             if include_active and getattr(self, "archive_isolated_renderer_pending_package", None) is not None:
@@ -23506,7 +24036,8 @@ def run_gui() -> int:
             except OSError:
                 pass
             self.archive_isolated_renderer_status_file = status_file
-            self.archive_isolated_renderer_status_mtime = 0.0
+            self.archive_isolated_renderer_status_signature = (0, 0)
+            self.archive_isolated_renderer_status_payload_text = ""
             self.archive_isolated_renderer_last_status_payload = {}
             if self._archive_isolated_renderer_process_running():
                 source = str(getattr(self, "archive_isolated_renderer_pending_package_source", "") or "")
@@ -23684,13 +24215,27 @@ def run_gui() -> int:
             try:
                 stat = status_file.stat()
             except OSError:
+                if str(getattr(self.archive_d3d11_preview_status_label, "text", lambda: "")()).strip() and self.archive_d3d11_preview_host.isVisible():
+                    self.archive_d3d11_preview_status_label.setText("")
                 return
-            mtime = float(getattr(stat, "st_mtime", 0.0) or 0.0)
-            if mtime <= float(getattr(self, "archive_isolated_renderer_status_mtime", 0.0) or 0.0):
-                return
-            self.archive_isolated_renderer_status_mtime = mtime
+            signature = _d3d11_status_file_signature(stat)
             try:
-                payload = json.loads(status_file.read_text(encoding="utf-8"))
+                payload_text = status_file.read_text(encoding="utf-8")
+            except Exception as exc:
+                self._set_archive_isolated_renderer_debug(f"Isolated Renderer: status read failed: {exc}")
+                return
+            if (
+                signature == getattr(self, "archive_isolated_renderer_status_signature", (0, 0))
+                and payload_text == getattr(self, "archive_isolated_renderer_status_payload_text", "")
+            ):
+                last_event = str((getattr(self, "archive_isolated_renderer_last_status_payload", {}) or {}).get("event", "") or "").strip().lower()
+                if last_event == "loaded":
+                    self.archive_d3d11_preview_status_label.setText("")
+                return
+            self.archive_isolated_renderer_status_signature = signature
+            self.archive_isolated_renderer_status_payload_text = payload_text
+            try:
+                payload = json.loads(payload_text)
             except Exception as exc:
                 self._set_archive_isolated_renderer_debug(f"Isolated Renderer: status read failed: {exc}")
                 return
@@ -23842,7 +24387,8 @@ def run_gui() -> int:
             self.archive_isolated_renderer_active_process = None
             self.archive_isolated_renderer_active_package = None
             self.archive_isolated_renderer_status_file = None
-            self.archive_isolated_renderer_status_mtime = 0.0
+            self.archive_isolated_renderer_status_signature = (0, 0)
+            self.archive_isolated_renderer_status_payload_text = ""
             self.archive_isolated_renderer_last_status_payload = {}
             self.archive_isolated_renderer_status_timer.stop()
             try:
@@ -24243,6 +24789,10 @@ def run_gui() -> int:
                         "archive/preview_cache_limit",
                         defaults.preview_cache_limit,
                     ),
+                    native_preview_cache_mode=str(
+                        self.settings.value("archive/native_preview_cache_mode", defaults.native_preview_cache_mode)
+                        or defaults.native_preview_cache_mode
+                    ),
                     quick_then_full_preview=self._read_bool(
                         "archive/quick_then_full_preview",
                         defaults.quick_then_full_preview,
@@ -24541,8 +25091,11 @@ def run_gui() -> int:
 
         def _handle_clear_archive_preview_cache_requested(self) -> None:
             cleared_count = len(self.archive_preview_cache)
-            self._clear_archive_preview_cache()
-            self.append_archive_log(f"Cleared {cleared_count:,} in-memory archive preview cache entr{'y' if cleared_count == 1 else 'ies'}.")
+            self._clear_archive_preview_cache(clear_native_packages=True)
+            self.append_archive_log(
+                f"Cleared {cleared_count:,} in-memory archive preview cache entr{'y' if cleared_count == 1 else 'ies'} "
+                "and durable native preview packages."
+            )
             self.set_status_message("Archive preview cache cleared.")
 
         def _handle_reset_tool_pbd_cloth_preview_requested(self) -> None:
@@ -24757,12 +25310,25 @@ def run_gui() -> int:
             previous_cache_limit = int(self.archive_preview_cache_limit)
             previous_settings = self._current_archive_performance_settings()
             previous_sidecar_indexing_enabled = previous_settings.enable_sidecar_indexing
+            previous_native_cache_mode = str(getattr(previous_settings, "native_preview_cache_mode", "balanced") or "balanced")
             self._archive_performance_settings = performance_settings
             self.archive_preview_cache_limit = performance_settings.preview_cache_limit
             self._sync_archive_performance_settings_controls()
             self._trim_archive_preview_cache()
             if previous_cache_limit != self.archive_preview_cache_limit:
                 self.append_archive_log(f"Archive preview cache size set to {self.archive_preview_cache_limit}.")
+            if previous_native_cache_mode != performance_settings.native_preview_cache_mode:
+                self._stop_archive_native_preview_prefetch()
+                max_bytes, target_bytes = native_preview_package_cache_budget(performance_settings.native_preview_cache_mode)
+                if max_bytes > 0:
+                    prune_native_preview_package_cache(
+                        self._native_preview_package_cache_root(),
+                        max_bytes=max_bytes,
+                        target_bytes=target_bytes,
+                    )
+                self.append_archive_log(
+                    f"Native preview package cache mode set to {performance_settings.native_preview_cache_mode}."
+                )
             if previous_sidecar_indexing_enabled and not performance_settings.enable_sidecar_indexing:
                 self.archive_sidecar_pending_start = False
                 self.archive_browser_warmup_pending = False
@@ -29996,7 +30562,9 @@ def run_gui() -> int:
                 "process": None,
                 "active_package": None,
                 "status_file": None,
-                "status_mtime": 0.0,
+                "status_signature": (0, 0),
+                "status_payload_text": "",
+                "preview_loaded": False,
                 "target_model": None,
                 "donor_model": None,
                 "body_model": None,
@@ -30096,7 +30664,9 @@ def run_gui() -> int:
                 d3d11_state["process"] = None
                 d3d11_state["active_package"] = None
                 d3d11_state["status_file"] = None
-                d3d11_state["status_mtime"] = 0.0
+                d3d11_state["status_signature"] = (0, 0)
+                d3d11_state["status_payload_text"] = ""
+                d3d11_state["preview_loaded"] = False
                 d3d11_status_timer.stop()
                 if not isinstance(process, QProcess):
                     _placement_d3d11_cleanup_package(package_dir)
@@ -30174,7 +30744,9 @@ def run_gui() -> int:
                     previous_package = d3d11_state.get("active_package")
                     d3d11_state["active_package"] = package_dir
                     d3d11_state["status_file"] = status_file
-                    d3d11_state["status_mtime"] = 0.0
+                    d3d11_state["status_signature"] = (0, 0)
+                    d3d11_state["status_payload_text"] = ""
+                    d3d11_state["preview_loaded"] = False
                     if placement_d3d11_host.load_package(package_dir, status_file, reset_view=False):
                         placement_d3d11_host.set_display_mode("overlay")
                         placement_d3d11_host.set_render_tuning(self._current_model_preview_render_settings())
@@ -30186,7 +30758,9 @@ def run_gui() -> int:
                 _placement_d3d11_stop_process()
                 d3d11_state["active_package"] = package_dir
                 d3d11_state["status_file"] = status_file
-                d3d11_state["status_mtime"] = 0.0
+                d3d11_state["status_signature"] = (0, 0)
+                d3d11_state["status_payload_text"] = ""
+                d3d11_state["preview_loaded"] = False
                 process = QProcess(dialog)
                 try:
                     program, arguments = self._native_d3d11_renderer_command(
@@ -30242,13 +30816,26 @@ def run_gui() -> int:
                 try:
                     stat = status_file.stat()
                 except OSError:
+                    if bool(d3d11_state.get("preview_loaded")):
+                        placement_d3d11_status.setText("Native D3D11 placement preview loaded.")
                     return
-                mtime = float(getattr(stat, "st_mtime", 0.0) or 0.0)
-                if mtime <= float(d3d11_state.get("status_mtime", 0.0) or 0.0):
-                    return
-                d3d11_state["status_mtime"] = mtime
+                signature = _d3d11_status_file_signature(stat)
                 try:
-                    payload = json.loads(status_file.read_text(encoding="utf-8"))
+                    payload_text = status_file.read_text(encoding="utf-8")
+                except Exception as exc:
+                    placement_d3d11_status.setText(f"Native D3D11 status read failed: {exc}")
+                    return
+                if (
+                    signature == d3d11_state.get("status_signature", (0, 0))
+                    and payload_text == str(d3d11_state.get("status_payload_text", "") or "")
+                ):
+                    if bool(d3d11_state.get("preview_loaded")) and "Loading" in placement_d3d11_status.text():
+                        placement_d3d11_status.setText("Native D3D11 placement preview loaded.")
+                    return
+                d3d11_state["status_signature"] = signature
+                d3d11_state["status_payload_text"] = payload_text
+                try:
+                    payload = json.loads(payload_text)
                 except Exception as exc:
                     placement_d3d11_status.setText(f"Native D3D11 status read failed: {exc}")
                     return
@@ -30256,6 +30843,7 @@ def run_gui() -> int:
                     return
                 event = str(payload.get("event", "") or "").strip().lower()
                 if event == "loaded":
+                    d3d11_state["preview_loaded"] = True
                     editable_indices = tuple(int(index) for index in tuple(d3d11_state.get("editable_indices", ()) or ()))
                     placement_d3d11_host.set_display_mode("overlay")
                     placement_d3d11_host.set_render_tuning(self._current_model_preview_render_settings())
@@ -30268,8 +30856,12 @@ def run_gui() -> int:
                     _placement_d3d11_sync_fast_transform()
                     placement_d3d11_status.setText("Native D3D11 placement preview loaded. Drag selected placement mesh to adjust offset; use rotation drag for rotation.")
                 elif event == "loading":
+                    if bool(d3d11_state.get("preview_loaded")):
+                        placement_d3d11_status.setToolTip(str(payload.get("message", "") or "Loading native D3D11 placement preview..."))
+                        return
                     placement_d3d11_status.setText(str(payload.get("message", "") or "Loading native D3D11 placement preview..."))
                 elif event == "error":
+                    d3d11_state["preview_loaded"] = False
                     _placement_d3d11_hard_error(str(payload.get("message", "") or "Native D3D11 placement renderer error."))
 
             def _handle_placement_d3d11_package_ready(request_id: int, package_dir_object: object, prepare_ms: float, package_ms: float) -> None:
@@ -33800,17 +34392,36 @@ def run_gui() -> int:
                 document = parse_socket_bone_data_xml(text, getattr(character_socket_entry, "path", ""))
                 return document if document.sockets or document.stack_equip_infos else None
 
-            def _child_socket_for_attach_point(socket_name: str) -> str:
-                lowered = str(socket_name or "").casefold()
-                if "pelvis_l" in lowered:
-                    return "Pelvis_L_ChildSocket"
-                if "pelvis_r" in lowered:
-                    return "Pelvis_R_ChildSocket"
-                if "hand" in lowered:
-                    return "Basic_ChildSocket"
-                if socket_name.endswith("_Socket"):
-                    return f"{socket_name[:-7]}_ChildSocket"
-                return ""
+            def _part_in_out_document() -> Optional[AttachmentPartInOutDocument]:
+                text = _read_archive_text(part_in_out_entry)
+                if not text:
+                    return None
+                document = parse_part_in_out_socket_info_xml(text, getattr(part_in_out_entry, "path", ""))
+                return document if document.rows else None
+
+            part_in_out_document = _part_in_out_document()
+
+            def _current_part_in_out_document() -> Optional[AttachmentPartInOutDocument]:
+                profile_text = str(imported_profile_state.get("part_in_out_text") or "")
+                if profile_text:
+                    document = parse_part_in_out_socket_info_xml(
+                        profile_text,
+                        str(imported_profile_state.get("part_in_out_path") or ""),
+                    )
+                    if document.rows:
+                        return document
+                return part_in_out_document
+
+            def _current_character_socket_document() -> Optional[AttachmentSocketDocument]:
+                profile_text = str(imported_profile_state.get("socket_text") or "")
+                if profile_text:
+                    document = parse_socket_bone_data_xml(
+                        profile_text,
+                        str(imported_profile_state.get("socket_path") or ""),
+                    )
+                    if document.sockets or document.stack_equip_infos:
+                        return document
+                return _character_socket_document()
 
             visual_plan_section = QGroupBox("Visual Placement + Package Plan")
             visual_plan_section.setMinimumWidth(460)
@@ -33841,31 +34452,52 @@ def run_gui() -> int:
             visual_layout.addWidget(patch_part_in_out_checkbox, 2, 0)
             visual_layout.addWidget(patch_socket_checkbox, 2, 1)
             attach_point_combo = QComboBox()
-            attach_point_combo.addItem("Keep source placement", "")
-            character_document = _character_socket_document()
-            if isinstance(character_document, AttachmentSocketDocument):
-                seen_attach_points: set[str] = set()
-                socket_by_name = {
-                    str(socket.name or "").strip().casefold(): socket
-                    for socket in tuple(character_document.sockets or ())
-                    if isinstance(socket, AttachmentSocketInfo) and str(socket.name or "").strip()
-                }
-                for stack in tuple(character_document.stack_equip_infos or ()):
-                    label_prefix = str(stack.equip_type_name or "").strip()
-                    for socket_name in tuple(stack.socket_names or ()):
-                        key = str(socket_name or "").strip().casefold()
-                        if not key or key in seen_attach_points or key not in socket_by_name:
-                            continue
-                        seen_attach_points.add(key)
-                        attach_point_combo.addItem(f"{label_prefix}: {socket_name}" if label_prefix else str(socket_name), str(socket_name))
-                for socket in tuple(character_document.sockets or ()):
-                    socket_name = str(socket.name or "").strip()
-                    key = socket_name.casefold()
-                    if not socket_name or key in seen_attach_points:
-                        continue
-                    if any(token in key for token in ("spine", "pelvis", "hand", "weapon", "shield")):
-                        seen_attach_points.add(key)
-                        attach_point_combo.addItem(socket_name, socket_name)
+
+            def _populate_attach_point_combo() -> None:
+                current_data = attach_point_combo.currentData()
+                if isinstance(current_data, AttachmentBodyLocationChoice):
+                    selected_socket = str(current_data.socket_name or "").strip().casefold()
+                else:
+                    selected_socket = str(current_data or "").strip().casefold()
+                attach_point_combo.blockSignals(True)
+                try:
+                    attach_point_combo.clear()
+                    attach_point_combo.addItem("Keep source placement", "")
+                    selected_index = 0
+                    character_document = _current_character_socket_document()
+                    body_location_choices = build_attachment_body_location_choices(
+                        character_document,
+                        _current_part_in_out_document(),
+                        weapon_class=inferred_weapon_class,
+                    )
+                    for choice in body_location_choices:
+                        index = attach_point_combo.count()
+                        attach_point_combo.addItem(choice.label or choice.socket_name, choice)
+                        if choice.note:
+                            attach_point_combo.setItemData(index, choice.note, Qt.ToolTipRole)
+                        if selected_socket and choice.socket_name.casefold() == selected_socket:
+                            selected_index = index
+                    if isinstance(character_document, AttachmentSocketDocument):
+                        seen_attach_points: set[str] = set()
+                        for choice in body_location_choices:
+                            if choice.socket_name:
+                                seen_attach_points.add(choice.socket_name.casefold())
+                        for socket in tuple(character_document.sockets or ()):
+                            socket_name = str(socket.name or "").strip()
+                            key = socket_name.casefold()
+                            if not socket_name or key in seen_attach_points:
+                                continue
+                            if not body_location_choices and any(token in key for token in ("spine", "pelvis", "hand", "weapon", "shield")):
+                                seen_attach_points.add(key)
+                                index = attach_point_combo.count()
+                                attach_point_combo.addItem(socket_name, socket_name)
+                                if selected_socket and key == selected_socket:
+                                    selected_index = index
+                    attach_point_combo.setCurrentIndex(selected_index)
+                finally:
+                    attach_point_combo.blockSignals(False)
+
+            _populate_attach_point_combo()
             visual_layout.addWidget(QLabel("Attach point"), 3, 0)
             visual_layout.addWidget(attach_point_combo, 3, 1, 1, 3)
             visual_status = QLabel("")
@@ -33979,8 +34611,29 @@ def run_gui() -> int:
             close_row.addWidget(close_button)
             layout.addLayout(close_row)
 
+            def _visual_selected_attach_choice() -> Optional[AttachmentBodyLocationChoice]:
+                value = attach_point_combo.currentData()
+                return value if isinstance(value, AttachmentBodyLocationChoice) else None
+
             def _visual_selected_attach_socket() -> str:
+                choice = _visual_selected_attach_choice()
+                if isinstance(choice, AttachmentBodyLocationChoice):
+                    return str(choice.socket_name or "").strip()
                 return str(attach_point_combo.currentData() or "").strip()
+
+            def _child_socket_for_attach_point(socket_name: str) -> str:
+                choice = _visual_selected_attach_choice()
+                if (
+                    isinstance(choice, AttachmentBodyLocationChoice)
+                    and choice.socket_name.casefold() == str(socket_name or "").strip().casefold()
+                    and choice.child_socket_name
+                ):
+                    return choice.child_socket_name
+                return infer_attachment_child_socket_name(
+                    str(socket_name or "").strip(),
+                    _current_part_in_out_document(),
+                    weapon_class=inferred_weapon_class,
+                )
 
             def _visual_part_in_out_patch(base_text: str) -> AttachmentPartInOutPatchResult:
                 if not patch_part_in_out_checkbox.isChecked() or not inferred_weapon_class:
@@ -34078,10 +34731,14 @@ def run_gui() -> int:
                     patch_socket_checkbox.setEnabled(False)
                 attach_socket = _visual_selected_attach_socket()
                 if attach_socket:
+                    choice = _visual_selected_attach_choice()
+                    label = choice.label if isinstance(choice, AttachmentBodyLocationChoice) else attach_socket
                     notes.append(
                         f"<span style='color:#fbbf24;font-weight:700;'>attach point</span> "
-                        f"{escape(attach_socket)} -&gt; {escape(_child_socket_for_attach_point(attach_socket) or 'unchanged child socket')}"
+                        f"{escape(label)}: {escape(attach_socket)} -&gt; {escape(_child_socket_for_attach_point(attach_socket) or 'unchanged child socket')}"
                     )
+                    if isinstance(choice, AttachmentBodyLocationChoice) and choice.note:
+                        notes.append(f"<span style='color:#93c5fd;font-weight:700;'>body row</span> {escape(choice.note)}")
                 visual_status.setText("<br>".join(notes))
 
             def _import_visual_profile_xml() -> None:
@@ -34110,6 +34767,7 @@ def run_gui() -> int:
                     imported_profile_state["part_in_out_path"] = str(path)
                     if isinstance(part_in_out_entry, ArchiveEntry):
                         patch_part_in_out_checkbox.setChecked(True)
+                _populate_attach_point_combo()
                 _refresh_visual_status()
                 _refresh_package_plan()
 
@@ -34153,14 +34811,15 @@ def run_gui() -> int:
                             ]
                         )
                     )
-                for action, target_path, note in _visual_patch_preview_rows():
+                visual_rows = _visual_patch_preview_rows()
+                for action, target_path, note in visual_rows:
                     item = QTreeWidgetItem([action, "visual placement", target_path, note])
                     item.setToolTip(2, target_path)
                     item.setToolTip(3, note)
                     plan_tree.addTopLevelItem(item)
                 warning_label.setText("Review notes: " + " ".join(package_plan_warnings[:5]) if package_plan_warnings else "")
                 warning_label.setVisible(bool(package_plan_warnings))
-                build_button.setEnabled(bool(package_plan_rows))
+                build_button.setEnabled(bool(package_plan_rows or visual_rows))
                 expand_tree_columns_to_available_width(plan_tree)
 
             def _placement_custom_icon_override_spec(*, show_messages: bool) -> Optional[ItemIconOverrideSpec]:
@@ -34267,11 +34926,12 @@ def run_gui() -> int:
                 _refresh_package_plan()
 
             def _build_donor_placement_package() -> None:
-                if not package_plan_rows:
+                visual_rows = _visual_patch_preview_rows()
+                if not package_plan_rows and not visual_rows:
                     QMessageBox.warning(
                         dialog,
                         "Build Placement Copy Package",
-                        "No safe source-copy package rows are available for this target/source pair.",
+                        "No safe source-copy package rows or visual placement XML patch rows are available for this target/source pair.",
                     )
                     return
                 custom_icon_spec = None
@@ -34289,7 +34949,7 @@ def run_gui() -> int:
                     preview_lines.append(f"- ...and {len(package_plan_rows) - 8} more file(s)")
                 if custom_icon_spec is not None:
                     preview_lines.append(f"- custom icon {custom_icon_spec.source_path.name} -> {custom_icon_spec.target_path}")
-                for action, target_path, _note in _visual_patch_preview_rows():
+                for action, target_path, _note in visual_rows:
                     preview_lines.append(f"- {action} -> {target_path}")
                 question = (
                     "Write a mod-ready loose package using this reviewed placement-copy plan?\n\n"
@@ -37223,10 +37883,8 @@ def run_gui() -> int:
             intro.setObjectName("HintLabel")
             layout.addWidget(intro)
 
-            source_default = Path("E:/Working mods")
-            if not source_default.is_dir():
-                configured_root = str(getattr(self.collect_config(), "mod_ready_export_root", "") or "").strip()
-                source_default = Path(configured_root).expanduser() if configured_root else self.settings_file_path.parent
+            configured_root = str(getattr(self.collect_config(), "mod_ready_export_root", "") or "").strip()
+            source_default = Path(configured_root).expanduser() if configured_root else self.settings_file_path.parent
             source_edit = QLineEdit(str(source_default))
             output_edit = QLineEdit(str(source_default / "converted"))
             browse_source_button = QPushButton("Browse...")
@@ -44199,7 +44857,8 @@ def run_gui() -> int:
                 "process": None,
                 "active_package": None,
                 "status_file": None,
-                "status_mtime": 0.0,
+                "status_signature": (0, 0),
+                "status_payload_text": "",
                 "pending_model": None,
                 "pending_label": "",
                 "pending_display_mode": "",
@@ -45578,6 +46237,10 @@ def run_gui() -> int:
                 header = tree.header()
                 if header is None:
                     return
+                if bool(tree.property("cdmw_defer_autofit")):
+                    return
+                if not tree.isVisible():
+                    return
                 minimum_values = tuple(int(value) for value in minimums)
                 maximum_values = tuple(int(value) for value in maximums)
                 column_count = min(tree.columnCount(), len(minimum_values), len(maximum_values))
@@ -45689,7 +46352,7 @@ def run_gui() -> int:
                         if self._pending:
                             return
                         self._pending = True
-                        QTimer.singleShot(0, self._fit)
+                        QTimer.singleShot(32, self._fit)
 
                     def _fit(self) -> None:
                         self._pending = False
@@ -46413,7 +47076,8 @@ def run_gui() -> int:
                 alignment_d3d11_state["active_package_display_mode"] = ""
                 alignment_d3d11_state["active_package_cache_key"] = ""
                 alignment_d3d11_state["status_file"] = None
-                alignment_d3d11_state["status_mtime"] = 0.0
+                alignment_d3d11_state["status_signature"] = (0, 0)
+                alignment_d3d11_state["status_payload_text"] = ""
                 alignment_d3d11_status_timer.stop()
                 if not isinstance(process, QProcess):
                     _cleanup_alignment_d3d11_package(package_dir)
@@ -46768,7 +47432,7 @@ def run_gui() -> int:
                                 detail=f"Reused active cached package. reason={rebuild_reason}",
                             )
                             _set_preview_performance_status(
-                                f"D3D11 cache hit - {_alignment_preview_detail_label()} - reason {rebuild_reason}",
+                                f"D3D11 cached preview package - {_alignment_preview_detail_label()} - reason {rebuild_reason}",
                                 details=(
                                     f"cache=hit\nreason={rebuild_reason}\n"
                                     f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.1f} ms\n"
@@ -46783,7 +47447,7 @@ def run_gui() -> int:
                             detail=f"Loading cached package. reason={rebuild_reason}",
                         )
                         _set_preview_performance_status(
-                            f"D3D11 cache hit; loading package - reason {rebuild_reason}",
+                            f"D3D11 cached preview package loading - reason {rebuild_reason}",
                             details=f"cache=hit\nreason={rebuild_reason}",
                         )
                         _start_alignment_d3d11_process(cached_package_dir, request_id=request_id)
@@ -46818,7 +47482,8 @@ def run_gui() -> int:
                     detail=f"Building preview package. quality={package_quality} reason={rebuild_reason} label={label}",
                 )
                 _set_preview_performance_status(
-                    f"D3D11 package preparing - {_alignment_preview_detail_label()}",
+                    f"D3D11 package preparing - {_alignment_preview_detail_label()} - "
+                    f"{_d3d11_cache_event_user_label(alignment_d3d11_state.get('last_cache_event'))}",
                     details=f"cache={alignment_d3d11_state.get('last_cache_event')}\nreason={rebuild_reason}",
                 )
                 thread.start()
@@ -46950,7 +47615,8 @@ def run_gui() -> int:
                     alignment_d3d11_state["active_package_display_mode"] = package_display_mode
                     alignment_d3d11_state["active_package_cache_key"] = package_cache_key
                     alignment_d3d11_state["status_file"] = status_file
-                    alignment_d3d11_state["status_mtime"] = 0.0
+                    alignment_d3d11_state["status_signature"] = (0, 0)
+                    alignment_d3d11_state["status_payload_text"] = ""
                     alignment_d3d11_state["preview_loaded"] = False
                     if alignment_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
                         alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
@@ -46963,15 +47629,17 @@ def run_gui() -> int:
                             detail=f"Reloading cached renderer package. reason={rebuild_reason}",
                         )
                         channel_debug = self._archive_material_channel_debug_from_package(package_dir)
+                        cache_event = str(alignment_d3d11_state.get("last_cache_event", "miss") or "miss")
+                        cache_label = _d3d11_cache_event_user_label(cache_event)
                         timing_summary = (
                             f"D3D11 reload queued - {_alignment_preview_detail_label()} - "
                             f"{str(alignment_d3d11_state.get('package_quality', 'fast') or 'fast')} package - "
-                            f"reason {rebuild_reason} - cache {alignment_d3d11_state.get('last_cache_event', 'miss')} - "
+                            f"reason {rebuild_reason} - {cache_label} - "
                             f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.0f} ms, "
                             f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.0f} ms"
                         )
                         details = (
-                            f"cache={alignment_d3d11_state.get('last_cache_event', 'miss')}\n"
+                            f"cache={cache_event}\n"
                             f"reason={rebuild_reason}\n"
                             f"{channel_debug or timing_summary}"
                         )
@@ -46988,7 +47656,8 @@ def run_gui() -> int:
                 alignment_d3d11_state["active_package_display_mode"] = package_display_mode
                 alignment_d3d11_state["active_package_cache_key"] = package_cache_key
                 alignment_d3d11_state["status_file"] = status_file
-                alignment_d3d11_state["status_mtime"] = 0.0
+                alignment_d3d11_state["status_signature"] = (0, 0)
+                alignment_d3d11_state["status_payload_text"] = ""
                 alignment_d3d11_state["preview_loaded"] = False
                 process = QProcess(dialog)
                 try:
@@ -47029,7 +47698,7 @@ def run_gui() -> int:
                 _set_preview_performance_status(
                     f"Starting D3D11 preview - {_alignment_preview_detail_label()} - "
                     f"{str(alignment_d3d11_state.get('package_quality', 'fast') or 'fast')} package - "
-                    f"reason {rebuild_reason} - cache {alignment_d3d11_state.get('last_cache_event', 'miss')} - "
+                    f"reason {rebuild_reason} - {_d3d11_cache_event_user_label(alignment_d3d11_state.get('last_cache_event', 'miss'))} - "
                     f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.0f} ms, "
                     f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.0f} ms",
                     details=(
@@ -47096,13 +47765,26 @@ def run_gui() -> int:
                 try:
                     stat = status_file.stat()
                 except OSError:
+                    if bool(alignment_d3d11_state.get("preview_loaded")):
+                        _set_alignment_d3d11_loading(False, "Preview ready.")
                     return
-                mtime = float(getattr(stat, "st_mtime", 0.0) or 0.0)
-                if mtime <= float(alignment_d3d11_state.get("status_mtime", 0.0) or 0.0):
-                    return
-                alignment_d3d11_state["status_mtime"] = mtime
+                signature = _d3d11_status_file_signature(stat)
                 try:
-                    payload = json.loads(status_file.read_text(encoding="utf-8"))
+                    payload_text = status_file.read_text(encoding="utf-8")
+                except Exception as exc:
+                    _set_alignment_d3d11_loading(False, f"Preview status read failed: {exc}")
+                    return
+                if (
+                    signature == alignment_d3d11_state.get("status_signature", (0, 0))
+                    and payload_text == str(alignment_d3d11_state.get("status_payload_text", "") or "")
+                ):
+                    if bool(alignment_d3d11_state.get("preview_loaded")):
+                        _set_alignment_d3d11_loading(False, "Preview ready.")
+                    return
+                alignment_d3d11_state["status_signature"] = signature
+                alignment_d3d11_state["status_payload_text"] = payload_text
+                try:
+                    payload = json.loads(payload_text)
                 except Exception as exc:
                     _set_alignment_d3d11_loading(False, f"Preview status read failed: {exc}")
                     return
@@ -47143,6 +47825,7 @@ def run_gui() -> int:
                         channel_debug = "channels " + channel_debug[len("Material Channel Contract: "):]
                     _set_alignment_d3d11_loading(False, "Preview ready.")
                     cache_event = str(alignment_d3d11_state.get("last_cache_event", "miss") or "miss")
+                    cache_label = _d3d11_cache_event_user_label(cache_event)
                     rebuild_reason = str(alignment_d3d11_state.get("last_cache_reason", "") or alignment_d3d11_state.get("last_rebuild_reason", "geometry") or "geometry")
                     native_load_ms = (
                         float(payload.get("manifest_read_ms", 0.0) or 0.0)
@@ -47152,12 +47835,12 @@ def run_gui() -> int:
                     timing_summary = (
                         f"D3D11 preview loaded - {_alignment_preview_detail_label()} - "
                         f"{str(alignment_d3d11_state.get('package_quality', 'fast') or 'fast')} package - "
-                        f"reason {rebuild_reason} - cache {cache_event} - "
+                        f"reason {rebuild_reason} - {cache_label} - "
                         f"native {native_load_ms:.0f} ms - "
                         f"textures {texture_text}"
                     )
                     timing_details = (
-                        f"cache {cache_event}\n"
+                        f"cache={cache_event}\n"
                         f"reason {rebuild_reason}\n"
                         f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.1f} ms\n"
                         f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.1f} ms\n"
@@ -49095,6 +49778,7 @@ def run_gui() -> int:
                 )
                 mapping_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
                 mapping_tree.setColumnHidden(1, True)
+                mapping_tree.setProperty("cdmw_defer_autofit", True)
                 mappings_by_target = {mapping.target_submesh_index: mapping for mapping in suggested_mappings}
                 initial_mapping_text_by_target: Dict[int, str] = {}
                 mapping_table_build_state = {"next_index": 0, "complete": False}
@@ -49258,6 +49942,7 @@ def run_gui() -> int:
                 parts_outliner_tree.setDragDropMode(QAbstractItemView.InternalMove)
                 parts_outliner_tree.setDefaultDropAction(Qt.MoveAction)
                 parts_outliner_tree.setDragDropOverwriteMode(False)
+                parts_outliner_tree.setProperty("cdmw_defer_autofit", True)
                 _configure_alignment_tree(
                     parts_outliner_tree,
                     (150, 124, 78, 76, 82, 62, 110),
@@ -49268,6 +49953,7 @@ def run_gui() -> int:
                 parts_outliner_tree.setRootIsDecorated(True)
                 parts_outliner_layout.addWidget(parts_outliner_tree, 0)
                 parts_outliner_item_update_guard = {"active": False, "refreshing": False}
+                parts_outliner_cache_state = {"revision": None}
                 parts_outliner_source_items: Dict[int, QTreeWidgetItem] = {}
                 parts_outliner_target_items: Dict[int, QTreeWidgetItem] = {}
 
@@ -49328,6 +50014,24 @@ def run_gui() -> int:
                 def _refresh_parts_outliner() -> None:
                     if bool(parts_outliner_item_update_guard.get("refreshing")):
                         return
+                    mapping_revision = tuple(
+                        (int(target_index), str(edit.text()))
+                        for target_index, edit in tuple(mapping_edits or ())
+                    )
+                    revision = (
+                        len(tuple(getattr(original_mesh_for_mapping, "submeshes", ()) or ())),
+                        len(tuple(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ())),
+                        mapping_revision,
+                        tuple(sorted(int(index) for index in preview_only_source_indices)),
+                        tuple(sorted(int(index) for index in independent_output_source_indices)),
+                        tuple(sorted(int(index) for index in copied_original_texture_intents_by_source.keys())),
+                    )
+                    if (
+                        parts_outliner_cache_state.get("revision") == revision
+                        and parts_outliner_tree.topLevelItemCount() > 0
+                    ):
+                        return
+                    parts_outliner_cache_state["revision"] = revision
                     parts_outliner_item_update_guard["refreshing"] = True
                     try:
                         parts_outliner_tree.clear()
@@ -49462,6 +50166,7 @@ def run_gui() -> int:
                                 parts_outliner_source_items[source_index] = source_item
                             group_item.setExpanded(True)
                         _fit_alignment_tree_height_to_rows(parts_outliner_tree, minimum=128, screen_margin=420, maximum=420)
+                        parts_outliner_tree.setProperty("cdmw_defer_autofit", False)
                         _auto_fit_alignment_tree_columns(
                             parts_outliner_tree,
                             (120, 110, 70, 64, 72, 56, 100),
@@ -49782,19 +50487,22 @@ def run_gui() -> int:
                         _append_mapping_target_row(target_index, mapping_targets[target_index])
                         mapping_table_build_state["next_index"] = target_index + 1
                         appended += 1
-                        if appended >= 16 or (time.monotonic() - started) >= 0.035:
+                        if appended >= 8 or (time.monotonic() - started) >= 0.012:
                             break
                     current = int(mapping_table_build_state.get("next_index", 0) or 0)
                     mapping_progress_label.setText(
                         f"Target routing table loading: {current:,} / {total:,} row(s). "
                         "Preview remains usable while this fills in."
                     )
-                    _apply_target_slot_filters()
+                    filters_active = bool(low_confidence_filter_checkbox.isChecked() or empty_targets_filter_checkbox.isChecked())
+                    if filters_active or current >= total:
+                        _apply_target_slot_filters(fit_height=current >= total)
                     if current >= total:
                         mapping_table_build_state["complete"] = True
                         mapping_table_build_timer.stop()
                         mapping_progress_label.setText(f"Target routing table ready: {total:,} row(s).")
                         _refresh_source_assignment_columns(lightweight=True)
+                        mapping_tree.setProperty("cdmw_defer_autofit", False)
                         _auto_fit_alignment_tree_columns(
                             mapping_tree,
                             (150, 60, 118, 160, 68, 78, 64),
@@ -49806,7 +50514,7 @@ def run_gui() -> int:
                 low_confidence_filter_checkbox = QCheckBox("Show low confidence only")
                 empty_targets_filter_checkbox = QCheckBox("Show removed targets only")
 
-                def _apply_target_slot_filters() -> None:
+                def _apply_target_slot_filters(_checked: object = None, *, fit_height: bool = True) -> None:
                     if not _alignment_dialog_widgets_live() or not _qt_object_is_valid(mapping_tree):
                         return
                     show_low_only = bool(low_confidence_filter_checkbox.isChecked())
@@ -49817,7 +50525,8 @@ def run_gui() -> int:
                         is_empty = bool(item.data(0, Qt.UserRole + 3))
                         is_low = "low" in confidence_text or "empty" in confidence_text or "manual" in confidence_text
                         item.setHidden(bool((show_low_only and not is_low) or (show_empty_only and not is_empty)))
-                    _fit_alignment_tree_height_to_rows(mapping_tree, minimum=96, screen_margin=500, maximum=300)
+                    if fit_height:
+                        _fit_alignment_tree_height_to_rows(mapping_tree, minimum=96, screen_margin=500, maximum=300)
 
                 mapping_table_build_timer.timeout.connect(_build_mapping_table_chunk)
                 mapping_table_build_requested = {"started": False}
@@ -49836,7 +50545,7 @@ def run_gui() -> int:
                         f"Target routing table loading: 0 / {len(mapping_targets):,} row(s). "
                         "Preview remains usable while this fills in."
                     )
-                    mapping_table_build_timer.start()
+                    QTimer.singleShot(25, mapping_table_build_timer.start)
 
                 def _clear_all_mapping_guesses() -> None:
                     _push_geometry_undo_snapshot("Clear all routing guesses")
@@ -55009,6 +55718,13 @@ def run_gui() -> int:
                         )
                     ):
                         edited_source_mesh = clone_mesh_for_editing(replacement_mesh_for_mapping)
+                    pac_xml_corpus_root = ""
+                    archive_extract_widget = getattr(self, "archive_extract_root_edit", None)
+                    if archive_extract_widget is not None:
+                        try:
+                            pac_xml_corpus_root = archive_extract_widget.text().strip()
+                        except Exception:
+                            pac_xml_corpus_root = ""
                     return StaticMeshReplacementOptions(
                         transform=placement_snapshot["transform"],
                         submesh_mappings=list(placement_snapshot.get("submesh_mappings", []) or []),
@@ -55046,6 +55762,8 @@ def run_gui() -> int:
                         independent_output_parts=list(placement_snapshot.get("independent_output_parts", []) or []),
                         additional_supplemental_files=list(additional_supplemental_files or []),
                         custom_item_icon_override=custom_item_icon_override,
+                        pac_xml_corpus_root=pac_xml_corpus_root,
+                        pac_xml_profile_cache_path=str(self.settings_file_path.parent / "pac_xml_profile_index_v1.json"),
                     )
 
                 def _unmapped_appended_source_indices(
@@ -64402,13 +65120,26 @@ def run_gui() -> int:
                         export_box.setWindowTitle("Loose Export Complete")
                         export_box.setText("Loose package written.")
                         export_box.setInformativeText(str(loose_result.package_root))
+                        audit_line = (
+                            f"\n\nActive file authority report:\n{loose_result.authority_audit_path}"
+                            if loose_result.authority_audit_path is not None
+                            else ""
+                        )
                         export_box.setDetailedText(
                             "Wrote rebuilt mesh payload(s) into:\n"
                             f"{loose_result.package_root}"
+                            f"{audit_line}\n\n"
+                            "If the edited PAC is present but the game still shows the original, check the equipped asset variant, "
+                            "enabled mod-manager profile, game cache, paired LOD, and cloth/physics companion files."
                         )
                         export_box.setStandardButtons(QMessageBox.Ok)
+                        verify_button = None
+                        if loose_result.authority_audit_path is not None:
+                            verify_button = export_box.addButton("Verify Loose Mod Target", QMessageBox.ActionRole)
                         export_box.setMinimumSize(QSize(560, 180))
                         export_box.exec()
+                        if verify_button is not None and export_box.clickedButton() is verify_button:
+                            QDesktopServices.openUrl(QUrl.fromLocalFile(str(loose_result.authority_audit_path.resolve())))
                         _finish_builder_status(
                             f"Wrote rebuilt {build_entry.basename} into a mod-ready loose package.",
                             True,
@@ -74752,8 +75483,15 @@ def run_gui() -> int:
                         )
                         detail_text = f"{detail_text.rstrip()}\n\n{message}\nRebuild the preview package by reselecting the entry or switching renderer mode.".strip()
                         self._set_archive_preview_base_detail_text(detail_text, include_current_model_debug=False)
+                        self.archive_preview_info_edit.setPlainText(detail_text)
+                        self.archive_preview_stack.setCurrentWidget(self.archive_preview_info_edit)
+                        self.archive_preview_tabs.setCurrentIndex(0)
+                        self._stop_archive_preview_loading_indicator(success=False)
                         self.set_status_message(message, error=True)
-                        self._set_archive_isolated_renderer_debug(message)
+                        self.archive_d3d11_preview_status_label.setText("Preview package validation failed.")
+                        self._set_archive_isolated_renderer_debug(
+                            "Native D3D11 Preview: package validation failed before launch.\n" + message
+                        )
                         return 0.0
                     if self._archive_isolated_renderer_process_running():
                         self._set_archive_d3d11_pending_package(package_dir, package_dir / "host_status.json", "native-core")
@@ -74772,7 +75510,12 @@ def run_gui() -> int:
                     self._update_archive_model_action_controls(None)
                     self._set_archive_preview_image_controls_enabled(True)
                     self._apply_archive_preview_zoom()
-                    self.set_status_message("Launching native D3D11 preview package generated by cdmw-preview-core.")
+                    diagnostics = dict(getattr(result, "native_preview_diagnostics", {}) or {})
+                    cache_state = str(diagnostics.get("native_preview_package_cache", "") or "").strip().lower()
+                    if cache_state == "hit":
+                        self.set_status_message("Launching cached native D3D11 preview package.")
+                    else:
+                        self.set_status_message("Launching native D3D11 preview package generated by cdmw-preview-core.")
                     self._set_archive_isolated_renderer_debug(
                         "Native Preview Core: launching native D3D11 package without Python mesh preparation."
                     )

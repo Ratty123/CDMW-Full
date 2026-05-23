@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cdmw.core import archive as archive_core
-from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings
+from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, RunCancelled
 from cdmw.rendering import native_preview_core
 from cdmw.rendering.native_preview_core import (
     NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES,
@@ -18,6 +18,11 @@ from cdmw.rendering.native_preview_core import (
     build_native_preview_core_job,
     prune_native_preview_core_cache,
     run_native_preview_core_preview_job,
+)
+from cdmw.rendering.native_preview_package_cache import (
+    lookup_native_preview_package_cache,
+    native_preview_package_cache_budget,
+    store_native_preview_package_cache,
 )
 
 
@@ -171,6 +176,44 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertTrue(attempt.succeeded)
         self.assertEqual("C:/cache/native/package_001", attempt.package_path)
         self.assertIn("cache=2/1", attempt.diagnostic_line())
+
+    def test_cancel_after_service_dispatch_leaves_job_file_for_native_service(self) -> None:
+        class _CancellingService:
+            def preview_job(self, job_path, report_path, *, timeout_seconds, stop_event=None, on_dispatched=None):
+                del report_path, timeout_seconds, stop_event
+                self.job_path = Path(job_path)
+                if on_dispatched is not None:
+                    on_dispatched()
+                raise RunCancelled("cancelled after dispatch")
+
+            @property
+            def process_id(self) -> int:
+                return 0
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            fake_binary = temp_path / "cdmw-preview-core.exe"
+            fake_binary.write_text("stub", encoding="utf-8")
+            job_root = temp_path / "job_root"
+            job_root.mkdir()
+            service = _CancellingService()
+            diagnostic_log = temp_path / "native_events.jsonl"
+
+            with (
+                patch.object(native_preview_core, "find_native_preview_core_binary", return_value=fake_binary),
+                patch.object(native_preview_core.tempfile, "mkdtemp", return_value=str(job_root)),
+                patch.object(native_preview_core, "_get_native_preview_core_service", return_value=service),
+                self.assertRaises(RunCancelled),
+            ):
+                run_native_preview_core_preview_job(
+                    _entry(),
+                    cache_root=temp_path / "cache",
+                    timeout_seconds=0.5,
+                    diagnostic_log=diagnostic_log,
+                )
+
+            self.assertTrue((job_root / "job.json").is_file())
+            self.assertIn("native_preview_core_cancel_after_dispatch", diagnostic_log.read_text(encoding="utf-8"))
 
     def test_native_preview_core_is_bundled_and_archive_worker_attempts_it(self) -> None:
         spec_text = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
@@ -417,7 +460,98 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("archive_native_prefetch_thread", source)
         self.assertIn("timeout_seconds=5.0", source)
         self.assertIn("run_native_preview_core_preview_job", source)
-        self.assertIn("Avoid speculative neighbor prefetch", source)
+        self.assertIn("self._native_preview_package_cache_mode() != \"aggressive\"", source)
+        self.assertIn("native_preview_package_prefetch_limit", source)
+        self.assertIn("store_native_preview_package_cache", source)
+
+    def test_native_preview_package_cache_promotes_and_validates_package(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            staging = cache_root / "packages" / "_staging_key"
+            package = staging / "package"
+            package.mkdir(parents=True)
+            (package / "manifest.json").write_text('{"schema_version":8,"batches":[]}', encoding="utf-8")
+
+            def validate(path: Path):
+                return (path / "manifest.json").is_file(), ()
+
+            max_bytes, target_bytes = native_preview_package_cache_budget("balanced")
+            hit = store_native_preview_package_cache(
+                cache_root,
+                "abc",
+                staging,
+                {"source": "test"},
+                validate_package=validate,
+                max_bytes=max_bytes,
+                target_bytes=target_bytes,
+            )
+
+            self.assertIsNotNone(hit)
+            assert hit is not None
+            self.assertTrue((hit.package_dir / "manifest.json").is_file())
+            self.assertFalse(staging.exists())
+            second_hit = lookup_native_preview_package_cache(cache_root, "abc", validate_package=validate)
+            self.assertIsNotNone(second_hit)
+
+    def test_native_preview_package_cache_keeps_new_package_when_over_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            staging = cache_root / "packages" / "_staging_big"
+            package = staging / "package"
+            package.mkdir(parents=True)
+            (package / "manifest.json").write_text('{"schema_version":8,"batches":[]}', encoding="utf-8")
+            (package / "payload.bin").write_bytes(b"x" * 64)
+
+            def validate(path: Path):
+                return (path / "manifest.json").is_file(), ()
+
+            hit = store_native_preview_package_cache(
+                cache_root,
+                "big",
+                staging,
+                {"source": "test"},
+                validate_package=validate,
+                max_bytes=1,
+                target_bytes=0,
+            )
+
+            self.assertIsNotNone(hit)
+            assert hit is not None
+            self.assertTrue((hit.package_dir / "manifest.json").is_file())
+
+    def test_run_native_preview_core_job_accepts_durable_output_root(self) -> None:
+        captured_output_roots: list[str] = []
+
+        def fake_run_process(cmd, **_kwargs):
+            report_path = Path(cmd[3])
+            job = json.loads(Path(cmd[2]).read_text(encoding="utf-8"))
+            captured_output_roots.append(job["output_root"])
+            report_path.write_text(
+                json.dumps({"status": "ok", "package_path": job["output_root"]}),
+                encoding="utf-8",
+            )
+            return 0, "", ""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            fake_binary = temp_path / "cdmw-preview-core.exe"
+            fake_binary.write_text("stub", encoding="utf-8")
+            output_root = temp_path / "durable" / "package"
+            with (
+                patch.object(native_preview_core, "find_native_preview_core_binary", return_value=fake_binary),
+                patch.object(native_preview_core, "run_process_with_cancellation", side_effect=fake_run_process),
+            ):
+                attempt = run_native_preview_core_preview_job(
+                    _entry(),
+                    cache_root=temp_path / "cache",
+                    output_root=output_root,
+                    timeout_seconds=0.5,
+                    use_service=False,
+                )
+
+        self.assertTrue(attempt.succeeded)
+        self.assertEqual(str(output_root), attempt.package_path)
+        self.assertEqual([str(output_root)], captured_output_roots)
 
     def test_native_preview_core_prunes_extracted_dds_cache(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -446,7 +580,8 @@ class NativePreviewCoreTests(unittest.TestCase):
 
         self.assertIn("job_root_path", source)
         self.assertIn('report.setdefault("native_preview_core_job_root", str(job_root))', source)
-        self.assertIn("post_cache_prune_report = prune_native_preview_core_cache(cache_root)", source)
+        self.assertIn("post_cache_prune_report = prune_native_preview_core_cache(", source)
+        self.assertIn("max_bytes=dds_cache_max_bytes", source)
         self.assertIn("shutil.rmtree(job_root, ignore_errors=True)", source)
 
     def test_static_native_material_index_prefers_exact_sidecars(self) -> None:

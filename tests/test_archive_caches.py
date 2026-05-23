@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from cdmw.core.archive import (
@@ -23,6 +24,7 @@ from cdmw.core.archive import (
     save_archive_derived_index_cache,
     save_archive_scan_cache,
     save_archive_texture_sidecar_cache,
+    scan_archive_entries,
 )
 from cdmw.core.table_catalog import table_catalog_cache_metadata
 from cdmw.models import ArchiveEntry
@@ -63,6 +65,29 @@ def _sidecar_text(texture_path: str, *, extra: str = "") -> bytes:
 
 
 class ArchiveCacheTests(unittest.TestCase):
+    def test_missing_generated_pamt_source_is_skipped_for_cache_signatures(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            missing_pamt = root / "0037" / "0.pamt"
+            _base, sources = _collect_archive_scan_sources_from_entries(
+                root,
+                [_entry("character/model/a.pac", missing_pamt, missing_pamt.with_suffix(".paz"), b"")],
+            )
+
+            self.assertEqual(sources, [])
+
+    def test_scan_skips_missing_generated_pamt_without_worker_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            missing_pamt = root / "0038" / "0.pamt"
+            logs: list[str] = []
+
+            with mock.patch("cdmw.core.archive.discover_pamt_files", return_value=[missing_pamt]):
+                entries = scan_archive_entries(root, on_log=logs.append)
+
+            self.assertEqual(entries, [])
+            self.assertTrue(any("Skipped missing archive index" in line for line in logs))
+
     def test_native_derived_index_job_is_wired_as_preferred_basic_index_path(self) -> None:
         accelerator = (REPO_ROOT / "cdmw" / "core" / "archive_accelerator.py").read_text(encoding="utf-8")
         native = (REPO_ROOT / "native" / "cdmw_archive_accelerator" / "src" / "main.cpp").read_text(encoding="utf-8")

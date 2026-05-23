@@ -20,10 +20,12 @@ from cdmw.core.archive import (
     build_archive_item_icon_references_from_catalog,
     build_archive_preview_result,
     build_archive_relationship_references,
+    build_attachment_body_location_choices,
     build_part_in_out_socket_attach_point_patch,
     build_part_in_out_socket_profile_patch,
     build_socket_bone_data_profile_patch,
     inspect_prefab_socket_name_fields,
+    infer_attachment_child_socket_name,
     infer_part_in_out_weapon_class,
     parse_part_in_out_socket_info_xml,
     parse_socket_bone_data_xml,
@@ -597,6 +599,50 @@ class ArchiveRelationshipTests(unittest.TestCase):
         self.assertEqual("onehand_sword", infer_part_in_out_weapon_class(document.rows[0].part_name))
         self.assertEqual("twohand_sword", infer_part_in_out_weapon_class(document.rows[1].part_name))
         self.assertEqual(["CD_MainWeapon_Sword_R"], [row.part_name for row in part_in_out_rows_for_weapon_class(document, "onehand_sword")])
+
+    def test_body_location_choices_use_stack_groups_and_descriptor_child_sockets(self):
+        socket_document = parse_socket_bone_data_xml(
+            """
+            <SocketBoneData>
+              <SocketList>
+                <Socket Name="Spine2_B_MainWeapon_Socket" Parent="Bip01 Spine2" Rotation="0 0 0 1" Translation="-0.2 0.25 0.055" />
+                <Socket Name="Pelvis_B_Socket" Parent="Bip01 Pelvis" Rotation="0 -0.2 0.5 1" Translation="0.12 0.1 0" />
+                <Socket Name="Pelvis_L_Socket" Parent="Bip01 Pelvis" Rotation="0 -0.7 0 1" Translation="0 0 0.05" />
+              </SocketList>
+              <StackEquipInfoList>
+                <StackEquipInfo EquipTypeName="Back" OriginBoneName="Bip01 Spine2" Axis="Y">
+                  <Socket Name="Spine2_B_MainWeapon_Socket" />
+                </StackEquipInfo>
+                <StackEquipInfo EquipTypeName="Pelvis_L" OriginBoneName="Bip01 Pelvis" Axis="Y">
+                  <Socket Name="Pelvis_L_Socket" />
+                </StackEquipInfo>
+              </StackEquipInfoList>
+            </SocketBoneData>
+            """,
+            "character/phm_01.pab.sockets.xml",
+        )
+        part_document = parse_part_in_out_socket_info_xml(
+            """
+            <PartInOutSocket PartName="CD_MainWeapon_Sword_L" InSocketBone="Spine2_B_MainWeapon_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
+            <PartInOutSocket PartName="CD_TwoHandWeapon_Sword_IN" InSocketBone="Pelvis_B_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
+            """,
+            "character/phm_description_player_kliff.xml",
+        )
+
+        choices = build_attachment_body_location_choices(socket_document, part_document, weapon_class="twohand_sword")
+        by_socket = {choice.socket_name: choice for choice in choices}
+
+        self.assertIn("Back: main weapon", [choice.label for choice in choices])
+        self.assertIn("Left hip: left hip", [choice.label for choice in choices])
+        self.assertEqual("Spine2_B_SubWeapon_ChildSocket", by_socket["Spine2_B_MainWeapon_Socket"].child_socket_name)
+        self.assertEqual("Spine2_B_SubWeapon_ChildSocket", by_socket["Pelvis_B_Socket"].child_socket_name)
+        self.assertIn("CD_TwoHandWeapon_Sword_IN", by_socket["Pelvis_B_Socket"].used_by_part_names)
+
+    def test_attachment_child_socket_fallbacks_cover_manual_examples(self):
+        self.assertEqual("Spine2_B_SubWeapon_ChildSocket", infer_attachment_child_socket_name("Pelvis_B_Socket"))
+        self.assertEqual("Pelvis_L_ChildSocket", infer_attachment_child_socket_name("Spine1_B_Socket"))
+        self.assertEqual("Spine2_B_SubWeapon_ChildSocket", infer_attachment_child_socket_name("Spine2_B_MainWeapon_Socket"))
+        self.assertEqual("Spine2_B_Shield_ChildSocket", infer_attachment_child_socket_name("Spine2_B_Shield_Socket"))
 
     def test_part_in_out_profile_patch_detects_imported_back_and_hip_style_changes(self):
         base = """

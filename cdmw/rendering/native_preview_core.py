@@ -11,7 +11,7 @@ import time
 import atexit
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Callable, Dict, Mapping, Optional
 
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled, run_process_with_cancellation
 from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, RunCancelled
@@ -158,6 +158,31 @@ def _native_diagnostic_args(*, crash_dir: Optional[Path] = None, diagnostic_log:
     if resolved_diagnostic_log:
         args.extend(["--diagnostic-log", resolved_diagnostic_log])
     return args
+
+
+def _record_native_preview_core_python_event(
+    event: str,
+    *,
+    diagnostic_log: Optional[Path] = None,
+    **fields: object,
+) -> None:
+    diagnostic_log_text = str(diagnostic_log or os.environ.get("CDMW_NATIVE_DIAGNOSTIC_LOG", "") or "").strip()
+    if not diagnostic_log_text:
+        return
+    payload: Dict[str, object] = {
+        "timestamp_ms": int(time.time() * 1000),
+        "pid": os.getpid(),
+        "tool": "cdmw-python",
+        "event": str(event or "event"),
+    }
+    payload.update({str(key): value for key, value in fields.items()})
+    try:
+        log_path = Path(diagnostic_log_text)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, separators=(",", ":"), default=str) + "\n")
+    except OSError:
+        return
 
 
 class NativePreviewCoreServiceClient:
@@ -339,6 +364,7 @@ class NativePreviewCoreServiceClient:
         *,
         timeout_seconds: float,
         stop_event: Any = None,
+        on_dispatched: Optional[Callable[[], None]] = None,
     ) -> None:
         with self._lock:
             self._start_locked(stop_event=stop_event)
@@ -355,6 +381,8 @@ class NativePreviewCoreServiceClient:
             except OSError as exc:
                 self._kill_locked()
                 raise RuntimeError(f"native preview-core service write failed: {exc}") from exc
+            if on_dispatched is not None:
+                on_dispatched()
             response_line = self._read_stdout_line_locked(timeout_seconds, stop_event=stop_event)
             try:
                 response = json.loads(response_line)
@@ -534,11 +562,14 @@ def run_native_preview_core_preview_job(
     render_settings: Optional[ModelPreviewRenderSettings] = None,
     companion_entry: Optional[ArchiveEntry] = None,
     package_root: Optional[Path] = None,
+    output_root: Optional[Path] = None,
     timeout_seconds: float = 3.0,
     stop_event: Any = None,
     use_service: bool = True,
     crash_dir: Optional[Path] = None,
     diagnostic_log: Optional[Path] = None,
+    dds_cache_max_bytes: int = NATIVE_PREVIEW_CORE_DDS_CACHE_MAX_BYTES,
+    dds_cache_target_bytes: int = NATIVE_PREVIEW_CORE_DDS_CACHE_TARGET_BYTES,
 ) -> NativePreviewCoreAttempt:
     raise_if_cancelled(stop_event, "Native preview-core job cancelled.")
     binary = find_native_preview_core_binary()
@@ -549,10 +580,14 @@ def run_native_preview_core_preview_job(
         )
 
     job_root = Path(tempfile.mkdtemp(prefix="cdmw_preview_core_"))
-    output_root = job_root / "package"
+    output_root = Path(output_root) if output_root is not None else job_root / "package"
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
-    cache_prune_report = prune_native_preview_core_cache(cache_root)
+    cache_prune_report = prune_native_preview_core_cache(
+        cache_root,
+        max_bytes=dds_cache_max_bytes,
+        target_bytes=dds_cache_target_bytes,
+    )
     job = build_native_preview_core_job(
         entry,
         cache_root=cache_root,
@@ -563,6 +598,12 @@ def run_native_preview_core_preview_job(
     )
     job_path.write_text(json.dumps(job, separators=(",", ":")), encoding="utf-8")
     started = time.perf_counter()
+    job_dispatched_to_service = False
+
+    def mark_job_dispatched() -> None:
+        nonlocal job_dispatched_to_service
+        job_dispatched_to_service = True
+
     try:
         service_pid = 0
         if use_service:
@@ -572,6 +613,7 @@ def run_native_preview_core_preview_job(
                 report_path,
                 timeout_seconds=max(0.5, float(timeout_seconds)),
                 stop_event=stop_event,
+                on_dispatched=mark_job_dispatched,
             )
             service_pid = service.process_id
             returncode, stdout_text, stderr_text = 0, "", ""
@@ -584,7 +626,16 @@ def run_native_preview_core_preview_job(
                 stop_event=stop_event,
             )
     except RunCancelled:
-        shutil.rmtree(job_root, ignore_errors=True)
+        if job_dispatched_to_service:
+            _record_native_preview_core_python_event(
+                "native_preview_core_cancel_after_dispatch",
+                diagnostic_log=diagnostic_log,
+                job_root=str(job_root),
+                job_path=str(job_path),
+                report_path=str(report_path),
+            )
+        else:
+            shutil.rmtree(job_root, ignore_errors=True)
         raise
     except Exception as exc:
         shutil.rmtree(job_root, ignore_errors=True)
@@ -626,7 +677,11 @@ def run_native_preview_core_preview_job(
     report.setdefault("native_preview_core_binary_size", binary_signature[1])
     if use_service and service_pid > 0:
         report.setdefault("native_preview_core_process_pid", service_pid)
-    post_cache_prune_report = prune_native_preview_core_cache(cache_root)
+    post_cache_prune_report = prune_native_preview_core_cache(
+        cache_root,
+        max_bytes=dds_cache_max_bytes,
+        target_bytes=dds_cache_target_bytes,
+    )
     removed_files = int(cache_prune_report.get("removed_files", 0) or 0) + int(post_cache_prune_report.get("removed_files", 0) or 0)
     removed_bytes = int(cache_prune_report.get("removed_bytes", 0) or 0) + int(post_cache_prune_report.get("removed_bytes", 0) or 0)
     if removed_files:

@@ -26,7 +26,7 @@ def main() -> int:
         required=True,
         help=f"Mirror root URL. Example: {DEFAULT_MODEL_MIRROR_URL}",
     )
-    parser.add_argument("--output", default="E:/ModelCatalogue", help="Local catalogue folder.")
+    parser.add_argument("--output", default=str(REPO_ROOT / "model_catalogue"), help="Local catalogue folder.")
     parser.add_argument("--db-name", default="mirror_catalogue.sqlite", help="SQLite database filename.")
     parser.add_argument(
         "--max-shards",

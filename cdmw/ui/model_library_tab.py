@@ -750,7 +750,7 @@ class ModelLibraryTab(QWidget):
 
     def _load_settings(self) -> None:
         self.local_roots = self._settings_path_list("model_library/local_roots_json")
-        default_catalogue_dir = Path("E:/ModelCatalogue") if Path("E:/").exists() else (self.base_dir / "model_catalogue")
+        default_catalogue_dir = self.base_dir / "model_catalogue"
         mirror_url = str(self.settings.value("model_library/mirror_url", "") or "")
         catalogue_dir = str(self.settings.value("model_library/catalogue_dir", str(default_catalogue_dir)) or str(default_catalogue_dir))
         self.mirror_url_edit.setText(mirror_url)
@@ -3136,7 +3136,7 @@ class ModelLibraryTab(QWidget):
         return normalize_mirror_base_url(self.mirror_url_edit.text().strip())
 
     def catalogue_dir(self) -> Path:
-        return Path(self.catalogue_dir_edit.text().strip() or "E:/ModelCatalogue").expanduser()
+        return Path(self.catalogue_dir_edit.text().strip() or str(self.base_dir / "model_catalogue")).expanduser()
 
     def catalogue_db_path(self) -> Path:
         return self.catalogue_dir() / "mirror_catalogue.sqlite"

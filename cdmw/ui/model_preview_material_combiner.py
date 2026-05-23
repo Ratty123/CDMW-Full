@@ -1650,6 +1650,17 @@ def _generate_material_maps(
                 spec_view[offset : offset + 3] = bytes((spec_g, spec_g, spec_g))
     if contribution_peak <= 0.015:
         return (), ("", "", "", "")
+    del source_view
+    if mask_view is not None:
+        del mask_view
+    if ao_view is not None:
+        del ao_view
+    if rough_view is not None:
+        del rough_view
+    if metal_view is not None:
+        del metal_view
+    if spec_view is not None:
+        del spec_view
     output_dir.mkdir(parents=True, exist_ok=True)
     paths: list[str] = []
     slots: list[str] = []
@@ -1710,17 +1721,34 @@ def _combine_material_slot_maps(
         source = image
         if int(source.width()) != base_width or int(source.height()) != base_height:
             source = source.scaled(base_width, base_height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-        normalized_layers.append((priority, mode, source.convertToFormat(QImage.Format.Format_RGBA8888)))
+        converted = source.convertToFormat(QImage.Format.Format_RGBA8888)
+        if not converted.isNull():
+            normalized_layers.append((priority, mode, converted))
 
     slot = str(slot_name or "").strip().lower()
     target = QImage(base_width, base_height, QImage.Format.Format_RGB888)
-    weight_total = max(1.0, sum(max(1.0, float(priority)) for priority, _mode, _image in normalized_layers))
+    target_view, target_stride = _image_rgb888_write_view(target, base_width, base_height)
+    if target_view is None:
+        return valid_layers[0][2], valid_layers[0][1]
+    layer_views: list[Tuple[int, str, QImage, memoryview, int]] = []
+    for priority, mode, image in normalized_layers:
+        view, stride = _image_rgba8888_view(image, base_width, base_height)
+        if view is not None:
+            layer_views.append((priority, mode, image, view, stride))
+    if not layer_views:
+        return valid_layers[0][2], valid_layers[0][1]
+    weight_total = max(1.0, sum(max(1.0, float(priority)) for priority, _mode, _image, _view, _stride in layer_views))
     for y in range(base_height):
+        target_row = y * target_stride
         for x in range(base_width):
             values: list[Tuple[float, float]] = []
-            for priority, _mode, image in normalized_layers:
-                color = image.pixelColor(x, y)
-                grey = (0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF())
+            for priority, _mode, _image, view, stride in layer_views:
+                offset = (y * stride) + (x * 4)
+                grey = (
+                    (0.2126 * (float(view[offset]) / 255.0))
+                    + (0.7152 * (float(view[offset + 1]) / 255.0))
+                    + (0.0722 * (float(view[offset + 2]) / 255.0))
+                )
                 values.append((_clamp(grey), max(1.0, float(priority))))
             if slot == "occlusion":
                 combined = 1.0
@@ -1739,10 +1767,13 @@ def _combine_material_slot_maps(
             else:
                 combined = sum(value * weight for value, weight in values) / weight_total
             grey_byte = _byte(combined)
-            target.setPixelColor(x, y, QColor(grey_byte, grey_byte, grey_byte))
+            target_offset = target_row + (x * 3)
+            target_view[target_offset : target_offset + 3] = bytes((grey_byte, grey_byte, grey_byte))
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_{slot}.png"
+    del target_view
+    del layer_views
     if not target.save(str(output_path), "PNG"):
         return valid_layers[0][2], valid_layers[0][1]
     return _local_file_url(output_path), "+".join(dict.fromkeys(mode for _priority, mode, _image in normalized_layers))
