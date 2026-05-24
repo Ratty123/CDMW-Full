@@ -41735,17 +41735,58 @@ def run_gui() -> int:
             menu = QMenu(self)
             if hasattr(menu, "setToolTipsVisible"):
                 menu.setToolTipsVisible(True)
-            preview_action = menu.addAction("Preview")
+
+            def _archive_context_menu_icon(color: str) -> QIcon:
+                pixmap = QPixmap(12, 12)
+                pixmap.fill(Qt.transparent)
+                painter = QPainter(pixmap)
+                try:
+                    painter.setRenderHint(QPainter.Antialiasing)
+                    painter.setPen(Qt.NoPen)
+                    painter.setBrush(QColor(color))
+                    painter.drawRoundedRect(1, 1, 10, 10, 2, 2)
+                finally:
+                    painter.end()
+                return QIcon(pixmap)
+
+            menu_icons = {
+                "view": _archive_context_menu_icon("#6AA9FF"),
+                "file": _archive_context_menu_icon("#7BD88F"),
+                "workflow": _archive_context_menu_icon("#F6C85F"),
+                "family": _archive_context_menu_icon("#B58CFF"),
+                "mesh": _archive_context_menu_icon("#FF8A65"),
+                "texture": _archive_context_menu_icon("#45D4C8"),
+                "physics": _archive_context_menu_icon("#D1D5DB"),
+                "data": _archive_context_menu_icon("#9CA3AF"),
+                "audio": _archive_context_menu_icon("#F472B6"),
+            }
+
+            def _add_menu_section(kind: str, label: str) -> None:
+                menu.addSection(menu_icons[kind], label)
+
+            def _copy_archive_filename(current_entry: ArchiveEntry) -> None:
+                QApplication.clipboard().setText(current_entry.basename)
+                self.set_status_message(f"Copied filename to clipboard: {current_entry.basename}")
+
+            _add_menu_section("view", "View + Inspect")
+            preview_action = menu.addAction(menu_icons["view"], "Preview")
             preview_action.triggered.connect(lambda _checked=False, current_entry=entry: self._render_archive_preview(current_entry))
-            preview_window_action = menu.addAction("Open Preview Window...")
+            preview_window_action = menu.addAction(menu_icons["view"], "Open Preview Window...")
             preview_window_action.triggered.connect(
                 lambda _checked=False, current_entry=entry: self._open_archive_reference_preview_entry(current_entry)
             )
-            export_file_action = menu.addAction("Export File...")
+
+            _add_menu_section("file", "File")
+            copy_filename_action = menu.addAction(menu_icons["file"], "Copy Filename")
+            copy_filename_action.setToolTip("Copy only the archive file name, without folders.")
+            copy_filename_action.triggered.connect(
+                lambda _checked=False, current_entry=entry: _copy_archive_filename(current_entry)
+            )
+            export_file_action = menu.addAction(menu_icons["file"], "Export File...")
             export_file_action.triggered.connect(
                 lambda _checked=False, current_entry=entry: self._export_archive_reference_entry(current_entry, title="Export Archive File")
             )
-            extract_file_action = menu.addAction("Extract File...")
+            extract_file_action = menu.addAction(menu_icons["file"], "Extract File...")
             extract_file_action.triggered.connect(
                 lambda _checked=False, current_entry=entry: self._run_archive_extract(
                     [current_entry],
@@ -41753,19 +41794,21 @@ def run_gui() -> int:
                     description=f"Extracting {current_entry.basename}...",
                 )
             )
-            scope_file_action = menu.addAction("Show Only This File")
+            scope_file_action = menu.addAction(menu_icons["file"], "Show Only This File")
             scope_file_action.triggered.connect(lambda _checked=False: self._scope_current_archive_entry_only())
-            import_loose_mod_action = menu.addAction("Import Loose Mod Folder...")
+
+            _add_menu_section("workflow", "Workflow")
+            import_loose_mod_action = menu.addAction(menu_icons["workflow"], "Import Loose Mod Folder...")
             import_loose_mod_action.triggered.connect(lambda _checked=False: self._open_archive_loose_mod_overlay_dialog())
             bulk_placement_targets = self._selected_archive_bulk_placement_targets()
             if len(bulk_placement_targets) > 1:
-                bulk_placement_action = menu.addAction("Bulk Placement Swap From Selection...")
+                bulk_placement_action = menu.addAction(menu_icons["workflow"], "Bulk Placement Swap From Selection...")
                 bulk_placement_action.setToolTip(
                     "Each selected row is a target that changes. Choose one placement source for each target, then build one combined loose mod folder."
                 )
                 bulk_placement_action.triggered.connect(lambda _checked=False: self._open_archive_bulk_attachment_placement_dialog(bulk_placement_targets))
             else:
-                bulk_placement_action = menu.addAction("Bulk Placement Swap From Selection...")
+                bulk_placement_action = menu.addAction(menu_icons["workflow"], "Bulk Placement Swap From Selection...")
                 bulk_placement_action.setEnabled(False)
                 bulk_placement_action.setToolTip(
                     "Select two or more placement-capable rows first: .pac/.pam/.pamlod, .prefab, .hkx/.hkt, or .sockets.xml."
@@ -41798,16 +41841,16 @@ def run_gui() -> int:
                 ".pabgh",
             }
             if entry.extension in family_extensions or is_material_sidecar_entry(entry):
-                menu.addSeparator()
-                family_action = menu.addAction("Asset Family...")
+                _add_menu_section("family", "Asset Family")
+                family_action = menu.addAction(menu_icons["family"], "Asset Family...")
                 family_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._open_archive_asset_family_workspace_dialog(current_entry)
                 )
-                placement_action = menu.addAction("Open Placement Workspace...")
+                placement_action = menu.addAction(menu_icons["family"], "Open Placement Workspace...")
                 placement_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._open_archive_attachment_placement_workspace_dialog(current_entry)
                 )
-                hkx_placement_action = menu.addAction("Open HKX Placement...")
+                hkx_placement_action = menu.addAction(menu_icons["family"], "Open HKX Placement...")
                 hkx_placement_action.setToolTip(
                     "Open the related HKX/HKT editor directly on Placement. Related HKX/HKT files are resolved only after this action is clicked."
                 )
@@ -41815,49 +41858,50 @@ def run_gui() -> int:
                 hkx_placement_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._open_archive_hkx_placement_for_entry(current_entry)
                 )
-                scope_family_action = menu.addAction("Filter to Family")
+                scope_family_action = menu.addAction(menu_icons["family"], "Filter to Family")
                 scope_family_action.setToolTip("Filter Archive Files to the required/recommended files in this Asset Family.")
                 scope_family_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._scope_archive_asset_family_for_entry(current_entry, include_hints=False)
                 )
-                export_family_action = menu.addAction("Export Family...")
+                export_family_action = menu.addAction(menu_icons["family"], "Export Family...")
                 export_family_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._export_archive_asset_family_for_entry(current_entry, include_hints=False)
                 )
-                source_mix_action = menu.addAction("Build Loose Package From Sources...")
+                _add_menu_section("workflow", "Source Package")
+                source_mix_action = menu.addAction(menu_icons["workflow"], "Build Loose Package From Sources...")
                 source_mix_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._open_archive_source_mix_package_dialog(current_entry)
                 )
             elif entry.extension not in ARCHIVE_MESH_EXTENSIONS:
-                menu.addSeparator()
-                source_mix_action = menu.addAction("Build Loose Package From Sources...")
+                _add_menu_section("workflow", "Source Package")
+                source_mix_action = menu.addAction(menu_icons["workflow"], "Build Loose Package From Sources...")
                 source_mix_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._open_archive_source_mix_package_dialog(current_entry)
                 )
 
             if entry.extension in ARCHIVE_MESH_EXTENSIONS:
-                menu.addSeparator()
-                export_obj_action = menu.addAction("Export OBJ...")
+                _add_menu_section("mesh", "Mesh Export")
+                export_obj_action = menu.addAction(menu_icons["mesh"], "Export OBJ...")
                 export_obj_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "obj"))
-                export_fbx_action = menu.addAction("Export FBX...")
+                export_fbx_action = menu.addAction(menu_icons["mesh"], "Export FBX...")
                 export_fbx_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "fbx"))
-                export_character_dependencies_action = menu.addAction("Export Character Dependency Package...")
+                export_character_dependencies_action = menu.addAction(menu_icons["mesh"], "Export Character Dependency Package...")
                 export_character_dependencies_action.setToolTip(
                     "Collect the selected body/model with its strict appearance, prefab, material, texture, skeleton, physics, and motion dependencies."
                 )
                 export_character_dependencies_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._export_character_dependency_package_for_entry(current_entry)
                 )
-                menu.addSeparator()
-                modify_original_action = menu.addAction("Modify Original...")
+                _add_menu_section("mesh", "Mesh Edit")
+                modify_original_action = menu.addAction(menu_icons["mesh"], "Modify Original...")
                 modify_original_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._start_archive_modify_original_workspace(current_entry)
                 )
-                import_preview_action = menu.addAction("Import Mesh Preview...")
+                import_preview_action = menu.addAction(menu_icons["mesh"], "Import Mesh Preview...")
                 import_preview_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._start_archive_mesh_import_preview(current_entry)
                 )
-                import_patch_action = menu.addAction("Import Mesh...")
+                import_patch_action = menu.addAction(menu_icons["mesh"], "Import Mesh...")
                 import_patch_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._start_archive_mesh_patch(current_entry)
                 )
@@ -41868,18 +41912,18 @@ def run_gui() -> int:
                     swap_label = "Cancel In-Game Mesh Swap Target"
                 else:
                     swap_label = "Start In-Game Mesh Swap..."
-                swap_mesh_action = menu.addAction(swap_label)
+                swap_mesh_action = menu.addAction(menu_icons["mesh"], swap_label)
                 swap_mesh_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._handle_archive_in_game_mesh_swap_entry(current_entry)
                 )
 
             if entry.extension == ".dds":
-                menu.addSeparator()
-                texture_editor_action = menu.addAction("Open In Texture Editor...")
+                _add_menu_section("texture", "Texture")
+                texture_editor_action = menu.addAction(menu_icons["texture"], "Open In Texture Editor...")
                 texture_editor_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._open_archive_entry_in_texture_editor(current_entry)
                 )
-                workflow_action = menu.addAction("DDS To Workflow...")
+                workflow_action = menu.addAction(menu_icons["texture"], "DDS To Workflow...")
                 workflow_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._run_archive_extract(
                         [current_entry],
@@ -41890,25 +41934,25 @@ def run_gui() -> int:
                 )
 
             if entry.extension in {".hkx", ".hkt"}:
-                menu.addSeparator()
-                edit_hkx_action = menu.addAction("Edit HKX...")
+                _add_menu_section("physics", "Physics / HKX")
+                edit_hkx_action = menu.addAction(menu_icons["physics"], "Edit HKX...")
                 edit_hkx_action.triggered.connect(lambda _checked=False, current_entry=entry: self._edit_archive_hkx_entry(current_entry))
-                export_hkx_json_action = menu.addAction("Export HKX JSON...")
+                export_hkx_json_action = menu.addAction(menu_icons["physics"], "Export HKX JSON...")
                 export_hkx_json_action.triggered.connect(lambda _checked=False: self._export_current_archive_hkx_json())
-                export_hkx_xml_action = menu.addAction("Export HKX XML...")
+                export_hkx_xml_action = menu.addAction(menu_icons["physics"], "Export HKX XML...")
                 export_hkx_xml_action.triggered.connect(lambda _checked=False: self._export_current_archive_hkx_xml())
-                export_havok_view_action = menu.addAction("Export Havok XML View...")
+                export_havok_view_action = menu.addAction(menu_icons["physics"], "Export Havok XML View...")
                 export_havok_view_action.triggered.connect(lambda _checked=False: self._export_current_archive_hkx_havok_xml_view())
 
             if entry.extension in {".meshinfo", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
-                menu.addSeparator()
-                inspect_sidecar_action = menu.addAction("Inspect Structured Data...")
+                _add_menu_section("data", "Structured Data")
+                inspect_sidecar_action = menu.addAction(menu_icons["data"], "Inspect Structured Data...")
                 inspect_sidecar_action.triggered.connect(lambda _checked=False: self._inspect_current_archive_binary_sidecar())
-                export_sidecar_json_action = menu.addAction("Export Decode JSON...")
+                export_sidecar_json_action = menu.addAction(menu_icons["data"], "Export Decode JSON...")
                 export_sidecar_json_action.triggered.connect(lambda _checked=False: self._export_current_archive_binary_sidecar_json())
 
             if entry.extension in {".paseq", ".paseqc", ".pastage", ".pabgh"}:
-                edit_structured_action = menu.addAction("Edit Structured Data Safely...")
+                edit_structured_action = menu.addAction(menu_icons["data"], "Edit Structured Data Safely...")
                 edit_structured_action.setToolTip(
                     "Create an edited sidecar copy using only fixed-size string edits or validated PABGH table rows."
                 )
@@ -41917,18 +41961,18 @@ def run_gui() -> int:
                 )
 
             if is_material_sidecar_entry(entry):
-                menu.addSeparator()
-                edit_material_action = menu.addAction("Edit Material Values...")
+                _add_menu_section("texture", "Material")
+                edit_material_action = menu.addAction(menu_icons["texture"], "Edit Material Values...")
                 edit_material_action.triggered.connect(lambda _checked=False: self._edit_current_archive_material_sidecar())
 
             if entry.extension in ARCHIVE_AUDIO_EXPORT_EXTENSIONS or entry.extension in ARCHIVE_AUDIO_PATCH_EXTENSIONS:
-                menu.addSeparator()
-                export_audio_action = menu.addAction("Export WAV...")
+                _add_menu_section("audio", "Audio")
+                export_audio_action = menu.addAction(menu_icons["audio"], "Export WAV...")
                 export_audio_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._start_archive_audio_export(current_entry)
                 )
                 if entry.extension in ARCHIVE_AUDIO_PATCH_EXTENSIONS:
-                    import_audio_action = menu.addAction("Import WAV + Patch to Game...")
+                    import_audio_action = menu.addAction(menu_icons["audio"], "Import WAV + Patch to Game...")
                     import_audio_action.triggered.connect(
                         lambda _checked=False, current_entry=entry: self._start_archive_audio_patch(current_entry)
                     )
