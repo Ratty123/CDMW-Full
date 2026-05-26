@@ -189,14 +189,36 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         self.assertEqual(view.currentItem().data(0, Qt.UserRole + 1), 1)
         self.assertEqual(len(view.selectedItems()), 1)
 
+    def test_hidden_columns_compact_after_visible_archive_columns(self) -> None:
+        view = ArchiveBrowserTreeView()
+        header = view.header()
+        header.setSectionsMovable(True)
+        header.moveSection(header.visualIndex(6), 1)
+        header.moveSection(header.visualIndex(5), 3)
+        view.setColumnHidden(5, True)
+        view.setColumnHidden(6, True)
+
+        view.compact_hidden_columns()
+
+        visual_order = [header.logicalIndex(visual_index) for visual_index in range(header.count())]
+        visible_order = [column for column in visual_order if not view.isColumnHidden(column)]
+        hidden_order = [column for column in visual_order if view.isColumnHidden(column)]
+        self.assertEqual([0, 1, 2, 3, 4, 7, 8], visible_order)
+        self.assertEqual([6, 5], hidden_order)
+        self.assertGreaterEqual(header.visualIndex(5), len(visible_order))
+        self.assertGreaterEqual(header.visualIndex(6), len(visible_order))
+
 
 class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
     def test_main_archive_view_uses_virtual_tree_view(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
         self.assertIn("self.archive_tree = ArchiveBrowserTreeView(", source)
         self.assertIn("self.archive_tree.set_archive_state(", source)
+        self.assertIn("self.archive_tree.compact_hidden_columns()", source)
+        self.assertIn("def _schedule_archive_files_pane_fit_to_columns", source)
         self.assertIn("prepare_archive_browser_state_accelerated", source)
         model_source = Path("cdmw/ui/archive_browser_model.py").read_text(encoding="utf-8")
+        self.assertIn("def compact_hidden_columns", model_source)
         self.assertIn("def invalidate_archive_rows", model_source)
         self.assertIn("def invalidate_rows", model_source)
 
@@ -217,17 +239,25 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("self._invalidate_archive_browser_name_columns()", enhanced_body)
         self.assertIn("self._schedule_archive_initial_sort_after_first_paint(150)", enhanced_body)
         self.assertNotIn("self.archive_enhanced_filter_refresh_pending = True", enhanced_body)
-        self.assertNotIn("self._schedule_archive_pending_enhanced_filter_refresh(150)", enhanced_body)
+        self.assertIn("if self.archive_enhanced_filter_refresh_pending:", enhanced_body)
+        self.assertIn("self._schedule_archive_pending_enhanced_filter_refresh(150)", enhanced_body)
+        self.assertIn("self._try_apply_startup_saved_filters()", enhanced_body)
 
-    def test_scan_worker_builds_missing_enhanced_indexes_before_ready(self) -> None:
+    def test_scan_worker_defers_missing_indexes_until_after_ready(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
         scan_start = source.index("    class ArchiveScanWorker")
         scan_end = source.index("    class ArchiveDerivedIndexCacheWriteWorker", scan_start)
         scan_body = source[scan_start:scan_end]
-        self.assertIn("Archive enhanced indexes are stale or missing; building before browser ready.", scan_body)
-        self.assertIn("self._build_enhanced_archive_indexes_inline(entries)", scan_body)
+        run_start = scan_body.index("        @Slot()\n        def run")
+        run_body = scan_body[run_start:]
+        self.assertIn("Item-name search cache is missing or stale; archive list will open while search builds in the background.", run_body)
+        self.assertNotIn("self._build_enhanced_archive_indexes_inline(entries)", run_body)
+        self.assertIn("Path lookup will build after the archive list opens.", run_body)
+        self.assertIn("load_archive_basic_index_cache(", run_body)
+        self.assertIn("save_archive_basic_index_cache(", run_body)
+        self.assertIn('"basic_index_needs_build": bool(entries and not path_index)', run_body)
+        self.assertIn('"enhanced_index_needs_build": enhanced_index_needs_build', run_body)
         self.assertIn("save_archive_derived_index_cache(", scan_body)
-        self.assertNotIn("Deferring enhanced archive indexes until after initial browser render", scan_body)
 
     def test_no_filter_flat_initial_state_reuses_raw_entries(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
@@ -236,8 +266,10 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         scan_body = source[scan_start:scan_end]
         self.assertIn('"backend": "raw_flat"', scan_body)
         self.assertIn('"filtered_entries": entries', scan_body)
-        self.assertIn('dds_count = len(extension_index.get(".dds", ()))', scan_body)
+        self.assertIn('dds_count = int(extension_counts.get(".dds", 0) or 0)', scan_body)
         self.assertIn("Archive Browser state mode: raw_flat", scan_body)
+        self.assertIn("Opening archive list from loaded entries...", scan_body)
+        self.assertNotIn("Preparing first archive browser state from loaded entries...", scan_body)
 
     def test_archive_activation_defers_structure_filter_build_off_ui_thread(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
@@ -262,7 +294,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("not self._is_tool_visible_or_current(self.archive_browser_tab)", refresh_body)
         self.assertIn("self.archive_browser_preload_state != \"ready\"", refresh_body)
         self.assertIn("not self.archive_browser_first_visible_paint_done", refresh_body)
-        self.assertIn("cause=enhanced_filter_refresh | state=applied", refresh_body)
+        self.assertIn("cause=item_search_filter_refresh | state=applied", refresh_body)
 
     def test_archive_preview_loading_state_is_debounced(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")

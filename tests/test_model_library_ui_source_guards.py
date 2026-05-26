@@ -1,8 +1,19 @@
 import unittest
 from pathlib import Path
 
+from cdmw.ui.model_library_tab import model_library_texture_status_kind
+
 
 class ModelLibraryUiSourceGuardTests(unittest.TestCase):
+    def test_model_library_texture_status_classification_is_explicit(self) -> None:
+        for status in ("Found (3)", "In ZIP (2)", "Resolved (4)"):
+            self.assertEqual(model_library_texture_status_kind(status), "present")
+
+        self.assertEqual(model_library_texture_status_kind("None found"), "missing")
+
+        for status in ("Unknown", "Download to check", "Embedded/Unknown", "In ZIP", ""):
+            self.assertEqual(model_library_texture_status_kind(status), "unknown")
+
     def test_main_window_registers_model_library_import_signal(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
 
@@ -109,6 +120,18 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("def _local_payload_matches_filter", source)
         self.assertIn("model_library/local_search_query", source)
         self.assertIn("model_library/local_search_field", source)
+        self.assertIn("local_texture_filter_combo", source)
+        self.assertIn('addItem("Has textures", "has")', source)
+        self.assertIn('addItem("No textures found", "missing")', source)
+        self.assertIn("model_library/local_texture_filter", source)
+        self.assertIn("MODEL_LIBRARY_FILTER_COLUMNS", source)
+        self.assertIn("results_column_filter_edits", source)
+        self.assertIn("_save_column_filters_for_active_view", source)
+        self.assertIn("_load_column_filters_for_active_view", source)
+        self.assertIn("model_library/local_column_filters_json", source)
+        self.assertIn("model_library/mirror_column_filters_json", source)
+        self.assertIn("_filter_result_rows_by_columns", source)
+        self.assertIn("_payload_matches_column_filters", source)
         self.assertIn("Show Local Models", source)
         self.assertIn("Search Mirror", source)
         self.assertIn("Popular", source)
@@ -128,6 +151,14 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("Download + Import", source)
         self.assertIn("More Actions", source)
         self.assertIn("Delete Local", source)
+        self.assertIn("Delete No-Texture Downloads", source)
+        self.assertIn("delete_no_texture_downloads", source)
+        self.assertIn("_visible_no_texture_download_payloads", source)
+        self.assertIn("_no_texture_download_delete_target_for_payload", source)
+        self.assertIn("_downloaded_model_folder_target_for_payload", source)
+        self.assertIn("_confirm_delete_no_texture_download_targets", source)
+        self.assertIn("return self._downloaded_model_folder_target_for_payload(payload)", source)
+        self.assertIn("Standalone local model files are never included", source)
         self.assertIn("Delete Local Copy", source)
         self.assertIn("_local_delete_payloads", source)
         self.assertIn("_local_delete_target_for_payload", source)

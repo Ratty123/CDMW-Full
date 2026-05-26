@@ -195,6 +195,7 @@ class AppConfig:
     mod_ready_package_description: str = MOD_READY_PACKAGE_DESCRIPTION
     mod_ready_package_nexus_url: str = MOD_READY_PACKAGE_NEXUS_URL
     mod_ready_manager_profile: str = "universal"
+    mod_ready_manager_profiles: Tuple[str, ...] = field(default_factory=tuple)
     mod_ready_package_structure: str = ""
     mod_ready_create_manifest_json: bool = True
     mod_ready_create_mod_json: bool = False
@@ -898,6 +899,80 @@ class AttachmentPartInOutPatchResult:
 
 
 @dataclass(slots=True)
+class AttachmentStackEquipTypePatchResult:
+    text: str = ""
+    old_equip_type: str = ""
+    new_equip_type: str = ""
+    changed: bool = False
+
+
+@dataclass(slots=True)
+class AttachmentEquipTypeRecord:
+    name: str = ""
+    row_id: int = 0
+    row_index: int = 0
+    row_offset: int = 0
+
+
+@dataclass(slots=True)
+class AttachmentItemInfoBehaviorRecord:
+    item_id: int = 0
+    internal_name: str = ""
+    row_index: int = 0
+    row_offset: int = 0
+    row_end: int = 0
+    model_hashes: Tuple[int, ...] = ()
+    matched_model_hashes: Tuple[int, ...] = ()
+    equip_type_hash: int = 0
+    equip_type_name: str = ""
+    equip_type_offset: int = 0
+
+
+@dataclass(slots=True)
+class AttachmentItemInfoBehaviorPatchResult:
+    data: bytes = b""
+    target_record: Optional[AttachmentItemInfoBehaviorRecord] = None
+    source_record: Optional[AttachmentItemInfoBehaviorRecord] = None
+    old_equip_type_name: str = ""
+    new_equip_type_name: str = ""
+    old_equip_type_hash: int = 0
+    new_equip_type_hash: int = 0
+    patch_offset: int = 0
+    changed: bool = False
+    proof_lines: Tuple[str, ...] = ()
+    blocking_reason: str = ""
+
+
+@dataclass(slots=True)
+class AttachmentUniversalItemInfoBehaviorPatchResult:
+    data: bytes = b""
+    target_equip_type_name: str = ""
+    target_equip_type_hash: int = 0
+    source_equip_type_names: Tuple[str, ...] = ()
+    changed_count: int = 0
+    changed_counts_by_source: Tuple[Tuple[str, int], ...] = ()
+    changed_offsets: Tuple[int, ...] = ()
+    proof_lines: Tuple[str, ...] = ()
+    changed: bool = False
+    blocking_reason: str = ""
+
+
+@dataclass(slots=True)
+class AttachmentAnimationAliasPair:
+    target_path: str = ""
+    source_path: str = ""
+    reason: str = ""
+
+
+@dataclass(slots=True)
+class AttachmentAnimationAliasPlanResult:
+    pairs: Tuple[AttachmentAnimationAliasPair, ...] = ()
+    skipped_paths: Tuple[str, ...] = ()
+    proof_lines: Tuple[str, ...] = ()
+    blocking_reason: str = ""
+
+
+@dataclass(slots=True)
 class AttachmentPlacementEvidence:
     source_path: str = ""
     source_kind: str = ""
@@ -999,6 +1074,12 @@ class PreviewMaterialTextureInput:
     sidecar_kind: str = ""
     sidecar_path: str = ""
     linked_mesh_path: str = ""
+    srgb_mode: str = ""
+    parameter_declared_by: str = ""
+    material_output_quality: str = ""
+    layer_role: str = ""
+    layer_channel: str = ""
+    blend_flags: Tuple[str, ...] = ()
     material_parameters: Tuple[PreviewMaterialParameterInput, ...] = ()
 
 

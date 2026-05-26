@@ -29,9 +29,10 @@ from cdmw.core.common import *
 from cdmw.core.chainner import *
 from cdmw.core.mod_package import (
     ModPackageExportOptions,
+    mod_package_expanded_export_options,
     mod_package_export_options_for_manager,
     mod_package_profile_uses_manager_metadata,
-    resolve_mod_package_root,
+    resolve_mod_package_profile_root,
     write_mod_package_manifest,
 )
 from cdmw.core.realesrgan_ncnn import *
@@ -1728,20 +1729,28 @@ def resolve_default_mod_ready_export_root(output_root: Path) -> Path:
 
 def build_mod_package_export_options_from_config(config: AppConfig) -> ModPackageExportOptions:
     profile = str(getattr(config, "mod_ready_manager_profile", "universal") or "universal").strip() or "universal"
+    raw_profiles = tuple(
+        str(value or "").strip()
+        for value in tuple(getattr(config, "mod_ready_manager_profiles", ()) or ())
+        if str(value or "").strip()
+    )
+    selected_profiles = raw_profiles or (profile,)
     defaults = mod_package_export_options_for_manager(profile)
+    uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(value) for value in selected_profiles)
     structure = str(getattr(config, "mod_ready_package_structure", "") or "").strip().lower()
     if structure not in {"game_relative", "files_wrapper", "custom_compact_paths", "dmm_texture", "field_json_v31"}:
         structure = defaults.structure
     conflict_mode = str(getattr(config, "mod_ready_conflict_mode", "") or "").strip().lower()
     if conflict_mode not in {"", "override"}:
         conflict_mode = ""
-    if not mod_package_profile_uses_manager_metadata(profile):
+    if not uses_manager_metadata:
         conflict_mode = ""
         target_language = ""
     else:
         target_language = str(getattr(config, "mod_ready_target_language", "") or "").strip()
     return ModPackageExportOptions(
         manager_targets=defaults.manager_targets,
+        export_profiles=selected_profiles,
         structure=structure,
         create_manifest_json=bool(getattr(config, "mod_ready_create_manifest_json", defaults.create_manifest_json)),
         create_mod_json=bool(getattr(config, "mod_ready_create_mod_json", defaults.create_mod_json)),
@@ -4013,10 +4022,19 @@ def build_preflight_report_lines(
         f"- Ready mod package export: {'enabled' if normalized.enable_mod_ready_loose_export else 'disabled'}"
     )
     if normalized.enable_mod_ready_loose_export and normalized.mod_ready_export_root is not None:
-        package_root = resolve_mod_package_root(normalized.mod_ready_export_root, normalized.mod_ready_package_info)
+        expanded_options = mod_package_expanded_export_options(normalized.mod_ready_export_options, kind="dds_loose_mod")
+        package_roots = [
+            resolve_mod_package_profile_root(
+                normalized.mod_ready_export_root,
+                normalized.mod_ready_package_info,
+                str(getattr(profile_options, "output_profile_suffix", "") or profile),
+                multi_profile=bool(getattr(profile_options, "output_profile_suffix", "")),
+            )
+            for profile, profile_options in expanded_options
+        ]
         lines.append(f"- Mod package parent root: {normalized.mod_ready_export_root}")
-        lines.append(f"- Mod package folder: {package_root.name}")
-        lines.append(f"- Mod package output: {package_root}")
+        lines.append(f"- Mod package folder: {', '.join(path.name for path in package_roots)}")
+        lines.append(f"- Mod package output: {', '.join(str(path) for path in package_roots)}")
         lines.append(f"- .no_encrypt file: {'enabled' if normalized.mod_ready_create_no_encrypt_file else 'disabled'}")
     if chain_analysis and chain_analysis.warnings:
         lines.append("- chaiNNer preflight warnings:")
@@ -5252,9 +5270,18 @@ def rebuild_dds_files(
         f"ready_mod_package={'enabled' if normalized.enable_mod_ready_loose_export else 'disabled'}."
     )
     if normalized.enable_mod_ready_loose_export and normalized.mod_ready_export_root is not None:
-        package_root = resolve_mod_package_root(normalized.mod_ready_export_root, normalized.mod_ready_package_info)
+        expanded_options = mod_package_expanded_export_options(normalized.mod_ready_export_options, kind="dds_loose_mod")
+        package_roots = [
+            resolve_mod_package_profile_root(
+                normalized.mod_ready_export_root,
+                normalized.mod_ready_package_info,
+                str(getattr(profile_options, "output_profile_suffix", "") or profile),
+                multi_profile=bool(getattr(profile_options, "output_profile_suffix", "")),
+            )
+            for profile, profile_options in expanded_options
+        ]
         emit_log(f"Mod package parent root: {normalized.mod_ready_export_root}")
-        emit_log(f"Mod package folder: {package_root.name}")
+        emit_log(f"Mod package folder: {', '.join(path.name for path in package_roots)}")
         emit_log(f"Create .no_encrypt file: {'yes' if normalized.mod_ready_create_no_encrypt_file else 'no'}")
     if normalized.texture_editor_png_root is not None:
         emit_log(
@@ -6084,28 +6111,44 @@ def rebuild_dds_files(
         and not cancelled
         and failed == 0
     ):
-        final_package_root = resolve_mod_package_root(normalized.mod_ready_export_root, normalized.mod_ready_package_info)
         emit_phase("Mod Package", "Writing ready mod package from final DDS output...", False)
-        emit_log(f"Creating ready mod package under: {final_package_root}")
-        export_result = copy_mod_ready_loose_tree(
-            normalized.output_root,
-            final_package_root,
-            overwrite=True,
-            dry_run=normalized.dry_run,
-            on_log=None,
+        expanded_options = mod_package_expanded_export_options(
+            normalized.mod_ready_export_options,
+            kind="dds_loose_mod",
         )
-        if not normalized.dry_run:
-            write_mod_package_manifest(
-                final_package_root,
+        total_copied = 0
+        total_skipped = 0
+        total_failed = 0
+        for profile, profile_options in expanded_options:
+            final_package_root = resolve_mod_package_profile_root(
+                normalized.mod_ready_export_root,
                 normalized.mod_ready_package_info,
-                kind="dds_loose_mod",
-                extra_fields={"file_count": export_result.copied_files},
-                create_no_encrypt_file=normalized.mod_ready_create_no_encrypt_file,
-                export_options=normalized.mod_ready_export_options,
+                str(getattr(profile_options, "output_profile_suffix", "") or profile),
+                multi_profile=bool(getattr(profile_options, "output_profile_suffix", "")),
             )
+            emit_log(f"Creating {profile} ready mod package under: {final_package_root}")
+            export_result = copy_mod_ready_loose_tree(
+                normalized.output_root,
+                final_package_root,
+                overwrite=True,
+                dry_run=normalized.dry_run,
+                on_log=None,
+            )
+            total_copied += export_result.copied_files
+            total_skipped += export_result.skipped_files
+            total_failed += export_result.failed_files
+            if not normalized.dry_run:
+                write_mod_package_manifest(
+                    final_package_root,
+                    normalized.mod_ready_package_info,
+                    kind="dds_loose_mod",
+                    extra_fields={"file_count": export_result.copied_files},
+                    create_no_encrypt_file=profile_options.create_no_encrypt_file,
+                    export_options=profile_options,
+                )
         emit_log(
             "Ready mod package export complete: "
-            f"copied={export_result.copied_files}, skipped={export_result.skipped_files}, failed={export_result.failed_files}"
+            f"copied={total_copied}, skipped={total_skipped}, failed={total_failed}"
         )
 
     return RunSummary(

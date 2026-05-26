@@ -58,12 +58,30 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("allow_sync_prepare: bool = False", source)
         self.assertIn("ArchiveItemIconWarmupWorker", source)
         self.assertIn("self._queue_archive_asset_catalog_icon_warmup_rows(", source)
+        self.assertIn("self.archive_item_icon_visible_warmup_remaining = 0", source)
+        self.assertIn("user_visible: bool = False", source)
+        self.assertIn("user_visible=True", source)
+        self.assertIn("if not self._archive_browser_background_work_allowed() and visible_remaining <= 0:", source)
+        self.assertIn("self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)", source)
+        self.assertIn("self.archive_item_icon_warmup_user_visible = visible_remaining > 0", source)
+        self.assertIn("and not bool(getattr(self, \"archive_item_icon_warmup_user_visible\", False))", source)
+        self.assertIn("if self.stop_event.is_set():\n                                    break", source)
+        self.assertIn("self.archive_item_icon_negative_cache.clear()", source)
         self.assertIn("self.archive_item_icon_prepared_callbacks.append(_handle_catalog_icon_prepared)", source)
         self.assertIn("self.archive_item_icon_prepared_callbacks.append(_handle_item_finder_donor_icon_prepared)", source)
         self.assertIn("finder_icon_visible_timer.setInterval(80)", source)
         self.assertIn("self.archive_item_icon_negative_cache", source)
         self.assertNotIn("_queue_catalog_row_icons_for_all_shown_rows", source)
         self.assertNotIn("thumb_preload_pending", source)
+        self.assertIn('icon_visible_retry_budget = {"remaining": 8}', source)
+        self.assertIn("def _catalog_row_prepared_icon_available(row: Mapping[str, object]) -> bool:", source)
+        self.assertIn("def _apply_catalog_item_cached_icon(item: QListWidgetItem, row: Mapping[str, object]) -> Tuple[bool, str]:", source)
+        self.assertIn('if state == "thumb_pending" and not _catalog_row_prepared_icon_available(row):', source)
+        self.assertIn("QTimer.singleShot(90, _queue_catalog_row_icons_for_visible_rows)", source)
+        self.assertIn("QTimer.singleShot(300, _queue_catalog_row_icons_for_visible_rows)", source)
+        catalog_callback_index = source.index("self.archive_item_icon_prepared_callbacks.append(_handle_catalog_icon_prepared)")
+        catalog_populate_index = source.index("_populate_catalog()", catalog_callback_index)
+        self.assertLess(catalog_callback_index, catalog_populate_index)
         preview_start = source.index("            def _refresh_selected_icon_preview() -> None:")
         preview_body = source[preview_start: source.index("            def _handle_catalog_icon_prepared", preview_start)]
         self.assertNotIn("_archive_asset_catalog_preview_pixmap(row, 120)", preview_body)
@@ -87,18 +105,56 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn('"ui/item_finder_selected_key"', source)
         self.assertIn('"ui/item_finder_scroll_value"', source)
 
-    def test_startup_archive_preload_renders_browser_while_hidden(self) -> None:
+    def test_startup_archive_autoload_holds_splash_until_search_ready(self) -> None:
         source = _read("cdmw/ui/main_window.py")
         self.assertNotIn('not self._preference_bool("auto_load_archive_on_startup", False)', source)
         self.assertIn("browser_view_will_warm_for_startup", source)
-        self.assertIn("force_startup_archive_render", source)
         self.assertIn("force_render: bool = False", source)
-        self.assertIn("on_archive_view_ready", source)
-        self.assertIn("_release_startup_after_archive_render", source)
+        self.assertNotIn("_release_startup_after_archive_render", source)
+        self.assertIn("force_render=False", source)
+        autoload_start = source.index("        if window._startup_archive_autoload_expected():")
+        autoload_body = source[autoload_start: source.index("        else:", autoload_start)]
+        self.assertNotIn("window._release_startup_splash()", autoload_body)
+        self.assertIn("self.archive_startup_hold_until_ready = True", source)
+        self.assertIn("def _maybe_release_startup_after_archive_ready", source)
+        self.assertIn("and not bool(getattr(self, \"archive_startup_hold_until_ready\", False))", source)
+        self.assertIn("startup_hold or (not browser_visible) or self._archive_browser_background_work_allowed()", source)
+        self.assertIn("and self.archive_derived_cache_thread is None", source)
+        self.assertIn("and not self.archive_deferred_derived_cache_write_pending", source)
+        self.assertIn("def _archive_startup_progress_work_active(self) -> bool:", source)
+        self.assertIn("if not self._archive_startup_progress_work_active():", source)
+        self.assertIn("getattr(self, \"_startup_splash_release_pending\", False)", source)
+        self.assertIn("QTimer.singleShot(1000, self._maybe_release_startup_after_archive_ready)", source)
+        self.assertIn("self._startup_splash_progress_detail", source)
+        self.assertIn("if startup_deferred_archive_load:", source)
+        self.assertIn('worker_extension_filter = "*"', source)
+        self.assertIn("worker_view_mode = ARCHIVE_BROWSER_VIEW_MODE", source)
+        self.assertIn("build_tree_index=build_browser_tree_index", source)
+        self.assertIn("build_category_index=build_browser_category_index", source)
+        self.assertIn("not startup_deferred_archive_load\n                and\n                self._archive_folder_tree_enabled()", source)
+        self.assertIn("not startup_deferred_archive_load\n                and\n                self._archive_category_view_enabled()", source)
+        self.assertIn('_record_runtime_event("startup_autoload_begin"', source)
+        self.assertIn('_record_runtime_event("splash_released"', source)
+        self.assertIn('_record_runtime_event("main_window_shown"', source)
         self.assertIn('self.archive_browser_preload_state = "ready"', source)
         self.assertIn("self.archive_browser_render_signature = self._current_archive_browser_render_signature()", source)
         self.assertIn("delay_ms = max(1, int(self.archive_selection_state_timer.interval()) + 1)", source)
-        self.assertIn('reason="startup_preload"', source)
+
+    def test_archive_refresh_queues_filters_before_first_list(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        scan_start = source.index("        def scan_archives(")
+        scan_body = source[scan_start: source.index("        def _set_archive_warmup_overlay", scan_start)]
+        complete_start = source.index("        def _handle_archive_scan_complete")
+        complete_body = source[complete_start: source.index("        def _finalize_archive_scan_complete", complete_start)]
+
+        self.assertIn("queue_filters_after_first_list = bool(", scan_body)
+        self.assertIn("Current filters will apply when search is ready.", scan_body)
+        self.assertIn('"filter_text": ""', scan_body)
+        self.assertIn('"extension_filter": "*"', scan_body)
+        self.assertIn('"view_mode": ARCHIVE_BROWSER_VIEW_MODE', scan_body)
+        self.assertIn("Applying queued filters after archive list opened.", source)
+        self.assertIn("Filters will apply when search is ready", source)
+        self.assertNotIn("request_signature or self._current_archive_filter_signature()", complete_body)
 
     def test_archive_click_lag_preload_state_guards_ready_render(self) -> None:
         source = _read("cdmw/ui/main_window.py")
@@ -122,6 +178,26 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_browser_refresh_pending = False", refresh_body)
         self.assertIn("skipped=population_active", refresh_body)
         self.assertIn("pending_refresh=start", refresh_body)
+
+    def test_startup_splash_waits_for_archive_first_paint(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        finish_start = source.index("        def _finish_startup_splash_and_show_main_window")
+        finish_body = source[finish_start: source.index("        def _release_startup_splash", finish_start)]
+        first_paint_start = source.index("        def _handle_archive_browser_first_visible_paint")
+        first_paint_body = source[first_paint_start: source.index("        def _try_apply_startup_saved_filters", first_paint_start)]
+
+        self.assertIn("Qt.WindowStaysOnTopHint", source)
+        self.assertIn("def _finish_startup_splash_after_main_window_paint", source)
+        self.assertIn("self._show_main_window_after_startup_splash()", finish_body)
+        self.assertNotIn("self._finish_startup_splash_now()\n            self._show_main_window_after_startup_splash()", finish_body)
+        self.assertIn("self._startup_splash_finish_after_paint_deadline = time.monotonic() + 10.0", finish_body)
+        self.assertIn("self.archive_browser_first_visible_paint_done = False", finish_body)
+        self.assertIn("self._schedule_startup_splash_finish_after_main_window_paint(180)", finish_body)
+        self.assertIn("not bool(getattr(self, \"_startup_splash_finish_pending\", False))", source)
+        self.assertIn("_startup_splash_finish_after_paint_deadline", first_paint_body)
+        self.assertIn('self._update_startup_splash("Opening Archive Browser...", 0, 0)', source)
+        self.assertIn('startup_splash_first_paint_timeout', source)
+        self.assertIn("self._schedule_startup_splash_finish_after_main_window_paint(80)", first_paint_body)
 
     def test_archive_context_menu_does_not_auto_preview_or_build_family_graph(self) -> None:
         source = _read("cdmw/ui/main_window.py")
@@ -154,16 +230,18 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         allowed_start = source.index("        def _archive_browser_background_work_allowed(self) -> bool:")
         allowed_body = source[allowed_start: source.index("        def _schedule_archive_post_ready_background_work", allowed_start)]
         finalize_start = source.index("        def _finalize_archive_scan_complete(")
-        finalize_body = source[finalize_start: source.index("        def _start_archive_enhanced_index_worker", finalize_start)]
+        finalize_body = source[finalize_start: source.index("        def _start_archive_basic_index_worker", finalize_start)]
         icon_start = source.index("        def _schedule_archive_asset_catalog_icon_preload")
         icon_body = source[icon_start: source.index("        def _queue_archive_asset_catalog_icon_warmup_rows", icon_start)]
         self.assertIn('self.archive_browser_preload_state != "ready"', allowed_body)
         self.assertIn("self.archive_browser_first_visible_paint_done", allowed_body)
         self.assertIn("return False", allowed_body)
         self.assertNotIn("self.archive_browser_ready_at", allowed_body)
-        self.assertNotIn("self.archive_deferred_enhanced_index_start_pending = True", finalize_body)
+        self.assertIn("self.archive_deferred_basic_index_start_pending = bool(", source)
+        self.assertIn("self.archive_deferred_enhanced_index_start_pending = bool(enhanced_index_needs_build)", source)
         self.assertIn("self.archive_deferred_sidecar_start_pending = True", finalize_body)
         self.assertIn("self._schedule_archive_post_ready_background_work()", finalize_body)
+        self.assertIn("self._start_archive_basic_index_worker()", source)
         self.assertIn("if not self._archive_browser_background_work_allowed():", icon_body)
         self.assertIn("self.archive_item_icon_preload_pending_after_ready = bool(self.archive_item_asset_catalog)", icon_body)
 
@@ -249,6 +327,25 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("def _remember_archive_asset_family_graph", source)
         self.assertIn("Asset family cache hit:", source)
         self.assertIn("Asset family cache miss; rebuilding:", source)
+
+    def test_placement_workspace_prepares_off_ui_thread(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        workspace_start = source.index("        def _open_archive_attachment_placement_workspace_dialog(")
+        workspace_body = source[workspace_start: source.index("        def _open_archive_attachment_donor_picker_dialog", workspace_start)]
+        self.assertIn("_run_archive_attachment_placement_prepare(", workspace_body)
+        self.assertIn("self._run_utility_task(", workspace_body)
+        self.assertNotIn("_open_archive_attachment_placement_diff_dialog(source_entry, None)", workspace_body)
+
+    def test_placement_source_choice_refreshes_in_place(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        diff_start = source.index("        def _open_archive_attachment_placement_diff_dialog(")
+        choose_start = source.index("            def _choose_placement_source_from_workspace()", diff_start)
+        choose_body = source[choose_start: source.index("            def _apply_default_swap_type()", choose_start)]
+        self.assertIn("Loading placement comparison", choose_body)
+        self.assertIn("_run_archive_attachment_placement_prepare(", choose_body)
+        self.assertIn("_apply_prepared_placement_source", choose_body)
+        self.assertIn("_set_placement_source_loading(True", choose_body)
+        self.assertNotIn("dialog.accept()", choose_body)
 
     def test_preview_limits_and_timers_target_interactive_frame_budget(self) -> None:
         text_search = _read("cdmw/ui/text_search_tab.py")

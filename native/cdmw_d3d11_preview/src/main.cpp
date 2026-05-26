@@ -278,11 +278,13 @@ struct MeshEditState {
     std::string target_mode = "brush";
     std::string tool = "grab";
     std::string delete_mode = "release";
+    std::string selection_mode = "brush";
     std::string falloff = "smooth";
     float radius_pixels = 24.0f;
     float strength = 0.5f;
     bool show_vertices = false;
     bool drag_active = false;
+    bool selection_drag_active = false;
     int stroke_id = 0;
     int start_x = 0;
     int start_y = 0;
@@ -290,6 +292,7 @@ struct MeshEditState {
     int last_y = 0;
     bool previewed = false;
     std::vector<EditorCandidate> drag_candidates;
+    std::vector<DirectX::XMFLOAT2> selection_lasso_points;
     std::set<std::pair<int, int>> selected_vertices;
     std::set<int> source_submesh_indices;
 };
@@ -356,6 +359,32 @@ struct PreviewRenderView {
     bool wireframe = false;
     bool no_depth = false;
     float reference_tint_alpha = 0.0f;
+};
+
+struct MeshEditScreenVertex {
+    int batch_index = -1;
+    int source_submesh_index = -1;
+    int source_vertex_index = -1;
+    DirectX::XMFLOAT3 position{0.0f, 0.0f, 0.0f};
+    float screen_x = 0.0f;
+    float screen_y = 0.0f;
+};
+
+struct MeshEditScreenVertexCache {
+    bool valid = false;
+    std::string key;
+    std::vector<MeshEditScreenVertex> vertices;
+};
+
+struct VertexDotInstance {
+    float clip_x = 0.0f;
+    float clip_y = 0.0f;
+    float radius_x = 0.0f;
+    float radius_y = 0.0f;
+    float r = 1.0f;
+    float g = 1.0f;
+    float b = 1.0f;
+    float a = 1.0f;
 };
 
 struct ConstantBuffer {
@@ -1170,12 +1199,18 @@ static float material_category_code(const std::string& category) {
     if (value == "cloth") return 4.0f;
     if (value == "skin") return 5.0f;
     if (value == "hair") return 6.0f;
+    if (value == "glass") return 7.0f;
+    if (value == "gem") return 8.0f;
+    if (value == "stone") return 9.0f;
+    if (value == "eye") return 10.0f;
+    if (value == "tooth") return 11.0f;
     return 0.0f;
 }
 
 static float boosted_preview_layer_weight(const PreviewMaterialLayer& layer, int layer_index) {
     float weight = std::clamp(layer.weight, 0.0f, 1.0f);
     if (layer_index <= 0) return weight;
+    if (weight < 0.16f) return weight;
     const float max_component = std::max({layer.tint[0], layer.tint[1], layer.tint[2]});
     const float min_component = std::min({layer.tint[0], layer.tint[1], layer.tint[2]});
     const float chroma = max_component - min_component;
@@ -1665,7 +1700,11 @@ static HRESULT compile_shader(const char* source, const char* entry, const char*
     return hr;
 }
 
-static const char* kShaderSource = R"(
+static HRESULT compile_shader(const std::string& source, const char* entry, const char* target, ID3DBlob** blob, std::string& error_text) {
+    return compile_shader(source.c_str(), entry, target, blob, error_text);
+}
+
+static const char kShaderSourceCommon[] = R"(
 cbuffer Constants : register(b0) {
     row_major float4x4 mvp;
     row_major float4x4 normal_world;
@@ -1766,7 +1805,9 @@ float3 blend_sampled_normal(float3 base_n, float3 tangent, float3 bitangent, flo
     float3 normal_mapped = normalize(tangent * mapped.x + bitangent * mapped.y + base_n * mapped.z);
     return normalize(lerp(base_n, normal_mapped, saturate(strength)));
 }
-)" R"(
+)";
+
+static const char kShaderSourcePixelMaterial[] = R"(
 float4 ps_main(VSOut input) : SV_TARGET {
     float2 uv = input.uv;
     if (base_color_flip.w > 0.5) {
@@ -1884,7 +1925,14 @@ float4 ps_main(VSOut input) : SV_TARGET {
     bool category_cloth = category_code > 3.5 && category_code < 4.5;
     bool category_skin = category_code > 4.5 && category_code < 5.5;
     bool category_hair = category_code > 5.5 && category_code < 6.5;
-    bool conservative_nonmetal = category_leather || category_wood || category_cloth || category_skin || category_hair;
+    bool category_glass = category_code > 6.5 && category_code < 7.5;
+    bool category_gem = category_code > 7.5 && category_code < 8.5;
+    bool category_stone = category_code > 8.5 && category_code < 9.5;
+    bool category_eye = category_code > 9.5 && category_code < 10.5;
+    bool category_tooth = category_code > 10.5 && category_code < 11.5;
+    bool glossy_nonmetal = category_glass || category_gem || category_eye;
+    bool conservative_nonmetal = category_leather || category_wood || category_cloth || category_skin || category_hair || category_stone || category_tooth;
+    bool known_nonmetal = conservative_nonmetal || glossy_nonmetal;
     float metal_scale = 1.0;
     float specular_scale = 1.0;
     float roughness_bias = 0.0;
@@ -1913,10 +1961,10 @@ float4 ps_main(VSOut input) : SV_TARGET {
         specular_scale = 1.15;
         roughness_bias = -0.03;
     }
-    float category_metal_cap = category_metal ? 1.0 : (conservative_nonmetal ? 0.0 : lerp(0.18, 0.42, category_confidence));
-    float category_specular_cap = category_metal ? 1.0 : (category_leather ? 0.42 : (category_wood ? 0.24 : (category_cloth ? 0.20 : (category_skin ? 0.30 : (category_hair ? 0.45 : 0.36)))));
-    float category_env_scale = category_metal ? 1.0 : (category_leather ? 0.26 : (category_wood ? 0.14 : (category_cloth ? 0.12 : (category_skin ? 0.20 : (category_hair ? 0.28 : 0.24)))));
-    float category_roughness_floor = category_metal ? 0.18 : (category_leather ? 0.54 : (category_wood ? 0.62 : (category_cloth ? 0.68 : (category_skin ? 0.48 : (category_hair ? 0.36 : 0.50)))));
+    float category_metal_cap = category_metal ? 1.0 : (known_nonmetal ? 0.0 : lerp(0.12, 0.32, category_confidence));
+    float category_specular_cap = category_metal ? 1.0 : (category_glass ? 0.72 : (category_gem ? 0.78 : (category_eye ? 0.66 : (category_leather ? 0.42 : (category_wood ? 0.24 : (category_cloth ? 0.20 : (category_skin ? 0.30 : (category_hair ? 0.45 : (category_stone ? 0.18 : (category_tooth ? 0.32 : 0.38))))))))));
+    float category_env_scale = category_metal ? 1.0 : (category_glass ? 0.52 : (category_gem ? 0.60 : (category_eye ? 0.46 : (category_leather ? 0.26 : (category_wood ? 0.14 : (category_cloth ? 0.12 : (category_skin ? 0.20 : (category_hair ? 0.28 : (category_stone ? 0.08 : (category_tooth ? 0.18 : 0.24))))))))));
+    float category_roughness_floor = category_metal ? 0.06 : (category_glass ? 0.10 : (category_gem ? 0.08 : (category_eye ? 0.12 : (category_leather ? 0.54 : (category_wood ? 0.62 : (category_cloth ? 0.68 : (category_skin ? 0.48 : (category_hair ? 0.36 : (category_stone ? 0.74 : (category_tooth ? 0.38 : 0.50))))))))));
     metal_scale *= render_tuning3.z * category_metal_cap;
     specular_scale *= category_specular_cap;
     if (conservative_nonmetal) {
@@ -1928,7 +1976,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
         float4 m = material_tex.Sample(preview_sampler, uv);
         ao = min(ao, max(0.35, m.r));
         roughness = saturate(m.g);
-        metalness = max(metalness, saturate(m.b) * 0.55 * metal_scale);
+        metalness = max(metalness, saturate(m.b) * (category_metal ? 0.96 : 0.65) * metal_scale);
         specular = saturate(max(m.a, m.b * 0.55) * specular_scale);
     }
     if (flags2.x > 0.5) {
@@ -1960,7 +2008,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
     if (layer_flags[ID].z > 0.5 && layer_alpha[ID] > 0.001) { \
         float4 lm = MATERIAL_TEX.Sample(preview_sampler, uv); \
         roughness = lerp(roughness, saturate(max(lm.g, layer_hints[ID].x)), saturate(layer_alpha[ID] * 0.58)); \
-        metalness = max(metalness, saturate(max(lm.b * 0.42, layer_hints[ID].y) * metal_scale) * layer_alpha[ID]); \
+        metalness = max(metalness, saturate(max(lm.b * 0.72, layer_hints[ID].y) * metal_scale) * layer_alpha[ID]); \
         specular = max(specular, saturate(max(max(lm.a, lm.b * 0.55), layer_hints[ID].z) * specular_scale) * layer_alpha[ID]); \
     }
     APPLY_MATERIAL_LAYER(0, layer0_material_tex)
@@ -1971,11 +2019,19 @@ float4 ps_main(VSOut input) : SV_TARGET {
     if (debug_mode > 5.5 && debug_mode < 6.5) {
         return float4(saturate(ao), saturate(roughness), saturate(specular), 1.0);
     }
+    bool promoted_material_response = flags5.z > 0.5;
+    bool direct_metal_response = category_metal && (metalness > 0.12 || material_hints.y > 0.16 || flags2.z > 0.5 || promoted_material_response);
+    if (direct_metal_response) {
+        category_metal_cap = max(category_metal_cap, 0.96);
+        category_env_scale = max(category_env_scale, 0.86);
+        category_specular_cap = max(category_specular_cap, 0.82);
+        category_roughness_floor = min(category_roughness_floor, 0.08);
+    }
     roughness = saturate(roughness + roughness_bias + render_tuning3.y);
     roughness = max(roughness, category_roughness_floor);
     metalness = min(metalness, category_metal_cap);
     ao = saturate(1.0 - ((1.0 - ao) * render_tuning3.x));
-    specular = min(specular, min(max(max(render_tuning.w, render_tuning.z), lerp(0.30, 0.74, metalness)), category_metal ? 0.82 : max(0.18, category_specular_cap)));
+    specular = min(specular, min(max(max(render_tuning.w, render_tuning.z), lerp(0.30, 0.92, metalness)), category_metal ? 0.96 : max(0.18, category_specular_cap)));
     float height_value = 0.5;
     if (flags.w > 0.5) {
         height_value = height_tex.Sample(preview_sampler, uv).r;
@@ -2006,6 +2062,9 @@ float4 ps_main(VSOut input) : SV_TARGET {
     APPLY_HEIGHT_LAYER(2, layer2_height_tex)
     APPLY_HEIGHT_LAYER(3, layer3_height_tex)
 #undef APPLY_HEIGHT_LAYER
+)";
+
+static const char kShaderSourcePixelLighting[] = R"(
     float3 l = normalize(light_dir.xyz);
     float ndotl = saturate(dot(n, l));
     float3 view_dir = float3(0.0, 0.0, -1.0);
@@ -2013,7 +2072,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float smoothness = saturate(1.0 - roughness);
     float shine_power = lerp(render_tuning2.y, render_tuning2.x, roughness);
     float fresnel = pow(1.0 - saturate(abs(dot(n, view_dir))), 5.0);
-    float metal_reflectance = saturate(metalness * (0.56 + smoothness * 1.08));
+    float metal_reflectance = saturate(metalness * (0.72 + smoothness * 1.24));
     float nonmetal_sheen = saturate((specular - 0.35) * 1.55) * smoothness;
     float highlight = pow(saturate(dot(n, h)), shine_power) * specular * (0.50 + metal_reflectance * 1.70);
     float broad_highlight = pow(saturate(dot(n, h)), max(2.0, shine_power * 0.12)) * (metal_reflectance * 0.56 + nonmetal_sheen * 0.080);
@@ -2035,10 +2094,10 @@ float4 ps_main(VSOut input) : SV_TARGET {
     env_color += side_softbox.xxx * float3(0.58, 0.67, 0.82);
     env_color += key_glint.xxx * float3(4.2, 3.95, 3.45) + fill_glint.xxx * float3(0.72, 0.84, 1.02);
     float height_light = lerp(1.0 - material_params.y, 1.0 + material_params.y, height_value);
-    float3 diffuse = albedo * (render_tuning.x + ndotl * render_tuning.y) * ao * height_light * lerp(1.0, 0.075, metalness);
+    float3 diffuse = albedo * (render_tuning.x + ndotl * render_tuning.y) * ao * height_light * lerp(1.0, 0.035, metalness);
     float3 metal_tint = lerp(float3(1.0, 1.0, 1.0), max(albedo, float3(0.22, 0.22, 0.22)), saturate(metal_reflectance * 0.86));
     float3 specular_color = lerp(highlight.xxx * 0.45, highlight.xxx * metal_tint, metal_reflectance);
-    float reflection_strength = fresnel * (0.045 + metal_reflectance * 0.95) + smoothness * (0.030 + metal_reflectance * 0.98 + nonmetal_sheen * 0.040);
+    float reflection_strength = fresnel * (0.045 + metal_reflectance * 1.08) + smoothness * (0.030 + metal_reflectance * 1.10 + nonmetal_sheen * 0.040);
     float3 env_reflection = env_color * reflection_strength * render_tuning3.w * category_env_scale;
     env_reflection = lerp(env_reflection * 0.62, env_reflection * metal_tint, metal_reflectance);
     float3 color = diffuse + specular_color + env_reflection + broad_highlight.xxx + rim.xxx;
@@ -2047,16 +2106,55 @@ float4 ps_main(VSOut input) : SV_TARGET {
         bool has_emissive_tex = encoded_emissive > 1.5;
         float emissive_intensity = saturate(has_emissive_tex ? encoded_emissive - 2.0 : encoded_emissive);
         float emissive_mask = 1.0;
+        float3 emissive_color = emissive_params.rgb;
         if (has_emissive_tex) {
             float4 emissive_sample = emissive_tex.Sample(preview_sampler, uv);
             emissive_mask = max(emissive_sample.r, max(emissive_sample.g, emissive_sample.b));
+            emissive_color = max(emissive_color, emissive_sample.rgb);
         }
         float rim_boost = pow(1.0 - saturate(abs(dot(n, view_dir))), 2.6);
         float emissive_strength = emissive_intensity * saturate(emissive_mask) * render_tuning4.x;
-        color += emissive_params.rgb * (emissive_strength * 0.42 + rim_boost * emissive_strength * 0.36);
+        color += emissive_color * (emissive_strength * 0.85 + rim_boost * emissive_strength * 0.55);
     }
     color = lerp(color, editor_tint.rgb, saturate(editor_tint.a));
     return float4(linear_to_srgb(color), 1.0);
+}
+)";
+
+static const std::string& shader_source() {
+    static const std::string source =
+        std::string(kShaderSourceCommon) + kShaderSourcePixelMaterial + kShaderSourcePixelLighting;
+    return source;
+}
+
+static const std::string& kShaderSource = shader_source();
+
+static const char* kVertexDotShaderSource = R"(
+struct DotIn {
+    float2 center : TEXCOORD0;
+    float2 radius : TEXCOORD1;
+    float4 color : COLOR0;
+};
+struct DotOut {
+    float4 position : SV_POSITION;
+    float4 color : COLOR0;
+    float2 local : TEXCOORD0;
+};
+DotOut vs_dot(uint vertex_id : SV_VertexID, DotIn input) {
+    float2 corners[6] = {
+        float2(-1.0, -1.0), float2( 1.0, -1.0), float2( 1.0,  1.0),
+        float2(-1.0, -1.0), float2( 1.0,  1.0), float2(-1.0,  1.0)
+    };
+    float2 local = corners[vertex_id];
+    DotOut output;
+    output.position = float4(input.center + local * input.radius, 0.0, 1.0);
+    output.color = input.color;
+    output.local = local;
+    return output;
+}
+float4 ps_dot(DotOut input) : SV_Target {
+    if (dot(input.local, input.local) > 1.0) discard;
+    return input.color;
 }
 )";
 
@@ -2078,7 +2176,10 @@ public:
           stats_(stats),
           view_settings_(view_settings),
           render_tuning_(render_tuning),
-          display_mode_(normalize_display_mode(std::move(display_mode), "replacement_only")) {}
+          display_mode_(normalize_display_mode(std::move(display_mode), "replacement_only")) {
+        stats_.sampler_max_anisotropy = std::clamp(render_tuning_.max_anisotropy, 1, 16);
+        stats_.sampler_mip_lod_bias = std::clamp(render_tuning_.mip_lod_bias, -2.0f, 1.0f);
+    }
 
     ~Renderer() {
         if (!batches_.empty() || !srv_cache_.empty() || !texture_info_cache_.empty() || estimated_texture_bytes_ > 0) {
@@ -2206,6 +2307,9 @@ public:
             context_->Flush();
         }
         batches_.clear();
+        ++model_generation_;
+        mesh_edit_screen_vertex_cache_.valid = false;
+        mesh_edit_screen_vertex_cache_.vertices.clear();
         cloth_colliders_.clear();
         active_texture_bytes_ = 0;
         if (release_texture_cache) {
@@ -2347,7 +2451,9 @@ public:
         first_frame_started_ = false;
         first_frame_reported_ = false;
         mesh_edit_.drag_active = false;
+        mesh_edit_.selection_drag_active = false;
         mesh_edit_.drag_candidates.clear();
+        mesh_edit_.selection_lasso_points.clear();
         mesh_edit_.selected_vertices.clear();
         hidden_source_submeshes_.clear();
         alignment_.drag_active = false;
@@ -2400,7 +2506,9 @@ public:
         first_frame_started_ = true;
         first_frame_reported_ = true;
         mesh_edit_.drag_active = false;
+        mesh_edit_.selection_drag_active = false;
         mesh_edit_.drag_candidates.clear();
+        mesh_edit_.selection_lasso_points.clear();
         mesh_edit_.selected_vertices.clear();
         alignment_.drag_active = false;
         alignment_.rotation_drag_active = false;
@@ -3418,6 +3526,149 @@ private:
         return std::isfinite(screen_x) && std::isfinite(screen_y);
     }
 
+    std::string mesh_edit_screen_vertex_cache_key(const PreviewRenderView& view) const {
+        std::ostringstream out;
+        out << static_cast<int>(view.role)
+            << "|" << view.viewport.TopLeftX << "," << view.viewport.TopLeftY << "," << view.viewport.Width << "," << view.viewport.Height
+            << "|" << model_generation_
+            << "|" << yaw_ << "," << pitch_ << "," << distance_ << "," << pan_x_ << "," << pan_y_ << "," << pan_z_
+            << "|" << alignment_.translation_total.x << "," << alignment_.translation_total.y << "," << alignment_.translation_total.z
+            << "|" << alignment_.rotation_total.x << "," << alignment_.rotation_total.y << "," << alignment_.rotation_total.z
+            << "|" << alignment_.scale_total.x << "," << alignment_.scale_total.y << "," << alignment_.scale_total.z
+            << "|" << batches_.size() << "|";
+        for (int source_index : mesh_edit_.source_submesh_indices) out << source_index << ",";
+        out << "|";
+        for (int source_index : hidden_source_submeshes_) out << source_index << ",";
+        return out.str();
+    }
+
+    const std::vector<MeshEditScreenVertex>& mesh_edit_screen_vertices_for_view(const PreviewRenderView& view) const {
+        const std::string key = mesh_edit_screen_vertex_cache_key(view);
+        if (mesh_edit_screen_vertex_cache_.valid && mesh_edit_screen_vertex_cache_.key == key) {
+            return mesh_edit_screen_vertex_cache_.vertices;
+        }
+        mesh_edit_screen_vertex_cache_.valid = true;
+        mesh_edit_screen_vertex_cache_.key = key;
+        mesh_edit_screen_vertex_cache_.vertices.clear();
+        std::set<std::pair<int, int>> emitted;
+        for (const PreviewBatch& batch : batches_) {
+            if (!mesh_edit_batch_editable_in_view(batch, view)) continue;
+            for (size_t vertex_index = 0; vertex_index < batch.cpu_positions.size(); ++vertex_index) {
+                std::pair<int, int> key_pair = mesh_edit_source_key(batch, vertex_index);
+                if (key_pair.first < 0 || key_pair.second < 0) continue;
+                if (emitted.find(key_pair) != emitted.end()) continue;
+                emitted.insert(key_pair);
+                float screen_x = 0.0f;
+                float screen_y = 0.0f;
+                if (!project_batch_position_for_view(batch, batch.cpu_positions[vertex_index], view, screen_x, screen_y)) continue;
+                MeshEditScreenVertex screen_vertex;
+                screen_vertex.batch_index = batch.index;
+                screen_vertex.source_submesh_index = key_pair.first;
+                screen_vertex.source_vertex_index = key_pair.second;
+                screen_vertex.position = transformed_batch_position(batch, batch.cpu_positions[vertex_index]);
+                screen_vertex.screen_x = screen_x;
+                screen_vertex.screen_y = screen_y;
+                mesh_edit_screen_vertex_cache_.vertices.push_back(screen_vertex);
+            }
+        }
+        return mesh_edit_screen_vertex_cache_.vertices;
+    }
+
+    std::vector<EditorCandidate> mesh_edit_candidates_at_in_view(
+        const PreviewRenderView& view,
+        int x,
+        int y,
+        float radius_pixels,
+        bool nearest_only) const {
+        std::vector<EditorCandidate> candidates;
+        if (!mesh_edit_.enabled || width_ <= 0 || height_ <= 0) return candidates;
+        const std::vector<MeshEditScreenVertex>& screen_vertices = mesh_edit_screen_vertices_for_view(view);
+        for (const MeshEditScreenVertex& screen_vertex : screen_vertices) {
+            float distance = std::hypot(static_cast<float>(x) - screen_vertex.screen_x, static_cast<float>(y) - screen_vertex.screen_y);
+            if (distance > radius_pixels) continue;
+            EditorCandidate candidate;
+            candidate.batch_index = screen_vertex.batch_index;
+            candidate.source_submesh_index = screen_vertex.source_submesh_index;
+            candidate.source_vertex_index = screen_vertex.source_vertex_index;
+            candidate.position = screen_vertex.position;
+            candidate.screen_x = screen_vertex.screen_x;
+            candidate.screen_y = screen_vertex.screen_y;
+            candidate.distance = distance;
+            candidate.weight = mesh_edit_falloff_weight(distance, radius_pixels);
+            if (candidate.weight > 0.0f) candidates.push_back(candidate);
+        }
+        std::sort(candidates.begin(), candidates.end(), [](const EditorCandidate& left, const EditorCandidate& right) {
+            return left.distance < right.distance;
+        });
+        if (nearest_only && candidates.size() > 1) {
+            candidates.resize(1);
+        }
+        constexpr size_t kMaxBrushCandidates = 6000;
+        if (!nearest_only && candidates.size() > kMaxBrushCandidates) {
+            candidates.resize(kMaxBrushCandidates);
+        }
+        return candidates;
+    }
+
+    void draw_mesh_edit_vertex_dots_instanced(
+        const PreviewRenderView& view,
+        const std::vector<MeshEditScreenVertex>& screen_vertices,
+        const std::set<std::pair<int, int>>& brush_vertices) {
+        if (!mesh_edit_.show_vertices || screen_vertices.empty() || !vertex_dot_shader_ || !vertex_dot_pixel_shader_ || !vertex_dot_input_layout_) return;
+        std::vector<VertexDotInstance> instances;
+        instances.reserve(screen_vertices.size() * 3u);
+        auto add_instance = [&](float screen_x, float screen_y, float radius, float r, float g, float b, float a = 1.0f) {
+            const float local_x = screen_x - view.viewport.TopLeftX;
+            const float local_y = screen_y - view.viewport.TopLeftY;
+            VertexDotInstance instance;
+            instance.clip_x = (local_x / std::max(1.0f, view.viewport.Width)) * 2.0f - 1.0f;
+            instance.clip_y = 1.0f - (local_y / std::max(1.0f, view.viewport.Height)) * 2.0f;
+            instance.radius_x = (radius / std::max(1.0f, view.viewport.Width)) * 2.0f;
+            instance.radius_y = (radius / std::max(1.0f, view.viewport.Height)) * 2.0f;
+            instance.r = r;
+            instance.g = g;
+            instance.b = b;
+            instance.a = a;
+            instances.push_back(instance);
+        };
+        for (const MeshEditScreenVertex& screen_vertex : screen_vertices) {
+            std::pair<int, int> key(screen_vertex.source_submesh_index, screen_vertex.source_vertex_index);
+            const bool selected = mesh_edit_.selected_vertices.find(key) != mesh_edit_.selected_vertices.end();
+            const bool brush_affected = brush_vertices.find(key) != brush_vertices.end();
+            if (selected || brush_affected) {
+                add_instance(screen_vertex.screen_x, screen_vertex.screen_y, 6.0f, 0.0f, 0.0f, 0.0f);
+                add_instance(screen_vertex.screen_x, screen_vertex.screen_y, 4.5f, 1.0f, 0.52f, 0.12f);
+                add_instance(screen_vertex.screen_x, screen_vertex.screen_y, 2.0f, 1.0f, 0.92f, 0.28f);
+            } else {
+                add_instance(screen_vertex.screen_x, screen_vertex.screen_y, 4.2f, 0.0f, 0.0f, 0.0f);
+                add_instance(screen_vertex.screen_x, screen_vertex.screen_y, 2.8f, 0.18f, 0.82f, 1.0f);
+            }
+        }
+        if (instances.empty()) return;
+        D3D11_BUFFER_DESC desc{};
+        desc.ByteWidth = static_cast<UINT>(instances.size() * sizeof(VertexDotInstance));
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        D3D11_SUBRESOURCE_DATA init{};
+        init.pSysMem = instances.data();
+        ComPtr<ID3D11Buffer> buffer;
+        if (FAILED(device_->CreateBuffer(&desc, &init, buffer.GetAddressOf()))) return;
+        UINT stride = sizeof(VertexDotInstance);
+        UINT offset = 0;
+        context_->IASetInputLayout(vertex_dot_input_layout_.Get());
+        context_->IASetVertexBuffers(0, 1, buffer.GetAddressOf(), &stride, &offset);
+        context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        context_->VSSetShader(vertex_dot_shader_.Get(), nullptr, 0);
+        context_->PSSetShader(vertex_dot_pixel_shader_.Get(), nullptr, 0);
+        context_->OMSetDepthStencilState(overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
+        ID3D11ShaderResourceView* clear_srvs[kTotalSrvCount] = {};
+        context_->PSSetShaderResources(0, kTotalSrvCount, clear_srvs);
+        context_->DrawInstanced(6u, static_cast<UINT>(instances.size()), 0u, 0u);
+        context_->IASetInputLayout(input_layout_.Get());
+        context_->VSSetShader(vertex_shader_.Get(), nullptr, 0);
+        context_->PSSetShader(pixel_shader_.Get(), nullptr, 0);
+    }
+
     void draw_mesh_edit_overlay(const PreviewRenderView& view) {
         if (!mesh_edit_overlay_active_for_view(view)) return;
 
@@ -3425,7 +3676,7 @@ private:
         vertices.reserve(23u * 4096u);
         DirectX::XMMATRIX identity = DirectX::XMMatrixIdentity();
         constexpr size_t kMaxMeshEditOverlayTriangles = 70000u;
-        constexpr size_t kMaxMeshEditOverlayVertices = 45000u;
+        const std::vector<MeshEditScreenVertex>& screen_vertices = mesh_edit_screen_vertices_for_view(view);
 
         auto append_screen_vertex = [&](float x, float y, float r, float g, float b) {
             const float local_x = x - view.viewport.TopLeftX;
@@ -3489,7 +3740,8 @@ private:
             && static_cast<float>(cursor_y_) >= view.viewport.TopLeftY
             && static_cast<float>(cursor_y_) <= view.viewport.TopLeftY + view.viewport.Height;
         if (cursor_in_view) {
-            std::vector<EditorCandidate> brush_candidates = mesh_edit_candidates_at(
+            std::vector<EditorCandidate> brush_candidates = mesh_edit_candidates_at_in_view(
+                view,
                 cursor_x_,
                 cursor_y_,
                 mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex" ? 12.0f : mesh_edit_.radius_pixels,
@@ -3508,9 +3760,26 @@ private:
                 remove_tool ? 0.10f : 1.0f);
         }
 
+        if (mesh_edit_.selection_drag_active && (mesh_edit_.selection_mode == "rectangle" || mesh_edit_.selection_mode == "lasso")) {
+            if (mesh_edit_.selection_mode == "rectangle") {
+                ScreenPoint a{static_cast<float>(mesh_edit_.start_x), static_cast<float>(mesh_edit_.start_y)};
+                ScreenPoint c{static_cast<float>(mesh_edit_.last_x), static_cast<float>(mesh_edit_.last_y)};
+                ScreenPoint b{c.x, a.y};
+                ScreenPoint d{a.x, c.y};
+                add_thick_line(a, b, 2.0f, 1.0f, 0.64f, 0.18f);
+                add_thick_line(b, c, 2.0f, 1.0f, 0.64f, 0.18f);
+                add_thick_line(c, d, 2.0f, 1.0f, 0.64f, 0.18f);
+                add_thick_line(d, a, 2.0f, 1.0f, 0.64f, 0.18f);
+            } else if (mesh_edit_.selection_lasso_points.size() > 1) {
+                for (size_t index = 1; index < mesh_edit_.selection_lasso_points.size(); ++index) {
+                    const DirectX::XMFLOAT2& prev = mesh_edit_.selection_lasso_points[index - 1u];
+                    const DirectX::XMFLOAT2& next = mesh_edit_.selection_lasso_points[index];
+                    add_thick_line(ScreenPoint{prev.x, prev.y}, ScreenPoint{next.x, next.y}, 2.0f, 1.0f, 0.64f, 0.18f);
+                }
+            }
+        }
+
         size_t overlay_triangle_count = 0;
-        size_t overlay_vertex_count = 0;
-        std::set<std::pair<int, int>> emitted_vertices;
         for (const PreviewBatch& batch : batches_) {
             if (!mesh_edit_batch_editable_in_view(batch, view)) continue;
             const size_t triangle_count = batch.cpu_positions.size() / 3u;
@@ -3550,29 +3819,9 @@ private:
                     add_thick_line(p[2], p[0], 1.35f, 0.015f, 0.018f, 0.020f);
                 }
             }
-            if (!mesh_edit_.show_vertices) continue;
-            for (size_t vertex_index = 0; vertex_index < batch.cpu_positions.size(); ++vertex_index) {
-                std::pair<int, int> key = mesh_edit_source_key(batch, vertex_index);
-                if (key.first < 0 || key.second < 0) continue;
-                if (emitted_vertices.find(key) != emitted_vertices.end()) continue;
-                emitted_vertices.insert(key);
-                if (overlay_vertex_count++ >= kMaxMeshEditOverlayVertices) break;
-                float screen_x = 0.0f;
-                float screen_y = 0.0f;
-                if (!project_batch_position_for_view(batch, batch.cpu_positions[vertex_index], view, screen_x, screen_y)) continue;
-                const bool selected = mesh_edit_.selected_vertices.find(key) != mesh_edit_.selected_vertices.end();
-                const bool brush_affected = brush_vertices.find(key) != brush_vertices.end();
-                if (selected || brush_affected) {
-                    add_disc(ScreenPoint{screen_x, screen_y}, 6.0f, 0.0f, 0.0f, 0.0f);
-                    add_disc(ScreenPoint{screen_x, screen_y}, 4.5f, 1.0f, 0.52f, 0.12f);
-                    add_disc(ScreenPoint{screen_x, screen_y}, 2.0f, 1.0f, 0.92f, 0.28f);
-                } else {
-                    add_disc(ScreenPoint{screen_x, screen_y}, 4.2f, 0.0f, 0.0f, 0.0f);
-                    add_disc(ScreenPoint{screen_x, screen_y}, 2.8f, 0.18f, 0.82f, 1.0f);
-                }
-            }
         }
         draw_colored_triangles(vertices, identity, true);
+        draw_mesh_edit_vertex_dots_instanced(view, screen_vertices, brush_vertices);
     }
 
     void draw_render_view(const PreviewRenderView& view) {
@@ -4136,48 +4385,10 @@ private:
     }
 
     std::vector<EditorCandidate> mesh_edit_candidates_at(int x, int y, float radius_pixels, bool nearest_only) const {
-        std::vector<EditorCandidate> candidates;
-        if (!mesh_edit_.enabled || width_ <= 0 || height_ <= 0) return candidates;
-        for (const PreviewBatch& batch : batches_) {
-            if (batch.cpu_positions.empty()) continue;
-            if (!batch.editor_editable || batch_is_reference(batch) || !batch_visible_in_view(batch, PreviewViewRole::Replacement)) continue;
-            for (size_t vertex_index = 0; vertex_index < batch.cpu_positions.size(); ++vertex_index) {
-                int source_submesh = vertex_index < batch.cpu_source_submeshes.size()
-                    ? batch.cpu_source_submeshes[vertex_index]
-                    : batch.source_submesh_index;
-                int source_vertex = vertex_index < batch.cpu_source_vertices.size()
-                    ? batch.cpu_source_vertices[vertex_index]
-                    : static_cast<int>(vertex_index);
-                if (!mesh_edit_source_allowed(source_submesh)) continue;
-                if (source_submesh < 0 || source_vertex < 0) continue;
-                float screen_x = 0.0f;
-                float screen_y = 0.0f;
-                if (!project_batch_position(batch, batch.cpu_positions[vertex_index], screen_x, screen_y)) continue;
-                float distance = std::hypot(static_cast<float>(x) - screen_x, static_cast<float>(y) - screen_y);
-                if (distance > radius_pixels) continue;
-                EditorCandidate candidate;
-                candidate.batch_index = batch.index;
-                candidate.source_submesh_index = source_submesh;
-                candidate.source_vertex_index = source_vertex;
-                candidate.position = transformed_batch_position(batch, batch.cpu_positions[vertex_index]);
-                candidate.screen_x = screen_x;
-                candidate.screen_y = screen_y;
-                candidate.distance = distance;
-                candidate.weight = mesh_edit_falloff_weight(distance, radius_pixels);
-                if (candidate.weight > 0.0f) candidates.push_back(candidate);
-            }
-        }
-        std::sort(candidates.begin(), candidates.end(), [](const EditorCandidate& left, const EditorCandidate& right) {
-            return left.distance < right.distance;
-        });
-        if (nearest_only && candidates.size() > 1) {
-            candidates.resize(1);
-        }
-        constexpr size_t kMaxBrushCandidates = 6000;
-        if (!nearest_only && candidates.size() > kMaxBrushCandidates) {
-            candidates.resize(kMaxBrushCandidates);
-        }
-        return candidates;
+        PreviewRenderView view;
+        view.viewport = replacement_editor_viewport();
+        view.role = PreviewViewRole::Replacement;
+        return mesh_edit_candidates_at_in_view(view, x, y, radius_pixels, nearest_only);
     }
 
     std::vector<EditorCandidate> mesh_edit_selected_candidates() const {
@@ -4338,6 +4549,53 @@ private:
         send_mesh_edit_event("mesh_edit_selection_changed", payload.str());
     }
 
+    static bool point_inside_polygon(float x, float y, const std::vector<DirectX::XMFLOAT2>& points) {
+        if (points.size() < 3) return false;
+        bool inside = false;
+        for (size_t i = 0, j = points.size() - 1u; i < points.size(); j = i++) {
+            const float xi = points[i].x;
+            const float yi = points[i].y;
+            const float xj = points[j].x;
+            const float yj = points[j].y;
+            const float denom = std::abs(yj - yi) < 1.0e-6f ? 1.0e-6f : (yj - yi);
+            const bool intersects = ((yi > y) != (yj > y))
+                && (x < (xj - xi) * (y - yi) / denom + xi);
+            if (intersects) inside = !inside;
+        }
+        return inside;
+    }
+
+    void finish_mesh_edit_selection_drag(int x, int y) {
+        PreviewRenderView view;
+        view.viewport = replacement_editor_viewport();
+        view.role = PreviewViewRole::Replacement;
+        const std::vector<MeshEditScreenVertex>& screen_vertices = mesh_edit_screen_vertices_for_view(view);
+        std::set<std::pair<int, int>> selected;
+        if (mesh_edit_.selection_mode == "rectangle" || mesh_edit_.selection_lasso_points.size() < 3) {
+            const float min_x = static_cast<float>(std::min(mesh_edit_.start_x, x));
+            const float max_x = static_cast<float>(std::max(mesh_edit_.start_x, x));
+            const float min_y = static_cast<float>(std::min(mesh_edit_.start_y, y));
+            const float max_y = static_cast<float>(std::max(mesh_edit_.start_y, y));
+            for (const MeshEditScreenVertex& screen_vertex : screen_vertices) {
+                if (screen_vertex.screen_x >= min_x && screen_vertex.screen_x <= max_x
+                    && screen_vertex.screen_y >= min_y && screen_vertex.screen_y <= max_y) {
+                    selected.insert(std::pair<int, int>(screen_vertex.source_submesh_index, screen_vertex.source_vertex_index));
+                }
+            }
+        } else {
+            for (const MeshEditScreenVertex& screen_vertex : screen_vertices) {
+                if (point_inside_polygon(screen_vertex.screen_x, screen_vertex.screen_y, mesh_edit_.selection_lasso_points)) {
+                    selected.insert(std::pair<int, int>(screen_vertex.source_submesh_index, screen_vertex.source_vertex_index));
+                }
+            }
+        }
+        mesh_edit_.selected_vertices = std::move(selected);
+        mesh_edit_.selection_drag_active = false;
+        mesh_edit_.selection_lasso_points.clear();
+        send_mesh_edit_selection_event();
+        if (GetCapture() == hwnd_) ReleaseCapture();
+    }
+
     bool begin_mesh_edit_drag(WPARAM wparam, int x, int y) {
         if (!mesh_edit_.enabled) return false;
         bool alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
@@ -4345,6 +4603,17 @@ private:
         bool remove_selection_mode = mesh_edit_.tool == "remove" && mesh_edit_.delete_mode == "selection";
         bool vertex_mode = mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex" || remove_selection_mode;
         bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+        if (!remove_selection_mode && vertex_mode && (mesh_edit_.selection_mode == "lasso" || mesh_edit_.selection_mode == "rectangle")) {
+            mesh_edit_.selection_drag_active = true;
+            mesh_edit_.start_x = x;
+            mesh_edit_.start_y = y;
+            mesh_edit_.last_x = x;
+            mesh_edit_.last_y = y;
+            mesh_edit_.selection_lasso_points.clear();
+            mesh_edit_.selection_lasso_points.push_back(DirectX::XMFLOAT2(static_cast<float>(x), static_cast<float>(y)));
+            SetCapture(hwnd_);
+            return true;
+        }
         std::vector<EditorCandidate> candidates = mesh_edit_candidates_at(
             x,
             y,
@@ -4390,6 +4659,19 @@ private:
     }
 
     bool update_mesh_edit_drag(int x, int y) {
+        if (mesh_edit_.selection_drag_active) {
+            mesh_edit_.last_x = x;
+            mesh_edit_.last_y = y;
+            if (mesh_edit_.selection_mode == "lasso") {
+                if (mesh_edit_.selection_lasso_points.empty()
+                    || std::hypot(
+                        mesh_edit_.selection_lasso_points.back().x - static_cast<float>(x),
+                        mesh_edit_.selection_lasso_points.back().y - static_cast<float>(y)) >= 2.0f) {
+                    mesh_edit_.selection_lasso_points.push_back(DirectX::XMFLOAT2(static_cast<float>(x), static_cast<float>(y)));
+                }
+            }
+            return true;
+        }
         if (!mesh_edit_.drag_active) return false;
         bool drag_mode = mesh_edit_.tool == "grab" || mesh_edit_.tool == "vertex";
         std::vector<EditorCandidate> candidates = drag_mode
@@ -4411,6 +4693,15 @@ private:
     }
 
     bool finish_mesh_edit_drag(int x, int y) {
+        if (mesh_edit_.selection_drag_active) {
+            mesh_edit_.last_x = x;
+            mesh_edit_.last_y = y;
+            if (mesh_edit_.selection_mode == "lasso") {
+                mesh_edit_.selection_lasso_points.push_back(DirectX::XMFLOAT2(static_cast<float>(x), static_cast<float>(y)));
+            }
+            finish_mesh_edit_selection_drag(x, y);
+            return true;
+        }
         if (!mesh_edit_.drag_active) return false;
         update_mesh_edit_drag(x, y);
         std::ostringstream payload;
@@ -4427,6 +4718,12 @@ private:
     }
 
     bool cancel_mesh_edit_drag() {
+        if (mesh_edit_.selection_drag_active) {
+            mesh_edit_.selection_drag_active = false;
+            mesh_edit_.selection_lasso_points.clear();
+            if (GetCapture() == hwnd_) ReleaseCapture();
+            return true;
+        }
         if (!mesh_edit_.drag_active) return false;
         std::ostringstream payload;
         payload << "{\"stroke_id\":" << mesh_edit_.stroke_id
@@ -4539,6 +4836,9 @@ private:
                   << ",\"ambient_strength\":" << render_tuning_.ambient_strength
                   << ",\"diffuse_light_scale\":" << render_tuning_.diffuse_light_scale
                   << ",\"specular_max\":" << render_tuning_.specular_max
+                  << ",\"sampler_max_anisotropy\":" << stats_.sampler_max_anisotropy
+                  << ",\"sampler_mip_lod_bias\":" << stats_.sampler_mip_lod_bias
+                  << ",\"sampler_recreate_count\":" << stats_.sampler_recreate_count
                   << ",\"cloth_enabled\":" << (cloth_state_.enabled ? "true" : "false")
                   << "}";
             send_json_event(event.str());
@@ -4655,6 +4955,10 @@ private:
             mesh_edit_.target_mode = lower_copy(json_string_field(payload, "target_mode", mesh_edit_.target_mode));
             mesh_edit_.tool = lower_copy(json_string_field(payload, "tool", mesh_edit_.tool));
             mesh_edit_.delete_mode = lower_copy(json_string_field(payload, "delete_mode", mesh_edit_.delete_mode));
+            mesh_edit_.selection_mode = lower_copy(json_string_field(payload, "selection_mode", mesh_edit_.selection_mode));
+            if (mesh_edit_.selection_mode != "brush" && mesh_edit_.selection_mode != "lasso" && mesh_edit_.selection_mode != "rectangle") {
+                mesh_edit_.selection_mode = "brush";
+            }
             mesh_edit_.falloff = lower_copy(json_string_field(payload, "falloff", mesh_edit_.falloff));
             mesh_edit_.radius_pixels = std::clamp(json_float_field(payload, "radius_pixels", mesh_edit_.radius_pixels), 2.0f, 512.0f);
             mesh_edit_.strength = std::clamp(json_float_field(payload, "strength", mesh_edit_.strength), 0.0f, 1.0f);
@@ -4712,6 +5016,21 @@ private:
         }
         if (command == "clear_mesh_edit_selection") {
             mesh_edit_.selected_vertices.clear();
+            send_mesh_edit_selection_event();
+            request_render();
+            return true;
+        }
+        if (command == "set_mesh_edit_selection") {
+            mesh_edit_.selected_vertices.clear();
+            for (const std::string& group : json_object_array_field(payload, "groups")) {
+                int source_submesh = static_cast<int>(json_float_field(group, "source_submesh_index", -1.0f));
+                if (source_submesh < 0) continue;
+                for (int source_vertex : json_int_array_field(group, "source_vertex_indices")) {
+                    if (source_vertex >= 0) {
+                        mesh_edit_.selected_vertices.insert(std::pair<int, int>(source_submesh, source_vertex));
+                    }
+                }
+            }
             send_mesh_edit_selection_event();
             request_render();
             return true;
@@ -4806,7 +5125,7 @@ private:
     }
 
     void begin_mouse_drag(UINT msg, WPARAM wparam, int x, int y) {
-        if (mesh_edit_.drag_active || alignment_.drag_active || alignment_.rotation_drag_active) {
+        if (mesh_edit_.drag_active || mesh_edit_.selection_drag_active || alignment_.drag_active || alignment_.rotation_drag_active) {
             return;
         }
         if (drag_mode_ != 0) {
@@ -4945,9 +5264,23 @@ private:
             stats_.skipped.push_back("pixel shader compile failed: " + shader_error);
             return false;
         }
+        ComPtr<ID3DBlob> dot_vs_blob;
+        ComPtr<ID3DBlob> dot_ps_blob;
+        if (FAILED(compile_shader(kVertexDotShaderSource, "vs_dot", "vs_4_0", dot_vs_blob.GetAddressOf(), shader_error))) {
+            stats_.skipped.push_back("vertex dot shader compile failed: " + shader_error);
+            return false;
+        }
+        if (FAILED(compile_shader(kVertexDotShaderSource, "ps_dot", "ps_4_0", dot_ps_blob.GetAddressOf(), shader_error))) {
+            stats_.skipped.push_back("vertex dot pixel shader compile failed: " + shader_error);
+            return false;
+        }
         HRESULT hr = device_->CreateVertexShader(vs_blob->GetBufferPointer(), vs_blob->GetBufferSize(), nullptr, vertex_shader_.GetAddressOf());
         if (FAILED(hr)) return false;
         hr = device_->CreatePixelShader(ps_blob->GetBufferPointer(), ps_blob->GetBufferSize(), nullptr, pixel_shader_.GetAddressOf());
+        if (FAILED(hr)) return false;
+        hr = device_->CreateVertexShader(dot_vs_blob->GetBufferPointer(), dot_vs_blob->GetBufferSize(), nullptr, vertex_dot_shader_.GetAddressOf());
+        if (FAILED(hr)) return false;
+        hr = device_->CreatePixelShader(dot_ps_blob->GetBufferPointer(), dot_ps_blob->GetBufferSize(), nullptr, vertex_dot_pixel_shader_.GetAddressOf());
         if (FAILED(hr)) return false;
         D3D11_INPUT_ELEMENT_DESC layout[] = {
             {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -4958,6 +5291,13 @@ private:
             {"BINORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 14 * 4, D3D11_INPUT_PER_VERTEX_DATA, 0},
         };
         hr = device_->CreateInputLayout(layout, ARRAYSIZE(layout), vs_blob->GetBufferPointer(), vs_blob->GetBufferSize(), input_layout_.GetAddressOf());
+        if (FAILED(hr)) return false;
+        D3D11_INPUT_ELEMENT_DESC dot_layout[] = {
+            {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_INSTANCE_DATA, 1},
+            {"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT, 0, 2 * 4, D3D11_INPUT_PER_INSTANCE_DATA, 1},
+            {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 4 * 4, D3D11_INPUT_PER_INSTANCE_DATA, 1},
+        };
+        hr = device_->CreateInputLayout(dot_layout, ARRAYSIZE(dot_layout), dot_vs_blob->GetBufferPointer(), dot_vs_blob->GetBufferSize(), vertex_dot_input_layout_.GetAddressOf());
         if (FAILED(hr)) return false;
         D3D11_BUFFER_DESC cb_desc{};
         cb_desc.ByteWidth = sizeof(ConstantBuffer);
@@ -5002,11 +5342,14 @@ private:
         sampler_desc.MipLODBias = render_tuning_.mip_lod_bias;
         sampler_desc.MaxAnisotropy = static_cast<UINT>(std::clamp(render_tuning_.max_anisotropy, 1, 16));
         sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
+        const bool replacing_existing_sampler = static_cast<bool>(sampler_);
         HRESULT hr = device_->CreateSamplerState(&sampler_desc, sampler_.ReleaseAndGetAddressOf());
         if (SUCCEEDED(hr)) {
             stats_.sampler_max_anisotropy = static_cast<int>(sampler_desc.MaxAnisotropy);
             stats_.sampler_mip_lod_bias = sampler_desc.MipLODBias;
-            ++stats_.sampler_recreate_count;
+            if (replacing_existing_sampler) {
+                ++stats_.sampler_recreate_count;
+            }
             return true;
         }
         return false;
@@ -5664,6 +6007,9 @@ private:
     ComPtr<ID3D11VertexShader> vertex_shader_;
     ComPtr<ID3D11PixelShader> pixel_shader_;
     ComPtr<ID3D11InputLayout> input_layout_;
+    ComPtr<ID3D11VertexShader> vertex_dot_shader_;
+    ComPtr<ID3D11PixelShader> vertex_dot_pixel_shader_;
+    ComPtr<ID3D11InputLayout> vertex_dot_input_layout_;
     ComPtr<ID3D11Buffer> constants_;
     ComPtr<ID3D11SamplerState> sampler_;
     ComPtr<ID3D11RasterizerState> rasterizer_;
@@ -5679,6 +6025,8 @@ private:
     fs::path pending_package_dir_;
     fs::path pending_status_file_;
     bool pending_reset_view_ = false;
+    std::uint64_t model_generation_ = 0;
+    mutable MeshEditScreenVertexCache mesh_edit_screen_vertex_cache_;
 };
 
 static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
@@ -5898,9 +6246,13 @@ int wmain(int argc, wchar_t** argv) {
         std::string shader_error;
         ComPtr<ID3DBlob> vs_blob;
         ComPtr<ID3DBlob> ps_blob;
+        ComPtr<ID3DBlob> dot_vs_blob;
+        ComPtr<ID3DBlob> dot_ps_blob;
         const bool shader_ok =
             SUCCEEDED(compile_shader(kShaderSource, "vs_main", "vs_4_0", vs_blob.GetAddressOf(), shader_error))
-            && SUCCEEDED(compile_shader(kShaderSource, "ps_main", "ps_4_0", ps_blob.GetAddressOf(), shader_error));
+            && SUCCEEDED(compile_shader(kShaderSource, "ps_main", "ps_4_0", ps_blob.GetAddressOf(), shader_error))
+            && SUCCEEDED(compile_shader(kVertexDotShaderSource, "vs_dot", "vs_4_0", dot_vs_blob.GetAddressOf(), shader_error))
+            && SUCCEEDED(compile_shader(kVertexDotShaderSource, "ps_dot", "ps_4_0", dot_ps_blob.GetAddressOf(), shader_error));
         if (FAILED(hr)) {
             cdmw_native_diag::event("self_test_error", {{"hresult", std::to_string(static_cast<unsigned int>(hr))}});
         } else if (!shader_ok) {

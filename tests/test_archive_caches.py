@@ -6,21 +6,30 @@ from unittest import mock
 from pathlib import Path
 
 from cdmw.core.archive import (
+    _ARCHIVE_BASIC_INDEX_CACHE_MAGIC,
     _ARCHIVE_DERIVED_INDEX_CACHE_MAGIC,
+    _ARCHIVE_SCAN_CACHE_MAGIC,
     _ARCHIVE_SIDECAR_CACHE_MAGIC,
+    _collect_archive_scan_sources,
     _collect_archive_scan_sources_from_entries,
     _deserialize_archive_derived_index_cache_payload_from_path,
     _write_raw_pickle_cache_payload_to_path,
     build_archive_entry_basename_index,
     build_archive_entry_extension_index,
     build_archive_entry_path_index,
+    build_archive_name_search_index,
+    load_archive_basic_index_cache,
     load_archive_derived_index_cache,
+    load_archive_scan_cache,
     load_archive_texture_sidecar_cache_rows,
     invalidate_archive_browser_cache,
     prune_archive_cache_root,
+    resolve_archive_basic_index_cache_path,
+    resolve_archive_scan_cache_path,
     resolve_archive_name_search_index_cache_path,
     resolve_archive_derived_index_cache_path,
     resolve_archive_sidecar_cache_path,
+    save_archive_basic_index_cache,
     save_archive_derived_index_cache,
     save_archive_scan_cache,
     save_archive_texture_sidecar_cache,
@@ -87,6 +96,54 @@ class ArchiveCacheTests(unittest.TestCase):
 
             self.assertEqual(entries, [])
             self.assertTrue(any("Skipped missing archive index" in line for line in logs))
+
+    def test_archive_scan_cache_v2_is_rejected_after_native_scan_scope_fix(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "game"
+            cache_root = Path(temp_dir) / "cache"
+            data = b"payload"
+            _pamt, _paz = _write_entry_files(root, "0000", data)
+            _base, sources = _collect_archive_scan_sources(root)
+            cache_path = resolve_archive_scan_cache_path(root, cache_root)
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_raw_pickle_cache_payload_to_path(
+                cache_path,
+                magic=_ARCHIVE_SCAN_CACHE_MAGIC,
+                payload={
+                    "version": 2,
+                    "package_root": str(root),
+                    "created_at": 0.0,
+                    "sources": sources,
+                    "rows": [("character/model/a.pac", "0000/0.pamt", 0, len(data), len(data), 0, 0)],
+                },
+            )
+            logs: list[str] = []
+
+            entries = load_archive_scan_cache(root, cache_root, on_log=logs.append)
+
+            self.assertIsNone(entries)
+            self.assertTrue(any("format changed" in line for line in logs))
+
+    def test_archive_scan_cache_reuses_compact_entry_metadata_on_load(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            saved_metadata: dict[str, object] = {}
+            save_archive_scan_cache(root, cache_root, entries, metadata_out=saved_metadata)
+            loaded_metadata: dict[str, object] = {}
+
+            with mock.patch(
+                "cdmw.core.archive._update_archive_entry_metadata_row_hash",
+                side_effect=AssertionError("row hash should come from compact metadata"),
+            ):
+                loaded = load_archive_scan_cache(root, cache_root, metadata_out=loaded_metadata)
+
+            self.assertIsNotNone(loaded)
+            self.assertEqual(saved_metadata.get("entry_metadata_signature"), loaded_metadata.get("entry_metadata_signature"))
+            self.assertEqual(saved_metadata.get("entry_metadata_sources"), loaded_metadata.get("entry_metadata_sources"))
 
     def test_native_derived_index_job_is_wired_as_preferred_basic_index_path(self) -> None:
         accelerator = (REPO_ROOT / "cdmw" / "core" / "archive_accelerator.py").read_text(encoding="utf-8")
@@ -322,6 +379,234 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertNotIn("basename_rows", raw_payload)
             self.assertNotIn("extension_rows", raw_payload)
             self.assertNotIn("entry_signatures", raw_payload)
+
+    def test_basic_index_cache_round_trip_uses_compact_entry_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data_a = b"a"
+            data_b = b"bb"
+            pamt_a, paz_a = _write_entry_files(root, "0000", data_a)
+            pamt_b, paz_b = _write_entry_files(root, "0001", data_b)
+            entries = [
+                _entry("character/model/a.pac", pamt_a, paz_a, data_a),
+                _entry("character/texture/a.dds", pamt_b, paz_b, data_b),
+            ]
+            scan_metadata: dict[str, object] = {}
+            save_archive_scan_cache(root, cache_root, entries, metadata_out=scan_metadata)
+            save_archive_basic_index_cache(
+                root,
+                cache_root,
+                entries,
+                path_index=build_archive_entry_path_index(entries),
+                basename_index=build_archive_entry_basename_index(entries),
+                extension_index=build_archive_entry_extension_index(entries),
+                entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                entry_metadata_sources=scan_metadata.get("entry_metadata_sources") or (),
+            )
+
+            with mock.patch(
+                "cdmw.core.archive._collect_archive_scan_sources_from_entries",
+                side_effect=AssertionError("entry source walk should not run"),
+            ):
+                loaded = load_archive_basic_index_cache(
+                    root,
+                    cache_root,
+                    entries,
+                    entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                    current_sources=scan_metadata.get("entry_metadata_sources") or (),
+                )
+
+            self.assertIsNotNone(loaded)
+            payload = loaded or {}
+            self.assertEqual(
+                [entry.path for entry in payload["path_index"]["character/model/a.pac"]],
+                ["character/model/a.pac"],
+            )
+            self.assertEqual(
+                [entry.path for entry in payload["basename_index"]["a.dds"]],
+                ["character/texture/a.dds"],
+            )
+            self.assertEqual(
+                sorted(entry.path for entry in payload["extension_index"][".pac"]),
+                ["character/model/a.pac"],
+            )
+
+    def test_basic_index_cache_rejects_stale_metadata_and_old_format(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            scan_metadata: dict[str, object] = {}
+            save_archive_scan_cache(root, cache_root, entries, metadata_out=scan_metadata)
+            save_archive_basic_index_cache(
+                root,
+                cache_root,
+                entries,
+                path_index=build_archive_entry_path_index(entries),
+                basename_index=build_archive_entry_basename_index(entries),
+                extension_index=build_archive_entry_extension_index(entries),
+                entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                entry_metadata_sources=scan_metadata.get("entry_metadata_sources") or (),
+            )
+
+            logs: list[str] = []
+            self.assertIsNone(
+                load_archive_basic_index_cache(
+                    root,
+                    cache_root,
+                    entries,
+                    entry_metadata_signature="f" * 64,
+                    on_log=logs.append,
+                )
+            )
+            self.assertTrue(any("compact entry metadata changed" in line for line in logs))
+
+            _write_raw_pickle_cache_payload_to_path(
+                resolve_archive_basic_index_cache_path(root, cache_root),
+                magic=_ARCHIVE_BASIC_INDEX_CACHE_MAGIC,
+                payload={
+                    "version": 0,
+                    "entry_count": len(entries),
+                    "path_rows": [("character/model/a.pac", (0,))],
+                },
+            )
+            logs.clear()
+            self.assertIsNone(load_archive_basic_index_cache(root, cache_root, entries, on_log=logs.append))
+            self.assertTrue(any("format changed" in line for line in logs))
+
+    def test_missing_basic_index_cache_is_background_rebuild_signal(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+
+            self.assertIsNone(load_archive_basic_index_cache(root, cache_root, entries))
+            self.assertFalse(resolve_archive_basic_index_cache_path(root, cache_root).exists())
+
+    def test_derived_index_cache_uses_compact_entry_metadata_without_source_walk(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            scan_metadata: dict[str, object] = {}
+            save_archive_scan_cache(root, cache_root, entries, metadata_out=scan_metadata)
+            save_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                item_search_aliases={"a": "test item"},
+                entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                entry_metadata_sources=scan_metadata.get("entry_metadata_sources") or (),
+            )
+
+            with mock.patch(
+                "cdmw.core.archive._collect_archive_scan_sources_from_entries",
+                side_effect=AssertionError("entry source walk should not run"),
+            ):
+                loaded = load_archive_derived_index_cache(
+                    root,
+                    cache_root,
+                    entries,
+                    entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                    current_sources=scan_metadata.get("entry_metadata_sources") or (),
+                )
+
+            self.assertIsNotNone(loaded)
+            self.assertEqual((loaded or {}).get("item_search_aliases"), {"a": "test item"})
+
+    def test_derived_index_cache_can_defer_name_search_binary_load(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            scan_metadata: dict[str, object] = {}
+            save_archive_scan_cache(root, cache_root, entries, metadata_out=scan_metadata)
+            name_index = build_archive_name_search_index(entries, item_search_aliases={"a": "test item"})
+            save_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                item_search_aliases={"a": "test item"},
+                archive_name_search_index=name_index,
+                entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                entry_metadata_sources=scan_metadata.get("entry_metadata_sources") or (),
+            )
+
+            with mock.patch(
+                "cdmw.core.archive._load_native_name_search_index_binary",
+                side_effect=AssertionError("name-search binary should load later"),
+            ):
+                deferred = load_archive_derived_index_cache(
+                    root,
+                    cache_root,
+                    entries,
+                    entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                    current_sources=scan_metadata.get("entry_metadata_sources") or (),
+                    load_name_search_index=False,
+                )
+
+            self.assertIsNotNone(deferred)
+            self.assertTrue((deferred or {}).get("name_search_index_deferred"))
+            self.assertNotIn("name_search_index", deferred or {})
+
+            loaded = load_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                current_sources=scan_metadata.get("entry_metadata_sources") or (),
+            )
+            self.assertIsNotNone((loaded or {}).get("name_search_index"))
+
+    def test_old_derived_index_cache_missing_compact_metadata_rebuilds_without_source_walk(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            cache_root.mkdir(parents=True, exist_ok=True)
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            scan_metadata: dict[str, object] = {}
+            save_archive_scan_cache(root, cache_root, entries, metadata_out=scan_metadata)
+            _base, sources = _collect_archive_scan_sources_from_entries(root, entries)
+            _write_raw_pickle_cache_payload_to_path(
+                resolve_archive_derived_index_cache_path(root, cache_root),
+                magic=_ARCHIVE_DERIVED_INDEX_CACHE_MAGIC,
+                payload={
+                    "version": 10,
+                    "created_at": 1.0,
+                    "sources": sources,
+                    "entry_count": len(entries),
+                    "item_search_aliases": {"a": "old"},
+                    "table_catalog": table_catalog_cache_metadata(row_counts={"item_asset_catalog": 0}),
+                },
+            )
+            logs: list[str] = []
+
+            with mock.patch(
+                "cdmw.core.archive._collect_archive_scan_sources_from_entries",
+                side_effect=AssertionError("entry source walk should not run"),
+            ):
+                loaded = load_archive_derived_index_cache(
+                    root,
+                    cache_root,
+                    entries,
+                    entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                    current_sources=scan_metadata.get("entry_metadata_sources") or (),
+                    on_log=logs.append,
+                )
+
+            self.assertIsNone(loaded)
+            self.assertTrue(any("missing compact entry metadata" in line for line in logs))
 
     def test_derived_index_cache_v8_is_rejected_after_table_catalog_metadata_added(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

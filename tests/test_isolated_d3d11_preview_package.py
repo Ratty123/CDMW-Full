@@ -94,7 +94,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
         self.assertEqual(9, manifest["schema_version"])
         self.assertEqual("empty.pac", manifest["source_path"])
         self.assertEqual(2, manifest["material_contract_schema"])
-        self.assertEqual(1, manifest["material_channel_contract_schema"])
+        self.assertEqual(2, manifest["material_channel_contract_schema"])
         self.assertEqual(1, manifest["texture_quality_schema"])
         self.assertEqual("preserve", manifest["texture_quality_policy"]["technical_map_default"])
         self.assertEqual("lit", manifest["render_diagnostic_mode"])
@@ -442,6 +442,12 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
                                 source_dds_path=str(detail_dds),
                                 preview_texture_path=str(detail),
                                 semantic_subtype="detail_mask",
+                                srgb_mode="linear",
+                                parameter_declared_by="pac_xml",
+                                material_output_quality="layer",
+                                layer_role="detail_mask",
+                                layer_channel="g",
+                                blend_flags=("role:detail_mask", "channel:g"),
                             ),
                         ),
                         has_texture_coordinates=True,
@@ -467,11 +473,13 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             textures = batch["textures"]
             dds_textures = batch["dds_textures"]
             material_contract = batch["material_contract"]
+            material_channel_contract = batch["material_channel_contract"]
             texture_quality = batch["texture_quality"]
             editor_identity = batch["editor_identity"]
 
             self.assertEqual("side_by_side", manifest["display_mode"])
             self.assertEqual("mesh_alignment", manifest["editor_workspace"])
+            self.assertEqual("shiny_metal_inspection", manifest["lighting_preset"])
             self.assertEqual("alpha_cutout", batch["alpha_mode"])
             self.assertEqual("MASK", batch["source_alpha_mode"])
             self.assertTrue(batch["double_sided"])
@@ -485,6 +493,14 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertTrue(dds_textures["base"]["direct_upload_candidate"])
             self.assertEqual("bc1", dds_textures["base"]["compressed_family"])
             self.assertEqual(3, len(dds_textures["material_inputs"]))
+            detail_input = next(item for item in dds_textures["material_inputs"] if item["source_path"] == str(detail_dds))
+            self.assertEqual("_detailMaskTexture", detail_input["parameter_name"])
+            self.assertEqual("linear", detail_input["srgb_mode"])
+            self.assertEqual("pac_xml", detail_input["parameter_declared_by"])
+            self.assertEqual("layer", detail_input["material_output_quality"])
+            self.assertEqual("detail_mask", detail_input["layer_role"])
+            self.assertEqual("g", detail_input["layer_channel"])
+            self.assertIn("channel:g", detail_input["blend_flags"])
             self.assertTrue((package_dir / textures["normal"]).is_file())
             self.assertTrue((package_dir / textures["height"]).is_file())
             self.assertTrue((package_dir / textures["specular"]).is_file())
@@ -505,6 +521,21 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertEqual("opt-in visible/base textures only; technical maps preserved by default", texture_quality["upscale_handoff_policy"])
             self.assertGreater(batch["native_material_hints"]["metalness"], 0.0)
             self.assertGreater(batch["native_material_hints"]["specular"], 0.0)
+            self.assertEqual("metal", batch["material_category"])
+            self.assertGreaterEqual(batch["material_category_confidence"], 0.70)
+            unresolved = material_channel_contract["unresolved"]
+            self.assertTrue(
+                any(item.get("parameter_name") == "_detailMaskTexture" and item.get("disposition") == "layer_only" for item in unresolved)
+            )
+            self.assertTrue(
+                any(str(item.get("source_dds_path", "")).endswith("material_sp.dds") and item.get("disposition") == "diagnostic_only" for item in unresolved)
+            )
+            notes = " ".join(batch["notes"])
+            self.assertIn("material output quality:layer", notes)
+            self.assertIn("shader family:standard_v2", notes)
+            self.assertIn("material category:metal", notes)
+            self.assertIn("direct DDS slots:base", notes)
+            self.assertIn("unresolved material channel maps:", notes)
             self.assertIn("packed material map skipped", " ".join(batch["notes"]))
 
     def test_prefer_direct_dds_skips_preview_png_fallbacks(self) -> None:
@@ -1076,9 +1107,9 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             for slot in ("base", "occlusion", "roughness", "metalness", "specular"):
                 self.assertTrue((package_dir / textures[slot]).is_file(), slot)
             self.assertEqual(2, manifest["material_contract_schema"])
-            self.assertEqual(1, manifest["material_channel_contract_schema"])
+            self.assertEqual(2, manifest["material_channel_contract_schema"])
             self.assertEqual(2, batch["material_contract"]["schema_version"])
-            self.assertEqual(1, batch["material_channel_contract"]["schema_version"])
+            self.assertEqual(2, batch["material_channel_contract"]["schema_version"])
             self.assertEqual("metallic_roughness", batch["material_channel_contract"]["workflow"])
             self.assertTrue(batch["material_channel_diagnostics"])
             self.assertEqual("generic", batch["material_contract"]["shader_family"])
@@ -1097,6 +1128,301 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertIn("material_mask", batch["material_combiner_decode_modes"])
             self.assertIn("occlusion", batch["material_combiner_outputs"])
             self.assertFalse(batch["texture_flip_vertical"])
+
+    def test_specular_material_combiner_promotes_blade_metal_response(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "blade_o.png"
+            base_image = QImage(4, 4, QImage.Format_RGBA8888)
+            base_image.fill(QColor(62, 64, 68, 255))
+            self.assertTrue(base_image.save(str(base), "PNG"))
+            specular = temp_path / "blade_sp.png"
+            specular_image = QImage(4, 4, QImage.Format_RGBA8888)
+            specular_image.fill(QColor(220, 225, 235, 255))
+            self.assertTrue(specular_image.save(str(specular), "PNG"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="weapon.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="blade",
+                        texture_name="blade",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_materialTexture",
+                                texture_name="blade_sp",
+                                source_texture_path="weapon/blade_sp.dds",
+                                preview_texture_path=str(specular),
+                                semantic_subtype="specular",
+                                shader_family="SkinnedMeshStandard_Ver2",
+                                material_parameters=(
+                                    PreviewMaterialParameterInput(
+                                        parameter_kind="byte4",
+                                        parameter_name="_scratchMetallic",
+                                        value="16777215",
+                                    ),
+                                    PreviewMaterialParameterInput(
+                                        parameter_kind="byte4",
+                                        parameter_name="_scratchRoughness",
+                                        value="8388607",
+                                    ),
+                                ),
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="weapon.pac"),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+            batch = manifest["batches"][0]
+            textures = batch["textures"]
+
+            for slot in ("roughness", "metalness", "specular"):
+                self.assertTrue((package_dir / textures[slot]).is_file(), slot)
+            self.assertEqual("shiny_metal_inspection", manifest["lighting_preset"])
+            self.assertEqual("metal", batch["material_category"])
+            self.assertGreaterEqual(batch["material_category_confidence"], 0.90)
+            self.assertIn("standard_v2_specular", batch["material_combiner_decode_modes"])
+            self.assertIn("metalness", batch["material_combiner_outputs"])
+            self.assertGreater(batch["native_material_hints"]["metalness"], 0.0)
+            self.assertGreater(batch["native_material_hints"]["specular"], 0.0)
+            self.assertIn("material category:metal", " ".join(batch["notes"]))
+
+    def test_material_category_uses_standalone_tinted_metal_tokens(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "base.png"
+            base_image = QImage(4, 4, QImage.Format_RGBA8888)
+            base_image.fill(QColor(90, 92, 96, 255))
+            self.assertTrue(base_image.save(str(base), "PNG"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            metal_tokens = ("gold", "silver", "copper", "bronze", "brass", "chrome")
+            batches = tuple(
+                PreparedModelPreviewBatch(
+                    material_name=f"{token}_inlay",
+                    texture_name=f"{token}_plate",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                )
+                for token in metal_tokens
+            ) + (
+                PreparedModelPreviewBatch(
+                    material_name="gold leather strap",
+                    texture_name="strap",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
+                    material_name="brassiere_trim",
+                    texture_name="fabric_trim",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
+                    material_name="glass_panel",
+                    texture_name="clear_glass",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
+                    material_name="ruby_gem",
+                    texture_name="ruby_jewel",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
+                    material_name="stone_rock",
+                    texture_name="ceramic_stone",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
+                    material_name="eye_iris",
+                    texture_name="eye_cornea",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
+                    material_name="tooth",
+                    texture_name="teeth",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
+                    material_name="eyebrow",
+                    texture_name="brow_lash",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
+                    material_name="CD_PHM_02_Handle_0015",
+                    texture_name="cd_phm_02_handle_0015",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
+                    material_name="cd_phm_02_sword_0043",
+                    texture_name="CD_R0002_00_Horse_Vest_0002",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
+                    material_name="cd_phm_02_sword_0043",
+                    texture_name="shared_texturelayer",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+            )
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="wardrobe.pac"),
+                PreparedModelPreviewData(source_path="wardrobe.pac", batches=batches),
+                output_root=temp_path / "package",
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+            manifest_batches = manifest["batches"]
+            categories_by_name = {str(batch["material_name"]): batch for batch in manifest_batches}
+
+            for index, token in enumerate(metal_tokens):
+                with self.subTest(token=token):
+                    self.assertEqual("metal", manifest_batches[index]["material_category"])
+                    self.assertGreaterEqual(manifest_batches[index]["material_category_confidence"], 0.60)
+                    self.assertEqual("metal:color_token", manifest_batches[index]["material_category_reason"])
+                    self.assertEqual("metal", manifest_batches[index]["material_analysis"]["category"])
+            self.assertEqual("leather", categories_by_name["gold leather strap"]["material_category"])
+            self.assertEqual("cloth", categories_by_name["brassiere_trim"]["material_category"])
+            self.assertEqual("glass", categories_by_name["glass_panel"]["material_category"])
+            self.assertEqual("gem", categories_by_name["ruby_gem"]["material_category"])
+            self.assertEqual("stone", categories_by_name["stone_rock"]["material_category"])
+            self.assertEqual("eye", categories_by_name["eye_iris"]["material_category"])
+            self.assertEqual("tooth", categories_by_name["tooth"]["material_category"])
+            self.assertEqual("hair", categories_by_name["eyebrow"]["material_category"])
+            self.assertEqual("leather", categories_by_name["CD_PHM_02_Handle_0015"]["material_category"])
+            sword_vest_batch = next(
+                batch
+                for batch in manifest_batches
+                if batch["material_name"] == "cd_phm_02_sword_0043" and batch["texture_name"] == "CD_R0002_00_Horse_Vest_0002"
+            )
+            self.assertEqual("cloth", sword_vest_batch["material_category"])
+            sword_only_batch = next(
+                batch
+                for batch in manifest_batches
+                if batch["material_name"] == "cd_phm_02_sword_0043" and batch["texture_name"] == "shared_texturelayer"
+            )
+            self.assertEqual("generic", sword_only_batch["material_category"])
+            for material_name in ("glass_panel", "ruby_gem", "stone_rock", "eye_iris", "tooth", "eyebrow", "CD_PHM_02_Handle_0015"):
+                self.assertIn("material_category_reason", categories_by_name[material_name])
+                self.assertEqual(
+                    categories_by_name[material_name]["material_category"],
+                    categories_by_name[material_name]["material_analysis"]["category"],
+                )
+            for batch in (sword_vest_batch, sword_only_batch):
+                self.assertIn("material_category_reason", batch)
+                self.assertEqual(batch["material_category"], batch["material_analysis"]["category"])
+
+    def test_emissive_texture_gets_default_glow_without_sidecar_intensity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "rune_base.png"
+            base_image = QImage(4, 4, QImage.Format_RGBA8888)
+            base_image.fill(QColor(18, 20, 24, 255))
+            self.assertTrue(base_image.save(str(base), "PNG"))
+            emissive = temp_path / "rune_emissive.png"
+            emissive_image = QImage(4, 4, QImage.Format_RGBA8888)
+            emissive_image.fill(QColor(40, 190, 255, 255))
+            self.assertTrue(emissive_image.save(str(emissive), "PNG"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="magic.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="rune_glow",
+                        texture_name="rune",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="emissive",
+                                parameter_name="_emissiveTexture",
+                                texture_name="rune_emissive",
+                                preview_texture_path=str(emissive),
+                                semantic_type="emissive",
+                                semantic_subtype="emissive",
+                                shader_family="SkinnedMeshEmissive_Ver2",
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="magic.pac"),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+            textures = batch["textures"]
+            material_contract = batch["material_contract"]
+
+            self.assertTrue((package_dir / textures["emissive"]).is_file())
+            self.assertEqual(4.0, batch["emissive_intensity"])
+            self.assertTrue(batch["native_material_hints"]["emissive_active"])
+            self.assertEqual("emissive_texture_default", batch["native_material_hints"]["source"])
+            self.assertEqual(4.0, material_contract["pbr_scalar_hints"]["emissive_intensity"])
+            self.assertEqual(4.0, material_contract["decode_profile"]["pbr_scalar_hints"]["emissive_intensity"])
 
     def test_package_reuses_legacy_pbr_response_without_full_recombine(self) -> None:
         from PySide6.QtGui import QColor, QImage
@@ -1297,6 +1623,9 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("env_reflection", source)
         self.assertIn("metal_reflectance", source)
         self.assertIn("nonmetal_sheen", source)
+        self.assertIn("direct_metal_response", source)
+        self.assertIn("category_metal_cap = max(category_metal_cap, 0.96)", source)
+        self.assertIn("emissive_color = max(emissive_color, emissive_sample.rgb)", source)
         self.assertIn("roughness_bias", source)
         self.assertNotIn("0.62, 0.68, 0.75", source)
         self.assertNotIn("smoothness * 0.45", source)
@@ -1322,7 +1651,7 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("case WM_CONTEXTMENU:", source)
         self.assertIn("case WM_CANCELMODE:", source)
         self.assertIn("case WM_KILLFOCUS:", source)
-        self.assertIn("if (mesh_edit_.drag_active || alignment_.drag_active || alignment_.rotation_drag_active)", source)
+        self.assertIn("if (mesh_edit_.drag_active || mesh_edit_.selection_drag_active || alignment_.drag_active || alignment_.rotation_drag_active)", source)
         self.assertIn("if (drag_mode_ != 0)", source)
         self.assertIn("kZoomSteps", source)
         self.assertIn("WM_MOUSEWHEEL", source)

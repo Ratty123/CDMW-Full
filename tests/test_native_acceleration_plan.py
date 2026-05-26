@@ -4,6 +4,7 @@ import unittest
 import tempfile
 from unittest import mock
 
+import cdmw.core.archive_accelerator as archive_accelerator
 from cdmw.core.archive_accelerator import prepare_archive_browser_state_accelerated
 from cdmw.core.mesh_native import _native_rebuild_is_in_place_safe, audit_mesh_native, build_mesh_native, parse_mesh_native
 from cdmw.core.mesh_native_parity import native_mesh_full_rebuild_parity_enabled, native_mesh_rebuild_parity_enabled, run_mesh_native_archive_parity_corpus, run_mesh_native_parity_corpus
@@ -62,6 +63,46 @@ class NativeAccelerationPlanTests(unittest.TestCase):
         self.assertFalse(state["archive_accelerator"]["native_used"])
         self.assertEqual(1, len(state["filtered_entries"]))
 
+    def test_item_name_search_uses_intentional_python_path_without_native_probe(self) -> None:
+        with mock.patch.object(
+            archive_accelerator,
+            "find_native_archive_accelerator",
+            side_effect=AssertionError("native path should not be queried"),
+        ):
+            state = prepare_archive_browser_state_accelerated(
+                [_entry("character/model/a.pac")],
+                filter_text="frostcursed",
+                exclude_filter_text="",
+                extension_filter="*",
+                package_filter_text="",
+                structure_filter="",
+                role_filter="all",
+                exclude_common_technical_suffixes=False,
+                min_size_kb=0,
+                previewable_only=False,
+                item_search_aliases={"frostcursed": "character/model/a.pac"},
+                archive_name_search_index=None,
+                native_enabled=True,
+            )
+
+        self.assertEqual("python_fallback", state["archive_accelerator"]["backend"])
+        self.assertEqual("item_name_search_python_path", state["archive_accelerator"]["fallback_reason"])
+
+    def test_archive_accelerator_discovery_uses_pyinstaller_runtime_native_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            frozen_root = Path(temp_dir)
+            binary = frozen_root / "native" / archive_accelerator.ARCHIVE_ACCELERATOR_BINARY_NAME
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b"fake")
+
+            with (
+                mock.patch.dict(archive_accelerator.os.environ, {"CDMW_ARCHIVE_ACCELERATOR_BIN": ""}),
+                mock.patch.object(archive_accelerator.sys, "_MEIPASS", str(frozen_root), create=True),
+                mock.patch.object(archive_accelerator.sys, "frozen", True, create=True),
+                mock.patch.object(archive_accelerator.sys, "executable", str(frozen_root.parent / "CrimsonDesertModWorkbench.exe")),
+            ):
+                self.assertEqual(binary, archive_accelerator.find_native_archive_accelerator())
+
     def test_archive_accelerator_protocol_and_packaging_are_wired(self) -> None:
         adapter = Path("cdmw/core/archive_accelerator.py").read_text(encoding="utf-8")
         archive = Path("cdmw/core/archive.py").read_text(encoding="utf-8")
@@ -72,15 +113,23 @@ class NativeAccelerationPlanTests(unittest.TestCase):
 
         self.assertIn("ARCHIVE_ACCELERATOR_PROTOCOL = 1", adapter)
         self.assertIn("scan_archive_entries_cached_accelerated", adapter)
+        self.assertIn("_native_browser_state_block_reason", adapter)
         self.assertIn("scan_archive_entries_cached_accelerated", main_window)
+        self.assertIn('fallback_reason.endswith("_python_path")', main_window)
         self.assertIn("scan-job", native)
         self.assertIn("browser-state-job", native)
         self.assertIn("entry-read-job", native)
         self.assertIn("read_archive_entry_data_native", adapter)
         self.assertIn("read_archive_entry_data_native", archive)
         self.assertIn("constexpr int kProtocol = 1", native)
+        self.assertIn("std::ofstream out(report_path, std::ios::binary | std::ios::trunc);", native)
+        self.assertIn("write_rows_json(out, path_rows);", native)
+        self.assertNotIn("rows_json(path_rows)", native)
         self.assertIn("native\\cdmw_archive_accelerator", build)
         self.assertIn("cdmw-archive-accelerator.exe", spec)
+        self.assertIn('lower_copy(item.path().filename().string()) == "cdmods"', native)
+        self.assertIn("it.disable_recursion_pending();", native)
+        self.assertIn('lower_copy(package_root.extension().string()) == ".pamt"', native)
 
     def test_mesh_native_falls_back_when_binary_is_missing(self) -> None:
         with mock.patch("cdmw.core.mesh_native.find_native_preview_core_binary", return_value=None):

@@ -198,6 +198,13 @@ class StaticMeshReplacementOptions:
     dense_export_mode: str = "preserve_split"
     complete_swap_atlas_mode: str = "auto_when_needed"
     complete_swap_material_profile: str = "source_graph_strict"
+    global_gloss_reduction: float = 0.0
+    edge_relief_strength: float = 0.0
+    edge_relief_source: str = "hybrid"
+    accent_glow_strength: float = 0.0
+    dark_detail_lift: float = 0.0
+    tone_contrast: float = 0.0
+    allow_unsafe_material_preflight_export: bool = False
     removed_target_submesh_indices: list[int] = field(default_factory=list)
     prune_removed_target_texture_parameters: bool = False
     prune_unmapped_original_texture_parameters: bool = False

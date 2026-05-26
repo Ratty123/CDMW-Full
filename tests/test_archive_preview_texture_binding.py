@@ -103,6 +103,11 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         self.assertEqual(1, len(bindings))
         self.assertEqual("Body_A", bindings[0].submesh_name)
         self.assertEqual("character/texture/body_a.dds", bindings[0].texture_path)
+        self.assertEqual("base", bindings[0].layer_role)
+        self.assertEqual("srgb", bindings[0].srgb_mode)
+        self.assertEqual("pac_xml", bindings[0].parameter_declared_by)
+        self.assertEqual("exact", bindings[0].material_output_quality)
+        self.assertIn("role:base", bindings[0].blend_flags)
 
     def test_cross_family_sidecar_texture_notice_is_explicit_but_nonfatal(self) -> None:
         notice = _archive_texture_family_mismatch_summary(
@@ -775,7 +780,17 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
         bindings = (
             _ArchiveModelSidecarTextureBinding("character/texture/part_a_ma.dds", "_materialTexture", "Part_A"),
-            _ArchiveModelSidecarTextureBinding("character/texture/part_a_sp.dds", "_specularTexture", "Part_A"),
+            _ArchiveModelSidecarTextureBinding(
+                "character/texture/part_a_sp.dds",
+                "_specularTexture",
+                "Part_A",
+                srgb_mode="linear",
+                parameter_declared_by="pac_xml",
+                material_output_quality="layer",
+                layer_role="material_response",
+                layer_channel="g",
+                blend_flags=("role:material_response", "channel:g"),
+            ),
         )
 
         with patch(
@@ -804,6 +819,14 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
             },
             {item.source_texture_path for item in material_inputs},
         )
+        specular_input = next(item for item in material_inputs if item.source_texture_path.endswith("_sp.dds"))
+        self.assertEqual("character/texture/part_a_sp.dds", specular_input.source_dds_path)
+        self.assertEqual("linear", specular_input.srgb_mode)
+        self.assertEqual("pac_xml", specular_input.parameter_declared_by)
+        self.assertEqual("layer", specular_input.material_output_quality)
+        self.assertEqual("material_response", specular_input.layer_role)
+        self.assertEqual("g", specular_input.layer_channel)
+        self.assertIn("channel:g", specular_input.blend_flags)
         self.assertIn("material diagnostics and preview", "\n".join(lines))
 
     def test_exact_sidecar_material_inputs_are_capped_before_preview_conversion(self) -> None:

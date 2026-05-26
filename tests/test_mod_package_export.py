@@ -7,6 +7,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
+from cdmw.core.archive_modding import ArchivePatchRequest, export_archive_payloads_to_mod_ready_loose
 from cdmw.core.mod_package import (
     MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY,
     MeshLooseModAsset,
@@ -17,7 +18,24 @@ from cdmw.core.mod_package import (
     write_mesh_loose_mod_package_metadata,
     write_mod_package_manifest,
 )
-from cdmw.models import ModPackageInfo
+from cdmw.core.pipeline import build_mod_package_export_options_from_config
+from cdmw.models import AppConfig, ArchiveEntry, ModPackageInfo
+
+
+def _entry(path: str, root: Path) -> ArchiveEntry:
+    pamt_path = root / "0009" / "0009.pamt"
+    paz_path = root / "0009" / "0.paz"
+    pamt_path.parent.mkdir(parents=True, exist_ok=True)
+    return ArchiveEntry(
+        path=path,
+        pamt_path=pamt_path,
+        paz_file=paz_path,
+        offset=0,
+        comp_size=1,
+        orig_size=1,
+        flags=0,
+        paz_index=0,
+    )
 
 
 class ModPackageExportTests(unittest.TestCase):
@@ -107,6 +125,21 @@ class ModPackageExportTests(unittest.TestCase):
             self.assertEqual(manifest.get("files_root"), "files")
             self.assertEqual(manifest.get("new_paths"), ["object/texture/new.dds"])
             self.assertEqual(manifest.get("manager_targets"), ["cdumm"])
+
+    def test_archive_loose_export_preserves_actionchart_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            actionchart_path = "actionchart/bin__/animmeta/1_pc/1_phm/test_motion.paa_metabin"
+
+            result = export_archive_payloads_to_mod_ready_loose(
+                [ArchivePatchRequest(_entry(actionchart_path, root), b"meta")],
+                parent_root=root,
+                package_info=ModPackageInfo(title="ActionchartMod"),
+                export_options=mod_package_export_options_for_manager("cdumm"),
+            )
+
+            self.assertTrue((result.package_root / "files" / "actionchart" / "bin__" / "animmeta" / "1_pc" / "1_phm" / "test_motion.paa_metabin").is_file())
+            self.assertFalse((result.package_root / "files" / "test_motion.paa_metabin").exists())
 
     def test_cdumm_modinfo_uses_documented_fields_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -325,6 +358,85 @@ class ModPackageExportTests(unittest.TestCase):
         self.assertFalse(field_json.create_info_json)
         self.assertEqual(("field_json",), field_json.manager_targets)
         self.assertEqual("field_json_v31", field_json.structure)
+
+        jmm = mod_package_export_options_for_manager("jmm")
+        self.assertFalse(jmm.create_manifest_json)
+        self.assertFalse(jmm.create_mod_json)
+        self.assertFalse(jmm.create_modinfo_json)
+        self.assertFalse(jmm.create_info_json)
+        self.assertEqual(("jmm",), jmm.manager_targets)
+        self.assertEqual("game_relative", jmm.structure)
+
+    def test_multi_profile_config_keeps_cdumm_conflict_options(self) -> None:
+        options = build_mod_package_export_options_from_config(
+            AppConfig(
+                mod_ready_manager_profile="universal",
+                mod_ready_manager_profiles=("universal", "cdumm"),
+                mod_ready_conflict_mode="override",
+                mod_ready_target_language="ko",
+            )
+        )
+
+        self.assertEqual("override", options.conflict_mode)
+        self.assertEqual("ko", options.target_language)
+
+    def test_jmm_profile_writes_jmm_mod_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "JmmMod"
+            payload = root / "character" / "model" / "weapon" / "sample.pac"
+            payload.parent.mkdir(parents=True)
+            payload.write_bytes(b"PAC")
+            texture = root / "character" / "texture" / "sample_new.dds"
+            texture.parent.mkdir(parents=True)
+            texture.write_bytes(b"DDS ")
+
+            write_mod_package_manifest(
+                root,
+                ModPackageInfo(title="JMM Example", version="1.0", author="Author"),
+                kind="mesh_loose_mod",
+                all_payload_paths=(
+                    "character/model/weapon/sample.pac",
+                    "character/texture/sample_new.dds",
+                ),
+                new_file_paths=("character/texture/sample_new.dds",),
+                export_options=ModPackageExportOptions(manager_targets=("jmm",), structure="game_relative"),
+            )
+
+            self.assertFalse((root / "manifest.json").exists())
+            mod_json = json.loads((root / "mod.json").read_text(encoding="utf-8"))
+            self.assertEqual("JMM Example", mod_json["title"])
+            self.assertEqual("character/model/weapon/sample.pac", mod_json["target"])
+            self.assertEqual(
+                ["character/model/weapon/sample.pac", "character/texture/sample_new.dds"],
+                mod_json["files"],
+            )
+            self.assertEqual(["character/texture/sample_new.dds"], mod_json["new_paths"])
+
+    def test_multi_profile_archive_export_writes_separate_profile_folders_and_zips(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            entry = _entry("character/texture/sample.dds", root)
+
+            result = export_archive_payloads_to_mod_ready_loose(
+                (ArchivePatchRequest(entry, b"DDS "),),
+                parent_root=root / "out",
+                package_info=ModPackageInfo(title="Multi"),
+                export_options=ModPackageExportOptions(
+                    export_profiles=("jmm", "cdumm"),
+                    create_zip=True,
+                    conflict_mode="override",
+                ),
+            )
+
+            jmm_root = root / "out" / "Multi_jmm"
+            cdumm_root = root / "out" / "Multi_cdumm"
+            self.assertEqual((jmm_root, cdumm_root), result.package_roots)
+            self.assertTrue((jmm_root / "mod.json").is_file())
+            self.assertTrue((jmm_root.with_suffix(".zip")).is_file())
+            self.assertTrue((cdumm_root / "manifest.json").is_file())
+            self.assertTrue((cdumm_root / "modinfo.json").is_file())
+            self.assertTrue((cdumm_root.with_suffix(".zip")).is_file())
+            self.assertTrue((cdumm_root / "files" / "character" / "texture" / "sample.dds").is_file())
 
     def test_metadata_artifact_table_covers_generate_options(self) -> None:
         expected = {

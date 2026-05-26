@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -24,6 +25,7 @@ from cdmw.models import ArchiveEntry
 
 ARCHIVE_ACCELERATOR_PROTOCOL = 1
 ARCHIVE_ACCELERATOR_BACKEND_ID = "cdmw_archive_accelerator_0.1"
+ARCHIVE_ACCELERATOR_BINARY_NAME = "cdmw-archive-accelerator.exe" if os.name == "nt" else "cdmw-archive-accelerator"
 
 
 def find_native_archive_accelerator() -> Path | None:
@@ -31,11 +33,18 @@ def find_native_archive_accelerator() -> Path | None:
     candidates = []
     if override:
         candidates.append(Path(override))
+    frozen_root = Path(str(getattr(sys, "_MEIPASS", ""))) if getattr(sys, "_MEIPASS", "") else None
+    exe_root = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else None
+    if frozen_root is not None:
+        candidates.append(frozen_root / "native" / ARCHIVE_ACCELERATOR_BINARY_NAME)
+    if exe_root is not None:
+        candidates.append(exe_root / "native" / ARCHIVE_ACCELERATOR_BINARY_NAME)
     repo_root = Path(__file__).resolve().parents[2]
     candidates.extend(
         [
-            repo_root / "native" / "cdmw_archive_accelerator" / "build" / "Release" / "cdmw-archive-accelerator.exe",
-            repo_root / "native" / "cdmw_archive_accelerator" / "build" / "cdmw-archive-accelerator.exe",
+            repo_root / "native" / "cdmw_archive_accelerator" / "build" / "Release" / ARCHIVE_ACCELERATOR_BINARY_NAME,
+            repo_root / "native" / "cdmw_archive_accelerator" / "build" / "Debug" / ARCHIVE_ACCELERATOR_BINARY_NAME,
+            repo_root / "native" / "cdmw_archive_accelerator" / "build" / ARCHIVE_ACCELERATOR_BINARY_NAME,
         ]
     )
     for candidate in candidates:
@@ -193,11 +202,12 @@ def scan_archive_entries_cached_accelerated(
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     on_breadcrumb: Optional[Callable[[Mapping[str, object]], None]] = None,
     stop_event: object = None,
-) -> tuple[list[ArchiveEntry], str, Optional[Path], dict[str, float]]:
+) -> tuple[list[ArchiveEntry], str, Optional[Path], dict[str, float], dict[str, object]]:
     from cdmw.core.archive import scan_archive_entries_cached
 
     started_at = time.perf_counter()
     timings: dict[str, float] = {}
+    scan_metadata: dict[str, object] = {}
     cache_path = resolve_archive_scan_cache_path(package_root, cache_root)
     if not force_refresh:
         cache_started_at = time.perf_counter()
@@ -208,13 +218,14 @@ def scan_archive_entries_cached_accelerated(
             on_progress=on_progress,
             stop_event=stop_event,
             timings=timings,
+            metadata_out=scan_metadata,
         )
         timings.setdefault("cache_check_s", max(0.0, float(time.perf_counter() - cache_started_at)))
         if cached_entries is not None:
             timings.setdefault("archive_scan_s", 0.0)
             timings.setdefault("cache_write_s", 0.0)
             timings["total_s"] = max(0.0, float(time.perf_counter() - started_at))
-            return cached_entries, "cache", cache_path, timings
+            return cached_entries, "cache", cache_path, timings, scan_metadata
     native_started_at = time.perf_counter()
     entries = scan_archive_entries_native(
         package_root,
@@ -223,7 +234,7 @@ def scan_archive_entries_cached_accelerated(
         stop_event=stop_event,
     )
     if entries is None:
-        return scan_archive_entries_cached(
+        fallback_entries, fallback_source, fallback_cache_path, fallback_timings = scan_archive_entries_cached(
             package_root,
             cache_root,
             force_refresh=True,
@@ -232,6 +243,7 @@ def scan_archive_entries_cached_accelerated(
             on_breadcrumb=on_breadcrumb,
             stop_event=stop_event,
         )
+        return fallback_entries, fallback_source, fallback_cache_path, fallback_timings, {}
     timings["archive_scan_s"] = max(0.0, float(time.perf_counter() - native_started_at))
     try:
         cache_path = save_archive_scan_cache(
@@ -242,6 +254,7 @@ def scan_archive_entries_cached_accelerated(
             on_progress=on_progress,
             stop_event=stop_event,
             timings=timings,
+            metadata_out=scan_metadata,
         )
     except Exception as exc:
         if on_log:
@@ -249,7 +262,7 @@ def scan_archive_entries_cached_accelerated(
         cache_path = None
         timings.setdefault("cache_write_s", 0.0)
     timings["total_s"] = max(0.0, float(time.perf_counter() - started_at))
-    return entries, "native_scan", cache_path, timings
+    return entries, "native_scan", cache_path, timings, scan_metadata
 
 
 def read_archive_entry_data_native(
@@ -328,7 +341,7 @@ def read_archive_entry_data_native(
     return data, bool(report.get("decompressed", False)), str(report.get("note") or "NativeRaw")
 
 
-def _native_browser_state_supported(
+def _native_browser_state_block_reason(
     entries: Sequence[ArchiveEntry],
     *,
     filter_text: str,
@@ -337,22 +350,22 @@ def _native_browser_state_supported(
     archive_name_search_index: object,
     sort_column: object,
     role_filter: str,
-) -> bool:
+) -> str:
     if not entries:
-        return False
+        return "empty_entries"
     if archive_name_search_index is not None and str(filter_text or "").strip():
-        return False
+        return "item_name_search_python_path"
     if item_search_aliases and str(filter_text or "").strip():
-        return False
+        return "item_name_search_python_path"
     if archive_browser_sort_is_active(sort_column):
-        return False
+        return "sort_python_path"
     for text in (filter_text, exclude_filter_text):
         if any(char in str(text or "") for char in '"|:-[]?*'):
-            return False
+            return "advanced_pattern_python_path"
     normalized_role = str(role_filter or "all").strip().lower()
     if normalized_role not in {"", "all"}:
-        return False
-    return True
+        return "role_filter_python_path"
+    return ""
 
 
 def _write_browser_entries_tsv(path: Path, entries: Sequence[ArchiveEntry]) -> None:
@@ -500,7 +513,7 @@ def build_archive_basic_indexes_accelerated(
             report_path = temp_path / "derived_report.json"
             progress_path = temp_path / "derived_progress.json"
             if on_progress is not None:
-                on_progress(0, max(len(entries), 1), "Building native archive lookup indexes...")
+                on_progress(0, max(len(entries), 1), "Building path lookup...")
             _write_browser_entries_tsv(entries_path, entries)
             try:
                 completed = subprocess.run(
@@ -549,11 +562,7 @@ def _try_prepare_archive_browser_state_native(
     entries: Sequence[ArchiveEntry],
     **kwargs: Any,
 ) -> Tuple[Optional[dict], str]:
-    binary = find_native_archive_accelerator()
-    if not _native_archive_accelerator_ready(binary):
-        return None, "native archive accelerator binary unavailable or not ready"
-    assert binary is not None
-    if not _native_browser_state_supported(
+    unsupported_reason = _native_browser_state_block_reason(
         entries,
         filter_text=str(kwargs.get("filter_text", "") or ""),
         exclude_filter_text=str(kwargs.get("exclude_filter_text", "") or ""),
@@ -561,8 +570,13 @@ def _try_prepare_archive_browser_state_native(
         archive_name_search_index=kwargs.get("archive_name_search_index"),
         sort_column=kwargs.get("sort_column", -1),
         role_filter=str(kwargs.get("role_filter", "all") or "all"),
-    ):
-        return None, "request not supported by native browser-state accelerator"
+    )
+    if unsupported_reason:
+        return None, unsupported_reason
+    binary = find_native_archive_accelerator()
+    if not _native_archive_accelerator_ready(binary):
+        return None, "native archive accelerator binary unavailable or not ready"
+    assert binary is not None
     stop_event = kwargs.get("stop_event")
     raise_if_cancelled(stop_event)
     with tempfile.TemporaryDirectory(prefix="cdmw_archive_accelerator_browser_") as temp_dir:
@@ -621,11 +635,12 @@ def _try_prepare_archive_browser_state_native(
 
 
 def prepare_archive_browser_state_accelerated(*args: Any, native_enabled: bool = True, resource_profile: str = "balanced_60fps", **kwargs: Any) -> dict:
-    native_path = find_native_archive_accelerator() if native_enabled else None
+    native_path: Optional[Path] = None
     fallback_reason = "native acceleration disabled"
     if native_enabled and args:
         native_state, fallback_reason = _try_prepare_archive_browser_state_native(args[0], **kwargs)
         if native_state is not None:
+            native_path = find_native_archive_accelerator()
             native_state["archive_accelerator"]["native_path"] = str(native_path or "")
             native_state["archive_accelerator"]["resource_profile"] = str(resource_profile or "balanced_60fps")
             return native_state

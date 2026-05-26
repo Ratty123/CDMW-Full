@@ -3,12 +3,16 @@ from __future__ import annotations
 import unittest
 
 from cdmw.rendering.material_channels import (
+    MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION,
     parse_crimson_material_definition_text,
     resolve_preview_batch_material_channels,
 )
 
 
 class MaterialChannelContractTests(unittest.TestCase):
+    def test_material_channel_schema_is_v2(self) -> None:
+        self.assertEqual(2, MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION)
+
     def test_resolves_sketchfab_style_explicit_pbr_channels(self) -> None:
         contract = resolve_preview_batch_material_channels(
             {
@@ -41,6 +45,33 @@ class MaterialChannelContractTests(unittest.TestCase):
         self.assertEqual("linear", contract.channel("roughness").color_space)
         self.assertEqual([], list(contract.unresolved))
 
+    def test_base_color_parameter_preserves_source_dds_and_parameter(self) -> None:
+        contract = resolve_preview_batch_material_channels(
+            {
+                "material_name": "crimson_base",
+                "textures": {"base": "previews/body.png"},
+                "material_contract": {
+                    "shader_family": "SkinnedMeshStandard_Ver2",
+                    "texture_slots": {
+                        "base": {
+                            "parameter_name": "_baseColorTexture",
+                            "source_dds_path": "character/texture/body_d.dds",
+                            "confidence": "sidecar",
+                            "source_kind": "direct_dds",
+                        }
+                    },
+                },
+            }
+        )
+
+        channel = contract.channel("base_color")
+        self.assertIsNotNone(channel)
+        assert channel is not None
+        self.assertEqual("_baseColorTexture", channel.parameter_name)
+        self.assertEqual("character/texture/body_d.dds", channel.source_dds_path)
+        self.assertEqual("sidecar", channel.confidence)
+        self.assertEqual("direct_dds", channel.source_kind)
+
     def test_specular_glossiness_workflow_is_detected(self) -> None:
         contract = resolve_preview_batch_material_channels(
             {
@@ -56,6 +87,24 @@ class MaterialChannelContractTests(unittest.TestCase):
         self.assertEqual("specular_glossiness", contract.workflow)
         self.assertEqual("SpecularPBR", contract.channel("specular").sketchfab_channel)
         self.assertEqual("GlossinessPBR", contract.channel("glossiness").sketchfab_channel)
+
+    def test_texture_slot_srgb_mode_overrides_default_specular_space(self) -> None:
+        contract = resolve_preview_batch_material_channels(
+            {
+                "material_name": "linear_spec",
+                "textures": {"specular": "textures/weapon_sp.dds"},
+                "material_contract": {
+                    "texture_slots": {
+                        "specular": {
+                            "confidence": "exact",
+                            "srgb_mode": "linear",
+                        }
+                    }
+                },
+            }
+        )
+
+        self.assertEqual("linear", contract.channel("specular").color_space)
 
     def test_packed_crimson_material_mask_stays_unresolved(self) -> None:
         contract = resolve_preview_batch_material_channels(
@@ -159,6 +208,43 @@ class MaterialChannelContractTests(unittest.TestCase):
         self.assertIsNone(contract.channel("roughness"))
         self.assertIsNone(contract.channel("metalness"))
         self.assertTrue(any(item.get("disposition") == "layer_material_response" for item in contract.unresolved))
+
+    def test_flow_hair_and_eye_maps_stay_unresolved_layer_diagnostics(self) -> None:
+        cases = (
+            ("_flowTexture", "textures/cd_phm_02_cloth_0014_flow.dds", "layer_flow"),
+            ("_ssdmHairDirectionTexture", "textures/cd_phm_02_hair_0014_dir.dds", "layer_direction"),
+            ("_irisTexture", "textures/cd_phm_02_eye_0014_iris.dds", "diagnostic_only"),
+        )
+        for parameter_name, source_path, disposition in cases:
+            with self.subTest(parameter_name=parameter_name):
+                contract = resolve_preview_batch_material_channels(
+                    {
+                        "material_name": "crimson_material",
+                        "textures": {"material": source_path},
+                        "material_contract": {
+                            "shader_family": "SkinnedMeshStandard_Ver2",
+                            "texture_slots": {
+                                "material": {
+                                    "parameter_name": parameter_name,
+                                    "shader_family": "SkinnedMeshStandard_Ver2",
+                                    "confidence": "authoritative",
+                                    "layer_role": "layer",
+                                    "layer_channel": "r",
+                                    "blend_flags": ["role:layer", "channel:r"],
+                                }
+                            },
+                        },
+                    }
+                )
+
+                self.assertIsNone(contract.channel("roughness"))
+                self.assertIsNone(contract.channel("metalness"))
+                diagnostic = next(item for item in contract.unresolved if item.get("parameter_name") == parameter_name)
+                self.assertEqual(disposition, diagnostic.get("disposition"))
+                self.assertEqual("layer", diagnostic.get("slot"))
+                self.assertIn("not", diagnostic.get("reason", ""))
+                self.assertEqual("layer", diagnostic.get("layer_role"))
+                self.assertEqual("r", diagnostic.get("layer_channel"))
 
     def test_parse_crimson_material_definition_records_parameters_and_groups(self) -> None:
         definition = parse_crimson_material_definition_text(

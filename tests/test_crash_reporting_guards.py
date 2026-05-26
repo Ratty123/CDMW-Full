@@ -22,10 +22,15 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('"bootstrap_failure"', source)
         self.assertIn("from cdmw.ui.main_window import run_gui", source)
         self.assertIn("def _acquire_single_instance_guard", source)
+        self.assertIn("_single_instance_lock_handle", source)
+        self.assertIn("single_instance.lock", source)
+        self.assertIn("msvcrt.locking", source)
         self.assertIn("def _schedule_startup_maintenance", source)
         self.assertIn("def _start_external_startup_splash", source)
         self.assertIn("STARTUP_SPLASH_COMMAND_FILE_ENV", source)
         self.assertIn("--startup-splash-host", source)
+        self.assertIn("if _startup_splash_process.poll() is None:", source)
+        self.assertIn("os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)", source)
         self.assertIn('_update_pyinstaller_boot_splash("Already running.")', source)
         self.assertIn('_update_pyinstaller_boot_splash("Loading...")', source)
         self.assertLess(
@@ -87,6 +92,8 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.setWindowIcon(app_icon)", source)
         self.assertIn("app.setWindowIcon(app_icon)", source)
         self.assertIn("startup_splash.setWindowIcon(app.windowIcon())", source)
+        self.assertIn("external_splash_file is not None and external_splash_file.is_file()", source)
+        self.assertIn("close_pyinstaller_boot_splash()", source)
         self.assertLess(
             source.index("apply_windows_app_user_model_id()"),
             source.index("app = QApplication(sys.argv)"),
@@ -111,6 +118,13 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("event.ignore()", source)
         self.assertIn("thread.finished.connect(self._finish_deferred_close_if_workers_stopped", source)
         self.assertIn("self._close_force_accept = True", source)
+        self.assertIn("CLOSE_WORKER_FORCE_STOP_AFTER_SECONDS", source)
+        self.assertIn("def _force_stop_close_worker_threads", source)
+        self.assertIn("self._force_stop_close_worker_threads(running_entries)", source)
+        close_start = source.index("        def _begin_deferred_close_for_workers")
+        close_body = source[close_start: source.index("        def _finalize_close", close_start)]
+        self.assertIn("self.hide()", close_body)
+        self.assertNotIn("self.setEnabled(False)", close_body)
         self.assertNotIn("thread.wait(wait_ms)", source)
         self.assertNotIn("wait_ms: int = 1200", source)
 
@@ -238,7 +252,11 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def _finish_startup_splash_and_show_main_window(self) -> None:", source)
         finish_start = source.index("def _finish_startup_splash_and_show_main_window(self) -> None:")
         finish_body = source[finish_start : source.index("def _release_startup_splash(self) -> None:", finish_start)]
-        self.assertLess(finish_body.index("self._finish_startup_splash_now()"), finish_body.index("self._show_main_window_after_startup_splash()"))
+        self.assertIn("def _finish_startup_splash_after_main_window_paint(self) -> None:", source)
+        self.assertIn("Qt.WindowStaysOnTopHint", source)
+        self.assertLess(finish_body.index("self._show_main_window_after_startup_splash()"), finish_body.index("self._schedule_startup_splash_finish_after_main_window_paint(180)"))
+        self.assertNotIn("self._finish_startup_splash_now()\n            self._show_main_window_after_startup_splash()", finish_body)
+        self.assertIn("startup_splash_first_paint_timeout", source)
         self.assertIn('self._update_startup_splash("Opening workspace...", 1, 1)', finish_body)
         self.assertIn("app.processEvents()", finish_body)
         self.assertIn("QTimer.singleShot(0, self._finish_startup_splash_and_show_main_window)", source)
@@ -344,7 +362,9 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertNotIn("QTimer.singleShot(6500, window._release_startup_splash)", main_source)
         self.assertIn('_write_heartbeat("archive_autoload_queued")', main_source)
         self.assertIn('startup_splash.set_detail("Loading Archive Browser...")', main_source)
-        self.assertIn("window._release_startup_splash()", main_source)
+        autoload_start = main_source.index("        if window._startup_archive_autoload_expected():")
+        autoload_body = main_source[autoload_start: main_source.index("        else:", autoload_start)]
+        self.assertNotIn("window._release_startup_splash()", autoload_body)
         self.assertNotIn("QTimer.singleShot(500, self._maybe_autoload_archive_on_startup)", main_source)
         self.assertIn("Startup archive auto-load skipped because the previous session did not shut down cleanly", main_source)
         self.assertIn("self.archive_startup_autoload_defer_preview = True", main_source)

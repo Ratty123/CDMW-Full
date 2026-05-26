@@ -1,0 +1,6570 @@
+# Texture Relationship Audit
+
+Read-only audit of texture relationships, material sidecars, model sidecars, DDS formats, and family companions.
+
+## Inputs
+- archive_root: C:\Users\Ratrider\Desktop\CTF\archive_extract (exists: yes, files: 1,014,307)
+- game_root: C:\games\Steam\steamapps\common\Crimson Desert (exists: yes, files: 437)
+- family_root: C:\Users\Ratrider\Desktop\CTF\archive_extract\Family Examples (exists: yes, files: 767)
+
+## Counts
+
+| Metric | Value |
+| --- | ---: |
+| files_total | 1,015,511 |
+| dds_files | 282,507 |
+| pac_files | 12,810 |
+| pac_xml_files | 12,734 |
+| pac_with_pac_xml | 12,695 |
+| pac_without_pac_xml | 115 |
+| pac_xml_without_pac | 35 |
+| sidecar_dds_refs_total | 1,727,217 |
+| sidecar_dds_refs_resolved | 1,127,797 |
+| sidecar_dds_refs_missing | 15,164 |
+| sidecar_dds_refs_ambiguous_basename | 584,256 |
+| sidecar_dds_resolve_rate | 65.30% |
+| malformed_refs | 118 |
+| tex_files | 0 |
+| ambiguous_dds_basenames | 2,443 |
+| family_pac_files | 13 |
+| family_pac_xml_files | 13 |
+| family_dds_files | 678 |
+| family_example_count | 13 |
+| family_complete_examples | 13 |
+| family_hkx_companions | 39 |
+| family_pab_files | 26 |
+| family_pab_companions | 26 |
+| family_prefab_companions | 33 |
+
+## Scan Coverage
+
+- DDS native headers inspected: 282,507 / 282,507
+- Sidecars scanned for DDS refs: 128,912 / 128,912
+
+## DDS Suffixes And Formats
+
+| Suffix | Count | Formats |
+| --- | ---: | --- |
+| _0 | 11,321 | BC1_UNORM: 11123, BC3_UNORM: 102, uncompressed_or_unknown: 96 |
+| _00 | 209 | BC1_UNORM: 28, BC3_UNORM: 178, BC5_UNORM: 2, uncompressed_or_unknown: 1 |
+| _000 | 1 | BC1_UNORM: 1 |
+| _0000 | 1 | BC1_UNORM: 1 |
+| _00000 | 17 | BC3_UNORM: 17 |
+| _00000000 | 7 | BC1_UNORM: 3, BC3_UNORM: 4 |
+| _000000002 | 1 | BC3_UNORM: 1 |
+| _00000001 | 4 | BC3_UNORM: 4 |
+| _00000002 | 3 | BC3_UNORM: 3 |
+| _00001 | 2 | BC3_UNORM: 2 |
+| _00001001 | 1 | BC3_UNORM: 1 |
+| _00001002 | 1 | BC3_UNORM: 1 |
+| _00001021 | 1 | BC3_UNORM: 1 |
+| _00001022 | 1 | BC3_UNORM: 1 |
+| _00001026 | 1 | BC3_UNORM: 1 |
+| _00001030 | 1 | BC3_UNORM: 1 |
+| _00001032 | 1 | BC3_UNORM: 1 |
+| _00001033 | 1 | BC3_UNORM: 1 |
+| _00001036 | 1 | BC3_UNORM: 1 |
+| _00001038 | 1 | BC3_UNORM: 1 |
+| _00001042 | 1 | BC3_UNORM: 1 |
+| _00001043 | 1 | BC3_UNORM: 1 |
+| _00001044 | 1 | BC3_UNORM: 1 |
+| _00001047 | 1 | BC3_UNORM: 1 |
+| _00001056 | 1 | BC3_UNORM: 1 |
+| _00001069 | 1 | BC3_UNORM: 1 |
+| _00001070 | 1 | BC3_UNORM: 1 |
+| _00001071 | 1 | BC3_UNORM: 1 |
+| _00001073 | 1 | BC3_UNORM: 1 |
+| _00001101 | 1 | BC1_UNORM: 1 |
+| _00001201 | 1 | BC1_UNORM: 1 |
+| _00001210 | 1 | BC1_UNORM: 1 |
+| _00001302 | 1 | BC1_UNORM: 1 |
+| _00001401 | 1 | BC1_UNORM: 1 |
+| _00001501 | 1 | BC1_UNORM: 1 |
+| _00001551 | 1 | BC1_UNORM: 1 |
+| _00001601 | 1 | BC1_UNORM: 1 |
+| _00001701 | 1 | BC1_UNORM: 1 |
+| _00001702 | 1 | BC1_UNORM: 1 |
+| _00001710 | 1 | BC1_UNORM: 1 |
+| _00001731 | 1 | BC1_UNORM: 1 |
+| _00001801 | 1 | BC1_UNORM: 1 |
+| _00001802 | 1 | BC1_UNORM: 1 |
+| _00001803 | 1 | BC1_UNORM: 1 |
+| _00002 | 1 | BC3_UNORM: 1 |
+| _00002001 | 1 | BC1_UNORM: 1 |
+| _00002003 | 1 | BC1_UNORM: 1 |
+| _00002100 | 1 | BC1_UNORM: 1 |
+| _00002200 | 1 | BC1_UNORM: 1 |
+| _00002204 | 1 | BC1_UNORM: 1 |
+| _00002205 | 1 | BC1_UNORM: 1 |
+| _00002208 | 1 | BC1_UNORM: 1 |
+| _00002211 | 1 | BC1_UNORM: 1 |
+| _00002212 | 1 | BC1_UNORM: 1 |
+| _00002217 | 1 | BC1_UNORM: 1 |
+| _00002223 | 1 | BC1_UNORM: 1 |
+| _00002224 | 1 | BC1_UNORM: 1 |
+| _00002225 | 1 | BC1_UNORM: 1 |
+| _00002226 | 1 | BC1_UNORM: 1 |
+| _00002300 | 1 | BC1_UNORM: 1 |
+| _00002302 | 1 | BC1_UNORM: 1 |
+| _00002401 | 1 | BC1_UNORM: 1 |
+| _00002402 | 1 | BC1_UNORM: 1 |
+| _00002403 | 1 | BC1_UNORM: 1 |
+| _00002408 | 1 | BC1_UNORM: 1 |
+| _00002409 | 1 | BC1_UNORM: 1 |
+| _00002410 | 1 | BC1_UNORM: 1 |
+| _00002411 | 1 | BC1_UNORM: 1 |
+| _00002414 | 1 | BC1_UNORM: 1 |
+| _00002416 | 1 | BC1_UNORM: 1 |
+| _00002422 | 1 | BC1_UNORM: 1 |
+| _00002423 | 1 | BC1_UNORM: 1 |
+| _00002424 | 1 | BC1_UNORM: 1 |
+| _00002425 | 1 | BC1_UNORM: 1 |
+| _00003 | 3 | BC3_UNORM: 3 |
+| _00004 | 1 | BC3_UNORM: 1 |
+| _00005 | 1 | BC3_UNORM: 1 |
+| _00006 | 1 | BC3_UNORM: 1 |
+| _00008 | 1 | BC3_UNORM: 1 |
+| _0001 | 1,708 | BC1_UNORM: 925, BC3_UNORM: 783 |
+| _00010010 | 1 | BC3_UNORM: 1 |
+| _00010030 | 1 | BC1_UNORM: 1 |
+| _00010050 | 1 | BC1_UNORM: 1 |
+| _00010070 | 1 | BC1_UNORM: 1 |
+| _00011020 | 1 | BC1_UNORM: 1 |
+| _00011040 | 1 | BC1_UNORM: 1 |
+| _00011050 | 1 | BC1_UNORM: 1 |
+| _00011060 | 1 | BC1_UNORM: 1 |
+| _00012010 | 1 | BC1_UNORM: 1 |
+| _00012020 | 1 | BC1_UNORM: 1 |
+| _00012050 | 1 | BC1_UNORM: 1 |
+| _00012060 | 1 | BC1_UNORM: 1 |
+| _00012080 | 1 | BC1_UNORM: 1 |
+| _00012090 | 1 | BC1_UNORM: 1 |
+| _00013010 | 1 | BC3_UNORM: 1 |
+| _00013020 | 1 | BC1_UNORM: 1 |
+| _00013030 | 1 | BC1_UNORM: 1 |
+| _00013040 | 1 | BC1_UNORM: 1 |
+| _00013050 | 1 | BC1_UNORM: 1 |
+| _00014010 | 1 | BC1_UNORM: 1 |
+| _00014020 | 1 | BC1_UNORM: 1 |
+| _00014030 | 1 | BC1_UNORM: 1 |
+| _00014040 | 1 | BC3_UNORM: 1 |
+| _00014050 | 1 | BC1_UNORM: 1 |
+| _00014060 | 1 | BC1_UNORM: 1 |
+| _00015011 | 1 | BC1_UNORM: 1 |
+| _00015020 | 1 | BC1_UNORM: 1 |
+| _00015021 | 1 | BC1_UNORM: 1 |
+| _00015022 | 1 | BC1_UNORM: 1 |
+| _00015030 | 1 | BC1_UNORM: 1 |
+| _00015040 | 1 | BC1_UNORM: 1 |
+| _00016010 | 1 | BC1_UNORM: 1 |
+| _00016020 | 1 | BC1_UNORM: 1 |
+| _00016030 | 1 | BC1_UNORM: 1 |
+| _00016040 | 1 | BC1_UNORM: 1 |
+| _00016050 | 1 | BC1_UNORM: 1 |
+| _00016060 | 1 | BC1_UNORM: 1 |
+| _00017 | 1 | BC3_UNORM: 1 |
+| _00017010 | 1 | BC1_UNORM: 1 |
+| _00017020 | 1 | BC1_UNORM: 1 |
+| _00017021 | 1 | BC1_UNORM: 1 |
+| _00018010 | 1 | BC1_UNORM: 1 |
+| _00018020 | 1 | BC1_UNORM: 1 |
+| _00018021 | 1 | BC1_UNORM: 1 |
+| _00018022 | 1 | BC1_UNORM: 1 |
+| _00018025 | 1 | BC1_UNORM: 1 |
+| _00018026 | 1 | BC1_UNORM: 1 |
+| _00018027 | 1 | BC1_UNORM: 1 |
+| _00018028 | 1 | BC1_UNORM: 1 |
+| _00018029 | 1 | BC1_UNORM: 1 |
+| _00018030 | 1 | BC1_UNORM: 1 |
+| _00019010 | 1 | BC1_UNORM: 1 |
+| _00019020 | 1 | BC1_UNORM: 1 |
+| _00019031 | 1 | BC1_UNORM: 1 |
+| _00019040 | 1 | BC1_UNORM: 1 |
+| _0001a | 1 | BC1_UNORM: 1 |
+| _0001e | 3 | BC1_UNORM: 3 |
+| _0002 | 474 | BC1_UNORM: 272, BC3_UNORM: 202 |
+| _0002a | 2 | BC1_UNORM: 2 |
+| _0002c | 1 | BC1_UNORM: 1 |
+| _0002d | 1 | BC1_UNORM: 1 |
+| _0002i | 1 | BC1_UNORM: 1 |
+| _0002j | 3 | BC1_UNORM: 3 |
+| _0002k | 1 | BC1_UNORM: 1 |
+| _0002m | 1 | BC1_UNORM: 1 |
+| _0002n | 1 | BC1_UNORM: 1 |
+| _0002o | 3 | BC1_UNORM: 3 |
+| _0002p | 1 | BC1_UNORM: 1 |
+| _0002q | 1 | BC1_UNORM: 1 |
+| _0002s | 1 | BC1_UNORM: 1 |
+| _0002t | 1 | BC1_UNORM: 1 |
+| _0002v | 1 | BC1_UNORM: 1 |
+| _0002x | 1 | BC1_UNORM: 1 |
+| _0002zh | 1 | BC1_UNORM: 1 |
+| _0003 | 324 | BC1_UNORM: 190, BC3_UNORM: 134 |
+| _00030010 | 1 | BC1_UNORM: 1 |
+| _0003a | 2 | BC1_UNORM: 2 |
+| _0003e | 2 | BC1_UNORM: 2 |
+| _0004 | 245 | BC1_UNORM: 167, BC3_UNORM: 78 |
+| _0004a | 3 | BC1_UNORM: 3 |
+| _0004b | 1 | BC1_UNORM: 1 |
+| _0004e | 1 | BC1_UNORM: 1 |
+| _0004g | 1 | BC1_UNORM: 1 |
+| _0004j | 1 | BC1_UNORM: 1 |
+| _0004l | 1 | BC1_UNORM: 1 |
+| _0004n | 1 | BC1_UNORM: 1 |
+| _0004o | 2 | BC1_UNORM: 2 |
+| _0004p | 4 | BC1_UNORM: 4 |
+| _0004q | 3 | BC1_UNORM: 3 |
+| _0004t | 3 | BC1_UNORM: 3 |
+| _0004u | 2 | BC1_UNORM: 2 |
+| _0004v | 2 | BC1_UNORM: 2 |
+| _0004w | 3 | BC1_UNORM: 3 |
+| _0004x | 1 | BC1_UNORM: 1 |
+| _0004y | 1 | BC1_UNORM: 1 |
+| _0004zb | 1 | BC1_UNORM: 1 |
+| _0004zf | 1 | BC1_UNORM: 1 |
+| _0004zg | 1 | BC1_UNORM: 1 |
+| _0004zh | 1 | BC1_UNORM: 1 |
+| _0004zi | 1 | BC1_UNORM: 1 |
+| _0004zj | 2 | BC1_UNORM: 2 |
+| _0004zk | 1 | BC1_UNORM: 1 |
+| _0004zl | 1 | BC1_UNORM: 1 |
+| _0004zm | 1 | BC1_UNORM: 1 |
+| _0004zn | 1 | BC1_UNORM: 1 |
+| _0004zo | 1 | BC1_UNORM: 1 |
+| _0004zp | 1 | BC1_UNORM: 1 |
+| _0004zq | 2 | BC1_UNORM: 2 |
+| _0004zv | 1 | BC1_UNORM: 1 |
+| _0004zw | 2 | BC1_UNORM: 2 |
+| _0004zx | 1 | BC1_UNORM: 1 |
+| _0004zy | 1 | BC1_UNORM: 1 |
+| _0004zz | 1 | BC1_UNORM: 1 |
+| _0005 | 208 | BC1_UNORM: 131, BC3_UNORM: 77 |
+| _0005a | 4 | BC1_UNORM: 4 |
+| _0005c | 1 | BC1_UNORM: 1 |
+| _0005d | 1 | BC1_UNORM: 1 |
+| _0005e | 1 | BC1_UNORM: 1 |
+| _0005f | 1 | BC1_UNORM: 1 |
+| _0005g | 1 | BC1_UNORM: 1 |
+| _0005i | 1 | BC1_UNORM: 1 |
+| _0006 | 178 | BC1_UNORM: 117, BC3_UNORM: 61 |
+| _0006a | 1 | BC1_UNORM: 1 |
+| _0007 | 153 | BC1_UNORM: 98, BC3_UNORM: 55 |
+| _0007a | 1 | BC1_UNORM: 1 |
+| _0008 | 147 | BC1_UNORM: 92, BC3_UNORM: 55 |
+| _00080001 | 2 | BC3_UNORM: 2 |
+| _00080002 | 2 | BC3_UNORM: 2 |
+| _0008a | 2 | BC1_UNORM: 2 |
+| _0009 | 146 | BC1_UNORM: 92, BC3_UNORM: 54 |
+| _00090010 | 1 | BC1_UNORM: 1 |
+| _00090020 | 1 | BC1_UNORM: 1 |
+| _00090030 | 1 | BC1_UNORM: 1 |
+| _00090040 | 1 | BC1_UNORM: 1 |
+| _00090050 | 1 | BC1_UNORM: 1 |
+| _00090060 | 1 | BC1_UNORM: 1 |
+| _00090070 | 1 | BC1_UNORM: 1 |
+| _00093 | 1 | BC3_UNORM: 1 |
+| _0009a | 2 | BC1_UNORM: 2 |
+| _0009b | 1 | BC1_UNORM: 1 |
+| _001 | 19 | BC1_UNORM: 17, BC3_UNORM: 2 |
+| _0010 | 137 | BC1_UNORM: 94, BC3_UNORM: 43 |
+| _0010a | 3 | BC1_UNORM: 3 |
+| _0010b | 1 | BC1_UNORM: 1 |
+| _0011 | 117 | BC1_UNORM: 76, BC3_UNORM: 41 |
+| _00111 | 1 | BC3_UNORM: 1 |
+| _0011a | 3 | BC1_UNORM: 3 |
+| _0011b | 1 | BC1_UNORM: 1 |
+| _0012 | 99 | BC1_UNORM: 60, BC3_UNORM: 39 |
+| _00120113 | 1 | BC3_UNORM: 1 |
+| _0012a | 2 | BC1_UNORM: 2 |
+| _0012b | 1 | BC1_UNORM: 1 |
+| _0013 | 94 | BC1_UNORM: 61, BC3_UNORM: 33 |
+| _00130001 | 1 | BC3_UNORM: 1 |
+| _00130002 | 1 | BC3_UNORM: 1 |
+| _00130003 | 1 | BC3_UNORM: 1 |
+| _00130004 | 1 | BC3_UNORM: 1 |
+| _00130005 | 1 | BC3_UNORM: 1 |
+| _00130006 | 1 | BC3_UNORM: 1 |
+| _00130007 | 1 | BC3_UNORM: 1 |
+| _00130008 | 1 | BC3_UNORM: 1 |
+| _00130009 | 1 | BC3_UNORM: 1 |
+| _00130010 | 1 | BC3_UNORM: 1 |
+| _00130011 | 1 | BC3_UNORM: 1 |
+| _00130012 | 1 | BC3_UNORM: 1 |
+| _00130013 | 1 | BC3_UNORM: 1 |
+| _00130015 | 1 | BC3_UNORM: 1 |
+| _00130016 | 1 | BC3_UNORM: 1 |
+| _00130017 | 1 | BC3_UNORM: 1 |
+| _00130018 | 1 | BC3_UNORM: 1 |
+| _00130019 | 1 | BC3_UNORM: 1 |
+| _00130020 | 1 | BC3_UNORM: 1 |
+| _00130021 | 1 | BC3_UNORM: 1 |
+| _00130022 | 1 | BC3_UNORM: 1 |
+| _00130024 | 1 | BC3_UNORM: 1 |
+| _00130026 | 1 | BC3_UNORM: 1 |
+| _00130027 | 1 | BC3_UNORM: 1 |
+| _00130028 | 1 | BC3_UNORM: 1 |
+| _00130029 | 1 | BC3_UNORM: 1 |
+| _00130030 | 1 | BC3_UNORM: 1 |
+| _00130031 | 1 | BC3_UNORM: 1 |
+| _00130032 | 1 | BC3_UNORM: 1 |
+| _00130034 | 1 | BC3_UNORM: 1 |
+| _00130035 | 1 | BC3_UNORM: 1 |
+| _00130036 | 1 | BC3_UNORM: 1 |
+| _00130039 | 1 | BC3_UNORM: 1 |
+| _00130042 | 1 | BC3_UNORM: 1 |
+| _00130043 | 1 | BC3_UNORM: 1 |
+| _00130044 | 1 | BC3_UNORM: 1 |
+| _00130046 | 1 | BC3_UNORM: 1 |
+| _00130047 | 1 | BC3_UNORM: 1 |
+| _00130048 | 1 | BC3_UNORM: 1 |
+| _00130049 | 1 | BC3_UNORM: 1 |
+| _00130050 | 1 | BC3_UNORM: 1 |
+| _00130051 | 1 | BC3_UNORM: 1 |
+| _00130053 | 1 | BC3_UNORM: 1 |
+| _00130054 | 1 | BC3_UNORM: 1 |
+| _00130055 | 1 | BC3_UNORM: 1 |
+| _00130056 | 1 | BC3_UNORM: 1 |
+| _00130057 | 1 | BC3_UNORM: 1 |
+| _00130058 | 1 | BC3_UNORM: 1 |
+| _00130059 | 1 | BC3_UNORM: 1 |
+| _00130060 | 1 | BC3_UNORM: 1 |
+| _00130061 | 1 | BC3_UNORM: 1 |
+| _00130062 | 1 | BC3_UNORM: 1 |
+| _00130063 | 1 | BC3_UNORM: 1 |
+| _00130064 | 1 | BC3_UNORM: 1 |
+| _00130065 | 1 | BC3_UNORM: 1 |
+| _00130066 | 1 | BC3_UNORM: 1 |
+| _00130067 | 1 | BC3_UNORM: 1 |
+| _00130068 | 1 | BC3_UNORM: 1 |
+| _00130069 | 1 | BC3_UNORM: 1 |
+| _00130070 | 1 | BC3_UNORM: 1 |
+| _00130071 | 1 | BC3_UNORM: 1 |
+| _00130072 | 1 | BC3_UNORM: 1 |
+| _00130073 | 1 | BC3_UNORM: 1 |
+| _00130074 | 1 | BC3_UNORM: 1 |
+| _00130075 | 1 | BC3_UNORM: 1 |
+| _00130076 | 1 | BC3_UNORM: 1 |
+| _00130077 | 1 | BC3_UNORM: 1 |
+| _00130078 | 1 | BC3_UNORM: 1 |
+| _00130079 | 1 | BC3_UNORM: 1 |
+| _00130080 | 1 | BC3_UNORM: 1 |
+| _00130081 | 1 | BC3_UNORM: 1 |
+| _00130082 | 1 | BC3_UNORM: 1 |
+| _00130083 | 1 | BC3_UNORM: 1 |
+| _00130084 | 1 | BC3_UNORM: 1 |
+| _00130085 | 1 | BC3_UNORM: 1 |
+| _00130086 | 1 | BC3_UNORM: 1 |
+| _00130087 | 1 | BC3_UNORM: 1 |
+| _00130088 | 1 | BC3_UNORM: 1 |
+| _00130089 | 1 | BC3_UNORM: 1 |
+| _00130090 | 1 | BC3_UNORM: 1 |
+| _00130091 | 1 | BC3_UNORM: 1 |
+| _00130092 | 1 | BC3_UNORM: 1 |
+| _00130093 | 1 | BC3_UNORM: 1 |
+| _00130094 | 1 | BC3_UNORM: 1 |
+| _00130095 | 1 | BC3_UNORM: 1 |
+| _00130096 | 1 | BC3_UNORM: 1 |
+| _00130097 | 1 | BC3_UNORM: 1 |
+| _00130098 | 1 | BC3_UNORM: 1 |
+| _00131 | 1 | BC3_UNORM: 1 |
+| _0013a | 3 | BC1_UNORM: 3 |
+| _0013b | 1 | BC1_UNORM: 1 |
+| _0014 | 88 | BC1_UNORM: 55, BC3_UNORM: 33 |
+| _00144 | 1 | BC3_UNORM: 1 |
+| _0014a | 1 | BC1_UNORM: 1 |
+| _0014aa | 1 | BC1_UNORM: 1 |
+| _0014ab | 1 | BC1_UNORM: 1 |
+| _0014ba | 1 | BC1_UNORM: 1 |
+| _0014bb | 1 | BC1_UNORM: 1 |
+| _0014ca | 1 | BC1_UNORM: 1 |
+| _0014cb | 1 | BC1_UNORM: 1 |
+| _0015 | 86 | BC1_UNORM: 56, BC3_UNORM: 30 |
+| _0015a | 2 | BC1_UNORM: 2 |
+| _0015b | 1 | BC1_UNORM: 1 |
+| _0016 | 86 | BC1_UNORM: 59, BC3_UNORM: 27 |
+| _0016a | 2 | BC1_UNORM: 2 |
+| _0016b | 1 | BC1_UNORM: 1 |
+| _0017 | 76 | BC1_UNORM: 51, BC3_UNORM: 25 |
+| _0017a | 2 | BC1_UNORM: 2 |
+| _0017b | 1 | BC1_UNORM: 1 |
+| _0018 | 80 | BC1_UNORM: 51, BC3_UNORM: 29 |
+| _0018a | 2 | BC1_UNORM: 2 |
+| _0018b | 1 | BC1_UNORM: 1 |
+| _0019 | 70 | BC1_UNORM: 46, BC3_UNORM: 24 |
+| _00190001 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _00190002 | 1 | BC1_UNORM: 1 |
+| _00190003 | 1 | BC1_UNORM: 1 |
+| _00190006 | 1 | BC1_UNORM: 1 |
+| _00190009 | 1 | BC1_UNORM: 1 |
+| _00190016 | 1 | BC1_UNORM: 1 |
+| _00190017 | 1 | BC1_UNORM: 1 |
+| _00190020 | 1 | BC1_UNORM: 1 |
+| _00190036 | 1 | BC3_UNORM: 1 |
+| _00190039 | 1 | BC3_UNORM: 1 |
+| _00190052 | 1 | BC3_UNORM: 1 |
+| _00190059 | 1 | BC3_UNORM: 1 |
+| _00190074 | 1 | BC3_UNORM: 1 |
+| _00190075 | 1 | BC1_UNORM: 1 |
+| _00190078 | 1 | BC3_UNORM: 1 |
+| _00190079 | 1 | BC3_UNORM: 1 |
+| _00190081 | 1 | BC3_UNORM: 1 |
+| _00190082 | 1 | BC1_UNORM: 1 |
+| _00190091 | 1 | BC3_UNORM: 1 |
+| _00190092 | 1 | BC3_UNORM: 1 |
+| _00190093 | 1 | BC3_UNORM: 1 |
+| _00190095 | 1 | BC3_UNORM: 1 |
+| _00190112 | 1 | BC3_UNORM: 1 |
+| _00190117 | 1 | BC3_UNORM: 1 |
+| _00190128 | 1 | BC3_UNORM: 1 |
+| _00190129 | 1 | BC3_UNORM: 1 |
+| _00190131 | 1 | BC3_UNORM: 1 |
+| _00190139 | 1 | BC1_UNORM: 1 |
+| _00190144 | 1 | BC3_UNORM: 1 |
+| _00190164 | 1 | BC3_UNORM: 1 |
+| _00190168 | 1 | BC1_UNORM: 1 |
+| _00190204 | 1 | BC3_UNORM: 1 |
+| _00190205 | 1 | BC3_UNORM: 1 |
+| _00190206 | 1 | BC3_UNORM: 1 |
+| _00190221 | 1 | BC3_UNORM: 1 |
+| _00190222 | 1 | BC3_UNORM: 1 |
+| _00190253 | 1 | BC3_UNORM: 1 |
+| _00190257 | 1 | BC3_UNORM: 1 |
+| _00190260 | 1 | BC3_UNORM: 1 |
+| _00190261 | 1 | BC1_UNORM: 1 |
+| _00190270 | 1 | BC3_UNORM: 1 |
+| _00190271 | 1 | BC3_UNORM: 1 |
+| _00190273 | 1 | BC3_UNORM: 1 |
+| _00190301 | 1 | BC3_UNORM: 1 |
+| _00190305 | 1 | BC1_UNORM: 1 |
+| _00190323 | 1 | BC3_UNORM: 1 |
+| _00190324 | 1 | BC3_UNORM: 1 |
+| _00190328 | 1 | BC3_UNORM: 1 |
+| _00190333 | 1 | BC3_UNORM: 1 |
+| _00190337 | 1 | BC3_UNORM: 1 |
+| _0019a | 3 | BC1_UNORM: 3 |
+| _0019b | 2 | BC1_UNORM: 2 |
+| _001a | 99 | BC1_UNORM: 49, BC3_UNORM: 50 |
+| _001b | 18 | BC1_UNORM: 7, BC3_UNORM: 11 |
+| _001c | 6 | BC3_UNORM: 6 |
+| _001d | 2 | BC3_UNORM: 2 |
+| _001p | 1 | BC3_UNORM: 1 |
+| _001r | 1 | BC1_UNORM: 1 |
+| _002 | 7 | BC1_UNORM: 4, BC3_UNORM: 3 |
+| _0020 | 63 | BC1_UNORM: 44, BC3_UNORM: 19 |
+| _00200 | 1 | BC3_UNORM: 1 |
+| _00201 | 1 | BC3_UNORM: 1 |
+| _00202 | 1 | BC3_UNORM: 1 |
+| _00206 | 1 | BC3_UNORM: 1 |
+| _0020a | 1 | BC1_UNORM: 1 |
+| _0021 | 65 | BC1_UNORM: 43, BC3_UNORM: 22 |
+| _00210 | 1 | BC3_UNORM: 1 |
+| _00213 | 1 | BC3_UNORM: 1 |
+| _00214 | 1 | BC3_UNORM: 1 |
+| _00215 | 1 | BC3_UNORM: 1 |
+| _00216 | 1 | BC3_UNORM: 1 |
+| _00217 | 1 | BC3_UNORM: 1 |
+| _00218 | 1 | BC3_UNORM: 1 |
+| _00219 | 1 | BC3_UNORM: 1 |
+| _0021a | 2 | BC1_UNORM: 2 |
+| _0021b | 1 | BC1_UNORM: 1 |
+| _0022 | 57 | BC1_UNORM: 35, BC3_UNORM: 22 |
+| _00221 | 1 | BC3_UNORM: 1 |
+| _00222 | 1 | BC3_UNORM: 1 |
+| _00224 | 1 | BC3_UNORM: 1 |
+| _00225 | 1 | BC3_UNORM: 1 |
+| _00227 | 1 | BC3_UNORM: 1 |
+| _00228 | 1 | BC3_UNORM: 1 |
+| _00229 | 1 | BC3_UNORM: 1 |
+| _0022a | 2 | BC1_UNORM: 2 |
+| _0022b | 1 | BC1_UNORM: 1 |
+| _0023 | 67 | BC1_UNORM: 46, BC3_UNORM: 21 |
+| _00230 | 1 | BC3_UNORM: 1 |
+| _00232 | 1 | BC3_UNORM: 1 |
+| _00233 | 1 | BC3_UNORM: 1 |
+| _00234 | 1 | BC3_UNORM: 1 |
+| _00235 | 1 | BC3_UNORM: 1 |
+| _00236 | 1 | BC3_UNORM: 1 |
+| _00237 | 1 | BC3_UNORM: 1 |
+| _00238 | 1 | BC3_UNORM: 1 |
+| _00239 | 1 | BC3_UNORM: 1 |
+| _0023a | 2 | BC1_UNORM: 2 |
+| _0023b | 1 | BC1_UNORM: 1 |
+| _0024 | 56 | BC1_UNORM: 36, BC3_UNORM: 20 |
+| _00240 | 1 | BC3_UNORM: 1 |
+| _00241 | 1 | BC3_UNORM: 1 |
+| _00245 | 1 | BC3_UNORM: 1 |
+| _0024a | 1 | BC1_UNORM: 1 |
+| _0025 | 56 | BC1_UNORM: 36, BC3_UNORM: 20 |
+| _0025a | 1 | BC1_UNORM: 1 |
+| _0026 | 52 | BC1_UNORM: 32, BC3_UNORM: 20 |
+| _00267 | 1 | BC3_UNORM: 1 |
+| _00268 | 1 | BC3_UNORM: 1 |
+| _0026a | 1 | BC1_UNORM: 1 |
+| _0027 | 51 | BC1_UNORM: 31, BC3_UNORM: 20 |
+| _0027a | 1 | BC1_UNORM: 1 |
+| _0028 | 46 | BC1_UNORM: 28, BC3_UNORM: 18 |
+| _0028a | 1 | BC1_UNORM: 1 |
+| _0029 | 48 | BC1_UNORM: 30, BC3_UNORM: 18 |
+| _0029a | 2 | BC1_UNORM: 2 |
+| _002a | 22 | BC1_UNORM: 8, BC3_UNORM: 14 |
+| _002b | 1 | BC3_UNORM: 1 |
+| _002c | 1 | BC3_UNORM: 1 |
+| _003 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0030 | 42 | BC1_UNORM: 25, BC3_UNORM: 17 |
+| _0030a | 1 | BC1_UNORM: 1 |
+| _0031 | 50 | BC1_UNORM: 32, BC3_UNORM: 18 |
+| _0032 | 58 | BC1_UNORM: 38, BC3_UNORM: 20 |
+| _0032a | 1 | BC1_UNORM: 1 |
+| _0033 | 39 | BC1_UNORM: 20, BC3_UNORM: 19 |
+| _0033a | 1 | BC1_UNORM: 1 |
+| _0034 | 38 | BC1_UNORM: 22, BC3_UNORM: 16 |
+| _0034a | 1 | BC1_UNORM: 1 |
+| _0035 | 48 | BC1_UNORM: 31, BC3_UNORM: 17 |
+| _0035a | 1 | BC1_UNORM: 1 |
+| _0036 | 53 | BC1_UNORM: 35, BC3_UNORM: 18 |
+| _0036a | 1 | BC1_UNORM: 1 |
+| _0037 | 39 | BC1_UNORM: 24, BC3_UNORM: 15 |
+| _0037a | 1 | BC1_UNORM: 1 |
+| _0038 | 31 | BC1_UNORM: 18, BC3_UNORM: 13 |
+| _0038a | 2 | BC1_UNORM: 2 |
+| _0038b | 1 | BC1_UNORM: 1 |
+| _0039 | 45 | BC1_UNORM: 28, BC3_UNORM: 17 |
+| _0039a | 2 | BC1_UNORM: 2 |
+| _0039b | 1 | BC1_UNORM: 1 |
+| _003a | 9 | BC1_UNORM: 1, BC3_UNORM: 8 |
+| _004 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0040 | 34 | BC1_UNORM: 20, BC3_UNORM: 14 |
+| _0040a | 1 | BC1_UNORM: 1 |
+| _0041 | 46 | BC1_UNORM: 34, BC3_UNORM: 12 |
+| _0042 | 56 | BC1_UNORM: 36, BC3_UNORM: 20 |
+| _0042a | 1 | BC1_UNORM: 1 |
+| _0042b | 1 | BC1_UNORM: 1 |
+| _0043 | 47 | BC1_UNORM: 29, BC3_UNORM: 18 |
+| _0043a | 1 | BC1_UNORM: 1 |
+| _0043b | 1 | BC1_UNORM: 1 |
+| _0044 | 40 | BC1_UNORM: 26, BC3_UNORM: 14 |
+| _0044a | 1 | BC1_UNORM: 1 |
+| _0044b | 1 | BC1_UNORM: 1 |
+| _0045 | 42 | BC1_UNORM: 28, BC3_UNORM: 14 |
+| _0046 | 42 | BC1_UNORM: 26, BC3_UNORM: 16 |
+| _0047 | 35 | BC1_UNORM: 23, BC3_UNORM: 12 |
+| _0047a | 3 | BC1_UNORM: 3 |
+| _0048 | 39 | BC1_UNORM: 25, BC3_UNORM: 14 |
+| _0049 | 33 | BC1_UNORM: 16, BC3_UNORM: 17 |
+| _0049a | 1 | BC1_UNORM: 1 |
+| _004a | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _004b | 1 | BC3_UNORM: 1 |
+| _004e | 1 | BC3_UNORM: 1 |
+| _005 | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _0050 | 33 | BC1_UNORM: 21, BC3_UNORM: 12 |
+| _0051 | 41 | BC1_UNORM: 27, BC3_UNORM: 14 |
+| _0052 | 48 | BC1_UNORM: 33, BC3_UNORM: 15 |
+| _0052a | 1 | BC1_UNORM: 1 |
+| _0052b | 1 | BC1_UNORM: 1 |
+| _0053 | 35 | BC1_UNORM: 21, BC3_UNORM: 14 |
+| _0053a | 1 | BC1_UNORM: 1 |
+| _0053b | 1 | BC1_UNORM: 1 |
+| _0054 | 54 | BC1_UNORM: 33, BC3_UNORM: 21 |
+| _0055 | 46 | BC1_UNORM: 30, BC3_UNORM: 16 |
+| _0056 | 41 | BC1_UNORM: 25, BC3_UNORM: 16 |
+| _0057 | 34 | BC1_UNORM: 22, BC3_UNORM: 12 |
+| _0057a | 1 | BC1_UNORM: 1 |
+| _0057b | 1 | BC1_UNORM: 1 |
+| _0058 | 26 | BC1_UNORM: 16, BC3_UNORM: 10 |
+| _0059 | 36 | BC1_UNORM: 22, BC3_UNORM: 14 |
+| _005a | 2 | BC3_UNORM: 2 |
+| _005b | 1 | BC3_UNORM: 1 |
+| _006 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0060 | 30 | BC1_UNORM: 20, BC3_UNORM: 10 |
+| _0061 | 27 | BC1_UNORM: 19, BC3_UNORM: 8 |
+| _0062 | 24 | BC1_UNORM: 14, BC3_UNORM: 10 |
+| _0062a | 1 | BC1_UNORM: 1 |
+| _0062b | 1 | BC1_UNORM: 1 |
+| _0063 | 23 | BC1_UNORM: 18, BC3_UNORM: 5 |
+| _0063a | 1 | BC1_UNORM: 1 |
+| _0063b | 1 | BC1_UNORM: 1 |
+| _0064 | 20 | BC1_UNORM: 11, BC3_UNORM: 9 |
+| _0065 | 31 | BC1_UNORM: 20, BC3_UNORM: 11 |
+| _0066 | 29 | BC1_UNORM: 21, BC3_UNORM: 8 |
+| _0066a | 1 | BC1_UNORM: 1 |
+| _0066b | 1 | BC1_UNORM: 1 |
+| _0067 | 25 | BC1_UNORM: 20, BC3_UNORM: 5 |
+| _0068 | 25 | BC1_UNORM: 20, BC3_UNORM: 5 |
+| _0069 | 15 | BC1_UNORM: 10, BC3_UNORM: 5 |
+| _0069a | 1 | BC1_UNORM: 1 |
+| _0069b | 1 | BC1_UNORM: 1 |
+| _0069c | 1 | BC1_UNORM: 1 |
+| _006a | 3 | BC3_UNORM: 3 |
+| _006c | 2 | BC3_UNORM: 2 |
+| _007 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0070 | 20 | BC1_UNORM: 12, BC3_UNORM: 8 |
+| _0070a | 1 | BC1_UNORM: 1 |
+| _0070b | 1 | BC1_UNORM: 1 |
+| _0071 | 14 | BC1_UNORM: 10, BC3_UNORM: 4 |
+| _0072 | 22 | BC1_UNORM: 15, BC3_UNORM: 7 |
+| _0073 | 25 | BC1_UNORM: 22, BC3_UNORM: 3 |
+| _0073a | 1 | BC1_UNORM: 1 |
+| _0073b | 1 | BC1_UNORM: 1 |
+| _0074 | 13 | BC1_UNORM: 10, BC3_UNORM: 3 |
+| _0074a | 1 | BC1_UNORM: 1 |
+| _0074b | 1 | BC1_UNORM: 1 |
+| _0074c | 1 | BC1_UNORM: 1 |
+| _0075 | 15 | BC1_UNORM: 11, BC3_UNORM: 4 |
+| _0076 | 14 | BC1_UNORM: 10, BC3_UNORM: 4 |
+| _0077 | 10 | BC1_UNORM: 8, BC3_UNORM: 2 |
+| _0077c | 1 | BC1_UNORM: 1 |
+| _0077d | 1 | BC1_UNORM: 1 |
+| _0078 | 14 | BC1_UNORM: 9, BC3_UNORM: 5 |
+| _0079 | 22 | BC1_UNORM: 15, BC3_UNORM: 7 |
+| _007a | 5 | BC3_UNORM: 5 |
+| _008 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0080 | 26 | BC1_UNORM: 21, BC3_UNORM: 5 |
+| _0081 | 12 | BC1_UNORM: 7, BC3_UNORM: 5 |
+| _0082 | 14 | BC1_UNORM: 12, BC3_UNORM: 2 |
+| _0083 | 20 | BC1_UNORM: 16, BC3_UNORM: 4 |
+| _0084 | 11 | BC1_UNORM: 10, BC3_UNORM: 1 |
+| _0085 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _0086 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0087 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0088 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _0089 | 24 | BC1_UNORM: 18, BC3_UNORM: 6 |
+| _008a | 1 | BC3_UNORM: 1 |
+| _009 | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _0090 | 20 | BC1_UNORM: 15, BC3_UNORM: 5 |
+| _0091 | 8 | BC1_UNORM: 7, BC3_UNORM: 1 |
+| _0092 | 20 | BC1_UNORM: 17, BC3_UNORM: 3 |
+| _0093 | 22 | BC1_UNORM: 17, BC3_UNORM: 5 |
+| _0094 | 14 | BC1_UNORM: 12, BC3_UNORM: 2 |
+| _0095 | 14 | BC1_UNORM: 11, BC3_UNORM: 3 |
+| _0096 | 8 | BC1_UNORM: 6, BC3_UNORM: 2 |
+| _0097 | 15 | BC1_UNORM: 11, BC3_UNORM: 4 |
+| _0098 | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+| _0099 | 9 | BC1_UNORM: 5, BC3_UNORM: 4 |
+| _009a | 1 | BC3_UNORM: 1 |
+| _01 | 3,504 | BC1_UNORM: 3222, BC3_UNORM: 281, uncompressed_or_unknown: 1 |
+| _010 | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _0100 | 17 | BC1_UNORM: 14, BC3_UNORM: 3 |
+| _01001 | 1 | BC3_UNORM: 1 |
+| _01002 | 1 | BC3_UNORM: 1 |
+| _01003 | 1 | BC3_UNORM: 1 |
+| _01004 | 1 | BC3_UNORM: 1 |
+| _01005 | 1 | BC3_UNORM: 1 |
+| _01006 | 1 | BC3_UNORM: 1 |
+| _01007 | 1 | BC3_UNORM: 1 |
+| _01008 | 1 | BC3_UNORM: 1 |
+| _0101 | 39 | BC1_UNORM: 34, BC3_UNORM: 5 |
+| _0102 | 28 | BC1_UNORM: 25, BC3_UNORM: 3 |
+| _0103 | 17 | BC1_UNORM: 14, BC3_UNORM: 3 |
+| _0104 | 12 | BC1_UNORM: 8, BC3_UNORM: 4 |
+| _0105 | 20 | BC1_UNORM: 12, BC3_UNORM: 8 |
+| _0106 | 9 | BC1_UNORM: 5, BC3_UNORM: 4 |
+| _0107 | 16 | BC1_UNORM: 11, BC3_UNORM: 5 |
+| _0108 | 10 | BC1_UNORM: 5, BC3_UNORM: 5 |
+| _0109 | 18 | BC1_UNORM: 15, BC3_UNORM: 3 |
+| _010a | 1 | BC3_UNORM: 1 |
+| _010b | 1 | BC1_UNORM: 1 |
+| _011 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0110 | 18 | BC1_UNORM: 15, BC3_UNORM: 3 |
+| _0111 | 14 | BC1_UNORM: 13, BC3_UNORM: 1 |
+| _0112 | 9 | BC1_UNORM: 6, BC3_UNORM: 3 |
+| _0113 | 17 | BC1_UNORM: 13, BC3_UNORM: 4 |
+| _0114 | 19 | BC1_UNORM: 13, BC3_UNORM: 6 |
+| _0115 | 8 | BC1_UNORM: 5, BC3_UNORM: 3 |
+| _0116 | 9 | BC1_UNORM: 6, BC3_UNORM: 3 |
+| _0117 | 11 | BC1_UNORM: 9, BC3_UNORM: 2 |
+| _0118 | 15 | BC1_UNORM: 12, BC3_UNORM: 3 |
+| _0119 | 12 | BC1_UNORM: 8, BC3_UNORM: 4 |
+| _011a | 2 | BC3_UNORM: 2 |
+| _012 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0120 | 13 | BC1_UNORM: 8, BC3_UNORM: 5 |
+| _0121 | 15 | BC1_UNORM: 10, BC3_UNORM: 5 |
+| _0122 | 14 | BC1_UNORM: 11, BC3_UNORM: 3 |
+| _0123 | 18 | BC1_UNORM: 13, BC3_UNORM: 5 |
+| _0124 | 13 | BC1_UNORM: 11, BC3_UNORM: 2 |
+| _0125 | 10 | BC1_UNORM: 8, BC3_UNORM: 2 |
+| _0126 | 8 | BC1_UNORM: 5, BC3_UNORM: 3 |
+| _0127 | 5 | BC1_UNORM: 5 |
+| _0128 | 7 | BC1_UNORM: 5, BC3_UNORM: 2 |
+| _0129 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _012a | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _013 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0130 | 8 | BC1_UNORM: 5, BC3_UNORM: 3 |
+| _0131 | 10 | BC1_UNORM: 5, BC3_UNORM: 5 |
+| _0132 | 8 | BC1_UNORM: 5, BC3_UNORM: 3 |
+| _0133 | 9 | BC1_UNORM: 6, BC3_UNORM: 3 |
+| _0134 | 9 | BC1_UNORM: 6, BC3_UNORM: 3 |
+| _0135 | 8 | BC1_UNORM: 5, BC3_UNORM: 3 |
+| _0136 | 9 | BC1_UNORM: 6, BC3_UNORM: 3 |
+| _0137 | 14 | BC1_UNORM: 6, BC3_UNORM: 8 |
+| _0138 | 9 | BC1_UNORM: 5, BC3_UNORM: 4 |
+| _0139 | 9 | BC1_UNORM: 5, BC3_UNORM: 4 |
+| _013a | 1 | BC1_UNORM: 1 |
+| _014 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0140 | 9 | BC1_UNORM: 6, BC3_UNORM: 3 |
+| _0141 | 9 | BC1_UNORM: 5, BC3_UNORM: 4 |
+| _0142 | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+| _0143 | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+| _0144 | 9 | BC1_UNORM: 6, BC3_UNORM: 3 |
+| _0145 | 8 | BC1_UNORM: 4, BC3_UNORM: 4 |
+| _0146 | 14 | BC1_UNORM: 10, BC3_UNORM: 4 |
+| _0147 | 7 | BC1_UNORM: 7 |
+| _0148 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0149 | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _015 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0150 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0151 | 9 | BC1_UNORM: 5, BC3_UNORM: 4 |
+| _0152 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0153 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0154 | 10 | BC1_UNORM: 9, BC3_UNORM: 1 |
+| _0155 | 12 | BC1_UNORM: 11, BC3_UNORM: 1 |
+| _0156 | 8 | BC1_UNORM: 7, BC3_UNORM: 1 |
+| _0157 | 10 | BC1_UNORM: 9, BC3_UNORM: 1 |
+| _0158 | 11 | BC1_UNORM: 9, BC3_UNORM: 2 |
+| _0159 | 7 | BC1_UNORM: 7 |
+| _016 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0160 | 9 | BC1_UNORM: 4, BC3_UNORM: 5 |
+| _0161 | 17 | BC1_UNORM: 10, BC3_UNORM: 7 |
+| _0162 | 7 | BC1_UNORM: 4, BC3_UNORM: 3 |
+| _0163 | 8 | BC1_UNORM: 5, BC3_UNORM: 3 |
+| _0164 | 7 | BC1_UNORM: 4, BC3_UNORM: 3 |
+| _0165 | 19 | BC1_UNORM: 15, BC3_UNORM: 4 |
+| _0166 | 8 | BC1_UNORM: 4, BC3_UNORM: 4 |
+| _0167 | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+| _0168 | 10 | BC1_UNORM: 7, BC3_UNORM: 3 |
+| _0169 | 7 | BC1_UNORM: 5, BC3_UNORM: 2 |
+| _017 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0170 | 9 | BC1_UNORM: 5, BC3_UNORM: 4 |
+| _0171 | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _0172 | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _0173 | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _0174 | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _0175 | 7 | BC1_UNORM: 5, BC3_UNORM: 2 |
+| _0176 | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _0177 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0178 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0179 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _018 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0180 | 9 | BC1_UNORM: 5, BC3_UNORM: 4 |
+| _0181 | 8 | BC1_UNORM: 5, BC3_UNORM: 3 |
+| _0182 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0183 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0184 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0185 | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _0186 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0187 | 12 | BC1_UNORM: 10, BC3_UNORM: 2 |
+| _0188 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0189 | 12 | BC1_UNORM: 11, BC3_UNORM: 1 |
+| _019 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0190 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0191 | 7 | BC1_UNORM: 5, BC3_UNORM: 2 |
+| _0192 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0193 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0194 | 7 | BC1_UNORM: 4, BC3_UNORM: 3 |
+| _0195 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0196 | 7 | BC1_UNORM: 5, BC3_UNORM: 2 |
+| _0197 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0198 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0199 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _01a | 122 | BC1_UNORM: 80, BC3_UNORM: 23, R8G8B8A8_UNORM: 19 |
+| _01b | 20 | BC1_UNORM: 15, BC3_UNORM: 3, R8G8B8A8_UNORM: 2 |
+| _01ba | 1 | BC1_UNORM: 1 |
+| _01bb | 1 | BC1_UNORM: 1 |
+| _01bd | 1 | BC1_UNORM: 1 |
+| _01c | 2 | BC1_UNORM: 2 |
+| _01ca | 1 | BC1_UNORM: 1 |
+| _01cb | 1 | BC1_UNORM: 1 |
+| _01cd | 1 | BC1_UNORM: 1 |
+| _01d | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _01da | 1 | BC1_UNORM: 1 |
+| _01db | 1 | BC1_UNORM: 1 |
+| _01dd | 1 | BC1_UNORM: 1 |
+| _01e | 1 | BC3_UNORM: 1 |
+| _01ea | 1 | BC1_UNORM: 1 |
+| _01eb | 1 | BC1_UNORM: 1 |
+| _01f | 1 | BC3_UNORM: 1 |
+| _01fa | 1 | BC1_UNORM: 1 |
+| _01fb | 1 | BC1_UNORM: 1 |
+| _01fd | 1 | BC1_UNORM: 1 |
+| _01g | 1 | BC3_UNORM: 1 |
+| _01sp | 1 | BC1_UNORM: 1 |
+| _02 | 1,345 | BC1_UNORM: 1211, BC3_UNORM: 132, uncompressed_or_unknown: 2 |
+| _020 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0200 | 8 | BC1_UNORM: 6, BC3_UNORM: 2 |
+| _02001 | 1 | BC3_UNORM: 1 |
+| _02002 | 1 | BC3_UNORM: 1 |
+| _02003 | 1 | BC3_UNORM: 1 |
+| _02004 | 1 | BC3_UNORM: 1 |
+| _02005 | 1 | BC3_UNORM: 1 |
+| _02006 | 1 | BC3_UNORM: 1 |
+| _02007 | 1 | BC3_UNORM: 1 |
+| _02008 | 1 | BC3_UNORM: 1 |
+| _02009 | 1 | BC3_UNORM: 1 |
+| _0201 | 22 | BC1_UNORM: 18, BC3_UNORM: 4 |
+| _0202 | 19 | BC1_UNORM: 16, BC3_UNORM: 3 |
+| _0203 | 13 | BC1_UNORM: 11, BC3_UNORM: 2 |
+| _0204 | 14 | BC1_UNORM: 10, BC3_UNORM: 4 |
+| _0205 | 8 | BC1_UNORM: 6, BC3_UNORM: 2 |
+| _0206 | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+| _0207 | 7 | BC1_UNORM: 5, BC3_UNORM: 2 |
+| _0208 | 12 | BC1_UNORM: 8, BC3_UNORM: 4 |
+| _0209 | 12 | BC1_UNORM: 10, BC3_UNORM: 2 |
+| _021 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0210 | 8 | BC1_UNORM: 7, BC3_UNORM: 1 |
+| _0211 | 10 | BC1_UNORM: 9, BC3_UNORM: 1 |
+| _0212 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0213 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0214 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0215 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0216 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0217 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0218 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0219 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _022 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0220 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0221 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0222 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0223 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0224 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0225 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0226 | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+| _0227 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0228 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0229 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _023 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0230 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0231 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0232 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0233 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _0234 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0235 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0236 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0237 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0238 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0239 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _024 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0240 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _0241 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0242 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0243 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0244 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0245 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _0246 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0247 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0248 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _0249 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _025 | 1 | BC3_UNORM: 1 |
+| _0250 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0251 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0252 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0253 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0254 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0255 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _0256 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _0257 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0258 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0259 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _026 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0260 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0261 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0262 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0263 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0264 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0265 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0266 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0267 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0268 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0269 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _027 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0270 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0271 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0272 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0273 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0274 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0275 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0276 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0277 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0278 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0279 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _028 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0280 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0281 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0282 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0283 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _0284 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _0285 | 9 | BC1_UNORM: 8, BC3_UNORM: 1 |
+| _0286 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0287 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0288 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0289 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _029 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0290 | 4 | BC1_UNORM: 4 |
+| _0291 | 4 | BC1_UNORM: 4 |
+| _0292 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0293 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0294 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0295 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0296 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0297 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0298 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0299 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _02a | 39 | BC1_UNORM: 26, BC3_UNORM: 4, R8G8B8A8_UNORM: 9 |
+| _02b | 9 | BC1_UNORM: 7, BC3_UNORM: 2 |
+| _02c | 4 | BC1_UNORM: 4 |
+| _03 | 880 | BC1_UNORM: 792, BC3_UNORM: 87, uncompressed_or_unknown: 1 |
+| _03.n | 1 | BC1_UNORM: 1 |
+| _030 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0300 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0301 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0302 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0303 | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _0304 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0305 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _0306 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0307 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0308 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0309 | 4 | BC1_UNORM: 4 |
+| _031 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0310 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _0311 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0312 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0313 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0314 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0315 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0316 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0317 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0318 | 4 | BC1_UNORM: 4 |
+| _0319 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _032 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0320 | 3 | BC1_UNORM: 3 |
+| _0321 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0322 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _0323 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0324 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0325 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0326 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0327 | 2 | BC1_UNORM: 2 |
+| _0328 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0329 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _033 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0330 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0331 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _0332 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _0333 | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _0334 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _0335 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0336 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0337 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0338 | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _0339 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _034 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0340 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _0341 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0342 | 6 | BC1_UNORM: 2, BC3_UNORM: 4 |
+| _0343 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0344 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _0345 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0346 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0347 | 1 | BC1_UNORM: 1 |
+| _0348 | 1 | BC1_UNORM: 1 |
+| _0349 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _035 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0350 | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _0351 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0352 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0353 | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _0354 | 1 | BC1_UNORM: 1 |
+| _0355 | 1 | BC1_UNORM: 1 |
+| _0356 | 1 | BC1_UNORM: 1 |
+| _0357 | 1 | BC1_UNORM: 1 |
+| _036 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0362 | 2 | BC3_UNORM: 2 |
+| _0369 | 3 | BC3_UNORM: 3 |
+| _037 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0374 | 3 | BC3_UNORM: 3 |
+| _0375 | 2 | BC3_UNORM: 2 |
+| _0376 | 2 | BC3_UNORM: 2 |
+| _0377 | 3 | BC3_UNORM: 3 |
+| _0379 | 3 | BC3_UNORM: 3 |
+| _038 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0380 | 1 | BC3_UNORM: 1 |
+| _0383 | 1 | BC3_UNORM: 1 |
+| _039 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0393 | 3 | BC3_UNORM: 3 |
+| _0394 | 1 | BC3_UNORM: 1 |
+| _0398 | 1 | BC3_UNORM: 1 |
+| _03a | 23 | BC1_UNORM: 17, BC3_UNORM: 4, R8G8B8A8_UNORM: 2 |
+| _03b | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _03c | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _04 | 622 | BC1_UNORM: 565, BC3_UNORM: 56, uncompressed_or_unknown: 1 |
+| _040 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0400 | 1 | BC3_UNORM: 1 |
+| _0401 | 3 | BC3_UNORM: 3 |
+| _0402 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0403 | 2 | BC3_UNORM: 2 |
+| _0404 | 2 | BC1_UNORM: 2 |
+| _0407 | 1 | BC3_UNORM: 1 |
+| _0408 | 1 | BC3_UNORM: 1 |
+| _0409 | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _041 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0411 | 1 | BC3_UNORM: 1 |
+| _0413 | 1 | BC3_UNORM: 1 |
+| _0415 | 3 | BC3_UNORM: 3 |
+| _0416 | 1 | BC3_UNORM: 1 |
+| _0417 | 1 | BC3_UNORM: 1 |
+| _042 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0421 | 1 | BC3_UNORM: 1 |
+| _0422 | 1 | BC3_UNORM: 1 |
+| _0423 | 1 | BC3_UNORM: 1 |
+| _0424 | 1 | BC3_UNORM: 1 |
+| _043 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0432 | 1 | BC3_UNORM: 1 |
+| _0433 | 1 | BC3_UNORM: 1 |
+| _0434 | 1 | BC3_UNORM: 1 |
+| _0435 | 3 | BC3_UNORM: 3 |
+| _0437 | 1 | BC3_UNORM: 1 |
+| _0438 | 3 | BC3_UNORM: 3 |
+| _0439 | 4 | BC3_UNORM: 4 |
+| _044 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0440 | 4 | BC3_UNORM: 4 |
+| _0441 | 4 | BC3_UNORM: 4 |
+| _045 | 2 | BC1_UNORM: 2 |
+| _0451 | 1 | BC3_UNORM: 1 |
+| _0453 | 1 | BC3_UNORM: 1 |
+| _0457 | 1 | BC3_UNORM: 1 |
+| _0459 | 1 | BC3_UNORM: 1 |
+| _046 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _0460 | 1 | BC3_UNORM: 1 |
+| _0463 | 1 | BC3_UNORM: 1 |
+| _0468 | 1 | BC3_UNORM: 1 |
+| _047 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _0470 | 1 | BC3_UNORM: 1 |
+| _048 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _049 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _04a | 18 | BC1_UNORM: 15, BC3_UNORM: 2, R8G8B8A8_UNORM: 1 |
+| _04b | 2 | BC1_UNORM: 2 |
+| _04e | 1 | BC1_UNORM: 1 |
+| _05 | 311 | BC1_UNORM: 282, BC3_UNORM: 28, uncompressed_or_unknown: 1 |
+| _05-recovered | 1 | BC1_UNORM: 1 |
+| _050 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _05001 | 1 | BC3_UNORM: 1 |
+| _05002 | 1 | BC3_UNORM: 1 |
+| _05003 | 1 | BC3_UNORM: 1 |
+| _05004 | 1 | BC3_UNORM: 1 |
+| _05005 | 1 | BC3_UNORM: 1 |
+| _05006 | 1 | BC3_UNORM: 1 |
+| _0503 | 2 | BC3_UNORM: 2 |
+| _0504 | 1 | BC3_UNORM: 1 |
+| _0506 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0507 | 1 | BC3_UNORM: 1 |
+| _051 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _0512 | 2 | BC3_UNORM: 2 |
+| _052 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _053 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _054 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _055 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _056 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _057 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _058 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _059 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _05a | 12 | BC1_UNORM: 9, BC3_UNORM: 3 |
+| _05b | 2 | BC1_UNORM: 2 |
+| _05c | 1 | BC1_UNORM: 1 |
+| _06 | 240 | BC1_UNORM: 215, BC3_UNORM: 25 |
+| _060 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _06001 | 1 | BC3_UNORM: 1 |
+| _06002 | 1 | BC3_UNORM: 1 |
+| _06003 | 1 | BC3_UNORM: 1 |
+| _06004 | 1 | BC3_UNORM: 1 |
+| _06005 | 1 | BC3_UNORM: 1 |
+| _06006 | 1 | BC3_UNORM: 1 |
+| _061 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _062 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _063 | 1 | BC3_UNORM: 1 |
+| _064 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _065 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _066 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _067 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _068 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _069 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _06a | 9 | BC1_UNORM: 8, BC3_UNORM: 1 |
+| _06b | 2 | BC1_UNORM: 2 |
+| _06d | 1 | BC1_UNORM: 1 |
+| _07 | 180 | BC1_UNORM: 160, BC3_UNORM: 20 |
+| _07-recovered | 1 | BC1_UNORM: 1 |
+| _070 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _07001 | 1 | BC3_UNORM: 1 |
+| _071 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _072 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _073 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _074 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _075 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _076 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _077 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _078 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _079 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _07a | 8 | BC1_UNORM: 8 |
+| _07b | 1 | BC1_UNORM: 1 |
+| _07c | 1 | BC1_UNORM: 1 |
+| _07d | 1 | BC1_UNORM: 1 |
+| _07e | 1 | BC1_UNORM: 1 |
+| _08 | 145 | BC1_UNORM: 133, BC3_UNORM: 12 |
+| _080 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _081 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _082 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _083 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _084 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _085 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _086 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _087 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _088 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _089 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _08a | 9 | BC1_UNORM: 9 |
+| _08b | 1 | BC1_UNORM: 1 |
+| _09 | 96 | BC1_UNORM: 88, BC3_UNORM: 8 |
+| _090 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _091 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _092 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _093 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _094 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _095 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _096 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _097 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _098 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _099 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _09a | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _09b | 1 | BC3_UNORM: 1 |
+| _1 | 10,919 | BC1_UNORM: 10233, BC3_UNORM: 588, BC5_UNORM: 1, uncompressed_or_unknown: 97 |
+| _10 | 331 | BC1_UNORM: 225, BC3_UNORM: 9, BC5_UNORM: 1, uncompressed_or_unknown: 96 |
+| _100 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _1000296 | 1 | BC3_UNORM: 1 |
+| _1000312 | 1 | BC3_UNORM: 1 |
+| _1000313 | 1 | BC3_UNORM: 1 |
+| _1000314 | 1 | BC3_UNORM: 1 |
+| _1000315 | 1 | BC3_UNORM: 1 |
+| _1000316 | 1 | BC3_UNORM: 1 |
+| _1000317 | 1 | BC3_UNORM: 1 |
+| _1000318 | 1 | BC3_UNORM: 1 |
+| _1000319 | 1 | BC3_UNORM: 1 |
+| _1000320 | 1 | BC3_UNORM: 1 |
+| _1000321 | 1 | BC3_UNORM: 1 |
+| _1000322 | 1 | BC3_UNORM: 1 |
+| _1000323 | 1 | BC3_UNORM: 1 |
+| _1000324 | 1 | BC3_UNORM: 1 |
+| _1000325 | 1 | BC3_UNORM: 1 |
+| _1000326 | 1 | BC3_UNORM: 1 |
+| _1000327 | 1 | BC3_UNORM: 1 |
+| _1000328 | 1 | BC3_UNORM: 1 |
+| _1000335 | 1 | BC3_UNORM: 1 |
+| _1000336 | 1 | BC3_UNORM: 1 |
+| _1000337 | 1 | BC3_UNORM: 1 |
+| _1000338 | 1 | BC3_UNORM: 1 |
+| _1000339 | 1 | BC3_UNORM: 1 |
+| _1000346 | 1 | BC3_UNORM: 1 |
+| _1000347 | 1 | BC3_UNORM: 1 |
+| _1000348 | 1 | BC3_UNORM: 1 |
+| _1000349 | 1 | BC3_UNORM: 1 |
+| _1000350 | 1 | BC3_UNORM: 1 |
+| _1000356 | 1 | BC3_UNORM: 1 |
+| _1000357 | 1 | BC3_UNORM: 1 |
+| _1000358 | 1 | BC3_UNORM: 1 |
+| _1000359 | 1 | BC3_UNORM: 1 |
+| _1000364 | 1 | BC3_UNORM: 1 |
+| _1000365 | 1 | BC3_UNORM: 1 |
+| _1000366 | 1 | BC3_UNORM: 1 |
+| _1000367 | 1 | BC3_UNORM: 1 |
+| _1001 | 22 | BC1_UNORM: 17, BC3_UNORM: 5 |
+| _1001a | 1 | BC1_UNORM: 1 |
+| _1002 | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _1003 | 10 | BC1_UNORM: 10 |
+| _1004 | 9 | BC1_UNORM: 9 |
+| _1005 | 4 | BC1_UNORM: 4 |
+| _1006 | 3 | BC1_UNORM: 3 |
+| _1007 | 2 | BC1_UNORM: 2 |
+| _10071 | 1 | BC3_UNORM: 1 |
+| _10077 | 1 | BC3_UNORM: 1 |
+| _1008 | 1 | BC1_UNORM: 1 |
+| _1009 | 2 | BC1_UNORM: 2 |
+| _101 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _1010 | 3 | BC1_UNORM: 3 |
+| _10109 | 1 | BC1_UNORM: 1 |
+| _1012 | 3 | BC1_UNORM: 3 |
+| _1013 | 1 | BC1_UNORM: 1 |
+| _1014 | 2 | BC1_UNORM: 2 |
+| _1015 | 1 | BC1_UNORM: 1 |
+| _1016 | 1 | BC1_UNORM: 1 |
+| _1017 | 1 | BC1_UNORM: 1 |
+| _1018 | 1 | BC1_UNORM: 1 |
+| _1019 | 1 | BC1_UNORM: 1 |
+| _102 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _1020 | 7 | BC1_UNORM: 7 |
+| _102067 | 1 | BC1_UNORM: 1 |
+| _102084 | 1 | BC1_UNORM: 1 |
+| _1021 | 4 | BC1_UNORM: 4 |
+| _1022 | 3 | BC1_UNORM: 3 |
+| _1023 | 5 | BC1_UNORM: 5 |
+| _1024x1024 | 49 | BC3_UNORM: 1, uncompressed_or_unknown: 48 |
+| _1024x128 | 24 | uncompressed_or_unknown: 24 |
+| _1024x2048 | 2 | uncompressed_or_unknown: 2 |
+| _1024x256 | 94 | uncompressed_or_unknown: 94 |
+| _1024x512 | 35 | uncompressed_or_unknown: 35 |
+| _1024x64 | 1 | uncompressed_or_unknown: 1 |
+| _1025 | 1 | BC1_UNORM: 1 |
+| _103 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _1031 | 2 | BC1_UNORM: 2 |
+| _104 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _105 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _10506 | 1 | BC3_UNORM: 1 |
+| _10507 | 1 | BC3_UNORM: 1 |
+| _10508 | 1 | BC3_UNORM: 1 |
+| _10509 | 1 | BC3_UNORM: 1 |
+| _106 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _10600 | 1 | BC3_UNORM: 1 |
+| _10601 | 1 | BC3_UNORM: 1 |
+| _10602 | 1 | BC3_UNORM: 1 |
+| _10603 | 1 | BC3_UNORM: 1 |
+| _10615 | 1 | BC3_UNORM: 1 |
+| _1066 | 1 | BC1_UNORM: 1 |
+| _107 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _108 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _109 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _10a | 5 | BC1_UNORM: 5 |
+| _10b | 2 | BC1_UNORM: 2 |
+| _10c | 1 | BC1_UNORM: 1 |
+| _11 | 234 | BC1_UNORM: 129, BC3_UNORM: 9, uncompressed_or_unknown: 96 |
+| _110 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _11001 | 7 | BC3_UNORM: 7 |
+| _11002 | 6 | BC3_UNORM: 6 |
+| _11003 | 7 | BC3_UNORM: 7 |
+| _11004 | 6 | BC3_UNORM: 6 |
+| _11005 | 7 | BC3_UNORM: 7 |
+| _11006 | 3 | BC3_UNORM: 3 |
+| _11007 | 2 | BC3_UNORM: 2 |
+| _11008 | 2 | BC3_UNORM: 2 |
+| _11009 | 2 | BC3_UNORM: 2 |
+| _1101 | 1 | BC1_UNORM: 1 |
+| _11010 | 1 | BC3_UNORM: 1 |
+| _11011 | 1 | BC3_UNORM: 1 |
+| _11012 | 1 | BC3_UNORM: 1 |
+| _11013 | 1 | BC3_UNORM: 1 |
+| _11016 | 1 | BC3_UNORM: 1 |
+| _11017 | 1 | BC3_UNORM: 1 |
+| _1102 | 7 | BC1_UNORM: 7 |
+| _111 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _112 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _113 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _114 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _115 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _116 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _117 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _118 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _119 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _11a | 2 | BC1_UNORM: 2 |
+| _12 | 181 | BC1_UNORM: 81, BC3_UNORM: 4, uncompressed_or_unknown: 96 |
+| _120 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _120002 | 1 | BC3_UNORM: 1 |
+| _120003 | 1 | BC3_UNORM: 1 |
+| _120004 | 1 | BC3_UNORM: 1 |
+| _120005 | 1 | BC3_UNORM: 1 |
+| _12001 | 7 | BC3_UNORM: 7 |
+| _12002 | 7 | BC3_UNORM: 7 |
+| _12003 | 5 | BC3_UNORM: 5 |
+| _12004 | 5 | BC3_UNORM: 5 |
+| _12005 | 4 | BC3_UNORM: 4 |
+| _12006 | 1 | BC3_UNORM: 1 |
+| _12008 | 1 | BC3_UNORM: 1 |
+| _1201 | 2 | BC1_UNORM: 2 |
+| _12010 | 1 | BC3_UNORM: 1 |
+| _1202 | 1 | BC1_UNORM: 1 |
+| _1203 | 1 | BC1_UNORM: 1 |
+| _1204 | 1 | BC1_UNORM: 1 |
+| _121 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _12101 | 1 | BC1_UNORM: 1 |
+| _1211 | 3 | BC1_UNORM: 3 |
+| _1212 | 1 | BC1_UNORM: 1 |
+| _122 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _12202 | 1 | BC3_UNORM: 1 |
+| _123 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _124 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _12401 | 1 | BC1_UNORM: 1 |
+| _125 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _126 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _127 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _128 | 5 | BC1_UNORM: 3, BC3_UNORM: 1, BC5_UNORM: 1 |
+| _129 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _12a | 1 | BC1_UNORM: 1 |
+| _12b | 1 | BC1_UNORM: 1 |
+| _12c | 1 | BC1_UNORM: 1 |
+| _13 | 156 | BC1_UNORM: 56, BC3_UNORM: 4, uncompressed_or_unknown: 96 |
+| _130 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _13001 | 4 | BC3_UNORM: 4 |
+| _13002 | 8 | BC3_UNORM: 8 |
+| _13003 | 3 | BC3_UNORM: 3 |
+| _13004 | 2 | BC3_UNORM: 2 |
+| _13006 | 2 | BC3_UNORM: 2 |
+| _13007 | 1 | BC3_UNORM: 1 |
+| _13016 | 1 | BC3_UNORM: 1 |
+| _13017 | 1 | BC3_UNORM: 1 |
+| _13030 | 1 | BC3_UNORM: 1 |
+| _131 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _132 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _133 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _1330x136 | 1 | BC3_UNORM: 1 |
+| _1336x215 | 1 | BC3_UNORM: 1 |
+| _134 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _135 | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _136 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _137 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _138 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _139 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _13a | 2 | BC1_UNORM: 2 |
+| _14 | 142 | BC1_UNORM: 44, BC3_UNORM: 2, uncompressed_or_unknown: 96 |
+| _140 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _141 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _142 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _1420x103 | 1 | BC3_UNORM: 1 |
+| _143 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _144 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _145 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _146 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _147 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _148 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _149 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _15 | 139 | BC1_UNORM: 38, BC3_UNORM: 5, uncompressed_or_unknown: 96 |
+| _150 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _1500001 | 1 | BC3_UNORM: 1 |
+| _1501001 | 1 | BC3_UNORM: 1 |
+| _1502001 | 1 | BC3_UNORM: 1 |
+| _1504001 | 1 | BC3_UNORM: 1 |
+| _1504002 | 1 | BC3_UNORM: 1 |
+| _1504003 | 1 | BC3_UNORM: 1 |
+| _151 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _152 | 1 | BC3_UNORM: 1 |
+| _1520001 | 1 | BC3_UNORM: 1 |
+| _153 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _154 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _155 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _156 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _157 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _158 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _159 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _15a | 1 | BC3_UNORM: 1 |
+| _15b | 1 | BC1_UNORM: 1 |
+| _15c | 1 | BC1_UNORM: 1 |
+| _16 | 34 | BC1_UNORM: 33, BC3_UNORM: 1 |
+| _160 | 1 | BC1_UNORM: 1 |
+| _161 | 1 | BC1_UNORM: 1 |
+| _162 | 1 | BC1_UNORM: 1 |
+| _163 | 2 | BC1_UNORM: 2 |
+| _164 | 2 | BC1_UNORM: 2 |
+| _165 | 1 | BC1_UNORM: 1 |
+| _166 | 2 | BC1_UNORM: 2 |
+| _167 | 1 | BC1_UNORM: 1 |
+| _168 | 2 | BC1_UNORM: 2 |
+| _169 | 1 | BC1_UNORM: 1 |
+| _16a | 2 | BC1_UNORM: 2 |
+| _16b | 3 | BC1_UNORM: 3 |
+| _16c | 1 | BC1_UNORM: 1 |
+| _16d | 1 | BC1_UNORM: 1 |
+| _16e | 1 | BC1_UNORM: 1 |
+| _16f | 1 | BC1_UNORM: 1 |
+| _17 | 21 | BC1_UNORM: 20, BC3_UNORM: 1 |
+| _170 | 1 | BC1_UNORM: 1 |
+| _171 | 1 | BC1_UNORM: 1 |
+| _172 | 1 | BC1_UNORM: 1 |
+| _173 | 3 | BC1_UNORM: 3 |
+| _174 | 1 | BC1_UNORM: 1 |
+| _175 | 1 | BC1_UNORM: 1 |
+| _176 | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _177 | 1 | BC1_UNORM: 1 |
+| _178 | 2 | BC1_UNORM: 2 |
+| _179 | 1 | BC1_UNORM: 1 |
+| _17a | 1 | BC1_UNORM: 1 |
+| _18 | 23 | BC1_UNORM: 23 |
+| _180 | 2 | BC1_UNORM: 1, BC5_UNORM: 1 |
+| _181 | 2 | BC1_UNORM: 2 |
+| _182 | 2 | BC1_UNORM: 2 |
+| _183 | 1 | BC1_UNORM: 1 |
+| _1833x129 | 1 | BC3_UNORM: 1 |
+| _185 | 2 | BC1_UNORM: 2 |
+| _186 | 1 | BC1_UNORM: 1 |
+| _187 | 1 | BC1_UNORM: 1 |
+| _188 | 1 | BC1_UNORM: 1 |
+| _189 | 2 | BC1_UNORM: 2 |
+| _18a | 2 | BC1_UNORM: 2 |
+| _19 | 17 | BC1_UNORM: 13, BC3_UNORM: 4 |
+| _191 | 2 | BC1_UNORM: 2 |
+| _192 | 2 | BC1_UNORM: 2 |
+| _193 | 2 | BC1_UNORM: 2 |
+| _194 | 1 | BC1_UNORM: 1 |
+| _195 | 2 | BC1_UNORM: 2 |
+| _196 | 3 | BC1_UNORM: 3 |
+| _197 | 2 | BC1_UNORM: 2 |
+| _198 | 1 | BC1_UNORM: 1 |
+| _199 | 1 | BC1_UNORM: 1 |
+| _1bit | 98 | BC1_UNORM: 98 |
+| _1k | 1 | BC1_UNORM: 1 |
+| _2 | 9,181 | BC1_UNORM: 8457, BC3_UNORM: 626, BC5_UNORM: 1, DXGI_24: 1, uncompressed_or_unknown: 96 |
+| _20 | 18 | BC1_UNORM: 18 |
+| _200 | 1 | BC1_UNORM: 1 |
+| _2000 | 1 | BC3_UNORM: 1 |
+| _2001 | 1 | BC3_UNORM: 1 |
+| _2002 | 2 | BC3_UNORM: 2 |
+| _200200029 | 1 | BC1_UNORM: 1 |
+| _2003 | 2 | BC3_UNORM: 2 |
+| _2004 | 1 | BC3_UNORM: 1 |
+| _2005 | 1 | BC3_UNORM: 1 |
+| _2006 | 1 | BC3_UNORM: 1 |
+| _2007 | 1 | BC3_UNORM: 1 |
+| _2008 | 1 | BC3_UNORM: 1 |
+| _2009 | 1 | BC3_UNORM: 1 |
+| _201 | 2 | BC1_UNORM: 2 |
+| _2010 | 1 | BC3_UNORM: 1 |
+| _2011 | 1 | BC3_UNORM: 1 |
+| _2012 | 1 | BC3_UNORM: 1 |
+| _20129 | 1 | BC3_UNORM: 1 |
+| _2013 | 1 | BC3_UNORM: 1 |
+| _20130 | 1 | BC3_UNORM: 1 |
+| _2014 | 1 | BC3_UNORM: 1 |
+| _2015 | 1 | BC3_UNORM: 1 |
+| _2016 | 1 | BC3_UNORM: 1 |
+| _2017 | 1 | BC3_UNORM: 1 |
+| _2018 | 1 | BC3_UNORM: 1 |
+| _2019 | 1 | BC3_UNORM: 1 |
+| _202 | 1 | BC1_UNORM: 1 |
+| _2020 | 1 | BC3_UNORM: 1 |
+| _2021 | 1 | BC3_UNORM: 1 |
+| _203 | 1 | BC1_UNORM: 1 |
+| _204 | 1 | BC1_UNORM: 1 |
+| _2048x128 | 1 | uncompressed_or_unknown: 1 |
+| _2048x2048 | 38 | uncompressed_or_unknown: 38 |
+| _2048x256 | 29 | uncompressed_or_unknown: 29 |
+| _2048x512 | 9 | uncompressed_or_unknown: 9 |
+| _205 | 1 | BC1_UNORM: 1 |
+| _206 | 2 | BC1_UNORM: 2 |
+| _207 | 1 | BC1_UNORM: 1 |
+| _208 | 1 | BC1_UNORM: 1 |
+| _2083 | 2 | BC3_UNORM: 2 |
+| _209 | 1 | BC1_UNORM: 1 |
+| _21 | 13 | BC1_UNORM: 13 |
+| _210 | 1 | BC1_UNORM: 1 |
+| _21001 | 3 | BC3_UNORM: 3 |
+| _21002 | 6 | BC3_UNORM: 6 |
+| _21003 | 7 | BC3_UNORM: 7 |
+| _21004 | 7 | BC3_UNORM: 7 |
+| _21005 | 6 | BC3_UNORM: 6 |
+| _21006 | 8 | BC3_UNORM: 8 |
+| _21007 | 6 | BC3_UNORM: 6 |
+| _21008 | 5 | BC3_UNORM: 5 |
+| _21009 | 7 | BC3_UNORM: 7 |
+| _21010 | 7 | BC3_UNORM: 7 |
+| _21011 | 5 | BC3_UNORM: 5 |
+| _21012 | 4 | BC3_UNORM: 4 |
+| _21013 | 1 | BC3_UNORM: 1 |
+| _21014 | 2 | BC3_UNORM: 2 |
+| _21015 | 3 | BC3_UNORM: 3 |
+| _21016 | 3 | BC3_UNORM: 3 |
+| _21017 | 3 | BC3_UNORM: 3 |
+| _21018 | 2 | BC3_UNORM: 2 |
+| _21019 | 2 | BC3_UNORM: 2 |
+| _21020 | 2 | BC3_UNORM: 2 |
+| _21021 | 2 | BC3_UNORM: 2 |
+| _21022 | 1 | BC3_UNORM: 1 |
+| _21023 | 1 | BC3_UNORM: 1 |
+| _21024 | 1 | BC3_UNORM: 1 |
+| _21025 | 2 | BC3_UNORM: 2 |
+| _21026 | 2 | BC3_UNORM: 2 |
+| _21027 | 2 | BC3_UNORM: 2 |
+| _21028 | 1 | BC3_UNORM: 1 |
+| _21029 | 2 | BC3_UNORM: 2 |
+| _21030 | 1 | BC3_UNORM: 1 |
+| _21031 | 1 | BC3_UNORM: 1 |
+| _21032 | 1 | BC3_UNORM: 1 |
+| _21037 | 2 | BC3_UNORM: 2 |
+| _21038 | 2 | BC3_UNORM: 2 |
+| _21039 | 1 | BC3_UNORM: 1 |
+| _21040 | 1 | BC3_UNORM: 1 |
+| _21041 | 1 | BC3_UNORM: 1 |
+| _21042 | 2 | BC3_UNORM: 2 |
+| _21043 | 1 | BC3_UNORM: 1 |
+| _21044 | 2 | BC3_UNORM: 2 |
+| _21045 | 1 | BC3_UNORM: 1 |
+| _21046 | 1 | BC3_UNORM: 1 |
+| _21047 | 1 | BC3_UNORM: 1 |
+| _21048 | 1 | BC3_UNORM: 1 |
+| _21049 | 1 | BC3_UNORM: 1 |
+| _21052 | 2 | BC3_UNORM: 2 |
+| _21053 | 2 | BC3_UNORM: 2 |
+| _21054 | 1 | BC3_UNORM: 1 |
+| _21055 | 1 | BC3_UNORM: 1 |
+| _21056 | 1 | BC3_UNORM: 1 |
+| _21061 | 1 | BC3_UNORM: 1 |
+| _21071 | 1 | BC3_UNORM: 1 |
+| _21072 | 1 | BC3_UNORM: 1 |
+| _21083 | 1 | BC3_UNORM: 1 |
+| _21084 | 1 | BC3_UNORM: 1 |
+| _21085 | 1 | BC3_UNORM: 1 |
+| _21086 | 1 | BC3_UNORM: 1 |
+| _21087 | 1 | BC3_UNORM: 1 |
+| _21093 | 1 | BC3_UNORM: 1 |
+| _21094 | 1 | BC3_UNORM: 1 |
+| _21095 | 1 | BC3_UNORM: 1 |
+| _21096 | 1 | BC3_UNORM: 1 |
+| _21097 | 1 | BC3_UNORM: 1 |
+| _21098 | 1 | BC3_UNORM: 1 |
+| _21099 | 1 | BC3_UNORM: 1 |
+| _211 | 1 | BC1_UNORM: 1 |
+| _21100 | 1 | BC3_UNORM: 1 |
+| _21101 | 1 | BC3_UNORM: 1 |
+| _21102 | 1 | BC3_UNORM: 1 |
+| _21103 | 1 | BC3_UNORM: 1 |
+| _21104 | 1 | BC3_UNORM: 1 |
+| _21105 | 1 | BC3_UNORM: 1 |
+| _21106 | 1 | BC3_UNORM: 1 |
+| _21107 | 1 | BC3_UNORM: 1 |
+| _21108 | 1 | BC3_UNORM: 1 |
+| _21109 | 1 | BC3_UNORM: 1 |
+| _21110 | 1 | BC3_UNORM: 1 |
+| _21111 | 1 | BC3_UNORM: 1 |
+| _21112 | 1 | BC3_UNORM: 1 |
+| _21113 | 1 | BC3_UNORM: 1 |
+| _21114 | 1 | BC3_UNORM: 1 |
+| _21115 | 1 | BC3_UNORM: 1 |
+| _21116 | 1 | BC3_UNORM: 1 |
+| _21117 | 1 | BC3_UNORM: 1 |
+| _21120 | 1 | BC3_UNORM: 1 |
+| _21121 | 1 | BC3_UNORM: 1 |
+| _21122 | 1 | BC3_UNORM: 1 |
+| _21123 | 1 | BC3_UNORM: 1 |
+| _21124 | 1 | BC3_UNORM: 1 |
+| _21125 | 1 | BC3_UNORM: 1 |
+| _21126 | 1 | BC3_UNORM: 1 |
+| _21127 | 1 | BC3_UNORM: 1 |
+| _21128 | 1 | BC3_UNORM: 1 |
+| _21129 | 1 | BC3_UNORM: 1 |
+| _21130 | 1 | BC3_UNORM: 1 |
+| _21131 | 1 | BC3_UNORM: 1 |
+| _21132 | 1 | BC3_UNORM: 1 |
+| _21133 | 1 | BC3_UNORM: 1 |
+| _21134 | 1 | BC3_UNORM: 1 |
+| _21135 | 1 | BC3_UNORM: 1 |
+| _21136 | 1 | BC3_UNORM: 1 |
+| _21137 | 1 | BC3_UNORM: 1 |
+| _21138 | 1 | BC3_UNORM: 1 |
+| _21139 | 1 | BC3_UNORM: 1 |
+| _21140 | 1 | BC3_UNORM: 1 |
+| _21141 | 1 | BC3_UNORM: 1 |
+| _21142 | 1 | BC3_UNORM: 1 |
+| _21143 | 1 | BC3_UNORM: 1 |
+| _21154 | 1 | BC3_UNORM: 1 |
+| _21155 | 1 | BC3_UNORM: 1 |
+| _21156 | 1 | BC3_UNORM: 1 |
+| _21157 | 1 | BC3_UNORM: 1 |
+| _21158 | 1 | BC3_UNORM: 1 |
+| _21159 | 1 | BC3_UNORM: 1 |
+| _21160 | 1 | BC3_UNORM: 1 |
+| _21161 | 1 | BC3_UNORM: 1 |
+| _21162 | 1 | BC3_UNORM: 1 |
+| _21163 | 1 | BC3_UNORM: 1 |
+| _21164 | 1 | BC3_UNORM: 1 |
+| _21179 | 1 | BC3_UNORM: 1 |
+| _21180 | 1 | BC3_UNORM: 1 |
+| _21183 | 1 | BC3_UNORM: 1 |
+| _21195 | 1 | BC3_UNORM: 1 |
+| _21197 | 1 | BC3_UNORM: 1 |
+| _21198 | 1 | BC3_UNORM: 1 |
+| _21199 | 1 | BC3_UNORM: 1 |
+| _212 | 1 | BC1_UNORM: 1 |
+| _21200 | 1 | BC3_UNORM: 1 |
+| _21201 | 1 | BC3_UNORM: 1 |
+| _21202 | 1 | BC3_UNORM: 1 |
+| _21203 | 1 | BC3_UNORM: 1 |
+| _21204 | 1 | BC3_UNORM: 1 |
+| _21205 | 1 | BC3_UNORM: 1 |
+| _21206 | 1 | BC3_UNORM: 1 |
+| _21207 | 1 | BC3_UNORM: 1 |
+| _21208 | 1 | BC3_UNORM: 1 |
+| _21209 | 1 | BC3_UNORM: 1 |
+| _21210 | 1 | BC3_UNORM: 1 |
+| _21211 | 1 | BC3_UNORM: 1 |
+| _21212 | 1 | BC3_UNORM: 1 |
+| _21213 | 1 | BC3_UNORM: 1 |
+| _21214 | 1 | BC3_UNORM: 1 |
+| _21216 | 1 | BC3_UNORM: 1 |
+| _21217 | 1 | BC3_UNORM: 1 |
+| _21218 | 1 | BC3_UNORM: 1 |
+| _21219 | 1 | BC3_UNORM: 1 |
+| _21220 | 1 | BC3_UNORM: 1 |
+| _21221 | 1 | BC3_UNORM: 1 |
+| _21222 | 1 | BC3_UNORM: 1 |
+| _21223 | 1 | BC3_UNORM: 1 |
+| _21224 | 1 | BC3_UNORM: 1 |
+| _21225 | 1 | BC3_UNORM: 1 |
+| _21226 | 1 | BC3_UNORM: 1 |
+| _21227 | 1 | BC3_UNORM: 1 |
+| _21228 | 1 | BC3_UNORM: 1 |
+| _21229 | 1 | BC3_UNORM: 1 |
+| _21230 | 1 | BC3_UNORM: 1 |
+| _21231 | 1 | BC3_UNORM: 1 |
+| _21232 | 1 | BC3_UNORM: 1 |
+| _21233 | 1 | BC3_UNORM: 1 |
+| _21234 | 1 | BC3_UNORM: 1 |
+| _21235 | 1 | BC3_UNORM: 1 |
+| _21236 | 1 | BC3_UNORM: 1 |
+| _21237 | 1 | BC3_UNORM: 1 |
+| _21238 | 1 | BC3_UNORM: 1 |
+| _21239 | 1 | BC3_UNORM: 1 |
+| _21240 | 1 | BC3_UNORM: 1 |
+| _21241 | 1 | BC3_UNORM: 1 |
+| _21242 | 1 | BC3_UNORM: 1 |
+| _21243 | 1 | BC3_UNORM: 1 |
+| _21244 | 1 | BC3_UNORM: 1 |
+| _21245 | 1 | BC3_UNORM: 1 |
+| _21246 | 1 | BC3_UNORM: 1 |
+| _21248 | 1 | BC3_UNORM: 1 |
+| _21249 | 1 | BC3_UNORM: 1 |
+| _21250 | 1 | BC3_UNORM: 1 |
+| _21251 | 1 | BC3_UNORM: 1 |
+| _21284 | 1 | BC3_UNORM: 1 |
+| _21292 | 1 | BC3_UNORM: 1 |
+| _21293 | 1 | BC3_UNORM: 1 |
+| _213 | 1 | BC1_UNORM: 1 |
+| _21302 | 1 | BC3_UNORM: 1 |
+| _21303 | 1 | BC3_UNORM: 1 |
+| _214 | 1 | BC1_UNORM: 1 |
+| _215 | 2 | BC1_UNORM: 2 |
+| _216 | 3 | BC1_UNORM: 3 |
+| _217 | 3 | BC1_UNORM: 3 |
+| _218 | 3 | BC1_UNORM: 3 |
+| _219 | 1 | BC1_UNORM: 1 |
+| _22 | 15 | BC1_UNORM: 15 |
+| _220 | 1 | BC1_UNORM: 1 |
+| _22001 | 6 | BC3_UNORM: 6 |
+| _22002 | 7 | BC3_UNORM: 7 |
+| _22003 | 7 | BC3_UNORM: 7 |
+| _22004 | 8 | BC3_UNORM: 8 |
+| _22005 | 4 | BC3_UNORM: 4 |
+| _22006 | 2 | BC3_UNORM: 2 |
+| _22007 | 4 | BC3_UNORM: 4 |
+| _22008 | 3 | BC3_UNORM: 3 |
+| _22009 | 5 | BC3_UNORM: 5 |
+| _22010 | 3 | BC3_UNORM: 3 |
+| _22011 | 4 | BC3_UNORM: 4 |
+| _22012 | 3 | BC3_UNORM: 3 |
+| _22013 | 1 | BC3_UNORM: 1 |
+| _22014 | 2 | BC3_UNORM: 2 |
+| _22015 | 3 | BC3_UNORM: 3 |
+| _22016 | 3 | BC3_UNORM: 3 |
+| _22017 | 3 | BC3_UNORM: 3 |
+| _22018 | 2 | BC3_UNORM: 2 |
+| _22019 | 2 | BC3_UNORM: 2 |
+| _22020 | 2 | BC3_UNORM: 2 |
+| _22021 | 2 | BC3_UNORM: 2 |
+| _22022 | 1 | BC3_UNORM: 1 |
+| _22023 | 2 | BC3_UNORM: 2 |
+| _22027 | 1 | BC3_UNORM: 1 |
+| _22028 | 1 | BC3_UNORM: 1 |
+| _22029 | 1 | BC3_UNORM: 1 |
+| _22030 | 1 | BC3_UNORM: 1 |
+| _22031 | 2 | BC3_UNORM: 2 |
+| _22032 | 2 | BC3_UNORM: 2 |
+| _22033 | 1 | BC3_UNORM: 1 |
+| _22034 | 1 | BC3_UNORM: 1 |
+| _22035 | 1 | BC3_UNORM: 1 |
+| _22038 | 1 | BC3_UNORM: 1 |
+| _22039 | 1 | BC3_UNORM: 1 |
+| _22040 | 1 | BC3_UNORM: 1 |
+| _22042 | 1 | BC3_UNORM: 1 |
+| _22043 | 1 | BC3_UNORM: 1 |
+| _22044 | 1 | BC3_UNORM: 1 |
+| _22045 | 1 | BC3_UNORM: 1 |
+| _22046 | 1 | BC3_UNORM: 1 |
+| _22047 | 1 | BC3_UNORM: 1 |
+| _22048 | 1 | BC3_UNORM: 1 |
+| _22049 | 1 | BC3_UNORM: 1 |
+| _22050 | 1 | BC3_UNORM: 1 |
+| _22065 | 1 | BC3_UNORM: 1 |
+| _22066 | 1 | BC3_UNORM: 1 |
+| _22067 | 1 | BC3_UNORM: 1 |
+| _22068 | 1 | BC3_UNORM: 1 |
+| _22069 | 1 | BC3_UNORM: 1 |
+| _22070 | 1 | BC3_UNORM: 1 |
+| _22071 | 1 | BC3_UNORM: 1 |
+| _22072 | 1 | BC3_UNORM: 1 |
+| _22073 | 1 | BC3_UNORM: 1 |
+| _22074 | 1 | BC3_UNORM: 1 |
+| _22075 | 1 | BC3_UNORM: 1 |
+| _22076 | 1 | BC3_UNORM: 1 |
+| _22077 | 1 | BC3_UNORM: 1 |
+| _22078 | 1 | BC3_UNORM: 1 |
+| _22079 | 1 | BC3_UNORM: 1 |
+| _22080 | 1 | BC3_UNORM: 1 |
+| _22083 | 1 | BC3_UNORM: 1 |
+| _22084 | 1 | BC3_UNORM: 1 |
+| _22085 | 1 | BC3_UNORM: 1 |
+| _22086 | 1 | BC3_UNORM: 1 |
+| _22089 | 1 | BC3_UNORM: 1 |
+| _22090 | 1 | BC3_UNORM: 1 |
+| _22093 | 1 | BC3_UNORM: 1 |
+| _22094 | 1 | BC3_UNORM: 1 |
+| _22095 | 1 | BC3_UNORM: 1 |
+| _22096 | 1 | BC3_UNORM: 1 |
+| _22097 | 1 | BC3_UNORM: 1 |
+| _22098 | 1 | BC3_UNORM: 1 |
+| _22099 | 1 | BC3_UNORM: 1 |
+| _221 | 1 | BC1_UNORM: 1 |
+| _22100 | 1 | BC3_UNORM: 1 |
+| _22101 | 1 | BC3_UNORM: 1 |
+| _22102 | 1 | BC3_UNORM: 1 |
+| _22103 | 1 | BC3_UNORM: 1 |
+| _22112 | 1 | BC3_UNORM: 1 |
+| _22113 | 1 | BC3_UNORM: 1 |
+| _22114 | 1 | BC3_UNORM: 1 |
+| _22116 | 1 | BC3_UNORM: 1 |
+| _22123 | 1 | BC3_UNORM: 1 |
+| _22127 | 1 | BC3_UNORM: 1 |
+| _22133 | 1 | BC3_UNORM: 1 |
+| _22140 | 1 | BC3_UNORM: 1 |
+| _22141 | 1 | BC3_UNORM: 1 |
+| _22142 | 1 | BC3_UNORM: 1 |
+| _22143 | 1 | BC3_UNORM: 1 |
+| _22144 | 1 | BC3_UNORM: 1 |
+| _22145 | 1 | BC3_UNORM: 1 |
+| _22146 | 1 | BC3_UNORM: 1 |
+| _22147 | 1 | BC3_UNORM: 1 |
+| _22150 | 1 | BC3_UNORM: 1 |
+| _22151 | 1 | BC3_UNORM: 1 |
+| _22152 | 1 | BC3_UNORM: 1 |
+| _22153 | 1 | BC3_UNORM: 1 |
+| _22154 | 1 | BC3_UNORM: 1 |
+| _22156 | 1 | BC3_UNORM: 1 |
+| _22157 | 1 | BC3_UNORM: 1 |
+| _22158 | 1 | BC3_UNORM: 1 |
+| _22159 | 1 | BC3_UNORM: 1 |
+| _22160 | 1 | BC3_UNORM: 1 |
+| _22161 | 1 | BC3_UNORM: 1 |
+| _22165 | 1 | BC3_UNORM: 1 |
+| _22170 | 1 | BC3_UNORM: 1 |
+| _22171 | 1 | BC3_UNORM: 1 |
+| _22172 | 1 | BC3_UNORM: 1 |
+| _22173 | 1 | BC3_UNORM: 1 |
+| _22174 | 1 | BC3_UNORM: 1 |
+| _22175 | 1 | BC3_UNORM: 1 |
+| _222 | 2 | BC1_UNORM: 2 |
+| _22218 | 1 | BC3_UNORM: 1 |
+| _22219 | 1 | BC3_UNORM: 1 |
+| _22237 | 1 | BC3_UNORM: 1 |
+| _22238 | 1 | BC3_UNORM: 1 |
+| _22239 | 1 | BC3_UNORM: 1 |
+| _22240 | 1 | BC3_UNORM: 1 |
+| _22241 | 1 | BC3_UNORM: 1 |
+| _22248 | 1 | BC3_UNORM: 1 |
+| _22249 | 1 | BC3_UNORM: 1 |
+| _22254 | 1 | BC3_UNORM: 1 |
+| _22255 | 1 | BC3_UNORM: 1 |
+| _22256 | 1 | BC3_UNORM: 1 |
+| _223 | 1 | BC1_UNORM: 1 |
+| _225 | 1 | BC1_UNORM: 1 |
+| _22503 | 1 | BC3_UNORM: 1 |
+| _226 | 1 | BC1_UNORM: 1 |
+| _23 | 13 | BC1_UNORM: 12, BC3_UNORM: 1 |
+| _230 | 1 | BC3_UNORM: 1 |
+| _23001 | 2 | BC3_UNORM: 2 |
+| _23002 | 2 | BC3_UNORM: 2 |
+| _23003 | 3 | BC3_UNORM: 3 |
+| _23004 | 2 | BC3_UNORM: 2 |
+| _23005 | 1 | BC3_UNORM: 1 |
+| _23006 | 1 | BC3_UNORM: 1 |
+| _23007 | 1 | BC3_UNORM: 1 |
+| _23008 | 2 | BC3_UNORM: 2 |
+| _23009 | 1 | BC3_UNORM: 1 |
+| _23012 | 1 | BC3_UNORM: 1 |
+| _23013 | 1 | BC3_UNORM: 1 |
+| _24 | 7 | BC1_UNORM: 7 |
+| _24001 | 3 | BC3_UNORM: 3 |
+| _24002 | 1 | BC3_UNORM: 1 |
+| _24003 | 2 | BC3_UNORM: 2 |
+| _24004 | 2 | BC3_UNORM: 2 |
+| _24005 | 2 | BC3_UNORM: 2 |
+| _24006 | 2 | BC3_UNORM: 2 |
+| _24007 | 2 | BC3_UNORM: 2 |
+| _24008 | 2 | BC3_UNORM: 2 |
+| _24009 | 1 | BC3_UNORM: 1 |
+| _24010 | 1 | BC3_UNORM: 1 |
+| _24011 | 1 | BC3_UNORM: 1 |
+| _24012 | 1 | BC3_UNORM: 1 |
+| _249 | 1 | BC1_UNORM: 1 |
+| _25 | 11 | BC1_UNORM: 10, BC3_UNORM: 1 |
+| _250 | 1 | BC1_UNORM: 1 |
+| _25001 | 2 | BC3_UNORM: 2 |
+| _251 | 1 | BC1_UNORM: 1 |
+| _256 | 2 | BC3_UNORM: 1, BC5_UNORM: 1 |
+| _256dx5 | 1 | BC3_UNORM: 1 |
+| _257 | 1 | BC3_UNORM: 1 |
+| _259 | 1 | BC3_UNORM: 1 |
+| _26 | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _26001 | 1 | BC3_UNORM: 1 |
+| _26002 | 1 | BC3_UNORM: 1 |
+| _26003 | 1 | BC3_UNORM: 1 |
+| _26004 | 1 | BC3_UNORM: 1 |
+| _26005 | 1 | BC3_UNORM: 1 |
+| _26007 | 1 | BC3_UNORM: 1 |
+| _26018 | 1 | BC3_UNORM: 1 |
+| _26019 | 1 | BC3_UNORM: 1 |
+| _26020 | 1 | BC3_UNORM: 1 |
+| _26063 | 1 | BC3_UNORM: 1 |
+| _26064 | 1 | BC3_UNORM: 1 |
+| _26a | 1 | BC1_UNORM: 1 |
+| _26b | 1 | BC1_UNORM: 1 |
+| _26d | 1 | BC1_UNORM: 1 |
+| _27 | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _27a | 1 | BC1_UNORM: 1 |
+| _28 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _280 | 1 | BC3_UNORM: 1 |
+| _281 | 1 | BC3_UNORM: 1 |
+| _285 | 1 | BC3_UNORM: 1 |
+| _29 | 2 | BC1_UNORM: 2 |
+| _290 | 1 | BC3_UNORM: 1 |
+| _293 | 1 | BC3_UNORM: 1 |
+| _295 | 1 | BC3_UNORM: 1 |
+| _297 | 1 | BC3_UNORM: 1 |
+| _3 | 7,174 | BC1_UNORM: 6629, BC3_UNORM: 448, BC5_UNORM: 1, uncompressed_or_unknown: 96 |
+| _30 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _30001 | 1 | BC3_UNORM: 1 |
+| _30004 | 1 | BC3_UNORM: 1 |
+| _30006 | 1 | BC3_UNORM: 1 |
+| _30007 | 2 | BC3_UNORM: 2 |
+| _30009 | 1 | BC3_UNORM: 1 |
+| _30015 | 2 | BC3_UNORM: 2 |
+| _30017 | 1 | BC3_UNORM: 1 |
+| _30019 | 2 | BC3_UNORM: 2 |
+| _30020 | 2 | BC3_UNORM: 2 |
+| _30021 | 1 | BC3_UNORM: 1 |
+| _30022 | 3 | BC3_UNORM: 3 |
+| _30023 | 3 | BC3_UNORM: 3 |
+| _30024 | 3 | BC3_UNORM: 3 |
+| _30025 | 1 | BC3_UNORM: 1 |
+| _30026 | 2 | BC3_UNORM: 2 |
+| _30027 | 2 | BC3_UNORM: 2 |
+| _30028 | 2 | BC3_UNORM: 2 |
+| _30029 | 2 | BC3_UNORM: 2 |
+| _30030 | 1 | BC3_UNORM: 1 |
+| _30031 | 2 | BC3_UNORM: 2 |
+| _30032 | 2 | BC3_UNORM: 2 |
+| _30033 | 2 | BC3_UNORM: 2 |
+| _30034 | 3 | BC3_UNORM: 3 |
+| _30035 | 2 | BC3_UNORM: 2 |
+| _30037 | 1 | BC3_UNORM: 1 |
+| _30038 | 1 | BC3_UNORM: 1 |
+| _30039 | 1 | BC3_UNORM: 1 |
+| _30040 | 1 | BC3_UNORM: 1 |
+| _30042 | 1 | BC3_UNORM: 1 |
+| _30043 | 1 | BC3_UNORM: 1 |
+| _30044 | 1 | BC3_UNORM: 1 |
+| _30045 | 1 | BC3_UNORM: 1 |
+| _30046 | 1 | BC3_UNORM: 1 |
+| _30048 | 2 | BC3_UNORM: 2 |
+| _30050 | 1 | BC3_UNORM: 1 |
+| _30055 | 1 | BC3_UNORM: 1 |
+| _30057 | 1 | BC3_UNORM: 1 |
+| _30058 | 1 | BC3_UNORM: 1 |
+| _30059 | 1 | BC3_UNORM: 1 |
+| _30060 | 1 | BC3_UNORM: 1 |
+| _30065 | 1 | BC3_UNORM: 1 |
+| _30069 | 1 | BC3_UNORM: 1 |
+| _30070 | 2 | BC3_UNORM: 2 |
+| _30071 | 1 | BC3_UNORM: 1 |
+| _30072 | 1 | BC3_UNORM: 1 |
+| _30076 | 1 | BC3_UNORM: 1 |
+| _30078 | 1 | BC3_UNORM: 1 |
+| _30079 | 1 | BC3_UNORM: 1 |
+| _30080 | 1 | BC3_UNORM: 1 |
+| _30081 | 1 | BC3_UNORM: 1 |
+| _30082 | 2 | BC3_UNORM: 2 |
+| _30084 | 1 | BC3_UNORM: 1 |
+| _30085 | 1 | BC3_UNORM: 1 |
+| _30086 | 1 | BC3_UNORM: 1 |
+| _30087 | 1 | BC3_UNORM: 1 |
+| _30096 | 1 | BC3_UNORM: 1 |
+| _30097 | 1 | BC3_UNORM: 1 |
+| _301 | 1 | BC1_UNORM: 1 |
+| _30108 | 2 | BC3_UNORM: 2 |
+| _30109 | 2 | BC3_UNORM: 2 |
+| _30111 | 2 | BC3_UNORM: 2 |
+| _30114 | 1 | BC3_UNORM: 1 |
+| _30116 | 2 | BC3_UNORM: 2 |
+| _30122 | 1 | BC3_UNORM: 1 |
+| _30138 | 1 | BC3_UNORM: 1 |
+| _30139 | 1 | BC3_UNORM: 1 |
+| _30140 | 1 | BC3_UNORM: 1 |
+| _30141 | 1 | BC3_UNORM: 1 |
+| _30142 | 1 | BC3_UNORM: 1 |
+| _30151 | 2 | BC3_UNORM: 2 |
+| _30156 | 1 | BC3_UNORM: 1 |
+| _30161 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _30163 | 1 | BC3_UNORM: 1 |
+| _30164 | 1 | BC3_UNORM: 1 |
+| _30169 | 1 | BC3_UNORM: 1 |
+| _30170 | 1 | BC3_UNORM: 1 |
+| _30171 | 1 | BC3_UNORM: 1 |
+| _30172 | 1 | BC3_UNORM: 1 |
+| _30181 | 1 | BC3_UNORM: 1 |
+| _30182 | 1 | BC3_UNORM: 1 |
+| _30183 | 1 | BC3_UNORM: 1 |
+| _30184 | 1 | BC3_UNORM: 1 |
+| _30186 | 2 | BC3_UNORM: 2 |
+| _30191 | 1 | BC3_UNORM: 1 |
+| _30271 | 1 | BC3_UNORM: 1 |
+| _30374 | 3 | BC3_UNORM: 3 |
+| _30375 | 1 | BC3_UNORM: 1 |
+| _30376 | 2 | BC3_UNORM: 2 |
+| _30378 | 1 | BC3_UNORM: 1 |
+| _304 | 1 | BC3_UNORM: 1 |
+| _308 | 1 | BC3_UNORM: 1 |
+| _309 | 1 | BC3_UNORM: 1 |
+| _31 | 5 | BC1_UNORM: 5 |
+| _31001 | 1 | BC3_UNORM: 1 |
+| _31002 | 1 | BC3_UNORM: 1 |
+| _31003 | 1 | BC3_UNORM: 1 |
+| _31004 | 1 | BC3_UNORM: 1 |
+| _31005 | 1 | BC3_UNORM: 1 |
+| _31006 | 1 | BC3_UNORM: 1 |
+| _31007 | 1 | BC3_UNORM: 1 |
+| _31008 | 1 | BC3_UNORM: 1 |
+| _31009 | 1 | BC3_UNORM: 1 |
+| _31010 | 1 | BC3_UNORM: 1 |
+| _31011 | 1 | BC3_UNORM: 1 |
+| _31012 | 1 | BC3_UNORM: 1 |
+| _31013 | 1 | BC3_UNORM: 1 |
+| _31014 | 1 | BC3_UNORM: 1 |
+| _31015 | 1 | BC3_UNORM: 1 |
+| _31016 | 1 | BC3_UNORM: 1 |
+| _31017 | 1 | BC3_UNORM: 1 |
+| _31018 | 1 | BC3_UNORM: 1 |
+| _31019 | 1 | BC3_UNORM: 1 |
+| _31020 | 1 | BC3_UNORM: 1 |
+| _31021 | 1 | BC3_UNORM: 1 |
+| _31022 | 1 | BC3_UNORM: 1 |
+| _31023 | 1 | BC3_UNORM: 1 |
+| _31024 | 1 | BC3_UNORM: 1 |
+| _31025 | 1 | BC3_UNORM: 1 |
+| _31026 | 1 | BC3_UNORM: 1 |
+| _31027 | 2 | BC3_UNORM: 2 |
+| _31028 | 1 | BC3_UNORM: 1 |
+| _31029 | 1 | BC3_UNORM: 1 |
+| _31030 | 1 | BC3_UNORM: 1 |
+| _31031 | 1 | BC3_UNORM: 1 |
+| _31032 | 1 | BC3_UNORM: 1 |
+| _31033 | 1 | BC3_UNORM: 1 |
+| _31034 | 1 | BC3_UNORM: 1 |
+| _31035 | 1 | BC3_UNORM: 1 |
+| _31036 | 1 | BC3_UNORM: 1 |
+| _31037 | 1 | BC3_UNORM: 1 |
+| _31038 | 1 | BC3_UNORM: 1 |
+| _31041 | 1 | BC3_UNORM: 1 |
+| _31044 | 1 | BC3_UNORM: 1 |
+| _31047 | 1 | BC3_UNORM: 1 |
+| _31048 | 1 | BC3_UNORM: 1 |
+| _31058 | 2 | BC3_UNORM: 2 |
+| _31059 | 2 | BC3_UNORM: 2 |
+| _31060 | 1 | BC3_UNORM: 1 |
+| _31061 | 1 | BC3_UNORM: 1 |
+| _31062 | 1 | BC3_UNORM: 1 |
+| _31063 | 1 | BC3_UNORM: 1 |
+| _31064 | 1 | BC3_UNORM: 1 |
+| _31065 | 1 | BC3_UNORM: 1 |
+| _31066 | 1 | BC3_UNORM: 1 |
+| _31067 | 1 | BC3_UNORM: 1 |
+| _31068 | 1 | BC3_UNORM: 1 |
+| _31069 | 1 | BC3_UNORM: 1 |
+| _31084 | 1 | BC3_UNORM: 1 |
+| _31089 | 1 | BC3_UNORM: 1 |
+| _31090 | 1 | BC3_UNORM: 1 |
+| _31121 | 1 | BC3_UNORM: 1 |
+| _31123 | 1 | BC3_UNORM: 1 |
+| _31127 | 1 | BC3_UNORM: 1 |
+| _31137 | 1 | BC3_UNORM: 1 |
+| _31149 | 1 | BC3_UNORM: 1 |
+| _31178 | 2 | BC3_UNORM: 2 |
+| _31195 | 1 | BC3_UNORM: 1 |
+| _31200 | 1 | BC3_UNORM: 1 |
+| _31201 | 1 | BC3_UNORM: 1 |
+| _31202 | 1 | BC3_UNORM: 1 |
+| _31203 | 1 | BC3_UNORM: 1 |
+| _31204 | 1 | BC3_UNORM: 1 |
+| _31205 | 1 | BC3_UNORM: 1 |
+| _31206 | 1 | BC3_UNORM: 1 |
+| _31207 | 1 | BC3_UNORM: 1 |
+| _31209 | 1 | BC3_UNORM: 1 |
+| _31210 | 1 | BC3_UNORM: 1 |
+| _31211 | 1 | BC3_UNORM: 1 |
+| _31213 | 1 | BC3_UNORM: 1 |
+| _31214 | 1 | BC3_UNORM: 1 |
+| _31215 | 1 | BC3_UNORM: 1 |
+| _31216 | 1 | BC3_UNORM: 1 |
+| _31217 | 1 | BC3_UNORM: 1 |
+| _31218 | 1 | BC3_UNORM: 1 |
+| _31219 | 1 | BC3_UNORM: 1 |
+| _31223 | 1 | BC3_UNORM: 1 |
+| _31226 | 1 | BC3_UNORM: 1 |
+| _31227 | 1 | BC3_UNORM: 1 |
+| _31228 | 1 | BC3_UNORM: 1 |
+| _31229 | 1 | BC3_UNORM: 1 |
+| _31230 | 1 | BC3_UNORM: 1 |
+| _31236 | 1 | BC3_UNORM: 1 |
+| _31237 | 1 | BC3_UNORM: 1 |
+| _31238 | 1 | BC3_UNORM: 1 |
+| _31239 | 1 | BC3_UNORM: 1 |
+| _31240 | 1 | BC3_UNORM: 1 |
+| _31241 | 1 | BC3_UNORM: 1 |
+| _31242 | 1 | BC3_UNORM: 1 |
+| _31243 | 1 | BC3_UNORM: 1 |
+| _31252 | 1 | BC3_UNORM: 1 |
+| _31253 | 1 | BC3_UNORM: 1 |
+| _31254 | 1 | BC3_UNORM: 1 |
+| _3130 | 1 | BC1_UNORM: 1 |
+| _31336 | 3 | BC3_UNORM: 3 |
+| _31400 | 2 | BC3_UNORM: 2 |
+| _31404 | 1 | BC3_UNORM: 1 |
+| _31409 | 1 | BC3_UNORM: 1 |
+| _31410 | 1 | BC3_UNORM: 1 |
+| _31415 | 1 | BC3_UNORM: 1 |
+| _31416 | 1 | BC3_UNORM: 1 |
+| _31420 | 1 | BC3_UNORM: 1 |
+| _31427 | 1 | BC3_UNORM: 1 |
+| _31467 | 2 | BC3_UNORM: 2 |
+| _31468 | 2 | BC3_UNORM: 2 |
+| _31469 | 1 | BC3_UNORM: 1 |
+| _31503 | 1 | BC3_UNORM: 1 |
+| _31504 | 1 | BC3_UNORM: 1 |
+| _31505 | 1 | BC3_UNORM: 1 |
+| _31506 | 1 | BC3_UNORM: 1 |
+| _31507 | 1 | BC3_UNORM: 1 |
+| _31510 | 1 | BC3_UNORM: 1 |
+| _31511 | 2 | BC3_UNORM: 2 |
+| _31517 | 1 | BC3_UNORM: 1 |
+| _3178 | 1 | BC3_UNORM: 1 |
+| _3189 | 1 | BC1_UNORM: 1 |
+| _32 | 2 | BC1_UNORM: 2 |
+| _32001 | 1 | BC3_UNORM: 1 |
+| _32002 | 1 | BC3_UNORM: 1 |
+| _32003 | 1 | BC3_UNORM: 1 |
+| _32004 | 1 | BC3_UNORM: 1 |
+| _32005 | 1 | BC3_UNORM: 1 |
+| _32006 | 1 | BC3_UNORM: 1 |
+| _32008 | 1 | BC3_UNORM: 1 |
+| _32009 | 1 | BC3_UNORM: 1 |
+| _32010 | 1 | BC3_UNORM: 1 |
+| _32011 | 1 | BC3_UNORM: 1 |
+| _32012 | 1 | BC3_UNORM: 1 |
+| _32013 | 1 | BC3_UNORM: 1 |
+| _32014 | 1 | BC3_UNORM: 1 |
+| _32015 | 1 | BC3_UNORM: 1 |
+| _32016 | 1 | BC3_UNORM: 1 |
+| _32017 | 1 | BC3_UNORM: 1 |
+| _32018 | 1 | BC3_UNORM: 1 |
+| _32019 | 2 | BC3_UNORM: 2 |
+| _32020 | 2 | BC3_UNORM: 2 |
+| _32021 | 2 | BC3_UNORM: 2 |
+| _32022 | 2 | BC3_UNORM: 2 |
+| _32023 | 1 | BC3_UNORM: 1 |
+| _32025 | 1 | BC3_UNORM: 1 |
+| _32026 | 1 | BC3_UNORM: 1 |
+| _32027 | 1 | BC3_UNORM: 1 |
+| _32031 | 1 | BC3_UNORM: 1 |
+| _32033 | 2 | BC3_UNORM: 2 |
+| _32034 | 1 | BC3_UNORM: 1 |
+| _32035 | 1 | BC3_UNORM: 1 |
+| _32037 | 1 | BC3_UNORM: 1 |
+| _32038 | 2 | BC3_UNORM: 2 |
+| _32039 | 1 | BC3_UNORM: 1 |
+| _32040 | 2 | BC3_UNORM: 2 |
+| _32041 | 1 | BC3_UNORM: 1 |
+| _32042 | 1 | BC3_UNORM: 1 |
+| _32043 | 1 | BC3_UNORM: 1 |
+| _32044 | 1 | BC3_UNORM: 1 |
+| _32045 | 1 | BC3_UNORM: 1 |
+| _32046 | 2 | BC3_UNORM: 2 |
+| _32047 | 2 | BC3_UNORM: 2 |
+| _32048 | 1 | BC3_UNORM: 1 |
+| _32050 | 1 | BC3_UNORM: 1 |
+| _32051 | 1 | BC3_UNORM: 1 |
+| _32052 | 1 | BC3_UNORM: 1 |
+| _32070 | 1 | BC3_UNORM: 1 |
+| _32073 | 1 | BC3_UNORM: 1 |
+| _32074 | 1 | BC3_UNORM: 1 |
+| _32075 | 1 | BC3_UNORM: 1 |
+| _32076 | 1 | BC3_UNORM: 1 |
+| _32077 | 1 | BC3_UNORM: 1 |
+| _32078 | 1 | BC3_UNORM: 1 |
+| _32103 | 1 | BC3_UNORM: 1 |
+| _32161 | 1 | BC3_UNORM: 1 |
+| _32173 | 1 | BC3_UNORM: 1 |
+| _32177 | 1 | BC3_UNORM: 1 |
+| _32178 | 1 | BC3_UNORM: 1 |
+| _32181 | 2 | BC3_UNORM: 2 |
+| _32189 | 2 | BC3_UNORM: 2 |
+| _32213 | 1 | BC3_UNORM: 1 |
+| _32214 | 1 | BC3_UNORM: 1 |
+| _32215 | 1 | BC3_UNORM: 1 |
+| _32216 | 1 | BC3_UNORM: 1 |
+| _32217 | 1 | BC3_UNORM: 1 |
+| _32219 | 1 | BC3_UNORM: 1 |
+| _32223 | 1 | BC3_UNORM: 1 |
+| _32245 | 1 | BC3_UNORM: 1 |
+| _32246 | 1 | BC3_UNORM: 1 |
+| _32247 | 1 | BC3_UNORM: 1 |
+| _32254 | 1 | BC3_UNORM: 1 |
+| _32255 | 1 | BC3_UNORM: 1 |
+| _32256 | 1 | BC3_UNORM: 1 |
+| _32258 | 1 | BC3_UNORM: 1 |
+| _32259 | 1 | BC3_UNORM: 1 |
+| _32260 | 1 | BC3_UNORM: 1 |
+| _32261 | 1 | BC3_UNORM: 1 |
+| _32263 | 1 | BC3_UNORM: 1 |
+| _32264 | 1 | BC3_UNORM: 1 |
+| _32266 | 1 | BC3_UNORM: 1 |
+| _32267 | 1 | BC3_UNORM: 1 |
+| _32269 | 2 | BC3_UNORM: 2 |
+| _32284 | 1 | BC3_UNORM: 1 |
+| _32285 | 1 | BC3_UNORM: 1 |
+| _32286 | 1 | BC3_UNORM: 1 |
+| _32287 | 1 | BC3_UNORM: 1 |
+| _32288 | 1 | BC3_UNORM: 1 |
+| _32302 | 1 | BC3_UNORM: 1 |
+| _32308 | 1 | BC3_UNORM: 1 |
+| _32322 | 1 | BC3_UNORM: 1 |
+| _32341 | 1 | BC3_UNORM: 1 |
+| _32343 | 1 | BC3_UNORM: 1 |
+| _32345 | 1 | BC3_UNORM: 1 |
+| _32349 | 2 | BC3_UNORM: 2 |
+| _32352 | 1 | BC3_UNORM: 1 |
+| _32366 | 1 | BC3_UNORM: 1 |
+| _32367 | 1 | BC3_UNORM: 1 |
+| _32368 | 1 | BC3_UNORM: 1 |
+| _32370 | 1 | BC3_UNORM: 1 |
+| _32374 | 1 | BC3_UNORM: 1 |
+| _32375 | 1 | BC3_UNORM: 1 |
+| _32376 | 1 | BC3_UNORM: 1 |
+| _32377 | 1 | BC3_UNORM: 1 |
+| _32378 | 1 | BC3_UNORM: 1 |
+| _32379 | 1 | BC3_UNORM: 1 |
+| _32380 | 1 | BC3_UNORM: 1 |
+| _32381 | 1 | BC3_UNORM: 1 |
+| _32382 | 1 | BC3_UNORM: 1 |
+| _32383 | 1 | BC3_UNORM: 1 |
+| _32384 | 1 | BC3_UNORM: 1 |
+| _32385 | 1 | BC3_UNORM: 1 |
+| _32388 | 1 | BC3_UNORM: 1 |
+| _32389 | 1 | BC3_UNORM: 1 |
+| _32390 | 1 | BC3_UNORM: 1 |
+| _32391 | 1 | BC3_UNORM: 1 |
+| _32392 | 1 | BC3_UNORM: 1 |
+| _32393 | 1 | BC3_UNORM: 1 |
+| _32394 | 1 | BC3_UNORM: 1 |
+| _32395 | 1 | BC3_UNORM: 1 |
+| _32396 | 1 | BC3_UNORM: 1 |
+| _32399 | 2 | BC3_UNORM: 2 |
+| _32410 | 1 | BC3_UNORM: 1 |
+| _32411 | 1 | BC3_UNORM: 1 |
+| _32427 | 1 | BC3_UNORM: 1 |
+| _32506 | 1 | BC3_UNORM: 1 |
+| _32507 | 1 | BC3_UNORM: 1 |
+| _32508 | 1 | BC3_UNORM: 1 |
+| _32509 | 1 | BC3_UNORM: 1 |
+| _32521 | 1 | BC3_UNORM: 1 |
+| _32522 | 1 | BC3_UNORM: 1 |
+| _32768x32768 | 1 | uncompressed_or_unknown: 1 |
+| _32880 | 1 | BC3_UNORM: 1 |
+| _32881 | 1 | BC3_UNORM: 1 |
+| _32882 | 2 | BC3_UNORM: 2 |
+| _32883 | 2 | BC3_UNORM: 2 |
+| _32884 | 2 | BC3_UNORM: 2 |
+| _32885 | 2 | BC3_UNORM: 2 |
+| _32886 | 2 | BC3_UNORM: 2 |
+| _32887 | 1 | BC3_UNORM: 1 |
+| _32894 | 1 | BC3_UNORM: 1 |
+| _33 | 2 | BC1_UNORM: 2 |
+| _33008 | 1 | BC3_UNORM: 1 |
+| _33011 | 1 | BC3_UNORM: 1 |
+| _33012 | 2 | BC3_UNORM: 2 |
+| _33013 | 1 | BC3_UNORM: 1 |
+| _33014 | 1 | BC3_UNORM: 1 |
+| _33015 | 1 | BC3_UNORM: 1 |
+| _33017 | 1 | BC3_UNORM: 1 |
+| _33018 | 1 | BC3_UNORM: 1 |
+| _33020 | 1 | BC3_UNORM: 1 |
+| _33024 | 1 | BC3_UNORM: 1 |
+| _33026 | 1 | BC3_UNORM: 1 |
+| _33030 | 1 | BC3_UNORM: 1 |
+| _33031 | 1 | BC3_UNORM: 1 |
+| _33032 | 1 | BC3_UNORM: 1 |
+| _33033 | 1 | BC3_UNORM: 1 |
+| _33034 | 1 | BC3_UNORM: 1 |
+| _33035 | 1 | BC3_UNORM: 1 |
+| _33036 | 1 | BC3_UNORM: 1 |
+| _33037 | 1 | BC3_UNORM: 1 |
+| _33038 | 1 | BC3_UNORM: 1 |
+| _33039 | 1 | BC3_UNORM: 1 |
+| _33041 | 1 | BC3_UNORM: 1 |
+| _33042 | 1 | BC3_UNORM: 1 |
+| _33043 | 1 | BC3_UNORM: 1 |
+| _33044 | 1 | BC3_UNORM: 1 |
+| _33045 | 1 | BC3_UNORM: 1 |
+| _33046 | 1 | BC3_UNORM: 1 |
+| _33047 | 1 | BC3_UNORM: 1 |
+| _33060 | 1 | BC3_UNORM: 1 |
+| _33061 | 1 | BC3_UNORM: 1 |
+| _34 | 3 | BC1_UNORM: 3 |
+| _34006 | 1 | BC3_UNORM: 1 |
+| _34007 | 1 | BC3_UNORM: 1 |
+| _34008 | 1 | BC3_UNORM: 1 |
+| _3409 | 1 | BC1_UNORM: 1 |
+| _3410 | 1 | BC1_UNORM: 1 |
+| _35 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _35006 | 1 | BC3_UNORM: 1 |
+| _36 | 1 | BC1_UNORM: 1 |
+| _363 | 1 | BC3_UNORM: 1 |
+| _37 | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _3720 | 1 | BC1_UNORM: 1 |
+| _38 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _38001 | 1 | BC3_UNORM: 1 |
+| _38002 | 1 | BC3_UNORM: 1 |
+| _38a | 1 | BC1_UNORM: 1 |
+| _39009 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _39013 | 1 | BC3_UNORM: 1 |
+| _39a | 1 | BC1_UNORM: 1 |
+| _3flag | 1 | BC1_UNORM: 1 |
+| _3wagon | 1 | BC1_UNORM: 1 |
+| _4 | 5,017 | BC1_UNORM: 4720, BC3_UNORM: 201, uncompressed_or_unknown: 96 |
+| _40 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _4001 | 2 | BC1_UNORM: 2 |
+| _4096 | 1 | BC1_UNORM: 1 |
+| _4096x4096 | 5 | uncompressed_or_unknown: 5 |
+| _41 | 2 | BC1_UNORM: 2 |
+| _41001 | 1 | BC3_UNORM: 1 |
+| _41002 | 1 | BC3_UNORM: 1 |
+| _41003 | 1 | BC3_UNORM: 1 |
+| _41004 | 1 | BC3_UNORM: 1 |
+| _41005 | 1 | BC3_UNORM: 1 |
+| _41006 | 1 | BC3_UNORM: 1 |
+| _42 | 1 | BC3_UNORM: 1 |
+| _42001 | 2 | BC3_UNORM: 2 |
+| _42002 | 2 | BC3_UNORM: 2 |
+| _42003 | 2 | BC3_UNORM: 2 |
+| _42004 | 2 | BC3_UNORM: 2 |
+| _42005 | 2 | BC3_UNORM: 2 |
+| _42006 | 1 | BC3_UNORM: 1 |
+| _42007 | 1 | BC3_UNORM: 1 |
+| _42008 | 2 | BC3_UNORM: 2 |
+| _42010 | 1 | BC3_UNORM: 1 |
+| _42011 | 1 | BC3_UNORM: 1 |
+| _43001 | 2 | BC3_UNORM: 2 |
+| _43002 | 3 | BC3_UNORM: 3 |
+| _43003 | 2 | BC3_UNORM: 2 |
+| _43004 | 1 | BC3_UNORM: 1 |
+| _43005 | 3 | BC3_UNORM: 3 |
+| _43007 | 1 | BC3_UNORM: 1 |
+| _43009 | 1 | BC3_UNORM: 1 |
+| _43010 | 1 | BC3_UNORM: 1 |
+| _43011 | 2 | BC3_UNORM: 2 |
+| _43012 | 2 | BC3_UNORM: 2 |
+| _43013 | 2 | BC3_UNORM: 2 |
+| _43014 | 2 | BC3_UNORM: 2 |
+| _43021 | 1 | BC3_UNORM: 1 |
+| _43022 | 1 | BC3_UNORM: 1 |
+| _43023 | 1 | BC3_UNORM: 1 |
+| _44 | 1 | BC3_UNORM: 1 |
+| _44004 | 1 | BC3_UNORM: 1 |
+| _44005 | 1 | BC3_UNORM: 1 |
+| _44007 | 1 | BC3_UNORM: 1 |
+| _44008 | 2 | BC3_UNORM: 2 |
+| _44010 | 1 | BC3_UNORM: 1 |
+| _44013 | 1 | BC3_UNORM: 1 |
+| _44014 | 1 | BC3_UNORM: 1 |
+| _45025 | 1 | BC3_UNORM: 1 |
+| _46 | 1 | BC3_UNORM: 1 |
+| _467 | 1 | BC1_UNORM: 1 |
+| _470 | 1 | BC1_UNORM: 1 |
+| _4799 | 1 | BC1_UNORM: 1 |
+| _4812 | 1 | BC1_UNORM: 1 |
+| _486 | 1 | BC1_UNORM: 1 |
+| _4950 | 1 | BC1_UNORM: 1 |
+| _4pack | 173 | BC7_UNORM: 173 |
+| _5 | 3,331 | BC1_UNORM: 3137, BC3_UNORM: 97, BC5_UNORM: 1, uncompressed_or_unknown: 96 |
+| _5001 | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _5002 | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _5003 | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _5004 | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _5005 | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _5006 | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _5007 | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _500777 | 1 | BC3_UNORM: 1 |
+| _500782 | 1 | BC3_UNORM: 1 |
+| _5008 | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _5009 | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _501 | 1 | BC1_UNORM: 1 |
+| _5010 | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _50548 | 1 | BC3_UNORM: 1 |
+| _50802 | 1 | BC3_UNORM: 1 |
+| _50804 | 1 | BC3_UNORM: 1 |
+| _50810 | 1 | BC3_UNORM: 1 |
+| _50824 | 1 | BC3_UNORM: 1 |
+| _51 | 1 | BC3_UNORM: 1 |
+| _51012 | 1 | BC3_UNORM: 1 |
+| _51027 | 1 | BC3_UNORM: 1 |
+| _51028 | 1 | BC3_UNORM: 1 |
+| _51040 | 1 | BC3_UNORM: 1 |
+| _51227 | 1 | BC1_UNORM: 1 |
+| _512x1024 | 8 | uncompressed_or_unknown: 8 |
+| _512x128 | 1 | uncompressed_or_unknown: 1 |
+| _512x2048 | 3 | uncompressed_or_unknown: 3 |
+| _512x256 | 2 | uncompressed_or_unknown: 2 |
+| _512x512 | 379 | uncompressed_or_unknown: 379 |
+| _52 | 1 | BC3_UNORM: 1 |
+| _52935 | 1 | BC3_UNORM: 1 |
+| _52936 | 1 | BC3_UNORM: 1 |
+| _52937 | 1 | BC3_UNORM: 1 |
+| _53 | 1 | BC3_UNORM: 1 |
+| _53202 | 1 | BC3_UNORM: 1 |
+| _53207 | 1 | BC3_UNORM: 1 |
+| _53219 | 1 | BC3_UNORM: 1 |
+| _53221 | 1 | BC3_UNORM: 1 |
+| _537 | 1 | BC1_UNORM: 1 |
+| _53771 | 1 | BC3_UNORM: 1 |
+| _53777 | 1 | BC3_UNORM: 1 |
+| _53778 | 1 | BC3_UNORM: 1 |
+| _54 | 1 | BC3_UNORM: 1 |
+| _54483 | 1 | BC1_UNORM: 1 |
+| _54607 | 1 | BC3_UNORM: 1 |
+| _54608 | 1 | BC3_UNORM: 1 |
+| _54609 | 1 | BC3_UNORM: 1 |
+| _54613 | 1 | BC3_UNORM: 1 |
+| _54616 | 1 | BC3_UNORM: 1 |
+| _54626 | 1 | BC3_UNORM: 1 |
+| _54627 | 1 | BC3_UNORM: 1 |
+| _5463 | 1 | BC1_UNORM: 1 |
+| _54632 | 1 | BC3_UNORM: 1 |
+| _54634 | 1 | BC3_UNORM: 1 |
+| _54635 | 1 | BC3_UNORM: 1 |
+| _54645 | 1 | BC3_UNORM: 1 |
+| _55 | 1 | BC3_UNORM: 1 |
+| _55056 | 1 | BC1_UNORM: 1 |
+| _57 | 1 | BC3_UNORM: 1 |
+| _58 | 1 | BC1_UNORM: 1 |
+| _58004 | 1 | BC3_UNORM: 1 |
+| _58006 | 1 | BC3_UNORM: 1 |
+| _58007 | 1 | BC3_UNORM: 1 |
+| _58008 | 1 | BC3_UNORM: 1 |
+| _58015 | 1 | BC3_UNORM: 1 |
+| _58016 | 1 | BC3_UNORM: 1 |
+| _58023 | 1 | BC3_UNORM: 1 |
+| _58025 | 1 | BC3_UNORM: 1 |
+| _58027 | 1 | BC3_UNORM: 1 |
+| _58033 | 1 | BC3_UNORM: 1 |
+| _58035 | 1 | BC3_UNORM: 1 |
+| _59 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _59002 | 1 | BC3_UNORM: 1 |
+| _59004 | 1 | BC3_UNORM: 1 |
+| _59006 | 2 | BC3_UNORM: 2 |
+| _6 | 2,144 | BC1_UNORM: 1995, BC3_UNORM: 53, uncompressed_or_unknown: 96 |
+| _600001 | 1 | BC3_UNORM: 1 |
+| _600002 | 1 | BC3_UNORM: 1 |
+| _600003 | 1 | BC3_UNORM: 1 |
+| _600004 | 1 | BC3_UNORM: 1 |
+| _600005 | 1 | BC3_UNORM: 1 |
+| _600006 | 1 | BC3_UNORM: 1 |
+| _600007 | 1 | BC3_UNORM: 1 |
+| _600008 | 1 | BC3_UNORM: 1 |
+| _600009 | 1 | BC3_UNORM: 1 |
+| _600010 | 1 | BC3_UNORM: 1 |
+| _600011 | 1 | BC3_UNORM: 1 |
+| _6001 | 1 | BC1_UNORM: 1 |
+| _610001 | 1 | BC3_UNORM: 1 |
+| _610002 | 1 | BC3_UNORM: 1 |
+| _610003 | 1 | BC3_UNORM: 1 |
+| _610004 | 1 | BC3_UNORM: 1 |
+| _610005 | 1 | BC3_UNORM: 1 |
+| _610006 | 1 | BC3_UNORM: 1 |
+| _610007 | 1 | BC3_UNORM: 1 |
+| _610008 | 1 | BC3_UNORM: 1 |
+| _610009 | 1 | BC3_UNORM: 1 |
+| _610010 | 1 | BC3_UNORM: 1 |
+| _610011 | 1 | BC3_UNORM: 1 |
+| _610012 | 1 | BC3_UNORM: 1 |
+| _610013 | 1 | BC3_UNORM: 1 |
+| _610014 | 1 | BC3_UNORM: 1 |
+| _610015 | 1 | BC3_UNORM: 1 |
+| _620001 | 1 | BC3_UNORM: 1 |
+| _620002 | 1 | BC3_UNORM: 1 |
+| _620003 | 1 | BC3_UNORM: 1 |
+| _620004 | 1 | BC3_UNORM: 1 |
+| _620005 | 1 | BC3_UNORM: 1 |
+| _620006 | 1 | BC3_UNORM: 1 |
+| _620007 | 1 | BC3_UNORM: 1 |
+| _620008 | 1 | BC3_UNORM: 1 |
+| _620009 | 1 | BC3_UNORM: 1 |
+| _620010 | 1 | BC3_UNORM: 1 |
+| _620011 | 1 | BC3_UNORM: 1 |
+| _620012 | 1 | BC3_UNORM: 1 |
+| _620901 | 1 | BC3_UNORM: 1 |
+| _620902 | 1 | BC3_UNORM: 1 |
+| _620903 | 1 | BC3_UNORM: 1 |
+| _620904 | 1 | BC3_UNORM: 1 |
+| _620905 | 1 | BC3_UNORM: 1 |
+| _620906 | 1 | BC3_UNORM: 1 |
+| _620907 | 1 | BC3_UNORM: 1 |
+| _620908 | 1 | BC3_UNORM: 1 |
+| _620909 | 1 | BC3_UNORM: 1 |
+| _620910 | 1 | BC3_UNORM: 1 |
+| _620911 | 1 | BC3_UNORM: 1 |
+| _620912 | 1 | BC3_UNORM: 1 |
+| _620913 | 1 | BC3_UNORM: 1 |
+| _620914 | 1 | BC3_UNORM: 1 |
+| _620915 | 1 | BC3_UNORM: 1 |
+| _620916 | 1 | BC3_UNORM: 1 |
+| _620917 | 1 | BC3_UNORM: 1 |
+| _620918 | 1 | BC3_UNORM: 1 |
+| _620919 | 1 | BC3_UNORM: 1 |
+| _620920 | 1 | BC3_UNORM: 1 |
+| _620997 | 1 | BC3_UNORM: 1 |
+| _620998 | 1 | BC3_UNORM: 1 |
+| _620999 | 1 | BC3_UNORM: 1 |
+| _621000 | 1 | BC3_UNORM: 1 |
+| _63 | 2 | BC1_UNORM: 2 |
+| _630001 | 1 | BC3_UNORM: 1 |
+| _63a | 1 | BC1_UNORM: 1 |
+| _64 | 1 | BC1_UNORM: 1 |
+| _68 | 1 | BC1_UNORM: 1 |
+| _6x6 | 2 | BC1_UNORM: 2 |
+| _7 | 1,377 | BC1_UNORM: 1263, BC3_UNORM: 18, uncompressed_or_unknown: 96 |
+| _71 | 1 | BC3_UNORM: 1 |
+| _75000 | 1 | BC3_UNORM: 1 |
+| _75002 | 1 | BC3_UNORM: 1 |
+| _75003 | 1 | BC3_UNORM: 1 |
+| _75004 | 1 | BC3_UNORM: 1 |
+| _75005 | 1 | BC3_UNORM: 1 |
+| _75006 | 1 | BC3_UNORM: 1 |
+| _75007 | 1 | BC3_UNORM: 1 |
+| _75008 | 1 | BC3_UNORM: 1 |
+| _75009 | 1 | BC3_UNORM: 1 |
+| _75010 | 1 | BC3_UNORM: 1 |
+| _75011 | 1 | BC3_UNORM: 1 |
+| _75012 | 1 | BC3_UNORM: 1 |
+| _75013 | 1 | BC3_UNORM: 1 |
+| _75014 | 1 | BC3_UNORM: 1 |
+| _787001 | 1 | BC3_UNORM: 1 |
+| _795041 | 1 | BC3_UNORM: 1 |
+| _795042 | 1 | BC3_UNORM: 1 |
+| _795043 | 1 | BC3_UNORM: 1 |
+| _795044 | 1 | BC3_UNORM: 1 |
+| _795052 | 1 | BC3_UNORM: 1 |
+| _795053 | 1 | BC3_UNORM: 1 |
+| _795054 | 1 | BC3_UNORM: 1 |
+| _795055 | 1 | BC3_UNORM: 1 |
+| _7px | 1 | BC1_UNORM: 1 |
+| _8 | 792 | BC1_UNORM: 690, BC3_UNORM: 7, uncompressed_or_unknown: 95 |
+| _800001 | 1 | BC3_UNORM: 1 |
+| _800002 | 1 | BC3_UNORM: 1 |
+| _800003 | 1 | BC3_UNORM: 1 |
+| _800004 | 1 | BC3_UNORM: 1 |
+| _800005 | 1 | BC3_UNORM: 1 |
+| _800006 | 1 | BC3_UNORM: 1 |
+| _800007 | 1 | BC3_UNORM: 1 |
+| _800008 | 1 | BC3_UNORM: 1 |
+| _800009 | 1 | BC3_UNORM: 1 |
+| _800010 | 1 | BC3_UNORM: 1 |
+| _800011 | 1 | BC3_UNORM: 1 |
+| _800012 | 1 | BC3_UNORM: 1 |
+| _800013 | 1 | BC3_UNORM: 1 |
+| _800014 | 1 | BC3_UNORM: 1 |
+| _800015 | 1 | BC3_UNORM: 1 |
+| _800018 | 1 | BC3_UNORM: 1 |
+| _800019 | 1 | BC3_UNORM: 1 |
+| _800020 | 1 | BC3_UNORM: 1 |
+| _800021 | 1 | BC3_UNORM: 1 |
+| _800022 | 1 | BC3_UNORM: 1 |
+| _800023 | 1 | BC3_UNORM: 1 |
+| _800024 | 1 | BC3_UNORM: 1 |
+| _800025 | 1 | BC3_UNORM: 1 |
+| _800026 | 1 | BC3_UNORM: 1 |
+| _800027 | 1 | BC3_UNORM: 1 |
+| _800028 | 1 | BC3_UNORM: 1 |
+| _800029 | 1 | BC3_UNORM: 1 |
+| _800030 | 1 | BC3_UNORM: 1 |
+| _800031 | 1 | BC3_UNORM: 1 |
+| _800032 | 1 | BC3_UNORM: 1 |
+| _800033 | 1 | BC3_UNORM: 1 |
+| _800034 | 1 | BC3_UNORM: 1 |
+| _800035 | 1 | BC3_UNORM: 1 |
+| _800036 | 1 | BC3_UNORM: 1 |
+| _800037 | 1 | BC3_UNORM: 1 |
+| _800038 | 1 | BC3_UNORM: 1 |
+| _800039 | 1 | BC3_UNORM: 1 |
+| _800040 | 1 | BC3_UNORM: 1 |
+| _800041 | 1 | BC3_UNORM: 1 |
+| _800042 | 1 | BC3_UNORM: 1 |
+| _800043 | 1 | BC3_UNORM: 1 |
+| _800047 | 1 | BC3_UNORM: 1 |
+| _800100 | 1 | BC3_UNORM: 1 |
+| _800101 | 1 | BC3_UNORM: 1 |
+| _800102 | 1 | BC3_UNORM: 1 |
+| _800103 | 1 | BC3_UNORM: 1 |
+| _800104 | 1 | BC3_UNORM: 1 |
+| _800105 | 1 | BC3_UNORM: 1 |
+| _800106 | 1 | BC3_UNORM: 1 |
+| _800107 | 1 | BC3_UNORM: 1 |
+| _800108 | 1 | BC3_UNORM: 1 |
+| _800109 | 1 | BC3_UNORM: 1 |
+| _800110 | 1 | BC3_UNORM: 1 |
+| _800169 | 1 | BC3_UNORM: 1 |
+| _800179 | 1 | BC3_UNORM: 1 |
+| _800180 | 1 | BC3_UNORM: 1 |
+| _800181 | 1 | BC3_UNORM: 1 |
+| _800182 | 1 | BC3_UNORM: 1 |
+| _800188 | 1 | BC3_UNORM: 1 |
+| _800190 | 1 | BC3_UNORM: 1 |
+| _800191 | 1 | BC3_UNORM: 1 |
+| _800192 | 1 | BC3_UNORM: 1 |
+| _800193 | 1 | BC3_UNORM: 1 |
+| _800261 | 1 | BC3_UNORM: 1 |
+| _800290 | 1 | BC3_UNORM: 1 |
+| _800291 | 1 | BC3_UNORM: 1 |
+| _800292 | 1 | BC3_UNORM: 1 |
+| _800293 | 1 | BC3_UNORM: 1 |
+| _800294 | 1 | BC3_UNORM: 1 |
+| _800298 | 1 | BC3_UNORM: 1 |
+| _802262 | 1 | BC3_UNORM: 1 |
+| _802263 | 1 | BC3_UNORM: 1 |
+| _802264 | 1 | BC3_UNORM: 1 |
+| _802265 | 1 | BC3_UNORM: 1 |
+| _802266 | 1 | BC3_UNORM: 1 |
+| _802267 | 1 | BC3_UNORM: 1 |
+| _802268 | 1 | BC3_UNORM: 1 |
+| _802269 | 1 | BC3_UNORM: 1 |
+| _802270 | 1 | BC3_UNORM: 1 |
+| _802270- | 1 | BC3_UNORM: 1 |
+| _802271 | 1 | BC3_UNORM: 1 |
+| _802272 | 1 | BC3_UNORM: 1 |
+| _802273 | 1 | BC3_UNORM: 1 |
+| _802274 | 1 | BC3_UNORM: 1 |
+| _802275 | 1 | BC3_UNORM: 1 |
+| _802276 | 1 | BC3_UNORM: 1 |
+| _802277 | 1 | BC3_UNORM: 1 |
+| _802278 | 1 | BC3_UNORM: 1 |
+| _802279 | 1 | BC3_UNORM: 1 |
+| _802280 | 1 | BC3_UNORM: 1 |
+| _802281 | 1 | BC3_UNORM: 1 |
+| _802282 | 1 | BC3_UNORM: 1 |
+| _802283 | 1 | BC3_UNORM: 1 |
+| _802284 | 1 | BC3_UNORM: 1 |
+| _802285 | 1 | BC3_UNORM: 1 |
+| _802286 | 1 | BC3_UNORM: 1 |
+| _802287 | 1 | BC3_UNORM: 1 |
+| _802288 | 1 | BC3_UNORM: 1 |
+| _802289 | 1 | BC3_UNORM: 1 |
+| _802290 | 1 | BC3_UNORM: 1 |
+| _802291 | 1 | BC3_UNORM: 1 |
+| _802292 | 1 | BC3_UNORM: 1 |
+| _802345 | 1 | BC3_UNORM: 1 |
+| _802346 | 1 | BC3_UNORM: 1 |
+| _802347 | 1 | BC3_UNORM: 1 |
+| _802363 | 1 | BC3_UNORM: 1 |
+| _802364 | 1 | BC3_UNORM: 1 |
+| _802365 | 1 | BC3_UNORM: 1 |
+| _802366 | 1 | BC3_UNORM: 1 |
+| _802368 | 1 | BC3_UNORM: 1 |
+| _802370 | 1 | BC3_UNORM: 1 |
+| _802371 | 1 | BC3_UNORM: 1 |
+| _802372 | 1 | BC3_UNORM: 1 |
+| _802378 | 1 | BC3_UNORM: 1 |
+| _802379 | 1 | BC3_UNORM: 1 |
+| _802391 | 1 | BC3_UNORM: 1 |
+| _802392 | 1 | BC3_UNORM: 1 |
+| _802393 | 1 | BC3_UNORM: 1 |
+| _802394 | 1 | BC3_UNORM: 1 |
+| _802395 | 1 | BC3_UNORM: 1 |
+| _802401 | 1 | BC3_UNORM: 1 |
+| _802402 | 1 | BC3_UNORM: 1 |
+| _802403 | 1 | BC3_UNORM: 1 |
+| _802404 | 1 | BC3_UNORM: 1 |
+| _802405 | 1 | BC3_UNORM: 1 |
+| _802406 | 1 | BC3_UNORM: 1 |
+| _802407 | 1 | BC3_UNORM: 1 |
+| _802408 | 1 | BC3_UNORM: 1 |
+| _802409 | 1 | BC3_UNORM: 1 |
+| _802410 | 1 | BC3_UNORM: 1 |
+| _802412 | 1 | BC3_UNORM: 1 |
+| _802413 | 1 | BC3_UNORM: 1 |
+| _802416 | 1 | BC3_UNORM: 1 |
+| _802422 | 1 | BC3_UNORM: 1 |
+| _802447 | 1 | BC3_UNORM: 1 |
+| _802451 | 1 | BC3_UNORM: 1 |
+| _802925 | 1 | BC3_UNORM: 1 |
+| _803071 | 1 | BC3_UNORM: 1 |
+| _803072 | 1 | BC3_UNORM: 1 |
+| _804002 | 1 | BC3_UNORM: 1 |
+| _804003 | 1 | BC3_UNORM: 1 |
+| _81 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _84 | 1 | BC1_UNORM: 1 |
+| _9 | 444 | BC1_UNORM: 345, BC3_UNORM: 3, uncompressed_or_unknown: 96 |
+| _91 | 1 | BC1_UNORM: 1 |
+| _99 | 1 | BC1_UNORM: 1 |
+| _a | 14 | BC1_UNORM: 10, BC3_UNORM: 4 |
+| _a0002z | 1 | BC1_UNORM: 1 |
+| _abandonedcastle | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _aboutjijeongta | 1 | BC1_UNORM: 1 |
+| _abovethesteppe | 1 | BC1_UNORM: 1 |
+| _abstract | 1 | BC1_UNORM: 1 |
+| _abundance | 1 | BC1_UNORM: 1 |
+| _abyss | 32 | BC1_UNORM: 5, BC3_UNORM: 27 |
+| _abyssconnect | 1 | BC3_UNORM: 1 |
+| _abyssfog | 1 | BC3_UNORM: 1 |
+| _abyssgate | 1 | BC1_UNORM: 1 |
+| _abyssgateswitch | 1 | BC3_UNORM: 1 |
+| _abyssgateway | 1 | BC3_UNORM: 1 |
+| _abyssgear | 4 | BC3_UNORM: 4 |
+| _abyssmirrorcave | 1 | BC1_UNORM: 1 |
+| _abyssrefactor | 1 | BC3_UNORM: 1 |
+| _abyssruins | 1 | BC1_UNORM: 1 |
+| _abyssteleport | 1 | BC3_UNORM: 1 |
+| _acc | 1 | BC1_UNORM: 1 |
+| _accept | 73 | BC1_UNORM: 73 |
+| _accessory | 2 | BC3_UNORM: 2 |
+| _accountbook | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _adele | 1 | BC1_UNORM: 1 |
+| _adelina | 1 | BC1_UNORM: 1 |
+| _adelmus | 1 | BC1_UNORM: 1 |
+| _adrian | 1 | BC1_UNORM: 1 |
+| _adventure | 2 | BC1_UNORM: 2 |
+| _adventurer | 1 | BC1_UNORM: 1 |
+| _advice | 1 | BC1_UNORM: 1 |
+| _aeba | 1 | BC1_UNORM: 1 |
+| _aeserion | 1 | BC1_UNORM: 1 |
+| _affinity | 2 | BC3_UNORM: 2 |
+| _againtradebook | 1 | BC1_UNORM: 1 |
+| _agatha | 1 | BC1_UNORM: 1 |
+| _aggressioncost | 1 | BC3_UNORM: 1 |
+| _aging | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _agnarr | 1 | BC1_UNORM: 1 |
+| _agnes | 1 | BC1_UNORM: 1 |
+| _agony | 1 | BC1_UNORM: 1 |
+| _agreement | 1 | BC3_UNORM: 1 |
+| _aimarni | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _airballon | 1 | BC3_UNORM: 1 |
+| _airballoon | 2 | BC3_UNORM: 2 |
+| _airballoon1 | 1 | BC3_UNORM: 1 |
+| _airballoon2 | 1 | BC3_UNORM: 1 |
+| _aircastle | 1 | BC1_UNORM: 1 |
+| _airmine | 1 | BC1_UNORM: 1 |
+| _airplane | 1 | BC1_UNORM: 1 |
+| _airship | 2 | BC1_UNORM: 2 |
+| _alaric | 1 | BC1_UNORM: 1 |
+| _albedo | 1 | BC3_UNORM: 1 |
+| _alchemy | 3 | BC3_UNORM: 3 |
+| _alderyngrace | 1 | BC1_UNORM: 1 |
+| _aldred | 1 | BC1_UNORM: 1 |
+| _aldren | 1 | BC1_UNORM: 1 |
+| _aldric | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _aldun | 2 | BC1_UNORM: 2 |
+| _alec | 1 | BC1_UNORM: 1 |
+| _alexius | 1 | BC1_UNORM: 1 |
+| _alfariz | 1 | BC1_UNORM: 1 |
+| _alfonso | 5 | BC1_UNORM: 5 |
+| _alfred | 2 | BC1_UNORM: 2 |
+| _alfric | 2 | BC1_UNORM: 2 |
+| _alida | 1 | BC1_UNORM: 1 |
+| _all | 13 | BC1_UNORM: 12, BC3_UNORM: 1 |
+| _alliance | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _almsforthebeggar | 1 | BC1_UNORM: 1 |
+| _alph | 1 | BC3_UNORM: 1 |
+| _alpha | 24 | BC1_UNORM: 12, BC3_UNORM: 12 |
+| _alphabet | 1 | BC1_UNORM: 1 |
+| _alric | 1 | BC1_UNORM: 1 |
+| _alustain | 1 | BC1_UNORM: 1 |
+| _alustin | 1 | BC1_UNORM: 1 |
+| _ama | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _amaranth | 1 | BC1_UNORM: 1 |
+| _amata | 1 | BC1_UNORM: 1 |
+| _amber | 1 | BC3_UNORM: 1 |
+| _americanbulldog | 1 | BC1_UNORM: 1 |
+| _amg | 56 | BC1_UNORM: 13, BC3_UNORM: 43 |
+| _ammo | 1 | BC3_UNORM: 1 |
+| _amulet | 8 | BC3_UNORM: 8 |
+| _anaconda | 3 | BC1_UNORM: 3 |
+| _anamorphic | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _anamorphicsword | 1 | BC1_UNORM: 1 |
+| _anbella | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _ancient | 3 | BC1_UNORM: 3 |
+| _ancientabyss | 1 | BC1_UNORM: 1 |
+| _ancientbomb | 1 | BC3_UNORM: 1 |
+| _ancientgodaeserion | 1 | BC1_UNORM: 1 |
+| _ancientheartcave | 1 | BC1_UNORM: 1 |
+| _ancientkuku | 1 | BC1_UNORM: 1 |
+| _ancientruin | 1 | BC1_UNORM: 1 |
+| _ancientruins | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _ancientstonesoldier | 1 | BC1_UNORM: 1 |
+| _ancientworm | 1 | BC1_UNORM: 1 |
+| _anders | 1 | BC1_UNORM: 1 |
+| _andrew | 1 | BC1_UNORM: 1 |
+| _angeldemons | 1 | BC3_UNORM: 1 |
+| _animal | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _animalschedule | 1 | BC3_UNORM: 1 |
+| _animation | 2 | BC3_UNORM: 2 |
+| _animmask | 6 | uncompressed_or_unknown: 6 |
+| _anselm | 3 | BC1_UNORM: 3 |
+| _antelope | 2 | BC1_UNORM: 2 |
+| _antlerhunter | 1 | BC1_UNORM: 1 |
+| _antoni | 1 | BC1_UNORM: 1 |
+| _antonisoldier | 1 | BC3_UNORM: 1 |
+| _antumbra | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _antumbraarchon | 2 | BC1_UNORM: 2 |
+| _antumbrasspear | 2 | BC1_UNORM: 2 |
+| _antumbrasstaff | 2 | BC1_UNORM: 2 |
+| _antumbrassword | 2 | BC1_UNORM: 2 |
+| _anvil | 1 | BC1_UNORM: 1 |
+| _anvilhillbanditcamp | 1 | BC1_UNORM: 1 |
+| _ao | 3 | BC1_UNORM: 3 |
+| _ap | 2 | BC1_UNORM: 2 |
+| _apiary | 1 | BC1_UNORM: 1 |
+| _apple | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _applepie | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _arboriabanditcamp | 1 | BC1_UNORM: 1 |
+| _arctictern | 1 | BC1_UNORM: 1 |
+| _area | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _areai | 1 | BC1_UNORM: 1 |
+| _areaii | 1 | BC1_UNORM: 1 |
+| _arena | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _arhan | 1 | BC1_UNORM: 1 |
+| _arinna | 1 | BC1_UNORM: 1 |
+| _aris | 1 | BC1_UNORM: 1 |
+| _arkancuriosity | 1 | BC3_UNORM: 1 |
+| _arkanworks | 1 | BC3_UNORM: 1 |
+| _arlan | 1 | BC1_UNORM: 1 |
+| _armadillo | 23 | BC1_UNORM: 13, BC3_UNORM: 10 |
+| _armor | 280 | BC1_UNORM: 8, BC3_UNORM: 272 |
+| _armory | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _armwrest | 1 | BC1_UNORM: 1 |
+| _armwrestling | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _arnold | 1 | BC1_UNORM: 1 |
+| _arrow | 24 | BC1_UNORM: 11, BC3_UNORM: 13 |
+| _arroweyestation | 1 | BC1_UNORM: 1 |
+| _arrowhead | 8 | BC3_UNORM: 8 |
+| _arrows | 1 | BC1_UNORM: 1 |
+| _arrowshot | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _artichoke | 1 | BC3_UNORM: 1 |
+| _artifact | 12 | BC1_UNORM: 3, BC3_UNORM: 9 |
+| _artisumbra | 2 | BC1_UNORM: 2 |
+| _artmerchantdead | 1 | BC1_UNORM: 1 |
+| _artwork | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _ask | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _aslan | 1 | BC1_UNORM: 1 |
+| _asparagus | 1 | BC3_UNORM: 1 |
+| _assassination | 1 | BC1_UNORM: 1 |
+| _assassinationwitness | 1 | BC3_UNORM: 1 |
+| _assembly | 1 | BC1_UNORM: 1 |
+| _astin | 2 | BC1_UNORM: 2 |
+| _atag | 10 | BC1_UNORM: 5, BC3_UNORM: 5 |
+| _atagii | 1 | BC1_UNORM: 1 |
+| _atlas | 1 | BC3_UNORM: 1 |
+| _attack | 1 | BC1_UNORM: 1 |
+| _attackcamp | 1 | BC3_UNORM: 1 |
+| _attackhouse | 1 | BC1_UNORM: 1 |
+| _attackspeedrate | 1 | BC3_UNORM: 1 |
+| _audience | 1 | BC1_UNORM: 1 |
+| _augustine | 1 | BC1_UNORM: 1 |
+| _austin | 1 | BC1_UNORM: 1 |
+| _auto | 21 | BC3_UNORM: 21 |
+| _automatedincome | 1 | BC3_UNORM: 1 |
+| _awakencaliburn | 4 | BC1_UNORM: 4 |
+| _awakening | 1 | BC3_UNORM: 1 |
+| _axe | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _axolotl | 1 | BC1_UNORM: 1 |
+| _azerian | 3 | BC1_UNORM: 3 |
+| _azerianartifact | 1 | BC1_UNORM: 1 |
+| _azerianmanor | 1 | BC1_UNORM: 1 |
+| _azeriannoble | 1 | BC1_UNORM: 1 |
+| _azerty | 2 | BC3_UNORM: 2 |
+| _azureian | 3 | BC1_UNORM: 3 |
+| _b | 9 | BC1_UNORM: 9 |
+| _b01 | 1 | BC1_UNORM: 1 |
+| _ba | 3 | BC1_UNORM: 3 |
+| _backhillbandits | 1 | BC1_UNORM: 1 |
+| _backpack | 5 | BC1_UNORM: 1, BC3_UNORM: 4 |
+| _bactriancamel | 1 | BC1_UNORM: 1 |
+| _badenintroducion | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _badger | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bag | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _bagmaker | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _baitedcabin | 1 | BC1_UNORM: 1 |
+| _balder | 1 | BC1_UNORM: 1 |
+| _baldwin | 1 | BC1_UNORM: 1 |
+| _baliogluchub | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _ballista | 1 | BC1_UNORM: 1 |
+| _balloonmanual | 1 | BC3_UNORM: 1 |
+| _balour | 1 | BC3_UNORM: 1 |
+| _balthazarwyrmspeaker | 2 | BC1_UNORM: 2 |
+| _band | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bandit | 6 | BC1_UNORM: 6 |
+| _bandit1 | 1 | BC1_UNORM: 1 |
+| _bangshow | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _bank | 2 | BC3_UNORM: 2 |
+| _banking | 1 | BC1_UNORM: 1 |
+| _banquet | 2 | BC1_UNORM: 2 |
+| _barbarian | 1 | BC3_UNORM: 1 |
+| _bardencomecamp | 1 | BC1_UNORM: 1 |
+| _bardenguide | 1 | BC1_UNORM: 1 |
+| _bardenmidler | 1 | BC1_UNORM: 1 |
+| _bargul | 1 | BC1_UNORM: 1 |
+| _baris | 1 | BC1_UNORM: 1 |
+| _bark | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _barnaby | 1 | BC1_UNORM: 1 |
+| _barnacle | 2 | BC1_UNORM: 2 |
+| _barracks | 3 | BC1_UNORM: 3 |
+| _barrel | 6 | BC3_UNORM: 6 |
+| _bartholomew | 2 | BC1_UNORM: 2 |
+| _bartolo | 1 | BC1_UNORM: 1 |
+| _base | 8 | BC1_UNORM: 6, BC3_UNORM: 2 |
+| _basecamp | 1 | BC1_UNORM: 1 |
+| _basecolor | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _basementmask | 1 | BC1_UNORM: 1 |
+| _basilius | 1 | BC3_UNORM: 1 |
+| _basin | 3 | BC1_UNORM: 3 |
+| _basinplain | 1 | BC1_UNORM: 1 |
+| _basket | 2 | BC3_UNORM: 2 |
+| _basketmaker | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bass | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _basteer | 2 | BC1_UNORM: 2 |
+| _bastiondead | 1 | BC1_UNORM: 1 |
+| _bastionsoldiers | 1 | BC1_UNORM: 1 |
+| _bat | 1 | BC1_UNORM: 1 |
+| _batiharvillage | 1 | BC1_UNORM: 1 |
+| _battery | 1 | BC3_UNORM: 1 |
+| _battery2 | 1 | BC3_UNORM: 1 |
+| _battle | 28 | BC1_UNORM: 25, BC3_UNORM: 3 |
+| _battleending | 1 | BC1_UNORM: 1 |
+| _battleincastle | 1 | BC1_UNORM: 1 |
+| _battleready | 1 | BC1_UNORM: 1 |
+| _battlestart | 1 | BC1_UNORM: 1 |
+| _battletrap | 1 | BC1_UNORM: 1 |
+| _bauer | 1 | BC3_UNORM: 1 |
+| _bay | 1 | BC1_UNORM: 1 |
+| _bazooka | 1 | BC3_UNORM: 1 |
+| _bc | 2 | BC3_UNORM: 2 |
+| _bc7 | 2 | BC7_UNORM: 2 |
+| _beach | 2 | BC1_UNORM: 2 |
+| _beacon | 10 | BC1_UNORM: 8, BC3_UNORM: 2 |
+| _beaconcomplete | 1 | BC1_UNORM: 1 |
+| _beagle | 1 | BC1_UNORM: 1 |
+| _beak | 1 | BC3_UNORM: 1 |
+| _beaker | 1 | BC3_UNORM: 1 |
+| _bean | 1 | BC1_UNORM: 1 |
+| _bear | 7 | BC1_UNORM: 7 |
+| _bears | 1 | BC1_UNORM: 1 |
+| _beatrice | 1 | BC1_UNORM: 1 |
+| _beaublue | 1 | BC3_UNORM: 1 |
+| _beaver | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bee | 1 | BC1_UNORM: 1 |
+| _beehivecrisis | 1 | BC1_UNORM: 1 |
+| _beekeeping | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _beer | 2 | BC1_UNORM: 2 |
+| _beerforminer | 1 | BC1_UNORM: 1 |
+| _beetle | 2 | BC3_UNORM: 2 |
+| _beggargirl | 1 | BC3_UNORM: 1 |
+| _behindwaltergang | 1 | BC3_UNORM: 1 |
+| _beige | 1 | BC3_UNORM: 1 |
+| _beighen | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _beindel | 2 | BC1_UNORM: 2 |
+| _belkadas | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _belkadasbook | 1 | BC1_UNORM: 1 |
+| _bell | 2 | BC1_UNORM: 1, uncompressed_or_unknown: 1 |
+| _bella | 1 | BC3_UNORM: 1 |
+| _bellanorbeacon | 1 | BC1_UNORM: 1 |
+| _bellanorhuntinggrounds | 1 | BC1_UNORM: 1 |
+| _bellocq | 1 | BC3_UNORM: 1 |
+| _bellore | 1 | BC1_UNORM: 1 |
+| _belt | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _beltio | 1 | BC3_UNORM: 1 |
+| _ben | 1 | BC1_UNORM: 1 |
+| _benedict | 2 | BC1_UNORM: 2 |
+| _benjamin | 1 | BC3_UNORM: 1 |
+| _benjari | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bently | 1 | BC1_UNORM: 1 |
+| _benus | 1 | BC1_UNORM: 1 |
+| _berdo | 1 | BC1_UNORM: 1 |
+| _berna | 1 | BC3_UNORM: 1 |
+| _bernardus | 1 | BC1_UNORM: 1 |
+| _bernor | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bestskill | 1 | BC1_UNORM: 1 |
+| _beyaz | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bg | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _bg00 | 2 | BC3_UNORM: 2 |
+| _bg01 | 1 | BC3_UNORM: 1 |
+| _bg4 | 1 | BC1_UNORM: 1 |
+| _bibimbap | 1 | BC1_UNORM: 1 |
+| _big | 1 | BC1_UNORM: 1 |
+| _bigbone | 1 | BC1_UNORM: 1 |
+| _bigchange | 1 | BC1_UNORM: 1 |
+| _bigfirefly | 1 | BC1_UNORM: 1 |
+| _bigmoney | 1 | BC3_UNORM: 1 |
+| _bigrockcrown | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bigsound | 1 | BC3_UNORM: 1 |
+| _bilwise | 1 | BC1_UNORM: 1 |
+| _bindery | 1 | BC1_UNORM: 1 |
+| _bion | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bird | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _birdmeat | 1 | BC3_UNORM: 1 |
+| _bismuth | 1 | BC1_UNORM: 1 |
+| _bismuthore | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _bismuthqueen | 1 | BC1_UNORM: 1 |
+| _bismuthspear | 1 | BC1_UNORM: 1 |
+| _bismuthtower | 1 | BC1_UNORM: 1 |
+| _bison | 5 | BC1_UNORM: 5 |
+| _bjorn | 1 | BC1_UNORM: 1 |
+| _black | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _blackbear | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _blackbearconnection | 1 | BC3_UNORM: 1 |
+| _blackberry | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _blackdesert | 1 | BC3_UNORM: 1 |
+| _blackduck | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _blackhole | 1 | BC1_UNORM: 1 |
+| _blackhorse | 1 | BC1_UNORM: 1 |
+| _blacklion | 1 | BC1_UNORM: 1 |
+| _blackmarket | 1 | BC1_UNORM: 1 |
+| _blackpowderplant | 1 | BC1_UNORM: 1 |
+| _blackseabream | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _blacksmith | 2 | BC1_UNORM: 2 |
+| _blacksmithstone | 1 | BC1_UNORM: 1 |
+| _blackspirit | 1 | BC1_UNORM: 1 |
+| _blackstar | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _blacktowerenemy | 1 | BC1_UNORM: 1 |
+| _blackwolf | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _blade | 2 | BC1_UNORM: 2 |
+| _bladecave | 1 | BC1_UNORM: 1 |
+| _blank | 1 | BC1_UNORM: 1 |
+| _bleak | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bleed | 3 | BC1_UNORM: 3 |
+| _blique | 1 | BC1_UNORM: 1 |
+| _bliss | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _blissswoman | 1 | BC3_UNORM: 1 |
+| _blizzard | 2 | BC1_UNORM: 2 |
+| _block | 84 | BC1_UNORM: 84 |
+| _blockade | 1 | BC1_UNORM: 1 |
+| _blood | 2 | BC3_UNORM: 2 |
+| _bloodcoronation | 5 | BC1_UNORM: 5 |
+| _bloodcoronation512 | 1 | BC1_UNORM: 1 |
+| _bloodsteelnorthgate | 1 | BC1_UNORM: 1 |
+| _bloodsteelsouthgate | 1 | BC1_UNORM: 1 |
+| _bloodtrap | 1 | BC1_UNORM: 1 |
+| _blowingwind | 1 | BC1_UNORM: 1 |
+| _blue | 4 | BC3_UNORM: 4 |
+| _blueberry | 2 | BC3_UNORM: 2 |
+| _bluefang | 1 | BC1_UNORM: 1 |
+| _bluejay | 1 | BC1_UNORM: 1 |
+| _bluemistvillage | 1 | BC1_UNORM: 1 |
+| _bluestone | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _bluewhale | 1 | BC1_UNORM: 1 |
+| _blur | 1 | BC3_UNORM: 1 |
+| _blynhilde | 1 | BC1_UNORM: 1 |
+| _boar | 4 | BC1_UNORM: 4 |
+| _board | 1 | BC3_UNORM: 1 |
+| _boardpaperbundle | 1 | BC3_UNORM: 1 |
+| _boat | 2 | BC1_UNORM: 2 |
+| _body | 4 | BC1_UNORM: 4 |
+| _boeingblue | 1 | BC3_UNORM: 1 |
+| _boiledpork | 3 | BC1_UNORM: 3 |
+| _bolsteinnruins | 1 | BC1_UNORM: 1 |
+| _bolt | 1 | BC1_UNORM: 1 |
+| _bomb | 11 | BC1_UNORM: 1, BC3_UNORM: 10 |
+| _bombmaker | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _bone | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bonus | 7 | BC3_UNORM: 7 |
+| _book | 12 | BC1_UNORM: 2, BC3_UNORM: 10 |
+| _books | 2 | BC1_UNORM: 2 |
+| _bookvillage | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _boostingfruit | 1 | BC1_UNORM: 1 |
+| _boots | 104 | BC1_UNORM: 5, BC3_UNORM: 99 |
+| _border | 1 | BC1_UNORM: 1 |
+| _borgrum | 1 | BC1_UNORM: 1 |
+| _boris | 1 | BC1_UNORM: 1 |
+| _boss | 69 | BC1_UNORM: 66, BC3_UNORM: 3 |
+| _boss512 | 1 | BC1_UNORM: 1 |
+| _bossbattle | 2 | BC1_UNORM: 2 |
+| _bossbattleend | 1 | BC3_UNORM: 1 |
+| _bottle | 3 | BC3_UNORM: 3 |
+| _bottom | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _boundaries | 1 | BC1_UNORM: 1 |
+| _boundbylies | 1 | BC1_UNORM: 1 |
+| _bountyhunter | 1 | BC1_UNORM: 1 |
+| _bountyhunting | 1 | BC1_UNORM: 1 |
+| _bountyreduction | 1 | BC3_UNORM: 1 |
+| _bow | 1 | BC1_UNORM: 1 |
+| _box | 3 | BC1_UNORM: 1, BC3_UNORM: 1, uncompressed_or_unknown: 1 |
+| _boxing | 1 | BC3_UNORM: 1 |
+| _br | 6 | BC1_UNORM: 6 |
+| _bracelet | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _bracken | 1 | BC1_UNORM: 1 |
+| _brainwashingcitizen | 1 | BC1_UNORM: 1 |
+| _braksil | 1 | BC1_UNORM: 1 |
+| _braktul | 1 | BC1_UNORM: 1 |
+| _braktur | 1 | BC1_UNORM: 1 |
+| _bram | 1 | BC1_UNORM: 1 |
+| _bramersfarm | 1 | BC1_UNORM: 1 |
+| _brampfell | 1 | BC1_UNORM: 1 |
+| _bran | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _branch | 2 | BC1_UNORM: 2 |
+| _branner | 1 | BC1_UNORM: 1 |
+| _brant | 1 | BC1_UNORM: 1 |
+| _bravenest | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bravetolove | 1 | BC1_UNORM: 1 |
+| _bread | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _breakpillar | 2 | BC1_UNORM: 2 |
+| _bream | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _breath | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bremer | 1 | BC1_UNORM: 1 |
+| _brennan | 1 | BC1_UNORM: 1 |
+| _brewery | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _bribe | 1 | BC1_UNORM: 1 |
+| _brice | 1 | BC1_UNORM: 1 |
+| _bridge | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _bridgeconstruction | 3 | BC1_UNORM: 3 |
+| _bridlefernfarm | 1 | BC1_UNORM: 1 |
+| _bright | 2 | BC6H_SF16: 2 |
+| _britishcat | 1 | BC1_UNORM: 1 |
+| _britishkitten | 1 | BC1_UNORM: 1 |
+| _brokan | 1 | BC1_UNORM: 1 |
+| _brokengate | 1 | BC1_UNORM: 1 |
+| _brokenheart | 1 | BC1_UNORM: 1 |
+| _brokensword | 1 | BC1_UNORM: 1 |
+| _brokentrain | 1 | BC1_UNORM: 1 |
+| _brokenvisionpro | 1 | BC3_UNORM: 1 |
+| _brokenwatchtower | 1 | BC3_UNORM: 1 |
+| _brollam | 1 | BC1_UNORM: 1 |
+| _brontol | 1 | BC1_UNORM: 1 |
+| _brooch | 2 | BC3_UNORM: 2 |
+| _brook | 1 | BC3_UNORM: 1 |
+| _brookmere | 1 | BC1_UNORM: 1 |
+| _broomstick | 1 | BC3_UNORM: 1 |
+| _brown | 1 | BC1_UNORM: 1 |
+| _brownie | 1 | BC1_UNORM: 1 |
+| _bruknar | 1 | BC1_UNORM: 1 |
+| _bruna | 2 | BC1_UNORM: 2 |
+| _brush | 1 | BC3_UNORM: 1 |
+| _brynn | 2 | BC1_UNORM: 2 |
+| _bsy | 12 | BC1_UNORM: 1, BC3_UNORM: 11 |
+| _bubble | 1 | BC1_UNORM: 1 |
+| _bubbles | 1 | BC1_UNORM: 1 |
+| _buddha | 1 | BC1_UNORM: 1 |
+| _buffeffect | 1 | BC3_UNORM: 1 |
+| _buildfarm | 1 | BC1_UNORM: 1 |
+| _building | 1 | BC1_UNORM: 1 |
+| _buildranch | 1 | BC1_UNORM: 1 |
+| _bulbvillage | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _bulgogi | 1 | BC1_UNORM: 1 |
+| _bull | 4 | BC1_UNORM: 4 |
+| _bulldog | 1 | BC1_UNORM: 1 |
+| _bullet | 1 | BC1_UNORM: 1 |
+| _burbot | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _burger | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _burglar | 1 | BC1_UNORM: 1 |
+| _burgundy | 1 | BC3_UNORM: 1 |
+| _burk | 1 | BC1_UNORM: 1 |
+| _burninghouse | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _burningthorns | 1 | BC3_UNORM: 1 |
+| _burnsilverrequest | 2 | BC1_UNORM: 2 |
+| _burnthorn | 1 | BC3_UNORM: 1 |
+| _bushystarwort | 1 | BC1_UNORM: 1 |
+| _butcher | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _butchery01 | 2 | BC1_UNORM: 2 |
+| _butchery02 | 2 | BC1_UNORM: 2 |
+| _butler | 1 | BC3_UNORM: 1 |
+| _butter | 1 | BC3_UNORM: 1 |
+| _butterfly | 1 | BC3_UNORM: 1 |
+| _button | 1 | BC3_UNORM: 1 |
+| _byron | 4 | BC1_UNORM: 4 |
+| _c | 895 | BC1_UNORM: 790, BC3_UNORM: 105 |
+| _c01 | 1 | BC1_UNORM: 1 |
+| _cabbage | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _caledoravillage | 1 | BC1_UNORM: 1 |
+| _caliburn | 3 | BC1_UNORM: 3 |
+| _caliburnnews | 1 | BC1_UNORM: 1 |
+| _caligraphy | 2 | BC3_UNORM: 2 |
+| _calis | 1 | BC1_UNORM: 1 |
+| _callblizzard | 1 | BC3_UNORM: 1 |
+| _calllightning | 1 | BC3_UNORM: 1 |
+| _calltornado | 1 | BC3_UNORM: 1 |
+| _calphade | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _calphadechurch | 1 | BC1_UNORM: 1 |
+| _calphadenorthdepot | 1 | BC1_UNORM: 1 |
+| _calphadenorthgate | 1 | BC1_UNORM: 1 |
+| _calphadeoutpost | 1 | BC1_UNORM: 1 |
+| _calphaderefinery | 1 | BC1_UNORM: 1 |
+| _calphadesiegearmory | 1 | BC1_UNORM: 1 |
+| _calphadesouthdepot | 1 | BC1_UNORM: 1 |
+| _calphadesoutheastgate | 1 | BC1_UNORM: 1 |
+| _calphadesouthgate | 1 | BC1_UNORM: 1 |
+| _calphadetrainingfield | 1 | BC1_UNORM: 1 |
+| _calpheidincrisis | 1 | BC1_UNORM: 1 |
+| _camel | 4 | BC1_UNORM: 4 |
+| _camelpoop | 1 | BC1_UNORM: 1 |
+| _camp | 25 | BC1_UNORM: 16, BC3_UNORM: 9 |
+| _campfire | 1 | BC1_UNORM: 1 |
+| _campi | 1 | BC1_UNORM: 1 |
+| _campii | 1 | BC1_UNORM: 1 |
+| _canape | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _cancel | 1 | BC3_UNORM: 1 |
+| _cane | 1 | BC3_UNORM: 1 |
+| _canine | 1 | BC3_UNORM: 1 |
+| _cannon | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _cannonball | 1 | BC1_UNORM: 1 |
+| _cannonshot | 1 | BC1_UNORM: 1 |
+| _canon | 1 | BC1_UNORM: 1 |
+| _canopy | 1 | BC1_UNORM: 1 |
+| _canyon | 1 | BC1_UNORM: 1 |
+| _canyonmaze | 1 | BC1_UNORM: 1 |
+| _cap | 1 | BC1_UNORM: 1 |
+| _cape | 3 | BC1_UNORM: 3 |
+| _caprapasture | 1 | BC1_UNORM: 1 |
+| _capsulegacha | 1 | BC3_UNORM: 1 |
+| _captivetrader | 1 | BC1_UNORM: 1 |
+| _caravancamp | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _caretta | 1 | BC1_UNORM: 1 |
+| _carl | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _carmabirdsaurus | 1 | BC1_UNORM: 1 |
+| _carp | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _carpet | 2 | BC3_UNORM: 2 |
+| _carriage | 1 | BC1_UNORM: 1 |
+| _carriagefence | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _carriageworkshop | 1 | BC1_UNORM: 1 |
+| _carrot | 5 | BC3_UNORM: 5 |
+| _cartontree | 1 | BC1_UNORM: 1 |
+| _cassowary | 1 | BC1_UNORM: 1 |
+| _castella | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _castiel | 1 | BC1_UNORM: 1 |
+| _castle | 8 | BC1_UNORM: 5, BC3_UNORM: 3 |
+| _castlegargoyle | 1 | BC1_UNORM: 1 |
+| _castlehole | 1 | BC1_UNORM: 1 |
+| _castleinsider | 1 | BC1_UNORM: 1 |
+| _castleofspider | 1 | BC3_UNORM: 1 |
+| _castlesignal | 1 | BC1_UNORM: 1 |
+| _cat | 3 | BC1_UNORM: 3 |
+| _catch | 1 | BC1_UNORM: 1 |
+| _catchandthrow | 1 | BC1_UNORM: 1 |
+| _catchcat | 1 | BC1_UNORM: 1 |
+| _catchcat2 | 1 | BC1_UNORM: 1 |
+| _catchfiregreymanetemple | 1 | BC3_UNORM: 1 |
+| _catfat | 1 | BC1_UNORM: 1 |
+| _catfish | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _catfishmap | 1 | BC3_UNORM: 1 |
+| _cathedral | 1 | BC1_UNORM: 1 |
+| _catmanager | 1 | BC1_UNORM: 1 |
+| _catskinney | 1 | BC1_UNORM: 1 |
+| _cattlethief | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _cave | 104 | BC1_UNORM: 104 |
+| _caveartifact | 1 | BC3_UNORM: 1 |
+| _cavetreasurebox | 1 | BC3_UNORM: 1 |
+| _cedricgrace | 1 | BC1_UNORM: 1 |
+| _ceelo | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _cemeteryofreeds | 1 | BC1_UNORM: 1 |
+| _cemetryschedule | 1 | BC3_UNORM: 1 |
+| _centipede | 1 | BC1_UNORM: 1 |
+| _centralwatersource | 1 | BC1_UNORM: 1 |
+| _ceramics | 2 | BC3_UNORM: 2 |
+| _ceramicware | 1 | BC1_UNORM: 1 |
+| _chairless | 1 | BC3_UNORM: 1 |
+| _challenge | 5 | BC1_UNORM: 5 |
+| _challengeandchange | 1 | BC1_UNORM: 1 |
+| _chamber | 2 | BC1_UNORM: 2 |
+| _chameleon | 1 | BC1_UNORM: 1 |
+| _chaosforest | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _chapelconstruction | 1 | BC1_UNORM: 1 |
+| _charlesceleste | 1 | BC1_UNORM: 1 |
+| _charon | 1 | BC1_UNORM: 1 |
+| _chasebetrayer | 1 | BC1_UNORM: 1 |
+| _chaser | 1 | BC3_UNORM: 1 |
+| _chasetraitor | 1 | BC1_UNORM: 1 |
+| _chaya | 1 | BC1_UNORM: 1 |
+| _check | 2 | BC1_UNORM: 2 |
+| _cheese | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _cheriwoone | 1 | BC1_UNORM: 1 |
+| _chick | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _chickadee | 1 | BC3_UNORM: 1 |
+| _chicken | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _chief | 3 | BC1_UNORM: 3 |
+| _chiefmonk | 1 | BC1_UNORM: 1 |
+| _child1 | 1 | BC1_UNORM: 1 |
+| _child3 | 1 | BC1_UNORM: 1 |
+| _child4 | 1 | BC1_UNORM: 1 |
+| _childball | 1 | BC3_UNORM: 1 |
+| _children | 1 | BC1_UNORM: 1 |
+| _chip | 1 | BC3_UNORM: 1 |
+| _chipmunk | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _chlorella | 1 | BC1_UNORM: 1 |
+| _chocolate | 1 | BC1_UNORM: 1 |
+| _chocolatefactorymanager | 1 | BC1_UNORM: 1 |
+| _choppy | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _chorale | 1 | BC3_UNORM: 1 |
+| _chpt5 | 1 | BC3_UNORM: 1 |
+| _christopher | 1 | BC1_UNORM: 1 |
+| _church | 8 | BC1_UNORM: 6, BC3_UNORM: 2 |
+| _ci | 1 | BC3_UNORM: 1 |
+| _cicada | 1 | BC3_UNORM: 1 |
+| _circle | 1 | BC3_UNORM: 1 |
+| _circlehalo | 1 | BC3_UNORM: 1 |
+| _circus | 1 | BC1_UNORM: 1 |
+| _circusballoon | 1 | BC1_UNORM: 1 |
+| _circusgarnier | 1 | BC1_UNORM: 1 |
+| _cirrus | 1 | BC5_UNORM: 1 |
+| _citizenstory | 5 | BC1_UNORM: 5 |
+| _citroncockatoo | 1 | BC1_UNORM: 1 |
+| _ckh | 17 | BC1_UNORM: 1, BC3_UNORM: 16 |
+| _clavaria | 1 | BC1_UNORM: 1 |
+| _claw | 1 | BC3_UNORM: 1 |
+| _clawmachine | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _clay | 1 | BC3_UNORM: 1 |
+| _clayjar | 1 | BC1_UNORM: 1 |
+| _cleaning | 3 | BC1_UNORM: 3 |
+| _cleaninglamafeces | 1 | BC3_UNORM: 1 |
+| _clemens | 1 | BC1_UNORM: 1 |
+| _clibration | 1 | BC1_UNORM: 1 |
+| _clieek | 1 | BC3_UNORM: 1 |
+| _cliff | 5 | BC1_UNORM: 5 |
+| _cliffhouse | 1 | BC1_UNORM: 1 |
+| _cliffoldman | 1 | BC3_UNORM: 1 |
+| _cliffrescue | 1 | BC1_UNORM: 1 |
+| _cliffscream | 1 | BC3_UNORM: 1 |
+| _cliffvillage | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _climb | 1 | BC3_UNORM: 1 |
+| _clipper | 1 | BC1_UNORM: 1 |
+| _cloak | 17 | BC1_UNORM: 1, BC3_UNORM: 16 |
+| _clocktower | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _clockwise | 1 | uncompressed_or_unknown: 1 |
+| _cloth | 13 | BC1_UNORM: 2, BC3_UNORM: 11 |
+| _cloth1 | 1 | BC1_UNORM: 1 |
+| _clothes | 1 | BC1_UNORM: 1 |
+| _clothingshop | 1 | BC3_UNORM: 1 |
+| _clout | 1 | BC3_UNORM: 1 |
+| _clue | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _cn | 1 | BC3_UNORM: 1 |
+| _cnstellation | 1 | BC1_UNORM: 1 |
+| _coal | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _coalmaker | 1 | BC1_UNORM: 1 |
+| _coast | 1 | BC1_UNORM: 1 |
+| _cobra | 1 | BC1_UNORM: 1 |
+| _cobrin | 1 | BC1_UNORM: 1 |
+| _cockt | 1 | BC1_UNORM: 1 |
+| _codwin | 1 | BC1_UNORM: 1 |
+| _coelacanth | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _cog | 2 | BC3_UNORM: 2 |
+| _coin | 1 | BC3_UNORM: 1 |
+| _colby | 1 | BC1_UNORM: 1 |
+| _colette | 1 | BC1_UNORM: 1 |
+| _collapsedgoldtreasure | 1 | BC3_UNORM: 1 |
+| _collaredpeccary | 1 | BC1_UNORM: 1 |
+| _colleagueletter | 1 | BC3_UNORM: 1 |
+| _collect | 2 | BC3_UNORM: 2 |
+| _collectingkeychallenge | 1 | BC1_UNORM: 1 |
+| _collection | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _collectionbox | 2 | BC1_UNORM: 2 |
+| _collector | 1 | BC1_UNORM: 1 |
+| _color | 2,283 | BC1_UNORM: 1684, BC3_UNORM: 598, uncompressed_or_unknown: 1 |
+| _colormap | 1 | BC3_UNORM: 1 |
+| _colton | 1 | BC1_UNORM: 1 |
+| _combackgreywolf | 1 | BC1_UNORM: 1 |
+| _combat | 1 | BC1_UNORM: 1 |
+| _combo | 1 | BC3_UNORM: 1 |
+| _comebackcalphade | 1 | BC1_UNORM: 1 |
+| _comebackdemeniss | 1 | BC1_UNORM: 1 |
+| _comebackdemenissmusket | 1 | BC1_UNORM: 1 |
+| _comebackhernand | 1 | BC1_UNORM: 1 |
+| _comebackhome | 2 | BC1_UNORM: 2 |
+| _comerightnow | 1 | BC3_UNORM: 1 |
+| _common | 1 | BC7_UNORM: 1 |
+| _compass | 1 | BC3_UNORM: 1 |
+| _complete | 169 | BC1_UNORM: 116, BC3_UNORM: 53 |
+| _condor | 1 | BC1_UNORM: 1 |
+| _conductor | 1 | BC3_UNORM: 1 |
+| _confluence | 2 | BC1_UNORM: 2 |
+| _confusionbomb | 1 | BC3_UNORM: 1 |
+| _connor | 1 | BC1_UNORM: 1 |
+| _conrad | 1 | BC1_UNORM: 1 |
+| _consecutively | 1 | BC1_UNORM: 1 |
+| _contact | 2 | BC1_UNORM: 2 |
+| _contents | 1 | BC1_UNORM: 1 |
+| _contractcarefully | 1 | BC1_UNORM: 1 |
+| _contribution | 1 | BC3_UNORM: 1 |
+| _contributionitem | 1 | BC3_UNORM: 1 |
+| _contributionshop | 1 | BC1_UNORM: 1 |
+| _control | 1 | BC3_UNORM: 1 |
+| _cook | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _cookcomplete | 1 | BC1_UNORM: 1 |
+| _cooper | 1 | BC1_UNORM: 1 |
+| _copper | 1 | BC3_UNORM: 1 |
+| _copperhead | 2 | BC1_UNORM: 2 |
+| _copperingot | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _copperore | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _coppertheif | 1 | BC1_UNORM: 1 |
+| _cordelia | 1 | BC1_UNORM: 1 |
+| _core | 2 | BC3_UNORM: 2 |
+| _cormac | 1 | BC1_UNORM: 1 |
+| _cormar | 1 | BC1_UNORM: 1 |
+| _cormorant | 1 | BC1_UNORM: 1 |
+| _corn | 2 | BC3_UNORM: 2 |
+| _corridor | 1 | BC1_UNORM: 1 |
+| _corvin | 1 | BC1_UNORM: 1 |
+| _corvo | 1 | BC1_UNORM: 1 |
+| _costforwork | 2 | BC1_UNORM: 2 |
+| _cotton | 1 | BC3_UNORM: 1 |
+| _cougar | 2 | BC1_UNORM: 2 |
+| _council | 1 | BC1_UNORM: 1 |
+| _countclockwise | 1 | uncompressed_or_unknown: 1 |
+| _countdeath | 1 | BC3_UNORM: 1 |
+| _counterattack | 1 | BC1_UNORM: 1 |
+| _countgrace | 1 | BC1_UNORM: 1 |
+| _cove | 1 | BC1_UNORM: 1 |
+| _cow | 2 | BC1_UNORM: 2 |
+| _cowardlythief | 1 | BC1_UNORM: 1 |
+| _cowardtroll | 1 | BC1_UNORM: 1 |
+| _cowdog | 1 | BC1_UNORM: 1 |
+| _cowhorn | 1 | BC3_UNORM: 1 |
+| _cowisdead | 1 | BC3_UNORM: 1 |
+| _coyote | 1 | BC1_UNORM: 1 |
+| _crab | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _crack01 | 1 | BC1_UNORM: 1 |
+| _crack01a | 1 | BC1_UNORM: 1 |
+| _craft | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _crafting | 1 | BC1_UNORM: 1 |
+| _crafttrade | 1 | BC1_UNORM: 1 |
+| _crag | 1 | BC1_UNORM: 1 |
+| _crane | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _crashed | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _crater | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _crazy | 1 | BC1_UNORM: 1 |
+| _crazyoctabus | 2 | BC1_UNORM: 2 |
+| _credit | 1 | BC1_UNORM: 1 |
+| _creeperivy | 1 | BC1_UNORM: 1 |
+| _crescenthuntcave | 1 | BC1_UNORM: 1 |
+| _crescentlakeview | 1 | BC1_UNORM: 1 |
+| _crescentskyway | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _crevasse | 1 | BC1_UNORM: 1 |
+| _crime | 1 | BC1_UNORM: 1 |
+| _crio | 1 | BC3_UNORM: 1 |
+| _crisisabyss | 1 | BC1_UNORM: 1 |
+| _crocodile | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _croggthecatfishman | 2 | BC1_UNORM: 2 |
+| _cropkaka | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _cropthief | 1 | BC3_UNORM: 1 |
+| _crostino | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _croton | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _crouchingwolf | 2 | BC1_UNORM: 2 |
+| _crouchmove | 1 | BC3_UNORM: 1 |
+| _crow | 2 | BC1_UNORM: 2 |
+| _crowwing | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _crussistheformshaken | 1 | BC1_UNORM: 1 |
+| _crystalcrowncave | 1 | BC1_UNORM: 1 |
+| _ct | 6 | BC1_UNORM: 6 |
+| _cube | 1 | uncompressed_or_unknown: 1 |
+| _cubewalker | 1 | BC1_UNORM: 1 |
+| _cuckoo | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _cucuicemoorcastleruins | 2 | BC1_UNORM: 2 |
+| _cure | 1 | BC3_UNORM: 1 |
+| _cuthbert | 1 | BC1_UNORM: 1 |
+| _cuvier | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _cyclops | 1 | BC1_UNORM: 1 |
+| _cyclopsfirstmeet | 1 | BC1_UNORM: 1 |
+| _d | 5,529 | BC1_UNORM: 149, BC3_UNORM: 122, BC4_UNORM: 5257, BC5_UNORM: 1 |
+| _d.tif | 1 | BC1_UNORM: 1 |
+| _dagger | 2 | BC3_UNORM: 2 |
+| _dahlia | 2 | BC1_UNORM: 2 |
+| _daily | 10 | BC1_UNORM: 10 |
+| _dailyquest | 6 | BC1_UNORM: 6 |
+| _dakgalbi | 1 | BC3_UNORM: 1 |
+| _damage | 1 | BC1_UNORM: 1 |
+| _damian | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _dane | 1 | BC1_UNORM: 1 |
+| _dangerous | 1 | BC1_UNORM: 1 |
+| _dangerousherbalist | 1 | BC1_UNORM: 1 |
+| _dangerouswoodman | 1 | BC1_UNORM: 1 |
+| _dangerrail | 1 | BC1_UNORM: 1 |
+| _darioceleste | 1 | BC1_UNORM: 1 |
+| _dark | 2 | BC6H_SF16: 2 |
+| _darkcarrot | 1 | BC3_UNORM: 1 |
+| _darkdust01 | 1 | BC3_UNORM: 1 |
+| _darkgreen | 1 | BC3_UNORM: 1 |
+| _darkking | 2 | BC1_UNORM: 2 |
+| _darkkingbeloth | 1 | BC1_UNORM: 1 |
+| _darknavy | 1 | BC3_UNORM: 1 |
+| _darknessgloves | 1 | BC3_UNORM: 1 |
+| _darkred | 1 | BC3_UNORM: 1 |
+| _darktemple | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _darok | 2 | BC1_UNORM: 2 |
+| _darwinbaxter | 1 | BC1_UNORM: 1 |
+| _dasolaroaming | 1 | BC3_UNORM: 1 |
+| _daughter | 1 | BC1_UNORM: 1 |
+| _david | 1 | BC3_UNORM: 1 |
+| _dawnfogtest | 1 | BC1_UNORM: 1 |
+| _dawnmoon | 1 | BC1_UNORM: 1 |
+| _dawnmoonbase | 1 | BC1_UNORM: 1 |
+| _dawnrisecave | 1 | BC1_UNORM: 1 |
+| _dduk | 1 | BC3_UNORM: 1 |
+| _ddukgalbi | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _dead | 1 | BC1_UNORM: 1 |
+| _deadcow | 1 | BC3_UNORM: 1 |
+| _deadcowsighting | 1 | BC3_UNORM: 1 |
+| _deadeyes | 1 | BC3_UNORM: 1 |
+| _deaf | 1 | BC1_UNORM: 1 |
+| _deathmemory | 1 | BC3_UNORM: 1 |
+| _deathmessage | 1 | BC3_UNORM: 1 |
+| _deathmessageschedule | 1 | BC3_UNORM: 1 |
+| _deathwolf | 1 | BC1_UNORM: 1 |
+| _debris0 | 2 | BC1_UNORM: 2 |
+| _debtpayback | 1 | BC1_UNORM: 1 |
+| _debtplease | 1 | BC1_UNORM: 1 |
+| _dec | 709 | BC1_UNORM: 4, BC3_UNORM: 705 |
+| _deceptionforest | 1 | BC1_UNORM: 1 |
+| _decision | 1 | BC1_UNORM: 1 |
+| _declineaninvitation | 1 | BC3_UNORM: 1 |
+| _deco | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _decoline | 2 | BC3_UNORM: 2 |
+| _decorator | 1 | BC1_UNORM: 1 |
+| _decoy | 1 | BC1_UNORM: 1 |
+| _decoycanyon | 1 | BC1_UNORM: 1 |
+| _deedpaper | 1 | BC3_UNORM: 1 |
+| _deepforestbeacon | 1 | BC1_UNORM: 1 |
+| _deepthrust | 1 | BC3_UNORM: 1 |
+| _deer | 8 | BC1_UNORM: 6, BC3_UNORM: 2 |
+| _deerking | 2 | BC1_UNORM: 2 |
+| _deerkingsaigord | 1 | BC1_UNORM: 1 |
+| _default | 1 | BC1_UNORM: 1 |
+| _defeatgoldenstar | 1 | BC1_UNORM: 1 |
+| _defence | 1 | BC1_UNORM: 1 |
+| _del | 4 | BC1_UNORM: 4 |
+| _delesyia | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _delesyiacastle | 1 | BC1_UNORM: 1 |
+| _delesyiaharbor | 1 | BC3_UNORM: 1 |
+| _delesyiainstitute | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _delesyiannode | 1 | BC3_UNORM: 1 |
+| _delesyiaresearch | 1 | BC1_UNORM: 1 |
+| _delesyiasouthgate | 1 | BC1_UNORM: 1 |
+| _delic | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _deliver | 1 | BC1_UNORM: 1 |
+| _delivery | 1 | BC3_UNORM: 1 |
+| _delkin | 2 | BC1_UNORM: 2 |
+| _delpheon | 2 | BC1_UNORM: 2 |
+| _dem | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _dem02 | 1 | BC1_UNORM: 1 |
+| _demenis | 1 | BC3_UNORM: 1 |
+| _demeniss | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _demenisscastle | 2 | BC1_UNORM: 2 |
+| _demenisschurch | 1 | BC1_UNORM: 1 |
+| _demenissian | 1 | BC1_UNORM: 1 |
+| _demenissmp | 1 | BC1_UNORM: 1 |
+| _demenissophanage | 1 | BC1_UNORM: 1 |
+| _demenissruins | 1 | BC1_UNORM: 1 |
+| _demenisstower | 1 | BC1_UNORM: 1 |
+| _demenisszoo | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _demian | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _demian1 | 1 | BC1_UNORM: 1 |
+| _demianletter | 2 | BC1_UNORM: 2 |
+| _demianreinion | 2 | BC1_UNORM: 2 |
+| _demsoldier | 1 | BC3_UNORM: 1 |
+| _demspy | 3 | BC3_UNORM: 3 |
+| _demtower1f | 1 | BC1_UNORM: 1 |
+| _demtower2f | 1 | BC1_UNORM: 1 |
+| _demtower3f | 1 | BC1_UNORM: 1 |
+| _demwarmachine | 1 | BC3_UNORM: 1 |
+| _den | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _dendrobium | 1 | BC1_UNORM: 1 |
+| _depth | 1,476 | BC1_UNORM: 6, BC4_UNORM: 1470 |
+| _desert | 14 | BC1_UNORM: 14 |
+| _desertbighornsheep | 1 | BC1_UNORM: 1 |
+| _desertfragment | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _desertpyramidtower | 1 | BC1_UNORM: 1 |
+| _deserttrap | 1 | BC1_UNORM: 1 |
+| _desertwatermelon | 1 | BC1_UNORM: 1 |
+| _desertwells | 1 | BC1_UNORM: 1 |
+| _desertwoman | 1 | BC1_UNORM: 1 |
+| _desolatestonealtar | 1 | BC1_UNORM: 1 |
+| _despair | 1 | BC1_UNORM: 1 |
+| _despairclif | 1 | BC1_UNORM: 1 |
+| _destinationjump | 1 | BC3_UNORM: 1 |
+| _destructiontower | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _detail | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _detect | 3 | BC1_UNORM: 3 |
+| _detectmode | 1 | BC3_UNORM: 1 |
+| _devan | 1 | BC1_UNORM: 1 |
+| _developposion | 1 | BC1_UNORM: 1 |
+| _devinetree | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _devota | 1 | BC1_UNORM: 1 |
+| _dewhavencastleresearch | 1 | BC1_UNORM: 1 |
+| _dewhaveneastgate | 1 | BC1_UNORM: 1 |
+| _dewhavennorthgate | 1 | BC1_UNORM: 1 |
+| _df | 1 | BC1_UNORM: 1 |
+| _diamond | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _diary | 6 | BC3_UNORM: 6 |
+| _diederik | 2 | BC1_UNORM: 2 |
+| _diffu2 | 1 | BC1_UNORM: 1 |
+| _digman | 1 | BC1_UNORM: 1 |
+| _dimensionmaze | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _dimmed | 1 | BC3_UNORM: 1 |
+| _dirt | 1 | BC3_UNORM: 1 |
+| _dirtcoveredruby | 1 | BC3_UNORM: 1 |
+| _disabled | 1 | BC3_UNORM: 1 |
+| _discover | 1 | BC1_UNORM: 1 |
+| _disguise | 1 | BC3_UNORM: 1 |
+| _dish | 3 | BC3_UNORM: 3 |
+| _disp | 5,239 | BC1_UNORM: 49, BC3_UNORM: 1, BC4_UNORM: 5189 |
+| _distresssailor | 1 | BC3_UNORM: 1 |
+| _dm | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _dm01 | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _dmap | 98 | BC1_UNORM: 1, BC4_UNORM: 97 |
+| _document | 5 | BC3_UNORM: 5 |
+| _dog | 3 | BC1_UNORM: 3 |
+| _doll | 3 | BC3_UNORM: 3 |
+| _dolphin | 1 | BC1_UNORM: 1 |
+| _domain | 10 | BC1_UNORM: 10 |
+| _domestic | 36 | BC3_UNORM: 36 |
+| _domesticfence | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _dominion | 1 | BC1_UNORM: 1 |
+| _donation | 3 | BC1_UNORM: 3 |
+| _doni | 1 | BC1_UNORM: 1 |
+| _donkey | 3 | BC1_UNORM: 3 |
+| _dontmissit | 1 | BC3_UNORM: 1 |
+| _doo | 4 | BC1_UNORM: 4 |
+| _doorinlake | 1 | BC3_UNORM: 1 |
+| _doortogold | 1 | BC1_UNORM: 1 |
+| _doriandormand | 1 | BC1_UNORM: 1 |
+| _doublekick | 2 | BC1_UNORM: 2 |
+| _doublekickmatias | 1 | BC1_UNORM: 1 |
+| _doublesteppass | 1 | BC1_UNORM: 1 |
+| _dough | 2 | BC3_UNORM: 2 |
+| _dove | 1 | BC1_UNORM: 1 |
+| _down | 1 | uncompressed_or_unknown: 1 |
+| _dr | 305 | BC1_UNORM: 3, BC3_UNORM: 1, BC5_UNORM: 301 |
+| _dragon | 4 | BC1_UNORM: 4 |
+| _dragonbreath | 1 | BC1_UNORM: 1 |
+| _dragonii | 1 | BC1_UNORM: 1 |
+| _dragonkillcastle | 2 | BC1_UNORM: 2 |
+| _dragonparts | 1 | BC3_UNORM: 1 |
+| _drakbar | 1 | BC1_UNORM: 1 |
+| _drakefallbanditcamp | 1 | BC1_UNORM: 1 |
+| _drakefallwatchtowerarea | 1 | BC1_UNORM: 1 |
+| _drasso | 1 | BC1_UNORM: 1 |
+| _draven | 2 | BC1_UNORM: 2 |
+| _dravin | 1 | BC3_UNORM: 1 |
+| _drawing | 1 | BC1_UNORM: 1 |
+| _dream | 1 | BC1_UNORM: 1 |
+| _dreamtosky | 1 | BC1_UNORM: 1 |
+| _dreamtree | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _dress | 2 | BC3_UNORM: 2 |
+| _drianna | 1 | BC1_UNORM: 1 |
+| _driedfruit | 3 | BC1_UNORM: 3 |
+| _drifton | 2 | BC3_UNORM: 2 |
+| _drill | 1 | BC3_UNORM: 1 |
+| _drillingrig | 1 | BC1_UNORM: 1 |
+| _drinkandroar | 1 | BC1_UNORM: 1 |
+| _driveboar | 1 | BC1_UNORM: 1 |
+| _droid | 1 | BC1_UNORM: 1 |
+| _dronebag | 1 | BC1_UNORM: 1 |
+| _dropkick | 1 | BC1_UNORM: 1 |
+| _droplet | 2 | BC3_UNORM: 2 |
+| _drug | 10 | BC3_UNORM: 10 |
+| _drugstore | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _druidofthegrove | 1 | BC1_UNORM: 1 |
+| _drum | 1 | BC3_UNORM: 1 |
+| _drunken | 1 | BC1_UNORM: 1 |
+| _drylandsgolem | 1 | BC1_UNORM: 1 |
+| _duck | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _duckling | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _duckweed | 1 | BC1_UNORM: 1 |
+| _duel | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _dulse | 1 | BC1_UNORM: 1 |
+| _dummy | 1 | BC1_UNORM: 1 |
+| _duncan | 1 | BC1_UNORM: 1 |
+| _dungeon | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _durgash | 1 | BC1_UNORM: 1 |
+| _durnan | 1 | BC1_UNORM: 1 |
+| _duzhar | 1 | BC1_UNORM: 1 |
+| _dverick | 1 | BC1_UNORM: 1 |
+| _dwarvenkilnmaster | 1 | BC1_UNORM: 1 |
+| _dwayne | 5 | BC1_UNORM: 5 |
+| _dwayneside | 1 | BC1_UNORM: 1 |
+| _dye | 1 | BC1_UNORM: 1 |
+| _dyecolor | 7 | BC1_UNORM: 7 |
+| _dyeing | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _dyeshop | 1 | BC1_UNORM: 1 |
+| _dyeshopi | 1 | BC1_UNORM: 1 |
+| _dyeshopii | 1 | BC1_UNORM: 1 |
+| _dyewater | 1 | BC3_UNORM: 1 |
+| _dyingwoman | 1 | BC1_UNORM: 1 |
+| _dynamic | 3 | BC1_UNORM: 3 |
+| _e | 1 | BC1_UNORM: 1 |
+| _eagle | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _earmuff | 1 | BC3_UNORM: 1 |
+| _earring | 9 | BC3_UNORM: 9 |
+| _east | 1 | BC1_UNORM: 1 |
+| _eastdemenisschurch | 1 | BC1_UNORM: 1 |
+| _eastgreymanetemple | 2 | BC3_UNORM: 2 |
+| _eastwitch | 3 | BC1_UNORM: 3 |
+| _eatyukjeon | 2 | BC1_UNORM: 2 |
+| _echoinghollowcave | 1 | BC1_UNORM: 1 |
+| _eclectusparrot | 1 | BC1_UNORM: 1 |
+| _ed | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _edgar | 1 | BC1_UNORM: 1 |
+| _edmar | 1 | BC1_UNORM: 1 |
+| _edmund | 1 | BC1_UNORM: 1 |
+| _edwin | 1 | BC3_UNORM: 1 |
+| _eel | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _effect | 1 | BC3_UNORM: 1 |
+| _efficiency | 1 | BC3_UNORM: 1 |
+| _efficientmineral | 1 | BC1_UNORM: 1 |
+| _egg | 9 | BC1_UNORM: 4, BC3_UNORM: 5 |
+| _eggforvoice | 1 | BC1_UNORM: 1 |
+| _eigrin | 1 | BC3_UNORM: 1 |
+| _elai | 1 | BC1_UNORM: 1 |
+| _elderberry | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _eldertomb | 1 | BC1_UNORM: 1 |
+| _elderwisdom | 1 | BC1_UNORM: 1 |
+| _eldmor | 2 | BC1_UNORM: 2 |
+| _eldmorek | 1 | BC3_UNORM: 1 |
+| _electric | 2 | BC1_UNORM: 2 |
+| _electriccube | 1 | BC3_UNORM: 1 |
+| _electrokineticenergy | 1 | BC1_UNORM: 1 |
+| _electrotooldesign | 1 | BC1_UNORM: 1 |
+| _element | 1 | BC3_UNORM: 1 |
+| _elephant | 2 | BC1_UNORM: 2 |
+| _elevator | 1 | BC3_UNORM: 1 |
+| _elimore | 1 | BC1_UNORM: 1 |
+| _elite | 1 | BC1_UNORM: 1 |
+| _eliza | 2 | BC1_UNORM: 2 |
+| _ellery | 1 | BC1_UNORM: 1 |
+| _ellimoor | 2 | BC1_UNORM: 2 |
+| _elliot | 1 | BC1_UNORM: 1 |
+| _elliott | 1 | BC3_UNORM: 1 |
+| _eloria | 1 | BC1_UNORM: 1 |
+| _elowen | 1 | BC1_UNORM: 1 |
+| _em | 25 | BC1_UNORM: 10, BC3_UNORM: 15 |
+| _emberbokeh | 1 | BC1_UNORM: 1 |
+| _emc | 520 | BC1_UNORM: 520 |
+| _emerald | 1 | BC1_UNORM: 1 |
+| _emi | 715 | BC1_UNORM: 7, BC3_UNORM: 11, BC4_UNORM: 697 |
+| _emirdeath | 1 | BC1_UNORM: 1 |
+| _emirdeathschedule | 1 | BC1_UNORM: 1 |
+| _emirdeathstory | 1 | BC1_UNORM: 1 |
+| _emirmemory | 1 | BC3_UNORM: 1 |
+| _emirwhereabouts | 1 | BC3_UNORM: 1 |
+| _emissary | 1 | BC3_UNORM: 1 |
+| _emissive | 8 | BC1_UNORM: 4, BC3_UNORM: 4 |
+| _empbag | 1 | BC1_UNORM: 1 |
+| _empspear | 1 | BC1_UNORM: 1 |
+| _empty | 10 | BC3_UNORM: 10 |
+| _emptyseat | 1 | BC1_UNORM: 1 |
+| _ems | 1 | BC1_UNORM: 1 |
+| _emu | 1 | BC1_UNORM: 1 |
+| _enchant | 1 | BC3_UNORM: 1 |
+| _end | 15 | BC1_UNORM: 14, BC3_UNORM: 1 |
+| _endlessgreed | 1 | BC3_UNORM: 1 |
+| _endlesswaiting | 1 | BC1_UNORM: 1 |
+| _endlesswavecave | 1 | BC1_UNORM: 1 |
+| _energy | 1 | BC3_UNORM: 1 |
+| _engineering | 1 | BC1_UNORM: 1 |
+| _englishivy | 1 | BC1_UNORM: 1 |
+| _enlightenshrine | 1 | BC3_UNORM: 1 |
+| _enougharrow | 1 | BC1_UNORM: 1 |
+| _ensete | 1 | BC1_UNORM: 1 |
+| _ent | 1 | BC1_UNORM: 1 |
+| _enthunter | 2 | BC1_UNORM: 2 |
+| _enticedasola | 1 | BC3_UNORM: 1 |
+| _entrance | 2 | BC1_UNORM: 2 |
+| _enttreasure | 1 | BC1_UNORM: 1 |
+| _environment | 1 | BC3_UNORM: 1 |
+| _envmap | 1 | BC1_UNORM: 1 |
+| _epilog | 1 | BC1_UNORM: 1 |
+| _episode1 | 1 | BC3_UNORM: 1 |
+| _epistle | 1 | BC3_UNORM: 1 |
+| _equipdroprate | 1 | BC1_UNORM: 1 |
+| _equipmentcraft | 2 | BC1_UNORM: 2 |
+| _eric | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _erich | 1 | BC1_UNORM: 1 |
+| _erner | 1 | BC3_UNORM: 1 |
+| _escortplane | 1 | BC1_UNORM: 1 |
+| _esperd | 1 | BC1_UNORM: 1 |
+| _espresso | 1 | BC1_UNORM: 1 |
+| _estuary | 2 | BC1_UNORM: 2 |
+| _ethan | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _etonfo | 1 | BC3_UNORM: 1 |
+| _europeanpartridge | 1 | BC1_UNORM: 1 |
+| _eustace | 1 | BC1_UNORM: 1 |
+| _evelyn | 1 | BC1_UNORM: 1 |
+| _everardkindhart | 1 | BC1_UNORM: 1 |
+| _evidence | 1 | BC3_UNORM: 1 |
+| _excavation | 1 | BC1_UNORM: 1 |
+| _exit | 1 | BC1_UNORM: 1 |
+| _expand | 2 | BC1_UNORM: 2 |
+| _expanse | 1 | BC1_UNORM: 1 |
+| _expansion | 1 | BC1_UNORM: 1 |
+| _expansionbag | 1 | BC3_UNORM: 1 |
+| _explosion | 1 | BC1_UNORM: 1 |
+| _explosionflower | 1 | BC1_UNORM: 1 |
+| _explosive | 1 | BC3_UNORM: 1 |
+| _expressmail | 1 | BC1_UNORM: 1 |
+| _extraregionmap | 1 | R8_UNORM: 1 |
+| _eye | 7 | BC1_UNORM: 7 |
+| _f | 104 | BC1_UNORM: 1, BC3_UNORM: 24, BC5_UNORM: 79 |
+| _fabrian | 1 | BC1_UNORM: 1 |
+| _fabric | 2 | BC3_UNORM: 2 |
+| _facility | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _factionnode | 1 | uncompressed_or_unknown: 1 |
+| _fadul | 1 | BC1_UNORM: 1 |
+| _fail | 1 | BC3_UNORM: 1 |
+| _faisal | 1 | BC1_UNORM: 1 |
+| _faketear | 1 | BC1_UNORM: 1 |
+| _falcocherrug | 1 | BC1_UNORM: 1 |
+| _falcon | 1 | BC1_UNORM: 1 |
+| _fallengateway | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _fallingstall | 1 | BC1_UNORM: 1 |
+| _falls | 1 | BC1_UNORM: 1 |
+| _falseaccusation | 1 | BC3_UNORM: 1 |
+| _falstaff | 1 | BC1_UNORM: 1 |
+| _famousthief | 1 | BC1_UNORM: 1 |
+| _fanatic | 1 | BC1_UNORM: 1 |
+| _fance | 1 | BC1_UNORM: 1 |
+| _fang | 1 | BC1_UNORM: 1 |
+| _fantasticwine | 1 | BC1_UNORM: 1 |
+| _farm | 12 | BC1_UNORM: 9, BC3_UNORM: 3 |
+| _farm1 | 1 | BC1_UNORM: 1 |
+| _farmattackplease | 1 | BC3_UNORM: 1 |
+| _farmi | 7 | BC1_UNORM: 7 |
+| _farmii | 7 | BC1_UNORM: 7 |
+| _farmiii | 5 | BC1_UNORM: 5 |
+| _farming | 1 | BC1_UNORM: 1 |
+| _farmiv | 3 | BC1_UNORM: 3 |
+| _farmv | 2 | BC1_UNORM: 2 |
+| _farmvi | 2 | BC1_UNORM: 2 |
+| _fastener | 1 | BC3_UNORM: 1 |
+| _fastmeet | 1 | BC1_UNORM: 1 |
+| _fatima | 1 | BC1_UNORM: 1 |
+| _faust | 1 | BC1_UNORM: 1 |
+| _fearmercenary | 1 | BC3_UNORM: 1 |
+| _feather | 5 | BC1_UNORM: 1, BC3_UNORM: 4 |
+| _federico | 1 | BC3_UNORM: 1 |
+| _felix | 1 | BC1_UNORM: 1 |
+| _felixwharf | 1 | BC1_UNORM: 1 |
+| _felling | 2 | BC1_UNORM: 2 |
+| _fence | 1 | BC1_UNORM: 1 |
+| _fenton | 1 | BC1_UNORM: 1 |
+| _ferdinand | 1 | BC1_UNORM: 1 |
+| _fern | 1 | BC3_UNORM: 1 |
+| _fertilizejinseng | 1 | BC3_UNORM: 1 |
+| _festival | 1 | BC1_UNORM: 1 |
+| _festivities | 1 | BC1_UNORM: 1 |
+| _field | 1 | BC1_UNORM: 1 |
+| _fieldvoice | 1 | BC1_UNORM: 1 |
+| _fight | 2 | BC1_UNORM: 2 |
+| _figs | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _finale | 1 | BC1_UNORM: 1 |
+| _finalestory | 5 | BC1_UNORM: 5 |
+| _finalmeet | 1 | BC3_UNORM: 1 |
+| _find | 4 | BC1_UNORM: 4 |
+| _findcontract | 1 | BC1_UNORM: 1 |
+| _findfriend | 2 | BC3_UNORM: 2 |
+| _findguidesoldier | 1 | BC1_UNORM: 1 |
+| _findme | 1 | BC3_UNORM: 1 |
+| _findmyfriend | 1 | BC1_UNORM: 1 |
+| _findnewhero | 1 | BC3_UNORM: 1 |
+| _findsheep | 1 | BC1_UNORM: 1 |
+| _findshelter | 1 | BC1_UNORM: 1 |
+| _findtolseutein | 1 | BC1_UNORM: 1 |
+| _findtolstein | 1 | BC1_UNORM: 1 |
+| _finedining | 1 | BC1_UNORM: 1 |
+| _finlay | 1 | BC1_UNORM: 1 |
+| _finn | 1 | BC1_UNORM: 1 |
+| _finnard | 1 | BC1_UNORM: 1 |
+| _fiona | 2 | BC1_UNORM: 2 |
+| _fire | 8 | BC1_UNORM: 4, BC3_UNORM: 4 |
+| _firecube | 1 | BC3_UNORM: 1 |
+| _firefly | 1 | BC3_UNORM: 1 |
+| _fireplace | 1 | BC3_UNORM: 1 |
+| _fireweapon | 1 | BC1_UNORM: 1 |
+| _firewood | 1 | BC3_UNORM: 1 |
+| _first | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _firstcannonattack | 2 | BC1_UNORM: 2 |
+| _firstencounter | 1 | BC3_UNORM: 1 |
+| _firsthorse | 1 | BC1_UNORM: 1 |
+| _firstkickout | 1 | BC3_UNORM: 1 |
+| _firstmeet | 23 | BC1_UNORM: 16, BC3_UNORM: 7 |
+| _firstmission | 1 | BC1_UNORM: 1 |
+| _firstvisit | 1 | BC3_UNORM: 1 |
+| _fish | 18 | BC1_UNORM: 12, BC3_UNORM: 6 |
+| _fishing | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _fishinghunter | 1 | BC1_UNORM: 1 |
+| _fishingrod | 1 | BC3_UNORM: 1 |
+| _fishmeat | 2 | BC3_UNORM: 2 |
+| _fishthiefcat | 1 | BC1_UNORM: 1 |
+| _fishtrap | 2 | BC1_UNORM: 2 |
+| _fissure | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _fist | 1 | BC3_UNORM: 1 |
+| _fit | 3 | BC3_UNORM: 3 |
+| _fix | 1 | BC1_UNORM: 1 |
+| _fixedcrossbow | 1 | BC1_UNORM: 1 |
+| _flag | 7 | BC3_UNORM: 7 |
+| _flamespear | 1 | BC1_UNORM: 1 |
+| _flamethrower | 1 | BC1_UNORM: 1 |
+| _flamingos | 1 | BC1_UNORM: 1 |
+| _flexibleflail | 1 | BC3_UNORM: 1 |
+| _flint | 2 | BC1_UNORM: 2 |
+| _floor | 1 | BC1_UNORM: 1 |
+| _flour | 1 | BC3_UNORM: 1 |
+| _flow | 2 | BC5_UNORM: 2 |
+| _flower | 6 | BC3_UNORM: 6 |
+| _flowerbomb | 2 | BC3_UNORM: 2 |
+| _flowingsandvillage | 1 | BC1_UNORM: 1 |
+| _flowmap | 1 | BC1_UNORM: 1 |
+| _fly | 1 | BC1_UNORM: 1 |
+| _flycatcher | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _flywagon | 1 | BC1_UNORM: 1 |
+| _fogan01 | 1 | BC1_UNORM: 1 |
+| _foggyforest | 1 | BC1_UNORM: 1 |
+| _foggywindbanditcamp | 1 | BC1_UNORM: 1 |
+| _follower | 2 | BC1_UNORM: 2 |
+| _food | 15 | BC1_UNORM: 7, BC3_UNORM: 8 |
+| _foodprocessing | 1 | BC1_UNORM: 1 |
+| _foot | 1 | BC1_UNORM: 1 |
+| _footballfish | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _footprint | 1 | BC1_UNORM: 1 |
+| _forbiddendrink | 1 | BC1_UNORM: 1 |
+| _ford | 1 | BC1_UNORM: 1 |
+| _forest | 17 | BC1_UNORM: 13, BC3_UNORM: 4 |
+| _forestalter | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _forestcabin | 1 | BC1_UNORM: 1 |
+| _forestring | 1 | BC1_UNORM: 1 |
+| _forex | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _forge | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _forgeheart | 1 | BC1_UNORM: 1 |
+| _forging | 1 | BC1_UNORM: 1 |
+| _forgottengeneral | 1 | BC1_UNORM: 1 |
+| _forgraymane | 1 | BC1_UNORM: 1 |
+| _fork | 2 | BC1_UNORM: 2 |
+| _fort | 1 | BC1_UNORM: 1 |
+| _fortaskelund | 1 | BC1_UNORM: 1 |
+| _fortaskelundgate | 1 | BC1_UNORM: 1 |
+| _fortress | 8 | BC1_UNORM: 6, BC3_UNORM: 2 |
+| _fortresscave | 1 | BC1_UNORM: 1 |
+| _fortressdrain | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _fortresstransformer | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _fortuneonwave | 1 | BC1_UNORM: 1 |
+| _fossilhorntotem | 2 | BC1_UNORM: 2 |
+| _fossilsafety | 1 | BC1_UNORM: 1 |
+| _fountain | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _fox | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _fragmentofmistcave | 1 | BC1_UNORM: 1 |
+| _fragrantmushrooms | 1 | BC1_UNORM: 1 |
+| _frame | 2 | BC3_UNORM: 2 |
+| _francis | 1 | BC1_UNORM: 1 |
+| _frauecamp | 1 | BC1_UNORM: 1 |
+| _fred | 1 | BC1_UNORM: 1 |
+| _fredericfelix | 1 | BC1_UNORM: 1 |
+| _freevillage | 1 | BC1_UNORM: 1 |
+| _friendarmwrestling | 1 | BC1_UNORM: 1 |
+| _friendcorpse | 1 | BC3_UNORM: 1 |
+| _friendnews | 1 | BC1_UNORM: 1 |
+| _fritz | 1 | BC1_UNORM: 1 |
+| _frog | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _frostclawcave | 1 | BC1_UNORM: 1 |
+| _frostofdoomcave | 1 | BC1_UNORM: 1 |
+| _frox | 1 | BC1_UNORM: 1 |
+| _frozenaltar | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _frozenheartcave | 1 | BC1_UNORM: 1 |
+| _frozentower | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _frozenvillage | 1 | BC1_UNORM: 1 |
+| _fruit | 1 | BC1_UNORM: 1 |
+| _fruitcompote | 3 | BC1_UNORM: 3 |
+| _fruitofpatience | 1 | BC1_UNORM: 1 |
+| _fruitofthefestival | 1 | BC1_UNORM: 1 |
+| _fruittea | 3 | BC1_UNORM: 3 |
+| _fry | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _frypan | 1 | BC3_UNORM: 1 |
+| _fugitive | 1 | BC3_UNORM: 1 |
+| _fulica | 1 | BC1_UNORM: 1 |
+| _fullharvestfarm | 1 | BC1_UNORM: 1 |
+| _fullmooncyrus | 1 | BC1_UNORM: 1 |
+| _fur | 2 | BC3_UNORM: 2 |
+| _furnace | 1 | BC1_UNORM: 1 |
+| _g | 1 | BC3_UNORM: 1 |
+| _gabriel | 2 | BC1_UNORM: 2 |
+| _galdor | 1 | BC1_UNORM: 1 |
+| _gamescomstat | 1 | BC3_UNORM: 1 |
+| _gared | 1 | BC1_UNORM: 1 |
+| _garrick | 1 | BC1_UNORM: 1 |
+| _gaspack | 1 | BC3_UNORM: 1 |
+| _gate | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _gateway | 9 | BC1_UNORM: 6, BC3_UNORM: 3 |
+| _gatewayi | 1 | BC1_UNORM: 1 |
+| _gatewayii | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _gathering | 1 | BC1_UNORM: 1 |
+| _gauge | 1 | BC1_UNORM: 1 |
+| _gauntlet | 14 | BC3_UNORM: 14 |
+| _gaviastellata | 1 | BC1_UNORM: 1 |
+| _gawain | 1 | BC1_UNORM: 1 |
+| _gazelle | 3 | BC1_UNORM: 3 |
+| _gazrak | 1 | BC1_UNORM: 1 |
+| _gdh | 77 | BC1_UNORM: 14, BC3_UNORM: 63 |
+| _gear | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _gearhornrenw | 1 | BC1_UNORM: 1 |
+| _gears | 2 | BC1_UNORM: 2 |
+| _gearworkgate | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _gem | 1 | BC3_UNORM: 1 |
+| _general | 1 | BC1_UNORM: 1 |
+| _generalshop | 1 | BC3_UNORM: 1 |
+| _genyornis | 1 | BC1_UNORM: 1 |
+| _geoffroi | 2 | BC1_UNORM: 2 |
+| _gerald | 2 | BC1_UNORM: 2 |
+| _getcoldcloth | 1 | BC3_UNORM: 1 |
+| _getlinkband | 1 | BC1_UNORM: 1 |
+| _geumgangbulgwe | 1 | BC1_UNORM: 1 |
+| _ghost | 1 | BC1_UNORM: 1 |
+| _giant | 1 | BC1_UNORM: 1 |
+| _giantblacksquid | 1 | BC3_UNORM: 1 |
+| _giantbull | 1 | BC1_UNORM: 1 |
+| _giantent | 1 | BC1_UNORM: 1 |
+| _giantimp | 1 | BC1_UNORM: 1 |
+| _giantoctopus | 1 | BC3_UNORM: 1 |
+| _giantsnake | 1 | BC1_UNORM: 1 |
+| _giantswing | 1 | BC1_UNORM: 1 |
+| _giantsyardforwardcamp | 1 | BC1_UNORM: 1 |
+| _gianttotem | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _gift | 2 | BC1_UNORM: 2 |
+| _gilbert | 1 | BC1_UNORM: 1 |
+| _giles | 1 | BC1_UNORM: 1 |
+| _ginseng | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _giorgio | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _glass | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _glasses | 1 | BC3_UNORM: 1 |
+| _globe | 1 | BC3_UNORM: 1 |
+| _gloin | 1 | BC1_UNORM: 1 |
+| _glove | 6 | BC3_UNORM: 6 |
+| _gloves | 87 | BC1_UNORM: 7, BC3_UNORM: 80 |
+| _goanna | 1 | BC1_UNORM: 1 |
+| _goat | 3 | BC1_UNORM: 3 |
+| _goatthief | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _gobackhome | 1 | BC1_UNORM: 1 |
+| _goblin | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _goblinassassin | 1 | BC3_UNORM: 1 |
+| _goblincompany | 1 | BC1_UNORM: 1 |
+| _goblinitem | 1 | BC1_UNORM: 1 |
+| _goblinpot | 2 | BC3_UNORM: 2 |
+| _goblinrage | 1 | BC1_UNORM: 1 |
+| _goblintower | 1 | BC1_UNORM: 1 |
+| _gold | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _goldbar | 3 | BC3_UNORM: 3 |
+| _golden999k | 1 | BC1_UNORM: 1 |
+| _goldenarmor | 2 | BC1_UNORM: 2 |
+| _goldencarp | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _goldenfangs | 1 | BC1_UNORM: 1 |
+| _goldenfistsarena | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _goldenstar | 1 | BC1_UNORM: 1 |
+| _goldentench | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _goldentreasure | 1 | BC1_UNORM: 1 |
+| _goldfeed | 1 | BC3_UNORM: 1 |
+| _goldleafblackmarket | 4 | BC1_UNORM: 4 |
+| _goldleafguildhouse | 1 | BC1_UNORM: 1 |
+| _goldleaftradepost | 1 | BC1_UNORM: 1 |
+| _goldore | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _goldvein | 1 | BC1_UNORM: 1 |
+| _golem | 6 | BC1_UNORM: 6 |
+| _golemdragon | 2 | BC1_UNORM: 2 |
+| _golemn | 1 | BC3_UNORM: 1 |
+| _golems | 1 | BC1_UNORM: 1 |
+| _gonthyr | 1 | BC1_UNORM: 1 |
+| _goods | 1 | BC3_UNORM: 1 |
+| _goodwill | 1 | BC1_UNORM: 1 |
+| _goorba | 1 | BC1_UNORM: 1 |
+| _goose | 2 | BC1_UNORM: 2 |
+| _gorge | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _gorilla | 1 | BC1_UNORM: 1 |
+| _gorio | 1 | BC1_UNORM: 1 |
+| _gorthakiron | 1 | BC3_UNORM: 1 |
+| _gotodesert | 1 | BC1_UNORM: 1 |
+| _gotodock | 1 | BC1_UNORM: 1 |
+| _gotohernand | 1 | BC3_UNORM: 1 |
+| _gotoodeck | 1 | BC1_UNORM: 1 |
+| _gotopailune | 1 | BC3_UNORM: 1 |
+| _gotoshield | 1 | BC1_UNORM: 1 |
+| _gotti | 1 | BC3_UNORM: 1 |
+| _goup | 1 | BC3_UNORM: 1 |
+| _grace | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _gracedominion | 1 | BC1_UNORM: 1 |
+| _gracefarm | 1 | BC1_UNORM: 1 |
+| _gradient | 1 | BC1_UNORM: 1 |
+| _grail | 1 | BC3_UNORM: 1 |
+| _grain | 1 | BC3_UNORM: 1 |
+| _grainhart | 2 | BC1_UNORM: 2 |
+| _grainridge | 1 | BC1_UNORM: 1 |
+| _grakon | 1 | BC1_UNORM: 1 |
+| _grakthar | 1 | BC1_UNORM: 1 |
+| _grana | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _grape | 5 | BC1_UNORM: 1, BC3_UNORM: 4 |
+| _grass | 1 | BC3_UNORM: 1 |
+| _grass0 | 2 | BC1_UNORM: 2 |
+| _grasshopper | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _graverobber | 1 | BC1_UNORM: 1 |
+| _graveyard | 1 | BC1_UNORM: 1 |
+| _gray | 8 | BC1_UNORM: 2, BC3_UNORM: 6 |
+| _gray02 | 1 | BC1_UNORM: 1 |
+| _gray03 | 1 | BC1_UNORM: 1 |
+| _graymane | 2 | BC1_UNORM: 2 |
+| _graymanes | 1 | BC3_UNORM: 1 |
+| _grayparrot | 1 | BC1_UNORM: 1 |
+| _grayrockquarry | 1 | BC1_UNORM: 1 |
+| _grayscale | 327 | BC4_UNORM: 327 |
+| _greatdane | 2 | BC1_UNORM: 2 |
+| _greatlibrary | 2 | BC1_UNORM: 2 |
+| _grebe | 1 | BC1_UNORM: 1 |
+| _green | 2 | BC3_UNORM: 2 |
+| _greenfieldhillyareacamp | 1 | BC1_UNORM: 1 |
+| _greenfieldthiefcamp | 1 | BC1_UNORM: 1 |
+| _greenhillthiefcamp | 1 | BC1_UNORM: 1 |
+| _greenstone | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _gregorius | 1 | BC3_UNORM: 1 |
+| _greta | 1 | BC1_UNORM: 1 |
+| _grey | 1 | BC1_UNORM: 1 |
+| _greyhound | 1 | BC1_UNORM: 1 |
+| _greymanetemple | 4 | BC3_UNORM: 4 |
+| _greywolf | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _greywolfcamp | 1 | BC3_UNORM: 1 |
+| _grimnir | 1 | BC1_UNORM: 1 |
+| _grimrak | 1 | BC1_UNORM: 1 |
+| _grimzle | 1 | BC1_UNORM: 1 |
+| _grinder | 1 | BC1_UNORM: 1 |
+| _grizzle | 1 | BC1_UNORM: 1 |
+| _grocery | 1 | BC1_UNORM: 1 |
+| _groceryshop | 1 | BC3_UNORM: 1 |
+| _groknash | 1 | BC1_UNORM: 1 |
+| _gromin | 1 | BC1_UNORM: 1 |
+| _grotto | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _ground | 1 | BC1_UNORM: 1 |
+| _ground0 | 2 | BC1_UNORM: 2 |
+| _ground01 | 2 | BC1_UNORM: 2 |
+| _ground1 | 1 | BC1_UNORM: 1 |
+| _grovand | 1 | BC1_UNORM: 1 |
+| _growjijeongta | 1 | BC1_UNORM: 1 |
+| _grunbar | 1 | BC1_UNORM: 1 |
+| _grundak | 1 | BC1_UNORM: 1 |
+| _grundir | 1 | BC1_UNORM: 1 |
+| _grundirdiary | 1 | BC1_UNORM: 1 |
+| _gruntoka | 1 | BC1_UNORM: 1 |
+| _grux | 2 | BC1_UNORM: 2 |
+| _gu | 2 | BC1_UNORM: 2 |
+| _guard | 2 | BC1_UNORM: 2 |
+| _guardianscave | 1 | BC1_UNORM: 1 |
+| _guardianstatue | 1 | BC1_UNORM: 1 |
+| _guardianstone | 1 | BC1_UNORM: 1 |
+| _guardiantomb | 1 | BC1_UNORM: 1 |
+| _guardiantree | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _guardingeye | 1 | BC3_UNORM: 1 |
+| _guide | 23 | BC1_UNORM: 5, BC3_UNORM: 18 |
+| _guideschedule | 1 | BC3_UNORM: 1 |
+| _guild | 1 | BC1_UNORM: 1 |
+| _gun | 6 | BC1_UNORM: 1, BC3_UNORM: 5 |
+| _gundal | 1 | BC3_UNORM: 1 |
+| _gunnar | 1 | BC1_UNORM: 1 |
+| _gunpowder | 2 | BC3_UNORM: 2 |
+| _gurbit | 1 | BC1_UNORM: 1 |
+| _guruhaven | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _gwendolyn | 1 | BC1_UNORM: 1 |
+| _h | 969 | BC1_UNORM: 27, BC3_UNORM: 87, BC4_UNORM: 70, o: 1, uncompressed_or_unknown: 784 |
+| _haasam | 1 | BC3_UNORM: 1 |
+| _haemuljjim | 3 | BC1_UNORM: 3 |
+| _hair | 10 | BC1_UNORM: 2, BC3_UNORM: 8 |
+| _haldor | 1 | BC1_UNORM: 1 |
+| _halfmoonblaine | 1 | BC1_UNORM: 1 |
+| _halsius | 2 | BC1_UNORM: 2 |
+| _halsiushospital | 1 | BC3_UNORM: 1 |
+| _halsiusvisitorpass | 1 | BC1_UNORM: 1 |
+| _halssius | 1 | BC3_UNORM: 1 |
+| _hamish | 4 | BC1_UNORM: 4 |
+| _hammer | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _hand | 21 | BC1_UNORM: 21 |
+| _handcannon | 1 | BC3_UNORM: 1 |
+| _handcannonshop | 1 | BC1_UNORM: 1 |
+| _handle | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _handwrest | 1 | BC1_UNORM: 1 |
+| _handwrestcontest | 1 | BC1_UNORM: 1 |
+| _handwrestling | 1 | BC3_UNORM: 1 |
+| _happyending | 1 | BC1_UNORM: 1 |
+| _harald | 1 | BC1_UNORM: 1 |
+| _harbor | 2 | BC1_UNORM: 2 |
+| _harlan | 1 | BC1_UNORM: 1 |
+| _harpoon | 1 | BC3_UNORM: 1 |
+| _harpoonmaker | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _harpy | 2 | BC1_UNORM: 2 |
+| _harpynest | 1 | BC1_UNORM: 1 |
+| _harrier | 2 | BC1_UNORM: 2 |
+| _harveston | 2 | BC1_UNORM: 2 |
+| _harvik | 1 | BC1_UNORM: 1 |
+| _haverford | 1 | BC1_UNORM: 1 |
+| _hawk | 1 | BC1_UNORM: 1 |
+| _hay | 1 | BC3_UNORM: 1 |
+| _haystack | 1 | BC1_UNORM: 1 |
+| _head | 1 | BC1_UNORM: 1 |
+| _headquarters | 1 | BC1_UNORM: 1 |
+| _healingfoodlarge | 1 | BC3_UNORM: 1 |
+| _healingfoodmedium | 1 | BC3_UNORM: 1 |
+| _healingfoodsmall | 1 | BC3_UNORM: 1 |
+| _heart | 1 | BC3_UNORM: 1 |
+| _hedgehog | 1 | BC1_UNORM: 1 |
+| _hege | 1 | BC1_UNORM: 1 |
+| _height | 5 | BC1_UNORM: 1, BC3_UNORM: 3, uncompressed_or_unknown: 1 |
+| _heinrich | 1 | BC1_UNORM: 1 |
+| _heinz | 1 | BC1_UNORM: 1 |
+| _hel | 1 | BC1_UNORM: 1 |
+| _helleborine | 1 | BC1_UNORM: 1 |
+| _hellhound | 1 | BC1_UNORM: 1 |
+| _hellhounds | 2 | BC1_UNORM: 2 |
+| _hellwoodbeacon | 1 | BC1_UNORM: 1 |
+| _hellwoodinnergate | 1 | BC1_UNORM: 1 |
+| _hellwoodoutergate | 1 | BC1_UNORM: 1 |
+| _helm | 112 | BC1_UNORM: 6, BC3_UNORM: 106 |
+| _helm2 | 1 | BC3_UNORM: 1 |
+| _helm3 | 1 | BC3_UNORM: 1 |
+| _helmut | 1 | BC1_UNORM: 1 |
+| _help | 3 | BC1_UNORM: 3 |
+| _hen | 1 | BC1_UNORM: 1 |
+| _henri | 1 | BC1_UNORM: 1 |
+| _henry | 1 | BC1_UNORM: 1 |
+| _her | 12 | BC1_UNORM: 12 |
+| _herb | 2 | BC3_UNORM: 2 |
+| _herbert | 1 | BC1_UNORM: 1 |
+| _herchoice | 1 | BC1_UNORM: 1 |
+| _hericium | 1 | BC1_UNORM: 1 |
+| _hermannfirstmeet | 1 | BC3_UNORM: 1 |
+| _hermitage | 1 | BC1_UNORM: 1 |
+| _hernand | 9 | BC1_UNORM: 7, BC3_UNORM: 2 |
+| _hernandeastgate | 1 | BC1_UNORM: 1 |
+| _hernandnorthgate | 1 | BC1_UNORM: 1 |
+| _hernandrequestboard | 1 | BC1_UNORM: 1 |
+| _hernandtownbell | 1 | BC1_UNORM: 1 |
+| _heron | 1 | BC1_UNORM: 1 |
+| _herring | 1 | BC3_UNORM: 1 |
+| _herrot | 1 | BC3_UNORM: 1 |
+| _hexepotworm | 1 | BC1_UNORM: 1 |
+| _hexesanctuary | 1 | BC3_UNORM: 1 |
+| _hiddenabyssgate | 1 | BC1_UNORM: 1 |
+| _hiddenestate | 1 | BC1_UNORM: 1 |
+| _hideout | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _hidetoken | 1 | BC1_UNORM: 1 |
+| _highconductweapon | 1 | BC1_UNORM: 1 |
+| _highenergy | 1 | BC1_UNORM: 1 |
+| _highway | 2 | BC1_UNORM: 2 |
+| _hijacker | 1 | BC3_UNORM: 1 |
+| _hill | 5 | BC1_UNORM: 5 |
+| _hillguardoutpost | 1 | BC1_UNORM: 1 |
+| _hills | 2 | BC1_UNORM: 2 |
+| _hillside | 1 | BC1_UNORM: 1 |
+| _hillsidestairs | 1 | BC1_UNORM: 1 |
+| _hillyarea | 2 | BC1_UNORM: 2 |
+| _hint | 13 | BC1_UNORM: 1, BC3_UNORM: 12 |
+| _hippo | 1 | BC1_UNORM: 1 |
+| _historicsites | 1 | BC3_UNORM: 1 |
+| _history | 1 | BC3_UNORM: 1 |
+| _hit1 | 1 | BC3_UNORM: 1 |
+| _hjc | 45 | BC1_UNORM: 3, BC3_UNORM: 42 |
+| _hkj | 42 | BC1_UNORM: 5, BC3_UNORM: 37 |
+| _hog | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _holder | 1 | BC3_UNORM: 1 |
+| _holdwin | 1 | BC1_UNORM: 1 |
+| _holiday | 1 | BC1_UNORM: 1 |
+| _hollow | 1 | BC1_UNORM: 1 |
+| _holyrelic | 1 | BC1_UNORM: 1 |
+| _holywater | 2 | BC3_UNORM: 2 |
+| _homewardnews | 1 | BC1_UNORM: 1 |
+| _honey | 3 | BC3_UNORM: 3 |
+| _honeycomb | 1 | BC3_UNORM: 1 |
+| _honeytearecipe | 3 | BC3_UNORM: 3 |
+| _hop | 1 | BC3_UNORM: 1 |
+| _horn | 3 | BC3_UNORM: 3 |
+| _horse | 33 | BC1_UNORM: 4, BC3_UNORM: 29 |
+| _horsearmor | 1 | BC1_UNORM: 1 |
+| _horsefence | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _horseharness | 1 | BC3_UNORM: 1 |
+| _horsemarket | 1 | BC1_UNORM: 1 |
+| _horsemoney | 1 | BC1_UNORM: 1 |
+| _horserace | 3 | BC1_UNORM: 3 |
+| _horseranch | 1 | BC1_UNORM: 1 |
+| _horsetool | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _hospital | 2 | BC1_UNORM: 2 |
+| _hostage | 1 | BC1_UNORM: 1 |
+| _hotballoon | 1 | BC1_UNORM: 1 |
+| _hotpink | 1 | BC3_UNORM: 1 |
+| _house | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _houseconstruction | 1 | BC1_UNORM: 1 |
+| _housesearch | 1 | BC3_UNORM: 1 |
+| _housing | 10 | BC3_UNORM: 10 |
+| _howincave | 1 | BC3_UNORM: 1 |
+| _howlinghillcamp | 1 | BC1_UNORM: 1 |
+| _howto | 1 | BC3_UNORM: 1 |
+| _hp | 3 | BC3_UNORM: 3 |
+| _hp100 | 1 | BC3_UNORM: 1 |
+| _hp30 | 3 | BC3_UNORM: 3 |
+| _hsu | 22 | BC1_UNORM: 4, BC3_UNORM: 18 |
+| _hubert | 2 | BC1_UNORM: 2 |
+| _hugh | 1 | BC1_UNORM: 1 |
+| _humandignity | 1 | BC3_UNORM: 1 |
+| _hungryhorse | 1 | BC1_UNORM: 1 |
+| _hungryiguana | 1 | BC1_UNORM: 1 |
+| _hunter | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+| _hunterdaughter | 1 | BC3_UNORM: 1 |
+| _hunting | 1 | BC1_UNORM: 1 |
+| _huntingstone | 1 | BC1_UNORM: 1 |
+| _hunttraitor | 1 | BC1_UNORM: 1 |
+| _huntwolves | 2 | BC1_UNORM: 2 |
+| _hurtshield | 1 | BC3_UNORM: 1 |
+| _husband | 1 | BC3_UNORM: 1 |
+| _husky | 1 | BC1_UNORM: 1 |
+| _hut | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _hyb | 1 | BC3_UNORM: 1 |
+| _hyena | 2 | BC1_UNORM: 2 |
+| _hyenabossskevald | 1 | BC1_UNORM: 1 |
+| _hyenarider | 1 | BC1_UNORM: 1 |
+| _hyosiarrow | 1 | BC3_UNORM: 1 |
+| _hyperspace | 1 | BC1_UNORM: 1 |
+| _hypholom | 1 | BC1_UNORM: 1 |
+| _i | 216 | BC1_UNORM: 97, BC3_UNORM: 119 |
+| _ibanoandbremer | 1 | BC1_UNORM: 1 |
+| _ice | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _icearrowcave | 1 | BC1_UNORM: 1 |
+| _icebladecave | 1 | BC1_UNORM: 1 |
+| _icecube | 1 | BC3_UNORM: 1 |
+| _icemoorcastleruins | 1 | BC1_UNORM: 1 |
+| _icepack | 1 | BC3_UNORM: 1 |
+| _icethrower | 1 | BC1_UNORM: 1 |
+| _iceweapon | 1 | BC1_UNORM: 1 |
+| _id | 1 | BC3_UNORM: 1 |
+| _ignore | 1 | BC3_UNORM: 1 |
+| _iguana | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _iguanasandscale | 1 | BC1_UNORM: 1 |
+| _ii | 148 | BC1_UNORM: 92, BC3_UNORM: 56 |
+| _iii | 97 | BC1_UNORM: 63, BC3_UNORM: 34 |
+| _image | 1 | BC3_UNORM: 1 |
+| _imagefontfull | 1 | uncompressed_or_unknown: 1 |
+| _immediate | 1 | BC3_UNORM: 1 |
+| _immune | 1 | BC1_UNORM: 1 |
+| _impmushroom | 1 | BC3_UNORM: 1 |
+| _imprisonedqueen | 1 | BC1_UNORM: 1 |
+| _impsattack | 1 | BC3_UNORM: 1 |
+| _in | 17 | BC1_UNORM: 16, BC5_UNORM: 1 |
+| _index01 | 278 | BC1_UNORM: 22, BC3_UNORM: 256 |
+| _index02 | 133 | BC1_UNORM: 1, BC3_UNORM: 132 |
+| _index03 | 64 | BC1_UNORM: 2, BC3_UNORM: 62 |
+| _index04 | 60 | BC3_UNORM: 60 |
+| _index05 | 33 | BC3_UNORM: 33 |
+| _index06 | 26 | BC3_UNORM: 26 |
+| _index07 | 20 | BC3_UNORM: 20 |
+| _index08 | 19 | BC3_UNORM: 19 |
+| _index09 | 15 | BC3_UNORM: 15 |
+| _index10 | 16 | BC3_UNORM: 16 |
+| _index11 | 9 | BC3_UNORM: 9 |
+| _index12 | 9 | BC3_UNORM: 9 |
+| _index13 | 4 | BC3_UNORM: 4 |
+| _index14 | 6 | BC3_UNORM: 6 |
+| _index15 | 7 | BC3_UNORM: 7 |
+| _index16 | 1 | BC3_UNORM: 1 |
+| _index17 | 3 | BC3_UNORM: 3 |
+| _index18 | 1 | BC3_UNORM: 1 |
+| _index20 | 2 | BC3_UNORM: 2 |
+| _index21 | 1 | BC3_UNORM: 1 |
+| _indulgence | 1 | BC1_UNORM: 1 |
+| _infiltration | 1 | BC3_UNORM: 1 |
+| _infinite | 3 | BC3_UNORM: 3 |
+| _informant | 1 | BC1_UNORM: 1 |
+| _information | 1 | BC1_UNORM: 1 |
+| _ing | 9 | BC1_UNORM: 9 |
+| _ingbert | 1 | BC1_UNORM: 1 |
+| _ingot | 1 | BC1_UNORM: 1 |
+| _ingredientrequest | 1 | BC1_UNORM: 1 |
+| _inn | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _inner | 1 | BC1_UNORM: 1 |
+| _insam | 1 | BC1_UNORM: 1 |
+| _insect | 1 | BC3_UNORM: 1 |
+| _insectbag | 1 | BC1_UNORM: 1 |
+| _inshield | 1 | BC1_UNORM: 1 |
+| _insiderrescue | 1 | BC1_UNORM: 1 |
+| _institute | 1 | BC3_UNORM: 1 |
+| _interrogate | 1 | BC3_UNORM: 1 |
+| _interrogation | 1 | BC1_UNORM: 1 |
+| _intimacy | 1 | BC3_UNORM: 1 |
+| _intothecave | 1 | BC1_UNORM: 1 |
+| _intruder | 1 | BC1_UNORM: 1 |
+| _invert | 1 | BC3_UNORM: 1 |
+| _invisible | 1 | BC3_UNORM: 1 |
+| _invite | 1 | BC1_UNORM: 1 |
+| _invitegardener | 1 | BC1_UNORM: 1 |
+| _irkin | 1 | BC1_UNORM: 1 |
+| _iron | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _ironeagle | 1 | BC1_UNORM: 1 |
+| _irongrave | 1 | BC1_UNORM: 1 |
+| _ironhammerstation | 1 | BC1_UNORM: 1 |
+| _ironhoofstation | 1 | BC1_UNORM: 1 |
+| _ironingot | 1 | BC1_UNORM: 1 |
+| _ironmine | 1 | BC1_UNORM: 1 |
+| _ironore | 1 | BC1_UNORM: 1 |
+| _ironstone | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _ironstronghold | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _ironworm | 1 | BC1_UNORM: 1 |
+| _island | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _isle | 1 | BC1_UNORM: 1 |
+| _isvatufortress | 1 | BC1_UNORM: 1 |
+| _item | 9 | BC1_UNORM: 3, BC3_UNORM: 6 |
+| _itemlook | 1 | BC3_UNORM: 1 |
+| _itemmap | 1 | BC1_UNORM: 1 |
+| _iv | 61 | BC1_UNORM: 46, BC3_UNORM: 15 |
+| _ivano | 1 | BC1_UNORM: 1 |
+| _ivory | 2 | BC3_UNORM: 2 |
+| _ix | 19 | BC1_UNORM: 13, BC3_UNORM: 6 |
+| _jackalleatherhelm | 1 | BC1_UNORM: 1 |
+| _jackthemadness | 1 | BC1_UNORM: 1 |
+| _jade | 2 | BC3_UNORM: 2 |
+| _jail | 4 | BC3_UNORM: 4 |
+| _jambonbeur | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _james | 1 | BC1_UNORM: 1 |
+| _jameson | 1 | BC1_UNORM: 1 |
+| _janta | 1 | BC1_UNORM: 1 |
+| _japchae | 1 | BC1_UNORM: 1 |
+| _jar | 1 | BC3_UNORM: 1 |
+| _jarad | 1 | BC1_UNORM: 1 |
+| _jarette | 1 | BC1_UNORM: 1 |
+| _jason | 1 | BC1_UNORM: 1 |
+| _jeon | 13 | BC1_UNORM: 9, BC3_UNORM: 4 |
+| _jerdi | 1 | BC1_UNORM: 1 |
+| _jerky | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _jerome | 1 | BC1_UNORM: 1 |
+| _jewelnecklace | 1 | BC3_UNORM: 1 |
+| _jhk | 3 | BC3_UNORM: 3 |
+| _jhs | 14 | BC1_UNORM: 4, BC3_UNORM: 10 |
+| _jijengta | 2 | BC3_UNORM: 2 |
+| _jijeong | 1 | BC1_UNORM: 1 |
+| _jijeongta | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _jijeongtemple | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _jijeongtower | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _jindodog | 1 | BC1_UNORM: 1 |
+| _joan | 1 | BC1_UNORM: 1 |
+| _joffel | 1 | BC1_UNORM: 1 |
+| _johan | 1 | BC1_UNORM: 1 |
+| _john | 1 | BC1_UNORM: 1 |
+| _jordan | 1 | BC1_UNORM: 1 |
+| _jorulluwadi | 1 | BC1_UNORM: 1 |
+| _joseph | 1 | BC1_UNORM: 1 |
+| _josephine | 1 | BC1_UNORM: 1 |
+| _journal | 1 | BC3_UNORM: 1 |
+| _journey | 1 | BC1_UNORM: 1 |
+| _jpn | 1 | BC3_UNORM: 1 |
+| _judgmentofthewindcave | 1 | BC1_UNORM: 1 |
+| _juice | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _jump | 1 | BC3_UNORM: 1 |
+| _jumpstep | 1 | BC1_UNORM: 1 |
+| _jumptower | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _junak | 1 | BC1_UNORM: 1 |
+| _jur | 1 | BC3_UNORM: 1 |
+| _jyr | 6 | BC1_UNORM: 2, BC3_UNORM: 4 |
+| _kabrok | 1 | BC1_UNORM: 1 |
+| _kailokthehornsplitter | 1 | BC1_UNORM: 1 |
+| _kakapo | 1 | BC1_UNORM: 1 |
+| _kamu | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _karanda | 1 | BC1_UNORM: 1 |
+| _karen | 2 | BC1_UNORM: 2 |
+| _karensfixer | 1 | BC1_UNORM: 1 |
+| _karim | 1 | BC1_UNORM: 1 |
+| _karinquarryretake | 1 | BC1_UNORM: 1 |
+| _karl | 1 | BC1_UNORM: 1 |
+| _kartnum | 1 | BC1_UNORM: 1 |
+| _kata | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _kdk | 59 | BC1_UNORM: 5, BC3_UNORM: 54 |
+| _keeper | 1 | BC1_UNORM: 1 |
+| _keepfocus | 1 | BC1_UNORM: 1 |
+| _keepsake | 1 | BC3_UNORM: 1 |
+| _keinon | 1 | BC3_UNORM: 1 |
+| _kendrik | 1 | BC3_UNORM: 1 |
+| _kenneth | 1 | BC1_UNORM: 1 |
+| _kenrick | 1 | BC1_UNORM: 1 |
+| _key | 28 | BC1_UNORM: 2, BC3_UNORM: 26 |
+| _khadija | 1 | BC1_UNORM: 1 |
+| _khadin | 1 | BC1_UNORM: 1 |
+| _khalid | 1 | BC1_UNORM: 1 |
+| _kharonsolake | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _kharonsovillage | 1 | BC1_UNORM: 1 |
+| _khazir | 1 | BC1_UNORM: 1 |
+| _khorn | 2 | BC1_UNORM: 2 |
+| _khu | 17 | BC1_UNORM: 3, BC3_UNORM: 14 |
+| _kid | 2 | BC1_UNORM: 2 |
+| _kidnapcitizen | 1 | BC1_UNORM: 1 |
+| _kidnappedmerchant | 1 | BC1_UNORM: 1 |
+| _kidnaptrollmaster | 1 | BC1_UNORM: 1 |
+| _kike | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _kildenkukuworkshop | 1 | BC3_UNORM: 1 |
+| _killer | 4 | BC3_UNORM: 4 |
+| _killhellhoundend | 1 | BC1_UNORM: 1 |
+| _killleader | 5 | BC1_UNORM: 5 |
+| _killslave | 1 | BC1_UNORM: 1 |
+| _kimbap | 1 | BC1_UNORM: 1 |
+| _kingcobra | 2 | BC3_UNORM: 2 |
+| _kingtombconstruction | 1 | BC1_UNORM: 1 |
+| _kitten | 1 | BC1_UNORM: 1 |
+| _kjd | 43 | BC1_UNORM: 8, BC3_UNORM: 35 |
+| _kliff | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _knife | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _knights | 5 | BC1_UNORM: 5 |
+| _knoll | 1 | BC1_UNORM: 1 |
+| _knowledge | 1 | BC1_UNORM: 1 |
+| _knowledgeoverview | 1 | BC3_UNORM: 1 |
+| _knytlingarruins | 1 | BC1_UNORM: 1 |
+| _komododragon | 2 | BC1_UNORM: 2 |
+| _kor | 4 | BC3_UNORM: 4 |
+| _krag | 1 | BC1_UNORM: 1 |
+| _kraver | 2 | BC1_UNORM: 2 |
+| _krog | 2 | BC1_UNORM: 2 |
+| _ksh | 64 | BC1_UNORM: 11, BC3_UNORM: 53 |
+| _kudzu | 1 | BC3_UNORM: 1 |
+| _kudzufarm | 1 | BC1_UNORM: 1 |
+| _kuku1 | 1 | BC3_UNORM: 1 |
+| _kuku2 | 1 | BC3_UNORM: 1 |
+| _kuku3 | 1 | BC3_UNORM: 1 |
+| _kuku4 | 1 | BC3_UNORM: 1 |
+| _kuku5 | 1 | BC3_UNORM: 1 |
+| _kukuatag | 2 | BC1_UNORM: 2 |
+| _kukubird | 1 | BC1_UNORM: 1 |
+| _kukupot | 3 | BC3_UNORM: 3 |
+| _kukupotfactory | 1 | BC1_UNORM: 1 |
+| _kutum | 2 | BC1_UNORM: 2 |
+| _kwe | 6 | BC1_UNORM: 6 |
+| _kweiden | 3 | BC1_UNORM: 3 |
+| _kweidencontribution | 1 | BC3_UNORM: 1 |
+| _kweidennode | 1 | BC3_UNORM: 1 |
+| _l | 68 | BC3_UNORM: 68 |
+| _laboratory | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _laboratorybattle | 1 | BC1_UNORM: 1 |
+| _ladle | 2 | BC3_UNORM: 2 |
+| _lake | 14 | BC1_UNORM: 11, BC3_UNORM: 3 |
+| _lakedelicacies | 1 | BC1_UNORM: 1 |
+| _lakegolemvordis | 1 | BC1_UNORM: 1 |
+| _lakeparty | 1 | BC1_UNORM: 1 |
+| _lama | 1 | BC1_UNORM: 1 |
+| _lamaisdead | 1 | BC3_UNORM: 1 |
+| _lamb | 1 | BC1_UNORM: 1 |
+| _lamprey | 1 | BC1_UNORM: 1 |
+| _lancehead | 1 | BC1_UNORM: 1 |
+| _land | 1 | BC1_UNORM: 1 |
+| _lands | 1 | BC1_UNORM: 1 |
+| _landspider | 24 | BC1_UNORM: 24 |
+| _lanford | 1 | BC1_UNORM: 1 |
+| _language | 1 | BC3_UNORM: 1 |
+| _lantern | 6 | BC3_UNORM: 6 |
+| _lantern2 | 1 | BC3_UNORM: 1 |
+| _lanterndetect | 1 | BC3_UNORM: 1 |
+| _large | 1 | BC1_UNORM: 1 |
+| _largehoe | 1 | BC3_UNORM: 1 |
+| _largestone | 1 | BC3_UNORM: 1 |
+| _largewood | 1 | BC3_UNORM: 1 |
+| _lariat | 1 | BC3_UNORM: 1 |
+| _lars | 1 | BC1_UNORM: 1 |
+| _lasagna | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _lase | 1 | BC1_UNORM: 1 |
+| _laser | 1 | BC1_UNORM: 1 |
+| _laserspear | 1 | BC1_UNORM: 1 |
+| _lastmeet | 1 | BC1_UNORM: 1 |
+| _lastmeeting | 2 | BC1_UNORM: 2 |
+| _lastmeetinglll | 1 | BC1_UNORM: 1 |
+| _latte | 1 | BC1_UNORM: 1 |
+| _laundry | 1 | BC3_UNORM: 1 |
+| _laura | 1 | BC1_UNORM: 1 |
+| _lauren | 1 | BC1_UNORM: 1 |
+| _laurent | 1 | BC1_UNORM: 1 |
+| _lauric | 1 | BC1_UNORM: 1 |
+| _lavamountain | 1 | BC1_UNORM: 1 |
+| _lavender | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _lb | 1 | BC1_UNORM: 1 |
+| _lde | 56 | BC1_UNORM: 25, BC3_UNORM: 31 |
+| _lde-recovered | 1 | BC3_UNORM: 1 |
+| _ldu | 3 | BC3_UNORM: 3 |
+| _leader | 4 | BC1_UNORM: 4 |
+| _leaf | 2 | BC1_UNORM: 2 |
+| _leaf0 | 1 | BC1_UNORM: 1 |
+| _leaf1 | 1 | BC1_UNORM: 1 |
+| _learnskill | 1 | BC3_UNORM: 1 |
+| _leather | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _leatherlover | 1 | BC3_UNORM: 1 |
+| _leeburtheshadowwolf | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _left | 1 | uncompressed_or_unknown: 1 |
+| _leftring | 1 | BC3_UNORM: 1 |
+| _leg | 1 | BC3_UNORM: 1 |
+| _legend | 2 | BC1_UNORM: 2 |
+| _legendanimal | 1 | BC1_UNORM: 1 |
+| _legendary | 2 | BC1_UNORM: 2 |
+| _legendaryanimal | 1 | BC3_UNORM: 1 |
+| _legendarycatfish | 1 | BC3_UNORM: 1 |
+| _legendarydeer | 1 | BC3_UNORM: 1 |
+| _legenderyfish | 1 | BC1_UNORM: 1 |
+| _lenard | 1 | BC1_UNORM: 1 |
+| _lenok | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _lentils | 1 | BC1_UNORM: 1 |
+| _leofric | 1 | BC1_UNORM: 1 |
+| _leonar | 1 | BC1_UNORM: 1 |
+| _leonard | 1 | BC1_UNORM: 1 |
+| _leone | 1 | BC1_UNORM: 1 |
+| _leperchild | 1 | BC3_UNORM: 1 |
+| _leroy | 1 | BC1_UNORM: 1 |
+| _less | 1 | BC1_UNORM: 1 |
+| _letter | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _levelup | 1 | BC3_UNORM: 1 |
+| _liberation | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _library | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _licensekill | 1 | BC3_UNORM: 1 |
+| _lifecircles | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _lifecycle | 2 | BC1_UNORM: 2 |
+| _lifesavor | 1 | BC1_UNORM: 1 |
+| _lift | 1 | BC3_UNORM: 1 |
+| _liftable | 1 | BC1_UNORM: 1 |
+| _light | 122 | BC1_UNORM: 1, BC7_UNORM: 121 |
+| _lightgloves | 1 | BC3_UNORM: 1 |
+| _lightgreen | 1 | BC3_UNORM: 1 |
+| _lighthouseconstruction | 3 | BC1_UNORM: 3 |
+| _lightning | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _lightningspear | 1 | BC1_UNORM: 1 |
+| _lightningthrower | 2 | BC1_UNORM: 2 |
+| _lightreflect | 1 | BC3_UNORM: 1 |
+| _lightupschool | 1 | BC3_UNORM: 1 |
+| _lily | 1 | BC1_UNORM: 1 |
+| _lilyofthevalley | 1 | BC1_UNORM: 1 |
+| _linbald | 1 | BC1_UNORM: 1 |
+| _linda | 2 | BC1_UNORM: 2 |
+| _line | 3 | BC1_UNORM: 3 |
+| _linhart | 1 | BC1_UNORM: 1 |
+| _linkband | 1 | BC1_UNORM: 1 |
+| _lion | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+| _lionel | 1 | BC1_UNORM: 1 |
+| _lioness | 1 | BC1_UNORM: 1 |
+| _lior | 1 | BC1_UNORM: 1 |
+| _listen | 1 | BC3_UNORM: 1 |
+| _lithustheformshaken | 1 | BC1_UNORM: 1 |
+| _littlestar | 1 | BC3_UNORM: 1 |
+| _living | 1 | BC1_UNORM: 1 |
+| _lizard | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _lk99tower | 1 | BC1_UNORM: 1 |
+| _lkh | 17 | BC1_UNORM: 2, BC3_UNORM: 15 |
+| _loading | 1 | BC3_UNORM: 1 |
+| _location | 1 | BC1_UNORM: 1 |
+| _lock | 1 | BC3_UNORM: 1 |
+| _log | 1 | BC3_UNORM: 1 |
+| _logging | 1 | BC1_UNORM: 1 |
+| _logo | 1 | BC3_UNORM: 1 |
+| _lonelyaltar | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _lonelyjackal | 1 | BC1_UNORM: 1 |
+| _longbranchvillage | 1 | BC1_UNORM: 1 |
+| _longhorn | 1 | BC1_UNORM: 1 |
+| _longrootsvillage | 1 | BC1_UNORM: 1 |
+| _longtailedtit | 1 | BC1_UNORM: 1 |
+| _lookon | 1 | BC3_UNORM: 1 |
+| _loon | 1 | BC1_UNORM: 1 |
+| _loop | 1 | BC1_UNORM: 1 |
+| _lopette | 2 | BC1_UNORM: 2 |
+| _lopez | 1 | BC1_UNORM: 1 |
+| _loppet | 2 | BC1_UNORM: 2 |
+| _lora | 1 | BC1_UNORM: 1 |
+| _lorenzo | 1 | BC1_UNORM: 1 |
+| _lostmemories | 1 | BC3_UNORM: 1 |
+| _lostsongcave | 1 | BC1_UNORM: 1 |
+| _lowell | 1 | BC1_UNORM: 1 |
+| _ls | 1 | BC1_UNORM: 1 |
+| _luceran | 1 | BC1_UNORM: 1 |
+| _lucianus | 1 | BC1_UNORM: 1 |
+| _lucien | 1 | BC3_UNORM: 1 |
+| _lucius | 1 | BC1_UNORM: 1 |
+| _ludvig | 5 | BC1_UNORM: 5 |
+| _luigi | 2 | BC1_UNORM: 2 |
+| _lukas | 1 | BC1_UNORM: 1 |
+| _luke | 1 | BC1_UNORM: 1 |
+| _lumber | 5 | BC1_UNORM: 5 |
+| _lumbermill | 1 | BC1_UNORM: 1 |
+| _lumberyard | 4 | BC1_UNORM: 4 |
+| _lumiel | 1 | BC1_UNORM: 1 |
+| _lunnon | 1 | BC1_UNORM: 1 |
+| _lure | 1 | BC3_UNORM: 1 |
+| _lut | 4 | uncompressed_or_unknown: 4 |
+| _lute | 1 | BC3_UNORM: 1 |
+| _lv1 | 84 | BC1_UNORM: 76, BC3_UNORM: 8 |
+| _lv2 | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _lv3 | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _lv4 | 1 | BC1_UNORM: 1 |
+| _lyahn | 1 | BC1_UNORM: 1 |
+| _lyj | 1 | BC3_UNORM: 1 |
+| _lyle | 1 | BC1_UNORM: 1 |
+| _m | 3,314 | BC1_UNORM: 922, BC3_UNORM: 2392 |
+| _ma | 3,895 | BC1_UNORM: 3895 |
+| _mabongpa | 1 | BC3_UNORM: 1 |
+| _mac | 2 | BC3_UNORM: 2 |
+| _macduff | 2 | BC1_UNORM: 2 |
+| _machine | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _machineant | 1 | BC1_UNORM: 1 |
+| _machinebeetle | 1 | BC1_UNORM: 1 |
+| _machinebug | 1 | BC3_UNORM: 1 |
+| _machinecity | 2 | BC1_UNORM: 2 |
+| _machinedragonfly | 1 | BC1_UNORM: 1 |
+| _machinefish | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _machinefort | 2 | BC3_UNORM: 2 |
+| _machineknight | 4 | BC1_UNORM: 4 |
+| _machinemantis | 2 | BC1_UNORM: 2 |
+| _machinemosquito | 1 | BC1_UNORM: 1 |
+| _machinetank | 4 | BC1_UNORM: 4 |
+| _machinethefall | 2 | BC1_UNORM: 2 |
+| _mackerel | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _mad | 1 | BC1_UNORM: 1 |
+| _madhoney | 1 | BC3_UNORM: 1 |
+| _madnessmeeting | 1 | BC1_UNORM: 1 |
+| _magnet | 1 | BC3_UNORM: 1 |
+| _magnus | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _maiden | 2 | BC1_UNORM: 2 |
+| _main | 1 | BC1_UNORM: 1 |
+| _mainbattle | 1 | BC1_UNORM: 1 |
+| _mainweapon | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _majru | 1 | BC1_UNORM: 1 |
+| _makeperfectdrug | 1 | BC1_UNORM: 1 |
+| _maker | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _malamute | 1 | BC1_UNORM: 1 |
+| _malchor | 1 | BC1_UNORM: 1 |
+| _mallardduck | 1 | BC1_UNORM: 1 |
+| _mana | 1 | BC3_UNORM: 1 |
+| _manager | 2 | BC1_UNORM: 2 |
+| _mandu | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _mansionwoman | 1 | BC3_UNORM: 1 |
+| _mantis | 1 | BC3_UNORM: 1 |
+| _manual | 1 | BC3_UNORM: 1 |
+| _manyrats | 1 | BC3_UNORM: 1 |
+| _map | 11 | BC3_UNORM: 11 |
+| _mapicon | 3 | BC3_UNORM: 3 |
+| _mapmaker | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _marcellos | 1 | BC3_UNORM: 1 |
+| _marchell | 1 | BC1_UNORM: 1 |
+| _marco | 1 | BC1_UNORM: 1 |
+| _marcos | 1 | BC3_UNORM: 1 |
+| _marcus | 2 | BC1_UNORM: 2 |
+| _mariana | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _marie | 2 | BC1_UNORM: 2 |
+| _mariel | 2 | BC1_UNORM: 2 |
+| _marigold | 2 | BC3_UNORM: 2 |
+| _marin | 1 | BC1_UNORM: 1 |
+| _marina | 1 | BC1_UNORM: 1 |
+| _marius | 2 | BC1_UNORM: 2 |
+| _mark | 2 | BC3_UNORM: 2 |
+| _market | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _marlin | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _marni | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _marniaircastle | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _marniairlabcaptain | 1 | BC1_UNORM: 1 |
+| _marnidrone | 1 | BC1_UNORM: 1 |
+| _marniexcavatron | 2 | BC1_UNORM: 2 |
+| _marnilabassistant | 1 | BC1_UNORM: 1 |
+| _marnilabgate | 1 | BC1_UNORM: 1 |
+| _marniletter | 1 | BC1_UNORM: 1 |
+| _marnimansion | 1 | BC1_UNORM: 1 |
+| _marnimeet | 1 | BC1_UNORM: 1 |
+| _marnioilrigmanager | 1 | BC1_UNORM: 1 |
+| _marnirescue | 1 | BC1_UNORM: 1 |
+| _marnirobot | 1 | BC1_UNORM: 1 |
+| _marnisecretfort | 2 | BC3_UNORM: 2 |
+| _marnisoutposcaptain | 1 | BC1_UNORM: 1 |
+| _marnisubmarine | 1 | BC3_UNORM: 1 |
+| _marnitemple | 1 | BC3_UNORM: 1 |
+| _marnitower | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _marniworkshopeastgate | 1 | BC1_UNORM: 1 |
+| _marseille | 3 | BC1_UNORM: 3 |
+| _marsh | 1 | BC1_UNORM: 1 |
+| _martin | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _martina | 1 | BC1_UNORM: 1 |
+| _mask | 47 | BC1_UNORM: 13, BC3_UNORM: 21, BC4_UNORM: 3, BC5_UNORM: 10 |
+| _mask_amg | 10 | BC1_UNORM: 10 |
+| _master | 2 | BC1_UNORM: 2 |
+| _mastergrundir | 5 | BC1_UNORM: 5 |
+| _masterthief | 1 | BC3_UNORM: 1 |
+| _mastery | 1 | BC1_UNORM: 1 |
+| _material | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _matilda | 2 | BC1_UNORM: 2 |
+| _matthias | 2 | BC1_UNORM: 2 |
+| _mauro | 2 | BC1_UNORM: 2 |
+| _max | 1 | BC1_UNORM: 1 |
+| _maze | 1 | BC1_UNORM: 1 |
+| _mazzulthedarkjusticiar | 1 | BC1_UNORM: 1 |
+| _meat | 9 | BC1_UNORM: 4, BC3_UNORM: 5 |
+| _meatforwork | 1 | BC1_UNORM: 1 |
+| _mechaloopstationone | 1 | BC1_UNORM: 1 |
+| _mechaniccabin | 1 | BC1_UNORM: 1 |
+| _mechanicusmk12 | 2 | BC1_UNORM: 2 |
+| _mechheart | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _medicine | 1 | BC1_UNORM: 1 |
+| _medium | 1 | BC1_UNORM: 1 |
+| _meerkat | 1 | BC1_UNORM: 1 |
+| _meet | 6 | BC1_UNORM: 6 |
+| _meetagain | 1 | BC3_UNORM: 1 |
+| _meetalustain | 2 | BC1_UNORM: 2 |
+| _meetbelovedoongka | 1 | BC3_UNORM: 1 |
+| _meetchief | 1 | BC3_UNORM: 1 |
+| _meetdemianindelpheon | 2 | BC1_UNORM: 2 |
+| _meetdwayne | 1 | BC1_UNORM: 1 |
+| _meeting | 1 | BC1_UNORM: 1 |
+| _meetingmerchant | 1 | BC1_UNORM: 1 |
+| _meetingnobles | 1 | BC1_UNORM: 1 |
+| _meetmarius | 1 | BC1_UNORM: 1 |
+| _meetmarni | 1 | BC1_UNORM: 1 |
+| _meetnairah | 2 | BC1_UNORM: 2 |
+| _meetorcpaul | 1 | BC1_UNORM: 1 |
+| _meetyann | 1 | BC1_UNORM: 1 |
+| _megu | 1 | BC1_UNORM: 1 |
+| _memo | 1 | BC3_UNORM: 1 |
+| _memory | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _memorycliffvillage | 1 | BC3_UNORM: 1 |
+| _memorygrave | 1 | BC3_UNORM: 1 |
+| _memoryscent | 1 | BC1_UNORM: 1 |
+| _mensapuzzle | 1 | BC3_UNORM: 1 |
+| _mensapuzzlestart | 1 | BC3_UNORM: 1 |
+| _mercenary | 2 | BC1_UNORM: 2 |
+| _merchant | 3 | BC1_UNORM: 3 |
+| _merchantfromtheforest | 1 | BC1_UNORM: 1 |
+| _merchantking | 1 | BC3_UNORM: 1 |
+| _merchantstory | 6 | BC1_UNORM: 6 |
+| _mercury | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _mergellus | 1 | BC1_UNORM: 1 |
+| _mermaid | 1 | BC3_UNORM: 1 |
+| _merrigrain | 1 | BC1_UNORM: 1 |
+| _merton | 2 | BC1_UNORM: 2 |
+| _mesa | 2 | BC1_UNORM: 2 |
+| _mesh01 | 1 | BC1_UNORM: 1 |
+| _mesite | 1 | BC1_UNORM: 1 |
+| _metal | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _metal0 | 1 | BC1_UNORM: 1 |
+| _metal1 | 1 | BC1_UNORM: 1 |
+| _metal2 | 1 | BC1_UNORM: 1 |
+| _metalic | 3 | BC3_UNORM: 3 |
+| _meteor | 1 | BC3_UNORM: 1 |
+| _mg | 3,866 | BC1_UNORM: 3866 |
+| _michael | 1 | BC1_UNORM: 1 |
+| _midbossdasola | 1 | BC3_UNORM: 1 |
+| _middle | 1 | BC1_UNORM: 1 |
+| _midler | 1 | BC1_UNORM: 1 |
+| _midnightmeeting | 1 | BC1_UNORM: 1 |
+| _milfoil | 1 | BC1_UNORM: 1 |
+| _militaryceremony | 3 | BC1_UNORM: 3 |
+| _milkcow | 4 | BC1_UNORM: 4 |
+| _mill | 1 | BC1_UNORM: 1 |
+| _milo | 1 | BC3_UNORM: 1 |
+| _mindaltar | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _mine | 7 | BC1_UNORM: 7 |
+| _minegold | 1 | BC1_UNORM: 1 |
+| _minesilver | 1 | BC1_UNORM: 1 |
+| _mini | 1 | BC3_UNORM: 1 |
+| _minigame | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _minimap | 1 | BC3_UNORM: 1 |
+| _mining | 1 | BC1_UNORM: 1 |
+| _miningrights | 1 | BC1_UNORM: 1 |
+| _mira | 1 | BC1_UNORM: 1 |
+| _miraculousrecovery | 1 | BC3_UNORM: 1 |
+| _mirella | 1 | BC1_UNORM: 1 |
+| _miseenscene | 1 | BC1_UNORM: 1 |
+| _miserabledeath | 1 | BC1_UNORM: 1 |
+| _missingfriend | 1 | BC1_UNORM: 1 |
+| _missinghammer | 1 | BC1_UNORM: 1 |
+| _missingpeopleforest | 1 | BC1_UNORM: 1 |
+| _mission | 2 | BC1_UNORM: 2 |
+| _mistbreathcave | 1 | BC1_UNORM: 1 |
+| _miu | 1 | BC1_UNORM: 1 |
+| _mix | 49 | BC4_UNORM: 49 |
+| _mjordin | 1 | BC3_UNORM: 1 |
+| _mkii | 1 | BC1_UNORM: 1 |
+| _mkiii | 1 | BC1_UNORM: 1 |
+| _mkiv | 1 | BC1_UNORM: 1 |
+| _mkix | 1 | BC1_UNORM: 1 |
+| _mkxii | 1 | BC1_UNORM: 1 |
+| _moa | 1 | BC1_UNORM: 1 |
+| _mockery | 1 | BC3_UNORM: 1 |
+| _mogdal | 1 | BC1_UNORM: 1 |
+| _mokash | 1 | BC1_UNORM: 1 |
+| _molar | 1 | BC1_UNORM: 1 |
+| _molding | 1 | BC1_UNORM: 1 |
+| _mole | 1 | BC1_UNORM: 1 |
+| _mon | 1 | BC3_UNORM: 1 |
+| _monasteryofficialpass | 1 | BC3_UNORM: 1 |
+| _monasteryroad | 1 | BC1_UNORM: 1 |
+| _monasteryvisitorpass | 1 | BC3_UNORM: 1 |
+| _money | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _moneyforgamble | 1 | BC1_UNORM: 1 |
+| _monster | 2 | BC1_UNORM: 2 |
+| _monsterwave | 1 | BC1_UNORM: 1 |
+| _montpellier | 1 | BC1_UNORM: 1 |
+| _moon | 1 | BC1_UNORM: 1 |
+| _moonhead | 2 | BC1_UNORM: 2 |
+| _moonlightspiritcave | 1 | BC1_UNORM: 1 |
+| _moonreaper | 2 | BC1_UNORM: 2 |
+| _moose | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _mop | 1 | BC3_UNORM: 1 |
+| _moreweapons | 1 | BC1_UNORM: 1 |
+| _morrow | 1 | BC1_UNORM: 1 |
+| _moru | 2 | BC1_UNORM: 2 |
+| _morufort | 1 | BC1_UNORM: 1 |
+| _moss | 6 | BC1_UNORM: 6 |
+| _mossyrocks | 2 | BC1_UNORM: 2 |
+| _mother | 1 | BC1_UNORM: 1 |
+| _mount | 1 | BC1_UNORM: 1 |
+| _mountain | 7 | BC1_UNORM: 7 |
+| _mountainareabanditcamp | 1 | BC1_UNORM: 1 |
+| _mountaingoat | 1 | BC1_UNORM: 1 |
+| _mountains | 3 | BC1_UNORM: 3 |
+| _moutain | 1 | BC1_UNORM: 1 |
+| _move | 2 | BC3_UNORM: 2 |
+| _movecutting | 1 | BC1_UNORM: 1 |
+| _movespeedrate | 1 | BC3_UNORM: 1 |
+| _movingnorthfarm | 1 | BC1_UNORM: 1 |
+| _mp | 1 | BC3_UNORM: 1 |
+| _mp1 | 1 | BC3_UNORM: 1 |
+| _mp10 | 1 | BC3_UNORM: 1 |
+| _mp2 | 2 | BC3_UNORM: 2 |
+| _mpaicon | 2 | BC3_UNORM: 2 |
+| _mpfire | 1 | BC3_UNORM: 1 |
+| _mpice | 1 | BC3_UNORM: 1 |
+| _mplightning | 1 | BC3_UNORM: 1 |
+| _mpwind | 1 | BC3_UNORM: 1 |
+| _mud | 1 | BC1_UNORM: 1 |
+| _mud0 | 1 | BC1_UNORM: 1 |
+| _mudfish | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _mudwalkerlutemir | 1 | BC1_UNORM: 1 |
+| _muiquun | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _multiarrow | 1 | BC3_UNORM: 1 |
+| _murraska | 1 | BC1_UNORM: 1 |
+| _muscan | 1 | BC1_UNORM: 1 |
+| _museum | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _mushroom | 7 | BC3_UNORM: 7 |
+| _musket | 1 | BC1_UNORM: 1 |
+| _musket2outpost | 1 | BC1_UNORM: 1 |
+| _musketsiegewar | 1 | BC1_UNORM: 1 |
+| _muskrat | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _mustard | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _muteperson | 1 | BC3_UNORM: 1 |
+| _myordin | 1 | BC1_UNORM: 1 |
+| _myricaria | 1 | BC1_UNORM: 1 |
+| _mysterygem | 1 | BC1_UNORM: 1 |
+| _mysterysquare | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _mysterytotem | 1 | BC1_UNORM: 1 |
+| _mysticanimal | 1 | BC3_UNORM: 1 |
+| _myurdin | 2 | BC1_UNORM: 2 |
+| _myurdinumbra | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _n | 82,444 | BC1_UNORM: 66536, BC3_UNORM: 6, BC5_UNORM: 15899, uncompressed_or_unknown: 3 |
+| _nabiya | 1 | BC3_UNORM: 1 |
+| _nahab | 1 | BC1_UNORM: 1 |
+| _nail | 1 | BC1_UNORM: 1 |
+| _nairah | 2 | BC1_UNORM: 2 |
+| _namelessnobel | 1 | BC1_UNORM: 1 |
+| _namelesssages | 1 | BC1_UNORM: 1 |
+| _namelesssmithy | 1 | BC1_UNORM: 1 |
+| _nancy | 1 | BC1_UNORM: 1 |
+| _nasurtium | 1 | BC1_UNORM: 1 |
+| _natah | 1 | BC1_UNORM: 1 |
+| _natural | 1 | BC3_UNORM: 1 |
+| _navel | 1 | BC1_UNORM: 1 |
+| _navy | 1 | BC3_UNORM: 1 |
+| _naylorwells | 1 | BC1_UNORM: 1 |
+| _nebulosus | 1 | BC1_UNORM: 1 |
+| _necklace | 24 | BC1_UNORM: 1, BC3_UNORM: 23 |
+| _ned | 1 | BC1_UNORM: 1 |
+| _needknowledge | 1 | BC3_UNORM: 1 |
+| _nelson | 1 | BC1_UNORM: 1 |
+| _nest | 7 | BC1_UNORM: 2, BC3_UNORM: 5 |
+| _nestsite | 1 | BC1_UNORM: 1 |
+| _net | 1 | BC3_UNORM: 1 |
+| _netmaker | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _neutralzone | 1 | BC3_UNORM: 1 |
+| _neutralzoneresearch | 1 | BC1_UNORM: 1 |
+| _neutralzonestation | 1 | BC1_UNORM: 1 |
+| _new | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _newmoonrufus | 1 | BC1_UNORM: 1 |
+| _newrobot | 1 | BC1_UNORM: 1 |
+| _news | 1 | BC1_UNORM: 1 |
+| _newsonthewaves | 1 | BC1_UNORM: 1 |
+| _niall | 1 | BC1_UNORM: 1 |
+| _night | 1 | BC1_UNORM: 1 |
+| _nightstormcave | 1 | BC1_UNORM: 1 |
+| _nita | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _nivalisthefrostwarden | 1 | BC1_UNORM: 1 |
+| _no1 | 1 | BC1_UNORM: 1 |
+| _no2 | 1 | BC1_UNORM: 1 |
+| _no3 | 1 | BC1_UNORM: 1 |
+| _no4 | 1 | BC1_UNORM: 1 |
+| _no5 | 1 | BC1_UNORM: 1 |
+| _no6 | 1 | BC1_UNORM: 1 |
+| _nobility1 | 1 | BC1_UNORM: 1 |
+| _nobility2 | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _nobilitybanquethall | 1 | BC1_UNORM: 1 |
+| _noblewoman | 1 | BC1_UNORM: 1 |
+| _node | 1 | BC3_UNORM: 1 |
+| _nodelay | 1 | BC1_UNORM: 1 |
+| _noise256 | 1 | BC1_UNORM: 1 |
+| _nolpix | 1 | BC1_UNORM: 1 |
+| _nomip | 17 | BC1_UNORM: 4, BC3_UNORM: 13 |
+| _nonanimal | 1 | BC3_UNORM: 1 |
+| _none | 64 | BC1_UNORM: 29, BC3_UNORM: 6, BC4_UNORM: 3, BC5_UNORM: 2, BC6H_SF16: 1, BC7_UNORM: 2, DXGI_10: 2, R8G8B8A8_UNORM: 2, o: 1, q: 2, uncompressed_or_unknown: 14 |
+| _nonmetalic | 1 | BC3_UNORM: 1 |
+| _nonslip | 1 | BC1_UNORM: 1 |
+| _noor | 1 | BC1_UNORM: 1 |
+| _norden | 1 | BC1_UNORM: 1 |
+| _nordri | 1 | BC1_UNORM: 1 |
+| _normal | 868 | BC1_UNORM: 84, BC3_UNORM: 3, BC5_UNORM: 781 |
+| _nornen | 1 | BC1_UNORM: 1 |
+| _northcave | 1 | BC1_UNORM: 1 |
+| _northeastwell | 1 | BC1_UNORM: 1 |
+| _northernwarrior | 2 | BC1_UNORM: 2 |
+| _northgravekeeper | 1 | BC3_UNORM: 1 |
+| _northgreymanetemple | 1 | BC3_UNORM: 1 |
+| _norwegianforest | 1 | BC1_UNORM: 1 |
+| _note | 1 | BC3_UNORM: 1 |
+| _noticeboard | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _npc01intimacy | 1 | BC3_UNORM: 1 |
+| _npcschedule | 1 | BC3_UNORM: 1 |
+| _nuclearboss | 1 | BC1_UNORM: 1 |
+| _nucleartest | 1 | BC1_UNORM: 1 |
+| _null | 2 | BC1_UNORM: 2 |
+| _number | 1 | uncompressed_or_unknown: 1 |
+| _numberaz | 1 | uncompressed_or_unknown: 1 |
+| _nun | 1 | BC1_UNORM: 1 |
+| _nureumjeok | 1 | BC1_UNORM: 1 |
+| _nurgle | 1 | BC1_UNORM: 1 |
+| _o | 1,450 | BC1_UNORM: 1450 |
+| _oakmusket | 2 | BC3_UNORM: 2 |
+| _oakwatchoutpost | 1 | BC1_UNORM: 1 |
+| _oasis | 4 | BC1_UNORM: 4 |
+| _oats | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _obelisk | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _object | 1 | BC3_UNORM: 1 |
+| _obstacle | 1 | BC3_UNORM: 1 |
+| _ocean | 1 | BC1_UNORM: 1 |
+| _octabus | 3 | BC1_UNORM: 3 |
+| _octopus | 1 | BC1_UNORM: 1 |
+| _odeck | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _odotir | 1 | BC3_UNORM: 1 |
+| _off | 10 | BC3_UNORM: 10 |
+| _offlightvillage | 1 | BC1_UNORM: 1 |
+| _ogre | 2 | BC1_UNORM: 2 |
+| _oil | 3 | BC3_UNORM: 3 |
+| _oilrigcomplete | 1 | BC1_UNORM: 1 |
+| _olaf | 1 | BC1_UNORM: 1 |
+| _old | 8 | BC1_UNORM: 8 |
+| _oldkliff | 4 | BC1_UNORM: 4 |
+| _oldman | 1 | BC1_UNORM: 1 |
+| _olic | 1 | BC1_UNORM: 1 |
+| _olive | 1 | BC1_UNORM: 1 |
+| _oliver | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _olvald | 1 | BC1_UNORM: 1 |
+| _omar | 1 | BC1_UNORM: 1 |
+| _ominoushoofbeat | 1 | BC1_UNORM: 1 |
+| _on | 26 | BC3_UNORM: 26 |
+| _onearmed | 1 | BC1_UNORM: 1 |
+| _onehand | 1 | BC3_UNORM: 1 |
+| _onehandaxe | 7 | BC1_UNORM: 5, BC3_UNORM: 2 |
+| _onehandbow | 7 | BC1_UNORM: 4, BC3_UNORM: 3 |
+| _onehandcannon | 1 | BC3_UNORM: 1 |
+| _onehandcrossbow | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _onehanddagger | 11 | BC1_UNORM: 6, BC3_UNORM: 5 |
+| _onehandfist | 1 | BC1_UNORM: 1 |
+| _onehandflail | 9 | BC1_UNORM: 1, BC3_UNORM: 8 |
+| _onehandhammer | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _onehandlance | 1 | BC3_UNORM: 1 |
+| _onehandmace | 8 | BC1_UNORM: 3, BC3_UNORM: 5 |
+| _onehandmusket | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _onehandpistol | 1 | BC1_UNORM: 1 |
+| _onehandrapier | 1 | BC1_UNORM: 1 |
+| _onehandshield | 12 | BC1_UNORM: 1, BC3_UNORM: 11 |
+| _onehandshotgun | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _onehandsword | 91 | BC1_UNORM: 75, BC3_UNORM: 16 |
+| _onehandsword-copy | 1 | BC1_UNORM: 1 |
+| _onehandtowershield | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _onespoonmemory | 1 | BC1_UNORM: 1 |
+| _onion | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _oongka | 8 | BC1_UNORM: 6, BC3_UNORM: 2 |
+| _oongkaisback | 2 | BC1_UNORM: 2 |
+| _oongkaside | 1 | BC1_UNORM: 1 |
+| _op | 197 | BC1_UNORM: 2, BC5_UNORM: 195 |
+| _opacity | 1 | BC3_UNORM: 1 |
+| _open | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _operation | 5 | BC1_UNORM: 5 |
+| _opration | 1 | BC3_UNORM: 1 |
+| _option | 1 | BC3_UNORM: 1 |
+| _opuntia | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _orange | 3 | BC3_UNORM: 3 |
+| _orcasn | 1 | BC1_UNORM: 1 |
+| _orcbrokenvillage | 2 | BC3_UNORM: 2 |
+| _orcneutralzone | 1 | BC1_UNORM: 1 |
+| _orcumer | 2 | BC1_UNORM: 2 |
+| _order | 1 | BC1_UNORM: 1 |
+| _orderpaper | 1 | BC3_UNORM: 1 |
+| _originpororintool | 1 | BC1_UNORM: 1 |
+| _oriole | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _orlonel | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _ornament | 2 | BC1_UNORM: 2 |
+| _ornamenting | 1 | BC1_UNORM: 1 |
+| _oswin | 1 | BC1_UNORM: 1 |
+| _other | 24 | BC1_UNORM: 22, BC3_UNORM: 2 |
+| _otto | 1 | BC1_UNORM: 1 |
+| _out | 1 | BC5_UNORM: 1 |
+| _outpost | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _outposti | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _outpostii | 1 | BC1_UNORM: 1 |
+| _outpostiii | 1 | BC1_UNORM: 1 |
+| _ovenvegitable | 1 | BC3_UNORM: 1 |
+| _over | 5 | BC1_UNORM: 5 |
+| _overhear | 1 | BC3_UNORM: 1 |
+| _overlay | 8 | BC1_UNORM: 8 |
+| _overseerhousekey | 1 | BC1_UNORM: 1 |
+| _owl | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _owlent | 1 | BC1_UNORM: 1 |
+| _owlsofthemist | 2 | BC1_UNORM: 2 |
+| _oxpecker | 1 | BC1_UNORM: 1 |
+| _pa | 91 | BC1_UNORM: 91 |
+| _pack | 5 | BC3_UNORM: 5 |
+| _packaging | 1 | BC1_UNORM: 1 |
+| _packed | 1 | BC3_UNORM: 1 |
+| _paddlefish | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _padriam | 1 | BC3_UNORM: 1 |
+| _pagrusmajor | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _pail | 12 | BC1_UNORM: 12 |
+| _pailoon | 1 | BC1_UNORM: 1 |
+| _pailoonvigilante | 1 | BC1_UNORM: 1 |
+| _pailune | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _pailunecampsite | 1 | BC1_UNORM: 1 |
+| _pailuneeastgate | 1 | BC1_UNORM: 1 |
+| _pailuneleader | 1 | BC1_UNORM: 1 |
+| _pailunemine | 1 | BC1_UNORM: 1 |
+| _pailuneoperation | 1 | BC1_UNORM: 1 |
+| _pailunese | 1 | BC1_UNORM: 1 |
+| _pailunesouthgate | 1 | BC1_UNORM: 1 |
+| _painkiller | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _painman | 1 | BC3_UNORM: 1 |
+| _painting | 1 | BC1_UNORM: 1 |
+| _palga | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _pancake | 15 | BC1_UNORM: 15 |
+| _pansy | 1 | BC3_UNORM: 1 |
+| _paper | 17 | BC1_UNORM: 1, BC3_UNORM: 16 |
+| _paperdolll | 1 | BC3_UNORM: 1 |
+| _papu | 1 | BC3_UNORM: 1 |
+| _parachute | 1 | BC3_UNORM: 1 |
+| _paradise | 1 | BC1_UNORM: 1 |
+| _paralysisimmunity | 1 | BC3_UNORM: 1 |
+| _park | 1 | BC1_UNORM: 1 |
+| _parrot | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _part | 2 | BC3_UNORM: 2 |
+| _part01 | 1 | BC1_UNORM: 1 |
+| _part02 | 1 | BC1_UNORM: 1 |
+| _parts | 1 | BC3_UNORM: 1 |
+| _parts01 | 5 | BC3_UNORM: 5 |
+| _parts02 | 5 | BC3_UNORM: 5 |
+| _parts03 | 4 | BC3_UNORM: 4 |
+| _parts04 | 4 | BC3_UNORM: 4 |
+| _parts05 | 1 | BC3_UNORM: 1 |
+| _parts06 | 1 | BC3_UNORM: 1 |
+| _parts07 | 1 | BC3_UNORM: 1 |
+| _parts08 | 1 | BC3_UNORM: 1 |
+| _parts09 | 1 | BC3_UNORM: 1 |
+| _parts10 | 1 | BC3_UNORM: 1 |
+| _parts11 | 1 | BC3_UNORM: 1 |
+| _parts12 | 1 | BC3_UNORM: 1 |
+| _parts13 | 1 | BC3_UNORM: 1 |
+| _parts14 | 1 | BC3_UNORM: 1 |
+| _parts15 | 1 | BC3_UNORM: 1 |
+| _parts16 | 1 | BC3_UNORM: 1 |
+| _parts20 | 4 | BC3_UNORM: 4 |
+| _parts21 | 4 | BC3_UNORM: 4 |
+| _parts22 | 4 | BC3_UNORM: 4 |
+| _parts23 | 3 | BC3_UNORM: 3 |
+| _parts24 | 1 | BC3_UNORM: 1 |
+| _pass | 3 | BC3_UNORM: 3 |
+| _passionatefarming | 1 | BC1_UNORM: 1 |
+| _pasta | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _pasture | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _patience | 1 | BC1_UNORM: 1 |
+| _patrigio | 1 | BC1_UNORM: 1 |
+| _patrol | 1 | BC1_UNORM: 1 |
+| _pattern | 5 | BC1_UNORM: 5 |
+| _patuno | 3 | BC1_UNORM: 3 |
+| _paulus | 3 | BC1_UNORM: 3 |
+| _pc | 2 | BC3_UNORM: 2 |
+| _peacevillage | 1 | BC3_UNORM: 1 |
+| _peak | 1 | BC1_UNORM: 1 |
+| _peaks | 2 | BC1_UNORM: 2 |
+| _pearllacquerware | 2 | BC3_UNORM: 2 |
+| _pecker | 1 | BC3_UNORM: 1 |
+| _pendant | 1 | BC3_UNORM: 1 |
+| _penheim | 1 | BC1_UNORM: 1 |
+| _peony | 1 | BC3_UNORM: 1 |
+| _people | 2 | BC1_UNORM: 2 |
+| _pepper | 2 | BC3_UNORM: 2 |
+| _perch | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _peregrine | 2 | BC1_UNORM: 2 |
+| _perfectheal | 2 | BC3_UNORM: 2 |
+| _permit | 1 | BC3_UNORM: 1 |
+| _perrin | 1 | BC1_UNORM: 1 |
+| _person | 1 | BC3_UNORM: 1 |
+| _pervin | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _pervinbomb | 1 | BC3_UNORM: 1 |
+| _pervingate | 1 | BC1_UNORM: 1 |
+| _pet | 2 | BC1_UNORM: 2 |
+| _petguide | 1 | BC1_UNORM: 1 |
+| _phase1 | 1 | BC1_UNORM: 1 |
+| _phase2 | 1 | BC1_UNORM: 1 |
+| _pheasant | 1 | BC1_UNORM: 1 |
+| _phellinuser | 1 | BC1_UNORM: 1 |
+| _philip | 2 | BC1_UNORM: 2 |
+| _pick | 1 | BC3_UNORM: 1 |
+| _pickaxe | 1 | BC3_UNORM: 1 |
+| _pickpocket | 1 | BC1_UNORM: 1 |
+| _pickstone | 1 | BC1_UNORM: 1 |
+| _pie | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _piece | 5 | BC1_UNORM: 1, BC3_UNORM: 4 |
+| _pieces | 1 | BC1_UNORM: 1 |
+| _pier | 1 | BC1_UNORM: 1 |
+| _pierce | 1 | BC1_UNORM: 1 |
+| _pig | 4 | BC1_UNORM: 4 |
+| _pigeon | 1 | BC1_UNORM: 1 |
+| _pikefish | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _pikscratch | 1 | BC1_UNORM: 1 |
+| _pillar | 1 | BC1_UNORM: 1 |
+| _pillarfind | 1 | BC1_UNORM: 1 |
+| _pink | 1 | BC3_UNORM: 1 |
+| _pipe | 1 | BC1_UNORM: 1 |
+| _piranha | 1 | BC1_UNORM: 1 |
+| _piranhas | 1 | BC3_UNORM: 1 |
+| _piratei | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _pirateship | 1 | BC1_UNORM: 1 |
+| _pistol | 1 | BC1_UNORM: 1 |
+| _pistolshot | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _pit | 1 | BC1_UNORM: 1 |
+| _pivotpos | 93 | t: 93 |
+| _pizza | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _pjr | 12 | BC3_UNORM: 12 |
+| _place | 4 | BC3_UNORM: 4 |
+| _placeoutoflight | 1 | BC1_UNORM: 1 |
+| _plain | 1 | BC1_UNORM: 1 |
+| _plains | 1 | BC1_UNORM: 1 |
+| _plais | 2 | BC1_UNORM: 2 |
+| _plantbag | 1 | BC1_UNORM: 1 |
+| _plateau | 1 | BC1_UNORM: 1 |
+| _platinum | 1 | BC1_UNORM: 1 |
+| _platypus | 1 | BC1_UNORM: 1 |
+| _play | 9 | BC1_UNORM: 8, BC3_UNORM: 1 |
+| _playablecharacter | 1 | uncompressed_or_unknown: 1 |
+| _player | 1 | BC3_UNORM: 1 |
+| _please | 1 | BC1_UNORM: 1 |
+| _plover | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _plug | 1 | BC3_UNORM: 1 |
+| _pocket | 6 | BC3_UNORM: 6 |
+| _poison | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _poisonflower | 1 | BC1_UNORM: 1 |
+| _poisonimmune | 1 | BC1_UNORM: 1 |
+| _poisonresistance | 1 | BC3_UNORM: 1 |
+| _pollutedland | 1 | BC1_UNORM: 1 |
+| _pool | 1 | BC1_UNORM: 1 |
+| _poop | 3 | BC3_UNORM: 3 |
+| _poppy | 1 | BC3_UNORM: 1 |
+| _porcelain | 1 | BC3_UNORM: 1 |
+| _porcupine | 1 | BC1_UNORM: 1 |
+| _pork | 1 | BC3_UNORM: 1 |
+| _pororin | 1 | BC3_UNORM: 1 |
+| _pororinresearch | 1 | BC1_UNORM: 1 |
+| _pororinvillage | 1 | BC1_UNORM: 1 |
+| _porphet | 1 | BC3_UNORM: 1 |
+| _porridge | 12 | BC1_UNORM: 11, BC3_UNORM: 1 |
+| _port | 2 | BC3_UNORM: 2 |
+| _portrait | 1 | BC1_UNORM: 1 |
+| _possum | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _post | 5 | BC1_UNORM: 5 |
+| _pot | 7 | BC1_UNORM: 1, BC3_UNORM: 6 |
+| _pot01 | 2 | BC1_UNORM: 2 |
+| _potato | 2 | BC1_UNORM: 2 |
+| _potion | 9 | BC3_UNORM: 9 |
+| _potonehandsword | 1 | BC1_UNORM: 1 |
+| _potsoldier | 1 | BC1_UNORM: 1 |
+| _potter | 1 | BC1_UNORM: 1 |
+| _pottwohandspear | 1 | BC1_UNORM: 1 |
+| _potwarrior | 1 | BC1_UNORM: 1 |
+| _pouch | 1 | BC3_UNORM: 1 |
+| _powder | 3 | BC3_UNORM: 3 |
+| _power | 1 | BC3_UNORM: 1 |
+| _powerup | 1 | BC3_UNORM: 1 |
+| _praevus | 3 | BC1_UNORM: 3 |
+| _preawakening | 1 | BC1_UNORM: 1 |
+| _precipice | 1 | BC1_UNORM: 1 |
+| _present | 1 | BC1_UNORM: 1 |
+| _primus | 2 | BC1_UNORM: 2 |
+| _priscus | 3 | BC1_UNORM: 3 |
+| _prison | 2 | BC1_UNORM: 2 |
+| _prisonkey | 1 | BC3_UNORM: 1 |
+| _process | 1 | BC1_UNORM: 1 |
+| _proclamation | 1 | BC1_UNORM: 1 |
+| _product | 1 | BC1_UNORM: 1 |
+| _progress | 3 | BC1_UNORM: 3 |
+| _pronghorndeer | 1 | BC1_UNORM: 1 |
+| _protectsword | 1 | BC1_UNORM: 1 |
+| _ps | 2 | BC3_UNORM: 2 |
+| _pub | 1 | BC3_UNORM: 1 |
+| _puddle | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _puma | 1 | BC1_UNORM: 1 |
+| _pumpkin | 1 | BC1_UNORM: 1 |
+| _punch | 1 | BC1_UNORM: 1 |
+| _purewhitebion | 1 | BC1_UNORM: 1 |
+| _purification | 1 | BC1_UNORM: 1 |
+| _purifier | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _puroki | 1 | BC3_UNORM: 1 |
+| _purple | 1 | BC3_UNORM: 1 |
+| _push | 1 | BC3_UNORM: 1 |
+| _pushkick | 1 | BC1_UNORM: 1 |
+| _puzzle | 6 | BC1_UNORM: 6 |
+| _pywel | 1 | BC1_UNORM: 1 |
+| _q | 19 | BC3_UNORM: 19 |
+| _qayar | 1 | BC1_UNORM: 1 |
+| _quack | 2 | BC1_UNORM: 2 |
+| _quarry | 7 | BC1_UNORM: 5, BC3_UNORM: 2 |
+| _quarryprisonkey | 1 | BC3_UNORM: 1 |
+| _queen | 1 | BC1_UNORM: 1 |
+| _queenspider | 2 | BC1_UNORM: 2 |
+| _queenstonebackcrab | 1 | BC1_UNORM: 1 |
+| _quentin | 1 | BC1_UNORM: 1 |
+| _quest | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _questionmark | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _questionwoman | 1 | BC3_UNORM: 1 |
+| _queststep | 1 | BC3_UNORM: 1 |
+| _quicklearner | 1 | BC3_UNORM: 1 |
+| _quiethouse | 1 | BC1_UNORM: 1 |
+| _quietsnowyshelter | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _r | 1,293 | BC1_UNORM: 2, BC3_UNORM: 174, uncompressed_or_unknown: 1117 |
+| _rabbit | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _rabbitcarrot | 1 | BC1_UNORM: 1 |
+| _race | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _racingstage | 1 | BC1_UNORM: 1 |
+| _racoon | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _radish | 1 | BC1_UNORM: 1 |
+| _radulf | 1 | BC1_UNORM: 1 |
+| _ragingtempest | 2 | BC1_UNORM: 2 |
+| _raine | 1 | BC1_UNORM: 1 |
+| _rainier | 1 | BC1_UNORM: 1 |
+| _rake | 1 | BC3_UNORM: 1 |
+| _rakelin | 1 | BC3_UNORM: 1 |
+| _ranch | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _ranchi | 1 | BC1_UNORM: 1 |
+| _ranching | 1 | BC1_UNORM: 1 |
+| _randel | 1 | BC1_UNORM: 1 |
+| _range | 1 | BC3_UNORM: 1 |
+| _rapier | 1 | BC1_UNORM: 1 |
+| _raptis | 1 | BC1_UNORM: 1 |
+| _rasberry | 1 | BC1_UNORM: 1 |
+| _rat | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _ratko | 1 | BC1_UNORM: 1 |
+| _ratsisdead | 1 | BC3_UNORM: 1 |
+| _rattlesnak | 1 | BC1_UNORM: 1 |
+| _rattlesnake | 4 | BC1_UNORM: 4 |
+| _raul | 1 | BC1_UNORM: 1 |
+| _razorclam | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _re | 1 | BC3_UNORM: 1 |
+| _readytosiegemusket | 1 | BC1_UNORM: 1 |
+| _realhut | 1 | BC1_UNORM: 1 |
+| _receiver1 | 1 | BC1_UNORM: 1 |
+| _receiver2 | 1 | BC1_UNORM: 1 |
+| _recipe | 2 | BC3_UNORM: 2 |
+| _recorder | 1 | BC3_UNORM: 1 |
+| _recordfleet | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _recover | 1 | BC1_UNORM: 1 |
+| _rectangleghost | 1 | BC1_UNORM: 1 |
+| _red | 2 | BC3_UNORM: 2 |
+| _redcrownedcrane | 1 | BC1_UNORM: 1 |
+| _redfish | 1 | BC1_UNORM: 1 |
+| _redfoxtrade | 1 | BC1_UNORM: 1 |
+| _redhorse | 1 | BC3_UNORM: 1 |
+| _redlake | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _redopaleye | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _redorc | 2 | BC1_UNORM: 2 |
+| _redriverpig | 1 | BC1_UNORM: 1 |
+| _redrockfarm | 1 | BC1_UNORM: 1 |
+| _redseaturtle | 1 | BC3_UNORM: 1 |
+| _redsmoke | 1 | BC3_UNORM: 1 |
+| _redstone | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _redtree | 2 | BC3_UNORM: 2 |
+| _reeddevil | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _reeddevilwitness | 1 | BC1_UNORM: 1 |
+| _reedfield | 1 | BC1_UNORM: 1 |
+| _refining | 1 | BC1_UNORM: 1 |
+| _reflection | 2 | BC1_UNORM: 2 |
+| _region | 2 | BC1_UNORM: 1, uncompressed_or_unknown: 1 |
+| _regionmap | 1 | R8_UNORM: 1 |
+| _regionname | 1 | BC1_UNORM: 1 |
+| _reglegoblin | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _reindeer | 3 | BC1_UNORM: 3 |
+| _reishi | 1 | BC1_UNORM: 1 |
+| _relic | 1 | BC1_UNORM: 1 |
+| _religiousfacility | 1 | BC1_UNORM: 1 |
+| _reliquary | 1 | BC3_UNORM: 1 |
+| _remainingenemies | 1 | BC1_UNORM: 1 |
+| _repaircamp | 1 | BC1_UNORM: 1 |
+| _repairkuku | 1 | BC1_UNORM: 1 |
+| _report | 3 | BC1_UNORM: 3 |
+| _reputation | 1 | BC3_UNORM: 1 |
+| _request | 12 | BC1_UNORM: 12 |
+| _requestshai | 1 | BC1_UNORM: 1 |
+| _rescue | 6 | BC1_UNORM: 6 |
+| _rescuee | 1 | BC1_UNORM: 1 |
+| _rescuepailuneleader | 3 | BC1_UNORM: 3 |
+| _rescuerefugees | 1 | BC1_UNORM: 1 |
+| _research | 3 | BC1_UNORM: 3 |
+| _researchbasepipe | 1 | BC1_UNORM: 1 |
+| _researching | 1 | BC1_UNORM: 1 |
+| _resentment | 1 | BC3_UNORM: 1 |
+| _residence | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _resistance | 2 | BC1_UNORM: 2 |
+| _respite | 1 | BC1_UNORM: 1 |
+| _restingplaceofdeathcave | 1 | BC1_UNORM: 1 |
+| _restorative | 1 | BC1_UNORM: 1 |
+| _restoringcamp | 1 | BC1_UNORM: 1 |
+| _restorkuku | 1 | BC1_UNORM: 1 |
+| _restplace | 1 | BC1_UNORM: 1 |
+| _retonic | 3 | BC3_UNORM: 3 |
+| _rett | 1 | BC1_UNORM: 1 |
+| _return | 2 | BC1_UNORM: 2 |
+| _returncamp | 1 | BC3_UNORM: 1 |
+| _returntosister | 1 | BC1_UNORM: 1 |
+| _returntrollmaster | 1 | BC1_UNORM: 1 |
+| _reunion | 1 | BC1_UNORM: 1 |
+| _reunioncomplete | 1 | BC3_UNORM: 1 |
+| _reventainwinery | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _revisit | 1 | BC3_UNORM: 1 |
+| _revivalitem | 1 | BC1_UNORM: 1 |
+| _reward | 7 | BC1_UNORM: 6, BC3_UNORM: 1 |
+| _rhett | 2 | BC1_UNORM: 2 |
+| _rhino | 2 | BC1_UNORM: 2 |
+| _rhinocerosbeetle | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _ribentain | 2 | BC1_UNORM: 2 |
+| _ricardo | 1 | BC1_UNORM: 1 |
+| _rice | 1 | BC1_UNORM: 1 |
+| _ricefish | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _richard | 2 | BC1_UNORM: 2 |
+| _richart | 1 | BC1_UNORM: 1 |
+| _rickmore | 1 | BC1_UNORM: 1 |
+| _ride | 1 | BC3_UNORM: 1 |
+| _rider | 1 | BC1_UNORM: 1 |
+| _riders | 7 | BC1_UNORM: 3, BC3_UNORM: 4 |
+| _ridetogether | 1 | BC3_UNORM: 1 |
+| _ridge | 1 | BC1_UNORM: 1 |
+| _ridgepath | 1 | BC1_UNORM: 1 |
+| _rift | 1 | BC1_UNORM: 1 |
+| _right | 3 | BC1_UNORM: 1, BC3_UNORM: 1, uncompressed_or_unknown: 1 |
+| _righteousarrows | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _rightring | 1 | BC3_UNORM: 1 |
+| _rimi | 1 | BC1_UNORM: 1 |
+| _ring | 22 | BC3_UNORM: 22 |
+| _rise | 1 | BC1_UNORM: 1 |
+| _risinglandscape | 1 | BC3_UNORM: 1 |
+| _ritual | 1 | BC1_UNORM: 1 |
+| _riventainmonastery | 1 | BC1_UNORM: 1 |
+| _river | 12 | BC1_UNORM: 10, BC3_UNORM: 2 |
+| _rivermouth | 1 | BC1_UNORM: 1 |
+| _riverruins | 1 | BC1_UNORM: 1 |
+| _riverside | 2 | BC1_UNORM: 2 |
+| _riversource | 1 | BC1_UNORM: 1 |
+| _riverstones | 1 | BC1_UNORM: 1 |
+| _riverterracebanditcamp | 1 | BC1_UNORM: 1 |
+| _riverwardoutpost | 1 | BC1_UNORM: 1 |
+| _road | 1 | BC1_UNORM: 1 |
+| _roaming | 1 | BC3_UNORM: 1 |
+| _roaringsacredbeastcave | 1 | BC1_UNORM: 1 |
+| _roasting | 1 | BC1_UNORM: 1 |
+| _robbingrobbers | 1 | BC1_UNORM: 1 |
+| _roberts | 1 | BC1_UNORM: 1 |
+| _roccahillbanditcamp | 1 | BC1_UNORM: 1 |
+| _rock | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _rock0 | 1 | BC1_UNORM: 1 |
+| _rock1 | 1 | BC1_UNORM: 1 |
+| _rocketengine | 1 | BC1_UNORM: 1 |
+| _rocketpack | 1 | BC3_UNORM: 1 |
+| _rockpapersci | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _rockpoolcluster | 1 | BC1_UNORM: 1 |
+| _rocks | 1 | BC3_UNORM: 1 |
+| _rockscissorpaper | 1 | BC1_UNORM: 1 |
+| _rodbelfishingdock | 1 | BC1_UNORM: 1 |
+| _rodeo | 1 | BC3_UNORM: 1 |
+| _roderic | 1 | BC3_UNORM: 1 |
+| _rodrick | 1 | BC1_UNORM: 1 |
+| _roedeer | 3 | BC1_UNORM: 3 |
+| _roendel | 1 | BC1_UNORM: 1 |
+| _roger | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _roketbag | 1 | BC1_UNORM: 1 |
+| _roland | 1 | BC1_UNORM: 1 |
+| _romeo | 1 | BC1_UNORM: 1 |
+| _romult | 1 | BC3_UNORM: 1 |
+| _ronald | 1 | BC1_UNORM: 1 |
+| _ronan | 1 | BC1_UNORM: 1 |
+| _ronhardt | 1 | BC1_UNORM: 1 |
+| _ronnie | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _roof | 3 | BC1_UNORM: 3 |
+| _rooster | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _root | 2 | BC3_UNORM: 2 |
+| _rootfort | 1 | BC1_UNORM: 1 |
+| _rope | 1 | BC3_UNORM: 1 |
+| _rosemary | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _roseringedparakeet | 1 | BC1_UNORM: 1 |
+| _rotationbash | 1 | BC1_UNORM: 1 |
+| _roundmask | 1 | BC1_UNORM: 1 |
+| _royalsupply | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _royaltomb | 1 | BC1_UNORM: 1 |
+| _roza | 1 | BC1_UNORM: 1 |
+| _rubber | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _ruby | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _ruddyshelduck | 1 | BC1_UNORM: 1 |
+| _ruffians | 1 | BC1_UNORM: 1 |
+| _ruffiansii | 1 | BC1_UNORM: 1 |
+| _rufusvenmort | 1 | BC1_UNORM: 1 |
+| _ruin | 1 | BC3_UNORM: 1 |
+| _ruinii | 1 | BC1_UNORM: 1 |
+| _ruins | 28 | BC1_UNORM: 19, BC3_UNORM: 9 |
+| _ruinssecret | 1 | BC1_UNORM: 1 |
+| _ruknadin | 1 | BC1_UNORM: 1 |
+| _rumor | 1 | BC1_UNORM: 1 |
+| _rumsxovillage | 1 | BC1_UNORM: 1 |
+| _run | 1 | BC3_UNORM: 1 |
+| _runaway | 1 | BC1_UNORM: 1 |
+| _runawaygirl | 1 | BC1_UNORM: 1 |
+| _runawayhorse | 2 | BC1_UNORM: 2 |
+| _rune | 1 | BC1_UNORM: 1 |
+| _rupert | 1 | BC1_UNORM: 1 |
+| _rus | 4 | BC3_UNORM: 4 |
+| _rush | 2 | BC1_UNORM: 2 |
+| _russo | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _rust | 1 | BC1_UNORM: 1 |
+| _ryan | 2 | BC1_UNORM: 2 |
+| _rye | 1 | BC3_UNORM: 1 |
+| _rylan | 1 | BC1_UNORM: 1 |
+| _s | 56 | BC1_UNORM: 1, BC3_UNORM: 55 |
+| _sacellum | 1 | BC1_UNORM: 1 |
+| _sack | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _sacred | 1 | BC1_UNORM: 1 |
+| _sacredobject | 1 | BC1_UNORM: 1 |
+| _sacredtree | 1 | BC1_UNORM: 1 |
+| _sadclown | 1 | BC1_UNORM: 1 |
+| _saddle | 2 | BC3_UNORM: 2 |
+| _saddlecap | 1 | BC1_UNORM: 1 |
+| _saddlemaker | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _saddlewindranch | 1 | BC1_UNORM: 1 |
+| _sadending | 1 | BC1_UNORM: 1 |
+| _safebelt | 1 | BC3_UNORM: 1 |
+| _safecity | 1 | BC1_UNORM: 1 |
+| _safehouse | 2 | BC1_UNORM: 2 |
+| _saferoutetokweiden | 1 | BC1_UNORM: 1 |
+| _safetyfactory | 1 | BC1_UNORM: 1 |
+| _safetywater | 1 | BC1_UNORM: 1 |
+| _sage | 1 | BC1_UNORM: 1 |
+| _sailfish | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _saintheartcave | 1 | BC1_UNORM: 1 |
+| _salamander | 2 | BC1_UNORM: 2 |
+| _salmon | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _salt | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _saltmine | 1 | BC1_UNORM: 1 |
+| _saltstone | 1 | BC3_UNORM: 1 |
+| _saluki | 1 | BC1_UNORM: 1 |
+| _samgyetang | 1 | BC1_UNORM: 1 |
+| _samir | 1 | BC1_UNORM: 1 |
+| _sammy | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _sample | 1 | BC1_UNORM: 1 |
+| _samuel | 3 | BC1_UNORM: 3 |
+| _sanatorium | 2 | BC3_UNORM: 2 |
+| _sanctuary | 1 | BC1_UNORM: 1 |
+| _sanctuaryofthewhiteland | 1 | BC1_UNORM: 1 |
+| _sanctumofabsolution | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _sanctumofatonement | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _sanctumofbenediction | 2 | BC1_UNORM: 2 |
+| _sanctumofdeliverance | 2 | BC1_UNORM: 2 |
+| _sanctumofdevotion | 2 | BC1_UNORM: 2 |
+| _sanctumofexaltation | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _sanctumofexpiation | 2 | BC1_UNORM: 2 |
+| _sanctumofmortification | 1 | BC1_UNORM: 1 |
+| _sanctumofpenitence | 2 | BC1_UNORM: 2 |
+| _sanctumofrenunciation | 2 | BC1_UNORM: 2 |
+| _sanctumofrevelation | 2 | BC1_UNORM: 2 |
+| _sanctumofsolace | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _sanctumoftemperance | 2 | BC1_UNORM: 2 |
+| _sanctumofveneration | 2 | BC1_UNORM: 2 |
+| _sandcrawler | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _sandsages | 1 | BC1_UNORM: 1 |
+| _sandstones | 2 | BC1_UNORM: 2 |
+| _sandtopia | 1 | BC1_UNORM: 1 |
+| _sandwich | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _sanjeok | 5 | BC1_UNORM: 5 |
+| _santuary | 1 | BC1_UNORM: 1 |
+| _sap | 1 | BC3_UNORM: 1 |
+| _sauce | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _sausage | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _savewhitecrow | 1 | BC1_UNORM: 1 |
+| _saw | 1 | BC3_UNORM: 1 |
+| _scale | 1 | BC3_UNORM: 1 |
+| _scalesofvitality | 1 | BC1_UNORM: 1 |
+| _scar | 3 | BC3_UNORM: 3 |
+| _scarecrow | 1 | BC1_UNORM: 1 |
+| _scaredmercenary | 1 | BC1_UNORM: 1 |
+| _scenario | 1 | BC1_UNORM: 1 |
+| _schedule | 1 | BC3_UNORM: 1 |
+| _schneider | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _scholarstoneinstitute | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _scholarstoneresearch | 1 | BC1_UNORM: 1 |
+| _scholastone | 1 | BC1_UNORM: 1 |
+| _scholastoneinstitute | 1 | BC1_UNORM: 1 |
+| _schooltower | 2 | BC3_UNORM: 2 |
+| _schweinhaksen | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _scolastone | 1 | BC3_UNORM: 1 |
+| _scolt | 1 | BC1_UNORM: 1 |
+| _scoopingpoop | 1 | BC1_UNORM: 1 |
+| _scorpion | 1 | BC1_UNORM: 1 |
+| _scout | 1 | BC1_UNORM: 1 |
+| _scoutfrommariuslv2 | 1 | BC1_UNORM: 1 |
+| _scoutfrommariuslv3 | 1 | BC1_UNORM: 1 |
+| _scoutfrommariuslv4 | 1 | BC1_UNORM: 1 |
+| _scrapyard | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _scratch | 1 | BC1_UNORM: 1 |
+| _scroll | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _sculptorletter | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _scythe | 3 | BC3_UNORM: 3 |
+| _sea | 1 | BC1_UNORM: 1 |
+| _seabream | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _seagull | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _seahorse | 1 | BC1_UNORM: 1 |
+| _seal | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _seamless | 1 | BC1_UNORM: 1 |
+| _search | 3 | BC1_UNORM: 3 |
+| _searchjijeongta | 1 | BC1_UNORM: 1 |
+| _searchstart | 1 | BC1_UNORM: 1 |
+| _searchtradebook | 1 | BC1_UNORM: 1 |
+| _seaweed0 | 1 | BC1_UNORM: 1 |
+| _sebastian | 1 | BC1_UNORM: 1 |
+| _sebastianmemo | 1 | BC1_UNORM: 1 |
+| _secondkickout | 1 | BC3_UNORM: 1 |
+| _secondmeet | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _secretbasefuelpipe | 1 | BC1_UNORM: 1 |
+| _secretdocument | 1 | BC1_UNORM: 1 |
+| _secretfishingrod | 1 | BC1_UNORM: 1 |
+| _secretgarden | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _secretnight | 1 | BC1_UNORM: 1 |
+| _secretroad | 1 | BC1_UNORM: 1 |
+| _secretsip | 1 | BC1_UNORM: 1 |
+| _secrettoken | 1 | BC1_UNORM: 1 |
+| _seed | 26 | BC3_UNORM: 26 |
+| _select | 1 | BC1_UNORM: 1 |
+| _selester | 1 | BC1_UNORM: 1 |
+| _sell | 1 | BC3_UNORM: 1 |
+| _selltoblack | 1 | BC1_UNORM: 1 |
+| _senia | 1 | BC3_UNORM: 1 |
+| _seniavillage | 1 | BC1_UNORM: 1 |
+| _seonangdang | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _seotda | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _sequoiaforest | 1 | BC1_UNORM: 1 |
+| _seratien | 1 | BC1_UNORM: 1 |
+| _serillius | 1 | BC3_UNORM: 1 |
+| _serkis | 4 | BC1_UNORM: 4 |
+| _serkisgift | 1 | BC1_UNORM: 1 |
+| _serkisrequest | 1 | BC3_UNORM: 1 |
+| _serpentscalecave | 1 | BC1_UNORM: 1 |
+| _set02 | 1 | BC1_UNORM: 1 |
+| _set02a | 1 | BC1_UNORM: 1 |
+| _set05 | 1 | BC1_UNORM: 1 |
+| _set06 | 1 | BC1_UNORM: 1 |
+| _set07 | 1 | BC1_UNORM: 1 |
+| _setting01 | 1 | BC3_UNORM: 1 |
+| _setting02 | 1 | BC3_UNORM: 1 |
+| _setting03 | 1 | BC3_UNORM: 1 |
+| _setting04 | 1 | BC3_UNORM: 1 |
+| _setting05 | 1 | BC3_UNORM: 1 |
+| _setting06 | 1 | BC3_UNORM: 1 |
+| _setting07 | 1 | BC3_UNORM: 1 |
+| _setting08 | 1 | BC3_UNORM: 1 |
+| _setting09 | 1 | BC3_UNORM: 1 |
+| _setting10 | 1 | BC3_UNORM: 1 |
+| _sevengill | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _sewer | 1 | BC1_UNORM: 1 |
+| _shadow | 2 | BC1_UNORM: 2 |
+| _shadowcliffwatchcamp | 1 | BC1_UNORM: 1 |
+| _shadowdeepforest | 1 | BC1_UNORM: 1 |
+| _shadowforestbanditcamp | 1 | BC1_UNORM: 1 |
+| _shadowheartcave | 1 | BC1_UNORM: 1 |
+| _shadowtemple | 3 | BC1_UNORM: 3 |
+| _shadowwolfcave | 1 | BC1_UNORM: 1 |
+| _shai | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _shakatu | 2 | BC1_UNORM: 2 |
+| _shakatuletter | 1 | BC1_UNORM: 1 |
+| _shane | 2 | BC1_UNORM: 2 |
+| _sharefarm | 1 | BC1_UNORM: 1 |
+| _sheep | 3 | BC1_UNORM: 3 |
+| _sheepschedule | 1 | BC3_UNORM: 1 |
+| _sheepthief | 1 | BC3_UNORM: 1 |
+| _shell | 1 | BC3_UNORM: 1 |
+| _shelter | 1 | BC1_UNORM: 1 |
+| _shepherd | 1 | BC1_UNORM: 1 |
+| _shield | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _shieldcastle | 1 | BC3_UNORM: 1 |
+| _shieldglider | 1 | BC3_UNORM: 1 |
+| _shieldlanford | 1 | BC1_UNORM: 1 |
+| _shiitake | 1 | BC1_UNORM: 1 |
+| _shiora | 1 | BC1_UNORM: 1 |
+| _ship | 1 | BC1_UNORM: 1 |
+| _shipandtomb | 2 | BC3_UNORM: 2 |
+| _shipplant | 1 | BC1_UNORM: 1 |
+| _shirg | 1 | BC1_UNORM: 1 |
+| _sho | 1 | BC1_UNORM: 1 |
+| _shocked | 1 | BC1_UNORM: 1 |
+| _shoes | 4 | BC3_UNORM: 4 |
+| _shop | 1 | BC1_UNORM: 1 |
+| _shopfriend | 1 | BC1_UNORM: 1 |
+| _shore | 1 | BC1_UNORM: 1 |
+| _shot | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _shovel | 1 | BC3_UNORM: 1 |
+| _shrimp | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _shrine | 1 | BC1_UNORM: 1 |
+| _sickle | 1 | BC3_UNORM: 1 |
+| _side | 3 | BC1_UNORM: 3 |
+| _sidecontract | 1 | BC1_UNORM: 1 |
+| _sidekick | 1 | BC1_UNORM: 1 |
+| _siege | 1 | BC1_UNORM: 1 |
+| _siegetower | 2 | BC1_UNORM: 2 |
+| _siegeweaponplant | 1 | BC1_UNORM: 1 |
+| _sightingstory | 1 | BC3_UNORM: 1 |
+| _silentcave | 1 | BC1_UNORM: 1 |
+| _silk | 2 | BC3_UNORM: 2 |
+| _silvan | 1 | BC1_UNORM: 1 |
+| _silver | 5 | BC3_UNORM: 5 |
+| _silverbar | 1 | BC3_UNORM: 1 |
+| _silverfangs | 2 | BC1_UNORM: 2 |
+| _silverfangswolf | 1 | BC1_UNORM: 1 |
+| _silvermoonhq | 1 | BC1_UNORM: 1 |
+| _silverore | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _silvervenomspikecave | 1 | BC1_UNORM: 1 |
+| _similarheart | 1 | BC1_UNORM: 1 |
+| _simon | 2 | BC1_UNORM: 2 |
+| _simple | 1 | BC3_UNORM: 1 |
+| _simplenoise | 1 | BC1_UNORM: 1 |
+| _singijeon | 1 | BC1_UNORM: 1 |
+| _sinkhole | 1 | BC1_UNORM: 1 |
+| _sinseollo | 1 | BC1_UNORM: 1 |
+| _sirvan | 1 | BC3_UNORM: 1 |
+| _site | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _situation | 5 | BC1_UNORM: 5 |
+| _sizlektheinsatiable | 2 | BC1_UNORM: 2 |
+| _sjh | 25 | BC1_UNORM: 8, BC3_UNORM: 17 |
+| _skaldar | 1 | BC1_UNORM: 1 |
+| _skill | 1 | BC1_UNORM: 1 |
+| _skillcomboshot | 1 | BC3_UNORM: 1 |
+| _skilldropkick | 1 | BC3_UNORM: 1 |
+| _skillforwardslash | 1 | BC1_UNORM: 1 |
+| _skillgiantswing | 1 | BC3_UNORM: 1 |
+| _skilljumpover | 1 | BC1_UNORM: 1 |
+| _skillmultishot | 1 | BC3_UNORM: 1 |
+| _skillpreciseaimshot | 1 | BC1_UNORM: 1 |
+| _skillquickrotationbash | 1 | BC1_UNORM: 1 |
+| _skillreflact | 1 | BC3_UNORM: 1 |
+| _skillstampkick | 1 | BC1_UNORM: 1 |
+| _skillturnslash | 1 | BC1_UNORM: 1 |
+| _skillupgrade | 1 | BC3_UNORM: 1 |
+| _skillwhirlwindshot | 1 | BC3_UNORM: 1 |
+| _skillwindchargingshot | 1 | BC3_UNORM: 1 |
+| _skint | 1 | BC1_UNORM: 1 |
+| _skirmish | 1 | BC1_UNORM: 1 |
+| _skoghorn | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _skoghornranch | 1 | BC1_UNORM: 1 |
+| _skrupp | 1 | BC1_UNORM: 1 |
+| _skullknight | 2 | BC1_UNORM: 2 |
+| _skullnight | 1 | BC1_UNORM: 1 |
+| _skullstonetotem | 1 | BC1_UNORM: 1 |
+| _skunk | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _skunky | 1 | BC1_UNORM: 1 |
+| _skyblue | 1 | BC3_UNORM: 1 |
+| _skybox | 1 | BC1_UNORM: 1 |
+| _skycastle | 1 | BC1_UNORM: 1 |
+| _skyfragment | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _skyloopbridge | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _skypillars | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _skyrest | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _slantedfishingdock | 1 | BC1_UNORM: 1 |
+| _slater | 1 | BC1_UNORM: 1 |
+| _slavecamp | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _sleepingwolves | 1 | BC3_UNORM: 1 |
+| _slide | 1 | BC3_UNORM: 1 |
+| _slink | 1 | BC1_UNORM: 1 |
+| _slope | 6 | BC1_UNORM: 6 |
+| _slum | 1 | BC1_UNORM: 1 |
+| _slumi | 1 | BC1_UNORM: 1 |
+| _slumii | 1 | BC1_UNORM: 1 |
+| _slywick | 1 | BC1_UNORM: 1 |
+| _small | 5 | BC3_UNORM: 5 |
+| _smallscalegroupmap | 1 | uncompressed_or_unknown: 1 |
+| _smh | 127 | BC1_UNORM: 17, BC3_UNORM: 110 |
+| _smith | 1 | BC3_UNORM: 1 |
+| _smithy | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _smoke | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _smoke01a | 1 | BC3_UNORM: 1 |
+| _smore | 1 | BC1_UNORM: 1 |
+| _smuggler | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _snacktime | 1 | BC1_UNORM: 1 |
+| _snail | 1 | BC1_UNORM: 1 |
+| _snake | 1 | BC3_UNORM: 1 |
+| _snakeheadstone | 2 | BC1_UNORM: 2 |
+| _snakehunter | 1 | BC1_UNORM: 1 |
+| _snakepath | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _snaketailgate | 1 | BC1_UNORM: 1 |
+| _snapdragon | 1 | BC3_UNORM: 1 |
+| _snapper | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _snappingturtle | 1 | BC1_UNORM: 1 |
+| _sniks | 1 | BC1_UNORM: 1 |
+| _snow | 1 | BC1_UNORM: 1 |
+| _snowrabbit | 1 | BC1_UNORM: 1 |
+| _snowstormcave | 1 | BC1_UNORM: 1 |
+| _socket | 10 | BC1_UNORM: 10 |
+| _soket | 13 | BC1_UNORM: 13 |
+| _solan | 1 | BC1_UNORM: 1 |
+| _soldiers | 2 | BC1_UNORM: 2 |
+| _sole | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _solham | 1 | BC1_UNORM: 1 |
+| _solidmazul | 1 | BC1_UNORM: 1 |
+| _sorcerer | 1 | BC1_UNORM: 1 |
+| _soreta | 1 | BC3_UNORM: 1 |
+| _sotdae | 1 | BC1_UNORM: 1 |
+| _soulofthewarriorcave | 1 | BC1_UNORM: 1 |
+| _souls | 1 | BC1_UNORM: 1 |
+| _soup | 10 | BC1_UNORM: 9, BC3_UNORM: 1 |
+| _source | 1 | BC1_UNORM: 1 |
+| _southdemenissgate | 1 | BC1_UNORM: 1 |
+| _southeastwell | 1 | BC1_UNORM: 1 |
+| _southerndeepforestcamp | 1 | BC1_UNORM: 1 |
+| _southernquarry | 1 | BC1_UNORM: 1 |
+| _southgreymanetemple | 2 | BC3_UNORM: 2 |
+| _southwestwell | 1 | BC1_UNORM: 1 |
+| _sp | 78,451 | BC1_UNORM: 78444, BC3_UNORM: 4, uncompressed_or_unknown: 3 |
+| _sp10 | 1 | BC3_UNORM: 1 |
+| _sp3 | 2 | BC3_UNORM: 2 |
+| _sp30 | 1 | BC3_UNORM: 1 |
+| _spagetti | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _sparrow | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _spear | 7 | BC1_UNORM: 5, BC3_UNORM: 2 |
+| _spearmaker | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _spearsendstation | 1 | BC1_UNORM: 1 |
+| _special | 2 | BC3_UNORM: 2 |
+| _specialweapon | 1 | BC1_UNORM: 1 |
+| _speech | 1 | BC1_UNORM: 1 |
+| _sphere | 2 | BC3_UNORM: 1, uncompressed_or_unknown: 1 |
+| _spider | 11 | BC1_UNORM: 10, BC3_UNORM: 1 |
+| _spidercastle | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _spideregg | 1 | BC3_UNORM: 1 |
+| _spiderperfume | 1 | BC3_UNORM: 1 |
+| _spiderpoison | 1 | BC1_UNORM: 1 |
+| _spiderqueen | 1 | BC1_UNORM: 1 |
+| _spiderwebgloves | 1 | BC3_UNORM: 1 |
+| _spiderwebshoes | 1 | BC3_UNORM: 1 |
+| _spinningtop | 1 | BC1_UNORM: 1 |
+| _spinstone | 1 | BC1_UNORM: 1 |
+| _spireoflostages | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _spireofringingtruth | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _spireofruination | 1 | BC1_UNORM: 1 |
+| _spireofthestars | 2 | BC3_UNORM: 2 |
+| _spiro | 1 | BC1_UNORM: 1 |
+| _spixsmacaw | 1 | BC1_UNORM: 1 |
+| _splithornguard | 1 | BC1_UNORM: 1 |
+| _spoon | 1 | BC3_UNORM: 1 |
+| _spoonbill | 1 | BC1_UNORM: 1 |
+| _spot | 1 | BC1_UNORM: 1 |
+| _sprainedankle | 1 | BC1_UNORM: 1 |
+| _springtidewatermill | 1 | BC1_UNORM: 1 |
+| _squid | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _squirrel | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _src | 1 | BC1_UNORM: 1 |
+| _ssogari | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _stable | 2 | BC3_UNORM: 2 |
+| _staen | 1 | BC1_UNORM: 1 |
+| _staff | 1 | BC3_UNORM: 1 |
+| _stag | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _stamina | 3 | BC3_UNORM: 3 |
+| _standstone | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _starfish | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _starlightcave | 1 | BC1_UNORM: 1 |
+| _starlightstormcave | 1 | BC1_UNORM: 1 |
+| _start | 218 | BC1_UNORM: 216, BC3_UNORM: 2 |
+| _start1 | 1 | BC1_UNORM: 1 |
+| _startiii | 1 | BC1_UNORM: 1 |
+| _startpilgrimage | 1 | BC1_UNORM: 1 |
+| _station | 12 | BC1_UNORM: 9, BC3_UNORM: 3 |
+| _statscrime | 1 | BC3_UNORM: 1 |
+| _statsmp | 1 | BC3_UNORM: 1 |
+| _statsstamina | 1 | BC3_UNORM: 1 |
+| _statue | 7 | BC1_UNORM: 4, BC3_UNORM: 3 |
+| _statue1 | 1 | BC1_UNORM: 1 |
+| _statue2 | 1 | BC1_UNORM: 1 |
+| _statue3 | 1 | BC1_UNORM: 1 |
+| _statueconstruction | 4 | BC1_UNORM: 4 |
+| _steak | 1 | BC1_UNORM: 1 |
+| _steel | 1 | BC1_UNORM: 1 |
+| _steelcrest | 1 | BC1_UNORM: 1 |
+| _steelmillescape | 2 | BC1_UNORM: 2 |
+| _steelmountainscamp | 1 | BC1_UNORM: 1 |
+| _steelsail | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _stefanbleed | 1 | BC1_UNORM: 1 |
+| _steinnfellbarracks | 1 | BC1_UNORM: 1 |
+| _steinnfellfortress | 1 | BC1_UNORM: 1 |
+| _stephen | 1 | BC1_UNORM: 1 |
+| _steppe | 1 | BC1_UNORM: 1 |
+| _sterna | 1 | BC1_UNORM: 1 |
+| _stew | 1 | BC1_UNORM: 1 |
+| _stick | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _stirrup | 2 | BC3_UNORM: 2 |
+| _stjarruins | 1 | BC1_UNORM: 1 |
+| _stompsandcamp | 1 | BC1_UNORM: 1 |
+| _stompsandfortruins | 1 | BC1_UNORM: 1 |
+| _stone | 14 | BC1_UNORM: 4, BC3_UNORM: 10 |
+| _stone0 | 1 | BC1_UNORM: 1 |
+| _stone01 | 1 | BC1_UNORM: 1 |
+| _stone01a | 1 | BC1_UNORM: 1 |
+| _stone02 | 1 | BC1_UNORM: 1 |
+| _stone1 | 1 | BC1_UNORM: 1 |
+| _stonearmor | 1 | BC3_UNORM: 1 |
+| _stonecrackruins | 1 | BC1_UNORM: 1 |
+| _stonefell | 1 | BC1_UNORM: 1 |
+| _stoneowl | 1 | BC3_UNORM: 1 |
+| _stoneshop | 1 | BC1_UNORM: 1 |
+| _stonetowervillage | 1 | BC1_UNORM: 1 |
+| _stopraining | 1 | BC3_UNORM: 1 |
+| _storage | 1 | BC1_UNORM: 1 |
+| _storagebox | 1 | BC3_UNORM: 1 |
+| _stornworm | 1 | BC1_UNORM: 1 |
+| _storycliffvillage | 1 | BC3_UNORM: 1 |
+| _strangedrug | 1 | BC3_UNORM: 1 |
+| _strangetower | 1 | BC3_UNORM: 1 |
+| _strangetradebook | 1 | BC1_UNORM: 1 |
+| _strategy | 1 | BC3_UNORM: 1 |
+| _straw | 1 | BC1_UNORM: 1 |
+| _strawberry | 1 | BC1_UNORM: 1 |
+| _streamsky | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _street | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _strength | 2 | BC1_UNORM: 2 |
+| _strengthening | 1 | BC1_UNORM: 1 |
+| _strokes | 1 | uncompressed_or_unknown: 1 |
+| _stronghold | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _strongsteed | 1 | BC1_UNORM: 1 |
+| _studentfriend | 2 | BC3_UNORM: 2 |
+| _studyshai | 1 | BC1_UNORM: 1 |
+| _stun | 1 | BC3_UNORM: 1 |
+| _sturgeon | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _sub | 1 | BC1_UNORM: 1 |
+| _subnode | 22 | BC1_UNORM: 22 |
+| _subquest | 1 | BC3_UNORM: 1 |
+| _substory | 16 | BC1_UNORM: 16 |
+| _substory1 | 1 | BC1_UNORM: 1 |
+| _substory512 | 1 | BC1_UNORM: 1 |
+| _subsurface | 799 | BC1_UNORM: 799 |
+| _subtract | 2 | BC1_UNORM: 2 |
+| _suddenguest | 1 | BC1_UNORM: 1 |
+| _sugar | 1 | BC3_UNORM: 1 |
+| _sulfur | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _sulfurfield | 2 | BC1_UNORM: 2 |
+| _sulfurhyenaboss | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _sulfurstone | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _summithostage | 1 | BC1_UNORM: 1 |
+| _summone | 1 | BC1_UNORM: 1 |
+| _summonmerchant | 1 | BC3_UNORM: 1 |
+| _sunconure | 1 | BC1_UNORM: 1 |
+| _sungatecave | 1 | BC1_UNORM: 1 |
+| _sunriseplainbanditcamp | 1 | BC1_UNORM: 1 |
+| _suntower | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _supercarrot | 1 | BC3_UNORM: 1 |
+| _superskill | 1 | BC3_UNORM: 1 |
+| _supply | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _supplydepot | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _supplydestroy | 1 | BC1_UNORM: 1 |
+| _supportodeck | 1 | BC1_UNORM: 1 |
+| _surpriseattack | 1 | BC1_UNORM: 1 |
+| _surprisegift | 1 | BC1_UNORM: 1 |
+| _surround | 16 | BC1_UNORM: 16 |
+| _survivalstruggle | 1 | BC1_UNORM: 1 |
+| _survivors | 1 | BC3_UNORM: 1 |
+| _sutda | 1 | BC1_UNORM: 1 |
+| _sven | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _swamp | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _swampfishingdock | 1 | BC1_UNORM: 1 |
+| _swampworm | 1 | BC1_UNORM: 1 |
+| _sweethalt | 1 | BC1_UNORM: 1 |
+| _sweetpotato | 1 | BC1_UNORM: 1 |
+| _sword | 6 | BC1_UNORM: 1, BC3_UNORM: 5 |
+| _symbol | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _syrrhaptesparadoxus | 1 | BC1_UNORM: 1 |
+| _t | 40 | BC3_UNORM: 40 |
+| _tail | 1 | BC3_UNORM: 1 |
+| _taitan | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _takahe | 1 | BC1_UNORM: 1 |
+| _talk | 6 | BC1_UNORM: 6 |
+| _talk2 | 1 | BC1_UNORM: 1 |
+| _talkcaliburn | 1 | BC1_UNORM: 1 |
+| _talmar | 1 | BC3_UNORM: 1 |
+| _talon | 2 | BC3_UNORM: 2 |
+| _tamers | 1 | BC1_UNORM: 1 |
+| _tank | 3 | BC1_UNORM: 3 |
+| _tankfactory | 2 | BC3_UNORM: 2 |
+| _tankplant | 1 | BC1_UNORM: 1 |
+| _tanya | 1 | BC1_UNORM: 1 |
+| _tarandus | 1 | BC1_UNORM: 1 |
+| _tarandustheashen | 2 | BC1_UNORM: 2 |
+| _tarantula | 1 | BC1_UNORM: 1 |
+| _taren | 1 | BC1_UNORM: 1 |
+| _target | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _tariv | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _tarmol | 1 | BC1_UNORM: 1 |
+| _taro | 1 | BC1_UNORM: 1 |
+| _tart | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _tartare | 1 | BC1_UNORM: 1 |
+| _tashkalp | 2 | BC1_UNORM: 2 |
+| _taxinspector | 1 | BC1_UNORM: 1 |
+| _tb | 46 | BC1_UNORM: 40, BC3_UNORM: 6 |
+| _tea | 11 | BC1_UNORM: 6, BC3_UNORM: 5 |
+| _teal | 1 | BC1_UNORM: 1 |
+| _temp | 2 | BC3_UNORM: 2 |
+| _temperaturesystem | 1 | BC3_UNORM: 1 |
+| _temple | 11 | BC1_UNORM: 7, BC3_UNORM: 4 |
+| _temporaryshelter | 1 | BC3_UNORM: 1 |
+| _tench | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _terinand | 1 | BC1_UNORM: 1 |
+| _terraces | 1 | BC1_UNORM: 1 |
+| _territory | 5 | BC1_UNORM: 5 |
+| _terry | 1 | BC1_UNORM: 1 |
+| _tess | 1 | BC1_UNORM: 1 |
+| _test | 5 | BC1_UNORM: 5 |
+| _test02 | 1 | BC1_UNORM: 1 |
+| _test03 | 1 | BC1_UNORM: 1 |
+| _test04 | 1 | BC1_UNORM: 1 |
+| _test05 | 1 | BC1_UNORM: 1 |
+| _test06 | 1 | BC1_UNORM: 1 |
+| _test07 | 1 | BC1_UNORM: 1 |
+| _testament | 1 | BC1_UNORM: 1 |
+| _testicon | 1 | BC1_UNORM: 1 |
+| _testuv | 1 | BC1_UNORM: 1 |
+| _testway | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _tex | 2 | BC3_UNORM: 1, uncompressed_or_unknown: 1 |
+| _textinput | 1 | BC3_UNORM: 1 |
+| _texture | 4 | BC1_UNORM: 1, BC3_UNORM: 2, uncompressed_or_unknown: 1 |
+| _tgspopupguide | 1 | BC3_UNORM: 1 |
+| _thalwyndvillage | 1 | BC1_UNORM: 1 |
+| _thanks | 2 | BC1_UNORM: 2 |
+| _thanksdeerkingdead | 1 | BC1_UNORM: 1 |
+| _thankshai | 1 | BC1_UNORM: 1 |
+| _theforgottengeneral | 2 | BC1_UNORM: 2 |
+| _theobald | 1 | BC1_UNORM: 1 |
+| _theoric | 1 | BC1_UNORM: 1 |
+| _thescarletexcecutioner | 2 | BC1_UNORM: 2 |
+| _theuninvited | 1 | BC1_UNORM: 1 |
+| _thibault | 1 | BC1_UNORM: 1 |
+| _thicket | 1 | BC1_UNORM: 1 |
+| _thief | 1 | BC1_UNORM: 1 |
+| _thiefbattle | 1 | BC3_UNORM: 1 |
+| _thiefcave | 1 | BC3_UNORM: 1 |
+| _thiefdusksong | 1 | BC1_UNORM: 1 |
+| _thinkcore | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _thirdkickout | 1 | BC3_UNORM: 1 |
+| _thomas | 2 | BC1_UNORM: 2 |
+| _thompson | 1 | BC1_UNORM: 1 |
+| _thomson | 1 | BC1_UNORM: 1 |
+| _thornbind | 1 | BC1_UNORM: 1 |
+| _thornrosefoodstorage | 1 | BC1_UNORM: 1 |
+| _thornrosefort | 3 | BC1_UNORM: 3 |
+| _thornroseguardpost | 1 | BC1_UNORM: 1 |
+| _thornrosenorthgate | 1 | BC1_UNORM: 1 |
+| _thornroseoutpost | 1 | BC1_UNORM: 1 |
+| _thornroseriversidepost | 1 | BC1_UNORM: 1 |
+| _thornrosesouthgate | 1 | BC1_UNORM: 1 |
+| _thornvine | 1 | BC1_UNORM: 1 |
+| _thrak | 1 | BC1_UNORM: 1 |
+| _thread | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _threat | 3 | BC1_UNORM: 3 |
+| _throk | 1 | BC3_UNORM: 1 |
+| _thryxtheformshaken | 1 | BC1_UNORM: 1 |
+| _ticket | 1 | BC3_UNORM: 1 |
+| _tideboundwalk | 1 | BC1_UNORM: 1 |
+| _tiger | 2 | BC1_UNORM: 2 |
+| _tiled | 1 | BC1_UNORM: 1 |
+| _tilemap | 1 | BC1_UNORM: 1 |
+| _timberhamlumbermill | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _timberton | 2 | BC1_UNORM: 2 |
+| _timmyr | 2 | BC1_UNORM: 2 |
+| _tina | 2 | BC1_UNORM: 2 |
+| _tinore | 1 | BC1_UNORM: 1 |
+| _tintcolormap | 1 | BC1_UNORM: 1 |
+| _tip | 1 | BC3_UNORM: 1 |
+| _titan | 2 | BC1_UNORM: 2 |
+| _title | 1 | BC1_UNORM: 1 |
+| _tn | 20 | BC1_UNORM: 20 |
+| _toad | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _toaust | 1 | BC3_UNORM: 1 |
+| _tobacco | 1 | BC3_UNORM: 1 |
+| _tobias | 1 | BC1_UNORM: 1 |
+| _tobit | 1 | BC1_UNORM: 1 |
+| _tograyfur | 1 | BC3_UNORM: 1 |
+| _tokamak | 1 | BC1_UNORM: 1 |
+| _tolseutein | 1 | BC1_UNORM: 1 |
+| _tolstein | 1 | BC1_UNORM: 1 |
+| _tolsteinguide | 2 | BC1_UNORM: 2 |
+| _tomato | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _tomb | 2 | BC1_UNORM: 2 |
+| _tombofpeace | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _tombs | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _tombsearch | 1 | BC3_UNORM: 1 |
+| _tommaso | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _tonic | 1 | BC3_UNORM: 1 |
+| _toohyoon | 1 | BC3_UNORM: 1 |
+| _tool | 1 | BC3_UNORM: 1 |
+| _tooth | 4 | BC3_UNORM: 4 |
+| _top | 8 | BC1_UNORM: 8 |
+| _topview | 15 | BC3_UNORM: 15 |
+| _topview1 | 3 | BC3_UNORM: 3 |
+| _torch | 1 | BC3_UNORM: 1 |
+| _toren | 1 | BC3_UNORM: 1 |
+| _torgel | 1 | BC1_UNORM: 1 |
+| _torian | 1 | BC1_UNORM: 1 |
+| _torn | 2 | BC1_UNORM: 2 |
+| _tornado | 1 | R8G8B8A8_UNORM: 1 |
+| _torosey | 1 | BC3_UNORM: 1 |
+| _tosophia | 1 | BC3_UNORM: 1 |
+| _tospecialdoor | 1 | BC3_UNORM: 1 |
+| _totemi | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _totemii | 1 | BC1_UNORM: 1 |
+| _tothechurch | 2 | BC1_UNORM: 2 |
+| _tournament | 1 | BC1_UNORM: 1 |
+| _tower | 4 | BC1_UNORM: 2, BC3_UNORM: 2 |
+| _towermeet | 1 | BC1_UNORM: 1 |
+| _towervillage | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _town | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _town1 | 1 | BC1_UNORM: 1 |
+| _tp | 1 | BC5_UNORM: 1 |
+| _tr | 474 | BC1_UNORM: 474 |
+| _traces | 1 | BC1_UNORM: 1 |
+| _tracker | 1 | BC3_UNORM: 1 |
+| _trade | 8 | BC1_UNORM: 5, BC3_UNORM: 3 |
+| _trader | 6 | BC1_UNORM: 6 |
+| _tradestorage | 1 | BC1_UNORM: 1 |
+| _tradingpost | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _train | 1 | BC1_UNORM: 1 |
+| _training | 3 | BC1_UNORM: 3 |
+| _training-area | 1 | BC1_UNORM: 1 |
+| _traitorhanged | 1 | BC1_UNORM: 1 |
+| _tranan | 1 | BC1_UNORM: 1 |
+| _transfer | 1 | BC1_UNORM: 1 |
+| _transmissiontower | 1 | BC1_UNORM: 1 |
+| _trapforest | 1 | BC1_UNORM: 1 |
+| _trapmaker | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _trapvillage | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _treasure | 1 | BC1_UNORM: 1 |
+| _treasurebox | 1 | BC3_UNORM: 1 |
+| _treasureburied | 2 | BC1_UNORM: 2 |
+| _treasuremap | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _tree | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _tree07 | 1 | BC1_UNORM: 1 |
+| _trianglehint | 1 | BC3_UNORM: 1 |
+| _trinket | 1 | BC3_UNORM: 1 |
+| _tristan | 1 | BC1_UNORM: 1 |
+| _tristandragonbane | 1 | BC1_UNORM: 1 |
+| _troll | 2 | BC3_UNORM: 2 |
+| _trolllake | 1 | BC3_UNORM: 1 |
+| _trollmag | 2 | BC1_UNORM: 2 |
+| _trollmap | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _trollpolice | 1 | BC3_UNORM: 1 |
+| _trolltower | 1 | BC1_UNORM: 1 |
+| _trolluniversity | 2 | BC1_UNORM: 2 |
+| _trolluniversity1 | 1 | BC1_UNORM: 1 |
+| _trolluniversity2 | 1 | BC1_UNORM: 1 |
+| _troublemaker | 1 | BC1_UNORM: 1 |
+| _trout | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _trovakcamp | 1 | BC1_UNORM: 1 |
+| _trove | 1 | BC1_UNORM: 1 |
+| _trukan | 1 | BC1_UNORM: 1 |
+| _trust | 2 | BC1_UNORM: 2 |
+| _trustfriend | 1 | BC1_UNORM: 1 |
+| _trustwithboy | 1 | BC3_UNORM: 1 |
+| _truth | 1 | BC1_UNORM: 1 |
+| _truthofrumor | 1 | BC3_UNORM: 1 |
+| _truthroot | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _truththrone | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _tteokbokki | 1 | BC1_UNORM: 1 |
+| _tteokgalbi | 1 | BC1_UNORM: 1 |
+| _tumulus | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _tung | 1 | BC3_UNORM: 1 |
+| _turkey | 1 | BC1_UNORM: 1 |
+| _turnback | 1 | BC1_UNORM: 1 |
+| _turnip | 1 | BC1_UNORM: 1 |
+| _turnuli | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _turret1 | 1 | BC1_UNORM: 1 |
+| _turret2 | 1 | BC1_UNORM: 1 |
+| _turret3 | 1 | BC1_UNORM: 1 |
+| _turtle | 4 | BC1_UNORM: 4 |
+| _tutorial | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _twilightringcave | 1 | BC1_UNORM: 1 |
+| _twistofpoison | 1 | BC1_UNORM: 1 |
+| _twistspace | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _twofaces | 1 | BC3_UNORM: 1 |
+| _twofacespicture | 1 | BC3_UNORM: 1 |
+| _twohandalebard | 4 | BC1_UNORM: 4 |
+| _twohandaxe | 6 | BC1_UNORM: 5, BC3_UNORM: 1 |
+| _twohandcannon | 1 | BC3_UNORM: 1 |
+| _twohandedwarhammer | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _twohandflail | 8 | BC1_UNORM: 1, BC3_UNORM: 7 |
+| _twohandgiantaxe | 3 | BC3_UNORM: 3 |
+| _twohandgiantbastard | 2 | BC3_UNORM: 2 |
+| _twohandgiantcannon | 1 | BC3_UNORM: 1 |
+| _twohandgiantflail | 1 | BC3_UNORM: 1 |
+| _twohandgianthammer | 5 | BC1_UNORM: 1, BC3_UNORM: 4 |
+| _twohandgiantmace | 1 | BC3_UNORM: 1 |
+| _twohandgiantspear | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _twohandgiantwarhammer | 1 | BC3_UNORM: 1 |
+| _twohandhammer | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _twohandmace | 7 | BC1_UNORM: 4, BC3_UNORM: 3 |
+| _twohandspear | 7 | BC1_UNORM: 4, BC3_UNORM: 3 |
+| _twohandstaff | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _twohandsword | 14 | BC1_UNORM: 6, BC3_UNORM: 8 |
+| _twohandwarhammer | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _tylandsia | 1 | BC1_UNORM: 1 |
+| _u | 6 | BC3_UNORM: 6 |
+| _ub | 4 | BC3_UNORM: 4 |
+| _ubhvccfda | 1 | BC1_UNORM: 1 |
+| _ubjuddqda | 1 | BC1_UNORM: 1 |
+| _uchoab3fa | 1 | BC1_UNORM: 1 |
+| _ugmum | 1 | BC1_UNORM: 1 |
+| _ui | 1 | uncompressed_or_unknown: 1 |
+| _ulfgar | 1 | BC1_UNORM: 1 |
+| _umbert | 1 | BC1_UNORM: 1 |
+| _unarmed | 2 | BC1_UNORM: 2 |
+| _unbelievablerumor | 1 | BC1_UNORM: 1 |
+| _uncomfortableending | 1 | BC1_UNORM: 1 |
+| _unconfidentcook | 1 | BC1_UNORM: 1 |
+| _underbardenrequest | 1 | BC1_UNORM: 1 |
+| _underground | 1 | BC1_UNORM: 1 |
+| _underwagon | 1 | BC1_UNORM: 1 |
+| _unexpectedgift | 2 | BC1_UNORM: 2 |
+| _union | 2 | BC1_UNORM: 2 |
+| _university | 1 | BC1_UNORM: 1 |
+| _unknown | 2 | BC3_UNORM: 2 |
+| _unknowncorpse | 1 | BC3_UNORM: 1 |
+| _unpack | 1 | BC3_UNORM: 1 |
+| _up | 1 | uncompressed_or_unknown: 1 |
+| _urdavah | 3 | BC1_UNORM: 3 |
+| _urdavahresearch | 1 | BC1_UNORM: 1 |
+| _usa | 1 | BC1_UNORM: 1 |
+| _uselantern | 1 | BC3_UNORM: 1 |
+| _uselanterntrace | 1 | BC3_UNORM: 1 |
+| _uv1 | 7 | BC1_UNORM: 7 |
+| _uv2 | 7 | BC1_UNORM: 7 |
+| _uv3 | 26 | uncompressed_or_unknown: 26 |
+| _v | 63 | BC1_UNORM: 40, BC3_UNORM: 23 |
+| _v2 | 1 | BC1_UNORM: 1 |
+| _vagueabysscave | 1 | BC1_UNORM: 1 |
+| _valentis | 1 | BC1_UNORM: 1 |
+| _valgash | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _valis | 1 | BC1_UNORM: 1 |
+| _valley | 4 | BC1_UNORM: 4 |
+| _valthus | 1 | BC1_UNORM: 1 |
+| _vanishedmist | 1 | BC1_UNORM: 1 |
+| _vanishwoman | 2 | BC3_UNORM: 2 |
+| _variant | 1 | BC3_UNORM: 1 |
+| _varin | 1 | BC1_UNORM: 1 |
+| _varnia | 9 | BC1_UNORM: 7, BC3_UNORM: 2 |
+| _varniagate | 1 | BC1_UNORM: 1 |
+| _vd | 6 | BC1_UNORM: 6 |
+| _vegetable | 4 | BC1_UNORM: 4 |
+| _vegetablebox | 1 | BC1_UNORM: 1 |
+| _vegetables | 1 | BC1_UNORM: 1 |
+| _vegicracker | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _vegimandu | 1 | BC1_UNORM: 1 |
+| _vegisoup | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _vegitable | 1 | BC3_UNORM: 1 |
+| _vehicle | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _vellua | 2 | BC3_UNORM: 2 |
+| _velluachurchh | 1 | BC1_UNORM: 1 |
+| _velluadocks | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _velluavillage | 1 | BC1_UNORM: 1 |
+| _velos | 1 | BC1_UNORM: 1 |
+| _vengeancedoor | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _vent | 1 | BC1_UNORM: 1 |
+| _vera | 1 | BC1_UNORM: 1 |
+| _vernerhouse | 1 | BC1_UNORM: 1 |
+| _vernon | 1 | BC1_UNORM: 1 |
+| _veronica | 1 | BC1_UNORM: 1 |
+| _vest | 1 | BC1_UNORM: 1 |
+| _vex | 1 | BC1_UNORM: 1 |
+| _vi | 37 | BC1_UNORM: 28, BC3_UNORM: 9 |
+| _victorialis | 1 | BC3_UNORM: 1 |
+| _victoryannouncement | 1 | BC1_UNORM: 1 |
+| _vii | 28 | BC1_UNORM: 19, BC3_UNORM: 9 |
+| _viii | 21 | BC1_UNORM: 13, BC3_UNORM: 8 |
+| _village | 34 | BC1_UNORM: 16, BC3_UNORM: 18 |
+| _villageschedule | 1 | BC3_UNORM: 1 |
+| _villain | 1 | BC1_UNORM: 1 |
+| _vindel | 1 | BC1_UNORM: 1 |
+| _vine | 1 | BC1_UNORM: 1 |
+| _vineddeer | 1 | BC1_UNORM: 1 |
+| _virel | 1 | BC1_UNORM: 1 |
+| _visione | 2 | BC3_UNORM: 2 |
+| _visionereadmemory | 1 | BC1_UNORM: 1 |
+| _visitortocamp | 1 | BC1_UNORM: 1 |
+| _vitality | 1 | BC3_UNORM: 1 |
+| _vittorio | 1 | BC1_UNORM: 1 |
+| _vivian | 1 | BC1_UNORM: 1 |
+| _vordistheformshaken | 1 | BC1_UNORM: 1 |
+| _vrek | 1 | BC1_UNORM: 1 |
+| _vultures | 1 | BC1_UNORM: 1 |
+| _w | 1 | BC3_UNORM: 1 |
+| _wagon | 2 | BC1_UNORM: 2 |
+| _wagoncow | 1 | BC1_UNORM: 1 |
+| _wagonescort | 1 | BC1_UNORM: 1 |
+| _wagonmaker | 1 | BC1_UNORM: 1 |
+| _wagontheft | 2 | BC1_UNORM: 2 |
+| _wait | 2 | BC3_UNORM: 2 |
+| _wakeup | 2 | BC1_UNORM: 2 |
+| _wall | 23 | BC1_UNORM: 23 |
+| _wallet | 2 | BC3_UNORM: 2 |
+| _wallpaper | 2 | BC3_UNORM: 2 |
+| _walter | 1 | BC1_UNORM: 1 |
+| _wand | 1 | BC1_UNORM: 1 |
+| _wanderer | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _wanted | 16 | BC1_UNORM: 14, BC3_UNORM: 2 |
+| _wapiti | 3 | BC1_UNORM: 3 |
+| _war | 1 | BC1_UNORM: 1 |
+| _warehouse | 6 | BC1_UNORM: 3, BC3_UNORM: 3 |
+| _warhammer | 2 | BC3_UNORM: 2 |
+| _warhorse | 1 | BC1_UNORM: 1 |
+| _warmhands | 1 | BC1_UNORM: 1 |
+| _warmthcoldwave | 1 | BC1_UNORM: 1 |
+| _warning | 1 | BC1_UNORM: 1 |
+| _warranty | 1 | BC3_UNORM: 1 |
+| _warren | 1 | BC1_UNORM: 1 |
+| _warrobot | 1 | BC1_UNORM: 1 |
+| _warspikeeastgate | 1 | BC1_UNORM: 1 |
+| _warspikenorthgate | 1 | BC1_UNORM: 1 |
+| _warspikesouthgate | 1 | BC1_UNORM: 1 |
+| _warsuppliesdelivery | 1 | BC1_UNORM: 1 |
+| _wartergate | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _warthog | 1 | BC1_UNORM: 1 |
+| _wastelands | 1 | BC1_UNORM: 1 |
+| _watch | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _watchtower | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+| _watchtowerarea | 1 | BC1_UNORM: 1 |
+| _watchtoweri | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _watchtowerii | 1 | BC1_UNORM: 1 |
+| _water | 2 | BC3_UNORM: 2 |
+| _water0 | 1 | BC1_UNORM: 1 |
+| _water1 | 1 | BC1_UNORM: 1 |
+| _watercabbage | 1 | BC1_UNORM: 1 |
+| _watercock | 1 | BC1_UNORM: 1 |
+| _waterdeer | 1 | BC1_UNORM: 1 |
+| _waterfallfishingdock | 1 | BC1_UNORM: 1 |
+| _waterform | 1 | BC1_UNORM: 1 |
+| _watergate | 1 | BC1_UNORM: 1 |
+| _watermelon | 2 | BC3_UNORM: 2 |
+| _watermelonfarm | 1 | BC1_UNORM: 1 |
+| _waterofferingcave | 1 | BC1_UNORM: 1 |
+| _waterpot | 1 | BC1_UNORM: 1 |
+| _watersource | 3 | BC1_UNORM: 3 |
+| _waterway | 1 | BC1_UNORM: 1 |
+| _wave | 1 | BC1_UNORM: 1 |
+| _waveechocave | 1 | BC1_UNORM: 1 |
+| _weakpoint | 1 | BC3_UNORM: 1 |
+| _weapon | 7 | BC1_UNORM: 2, BC3_UNORM: 5 |
+| _weaponwoolharmony | 1 | BC1_UNORM: 1 |
+| _weasel | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+| _weaving | 1 | BC1_UNORM: 1 |
+| _web | 1 | BC3_UNORM: 1 |
+| _webbed | 1 | BC1_UNORM: 1 |
+| _webmaker | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _well | 1 | BC1_UNORM: 1 |
+| _welloftragedycave | 1 | BC1_UNORM: 1 |
+| _wells | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+| _wellsbrigade | 1 | BC1_UNORM: 1 |
+| _wemblen | 1 | BC1_UNORM: 1 |
+| _westdemenisschurch | 1 | BC1_UNORM: 1 |
+| _westdemenissgate | 1 | BC1_UNORM: 1 |
+| _westgreymanetemple | 2 | BC3_UNORM: 2 |
+| _wetlands | 1 | BC1_UNORM: 1 |
+| _whale | 1 | BC1_UNORM: 1 |
+| _wharf | 3 | BC1_UNORM: 3 |
+| _whatisanamorphic | 1 | BC3_UNORM: 1 |
+| _wheel | 1 | BC3_UNORM: 1 |
+| _whip | 1 | BC3_UNORM: 1 |
+| _whispercliffcave | 1 | BC1_UNORM: 1 |
+| _white | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _whitebear | 3 | BC1_UNORM: 3 |
+| _whitecrocodile | 1 | BC1_UNORM: 1 |
+| _whitecrow | 1 | BC1_UNORM: 1 |
+| _whiteegg | 1 | BC1_UNORM: 1 |
+| _whitehawk | 1 | BC1_UNORM: 1 |
+| _whitehorn | 2 | BC1_UNORM: 2 |
+| _whitehorse | 1 | BC1_UNORM: 1 |
+| _whitelion | 1 | BC1_UNORM: 1 |
+| _whitemountainbanditcamp | 1 | BC1_UNORM: 1 |
+| _whitestone | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _whitetiger | 1 | BC1_UNORM: 1 |
+| _whitewolf | 2 | BC1_UNORM: 2 |
+| _wife | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _wifeheart | 1 | BC1_UNORM: 1 |
+| _wifeletter | 1 | BC1_UNORM: 1 |
+| _wifelunchbox | 1 | BC1_UNORM: 1 |
+| _wifesupport | 1 | BC1_UNORM: 1 |
+| _wild | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _wildhorse | 1 | BC1_UNORM: 1 |
+| _wildhuntcamp | 1 | BC1_UNORM: 1 |
+| _willer | 1 | BC3_UNORM: 1 |
+| _william | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _willian | 1 | BC1_UNORM: 1 |
+| _willkommpost | 1 | BC1_UNORM: 1 |
+| _wilmer | 1 | BC1_UNORM: 1 |
+| _wind | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _windcrestoutpost | 1 | BC1_UNORM: 1 |
+| _windcryhollowcave | 1 | BC1_UNORM: 1 |
+| _windenergy | 1 | BC1_UNORM: 1 |
+| _windmill | 1 | BC1_UNORM: 1 |
+| _windmillconstruction | 2 | BC1_UNORM: 2 |
+| _windpulleyheights | 1 | BC1_UNORM: 1 |
+| _windspear | 1 | BC1_UNORM: 1 |
+| _windstep | 1 | BC1_UNORM: 1 |
+| _windthreadcave | 1 | BC1_UNORM: 1 |
+| _windy | 1 | BC1_UNORM: 1 |
+| _wine | 10 | BC1_UNORM: 7, BC3_UNORM: 3 |
+| _winery | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _winterparadise | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _winterwarmth | 1 | BC1_UNORM: 1 |
+| _wisdom | 2 | BC1_UNORM: 2 |
+| _wisdomtower | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _wish | 1 | BC1_UNORM: 1 |
+| _witch | 17 | BC1_UNORM: 13, BC3_UNORM: 4 |
+| _witchadvice | 1 | BC1_UNORM: 1 |
+| _witchdrouthy | 1 | BC1_UNORM: 1 |
+| _witchdukeanddream | 1 | BC1_UNORM: 1 |
+| _witchgarden | 1 | BC1_UNORM: 1 |
+| _witchhelp | 1 | BC1_UNORM: 1 |
+| _witchhouse | 2 | BC1_UNORM: 2 |
+| _witchmeeting | 1 | BC1_UNORM: 1 |
+| _witchrequest | 2 | BC1_UNORM: 2 |
+| _witchshouse | 1 | BC3_UNORM: 1 |
+| _witchwoods | 1 | BC1_UNORM: 1 |
+| _witness | 2 | BC1_UNORM: 2 |
+| _wjs | 34 | BC1_UNORM: 6, BC3_UNORM: 28 |
+| _wn | 710 | BC1_UNORM: 710 |
+| _wny | 6 | BC1_UNORM: 1, BC3_UNORM: 5 |
+| _wolf | 4 | BC1_UNORM: 4 |
+| _wolfpursuer | 1 | BC1_UNORM: 1 |
+| _wolfram | 1 | BC1_UNORM: 1 |
+| _wolftooth | 1 | BC3_UNORM: 1 |
+| _wolfturtle | 1 | BC3_UNORM: 1 |
+| _womanfromdelesyian | 1 | BC3_UNORM: 1 |
+| _womanstrap | 1 | BC1_UNORM: 1 |
+| _wombat | 1 | BC1_UNORM: 1 |
+| _wood | 8 | BC1_UNORM: 3, BC3_UNORM: 5 |
+| _woodcutter | 1 | BC1_UNORM: 1 |
+| _woodcutterworry | 1 | BC1_UNORM: 1 |
+| _woodendeeer | 1 | BC1_UNORM: 1 |
+| _woodenobstacle | 1 | BC3_UNORM: 1 |
+| _woodobserver | 1 | BC1_UNORM: 1 |
+| _woodpecker | 1 | BC1_UNORM: 1 |
+| _woods | 5 | BC1_UNORM: 4, BC3_UNORM: 1 |
+| _woodsupply | 1 | BC1_UNORM: 1 |
+| _wool | 2 | BC3_UNORM: 2 |
+| _worker | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _workers | 1 | BC1_UNORM: 1 |
+| _workshop | 7 | BC1_UNORM: 4, BC3_UNORM: 3 |
+| _worldmap | 1 | BC3_UNORM: 1 |
+| _worm | 2 | BC3_UNORM: 2 |
+| _worry | 1 | BC1_UNORM: 1 |
+| _wraith | 1 | BC1_UNORM: 1 |
+| _wrestling | 4 | BC1_UNORM: 3, BC3_UNORM: 1 |
+| _wrinkle0 | 7 | BC3_UNORM: 7 |
+| _wrinkle1 | 5 | BC3_UNORM: 5 |
+| _wulfstan | 1 | BC1_UNORM: 1 |
+| _wybert | 1 | BC1_UNORM: 1 |
+| _wynstan | 1 | BC1_UNORM: 1 |
+| _wyrin | 1 | BC3_UNORM: 1 |
+| _wyvern | 2 | BC1_UNORM: 2 |
+| _wyverntamers | 1 | BC1_UNORM: 1 |
+| _x | 17 | BC1_UNORM: 11, BC3_UNORM: 6 |
+| _xavier | 1 | BC1_UNORM: 1 |
+| _xbox | 2 | BC3_UNORM: 2 |
+| _xi | 8 | BC1_UNORM: 4, BC3_UNORM: 4 |
+| _xii | 8 | BC1_UNORM: 3, BC3_UNORM: 5 |
+| _xiii | 5 | BC1_UNORM: 3, BC3_UNORM: 2 |
+| _xiv | 5 | BC1_UNORM: 2, BC3_UNORM: 3 |
+| _xv | 1 | BC3_UNORM: 1 |
+| _xvector | 91 | q: 91 |
+| _y | 9 | BC3_UNORM: 9 |
+| _yakhchal | 3 | BC1_UNORM: 1, BC3_UNORM: 2 |
+| _yaksha | 1 | BC1_UNORM: 1 |
+| _yann | 4 | BC1_UNORM: 4 |
+| _yanndecoy | 1 | BC1_UNORM: 1 |
+| _yannguidemove | 1 | BC1_UNORM: 1 |
+| _yannmeet | 2 | BC1_UNORM: 2 |
+| _yannrescue | 1 | BC1_UNORM: 1 |
+| _yannside | 1 | BC1_UNORM: 1 |
+| _yard | 3 | BC1_UNORM: 2, BC3_UNORM: 1 |
+| _yellow | 4 | BC1_UNORM: 1, BC3_UNORM: 3 |
+| _yjork | 2 | BC1_UNORM: 1, BC3_UNORM: 1 |
+| _yogurt | 1 | BC1_UNORM: 1 |
+| _yohan | 2 | BC1_UNORM: 2 |
+| _young | 3 | BC1_UNORM: 3 |
+| _youngman | 1 | BC3_UNORM: 1 |
+| _ysh | 1 | BC3_UNORM: 1 |
+| _yus | 1 | BC3_UNORM: 1 |
+| _z | 1 | BC3_UNORM: 1 |
+| _zacco | 1 | BC3_UNORM: 1 |
+| _zakril | 1 | BC1_UNORM: 1 |
+| _zara | 1 | BC1_UNORM: 1 |
+| _zarkon | 2 | BC1_UNORM: 2 |
+| _zho-cn | 4 | BC3_UNORM: 4 |
+| _ziane | 4 | BC1_UNORM: 4 |
+| _zimrax | 1 | BC1_UNORM: 1 |
+| _zone | 6 | BC1_UNORM: 4, BC3_UNORM: 2 |
+
+## PAC/PAC_XML Pairs
+
+| PAC | Status | PAC_XML |
+| --- | --- | --- |
+| 0009/character/model/1_pc/10_pgw/head/head/cd_pgw_00_head_00_0001.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head/cd_pgw_00_head_00_0001.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head/cd_pgw_00_head_00_0002.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head/cd_pgw_00_head_00_0002.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head/cd_pgw_00_head_00_0003.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head/cd_pgw_00_head_00_0003.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head/cd_pgw_00_head_00_0004.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head/cd_pgw_00_head_00_0004.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head/cd_pgw_00_head_00_0005.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head/cd_pgw_00_head_00_0005.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head/cd_pgw_00_head_10_0001.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head/cd_pgw_00_head_10_0001.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head/cd_pgw_00_head_10_4001.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head/cd_pgw_00_head_10_4001.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head_sub/cd_pgw_00_eyebrow_00_0001.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head_sub/cd_pgw_00_eyebrow_00_0001.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head_sub/cd_pgw_00_eyebrow_00_0002.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head_sub/cd_pgw_00_eyebrow_00_0002.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head_sub/cd_pgw_00_eyebrow_00_0003.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head_sub/cd_pgw_00_eyebrow_00_0003.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head_sub/cd_pgw_00_head_sub_00_0001.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head_sub/cd_pgw_00_head_sub_00_0001.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head_sub/cd_pgw_00_head_sub_00_0002.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head_sub/cd_pgw_00_head_sub_00_0002.pac_xml |
+| 0009/character/model/1_pc/10_pgw/head/head_sub/cd_pgw_00_head_sub_00_0003.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/head/head_sub/cd_pgw_00_head_sub_00_0003.pac_xml |
+| 0009/character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pac_xml |
+| 0009/character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_4001.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/nude/cd_pgw_00_nude_00_4001.pac_xml |
+| 0009/character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_10_0001.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/nude/cd_pgw_00_nude_10_0001.pac_xml |
+| 0009/character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_20_0001.pac | exact | 0009/character/modelproperty/1_pc/10_pgw/nude/cd_pgw_00_nude_20_0001.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_00_lb_00_0318.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_00_lb_00_0318.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_00_m0001_00_lb_0010.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_00_m0001_00_lb_0010.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_00_m0001_00_lb_0011.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_00_m0001_00_lb_0011.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0002.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0002.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0008_02.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0008_02.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0009.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0009.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0011.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0011.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0011_01.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0011_01.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0014.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0014.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0018.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0018.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0032.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0032.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0046.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0046.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0048.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0048.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0051.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0051.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0052.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0052.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0054.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0054.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0054_01.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0054_01.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0055.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0055.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0059.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0059.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0062.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0062.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0079.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0079.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0080.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0080.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0083.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0083.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0090.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0090.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_00_0370.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_00_0370.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_00_0371.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_00_0371.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0146.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0146.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0150.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0150.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0165.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0165.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_02_lb_0123.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_02_lb_0123.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_07_lb_00_0319.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_07_lb_00_0319.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_07_lb_00_0321.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_07_lb_00_0321.pac_xml |
+| 0009/character/model/1_pc/14_ptm/armor/11_hand/cd_ptm_00_hand_00_0318.pac | exact | 0009/character/modelproperty/1_pc/14_ptm/armor/11_hand/cd_ptm_00_hand_00_0318.pac_xml |
+
+## Ambiguous DDS Basenames
+- ba_cd_barnia_border_metal_01.dds: 0000/object/texture/ba_cd_barnia_border_metal_01.dds, 0009/character/texture/ba_cd_barnia_border_metal_01.dds
+- ba_cd_barnia_border_metal_01_d.dds: 0000/object/texture/ba_cd_barnia_border_metal_01_d.dds, 0009/character/texture/ba_cd_barnia_border_metal_01_d.dds
+- ba_cd_barnia_border_metal_01_n.dds: 0000/object/texture/ba_cd_barnia_border_metal_01_n.dds, 0009/character/texture/ba_cd_barnia_border_metal_01_n.dds
+- ba_cd_barnia_border_metal_01_sp.dds: 0000/object/texture/ba_cd_barnia_border_metal_01_sp.dds, 0009/character/texture/ba_cd_barnia_border_metal_01_sp.dds
+- ba_cd_decal_painting_03_dec.dds: 0000/object/texture/ba_cd_decal_painting_03_dec.dds, 0009/character/texture/ba_cd_decal_painting_03_dec.dds
+- ba_cd_decal_painting_03_dec_n.dds: 0000/object/texture/ba_cd_decal_painting_03_dec_n.dds, 0009/character/texture/ba_cd_decal_painting_03_dec_n.dds
+- ba_cd_decal_painting_03_dec_sp.dds: 0000/object/texture/ba_cd_decal_painting_03_dec_sp.dds, 0009/character/texture/ba_cd_decal_painting_03_dec_sp.dds
+- ba_cd_dungeon_deco_stone_01a_d.dds: 0000/object/texture/ba_cd_dungeon_deco_stone_01a_d.dds, 0009/character/texture/ba_cd_dungeon_deco_stone_01a_d.dds
+- ba_cd_dungeon_deco_stone_01a_n.dds: 0000/object/texture/ba_cd_dungeon_deco_stone_01a_n.dds, 0009/character/texture/ba_cd_dungeon_deco_stone_01a_n.dds
+- ba_cd_dungeon_deco_stone_02.dds: 0000/object/texture/ba_cd_dungeon_deco_stone_02.dds, 0007/effect/texture/ba_cd_dungeon_deco_stone_02.dds, 0009/character/texture/ba_cd_dungeon_deco_stone_02.dds
+- ba_cd_dungeon_deco_stone_02_d.dds: 0000/object/texture/ba_cd_dungeon_deco_stone_02_d.dds, 0009/character/texture/ba_cd_dungeon_deco_stone_02_d.dds
+- ba_cd_dungeon_deco_stone_02_n.dds: 0000/object/texture/ba_cd_dungeon_deco_stone_02_n.dds, 0009/character/texture/ba_cd_dungeon_deco_stone_02_n.dds
+- ba_cd_dungeon_deco_stone_02_sp.dds: 0000/object/texture/ba_cd_dungeon_deco_stone_02_sp.dds, 0009/character/texture/ba_cd_dungeon_deco_stone_02_sp.dds
+- ba_cd_gimmick_ct_vegetable_onion_01.dds: 0000/object/texture/ba_cd_gimmick_ct_vegetable_onion_01.dds, 0009/character/texture/ba_cd_gimmick_ct_vegetable_onion_01.dds
+- ba_cd_gimmick_ct_vegetable_onion_01_n.dds: 0000/object/texture/ba_cd_gimmick_ct_vegetable_onion_01_n.dds, 0009/character/texture/ba_cd_gimmick_ct_vegetable_onion_01_n.dds
+- ba_cd_wood_63.dds: 0007/effect/texture/ba_cd_wood_63.dds, 0009/character/texture/ba_cd_wood_63.dds
+- ba_cd_wood_63_m.dds: 0009/character/texture/ba_cd_wood_63_m.dds, Family Examples/example10/character/texture/ba_cd_wood_63_m.dds, example10/character/texture/ba_cd_wood_63_m.dds
+- ba_cd_wood_63_n.dds: 0007/effect/texture/ba_cd_wood_63_n.dds, 0009/character/texture/ba_cd_wood_63_n.dds
+- ba_cd_wood_63_sp.dds: 0007/effect/texture/ba_cd_wood_63_sp.dds, 0009/character/texture/ba_cd_wood_63_sp.dds
+- bark_bamboo_01_color.dds: 0001/tree/texture/bark_bamboo_01_color.dds, 0009/character/texture/bark_bamboo_01_color.dds
+- bark_hickory_dmap.dds: 0000/object/texture/bark_hickory_dmap.dds, 0001/tree/texture/bark_hickory_dmap.dds
+- bd_airballoon_01_sp.dds: 0000/object/texture/bd_airballoon_01_sp.dds, 0009/character/texture/bd_airballoon_01_sp.dds
+- bd_airballoon_05.dds: 0000/object/texture/bd_airballoon_05.dds, 0009/character/texture/bd_airballoon_05.dds
+- bd_airballoon_05_n.dds: 0000/object/texture/bd_airballoon_05_n.dds, 0009/character/texture/bd_airballoon_05_n.dds
+- bd_airballoon_05_sp.dds: 0000/object/texture/bd_airballoon_05_sp.dds, 0009/character/texture/bd_airballoon_05_sp.dds
+
+## Top Risky Parameter Patterns
+
+| Parameter | Risk Refs | Risk Rate | Missing | Ambiguous | Malformed | Common Suffixes |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| _normalTexture | 75,927 | 27.20% | 647 | 75,280 | 0 | _n: 278311, _normal: 434, _wn: 275, _none: 90, _f: 54, _tn: 11, _01: 9, _02: 4 |
+| _baseColorTexture | 73,760 | 31.07% | 490 | 73,253 | 17 | _01: 50778, _02: 19804, _05: 13982, _03: 13313, _dec: 10406, _0: 10186, _1: 9826, _0001: 9318 |
+| _materialTexture | 71,820 | 28.57% | 586 | 71,234 | 0 | _sp: 249797, _none: 1033, _subsurface: 403, _01sp: 57, _n: 53, _04: 39, _01: 10, _f: 2 |
+| _heightTexture | 45,754 | 23.27% | 1,095 | 44,651 | 8 | _d: 150814, _disp: 27706, _none: 16852, _h: 391, _dmap: 327, _mix: 219, _01: 47, _f: 42 |
+| _detailNormalMaskR | 15,855 | 63.63% | 17 | 15,838 | 0 | _n: 24806, _sp: 25, _none: 20, _d: 13, _0002: 8, _01a: 5, _m: 5, _dec: 5 |
+| _detailMaterialMaskR | 14,729 | 73.61% | 5 | 14,724 | 0 | _sp: 19974, _none: 28, _n: 7 |
+| _detailDiffuseMaskR | 14,489 | 70.81% | 8 | 14,481 | 0 | _0001: 3333, _0002: 1810, _0005: 1643, _0004: 1579, _0003: 1306, _0016: 741, _1001: 578, _0008: 535 |
+| _detailNormalMaskG | 14,050 | 69.04% | 8 | 14,038 | 4 | _n: 20238, _none: 73, _0002: 7, _0035: 7, _0004: 4, _sp: 4, _disp: 3, _m: 2 |
+| _grimeMaterialTextureR | 13,858 | 84.37% | 1 | 13,857 | 0 | _sp: 16383, _none: 29, _disp: 7, _n: 6, _0003: 1 |
+| _grimeNormalTextureR | 13,807 | 84.18% | 1 | 13,806 | 0 | _n: 16368, _none: 27, _sp: 5, _0004: 1, _0003: 1 |
+| _grimeDiffuseTextureR | 13,793 | 83.62% | 0 | 13,793 | 0 | _0101: 2705, _0006: 1841, _0001: 1521, _0102: 1467, _0002: 1108, _0004: 814, _0005: 804, _0003: 555 |
+| _detailMaterialMaskG | 13,318 | 79.78% | 1 | 13,313 | 4 | _sp: 16686, _0035: 2, _none: 1 |
+| _detailDiffuseMaskG | 13,116 | 77.75% | 6 | 13,106 | 4 | _0001: 2788, _0002: 1585, _0004: 1257, _0005: 1184, _0003: 909, _0016: 756, _1001: 605, _0008: 500 |
+| _grimeNormalTextureG | 12,633 | 87.64% | 0 | 12,633 | 0 | _n: 14277, _none: 126, _sp: 6, _0003: 4, _disp: 1 |
+| _grimeMaterialTextureG | 12,622 | 87.58% | 0 | 12,622 | 0 | _sp: 14289, _none: 115, _0003: 4, _n: 4 |
+| _grimeDiffuseTextureG | 12,539 | 87.05% | 0 | 12,539 | 0 | _0101: 2701, _0006: 1506, _0001: 1211, _0102: 1189, _0002: 1035, _0004: 604, _0003: 579, _0020: 525 |
+| _detailNormalMaskB | 12,268 | 70.30% | 36 | 12,227 | 5 | _n: 17386, _none: 49, _0008: 7, _0035: 3, _0004: 1, _0001: 1 |
+| _detailMaterialMaskB | 11,871 | 79.11% | 30 | 11,836 | 5 | _sp: 14553, _n: 144, _disp: 87, _mg: 39, _ma: 31, _o: 11, _m: 10, _0101: 9 |
+| _detailDiffuseMaskB | 11,491 | 78.36% | 6 | 11,480 | 5 | _0001: 2676, _0002: 1330, _0004: 1109, _0005: 1036, _0003: 738, _0016: 571, _0008: 502, _0006: 442 |
+| _detailHeightMaskR | 10,819 | 57.40% | 8 | 10,810 | 1 | _disp: 18085, _0035: 654, _d: 76, _0022: 9, _0005: 8, _n: 7, _none: 3, _0002: 2 |
+| _grimeNormalTextureB | 10,646 | 86.93% | 0 | 10,646 | 0 | _n: 12070, _none: 168, _sp: 5, _0003: 3 |
+| _grimeDiffuseTextureB | 10,626 | 86.91% | 1 | 10,625 | 0 | _0101: 2051, _0006: 1288, _0102: 1264, _0001: 1062, _0002: 895, _0202: 524, _0005: 453, _0004: 440 |
+| _grimeMaterialTextureB | 10,622 | 86.98% | 0 | 10,622 | 0 | _sp: 12050, _none: 159, _0003: 3 |
+| _layerBaseColorTexture | 9,901 | 30.76% | 103 | 9,798 | 0 | _01: 8610, _06: 2907, _02: 2573, _wall: 2069, _0001: 1948, _07: 1797, _03: 1059, _05: 910 |
+| _detailHeightMaskG | 9,821 | 63.28% | 6 | 9,811 | 4 | _disp: 15046, _0035: 324, _d: 91, _n: 20, _sp: 14, _0022: 9, _none: 3, _0008: 3 |
+
+## Family Examples
+
+| Example | PAC | PAC_XML | DDS | HKX | PAB | Prefab | Complete |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| example1 | 1 | 1 | 20 | 2 | 2 | 1 | yes |
+| example10 | 1 | 1 | 99 | 2 | 2 | 1 | yes |
+| example11 | 1 | 1 | 51 | 2 | 2 | 2 | yes |
+| example12 | 1 | 1 | 57 | 2 | 2 | 2 | yes |
+| example13 | 1 | 1 | 55 | 2 | 2 | 2 | yes |
+| example2 | 1 | 1 | 26 | 2 | 2 | 1 | yes |
+| example3 | 1 | 1 | 24 | 2 | 2 | 0 | yes |
+| example4 | 1 | 1 | 7 | 2 | 2 | 0 | yes |
+| example5 | 1 | 1 | 20 | 2 | 2 | 0 | yes |
+| example6 | 1 | 1 | 28 | 2 | 2 | 1 | yes |
+| example7 | 1 | 1 | 141 | 2 | 2 | 0 | yes |
+| example8 | 1 | 1 | 53 | 2 | 2 | 0 | yes |
+| example9 | 1 | 1 | 97 | 2 | 2 | 1 | yes |
+
+## Family Companions
+
+| PAC | HKX | PAB | Prefab |
+| --- | ---: | ---: | ---: |
+| example1/character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_01_hel_0002.pac | 3 | 2 | 3 |
+| example10/character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_m0001_00_titan_ub_0002.pac | 3 | 2 | 3 |
+| example11/character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0166.pac | 3 | 2 | 6 |
+| example12/character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0070.pac | 3 | 2 | 6 |
+| example13/character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0053.pac | 3 | 2 | 6 |
+| example2/character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_01_hel_0130_01.pac | 3 | 2 | 3 |
+| example3/character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_01_hel_0145_01.pac | 3 | 2 | 0 |
+| example4/character/model/1_pc/14_ptm/armor/14_sho/cd_ptm_01_sho_0107_01.pac | 3 | 2 | 0 |
+| example5/character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0385.pac | 3 | 2 | 0 |
+| example6/character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0415.pac | 3 | 2 | 3 |
+| example7/character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0454.pac | 3 | 2 | 0 |
+| example8/character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0467.pac | 3 | 2 | 0 |
+| example9/character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_m0001_00_no_phm_ub_43005.pac | 3 | 2 | 3 |

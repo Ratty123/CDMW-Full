@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from typing import Dict, Mapping, Optional, Sequence, Tuple
 
 
-MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION = 1
+MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION = 2
 
 MATERIAL_CHANNELS: Tuple[str, ...] = (
     "base_color",
@@ -265,6 +265,42 @@ def _material_input_entries(batch: Mapping[str, object]) -> Tuple[Mapping[str, o
     return tuple(entries)
 
 
+def _normalize_srgb_mode(value: object) -> str:
+    if isinstance(value, bool):
+        return "srgb" if value else "linear"
+    text = str(value or "").strip().lower()
+    if text in {"srgb", "s_rgb", "true", "1", "yes"}:
+        return "srgb"
+    if text in {"linear", "false", "0", "no"}:
+        return "linear"
+    return ""
+
+
+def _slot_srgb_mode(batch: Mapping[str, object], slot_name: str) -> str:
+    slot_state = _slot_state_from_contract(batch, slot_name)
+    for key in ("srgb_mode", "sRGB", "srgb"):
+        mode = _normalize_srgb_mode(slot_state.get(key, ""))
+        if mode:
+            return mode
+    slot_name_key = str(slot_name or "").strip().lower()
+    for entry in _material_input_entries(batch):
+        entry_slot = str(entry.get("slot", "") or entry.get("slot_kind", "") or "").strip().lower()
+        if entry_slot != slot_name_key:
+            continue
+        for key in ("srgb_mode", "sRGB", "srgb"):
+            mode = _normalize_srgb_mode(entry.get(key, ""))
+            if mode:
+                return mode
+    return ""
+
+
+def _channel_color_space(batch: Mapping[str, object], slot_name: str, channel: str) -> str:
+    mode = _slot_srgb_mode(batch, slot_name)
+    if mode in {"srgb", "linear"}:
+        return mode
+    return "srgb" if channel in _SRGB_CHANNELS else "linear"
+
+
 def _entry_path_name(entry: Mapping[str, object]) -> str:
     text = str(entry.get("source_dds_path", "") or entry.get("source_path", "") or entry.get("archive_path", "") or entry.get("preview_path", "") or "")
     if not text:
@@ -367,6 +403,21 @@ def _crimson_unresolved_material_entries(batch: Mapping[str, object]) -> Tuple[D
             disposition = "layer_material_response" if any(token in parameter_key for token in ("grimematerialtexture", "detailmaterialmask", "materialtexture")) else "diagnostic_only"
             reason = "Crimson _sp material response is parameter/layer dependent; not exported as whole-material roughness/metalness"
             slot = "material"
+        elif parameter_key == "flowtexture" or name.endswith("_flow.dds") or Path(name).stem.endswith("_flow"):
+            disposition = "layer_flow"
+            reason = "Crimson flow texture is layer/vector control data; not promoted without an exact shader decoder"
+            slot = "layer"
+        elif parameter_key == "ssdmhairdirectiontexture" or "hairdirection" in parameter_key:
+            disposition = "layer_direction"
+            reason = "Crimson hair direction texture is anisotropic/layer control data; not a whole-material normal map"
+            slot = "layer"
+        elif (
+            any(token in parameter_key for token in ("eyetexture", "iris", "pupil", "cornea"))
+            or any(token in Path(name).stem.lower() for token in ("_eye", "_iris", "_pupil", "_cornea"))
+        ):
+            disposition = "diagnostic_only"
+            reason = "Crimson eye/iris/pupil texture is anatomy-layer data; not promoted without an exact eye shader rule"
+            slot = "layer"
         else:
             continue
         key = (slot, name, parameter)
@@ -383,6 +434,9 @@ def _crimson_unresolved_material_entries(batch: Mapping[str, object]) -> Tuple[D
                 "disposition": disposition,
                 "reason": reason,
                 "confidence": str(entry.get("confidence", "") or entry.get("evidence_grade", "") or "shader_parameter_rule"),
+                "layer_role": str(entry.get("layer_role", "") or ""),
+                "layer_channel": str(entry.get("layer_channel", "") or ""),
+                "blend_flags": list(tuple(entry.get("blend_flags", ()) or ())) if isinstance(entry.get("blend_flags", ()), Sequence) and not isinstance(entry.get("blend_flags", ()), (str, bytes, bytearray)) else (),
             }
         )
     return tuple(unresolved)
@@ -419,7 +473,7 @@ def _source_for_slot(batch: Mapping[str, object], slot_name: str, channel: str) 
         preview_path=str(slot_state.get("preview_path", "") or ""),
         source_dds_path=str(slot_state.get("source_dds_path", "") or ""),
         source_channel=source_channel,
-        color_space="srgb" if channel in _SRGB_CHANNELS else "linear",
+        color_space=_channel_color_space(batch, slot_name, channel),
         confidence=confidence,
         source_kind=source_kind,
         reason=str(slot_state.get("diagnostic", "") or slot_state.get("reason", "") or f"{slot_name} slot resolved"),

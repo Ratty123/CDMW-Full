@@ -4,6 +4,7 @@ import tempfile
 import struct
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from cdmw.core.archive import (
     active_archive_entry_for_virtual_path,
@@ -304,23 +305,27 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
             _entry("character/texture/cd_m0001_00_skullknight_vest_0003_n.dds"),
         ]
 
-        filtered = filter_archive_entries(
-            entries,
-            filter_text="Righteous Virtue",
-            exclude_filter_text="",
-            extension_filter=".pac",
-            package_filter_text="",
-            structure_filter="",
-            role_filter="all",
-            exclude_common_technical_suffixes=False,
-            min_size_kb=0,
-            previewable_only=False,
-            item_search_aliases={
-                "cd_m0001_00_skullknight_ub_0003": (
-                    "righteous virtue frost curse cd_m0001_00_skullknight_ub_0003.pac"
-                ),
-            },
-        )
+        with mock.patch(
+            "cdmw.core.archive.build_archive_relationship_references",
+            side_effect=AssertionError("PAC-only item search should not expand relationships"),
+        ):
+            filtered = filter_archive_entries(
+                entries,
+                filter_text="Righteous Virtue",
+                exclude_filter_text="",
+                extension_filter=".pac",
+                package_filter_text="",
+                structure_filter="",
+                role_filter="all",
+                exclude_common_technical_suffixes=False,
+                min_size_kb=0,
+                previewable_only=False,
+                item_search_aliases={
+                    "cd_m0001_00_skullknight_ub_0003": (
+                        "righteous virtue frost curse cd_m0001_00_skullknight_ub_0003.pac"
+                    ),
+                },
+            )
 
         self.assertEqual(
             [entry.path for entry in filtered],

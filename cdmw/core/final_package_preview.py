@@ -62,6 +62,31 @@ SOURCE_OWNED_FORBIDDEN_ORIGINAL_PARAMETER_TOKENS = (
     "colorblending",
 )
 
+SOURCE_OWNED_ALLOWED_RELIEF_SUPPORT_PARAMETER_TOKENS = (
+    "heighttexture",
+    "detailmask",
+    "detailnormal",
+    "detailheight",
+)
+
+MATERIAL_PREFLIGHT_OVERRIDE_WARNING = (
+    "Material preflight override used; in-game result may inherit original tint/gloss/layers or render grey/missing textures."
+)
+
+MATERIAL_PREFLIGHT_HARD_BLOCKER_TOKENS = (
+    "visible color texture is not package-resolved",
+    "exact texture path mismatch",
+    "support map is bound as visible base color",
+    "support map path is assigned to a visible color parameter",
+    "pac runtime abi",
+    "wrapper was emitted outside _submeshresources",
+    "duplicates skinnedmeshmaterialwrapper itemid",
+    "duplicates material parameter itemid",
+    "material shader name is the source material label",
+    "_submeshresources idbase",
+    "_submeshresources wrapper order does not match",
+)
+
 
 TEXTURE_PLAN_STATUS_READY = "Ready"
 TEXTURE_PLAN_STATUS_REVIEW = "Review"
@@ -144,6 +169,40 @@ class FinalPackagePreviewResult:
     material_statuses: Tuple[FinalPackageMaterialStatus, ...] = ()
     texture_resolution_manifest: TextureResolutionManifest = field(default_factory=TextureResolutionManifest)
     package_root: str = ""
+
+
+def material_preflight_hard_blockers(lines: Sequence[str]) -> Tuple[str, ...]:
+    """Return material preflight blockers that are unsafe to bypass."""
+
+    hard: List[str] = []
+    for line in tuple(lines or ()):
+        text = str(line or "").strip()
+        if not text:
+            continue
+        normalized = text.casefold()
+        if any(token in normalized for token in MATERIAL_PREFLIGHT_HARD_BLOCKER_TOKENS):
+            hard.append(text)
+    return tuple(_dedupe(hard))
+
+
+def apply_material_preflight_override(result: FinalPackagePreviewResult) -> Tuple[str, ...]:
+    """Downgrade overridable material preflight errors to warnings.
+
+    Returns hard blockers that were left in place.
+    """
+
+    blockers = tuple(str(line) for line in tuple(getattr(result, "preflight_errors", ()) or ()) if str(line or "").strip())
+    hard = material_preflight_hard_blockers(blockers)
+    if not blockers or hard:
+        return hard
+    if MATERIAL_PREFLIGHT_OVERRIDE_WARNING not in result.warnings:
+        result.warnings.append(MATERIAL_PREFLIGHT_OVERRIDE_WARNING)
+    for line in blockers:
+        warning = f"Unsafe material preflight override: {line}"
+        if warning not in result.warnings:
+            result.warnings.append(warning)
+    result.preflight_errors.clear()
+    return ()
 
 
 @dataclass(slots=True, frozen=True)
@@ -1120,6 +1179,15 @@ def _binding_row_is_preserved_layer_color(row: FinalPackageBindingRow) -> bool:
     return _is_stock_or_shared_texture_path(row.texture_path)
 
 
+def _binding_row_is_relief_support_only(row: FinalPackageBindingRow) -> bool:
+    if row.role not in {"Height", "Detail Mask"}:
+        return False
+    parameter_key = _binding_row_parameter_key(row)
+    if any(token in parameter_key for token in ("diffuse", "albedo", "basecolor", "colorblending", "materialtexture", "grime")):
+        return False
+    return any(token in parameter_key for token in SOURCE_OWNED_ALLOWED_RELIEF_SUPPORT_PARAMETER_TOKENS)
+
+
 def _source_owned_material_binding_contract(
     material_key: str,
     display_name: str,
@@ -1127,6 +1195,8 @@ def _source_owned_material_binding_contract(
     *,
     strict: bool = False,
     allow_inherited_layer_color_bindings: bool = False,
+    allow_relief_support: bool = False,
+    allow_detail_mask_material: bool = False,
 ) -> CDMaterialBindingContract:
     fatal_errors: List[str] = []
     contract_warnings: List[str] = []
@@ -1148,6 +1218,7 @@ def _source_owned_material_binding_contract(
         for row in rows
         if row.role in {"Normal", "Height", "Material / Mask", "Detail Mask"}
         and row.binding_source == FINAL_PREVIEW_BINDING_ORIGINAL
+        and not (allow_relief_support and _binding_row_is_relief_support_only(row))
     ]
     missing_support_roles = [
         role
@@ -1157,15 +1228,23 @@ def _source_owned_material_binding_contract(
             for row in rows
         )
     ]
+    if (
+        allow_detail_mask_material
+        and "Material / Mask" in missing_support_roles
+        and any(row.role == "Detail Mask" and _binding_row_is_exact_generated_ready(row) for row in rows)
+    ):
+        missing_support_roles = [role for role in missing_support_roles if role != "Material / Mask"]
 
     if original_visible_rows:
         detail = ", ".join(
             f"{row.parameter_name or row.role}->{row.texture_path or '(empty)'}"
             for row in original_visible_rows[:3]
         )
-        fatal_errors.append(
-            f"Complete source-owned swap still inherits visible color from the game archive: {display_name} ({detail})."
-        )
+        message = f"Complete source-owned swap still inherits visible color from the game archive: {display_name} ({detail})."
+        if strict:
+            fatal_errors.append(message)
+        else:
+            contract_warnings.append(message)
     if not source_visible_rows:
         message = (
             "Complete source-owned draw slot has no exact generated source-visible color authority binding: "
@@ -1183,11 +1262,16 @@ def _source_owned_material_binding_contract(
         )
 
     if missing_support_roles:
+        fatal_missing_support_roles = [
+            role
+            for role in missing_support_roles
+            if not (allow_relief_support and role in {"Height", "Detail Mask"})
+        ]
         message = (
             f"Complete source-owned draw slot is missing generated optional support binding(s): {display_name} "
             f"({', '.join(missing_support_roles)})."
         )
-        if strict:
+        if strict and fatal_missing_support_roles:
             fatal_errors.append(message)
         else:
             contract_warnings.append(message)
@@ -1624,10 +1708,23 @@ def build_final_package_preview(
     require_source_owned_colors: bool = False,
     strict_source_owned_material_contract: bool = False,
     allow_inherited_layer_color_bindings: bool = False,
+    material_authority_contract: str = "",
 ) -> FinalPackagePreviewResult:
     """Build the texture-authoritative mesh preview for the package payloads that would be exported."""
 
     warnings: List[str] = []
+    authority_contract = re.sub(r"[^a-z0-9_]+", "_", str(material_authority_contract or "").strip().lower()).strip("_")
+    runtime_xml_preserve_contract = authority_contract == "runtime_xml_preserve" or bool(
+        allow_inherited_layer_color_bindings
+    )
+    true_source_authority_contract = authority_contract.startswith("true_source_authority") or bool(
+        strict_source_owned_material_contract
+    )
+    relief_support_allowed = "relief_support" in authority_contract
+    detail_mask_material_allowed = "detail_mask" in authority_contract
+    allow_inherited_layer_color_bindings = bool(runtime_xml_preserve_contract)
+    strict_source_owned_material_contract = bool(true_source_authority_contract)
+    source_owned_binding_contract_enabled = bool(require_source_owned_colors)
     package_root_text = ""
     if package_root is not None:
         try:
@@ -2089,7 +2186,7 @@ def build_final_package_preview(
                 f"Support map path is assigned to a visible color parameter: {row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
             )
         if (
-            require_source_owned_colors
+            source_owned_binding_contract_enabled
             and row.role in {"Base / Color", "Emissive"}
             and row.status == FINAL_PREVIEW_READY
             and row.binding_source != FINAL_PREVIEW_BINDING_GENERATED
@@ -2100,11 +2197,16 @@ def build_final_package_preview(
                 and _binding_row_is_preserved_layer_color(row)
             )
         ):
-            preflight_errors.append(
-                f"Complete source-owned swap still inherits visible color from the game archive: {row.material_name} -> {row.texture_path}."
+            message = (
+                f"Complete source-owned swap still inherits visible color from the game archive: "
+                f"{row.material_name} -> {row.texture_path}."
             )
+            if true_source_authority_contract:
+                preflight_errors.append(message)
+            else:
+                warnings.append(message)
         if (
-            require_source_owned_colors
+            source_owned_binding_contract_enabled
             and row_is_planned_source_owned
             and not row_is_planned_placeholder
             and row.role in {"Base / Color", "Emissive", "Normal", "Height", "Material / Mask", "Detail Mask"}
@@ -2120,12 +2222,16 @@ def build_final_package_preview(
                 and not strict_source_owned_material_contract
             ):
                 warnings.append(message)
-            elif row.role in {"Base / Color", "Emissive"} or strict_source_owned_material_contract:
+            elif runtime_xml_preserve_contract:
+                warnings.append(message)
+            elif relief_support_allowed and _binding_row_is_relief_support_only(row):
+                warnings.append(message)
+            elif strict_source_owned_material_contract:
                 preflight_errors.append(message)
             else:
                 warnings.append(message)
         if (
-            require_source_owned_colors
+            source_owned_binding_contract_enabled
             and row_is_planned_source_owned
             and not row_is_planned_placeholder
             and row.binding_source != FINAL_PREVIEW_BINDING_GENERATED
@@ -2135,11 +2241,13 @@ def build_final_package_preview(
                 f"Complete source-owned wrapper still has non-generated original/support material parameter: "
                 f"{row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
             )
-            if strict_source_owned_material_contract:
+            if relief_support_allowed and _binding_row_is_relief_support_only(row):
+                warnings.append(message)
+            elif strict_source_owned_material_contract:
                 preflight_errors.append(message)
             else:
                 warnings.append(message)
-    if require_source_owned_colors and planned_source_owned_material_keys:
+    if source_owned_binding_contract_enabled and planned_source_owned_material_keys:
         for material_key in sorted(planned_source_owned_material_keys):
             if material_key in planned_placeholder_material_keys:
                 continue
@@ -2151,6 +2259,8 @@ def build_final_package_preview(
                 rows,
                 strict=bool(strict_source_owned_material_contract),
                 allow_inherited_layer_color_bindings=bool(allow_inherited_layer_color_bindings),
+                allow_relief_support=bool(relief_support_allowed),
+                allow_detail_mask_material=bool(detail_mask_material_allowed),
             )
             preflight_errors.extend(contract.fatal_errors)
             warnings.extend(contract.warnings)
@@ -2160,9 +2270,13 @@ def build_final_package_preview(
             + ", ".join(orphan_payload_paths[:8])
             + (" ..." if len(orphan_payload_paths) > 8 else "")
         )
-    if require_source_owned_colors and not sidecars:
-        preflight_errors.append("Complete source-owned swap has no packaged material sidecar payload to control visible color.")
-    if require_source_owned_colors and source_visible_texture_count > final_visible_texture_count:
+    if source_owned_binding_contract_enabled and not sidecars:
+        message = "Complete source-owned swap has no packaged material sidecar payload to control visible color."
+        if true_source_authority_contract:
+            preflight_errors.append(message)
+        else:
+            warnings.append(message)
+    if source_owned_binding_contract_enabled and source_visible_texture_count > final_visible_texture_count:
         message = (
             "Complete source-owned swap lost visible texture coverage in the final package contract "
             f"({final_visible_texture_count:,}/{source_visible_texture_count:,})."
@@ -2171,7 +2285,7 @@ def build_final_package_preview(
             preflight_errors.append(message)
         else:
             warnings.append(message)
-    if require_source_owned_colors and fallback_assignment_count:
+    if source_owned_binding_contract_enabled and fallback_assignment_count:
         message = (
             "Complete source-owned swap final preview used draw-order fallback for "
             f"{fallback_assignment_count:,} mesh batch(es); generated material names did not match patched sidecar bindings."
@@ -2217,7 +2331,7 @@ def build_final_package_preview(
             for name in sidecar_submesh_resource_names
             if _material_key(name) and _material_key(name) not in valid_sidecar_material_keys
         ]
-        if stale_sidecar_names:
+        if source_owned_binding_contract_enabled and true_source_authority_contract and stale_sidecar_names:
             stale_names = _dedupe(stale_sidecar_names)
             preflight_errors.append(
                 "Complete source-owned swap PAC XML still contains stale original _subMeshResources wrapper(s) "
@@ -2235,7 +2349,7 @@ def build_final_package_preview(
             material_name = _material_label_for_mesh(mesh, index)
             if material_name:
                 missing_source_owned_materials.append(material_name)
-        if missing_source_owned_materials:
+        if source_owned_binding_contract_enabled and missing_source_owned_materials:
             missing_names = _dedupe(missing_source_owned_materials)
             message = (
                 "Complete source-owned swap has no exact generated visible sidecar/DDS binding for: "
@@ -2267,6 +2381,19 @@ def build_final_package_preview(
             f"unresolved stock {unresolved_stock_count:,}, orphan DDS {len(orphan_payload_paths):,}"
         ),
     ]
+    if require_source_owned_colors:
+        if runtime_xml_preserve_contract:
+            summary_lines.append(
+                "Material Authority: Runtime XML preserve; stock layer/support bindings are allowed and may affect the final in-game look."
+            )
+        elif true_source_authority_contract:
+            summary_lines.append(
+                "Material Authority: True Source Authority; original visible/support influence is blocked for active source-owned wrappers."
+            )
+            if not preflight_errors:
+                summary_lines.append(
+                    "Source authority complete: active source-owned wrappers resolved to source/generated/neutral material bindings."
+                )
     if preflight_errors:
         summary_lines.append(f"Preflight blocker(s): {len(preflight_errors):,}")
     if likely_grey_materials:

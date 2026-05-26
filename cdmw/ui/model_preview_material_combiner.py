@@ -512,6 +512,9 @@ def _parameter_key(input_item: PreviewMaterialTextureInput) -> str:
 
 
 def _layer_channel(input_item: PreviewMaterialTextureInput) -> str:
+    declared = str(getattr(input_item, "layer_channel", "") or "").strip().lower()
+    if declared in {"r", "g", "b", "a"}:
+        return declared
     key = _parameter_key(input_item)
     for suffix in ("r", "g", "b", "a"):
         if key.endswith(suffix):
@@ -547,6 +550,9 @@ def _is_visible_color_input(input_item: PreviewMaterialTextureInput) -> bool:
 
 
 def _visible_layer_role(input_item: PreviewMaterialTextureInput) -> str:
+    declared = str(getattr(input_item, "layer_role", "") or "").strip().lower()
+    if declared:
+        return declared
     key = _parameter_key(input_item)
     channel = _layer_channel(input_item)
     if "layerbasecolor" in key:
@@ -1189,7 +1195,7 @@ def _material_decode_output_flags(decode_mode: str) -> Tuple[bool, bool, bool, b
     if mode == "standard_v2_material":
         return True, True, True, True
     if mode == "standard_v2_specular":
-        return False, True, False, True
+        return False, True, True, True
     if mode == "standard_v2_detail":
         return False, False, False, False
     if mode == "static_multitextured_material":
@@ -1257,9 +1263,11 @@ def _material_slot_priority(decode_mode: str, slot_name: str) -> int:
             "mra": 96,
             "standard_v2_material": 82,
             "standard_v2_mask": 76,
+            "standard_v2_specular": 62,
             "static_multitextured_material": 58,
             "material_mask": 78,
             "material_response": 52,
+            "specular": 38,
         },
         "specular": {
             "specular": 100,
@@ -2185,8 +2193,13 @@ def combine_preview_material(
     material_candidates, culled_material_count = _select_material_candidates_for_payload(raw_material_candidates, payload)
     if culled_material_count > 0:
         notes.append(f"material inputs culled:{len(raw_material_candidates)}->{len(material_candidates)}")
+    material_candidate_decode_modes = tuple(_decode_mode_for_input(candidate) for candidate in material_candidates)
+    suppress_standard_v2_specular_metalness = any(
+        mode in {"standard_v2_mask", "standard_v2_material"}
+        for mode in material_candidate_decode_modes
+    )
     for material_index, item in enumerate(material_candidates):
-        mode = _decode_mode_for_input(item)
+        mode = material_candidate_decode_modes[material_index] if material_index < len(material_candidate_decode_modes) else _decode_mode_for_input(item)
         if mode == "opacity":
             notes.append(f"opacity ignored:{_texture_label(item.source_texture_path, item.texture_name)}")
             continue
@@ -2244,6 +2257,9 @@ def combine_preview_material(
                 "metalness": generated_paths[2],
                 "specular": generated_paths[3],
             }
+            if mode == "standard_v2_specular" and suppress_standard_v2_specular_metalness:
+                generated_slots = tuple(slot for slot in generated_slots if slot != "metalness")
+                source_by_slot["metalness"] = ""
             for slot_name in generated_slots:
                 slot_source = source_by_slot.get(slot_name, "")
                 if not slot_source:

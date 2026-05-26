@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import ctypes
 import copy
 import dataclasses
@@ -23,8 +24,77 @@ from collections import Counter, OrderedDict, defaultdict, deque
 from html import escape
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 from urllib.parse import unquote, urlparse
+
+
+_PROFILE_SETTING_BINARY_TYPE = "qbytearray_base64"
+CLOSE_WORKER_FORCE_STOP_AFTER_SECONDS = 8.0
+WEAPON_PLACEMENT_STUDIO_BODY_PREVIEW_CANDIDATES = (
+    "cd_m0001_00_skeleton_nude_0001.pac",
+    "cd_phm_00_nude_10_0001.pac",
+    "cd_phm_00_nude_00_0001.pac",
+    "cd_phm_00_nude_00_4001.pac",
+)
+
+
+def _encode_profile_setting_value(value: object) -> object:
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, bytes):
+        return {
+            "__cdmw_type__": _PROFILE_SETTING_BINARY_TYPE,
+            "value": base64.b64encode(value).decode("ascii"),
+        }
+    if isinstance(value, bytearray):
+        return {
+            "__cdmw_type__": _PROFILE_SETTING_BINARY_TYPE,
+            "value": base64.b64encode(bytes(value)).decode("ascii"),
+        }
+    if hasattr(value, "toBase64"):
+        try:
+            encoded = value.toBase64()
+            if hasattr(encoded, "data"):
+                encoded_bytes = encoded.data()
+            else:
+                encoded_bytes = bytes(encoded)
+            return {
+                "__cdmw_type__": _PROFILE_SETTING_BINARY_TYPE,
+                "value": bytes(encoded_bytes).decode("ascii"),
+            }
+        except Exception:
+            pass
+    if isinstance(value, (list, tuple)):
+        return [_encode_profile_setting_value(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _encode_profile_setting_value(item) for key, item in value.items()}
+    return {
+        "__cdmw_type__": "string",
+        "value": str(value),
+    }
+
+
+def _decode_profile_setting_value(value: object, *, qbytearray_type: Optional[type] = None) -> object:
+    if isinstance(value, list):
+        return [_decode_profile_setting_value(item, qbytearray_type=qbytearray_type) for item in value]
+    if not isinstance(value, dict):
+        return value
+    value_type = str(value.get("__cdmw_type__", "") or "")
+    if value_type == _PROFILE_SETTING_BINARY_TYPE:
+        raw_text = str(value.get("value", "") or "")
+        try:
+            raw = base64.b64decode(raw_text.encode("ascii"))
+        except Exception:
+            raw = b""
+        if qbytearray_type is not None:
+            try:
+                return qbytearray_type(raw)
+            except Exception:
+                return raw
+        return raw
+    if value_type == "string":
+        return str(value.get("value", "") or "")
+    return {str(key): _decode_profile_setting_value(item, qbytearray_type=qbytearray_type) for key, item in value.items()}
 
 
 def _d3d11_status_file_signature(stat: os.stat_result) -> Tuple[int, int]:
@@ -130,8 +200,20 @@ from cdmw.core.archive_relationships import (
     build_character_swap_plan,
     resolve_material_texture_graph,
 )
+from cdmw.core.appearance_composite import (
+    AppearanceCompositeBuildResult,
+    AppearanceCompositeModelOverride,
+    AppearanceCompositePreviewPlan,
+    AppearanceSinglePacSwapPlan,
+    build_appearance_composite_model,
+    build_appearance_composite_preview_plan,
+    build_appearance_single_pac_swap_package_plan,
+    build_appearance_single_pac_swap_plan,
+    find_appearance_composite_candidates,
+)
 from cdmw.core.final_package_preview import (
     FinalPackagePreviewResult,
+    MATERIAL_PREFLIGHT_OVERRIDE_WARNING,
     TEXTURE_PLAN_STATUS_IGNORED_ADVANCED,
     TEXTURE_PLAN_STATUS_LIKELY_GREY,
     TEXTURE_PLAN_STATUS_READY,
@@ -140,6 +222,8 @@ from cdmw.core.final_package_preview import (
     build_final_package_preview,
     build_dds_override_table_row,
     build_replacement_texture_plan_rows,
+    apply_material_preflight_override,
+    material_preflight_hard_blockers,
     simplified_part_label,
     stage_final_package_preview_payloads,
 )
@@ -193,16 +277,35 @@ from cdmw.modding.mesh_deformer import (
     clone_mesh_for_editing,
     compact_orphan_vertices,
     delete_faces_touching_vertices,
+    grow_vertex_selection,
     mesh_topology_signature,
     recompute_mesh_normals,
+    shrink_vertex_selection,
+    smooth_vertex_selection,
+)
+from cdmw.modding.mesh_morph_sliders import (
+    MeshMorphSliderDelta,
+    MeshMorphSliderProfile,
+    apply_morph_slider_values,
+    build_morph_delta,
+    create_region_volume_slider_profile,
+    import_body_slider_profile,
+    import_single_morph_slider_profile,
+    load_morph_slider_delta,
+    load_morph_slider_profiles,
+    validate_morph_target,
 )
 from cdmw.modding.material_replacer import (
     ReplacementTextureSet,
     ReplacementTextureSlot,
     SidecarPatchPlan,
     build_source_material_routing_plan,
+    complete_swap_material_allows_inherited_layer_color_bindings,
+    complete_swap_material_authority_contract,
+    complete_swap_material_requires_true_source_authority,
     classify_texture_assignment_guidance,
     complete_swap_material_runtime_profiles,
+    get_complete_swap_material_profile,
     group_replacement_texture_sets,
     is_static_replacement_helper_material_name,
     is_shared_material_layer_texture,
@@ -214,6 +317,8 @@ from cdmw.modding.material_replacer import (
 from cdmw.core.model_export import export_model_preview_to_obj
 from cdmw.core.mod_package import (
     MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY,
+    MOD_PACKAGE_MANAGER_PROFILE_LABELS,
+    MOD_PACKAGE_MANAGER_PROFILES,
     ModPackageExportOptions,
     mod_package_export_options_for_manager,
     mod_package_profile_uses_manager_metadata,
@@ -221,6 +326,8 @@ from cdmw.core.mod_package import (
 from cdmw.core.mod_package_retrofit import (
     RETROFIT_MANAGER_PROFILES,
     RetrofittableModPackage,
+    build_retrofit_path_repair_summary,
+    merge_retrofittable_mod_packages,
     retrofit_mod_package,
     scan_retrofittable_mod_packages,
 )
@@ -267,17 +374,44 @@ from cdmw.core.structured_binary_editor import (
     rebuild_pabgh_table,
 )
 from cdmw.core.model_catalogue import IMPORTABLE_MODEL_EXTENSIONS, is_importable_model_path
+from cdmw.core.weapon_swap_templates import (
+    WEAPON_SWAP_TEMPLATE_CLASS_SCOPE,
+    WEAPON_SWAP_TEMPLATE_SELECTED_SCOPE,
+    WEAPON_SWAP_TEMPLATE_SELECTION_SCOPE,
+    WeaponSwapSocketRow,
+    WeaponSwapTemplate,
+    build_part_in_out_weapon_swap_template_patch,
+    build_socket_bone_weapon_swap_rows_patch,
+    build_socket_bone_weapon_swap_template_patch,
+    get_weapon_swap_template,
+    iter_weapon_swap_templates,
+    weapon_swap_template_socket_rows,
+    weapon_swap_template_weapon_socket_rows,
+)
 
 
 def _complete_swap_allows_inherited_layer_color_bindings(options: object = None) -> bool:
     raw_profile_name = getattr(options, "complete_swap_material_profile", options)
-    profile_name = str(raw_profile_name or "").strip().casefold()
-    return profile_name in {
-        "material_authority_detail_preserve",
-        "detail_preserve",
-        "target_detail_preserve",
-        "stock_detail_preserve",
-    }
+    return bool(complete_swap_material_allows_inherited_layer_color_bindings(str(raw_profile_name or "")))
+
+
+def _complete_swap_authority_contract(options: object = None) -> str:
+    raw_profile_name = getattr(options, "complete_swap_material_profile", options)
+    contract = complete_swap_material_authority_contract(str(raw_profile_name or ""))
+    try:
+        edge_strength = float(getattr(options, "edge_relief_strength", 0.0) or 0.0)
+    except (TypeError, ValueError, OverflowError):
+        edge_strength = 0.0
+    edge_source = str(getattr(options, "edge_relief_source", "hybrid") or "hybrid").strip().lower()
+    if contract.startswith("true_source_authority") and edge_strength > 0.0 and edge_source in {"preserve_target", "hybrid"}:
+        if "relief_support" not in contract:
+            return f"{contract}_relief_support"
+    return contract
+
+
+def _complete_swap_requires_true_source_authority(options: object = None) -> bool:
+    raw_profile_name = getattr(options, "complete_swap_material_profile", options)
+    return bool(complete_swap_material_requires_true_source_authority(str(raw_profile_name or "")))
 
 
 @dataclasses.dataclass(slots=True)
@@ -315,6 +449,16 @@ class ModifyOriginalWorkflowSelection:
     workspace_parent: Optional[Path] = None
     include_family_files: bool = True
     open_workspace_after_create: bool = False
+
+
+@dataclasses.dataclass(slots=True)
+class PlacementWorkspacePreparation:
+    target_entry: ArchiveEntry
+    donor_entry: Optional[ArchiveEntry] = None
+    target_graph: Optional[AssetFamilyGraph] = None
+    target_references: Tuple[ArchiveModelTextureReference, ...] = ()
+    donor_graph: Optional[AssetFamilyGraph] = None
+    donor_references: Tuple[ArchiveModelTextureReference, ...] = ()
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
@@ -557,7 +701,7 @@ def _windows_process_memory_snapshot(pid: int) -> Dict[str, int]:
 
 def run_gui() -> int:
     try:
-        from PySide6.QtCore import QModelIndex, QEvent, QPoint, QPointF, QProcess, QRectF, QSettings, QSize, Qt, QThread, QTimer, QUrl, QObject, Signal, Slot
+        from PySide6.QtCore import QByteArray, QModelIndex, QEvent, QPoint, QPointF, QProcess, QRectF, QSettings, QSize, Qt, QThread, QTimer, QUrl, QObject, Signal, Slot
         from PySide6.QtGui import (
             QBrush,
             QColor,
@@ -1164,6 +1308,7 @@ def run_gui() -> int:
             strength: float = 0.5,
             falloff: str = "smooth",
             show_vertices: bool = True,
+            selection_mode: str = "brush",
         ) -> bool:
             return self._send_host_json_command(
                 {
@@ -1178,6 +1323,7 @@ def run_gui() -> int:
                     "strength": float(strength),
                     "falloff": str(falloff or "smooth"),
                     "show_vertices": bool(show_vertices),
+                    "selection_mode": str(selection_mode or "brush"),
                 }
             )
 
@@ -1186,6 +1332,30 @@ def run_gui() -> int:
 
         def select_mesh_edit_brush_vertices(self) -> bool:
             return self._send_host_json_command({"command": "select_mesh_edit_brush"})
+
+        def set_mesh_edit_vertex_selection(self, selected_vertices_by_submesh: Mapping[int, Iterable[int]]) -> bool:
+            groups = []
+            for raw_source_index, raw_vertices in dict(selected_vertices_by_submesh or {}).items():
+                try:
+                    source_index = int(raw_source_index)
+                except (TypeError, ValueError):
+                    continue
+                vertices = []
+                for raw_vertex in tuple(raw_vertices or ()):
+                    try:
+                        vertex_index = int(raw_vertex)
+                    except (TypeError, ValueError):
+                        continue
+                    if vertex_index >= 0:
+                        vertices.append(vertex_index)
+                if vertices:
+                    groups.append(
+                        {
+                            "source_submesh_index": source_index,
+                            "source_vertex_indices": sorted(set(vertices)),
+                        }
+                    )
+            return self._send_host_json_command({"command": "set_mesh_edit_selection", "groups": groups})
 
         def nativeEvent(self, event_type: object, message: object) -> tuple[bool, int]:  # type: ignore[override]
             if platform.system().lower() != "windows":
@@ -1385,9 +1555,14 @@ def run_gui() -> int:
         prune_native_preview_package_cache,
         store_native_preview_package_cache,
     )
+    from cdmw.modding.pac_xml_profiles import (
+        clear_pac_xml_profile_index_cache,
+        default_pac_xml_profile_cache_path,
+    )
     from cdmw.ui.policy_preview_dialog import TexturePolicyPreviewDialog
     from cdmw.ui.safe_upscale_wizard import SafeUpscaleWizard
     from cdmw.ui.replace_assistant_tab import ReplaceAssistantTab
+    from cdmw.ui.recolor_variants_tab import RecolorVariantsTab
     from cdmw.ui.text_search_tab import TextSearchTab
     from cdmw.ui.item_icons_tab import ItemIconLibraryTab
     from cdmw.ui.model_library_tab import ModelLibraryTab
@@ -2514,6 +2689,8 @@ def run_gui() -> int:
             item_search_aliases: Optional[Mapping[str, str]] = None,
             sort_column: int = -1,
             sort_order: str = "asc",
+            result_filter_signature: Tuple[object, ...] = (),
+            load_basic_index_cache: bool = False,
             native_archive_acceleration: bool = True,
             resource_profile: str = "balanced_60fps",
             game_executable_fingerprints: Optional[Mapping[str, Mapping[str, object]]] = None,
@@ -2538,6 +2715,8 @@ def run_gui() -> int:
             self.item_search_aliases = dict(item_search_aliases or {})
             self.sort_column = normalize_archive_browser_sort_column(sort_column)
             self.sort_order = normalize_archive_browser_sort_order(sort_order)
+            self.result_filter_signature = tuple(result_filter_signature or ())
+            self.load_basic_index_cache = bool(load_basic_index_cache)
             self.native_archive_acceleration = bool(native_archive_acceleration)
             self.resource_profile = str(resource_profile or "balanced_60fps")
             self.crash_reports_dir = crash_reports_dir
@@ -2580,11 +2759,12 @@ def run_gui() -> int:
             self,
             entries: Sequence[ArchiveEntry],
         ) -> Dict[str, object]:
-            self.log_message.emit("Building enhanced archive item-name index...")
-            self.progress_changed.emit(0, 0, "Building enhanced archive item-name index...")
+            self.log_message.emit("Building item-name search...")
+            self.progress_changed.emit(0, 0, "Building item-name search...")
             item_index = build_archive_item_search_index(
                 entries,
                 on_log=self.log_message.emit,
+                on_progress=self.progress_changed.emit,
                 stop_event=self.stop_event,
             )
             item_search_aliases = dict(item_index.model_base_aliases)
@@ -2596,8 +2776,8 @@ def run_gui() -> int:
                 for row in getattr(item_index, "asset_catalog", [])
                 if hasattr(row, "to_cache_dict")
             ]
-            self.log_message.emit("Building enhanced archive name-search index...")
-            self.progress_changed.emit(0, 0, "Building enhanced archive name-search index...")
+            self.log_message.emit("Building path/name search index...")
+            self.progress_changed.emit(0, 0, "Building path/name search index...")
             name_search_index = build_archive_name_search_index(
                 entries,
                 item_search_aliases=item_search_aliases,
@@ -2706,7 +2886,7 @@ def run_gui() -> int:
                 game_update_started_at = time.perf_counter()
                 self._check_game_update_and_invalidate_archive_cache()
                 timings["game_update_check_s"] = max(0.0, float(time.perf_counter() - game_update_started_at))
-                entries, source, cache_path, scan_timings = scan_archive_entries_cached_accelerated(
+                entries, source, cache_path, scan_timings, scan_metadata = scan_archive_entries_cached_accelerated(
                     self.package_root,
                     self.cache_root,
                     force_refresh=self.force_refresh,
@@ -2716,6 +2896,13 @@ def run_gui() -> int:
                     stop_event=self.stop_event,
                 )
                 timings.update(scan_timings)
+                scan_metadata = scan_metadata if isinstance(scan_metadata, Mapping) else {}
+                entry_metadata_signature = str(scan_metadata.get("entry_metadata_signature", "") or "").strip()
+                entry_metadata_sources = tuple(
+                    tuple(row)
+                    for row in (scan_metadata.get("entry_metadata_sources", ()) or ())
+                    if isinstance(row, (list, tuple)) and len(row) == 3
+                )
                 item_search_aliases: Dict[str, str] = {}
                 item_display_names: Dict[str, str] = {}
                 item_exact_display_names: Dict[str, str] = {}
@@ -2724,6 +2911,11 @@ def run_gui() -> int:
                 path_index: Dict[str, List[ArchiveEntry]] = {}
                 basename_index: Dict[str, List[ArchiveEntry]] = {}
                 extension_index: Dict[str, List[ArchiveEntry]] = {}
+                extension_counts: Counter[str] = Counter(
+                    normalize_archive_extension_filter(entry.extension)
+                    for entry in entries
+                    if normalize_archive_extension_filter(entry.extension)
+                )
                 name_search_index: Optional[ArchiveNameSearchIndex] = None
                 derived_cache = None
                 derived_cache_needs_write = False
@@ -2734,6 +2926,9 @@ def run_gui() -> int:
                         self.package_root,
                         self.cache_root,
                         entries,
+                        entry_metadata_signature=entry_metadata_signature or None,
+                        current_sources=entry_metadata_sources or None,
+                        load_name_search_index=False,
                         on_log=self.log_message.emit,
                         timings=timings,
                     )
@@ -2750,61 +2945,103 @@ def run_gui() -> int:
                     cached_name_search_index = derived_cache.get("name_search_index")
                     if isinstance(cached_name_search_index, ArchiveNameSearchIndex):
                         name_search_index = cached_name_search_index
+                    elif bool(derived_cache.get("name_search_index_deferred")):
+                        self.log_message.emit("Item-name search cache will load after the archive list opens.")
+                        self.progress_changed.emit(0, 0, "Item-name search will load in the background...")
                     else:
                         derived_cache_needs_write = bool(entries)
                     enhanced_index_needs_build = bool(entries and name_search_index is None)
                     timings.setdefault("item_search_index_s", 0.0)
                 else:
-                    derived_cache_needs_write = bool(entries)
+                    derived_cache_needs_write = False
                     enhanced_index_needs_build = bool(entries)
-                    self.log_message.emit("Archive enhanced indexes are stale or missing; building before browser ready.")
-                    self.progress_changed.emit(0, 0, "Building enhanced archive indexes before browser ready...")
+                    self.log_message.emit("Item-name search cache is missing or stale; archive list will open while search builds in the background.")
+                    self.progress_changed.emit(0, 0, "Item-name search will build after the archive list opens...")
                     timings["item_search_index_s"] = 0.0
-                if enhanced_index_needs_build:
-                    enhanced_started_at = time.perf_counter()
-                    enhanced_payload = self._build_enhanced_archive_indexes_inline(entries)
-                    item_search_aliases = dict(enhanced_payload.get("item_search_aliases", {}) or {})
-                    item_display_names = dict(enhanced_payload.get("item_display_names", {}) or {})
-                    item_exact_display_names = dict(enhanced_payload.get("item_exact_display_names", {}) or {})
-                    item_related_display_names = dict(enhanced_payload.get("item_related_display_names", {}) or {})
-                    item_asset_catalog = [
-                        dict(row)
-                        for row in (enhanced_payload.get("item_asset_catalog", []) or [])
-                        if isinstance(row, Mapping)
-                    ]
-                    built_name_search_index = enhanced_payload.get("name_search_index")
-                    name_search_index = (
-                        built_name_search_index
-                        if isinstance(built_name_search_index, ArchiveNameSearchIndex)
-                        else None
+                can_use_initial_list = self._can_use_fast_flat_initial_browser_state(entries)
+                basic_cache = None
+                if entries and not self.force_refresh and (self.load_basic_index_cache or not can_use_initial_list):
+                    self.log_message.emit("Checking archive path lookup cache...")
+                    self.progress_changed.emit(0, 0, "Checking archive path lookup cache...")
+                    basic_cache = load_archive_basic_index_cache(
+                        self.package_root,
+                        self.cache_root,
+                        entries,
+                        entry_metadata_signature=entry_metadata_signature or None,
+                        current_sources=entry_metadata_sources or None,
+                        on_log=self.log_message.emit,
+                        timings=timings,
                     )
-                    timings["item_search_index_s"] = max(0.0, float(time.perf_counter() - enhanced_started_at))
-                    enhanced_index_needs_build = False
-                self.log_message.emit("Building archive path lookup index...")
-                self.progress_changed.emit(0, 0, "Building archive path lookup index...")
-                path_index_started_at = time.perf_counter()
-                path_index, basename_index, extension_index, native_basic_indexes_used = build_archive_basic_indexes_accelerated(
-                    entries,
-                    native_enabled=self.native_archive_acceleration,
-                    on_progress=self.progress_changed.emit,
-                    stop_event=self.stop_event,
+                basic_indexes_loaded_from_cache = False
+                if isinstance(basic_cache, Mapping):
+                    cached_path_index = basic_cache.get("path_index")
+                    cached_basename_index = basic_cache.get("basename_index")
+                    cached_extension_index = basic_cache.get("extension_index")
+                    if (
+                        isinstance(cached_path_index, dict)
+                        and isinstance(cached_basename_index, dict)
+                        and isinstance(cached_extension_index, dict)
+                    ):
+                        path_index = cached_path_index
+                        basename_index = cached_basename_index
+                        extension_index = cached_extension_index
+                        basic_indexes_loaded_from_cache = True
+                basic_indexes_needed_before_ready = bool(
+                    entries and not basic_indexes_loaded_from_cache and not can_use_initial_list
                 )
-                basic_index_elapsed = max(0.0, float(time.perf_counter() - path_index_started_at))
-                timings["entry_path_index_s"] = basic_index_elapsed
+                native_basic_indexes_used = False
+                if basic_indexes_needed_before_ready:
+                    self.log_message.emit("Building path lookup...")
+                    self.progress_changed.emit(0, 0, "Building path lookup...")
+                    path_index_started_at = time.perf_counter()
+                    path_index, basename_index, extension_index, native_basic_indexes_used = build_archive_basic_indexes_accelerated(
+                        entries,
+                        native_enabled=self.native_archive_acceleration,
+                        on_progress=self.progress_changed.emit,
+                        stop_event=self.stop_event,
+                    )
+                    basic_index_elapsed = max(0.0, float(time.perf_counter() - path_index_started_at))
+                    timings["entry_path_index_s"] = basic_index_elapsed
+                    if native_basic_indexes_used:
+                        self.log_message.emit("Built path lookup with C++ helper.")
+                    try:
+                        save_archive_basic_index_cache(
+                            self.package_root,
+                            self.cache_root,
+                            entries,
+                            path_index=path_index,
+                            basename_index=basename_index,
+                            extension_index=extension_index,
+                            entry_metadata_signature=entry_metadata_signature or None,
+                            entry_metadata_sources=entry_metadata_sources or None,
+                            on_log=self.log_message.emit,
+                            timings=timings,
+                        )
+                    except Exception as exc:
+                        self.log_message.emit(f"Warning: path lookup cache could not be written: {exc}")
+                else:
+                    if basic_indexes_loaded_from_cache:
+                        self.log_message.emit("Path lookup loaded from cache.")
+                    else:
+                        self.log_message.emit("Path lookup will build after the archive list opens.")
+                        self.progress_changed.emit(0, 0, "Path lookup will build in the background...")
+                    timings["entry_path_index_s"] = 0.0
                 timings["entry_basename_index_s"] = 0.0
                 timings["entry_extension_index_s"] = 0.0
-                if native_basic_indexes_used:
-                    self.log_message.emit("Built archive lookup indexes with native helper.")
                 if name_search_index is None:
                     timings["entry_name_search_index_s"] = 0.0
                 else:
                     self.log_message.emit("Loaded archive name search index from derived cache.")
                     timings["entry_name_search_index_s"] = 0.0
-                self.log_message.emit("Preparing first archive browser state from loaded entries...")
-                self.progress_changed.emit(0, 0, "Preparing first archive browser state from loaded entries...")
                 browser_state_started_at = time.perf_counter()
-                if self._can_use_fast_flat_initial_browser_state(entries):
-                    dds_count = len(extension_index.get(".dds", ()))
+                if can_use_initial_list:
+                    self.log_message.emit("Opening archive list from loaded entries...")
+                    self.progress_changed.emit(
+                        len(entries),
+                        max(len(entries), 1),
+                        "Opening archive list from loaded entries...",
+                    )
+                    dds_count = int(extension_counts.get(".dds", 0) or 0)
                     browser_state = {
                         "structure_children": {},
                         "filtered_entries": entries,
@@ -2825,6 +3062,12 @@ def run_gui() -> int:
                         "Archive Browser state mode: raw_flat (no active filters/sort/tree/category; reusing loaded entries)."
                     )
                 else:
+                    self.log_message.emit("Preparing archive list from filters and view mode...")
+                    self.progress_changed.emit(
+                        0,
+                        max(len(entries), 1),
+                        "Preparing archive list from filters and view mode...",
+                    )
                     browser_state = prepare_archive_browser_state_accelerated(
                         entries,
                         filter_text=self.filter_text,
@@ -2859,10 +3102,11 @@ def run_gui() -> int:
                         and len(entries) >= 500_000
                     ):
                         fallback_reason = str(accelerator.get("fallback_reason", "") or "unknown reason")
-                        self.log_message.emit(
-                            "WARNING: Archive browser state used Python fallback for a very large entry set; "
-                            f"first render may be slower. Native fallback reason: {fallback_reason}"
-                        )
+                        if not fallback_reason.endswith("_python_path"):
+                            self.log_message.emit(
+                                "WARNING: Archive browser state used Python fallback for a very large entry set; "
+                                f"first render may be slower. Native fallback reason: {fallback_reason}"
+                            )
                 timings["browser_state_s"] = max(0.0, float(time.perf_counter() - browser_state_started_at))
                 if self.build_category_index:
                     self.log_message.emit("Building archive category index...")
@@ -2890,6 +3134,8 @@ def run_gui() -> int:
                         item_related_display_names=item_related_display_names,
                         item_asset_catalog=item_asset_catalog,
                         archive_name_search_index=name_search_index,
+                        entry_metadata_signature=entry_metadata_signature or None,
+                        entry_metadata_sources=entry_metadata_sources or None,
                         on_log=self.log_message.emit,
                         timings=timings,
                     )
@@ -2909,6 +3155,9 @@ def run_gui() -> int:
                         ("cache_write_s", "cache_write"),
                         ("derived_cache_check_s", "derived_check"),
                         ("derived_cache_load_s", "derived_load"),
+                        ("basic_index_cache_check_s", "path_cache_check"),
+                        ("basic_index_cache_load_s", "path_cache_load"),
+                        ("basic_index_cache_write_s", "path_cache_write"),
                         ("item_search_index_s", "item_search"),
                         ("browser_state_s", "browser_state"),
                         ("category_index_s", "category_index"),
@@ -2936,7 +3185,12 @@ def run_gui() -> int:
                         "item_asset_catalog": item_asset_catalog,
                         "derived_cache_needs_write": derived_cache_needs_write,
                         "enhanced_index_needs_build": enhanced_index_needs_build,
+                        "basic_index_needs_build": bool(entries and not path_index),
                         "archive_native_derived_cache_ready": bool(native_basic_indexes_used),
+                        "extension_counts": dict(extension_counts),
+                        "entry_metadata_signature": entry_metadata_signature,
+                        "entry_metadata_sources": entry_metadata_sources,
+                        "result_filter_signature": self.result_filter_signature,
                         "game_executable_fingerprints": self.updated_game_executable_fingerprints,
                         "timings": timings,
                         "timing_summary": timing_summary,
@@ -2968,6 +3222,8 @@ def run_gui() -> int:
             item_related_display_names: Optional[Mapping[str, str]] = None,
             item_asset_catalog: Optional[Sequence[Mapping[str, object]]] = None,
             archive_name_search_index: Optional[ArchiveNameSearchIndex] = None,
+            entry_metadata_signature: str = "",
+            entry_metadata_sources: Sequence[Tuple[object, object, object]] = (),
         ):
             super().__init__()
             self.package_root = package_root
@@ -2979,6 +3235,12 @@ def run_gui() -> int:
             self.item_related_display_names = dict(item_related_display_names or {})
             self.item_asset_catalog = [dict(row) for row in (item_asset_catalog or []) if isinstance(row, Mapping)]
             self.archive_name_search_index = archive_name_search_index
+            self.entry_metadata_signature = str(entry_metadata_signature or "").strip()
+            self.entry_metadata_sources = tuple(
+                tuple(row)
+                for row in (entry_metadata_sources or ())
+                if isinstance(row, (list, tuple)) and len(row) == 3
+            )
             self.stop_event = threading.Event()
 
         def stop(self) -> None:
@@ -3004,6 +3266,8 @@ def run_gui() -> int:
                     item_related_display_names=self.item_related_display_names,
                     item_asset_catalog=self.item_asset_catalog,
                     archive_name_search_index=self.archive_name_search_index,
+                    entry_metadata_signature=self.entry_metadata_signature or None,
+                    entry_metadata_sources=self.entry_metadata_sources or None,
                     on_log=self.log_message.emit,
                     timings=timings,
                 )
@@ -3016,6 +3280,121 @@ def run_gui() -> int:
                     gc.enable()
                 self.finished.emit()
 
+    class ArchiveBasicIndexWorker(QObject):
+        log_message = Signal(str)
+        progress_changed = Signal(int, int, str)
+        completed = Signal(object)
+        error = Signal(str)
+        finished = Signal()
+
+        def __init__(
+            self,
+            package_root: Path,
+            cache_root: Path,
+            entries: Sequence[ArchiveEntry],
+            *,
+            native_archive_acceleration: bool,
+            entry_metadata_signature: str = "",
+            entry_metadata_sources: Sequence[Tuple[object, object, object]] = (),
+        ) -> None:
+            super().__init__()
+            self.package_root = package_root
+            self.cache_root = cache_root
+            self.entries = entries
+            self.native_archive_acceleration = bool(native_archive_acceleration)
+            self.entry_metadata_signature = str(entry_metadata_signature or "").strip()
+            self.entry_metadata_sources = tuple(
+                tuple(row)
+                for row in (entry_metadata_sources or ())
+                if isinstance(row, (list, tuple)) and len(row) == 3
+            )
+            self.stop_event = threading.Event()
+
+        def stop(self) -> None:
+            self.stop_event.set()
+
+        @Slot()
+        def run(self) -> None:
+            started_at = time.perf_counter()
+            try:
+                self.log_message.emit("Checking archive path lookup cache in background...")
+                self.progress_changed.emit(0, 0, "Checking archive path lookup cache in background...")
+                basic_cache = load_archive_basic_index_cache(
+                    self.package_root,
+                    self.cache_root,
+                    self.entries,
+                    entry_metadata_signature=self.entry_metadata_signature or None,
+                    current_sources=self.entry_metadata_sources or None,
+                    on_progress=self.progress_changed.emit,
+                    on_log=self.log_message.emit,
+                )
+                if isinstance(basic_cache, Mapping):
+                    cached_path_index = basic_cache.get("path_index")
+                    cached_basename_index = basic_cache.get("basename_index")
+                    cached_extension_index = basic_cache.get("extension_index")
+                    if (
+                        isinstance(cached_path_index, dict)
+                        and isinstance(cached_basename_index, dict)
+                        and isinstance(cached_extension_index, dict)
+                    ):
+                        elapsed = max(0.0, float(time.perf_counter() - started_at))
+                        self.completed.emit(
+                            {
+                                "path_index": cached_path_index,
+                                "basename_index": cached_basename_index,
+                                "extension_index": cached_extension_index,
+                                "native_used": False,
+                                "cache_loaded": True,
+                                "cache_path": str(basic_cache.get("cache_path") or ""),
+                                "elapsed_s": elapsed,
+                            }
+                        )
+                        return
+                self.log_message.emit("Building path lookup in background...")
+                self.progress_changed.emit(0, 0, "Building path lookup in background...")
+                path_index, basename_index, extension_index, native_used = build_archive_basic_indexes_accelerated(
+                    self.entries,
+                    native_enabled=self.native_archive_acceleration,
+                    on_progress=self.progress_changed.emit,
+                    stop_event=self.stop_event,
+                )
+                cache_path_text = ""
+                try:
+                    cache_path = save_archive_basic_index_cache(
+                        self.package_root,
+                        self.cache_root,
+                        self.entries,
+                        path_index=path_index,
+                        basename_index=basename_index,
+                        extension_index=extension_index,
+                        entry_metadata_signature=self.entry_metadata_signature or None,
+                        entry_metadata_sources=self.entry_metadata_sources or None,
+                        on_log=self.log_message.emit,
+                    )
+                    cache_path_text = str(cache_path)
+                except Exception as exc:
+                    if not self.stop_event.is_set():
+                        self.log_message.emit(f"Warning: path lookup cache could not be written: {exc}")
+                elapsed = max(0.0, float(time.perf_counter() - started_at))
+                self.completed.emit(
+                    {
+                        "path_index": path_index,
+                        "basename_index": basename_index,
+                        "extension_index": extension_index,
+                        "native_used": bool(native_used),
+                        "cache_loaded": False,
+                        "cache_path": cache_path_text,
+                        "elapsed_s": elapsed,
+                    }
+                )
+            except RunCancelled as exc:
+                if not self.stop_event.is_set():
+                    self.error.emit(str(exc))
+            except Exception as exc:
+                self.error.emit(str(exc))
+            finally:
+                self.finished.emit()
+
     class ArchiveEnhancedIndexWorker(QObject):
         log_message = Signal(str)
         progress_changed = Signal(int, int, str)
@@ -3023,9 +3402,25 @@ def run_gui() -> int:
         error = Signal(str)
         finished = Signal()
 
-        def __init__(self, entries: Sequence[ArchiveEntry]):
+        def __init__(
+            self,
+            package_root: Path,
+            cache_root: Path,
+            entries: Sequence[ArchiveEntry],
+            *,
+            entry_metadata_signature: str = "",
+            entry_metadata_sources: Sequence[Tuple[object, object, object]] = (),
+        ):
             super().__init__()
+            self.package_root = package_root
+            self.cache_root = cache_root
             self.entries = entries
+            self.entry_metadata_signature = str(entry_metadata_signature or "").strip()
+            self.entry_metadata_sources = tuple(
+                tuple(row)
+                for row in (entry_metadata_sources or ())
+                if isinstance(row, (list, tuple)) and len(row) == 3
+            )
             self.stop_event = threading.Event()
 
         def stop(self) -> None:
@@ -3037,10 +3432,44 @@ def run_gui() -> int:
             if gc_was_enabled:
                 gc.disable()
             try:
-                self.log_message.emit("Building enhanced archive item-name index in background...")
+                self.log_message.emit("Loading item-name search cache in background...")
+                self.progress_changed.emit(0, 0, "Loading item-name search cache in background...")
+                derived_cache = load_archive_derived_index_cache(
+                    self.package_root,
+                    self.cache_root,
+                    self.entries,
+                    entry_metadata_signature=self.entry_metadata_signature or None,
+                    current_sources=self.entry_metadata_sources or None,
+                    load_name_search_index=True,
+                    on_progress=self.progress_changed.emit,
+                    on_log=self.log_message.emit,
+                )
+                if isinstance(derived_cache, Mapping) and isinstance(
+                    derived_cache.get("name_search_index"),
+                    ArchiveNameSearchIndex,
+                ):
+                    self.completed.emit(
+                        {
+                            "item_search_aliases": dict(derived_cache.get("item_search_aliases", {}) or {}),
+                            "item_display_names": dict(derived_cache.get("item_display_names", {}) or {}),
+                            "item_exact_display_names": dict(derived_cache.get("item_exact_display_names", {}) or {}),
+                            "item_related_display_names": dict(derived_cache.get("item_related_display_names", {}) or {}),
+                            "item_asset_catalog": [
+                                dict(row)
+                                for row in (derived_cache.get("item_asset_catalog", []) or [])
+                                if isinstance(row, Mapping)
+                            ],
+                            "name_search_index": derived_cache.get("name_search_index"),
+                            "cache_loaded": True,
+                        }
+                    )
+                    return
+                self.log_message.emit("Building item-name search in background...")
+                self.progress_changed.emit(0, 0, "Building item-name search in background...")
                 item_index = build_archive_item_search_index(
                     self.entries,
                     on_log=self.log_message.emit,
+                    on_progress=self.progress_changed.emit,
                     stop_event=self.stop_event,
                 )
                 item_search_aliases = dict(item_index.model_base_aliases)
@@ -3052,7 +3481,7 @@ def run_gui() -> int:
                     for row in getattr(item_index, "asset_catalog", [])
                     if hasattr(row, "to_cache_dict")
                 ]
-                self.log_message.emit("Building enhanced archive name-search index in background...")
+                self.log_message.emit("Building path/name search index in background...")
                 name_search_index = build_archive_name_search_index(
                     self.entries,
                     item_search_aliases=item_search_aliases,
@@ -3067,6 +3496,7 @@ def run_gui() -> int:
                         "item_related_display_names": item_related_display_names,
                         "item_asset_catalog": item_asset_catalog,
                         "name_search_index": name_search_index,
+                        "cache_loaded": False,
                     }
                 )
             except RunCancelled as exc:
@@ -3194,6 +3624,8 @@ def run_gui() -> int:
                             try:
                                 source_path, _note = ensure_archive_preview_source(entry, stop_event=self.stop_event)
                             except Exception as exc:
+                                if self.stop_event.is_set():
+                                    break
                                 prepared_note = f"Recovered icon source could not be prepared: {exc}"
                                 continue
                             preview_path = source_path
@@ -3206,6 +3638,8 @@ def run_gui() -> int:
                                         slot_kind="base",
                                     )
                                 except Exception as exc:
+                                    if self.stop_event.is_set():
+                                        break
                                     prepared_note = f"Recovered icon DDS found, but thumbnail conversion failed: {exc}"
                                     continue
                             if preview_path.exists():
@@ -3214,6 +3648,8 @@ def run_gui() -> int:
                                 break
                         if prepared_path:
                             break
+                    if self.stop_event.is_set():
+                        break
                     if prepared_path:
                         self.icon_prepared.emit(self.generation, prepared_key, prepared_path, prepared_note)
                     else:
@@ -5116,7 +5552,7 @@ def run_gui() -> int:
         def __init__(self):
             super().__init__(None)
             self.setWindowTitle("CDMW")
-            self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+            self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
             self.setAttribute(Qt.WA_TranslucentBackground, True)
             self.setModal(False)
             self.setFixedSize(420, 210)
@@ -5287,6 +5723,7 @@ def run_gui() -> int:
             self._startup_splash_released = False
             self._startup_splash_release_pending = False
             self._startup_splash_finish_pending = False
+            self._startup_splash_finish_after_paint_deadline = 0.0
             self._responsive_screen_signal_connected = False
             self._modeless_alignment_dialogs: Dict[str, QDialog] = {}
             self.archive_preview_refresh_deferred_by_builder = False
@@ -5334,6 +5771,8 @@ def run_gui() -> int:
             self._shutting_down = False
             self._close_after_workers_requested = False
             self._close_force_accept = False
+            self._close_pending_started_at = 0.0
+            self._close_force_stop_requested = False
             self._close_worker_wait_timer = QTimer(self)
             self._close_worker_wait_timer.setInterval(100)
             self._close_worker_wait_timer.timeout.connect(self._finish_deferred_close_if_workers_stopped)
@@ -5441,12 +5880,20 @@ def run_gui() -> int:
             self.archive_entries_by_normalized_path: Dict[str, List[ArchiveEntry]] = {}
             self.archive_entries_by_basename: Dict[str, List[ArchiveEntry]] = {}
             self.archive_entries_by_extension: Dict[str, List[ArchiveEntry]] = {}
+            self.archive_extension_counts: Counter[str] = Counter()
+            self.archive_entry_metadata_signature = ""
+            self.archive_entry_metadata_sources: Tuple[Tuple[object, object, object], ...] = ()
+            self.archive_result_filter_signature: Tuple[object, ...] = ()
+            self.archive_basic_index_state = "idle"
+            self.archive_basic_index_thread: Optional[QThread] = None
+            self.archive_basic_index_worker: Optional[ArchiveBasicIndexWorker] = None
             self.archive_name_search_index: Optional[ArchiveNameSearchIndex] = None
             self.archive_item_search_aliases: Dict[str, str] = {}
             self.archive_item_display_names: Dict[str, str] = {}
             self.archive_item_exact_display_names: Dict[str, str] = {}
             self.archive_item_related_display_names: Dict[str, str] = {}
             self.archive_enhanced_index_state = "idle"
+            self.archive_enhanced_index_activity = "idle"
             self.archive_native_derived_cache_ready = False
             self.archive_enhanced_index_thread: Optional[QThread] = None
             self.archive_enhanced_index_worker: Optional[ArchiveEnhancedIndexWorker] = None
@@ -5474,6 +5921,8 @@ def run_gui() -> int:
             self.archive_item_icon_prepared_callbacks: List[Callable[[Tuple[Tuple[str, ...], str]], None]] = []
             self.archive_item_icon_preload_queue: List[Dict[str, object]] = []
             self.archive_item_icon_preload_next_index = 0
+            self.archive_item_icon_visible_warmup_remaining = 0
+            self.archive_item_icon_warmup_user_visible = False
             self.archive_item_icon_pixmap_cache_limit = 1200
             self.archive_item_icon_prepared_cache_limit = 1800
             self.archive_item_icon_preload_limit = 1600
@@ -5497,6 +5946,10 @@ def run_gui() -> int:
             self.archive_enhanced_filter_refresh_pending = False
             self.archive_browser_refresh_pending = False
             self.archive_startup_autoload_defer_preview = False
+            self.archive_startup_saved_filter_apply_pending = False
+            self.archive_startup_saved_filter_state: Dict[str, object] = {}
+            self.archive_startup_saved_filter_wait_logged = False
+            self.archive_startup_hold_until_ready = False
             self.archive_browser_preload_state = "idle"
             self.archive_browser_render_signature: Tuple[object, ...] = ()
             self.archive_browser_first_visible_paint_done = False
@@ -5507,6 +5960,7 @@ def run_gui() -> int:
             self.archive_browser_render_reason = ""
             self.archive_context_menu_selection_suppressed = False
             self.archive_deferred_background_start_pending = False
+            self.archive_deferred_basic_index_start_pending = False
             self.archive_deferred_enhanced_index_start_pending = False
             self.archive_deferred_derived_cache_write_pending = False
             self.archive_deferred_sidecar_start_pending = False
@@ -6596,8 +7050,20 @@ def run_gui() -> int:
             self.mod_ready_manager_combo.addItem("Universal / minimal metadata", "universal")
             self.mod_ready_manager_combo.addItem("CDUMM", "cdumm")
             self.mod_ready_manager_combo.addItem("Definitive Mod Manager", "dmm")
+            self.mod_ready_manager_combo.addItem("JMM JSON", "jmm")
             self.mod_ready_manager_combo.addItem("Crimson Sharp / Crimson Browser", "crimson_sharp")
             self.mod_ready_manager_combo.addItem("Field-JSON v3.1", "field_json")
+            self.mod_ready_profile_checkboxes: Dict[str, QCheckBox] = {}
+            self.mod_ready_profiles_widget = QWidget()
+            mod_ready_profiles_layout = QHBoxLayout(self.mod_ready_profiles_widget)
+            mod_ready_profiles_layout.setContentsMargins(0, 0, 0, 0)
+            mod_ready_profiles_layout.setSpacing(10)
+            for profile in MOD_PACKAGE_MANAGER_PROFILES:
+                checkbox = QCheckBox(MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile))
+                checkbox.setChecked(profile == "universal")
+                mod_ready_profiles_layout.addWidget(checkbox)
+                self.mod_ready_profile_checkboxes[profile] = checkbox
+            mod_ready_profiles_layout.addStretch(1)
             self.mod_ready_structure_combo = QComboBox()
             self.mod_ready_structure_combo.addItem("Game-relative folders", "game_relative")
             self.mod_ready_structure_combo.addItem("files/ wrapper", "files_wrapper")
@@ -6676,9 +7142,11 @@ def run_gui() -> int:
             mod_package_layout.addWidget(QLabel("Manager profile"), 5, 0)
             mod_package_layout.addWidget(self.mod_ready_manager_combo, 5, 1)
             mod_package_layout.addWidget(make_help_button("Choose the metadata/layout profile to target. Universal writes neutral Workbench metadata only; individual profiles bias the folder structure for that manager."), 5, 2)
-            mod_package_layout.addWidget(QLabel("Structure"), 6, 0)
-            mod_package_layout.addWidget(self.mod_ready_structure_combo, 6, 1)
-            mod_package_layout.addWidget(make_help_button("Game-relative folders keep exact archive paths. The files/ wrapper places payload paths under files/. Custom compact paths writes character model and sidecar payloads as character/<name>. DMM texture folder writes DDS packages for placement under mods/_textures/ without a files/ wrapper. Field-JSON v3.1 writes DDS assets under assets/ and records vpaths in mod.field.json."), 6, 2)
+            mod_package_layout.addWidget(QLabel("Export profiles"), 6, 0)
+            mod_package_layout.addWidget(self.mod_ready_profiles_widget, 6, 1, 1, 2)
+            mod_package_layout.addWidget(QLabel("Structure"), 7, 0)
+            mod_package_layout.addWidget(self.mod_ready_structure_combo, 7, 1)
+            mod_package_layout.addWidget(make_help_button("Game-relative folders keep exact archive paths. The files/ wrapper places payload paths under files/. Custom compact paths writes character model and sidecar payloads as character/<name>. DMM texture folder writes DDS packages for placement under mods/_textures/ without a files/ wrapper. Field-JSON v3.1 writes DDS assets under assets/ and records vpaths in mod.field.json."), 7, 2)
             mod_ready_generate_grid = QGridLayout()
             mod_ready_generate_grid.setContentsMargins(0, 0, 0, 0)
             mod_ready_generate_grid.setHorizontalSpacing(18)
@@ -6704,18 +7172,18 @@ def run_gui() -> int:
                 mod_ready_generate_grid.addLayout(option_row, index // 2, index % 2)
             mod_ready_generate_grid.setColumnStretch(0, 1)
             mod_ready_generate_grid.setColumnStretch(1, 1)
-            mod_package_layout.addWidget(QLabel("Generate"), 7, 0)
-            mod_package_layout.addLayout(mod_ready_generate_grid, 7, 1)
+            mod_package_layout.addWidget(QLabel("Generate"), 8, 0)
+            mod_package_layout.addLayout(mod_ready_generate_grid, 8, 1)
             self.mod_ready_conflict_mode_label = QLabel("Conflict mode")
             self.mod_ready_target_language_label = QLabel("Target language")
             self.mod_ready_conflict_mode_help = make_help_button("CDUMM compatibility metadata. Normal leaves manager conflict behavior unchanged; Override asks compatible managers to prefer this mod when conflicts are detected.")
             self.mod_ready_target_language_help = make_help_button("Optional CDUMM compatibility metadata for language-specific packages. Leave empty for general packages.")
-            mod_package_layout.addWidget(self.mod_ready_conflict_mode_label, 8, 0)
-            mod_package_layout.addWidget(self.mod_ready_conflict_mode_combo, 8, 1)
-            mod_package_layout.addWidget(self.mod_ready_conflict_mode_help, 8, 2)
-            mod_package_layout.addWidget(self.mod_ready_target_language_label, 9, 0)
-            mod_package_layout.addWidget(self.mod_ready_target_language_edit, 9, 1)
-            mod_package_layout.addWidget(self.mod_ready_target_language_help, 9, 2)
+            mod_package_layout.addWidget(self.mod_ready_conflict_mode_label, 9, 0)
+            mod_package_layout.addWidget(self.mod_ready_conflict_mode_combo, 9, 1)
+            mod_package_layout.addWidget(self.mod_ready_conflict_mode_help, 9, 2)
+            mod_package_layout.addWidget(self.mod_ready_target_language_label, 10, 0)
+            mod_package_layout.addWidget(self.mod_ready_target_language_edit, 10, 1)
+            mod_package_layout.addWidget(self.mod_ready_target_language_help, 10, 2)
             self.mod_ready_package_group.setVisible(False)
             policy_layout.addWidget(self.mod_ready_package_group, 5, 0, 1, 2)
 
@@ -7595,6 +8063,16 @@ def run_gui() -> int:
             self.archive_asset_family_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
             self.archive_asset_family_button.setVisible(False)
             self.archive_asset_family_button.setEnabled(False)
+            self.archive_appearance_composite_button = QPushButton("Composite Preview...")
+            self.archive_appearance_composite_button.setToolTip(
+                "Preview a read-only composite from app XML sections or prefab/socket model evidence."
+            )
+            self.archive_appearance_composite_button.setEnabled(False)
+            self.archive_appearance_swap_button = QPushButton("Armor Swap...")
+            self.archive_appearance_swap_button.setToolTip(
+                "Build a loose single-PAC appearance armor swap package from one target body app XML and one donor model."
+            )
+            self.archive_appearance_swap_button.setEnabled(False)
             self.archive_model_export_obj_button = QPushButton("Export OBJ...")
             self.archive_model_export_obj_button.setToolTip(
                 "Export the selected archive mesh as Wavefront OBJ with MTL and resolved preview textures for Blender."
@@ -7666,9 +8144,9 @@ def run_gui() -> int:
                 "Open a documented editable HKX XML patch in-app, then write supported edits as a mod-ready loose HKX package."
             )
             self.archive_hkx_edit_button.setEnabled(False)
-            self.archive_hkx_placement_button = QPushButton("Placement...")
+            self.archive_hkx_placement_button = QPushButton("Edit HKX...")
             self.archive_hkx_placement_button.setToolTip(
-                "Open the selected HKX/HKT, or a related HKX/HKT found from the selected model family, directly on the Placement view."
+                "Edit the selected HKX/HKT, or a related HKX/HKT found from the selected model family, directly on the Placement view."
             )
             self.archive_hkx_placement_button.setEnabled(False)
             self.archive_hkx_corpus_button = QPushButton("Scan HKX Corpus...")
@@ -7760,7 +8238,7 @@ def run_gui() -> int:
             self.archive_hkx_menu_button = _make_archive_action_menu_button(
                 "HKX",
                 (
-                    ("Placement", self.archive_hkx_placement_button),
+                    ("Edit HKX", self.archive_hkx_placement_button),
                     ("Edit Selected HKX", self.archive_hkx_edit_button),
                     ("Scan HKX Corpus", self.archive_hkx_corpus_button),
                 ),
@@ -7848,6 +8326,8 @@ def run_gui() -> int:
                 self.archive_model_modify_original_button,
                 self.archive_model_swap_in_game_button,
                 self.archive_bulk_placement_swap_button,
+                self.archive_appearance_composite_button,
+                self.archive_appearance_swap_button,
                 self.archive_hkx_export_json_button,
                 self.archive_hkx_import_json_button,
                 self.archive_hkx_export_xml_button,
@@ -8279,6 +8759,16 @@ def run_gui() -> int:
             )
             self.replace_assistant_tab.open_in_texture_editor_requested.connect(self._open_source_in_texture_editor)
             self.texture_tabs.addTab(self.replace_assistant_tab, "Replacer")
+            pump_startup_splash("Preparing recolor variants...")
+            self.recolor_variants_tab = RecolorVariantsTab(
+                settings=self.settings,
+                base_dir=self.settings_file_path.parent,
+                get_texconv_path=lambda: self.texconv_path_edit.text(),
+            )
+            self.recolor_variants_tab.status_message_requested.connect(
+                lambda message, is_error: self.set_status_message(message, error=is_error)
+            )
+            self.texture_tabs.addTab(self.recolor_variants_tab, "Recolor Variants")
             pump_startup_splash("Preparing texture editor...")
             if TextureEditorTab is None:
                 self.texture_editor_tab = UnavailableTextureEditorTab(TEXTURE_EDITOR_IMPORT_ERROR)
@@ -8331,6 +8821,7 @@ def run_gui() -> int:
             self._build_dashboard_tab()
             self._register_detachable_tool("texture_workflow", self.workflow_tab, "Texture Workflow")
             self._register_detachable_tool("replace_assistant", self.replace_assistant_tab, "Texture Replacer")
+            self._register_detachable_tool("recolor_variants", self.recolor_variants_tab, "Recolor Variants")
             self._register_detachable_tool("texture_editor", self.texture_editor_tab, "Texture Editor")
             self._register_detachable_tool("archive_browser", self.archive_browser_tab, "Archive Browser")
             self._register_detachable_tool("model_library", self.model_library_tab, "Model Library")
@@ -8437,6 +8928,8 @@ def run_gui() -> int:
             self.archive_model_modify_original_button.clicked.connect(self._modify_current_archive_original_mesh)
             self.archive_model_swap_in_game_button.clicked.connect(self._swap_current_archive_mesh_with_in_game)
             self.archive_bulk_placement_swap_button.clicked.connect(self._open_archive_bulk_attachment_placement_from_selection)
+            self.archive_appearance_composite_button.clicked.connect(self._open_current_archive_appearance_composite_preview)
+            self.archive_appearance_swap_button.clicked.connect(self._open_current_archive_appearance_swap)
             self.archive_hkx_export_json_button.clicked.connect(self._export_current_archive_hkx_json)
             self.archive_hkx_import_json_button.clicked.connect(self._import_current_archive_hkx_json)
             self.archive_hkx_export_xml_button.clicked.connect(self._export_current_archive_hkx_xml)
@@ -8571,45 +9064,22 @@ def run_gui() -> int:
 
             content = QWidget()
             content_layout = QVBoxLayout(content)
-            content_layout.setContentsMargins(10, 10, 10, 10)
-            content_layout.setSpacing(10)
+            content_layout.setContentsMargins(14, 14, 14, 14)
+            content_layout.setSpacing(12)
             scroll.setWidget(content)
 
             title = QLabel("Dashboard")
             title.setObjectName("SectionTitle")
             content_layout.addWidget(title)
 
-            task_group = QGroupBox("Start a Task")
-            task_layout = QGridLayout(task_group)
-            task_layout.setContentsMargins(10, 10, 10, 10)
-            task_layout.setHorizontalSpacing(8)
-            task_layout.setVerticalSpacing(8)
-            task_specs = [
-                ("Browse game files", self.archive_browser_tab),
-                ("Replace one texture", self.replace_assistant_tab),
-                ("Batch process textures", self.workflow_tab),
-                ("Edit a texture", self.texture_editor_tab),
-                ("Find a model", self.model_library_tab),
-                ("Create item icon", self.item_icons_tab),
-                ("Research texture families", self.research_tab),
-                ("Search text / XML", self.text_search_tab),
-            ]
-            for index, (label, widget) in enumerate(task_specs):
-                button = QPushButton(label)
-                button.setMinimumHeight(30)
-                button.clicked.connect(lambda _checked=False, target=widget: self._activate_tool_widget(target))
-                task_layout.addWidget(button, index // 4, index % 4)
-            for column in range(4):
-                task_layout.setColumnStretch(column, 1)
-            content_layout.addWidget(task_group)
-
             status_grid = QGridLayout()
             status_grid.setContentsMargins(0, 0, 0, 0)
-            status_grid.setHorizontalSpacing(10)
-            status_grid.setVerticalSpacing(10)
+            status_grid.setHorizontalSpacing(12)
+            status_grid.setVerticalSpacing(12)
             content_layout.addLayout(status_grid)
 
             workspace_group = QGroupBox("Workspace")
+            workspace_group.setObjectName("DashboardStatusPanel")
             workspace_layout = QGridLayout(workspace_group)
             workspace_layout.setContentsMargins(10, 10, 10, 10)
             workspace_layout.setHorizontalSpacing(10)
@@ -8628,6 +9098,7 @@ def run_gui() -> int:
             status_grid.addWidget(workspace_group, 0, 0)
 
             health_group = QGroupBox("Health")
+            health_group.setObjectName("DashboardStatusPanel")
             health_layout = QGridLayout(health_group)
             health_layout.setContentsMargins(10, 10, 10, 10)
             health_layout.setHorizontalSpacing(10)
@@ -8648,6 +9119,7 @@ def run_gui() -> int:
             status_grid.setColumnStretch(1, 1)
 
             recent_group = QGroupBox("Recent Work")
+            recent_group.setObjectName("DashboardStatusPanel")
             recent_layout = QGridLayout(recent_group)
             recent_layout.setContentsMargins(10, 10, 10, 10)
             recent_layout.setHorizontalSpacing(10)
@@ -8666,6 +9138,7 @@ def run_gui() -> int:
             content_layout.addWidget(recent_group)
 
             results_group = QGroupBox("Last Results")
+            results_group.setObjectName("DashboardStatusPanel")
             results_layout = QVBoxLayout(results_group)
             results_layout.setContentsMargins(10, 10, 10, 10)
             results_layout.setSpacing(8)
@@ -8678,6 +9151,12 @@ def run_gui() -> int:
             self.dashboard_open_output_button = QPushButton("Open Output")
             self.dashboard_review_compare_button = QPushButton("Review Compare")
             self.dashboard_open_log_button = QPushButton("Open Log")
+            for button in (
+                self.dashboard_open_output_button,
+                self.dashboard_review_compare_button,
+                self.dashboard_open_log_button,
+            ):
+                button.setObjectName("DashboardInlineButton")
             self.dashboard_open_output_button.clicked.connect(self.open_output_folder)
             self.dashboard_review_compare_button.clicked.connect(self._dashboard_open_compare)
             self.dashboard_open_log_button.clicked.connect(self._dashboard_open_workflow_log)
@@ -8693,8 +9172,9 @@ def run_gui() -> int:
 
         def _add_dashboard_status_row(self, layout: QGridLayout, row: int, key: str, label: str) -> None:
             name_label = QLabel(label)
-            name_label.setObjectName("HintLabel")
+            name_label.setObjectName("DashboardStatusName")
             value_label = QLabel("")
+            value_label.setObjectName("DashboardStatusValue")
             value_label.setWordWrap(True)
             value_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
             layout.addWidget(name_label, row, 0)
@@ -9191,7 +9671,7 @@ def run_gui() -> int:
             title_font.setBold(True)
             title_label.setFont(title_font)
             subtitle_label = QLabel(
-                "Crimson Desert archive browsing, texture workflows, mesh preview/import tools, research, and safe mod packaging."
+                "Crimson Desert archive browsing, texture workflows, mesh preview/import tools, item/icon helpers, research, app profiles, and safe mod packaging."
             )
             subtitle_label.setWordWrap(True)
             subtitle_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -9215,9 +9695,11 @@ def run_gui() -> int:
                 <ul>
                   <li><b>Texture Workflow</b>: batch processing, review, DDS rebuild, and mod-ready export.</li>
                   <li><b>Archive Browser</b>: game-file search, preview, extraction, references, mesh tools, and supported patch workflows.</li>
+                  <li><b>Model Library and Icon Creator</b>: local/importable model routing and item-icon package helpers.</li>
                   <li><b>Texture Editor</b>: visible texture edits with handoff back to workflow/replacement tools.</li>
                   <li><b>Texture Replacer</b>: guided one-off replacement packaging.</li>
                   <li><b>Research and Text Search</b>: inspect file families, references, strings, and notes.</li>
+                  <li><b>Profile, Settings, and Window</b>: portable app profiles, language/theme/performance preferences, and detachable work tabs.</li>
                 </ul>
                 <p>Use the top <b>Documentation</b> menu for the full searchable guide.</p>
                 """
@@ -9267,6 +9749,8 @@ def run_gui() -> int:
             <a href="topic:research">Research</a>,
             <a href="topic:text_search">Text Search</a>,
             <a href="topic:mod_packaging">Mod Packaging</a>,
+            <a href="topic:profile_settings">Profile &amp; Settings</a>,
+            <a href="topic:window_layout">Window &amp; Layout</a>,
             <a href="topic:safety">Safety</a>,
             <a href="topic:faq">FAQ</a>,
             <a href="topic:troubleshooting">Troubleshooting</a>.
@@ -9291,13 +9775,16 @@ def run_gui() -> int:
                     "html": """
                     <p>The app is split into major work areas rather than one single pipeline.</p>
                     <ul>
+                      <li><b>Dashboard</b>: compact workspace health, configured tool paths, recent work, and the latest run result with quick links to output, Compare, and logs.</li>
                       <li><b>Texture Workflow</b>: batch loose DDS processing, optional upscaling, DDS rebuild, compare, and mod-ready loose export.</li>
                       <li><b>Archive Browser</b>: archive scanning, filtering, preview, extraction, supported patch/loose-export workflows, and Research/Editor handoff.</li>
+                      <li><b>Model Library</b>: scan local/importable models, preview them, and route compatible imports into Archive Browser workflows.</li>
+                      <li><b>Icon Creator</b>: prepare item-icon source images and package compatible icon replacements.</li>
                       <li><b>Texture Editor</b>: layered visible-texture editing and direct workflow handoff.</li>
                       <li><b>Texture Replacer</b>: guided one-off replacement packaging for edited PNG/DDS files.</li>
                       <li><b>Research</b>: grouped texture families, unknown-resolution work, DDS analysis, references, reports, and notes.</li>
                       <li><b>Text Search</b>: text-like archive/loose-file search with preview and export.</li>
-                      <li><b>Settings</b>: appearance, cache/startup behavior, and persistent local preferences.</li>
+                      <li><b>Profile, Settings, and Window</b>: full app preference export/import, startup/performance/preview controls, language files, and detachable work tabs.</li>
                     </ul>
                     <p>If you are new to the app, start with <a href="topic:workflow_overview">Texture Workflow</a> and then review <a href="topic:compare_review">Compare &amp; Review</a>.</p>
                     """,
@@ -9577,18 +10064,18 @@ def run_gui() -> int:
                       <tr><td>Referenced Files</td><td>Connection map for the selected asset.</td><td>Find textures, material sidecars, skeletons, animations, metadata, packages, resolution status, and usage counts.</td></tr>
                       <tr><td>Details</td><td>Structured metadata and diagnostics.</td><td>Check sizes, compression, package labels, strings, import summaries, preview diagnostics, and warnings.</td></tr>
                       <tr><td>Item Finder</td><td>Visual item lookup backed by iteminfo, localization, icons, and archive relationships.</td><td>Search by item name/category, browse icons, jump back to archive entries, and choose a placement source from resolved item assets.</td></tr>
-                      <tr><td>Mesh Actions</td><td>Model export/import, placement, and replacement workflow entry points.</td><td>Export OBJ/FBX, import mesh preview, import DDS preview, import mesh replacement, swap with another in-game mesh, open HKX placement, bulk placement swap, restore backups, edit material values.</td></tr>
-                      <tr><td>HKX / Placement</td><td>Socket, prefab, and placement-copy workflows for weapons and other attachment-driven assets.</td><td>Open placement from HKX/model context, choose a .pac placement source, use Item Finder, compare source/target placement, edit socket values, and build one loose placement-copy package.</td></tr>
+                      <tr><td>Mesh Actions</td><td>Model export/import, placement, and replacement workflow entry points.</td><td>Export OBJ/FBX, import OBJ/DAE/glTF/GLB preview, import DDS preview, import mesh replacement, swap with another in-game mesh, edit HKX placement context, bulk placement swap, restore backups, edit material values.</td></tr>
+                      <tr><td>HKX / Placement</td><td>Socket, prefab, and placement-copy workflows for weapons and other attachment-driven assets.</td><td>Edit HKX placement context from HKX/model selections, choose a .pac placement source, use Item Finder, compare source/target placement, edit socket values, and build one loose placement-copy package.</td></tr>
                     </table>
                     <ul>
                       <li>Scan package roots and cache the discovered archive index locally.</li>
                       <li>Filter by path, package, folder, likely role, size, and previewability, then switch between flat and tree browsing as needed.</li>
                       <li>Use the <b>State</b> column to understand duplicates from mod managers such as DMM: active mod rows override originals, shadowed rows are present but not the active payload, and mod-added rows have no original counterpart.</li>
-                      <li>Preview supported DDS/images, text-like files, audio/video, and model assets such as <code>.pam</code>, <code>.pamlod</code>, and <code>.pac</code>.</li>
+                      <li>Preview supported DDS/images, text-like files, structured assets such as <code>.app_xml</code>, <code>.prefabdata_xml</code>, <code>.prefab</code>, <code>.levelinfo</code>, <code>.palevel</code>, <code>.roadsector</code>, <code>.road</code>, <code>.nav</code>, <code>.pabc</code>, <code>.pabv</code>, <code>.pabgb</code>, <code>.pabgh</code>, HKX/Havok summaries, audio/video, and model assets such as <code>.pam</code>, <code>.pamlod</code>, and <code>.pac</code>.</li>
                       <li>Extract selected or filtered content to loose folders.</li>
                       <li>Use <b>Item Finder</b> when a name/category/icon is a better starting point than a raw path; armor and horse gear categories are inferred from item names, IDs, and game metadata where possible.</li>
                       <li>Inspect referenced model textures, export supported meshes as OBJ/FBX, import OBJ/DAE/glTF/GLB for rebuilt preview, swap one archive mesh with another in-game mesh, and choose between archive patching or mod-ready loose export for supported mesh flows.</li>
-                      <li>Use <b>Open HKX Placement</b> and <b>Choose Placement Source</b> for socket/prefab-driven placement swaps. Pick the visible source <code>.pac</code> when possible; the picker uses a static geometry thumbnail so browsing candidates does not depend on a nested live live model view.</li>
+                      <li>Use <b>Edit HKX</b> and <b>Choose Placement Source</b> for socket/prefab-driven placement swaps. Pick the visible source <code>.pac</code> when possible; the picker uses a static geometry thumbnail so browsing candidates does not depend on a nested live model view.</li>
                       <li>Replace supported archive DDS entries from DDS or PNG, patch supported audio entries, and restore backups created by supported patch operations.</li>
                       <li>Send DDS content into Texture Workflow, open supported images in Texture Editor, or resolve items in Research.</li>
                     </ul>
@@ -9620,7 +10107,7 @@ def run_gui() -> int:
                       <tr><td>Find a character or item model</td><td>Search by file stem, folder, or in-game name; use <b>Exact Item Name</b> and <b>Related Name Hint</b> columns when available.</td><td>Exact names require direct package links. Related hints are useful for navigation but are not proof of item identity.</td></tr>
                       <tr><td>Tell which duplicate is active</td><td>Read the <b>State</b> column.</td><td><b>Active mod</b> is the replacement payload currently winning over an original; <b>Shadowed original</b> or <b>Shadowed mod</b> means another row with the same virtual path has priority.</td></tr>
                       <tr><td>Find textures used by a model</td><td>Select the model and read <b>Referenced Files</b>.</td><td>Resolved means the app found an archive entry; partial means metadata exists but some texture decoding or archive data is incomplete.</td></tr>
-                      <tr><td>Choose a placement source</td><td>Use <b>Open HKX Placement</b>, then <b>Choose Placement Source</b>, or pick through <b>Item Finder</b>.</td><td>Choose the visible source <code>.pac</code> when possible. HKX is useful context, but placement usually resolves through prefab/socket data around the model family.</td></tr>
+                      <tr><td>Choose a placement source</td><td>Use <b>Edit HKX</b>, then <b>Choose Placement Source</b>, or pick through <b>Item Finder</b>.</td><td>Choose the visible source <code>.pac</code> when possible. HKX is useful context, but placement usually resolves through prefab/socket data around the model family.</td></tr>
                       <tr><td>Find material values</td><td>Look for <code>.pac_xml</code>, <code>.pam_xml</code>, <code>.pamlod_xml</code>, or <code>.pami</code> sidecars.</td><td>Use <b>Edit Material Values</b> when recognized fields are available.</td></tr>
                       <tr><td>Understand a selected file</td><td>Open <b>Details</b>.</td><td>Details includes package, raw/stored size, compression, preview diagnostics, readable strings, and import summaries.</td></tr>
                     </table>
@@ -9665,7 +10152,7 @@ def run_gui() -> int:
                       <tr><td>Import DDS Preview</td><td>You want to test a DDS texture override on the selected model without writing output.</td><td>Builds a model preview only.</td></tr>
                       <tr><td>Import Mesh</td><td>You are ready to export a supported replacement.</td><td>Lets you choose archive patching or mod-ready loose output where supported.</td></tr>
                       <tr><td>Swap With In-Game Mesh</td><td>You want another loaded archive mesh to replace the selected target mesh.</td><td>Sets a target, then uses the chosen source mesh in Mesh Replacement Alignment with related files carried over where supported.</td></tr>
-                      <tr><td>Open HKX Placement</td><td>You opened an HKX/model and need to copy placement from another weapon/model family.</td><td>Shows target context, lets you choose a placement source, compares source/target placement, and builds a loose placement-copy package.</td></tr>
+                      <tr><td>Edit HKX</td><td>You opened an HKX/model and need to copy placement from another weapon/model family.</td><td>Shows target context, lets you choose a placement source, compares source/target placement, and builds a loose placement-copy package.</td></tr>
                       <tr><td>Bulk Placement Swap</td><td>You selected multiple placement-capable targets.</td><td>Builds one combined loose mod folder using the same package rows as each single placement swap.</td></tr>
                       <tr><td>Edit Material Values</td><td>The selected mesh has a recognized XML/material sidecar.</td><td>Exports edited sidecar values as a mod-ready package instead of hand-editing raw XML blindly.</td></tr>
                     </table>
@@ -9678,6 +10165,14 @@ def run_gui() -> int:
                       <li><b>Import Mesh</b> writes only after the same checks. Depending on the target and compatibility review, output can be mod-ready loose files or a confirmed archive patch.</li>
                       <li>Texture slot plans and original DDS overrides are advanced repair tools. Prefer suggested mappings first, then manually override only the slots you understand.</li>
                     </ul>
+                    <h4>Material Authority and sidecars</h4>
+                    <ul>
+                      <li><b>Material Authority</b> uses the proven source-owned route: source color through overlay color, source PBR/material mask through detail mask, and no glossy color-blend response.</li>
+                      <li><b>Material Authority Manual</b> starts from that same route and exposes override knobs for advanced repair.</li>
+                      <li>Legacy Runtime XML and True Source profiles stay loadable for old settings/debug, but are no longer shown as default choices.</li>
+                      <li><b>Use Another Original Mesh</b> lets you pick a different original reference when the selected target is not the best authority for alignment/material context.</li>
+                      <li>Placement state matters for items with body and hand variants: review <b>Stowed / on body</b> versus <b>Held / in hand</b> before building a package.</li>
+                    </ul>
                     <h4>In-game mesh swap</h4>
                     <ol>
                       <li>Select the archive mesh you want to replace and click <b>Swap With In-Game Mesh</b> or use the context menu to start the swap target.</li>
@@ -9689,7 +10184,7 @@ def run_gui() -> int:
                     <div class="doc-callout doc-warning"><b>Mesh limits:</b> static replacement can retarget geometry and compatible material sidecars, but it does not convert every external rig, animation, character appearance graph, skin, or complex DCC material graph into native game data. Full character/body swaps often require matching <code>.app_xml</code>, <code>.prefabdata_xml</code>, skeleton variation, physics, socket, customization, and texture references.</div>
                     <h4>HKX placement and socket workflows</h4>
                     <ul>
-                      <li><b>Open HKX Placement</b> treats the opened asset as the target that changes. <b>Choose Placement Source</b> finds the source weapon/model whose placement should be copied.</li>
+                      <li><b>Edit HKX</b> treats the opened asset as the target that changes. <b>Choose Placement Source</b> finds the source weapon/model whose placement should be copied.</li>
                       <li>Pick a visible source <code>.pac</code> when possible. The picker can search the archive indexes directly or use <b>Pick From Item Finder</b> to start from item name/icon/category.</li>
                       <li>The placement source picker uses a static geometry thumbnail for source candidates. This keeps browsing stable while still confirming that the selected source is the expected model.</li>
                       <li><b>Compare Placement</b> verifies the resolved prefab/socket/HKX context before packaging. <b>Edit Socket Values</b> is available when the recovered socket XML can be safely shown and written as loose output.</li>
@@ -9775,6 +10270,40 @@ def run_gui() -> int:
                       <li><b>Archive Browser</b> patch workflows are explicit, confirmed operations with backup/restore support where implemented. They are not part of ordinary browsing.</li>
                     </ul>
                     <p>Recommended practice: build into a review folder, inspect in Compare or an external viewer, then copy or point your mod manager at the final mod-ready folder.</p>
+                    """,
+                },
+                {
+                    "id": "profile_settings",
+                    "title": "Profile & Settings",
+                    "summary": "What app profiles, settings pages, diagnostics, and language files include.",
+                    "keywords": "profile settings export import diagnostics language appearance startup performance preview texture editor replacer",
+                    "html": """
+                    <p><b>Profile &gt; Export Profile</b> writes both the workflow configuration and a full settings snapshot. Current profiles include paths, workflow rules/profiles, mod-package metadata, Archive Browser filters/view mode, appearance, language, startup restore, performance, archive cache/indexing preferences, 3D preview graphics controls, Texture Replacer options, Texture Editor brush/tool preferences, safety prompts, and saved window geometry.</p>
+                    <ul>
+                      <li><b>Import Profile</b> restores the workflow config first, then reloads the saved app settings into the live Settings, Texture Replacer, and Texture Editor controls.</li>
+                      <li><b>Export Diagnostics</b> includes the same profile payload plus logs, cache summaries, chain analysis, crash context when available, README, license, and third-party notices.</li>
+                      <li><b>Settings / Startup</b> controls archive auto-load, cache preference, last-tab restore, and archive-filter restore.</li>
+                      <li><b>Settings / Performance</b> controls resource profile, virtual/legacy archive view backend, UI frame budget, worker pressure, native acceleration, sidecar indexing, preview cache, and D3D11 preview cache.</li>
+                      <li><b>Settings / Appearance</b> controls themes, built-in Spanish/German/custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults.</li>
+                      <li><b>Settings / Layout and Safety</b> control pane-size memory, cleanup confirmations, and extra local diagnostic context.</li>
+                    </ul>
+                    <p>Language export writes a JSON file with English keys and translated values. Keep keys unchanged, edit only values, then import the file from Settings / Appearance.</p>
+                    """,
+                },
+                {
+                    "id": "window_layout",
+                    "title": "Window & Layout",
+                    "summary": "Detachable work tabs, saved geometry, and layout memory.",
+                    "keywords": "window layout detach attach tab geometry splitter restore detached tool",
+                    "html": """
+                    <p>The <b>Window</b> menu lets heavy work areas run in their own top-level windows while keeping their original navigation slots available.</p>
+                    <ul>
+                      <li><b>Detach Current Tab</b> moves the current detachable tool into a separate window and leaves a placeholder behind.</li>
+                      <li><b>Attach Current Tool</b> and <b>Attach All Tools</b> return detached tools to their original tab groups.</li>
+                      <li>Detached windows remember their geometry under <code>window/detached/&lt;tool&gt;/geometry</code>. The main window stores <code>window/geometry</code>.</li>
+                      <li><b>Settings / Layout</b> controls whether pane sizes and splitters are remembered across sessions.</li>
+                      <li>Archive Browser, Texture Workflow, Texture Editor, Model Library, Icon Creator, Research, and Text Search can be restored from their placeholders or the Window menu.</li>
+                    </ul>
                     """,
                 },
                 {
@@ -9875,7 +10404,9 @@ def run_gui() -> int:
                 <a href="topic:texture_editor">Editor de texturas</a>,
                 <a href="topic:replace_assistant">Asistente de reemplazo</a>,
                 <a href="topic:research">Investigacion</a>,
-                <a href="topic:text_search">Busqueda de texto</a>.
+                <a href="topic:text_search">Busqueda de texto</a>,
+                <a href="topic:profile_settings">Perfil y configuracion</a>,
+                <a href="topic:window_layout">Ventana y layout</a>.
                 </p>
                 """
                 settings_text = escape(str(self.settings_file_path))
@@ -9889,13 +10420,16 @@ def run_gui() -> int:
                         "html": """
                         <p>La aplicacion esta dividida en areas de trabajo para que no tengas que usar una sola tuberia para todo.</p>
                         <ul>
+                          <li><b>Panel</b>: estado del workspace, rutas de herramientas, trabajo reciente y ultimo resultado con accesos a salida, Comparar y logs.</li>
                           <li><b>Flujo de texturas</b>: proceso por lotes para DDS sueltos, escalado opcional, reconstruccion DDS, comparacion y exportacion mod-ready.</li>
                           <li><b>Explorador de archivos</b>: escaneo, filtro, vista previa, extraccion, exportacion suelta y parches compatibles.</li>
+                          <li><b>Biblioteca de modelos</b>: escaneo de modelos locales/importables, vista previa y envio a flujos del explorador.</li>
+                          <li><b>Creador de iconos</b>: prepara imagenes fuente y paquetes compatibles para iconos de items.</li>
                           <li><b>Editor de texturas</b>: edicion por capas de texturas visibles y envio directo al flujo.</li>
                           <li><b>Asistente de reemplazo</b>: reemplazos guiados para PNG/DDS editados.</li>
                           <li><b>Investigacion</b>: familias DDS, clasificacion, referencias, analisis y notas.</li>
                           <li><b>Busqueda de texto</b>: busqueda en archivos de texto de archivo o sueltos.</li>
-                          <li><b>Configuracion</b>: apariencia, rutas, cache, idioma, inicio y preferencias persistentes.</li>
+                          <li><b>Perfil, configuracion y ventana</b>: exportacion/importacion completa de preferencias, idioma, rendimiento, vista 3D y pestanas separables.</li>
                         </ul>
                         """,
                     },
@@ -10051,7 +10585,7 @@ def run_gui() -> int:
                           <li><b>Importar vista de malla</b> prueba OBJ/DAE/glTF/GLB sin escribir salida.</li>
                           <li><b>Importar malla</b> continua desde la misma revision y puede escribir salida suelta mod-ready o parche compatible despues de confirmar.</li>
                           <li><b>Intercambiar con malla del juego</b> marca una malla del archivo como destino y usa otra malla cargada como origen para el flujo de alineacion.</li>
-                          <li><b>Abrir colocacion HKX</b> y <b>Elegir origen de colocacion</b> copian datos de prefab/socket desde otro arma/modelo. Elige el <code>.pac</code> visible cuando sea posible; el selector muestra una miniatura estatica de geometria y la edicion visual se abre en D3D11 nativo.</li>
+                          <li><b>Editar HKX</b> y <b>Elegir origen de colocacion</b> copian datos de prefab/socket desde otro arma/modelo. Elige el <code>.pac</code> visible cuando sea posible; el selector muestra una miniatura estatica de geometria y la edicion visual se abre en D3D11 nativo.</li>
                           <li><b>Intercambio masivo de colocacion</b> crea un solo paquete suelto para varios objetivos compatibles.</li>
                           <li>Los parches directos son compatibles solo para formatos donde la app puede reconstruir datos de forma segura.</li>
                         </ul>
@@ -10118,7 +10652,7 @@ def run_gui() -> int:
                         <ul>
                           <li><b>Archivo de configuracion</b>: <code>{settings_text}</code></li>
                           <li><b>Cache de archivos</b>: <code>{cache_text}</code></li>
-                          <li><b>texconv</b>: necesario para vista DDS, conversion DDS-a-PNG, comparacion y reconstruccion DDS.</li>
+                          <li><b>texconv</b>: fallback legacy opcional. Vista DDS, conversion DDS-a-PNG, comparacion y reconstruccion usan primero DirectXTex/native.</li>
                           <li><b>Real-ESRGAN NCNN</b> y <b>chaiNNer</b>: backends opcionales de escalado.</li>
                           <li><b>Idiomas</b>: puedes exportar el archivo de idioma, editar los valores y volver a importarlo.</li>
                         </ul>
@@ -10131,7 +10665,7 @@ def run_gui() -> int:
                         "keywords": "problemas limites texconv ncnn chainner png brillo cache vista previa",
                         "html": """
                         <ul>
-                          <li><b>Falta texconv</b>: la vista DDS, conversion, comparacion y reconstruccion no funcionaran bien.</li>
+                          <li><b>Falta texconv</b>: los flujos normales de vista/reconstruccion DDS deben seguir funcionando con DirectXTex/native. Si tambien fallan las herramientas nativas, revisa el empaquetado de herramientas.</li>
                           <li><b>Faltan modelos NCNN</b>: NCNN directo necesita ejecutable y pares .param/.bin validos.</li>
                           <li><b>No hay PNG de salida</b>: si el backend no produce PNG util, no hay nada que reconstruir.</li>
                           <li><b>Rutas chaiNNer incorrectas</b>: una cadena puede leer o escribir en carpetas equivocadas.</li>
@@ -10153,7 +10687,7 @@ def run_gui() -> int:
                               <li>Crea una carpeta dedicada para la app y coloca alli el .exe portable.</li>
                               <li>En <b>Configuracion &gt; Ubicaciones de archivo</b>, define la ruta del juego/paquete.</li>
                               <li>Ejecuta <b>Inicializar espacio</b> para crear workspace, tools, salida, PNG y extraccion.</li>
-                              <li>Descarga texconv, coloca texconv.exe bajo tools y configura su ruta.</li>
+                              <li>Usa las herramientas DirectXTex/native incluidas. texconv.exe es solo fallback legacy opcional si quieres configurarlo.</li>
                               <li>Escanea un conjunto pequeno antes de procesar archivos grandes.</li>
                               <li>Para mallas, empieza con <b>Vista previa de importar malla</b> en el Explorador de archivos. Usa <b>Importar malla</b> o <b>Intercambiar con malla del juego</b> solo despues de revisar la alineacion.</li>
                             </ol>
@@ -10171,7 +10705,7 @@ def run_gui() -> int:
                               <tr><td>Encontrar un modelo o item</td><td>Busca por ruta, extension, paquete o nombre en juego.</td><td><b>Nombre exacto de item</b> solo aparece con enlace directo iteminfo/localizacion/hash de modelo. <b>Pista de nombre relacionado</b> marca relaciones inferidas, no identidad probada.</td></tr>
                               <tr><td>Saber que duplicado esta activo</td><td>Lee la columna <b>Estado</b>.</td><td><b>Mod activo</b> es la carga que gana sobre el original. Las filas ocultas por prioridad siguen visibles para inspeccion, pero no son la carga activa.</td></tr>
                               <tr><td>Encontrar texturas relacionadas</td><td>Selecciona un modelo y revisa <b>Archivos referenciados</b>.</td><td>Muestra textura, sidecar, esqueleto, animacion, paquete y estado.</td></tr>
-                              <tr><td>Elegir origen de colocacion</td><td>Usa <b>Abrir colocacion HKX</b> y despues <b>Elegir origen de colocacion</b>, o entra desde <b>Item Finder</b>.</td><td>Elige el <code>.pac</code> visible si existe. HKX aporta contexto, pero la colocacion normalmente se resuelve con prefab/socket alrededor de la familia del modelo.</td></tr>
+                              <tr><td>Elegir origen de colocacion</td><td>Usa <b>Editar HKX</b> y despues <b>Elegir origen de colocacion</b>, o entra desde <b>Item Finder</b>.</td><td>Elige el <code>.pac</code> visible si existe. HKX aporta contexto, pero la colocacion normalmente se resuelve con prefab/socket alrededor de la familia del modelo.</td></tr>
                               <tr><td>Revisar metadatos</td><td>Abre <b>Detalles</b>.</td><td>Incluye tamano, compresion, cadenas legibles, diagnosticos y advertencias.</td></tr>
                               <tr><td>Editar XML/material</td><td>Usa <b>Editar valores de material</b> cuando haya sidecar reconocido.</td><td>Exporta valores editados como paquete mod-ready.</td></tr>
                             </table>
@@ -10198,7 +10732,7 @@ def run_gui() -> int:
                               <tr><td>Vista previa de importar DDS</td><td>Probar una textura DDS en el modelo seleccionado sin escribir archivos.</td><td>Solo crea vista previa del modelo.</td></tr>
                               <tr><td>Importar malla</td><td>Crear reemplazo soportado.</td><td>Permite parche o salida suelta mod-ready donde sea compatible.</td></tr>
                               <tr><td>Intercambiar con malla del juego</td><td>Usar otra malla del archivo como reemplazo del objetivo seleccionado.</td><td>Abre Alineacion de reemplazo de malla y conserva archivos relacionados cuando es compatible.</td></tr>
-                              <tr><td>Abrir colocacion HKX</td><td>Copiar colocacion desde otra familia de arma/modelo.</td><td>Muestra contexto del objetivo, permite elegir origen, compara colocacion y crea paquete suelto de colocacion.</td></tr>
+                              <tr><td>Editar HKX</td><td>Copiar colocacion desde otra familia de arma/modelo.</td><td>Muestra contexto del objetivo, permite elegir origen, compara colocacion y crea paquete suelto de colocacion.</td></tr>
                               <tr><td>Intercambio masivo de colocacion</td><td>Varios objetivos compatibles estan seleccionados.</td><td>Crea un solo paquete mod-ready usando las mismas filas que cada intercambio individual.</td></tr>
                             </table>
                             <h4>Alineacion de reemplazo de malla</h4>
@@ -10207,6 +10741,14 @@ def run_gui() -> int:
                               <li>Usa <b>Vista previa de importar malla</b> antes de escribir archivos.</li>
                               <li>Usa <b>Importar malla</b> solo despues de revisar compatibilidad, ubicacion y plan de texturas.</li>
                               <li>Las anulaciones avanzadas de ranuras DDS son herramientas de reparacion manual; empieza con las sugerencias.</li>
+                            </ul>
+                            <h4>Autoridad de material y sidecars</h4>
+                            <ul>
+                              <li><b>Preservar XML runtime</b> mantiene la estructura PAC XML del objetivo/corpus y permite que capas o mapas de soporte originales influyan en el resultado.</li>
+                              <li><b>Autoridad de origen real</b> usa PAC/XML original como ABI runtime, pero bloquea influencia visible/soporte original en wrappers activos del origen.</li>
+                              <li><b>Autoridad de material manual</b> parte de Preservar XML runtime y expone controles para reparacion avanzada.</li>
+                              <li><b>Usar otra malla original</b> permite elegir otra referencia original para alineacion o contexto de material.</li>
+                              <li>Revisa estado de colocacion <b>Guardado / en el cuerpo</b> frente a <b>Sostenido / en mano</b> antes de crear paquetes.</li>
                             </ul>
                             <h4>Intercambio con malla del juego</h4>
                             <ol>
@@ -10238,6 +10780,38 @@ def run_gui() -> int:
                               <li><b>Output root</b> contiene resultados DDS normales.</li>
                               <li><b>Exportacion mod-ready</b> crea estructura suelta con manifest.json, metadatos opcionales de manager y opcional .no_encrypt.</li>
                               <li>Los parches de archivo requieren confirmacion y usan backup/restauracion cuando esta disponible.</li>
+                            </ul>
+                            """,
+                        },
+                        {
+                            "id": "profile_settings",
+                            "title": "Perfil y configuracion",
+                            "summary": "Que incluyen perfiles, diagnosticos, preferencias e idiomas.",
+                            "keywords": "perfil configuracion exportar importar diagnosticos idioma apariencia inicio rendimiento vista editor reemplazo",
+                            "html": """
+                            <p><b>Perfil &gt; Exportar perfil</b> guarda la configuracion del flujo y una copia completa de los ajustes de la app: rutas, reglas/perfiles, metadatos de paquete, filtros del explorador, apariencia, idioma, inicio, rendimiento, cache/indexacion, vista 3D, Reemplazador, Editor de texturas, avisos de seguridad y geometria de ventanas.</p>
+                            <ul>
+                              <li><b>Importar perfil</b> restaura primero el flujo y despues recarga esos ajustes en Configuracion, Reemplazador y Editor de texturas.</li>
+                              <li><b>Exportar diagnosticos</b> incluye el mismo perfil, logs, resumen de cache, analisis de chaiNNer, contexto de fallos si existe, README, licencia y avisos de terceros.</li>
+                              <li><b>Configuracion / Inicio</b>: carga automatica del archivo, preferencia de cache, ultima pestana y filtros del explorador.</li>
+                              <li><b>Configuracion / Rendimiento</b>: perfil de recursos, backend de vista, presupuesto UI, workers, aceleracion nativa, indexacion de sidecars y cache D3D11.</li>
+                              <li><b>Configuracion / Apariencia</b>: temas, Espanol/Aleman integrados, idiomas personalizados, fuentes, densidad, colores y valores 3D.</li>
+                            </ul>
+                            <p>Exportar idioma crea JSON con claves en ingles. Manten las claves sin cambios y edita solo los valores traducidos.</p>
+                            """,
+                        },
+                        {
+                            "id": "window_layout",
+                            "title": "Ventana y layout",
+                            "summary": "Pestanas separables, geometria guardada y memoria de layout.",
+                            "keywords": "ventana layout separar acoplar pestana geometria splitter restaurar",
+                            "html": """
+                            <p>El menu <b>Ventana</b> permite mover areas pesadas a ventanas separadas sin perder su posicion en la navegacion principal.</p>
+                            <ul>
+                              <li><b>Separar pestana actual</b> mueve la herramienta actual a una ventana nueva y deja un marcador en su lugar.</li>
+                              <li><b>Acoplar herramienta actual</b> y <b>Acoplar todas las herramientas</b> devuelven herramientas separadas a sus grupos originales.</li>
+                              <li>La geometria separada se guarda como <code>window/detached/&lt;tool&gt;/geometry</code>; la ventana principal usa <code>window/geometry</code>.</li>
+                              <li><b>Configuracion / Layout</b> controla si se recuerdan tamanos de paneles y splitters.</li>
                             </ul>
                             """,
                         },
@@ -10286,7 +10860,9 @@ def run_gui() -> int:
                 <a href="topic:texture_editor">Textur-Editor</a>,
                 <a href="topic:replace_assistant">Ersetzungsassistent</a>,
                 <a href="topic:research">Recherche</a>,
-                <a href="topic:text_search">Textsuche</a>.
+                <a href="topic:text_search">Textsuche</a>,
+                <a href="topic:profile_settings">Profil und Einstellungen</a>,
+                <a href="topic:window_layout">Fenster und Layout</a>.
                 </p>
                 """
                 settings_text = escape(str(self.settings_file_path))
@@ -10300,13 +10876,16 @@ def run_gui() -> int:
                         "html": """
                         <p>Die App ist in Arbeitsbereiche aufgeteilt, damit nicht jede Aufgabe durch dieselbe Pipeline laufen muss.</p>
                         <ul>
+                          <li><b>Dashboard</b>: Workspace-Zustand, Werkzeugpfade, letzte Arbeit und letzter Lauf mit Schnellzugriff auf Ausgabe, Vergleich und Logs.</li>
                           <li><b>Textur-Workflow</b>: Stapelverarbeitung loser DDS, optionales Upscaling, DDS-Neuaufbau, Vergleich und mod-fertiger Export.</li>
                           <li><b>Archiv-Browser</b>: Scannen, Filtern, Vorschau, Extraktion, Loose-Export und kompatible Patches.</li>
+                          <li><b>Modellbibliothek</b>: lokale/importierbare Modelle scannen, anzeigen und an Archiv-Browser-Workflows uebergeben.</li>
+                          <li><b>Icon Creator</b>: Quellbilder vorbereiten und kompatible Item-Icon-Pakete erzeugen.</li>
                           <li><b>Textur-Editor</b>: Ebenenbasierte Bearbeitung sichtbarer Texturen mit direkter Workflow-Uebergabe.</li>
                           <li><b>Ersetzungsassistent</b>: Gefuehrte Ersetzungen fuer bearbeitete PNG/DDS-Dateien.</li>
                           <li><b>Recherche</b>: DDS-Familien, Klassifizierung, Referenzen, Analyse und Notizen.</li>
                           <li><b>Textsuche</b>: Suche in Textdateien aus Archiven oder losen Ordnern.</li>
-                          <li><b>Einstellungen</b>: Darstellung, Pfade, Cache, Sprache, Startverhalten und lokale Praeferenzen.</li>
+                          <li><b>Profil, Einstellungen und Fenster</b>: vollstaendiger Praeferenzexport/-import, Sprache, Leistung, 3D-Vorschau und abtrennbare Arbeitstabs.</li>
                         </ul>
                         """,
                     },
@@ -10462,7 +11041,7 @@ def run_gui() -> int:
                           <li><b>Mesh-Importvorschau</b> testet OBJ/DAE/glTF/GLB, ohne Ausgabe zu schreiben.</li>
                           <li><b>Mesh importieren</b> nutzt dieselbe Pruefung und kann nach Bestaetigung mod-fertige Loose-Ausgabe oder kompatible Patches schreiben.</li>
                           <li><b>Mit Ingame-Mesh tauschen</b> markiert eine Archiv-Mesh als Ziel und nutzt eine andere geladene Mesh als Quelle fuer die Ausrichtung.</li>
-                          <li><b>HKX-Platzierung oeffnen</b> und <b>Platzierungsquelle waehlen</b> kopieren Prefab-/Socket-Daten von einer anderen Waffen-/Modellfamilie. Wenn moeglich den sichtbaren <code>.pac</code> waehlen; der Picker zeigt eine statische Geometrie-Miniatur, die visuelle Bearbeitung laeuft in nativem D3D11.</li>
+                          <li><b>HKX bearbeiten</b> und <b>Platzierungsquelle waehlen</b> kopieren Prefab-/Socket-Daten von einer anderen Waffen-/Modellfamilie. Wenn moeglich den sichtbaren <code>.pac</code> waehlen; der Picker zeigt eine statische Geometrie-Miniatur, die visuelle Bearbeitung laeuft in nativem D3D11.</li>
                           <li><b>Bulk Placement Swap</b> erstellt ein einziges Loose-Paket fuer mehrere kompatible Ziele.</li>
                           <li>Direkte Patches sind nur fuer Formate sinnvoll, die die App sicher rekonstruieren kann.</li>
                         </ul>
@@ -10542,7 +11121,7 @@ def run_gui() -> int:
                         "keywords": "fehlerbehebung grenzen texconv ncnn chainner png helligkeit cache vorschau",
                         "html": """
                         <ul>
-                          <li><b>texconv fehlt</b>: DDS-Vorschau, Konvertierung, Vergleich und Neuaufbau funktionieren dann nicht richtig.</li>
+                          <li><b>texconv fehlt</b>: normale DDS-Vorschau und Neuaufbau sollten weiter ueber DirectXTex/native funktionieren. Wenn auch die nativen Werkzeuge fehlschlagen, die Tool-Paketierung pruefen.</li>
                           <li><b>NCNN-Modelle fehlen</b>: direktes NCNN braucht eine gueltige EXE und passende .param/.bin-Paare.</li>
                           <li><b>Keine PNG-Ausgabe</b>: wenn das Backend kein nutzbares PNG erzeugt, gibt es nichts zum Neuaufbauen.</li>
                           <li><b>Falsche chaiNNer-Pfade</b>: eine Kette kann aus falschen Ordnern lesen oder dorthin schreiben.</li>
@@ -10564,7 +11143,7 @@ def run_gui() -> int:
                               <li>Erstelle einen eigenen App-Ordner und lege die portable .exe dort ab.</li>
                               <li>Setze unter <b>Einstellungen &gt; Archiv-Orte</b> den Spiel-/Paketpfad.</li>
                               <li>Fuehre <b>Arbeitsbereich einrichten</b> aus, um Workspace, tools, Ausgabe, PNG und Extraktion anzulegen.</li>
-                              <li>Lade texconv herunter, lege texconv.exe unter tools ab und konfiguriere den Pfad.</li>
+                              <li>Nutze die gebuendelten DirectXTex/native-Werkzeuge. texconv.exe ist nur optionaler Legacy-Fallback, falls du ihn konfigurieren willst.</li>
                               <li>Scanne zuerst einen kleinen Testsatz.</li>
                               <li>Fuer Meshes zuerst <b>Mesh-Importvorschau</b> im Archiv-Browser nutzen. <b>Mesh importieren</b> oder <b>Mit Ingame-Mesh tauschen</b> erst nach der Ausrichtungspruefung verwenden.</li>
                             </ol>
@@ -10582,7 +11161,7 @@ def run_gui() -> int:
                               <tr><td>Modell oder Item finden</td><td>Suche nach Pfad, Endung, Paket oder Ingame-Name.</td><td><b>Exakter Item-Name</b> erscheint nur bei direktem iteminfo-/Lokalisierungs-/Modellhash-Link. <b>Hinweis auf verwandten Namen</b> markiert abgeleitete Beziehungen, keine bewiesene Identitaet.</td></tr>
                               <tr><td>Aktives Duplikat erkennen</td><td>Spalte <b>Status</b> lesen.</td><td><b>Aktiver Mod</b> ist die Nutzlast, die ueber dem Original gewinnt. Verdeckte Zeilen bleiben sichtbar, sind aber nicht die aktive Nutzlast.</td></tr>
                               <tr><td>Verwandte Texturen finden</td><td>Modell waehlen und <b>Referenzierte Dateien</b> lesen.</td><td>Zeigt Texturen, Sidecars, Skelette, Animationen, Paket und Status.</td></tr>
-                              <tr><td>Platzierungsquelle waehlen</td><td><b>HKX-Platzierung oeffnen</b> und dann <b>Platzierungsquelle waehlen</b> nutzen, oder ueber <b>Item Finder</b> starten.</td><td>Wenn moeglich den sichtbaren <code>.pac</code> waehlen. HKX ist Kontext, aber Platzierung wird meist ueber Prefab/Socket-Daten der Modellfamilie aufgeloest.</td></tr>
+                              <tr><td>Platzierungsquelle waehlen</td><td><b>HKX bearbeiten</b> und dann <b>Platzierungsquelle waehlen</b> nutzen, oder ueber <b>Item Finder</b> starten.</td><td>Wenn moeglich den sichtbaren <code>.pac</code> waehlen. HKX ist Kontext, aber Platzierung wird meist ueber Prefab/Socket-Daten der Modellfamilie aufgeloest.</td></tr>
                               <tr><td>Metadaten pruefen</td><td><b>Details</b> oeffnen.</td><td>Enthaelt Groesse, Kompression, lesbare Strings, Diagnostik und Warnungen.</td></tr>
                               <tr><td>XML/Material bearbeiten</td><td><b>Materialwerte bearbeiten</b>, wenn ein Sidecar erkannt wurde.</td><td>Exportiert bearbeitete Werte als mod-fertiges Paket.</td></tr>
                             </table>
@@ -10609,7 +11188,7 @@ def run_gui() -> int:
                               <tr><td>DDS-Importvorschau</td><td>Eine DDS-Textur am gewaehlten Modell testen, ohne Dateien zu schreiben.</td><td>Erzeugt nur eine Modellvorschau.</td></tr>
                               <tr><td>Mesh importieren</td><td>Unterstuetzten Ersatz erstellen.</td><td>Erlaubt Patch oder mod-fertige Loose-Ausgabe, wo kompatibel.</td></tr>
                               <tr><td>Mit Ingame-Mesh tauschen</td><td>Eine andere Archiv-Mesh als Ersatz fuer das gewaehlte Ziel verwenden.</td><td>Oeffnet Mesh-Ersetzungsausrichtung und uebernimmt verwandte Dateien, wenn kompatibel.</td></tr>
-                              <tr><td>HKX-Platzierung oeffnen</td><td>Platzierung aus einer anderen Waffen-/Modellfamilie kopieren.</td><td>Zeigt Zielkontext, waehlt Quelle, vergleicht Platzierung und erstellt ein Loose-Platzierungspaket.</td></tr>
+                              <tr><td>HKX bearbeiten</td><td>Platzierung aus einer anderen Waffen-/Modellfamilie kopieren.</td><td>Zeigt Zielkontext, waehlt Quelle, vergleicht Platzierung und erstellt ein Loose-Platzierungspaket.</td></tr>
                               <tr><td>Bulk Placement Swap</td><td>Mehrere platzierungsfaehige Ziele sind gewaehlt.</td><td>Erstellt ein kombiniertes mod-fertiges Paket mit denselben Zeilen wie einzelne Platzierungs-Swaps.</td></tr>
                             </table>
                             <h4>Mesh-Ersetzungsausrichtung</h4>
@@ -10618,6 +11197,14 @@ def run_gui() -> int:
                               <li>Nutze <b>Mesh-Importvorschau</b>, bevor Dateien geschrieben werden.</li>
                               <li>Nutze <b>Mesh importieren</b> erst nach Kompatibilitaets-, Platzierungs- und Texturplan-Pruefung.</li>
                               <li>Erweiterte DDS-Slot-Overrides sind manuelle Reparaturwerkzeuge; beginne mit den Vorschlaegen.</li>
+                            </ul>
+                            <h4>Materialautoritaet und Sidecars</h4>
+                            <ul>
+                              <li><b>Materialautoritaet</b> nutzt die bewaehrte quellenbasierte Route: Quellfarbe ueber Overlay-Farbe, PBR-/Materialmaske ueber Detailmaske und keine glaenzende Color-Blend-Reaktion.</li>
+                              <li><b>Materialautoritaet manuell</b> startet mit derselben Route und zeigt Override-Regler fuer erweiterte Reparatur.</li>
+                              <li>Legacy Runtime XML und Echte Quellenautoritaet bleiben fuer alte Einstellungen/Debug ladbar, werden aber nicht mehr als Standardauswahl gezeigt.</li>
+                              <li><b>Andere Original-Mesh verwenden</b> waehlt eine andere Originalreferenz fuer Ausrichtung oder Materialkontext.</li>
+                              <li>Pruefe den Platzierungszustand <b>Verstaut / am Koerper</b> gegen <b>Gehalten / in der Hand</b>, bevor Pakete gebaut werden.</li>
                             </ul>
                             <h4>Ingame-Mesh-Swap</h4>
                             <ol>
@@ -10630,7 +11217,7 @@ def run_gui() -> int:
                             <div class="doc-callout doc-warning"><b>Mesh-Grenzen:</b> statische Ersetzungen koennen Geometrie und kompatible Sidecars retargeten, konvertieren aber nicht jedes Rig, jede Animation, jeden Skin oder komplexe Materialgraphen in native Spieldaten.</div>
                             <h4>HKX-Platzierung und Sockets</h4>
                             <ul>
-                              <li><b>HKX-Platzierung oeffnen</b> behandelt das geoeffnete Asset als Ziel, das sich aendert. <b>Platzierungsquelle waehlen</b> sucht die Waffen-/Modellquelle, deren Platzierung kopiert wird.</li>
+                              <li><b>HKX bearbeiten</b> behandelt das geoeffnete Asset als Ziel, das sich aendert. <b>Platzierungsquelle waehlen</b> sucht die Waffen-/Modellquelle, deren Platzierung kopiert wird.</li>
                               <li>Wenn moeglich einen sichtbaren <code>.pac</code> als Quelle waehlen. Du kannst direkt in Archivindizes suchen oder mit <b>Item Finder</b> ueber Name, Icon oder Kategorie starten.</li>
                               <li>Der Quellen-Picker zeigt eine statische Geometrie-Miniatur zur Modellbestaetigung; die visuelle Bearbeitung laeuft in nativem D3D11.</li>
                               <li><b>Platzierung vergleichen</b> prueft aufgeloeste Prefab-/Socket-/HKX-Daten vor dem Paketbau. <b>Socket-Werte bearbeiten</b> erscheint, wenn das wiederhergestellte XML sicher angezeigt und geschrieben werden kann.</li>
@@ -10649,6 +11236,38 @@ def run_gui() -> int:
                               <li><b>Ausgabe-Stamm</b> enthaelt normale DDS-Ergebnisse.</li>
                               <li><b>Mod-ready Export</b> erzeugt eine Loose-Struktur mit manifest.json, optionalen Manager-Metadaten und optional .no_encrypt.</li>
                               <li>Archiv-Patches brauchen Bestaetigung und nutzen Backup/Wiederherstellung, wo verfuegbar.</li>
+                            </ul>
+                            """,
+                        },
+                        {
+                            "id": "profile_settings",
+                            "title": "Profil und Einstellungen",
+                            "summary": "Was Profile, Diagnosen, Praeferenzen und Sprachen enthalten.",
+                            "keywords": "profil einstellungen export import diagnose sprache darstellung start leistung vorschau editor ersetzer",
+                            "html": """
+                            <p><b>Profil &gt; Profil exportieren</b> speichert die Workflow-Konfiguration und einen vollstaendigen App-Einstellungssnapshot: Pfade, Regeln/Profile, Paketmetadaten, Archiv-Browser-Filter, Darstellung, Sprache, Startverhalten, Leistung, Cache/Indexierung, 3D-Vorschau, Textur-Ersetzer, Textur-Editor, Sicherheitsabfragen und Fenstergeometrie.</p>
+                            <ul>
+                              <li><b>Profil importieren</b> stellt zuerst den Workflow wieder her und laedt danach die Einstellungen in Einstellungen, Textur-Ersetzer und Textur-Editor.</li>
+                              <li><b>Diagnosen exportieren</b> enthaelt dasselbe Profil, Logs, Cache-Zusammenfassung, chaiNNer-Analyse, Crash-Kontext wenn vorhanden, README, Lizenz und Drittanbieterhinweise.</li>
+                              <li><b>Einstellungen / Start</b>: Archiv-Autoload, Cache-Praeferenz, letzter Tab und Archivfilter.</li>
+                              <li><b>Einstellungen / Leistung</b>: Ressourcenprofil, Ansichtsbackend, UI-Budget, Worker, native Beschleunigung, Sidecar-Indexierung und D3D11-Cache.</li>
+                              <li><b>Einstellungen / Darstellung</b>: Themes, integriertes Spanisch/Deutsch, eigene Sprachdateien, Schrift, Dichte, Farben und 3D-Werte.</li>
+                            </ul>
+                            <p>Sprachexport erzeugt JSON mit englischen Schluesseln. Schluessel unveraendert lassen und nur uebersetzte Werte bearbeiten.</p>
+                            """,
+                        },
+                        {
+                            "id": "window_layout",
+                            "title": "Fenster und Layout",
+                            "summary": "Abtrennbare Tabs, gespeicherte Geometrie und Layoutspeicher.",
+                            "keywords": "fenster layout abtrennen andocken tab geometrie splitter wiederherstellen",
+                            "html": """
+                            <p>Das Menu <b>Fenster</b> kann schwere Arbeitsbereiche in eigene Top-Level-Fenster verschieben, ohne ihren Platz in der Hauptnavigation zu verlieren.</p>
+                            <ul>
+                              <li><b>Aktuellen Tab abtrennen</b> verschiebt das aktuelle Werkzeug in ein neues Fenster und laesst einen Platzhalter zurueck.</li>
+                              <li><b>Aktuelles Werkzeug andocken</b> und <b>Alle Werkzeuge andocken</b> bringen abgetrennte Werkzeuge in ihre urspruenglichen Tabgruppen zurueck.</li>
+                              <li>Abgetrennte Geometrie wird unter <code>window/detached/&lt;tool&gt;/geometry</code> gespeichert; das Hauptfenster nutzt <code>window/geometry</code>.</li>
+                              <li><b>Einstellungen / Layout</b> steuert, ob Pane-Groessen und Splitter sitzungsuebergreifend gespeichert werden.</li>
                             </ul>
                             """,
                         },
@@ -10770,13 +11389,92 @@ def run_gui() -> int:
             dialog.exec()
 
         def _collect_profile_payload(self) -> Dict[str, object]:
+            settings_snapshot = self._collect_profile_settings_snapshot()
             return {
                 "app": APP_TITLE,
-                "profile_format": 2,
+                "profile_format": 3,
                 "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
                 "theme": self.current_theme_key,
                 "config": dataclasses.asdict(self.collect_config()),
+                "settings": settings_snapshot,
+                "settings_key_count": len(settings_snapshot),
             }
+
+        def _collect_profile_settings_snapshot(self) -> Dict[str, object]:
+            try:
+                self.flush_settings_save()
+                self.settings_tab.flush_settings_save()
+                self.replace_assistant_tab.flush_settings_save()
+                self.texture_editor_tab.flush_settings_save()
+                self._save_detached_tool_geometries()
+                self.settings.setValue("window/geometry", self.saveGeometry())
+                self.settings.sync()
+            except Exception:
+                pass
+            snapshot: Dict[str, object] = {}
+            try:
+                keys = sorted(str(key) for key in self.settings.allKeys())
+            except Exception:
+                keys = []
+            for key in keys:
+                try:
+                    snapshot[key] = _encode_profile_setting_value(self.settings.value(key))
+                except Exception:
+                    continue
+            return snapshot
+
+        def _restore_profile_settings_snapshot(self, snapshot: object) -> int:
+            if not isinstance(snapshot, dict):
+                return 0
+            restored = 0
+            for raw_key, raw_value in snapshot.items():
+                key = str(raw_key or "").strip()
+                if not key:
+                    continue
+                try:
+                    self.settings.setValue(
+                        key,
+                        _decode_profile_setting_value(raw_value, qbytearray_type=QByteArray),
+                    )
+                    restored += 1
+                except Exception:
+                    continue
+            self.settings.sync()
+            return restored
+
+        def _profile_theme_from_payload(self, payload: object) -> str:
+            if isinstance(payload, dict):
+                settings_snapshot = payload.get("settings")
+                if isinstance(settings_snapshot, dict):
+                    theme_value = _decode_profile_setting_value(settings_snapshot.get("appearance/theme"))
+                    theme_text = str(theme_value or "").strip()
+                    if theme_text in UI_THEME_SCHEMES:
+                        return theme_text
+                theme_value = payload.get("theme")
+                theme_text = str(theme_value or "").strip()
+                if theme_text in UI_THEME_SCHEMES:
+                    return theme_text
+            return self.current_theme_key
+
+        def _apply_profile_settings_snapshot_to_ui(self, *, theme_key: str) -> None:
+            if hasattr(self, "_load_settings"):
+                self._load_settings()
+            if theme_key in UI_THEME_SCHEMES:
+                self.current_theme_key = theme_key
+                self._handle_theme_changed(theme_key)
+            if hasattr(self.settings_tab, "_load_settings"):
+                self.settings_tab._load_settings(theme_key)
+                self.settings_tab.sync_archive_performance_controls()
+            if hasattr(self.replace_assistant_tab, "_load_settings"):
+                self.replace_assistant_tab._load_settings()
+            if hasattr(self.texture_editor_tab, "_load_settings"):
+                self.texture_editor_tab._load_settings()
+            language_code = str(self.settings.value("appearance/language", self.ui_localizer.language_code) or "en")
+            try:
+                self.ui_localizer.load_language(language_code)
+            except Exception:
+                self.ui_localizer.load_language("en")
+            self._apply_ui_language()
 
         def _resolve_chainner_analysis(self) -> Tuple[Optional[ChainnerChainAnalysis], str]:
             chain_path_text = self.chainner_chain_path_edit.text().strip()
@@ -10968,7 +11666,7 @@ def run_gui() -> int:
                 answer = QMessageBox.question(
                     self,
                     "Import Profile",
-                    "Importing a profile will replace the current paths and workflow settings. Continue?",
+                    "Importing a profile will replace current workflow paths, package settings, appearance, startup, preview, window/layout, Texture Replacer, and Texture Editor preferences. Continue?",
                 )
                 if answer != QMessageBox.Yes:
                     return
@@ -10986,11 +11684,18 @@ def run_gui() -> int:
                         config_values[key] = raw_config[key]
 
                 imported_config = AppConfig(**config_values)
-                theme_key = payload.get("theme") if isinstance(payload, dict) else None
-                theme_text = str(theme_key) if isinstance(theme_key, str) else None
+                restored_settings = 0
+                theme_text = self._profile_theme_from_payload(payload)
+                if isinstance(payload, dict):
+                    restored_settings = self._restore_profile_settings_snapshot(payload.get("settings"))
                 self._apply_profile_config(imported_config, theme_key=theme_text)
-                self.set_status_message(f"Profile imported from {source}")
-                self.append_log(f"Profile imported: {source}")
+                if restored_settings:
+                    self._apply_profile_settings_snapshot_to_ui(theme_key=theme_text)
+                message = f"Profile imported from {source}"
+                if restored_settings:
+                    message += f" ({restored_settings} app settings restored)"
+                self.set_status_message(message)
+                self.append_log(message)
             except Exception as exc:
                 self.set_status_message(str(exc), error=True)
                 self.append_log(f"ERROR: {exc}")
@@ -11576,6 +12281,13 @@ def run_gui() -> int:
             sizes[2] += reclaimed_width
             self.archive_splitter.setSizes(sizes)
 
+        def _schedule_archive_files_pane_fit_to_columns(self) -> None:
+            if not hasattr(self, "archive_tree"):
+                return
+            if self._archive_tree_visible_column_count() >= self.archive_tree.columnCount():
+                return
+            QTimer.singleShot(0, self._fit_archive_files_pane_to_columns)
+
         def _apply_archive_preview_content_responsive_sizes(self) -> None:
             if not hasattr(self, "archive_preview_content_splitter"):
                 return
@@ -11667,6 +12379,7 @@ def run_gui() -> int:
                     elif splitter is self.archive_splitter:
                         sizes = self._normalize_archive_splitter_sizes(sizes, total_width)
                     splitter.setSizes(sizes)
+            self._schedule_archive_files_pane_fit_to_columns()
 
             text_search_sizes = self._load_saved_splitter_sizes("ui/text_search_splitter_sizes")
             if text_search_sizes:
@@ -11710,43 +12423,132 @@ def run_gui() -> int:
             self._startup_splash_released = False
             self._startup_splash_release_pending = False
             self._startup_splash_finish_pending = False
+            self._startup_splash_finish_after_paint_deadline = 0.0
+            self._startup_splash_last_progress_at = 0.0
             self._update_startup_splash("Preparing application...")
 
         def _update_startup_splash(self, detail: str, current: int = 0, total: int = 0) -> None:
             splash = getattr(self, "_startup_splash_window", None)
             if splash is None:
                 return
+            normalized = str(detail or "").strip().lower()
+            if (
+                (
+                    getattr(self, "_startup_splash_release_pending", False)
+                    or getattr(self, "_startup_splash_released", False)
+                )
+                and not normalized.startswith("opening workspace")
+                and not normalized.startswith("archive ready")
+            ):
+                return
             try:
                 splash.set_detail(detail, current, total)
             except Exception:
                 pass
+
+        def _startup_splash_progress_detail(self, detail: str) -> str:
+            text = str(detail or "Working...").strip() or "Working..."
+            if bool(getattr(self, "archive_startup_hold_until_ready", False)):
+                text = text.replace(" in the background", "")
+                text = text.replace(" in background", "")
+                text = text.replace(" while the archive list stays available", "")
+                text = text.replace(" after the archive list opens", "")
+            return text
+
+        def _archive_startup_progress_work_active(self) -> bool:
+            return bool(
+                self.worker_thread is not None
+                or self.archive_basic_index_thread is not None
+                or self.archive_enhanced_index_thread is not None
+                or self.archive_derived_cache_thread is not None
+                or self.archive_deferred_basic_index_start_pending
+                or self.archive_deferred_enhanced_index_start_pending
+                or self.archive_deferred_derived_cache_write_pending
+                or self.archive_derived_cache_write_pending
+            )
 
         def _show_main_window_after_startup_splash(self) -> None:
             if getattr(self, "_shutting_down", False):
                 return
             if not self.isVisible():
                 self.show()
+                _record_runtime_event("main_window_shown")
             try:
                 self.raise_()
                 self.activateWindow()
             except Exception:
                 pass
+            splash = getattr(self, "_startup_splash_window", None)
+            if splash is not None:
+                try:
+                    splash.raise_()
+                    splash.activateWindow()
+                except Exception:
+                    pass
 
         def _finish_startup_splash_now(self) -> None:
             splash = getattr(self, "_startup_splash_window", None)
             self._startup_splash_window = None
             self._startup_splash_holds_main_window = False
             self._startup_splash_finish_pending = False
+            self._startup_splash_finish_after_paint_deadline = 0.0
             if splash is not None:
                 try:
                     splash.finish()
                 except Exception:
                     pass
+                _record_runtime_event("splash_finished")
+
+        def _startup_archive_first_paint_needed(self) -> bool:
+            return bool(
+                getattr(self, "archive_entries", None)
+                and self._is_tool_visible_or_current(self.archive_browser_tab)
+                and not self.archive_browser_first_visible_paint_done
+            )
+
+        def _schedule_startup_splash_finish_after_main_window_paint(self, delay_ms: int = 120) -> None:
+            if getattr(self, "_startup_splash_window", None) is None:
+                return
+            QTimer.singleShot(max(0, int(delay_ms)), self._finish_startup_splash_after_main_window_paint)
+
+        def _finish_startup_splash_after_main_window_paint(self) -> None:
+            if getattr(self, "_startup_splash_window", None) is None:
+                return
+            if (
+                not bool(getattr(self, "_startup_splash_finish_pending", False))
+                and float(getattr(self, "_startup_splash_finish_after_paint_deadline", 0.0) or 0.0) <= 0.0
+            ):
+                return
+            if getattr(self, "_shutting_down", False):
+                self._finish_startup_splash_now()
+                return
+            deadline = float(getattr(self, "_startup_splash_finish_after_paint_deadline", 0.0) or 0.0)
+            if self._startup_archive_first_paint_needed() and time.monotonic() < deadline:
+                self._update_startup_splash("Opening Archive Browser...", 0, 0)
+                self._schedule_archive_browser_first_visible_paint_marker(80)
+                self._schedule_startup_splash_finish_after_main_window_paint(140)
+                return
+            if self._startup_archive_first_paint_needed():
+                _record_runtime_event("startup_splash_first_paint_timeout", surface="archive_browser")
+                self.append_archive_log(
+                    "WARNING: Startup splash timed out waiting for first archive paint.",
+                    verbose=True,
+                )
+            self._finish_startup_splash_now()
 
         def _finish_startup_splash_and_show_main_window(self) -> None:
             self._update_startup_splash("Opening workspace...", 1, 1)
-            self._finish_startup_splash_now()
             self._show_main_window_after_startup_splash()
+            self._startup_splash_holds_main_window = False
+            self._startup_splash_finish_after_paint_deadline = time.monotonic() + 10.0
+            if (
+                getattr(self, "archive_entries", None)
+                and self._is_tool_visible_or_current(self.archive_browser_tab)
+            ):
+                self.archive_browser_first_visible_paint_done = False
+                self.archive_browser_first_visible_started_at = time.perf_counter()
+                self._schedule_archive_browser_first_visible_paint_marker(80)
+            self._schedule_startup_splash_finish_after_main_window_paint(180)
             try:
                 self.repaint()
                 app = QApplication.instance()
@@ -11776,6 +12578,7 @@ def run_gui() -> int:
                     return
             self._startup_splash_released = True
             self._startup_splash_release_pending = False
+            _record_runtime_event("splash_released")
             if (
                 getattr(self, "_startup_splash_holds_main_window", False)
                 and not getattr(self, "_shutting_down", False)
@@ -11823,6 +12626,36 @@ def run_gui() -> int:
             self.append_archive_log("Startup Archive Browser preload is enabled.")
             self._update_startup_splash("Loading Archive Browser...")
             self.archive_startup_autoload_defer_preview = True
+            self.archive_startup_hold_until_ready = True
+            saved_filter_state = self._capture_archive_filter_state()
+            saved_filter_signature = self._archive_filter_state_signature(saved_filter_state)
+            if saved_filter_signature != self._neutral_archive_filter_signature():
+                self.archive_startup_saved_filter_state = dict(saved_filter_state)
+                self.archive_startup_saved_filter_apply_pending = True
+                self.archive_startup_saved_filter_wait_logged = False
+                self.append_archive_log("Saved filters will apply when search is ready.")
+                self.set_status_message("Saved filters will apply when search is ready.")
+                self._apply_archive_filter_state(
+                    {
+                        "filter_text": "",
+                        "exclude_filter_text": "",
+                        "extension_filter": "*",
+                        "package_filter_text": "",
+                        "structure_filter": "",
+                        "role_filter": "all",
+                        "exclude_common_technical_suffixes": False,
+                        "min_size_kb": 0,
+                        "previewable_only": False,
+                        "view_mode": ARCHIVE_BROWSER_VIEW_MODE,
+                        "sort_column": -1,
+                        "sort_order": "asc",
+                    }
+                )
+            else:
+                self.archive_startup_saved_filter_state = {}
+                self.archive_startup_saved_filter_apply_pending = False
+                self.archive_startup_saved_filter_wait_logged = False
+            _record_runtime_event("startup_autoload_begin", package_root=str(package_root))
             _write_heartbeat("archive_autoload")
             self.scan_archives(
                 force_refresh=not self._preference_bool("prefer_archive_cache_on_startup", True),
@@ -12084,6 +12917,9 @@ def run_gui() -> int:
                         if extension and isinstance(items, list)
                     }
                 )
+            cached_counts = getattr(self, "archive_extension_counts", Counter())
+            if isinstance(cached_counts, Counter) and cached_counts:
+                return Counter(cached_counts)
             entries = getattr(self, "archive_entries", [])
             return Counter(entry.extension for entry in entries if getattr(entry, "extension", ""))
 
@@ -12916,6 +13752,9 @@ def run_gui() -> int:
             ]
             for checkbox in checkboxes:
                 checkbox.toggled.connect(self.schedule_settings_save)
+            for checkbox in self.mod_ready_profile_checkboxes.values():
+                checkbox.toggled.connect(self.schedule_settings_save)
+                checkbox.toggled.connect(lambda _checked=False: self._apply_mod_ready_export_state())
 
             combos = [
                 self.dds_format_mode_combo,
@@ -13448,6 +14287,17 @@ def run_gui() -> int:
             self.settings.setValue("upscale/mod_ready_package_description", self.mod_ready_package_description_edit.text())
             self.settings.setValue("upscale/mod_ready_package_nexus_url", self.mod_ready_package_nexus_url_edit.text())
             self.settings.setValue("upscale/mod_ready_manager_profile", self._combo_value(self.mod_ready_manager_combo))
+            self.settings.setValue(
+                "upscale/mod_ready_manager_profiles",
+                json.dumps(
+                    [
+                        profile
+                        for profile, checkbox in self.mod_ready_profile_checkboxes.items()
+                        if checkbox.isChecked()
+                    ],
+                    separators=(",", ":"),
+                ),
+            )
             self.settings.setValue("upscale/mod_ready_package_structure", self._combo_value(self.mod_ready_structure_combo))
             self.settings.setValue("upscale/mod_ready_manifest_json", self.mod_ready_manifest_checkbox.isChecked())
             self.settings.setValue("upscale/mod_ready_mod_json", self.mod_ready_mod_json_checkbox.isChecked())
@@ -13867,6 +14717,21 @@ def run_gui() -> int:
                 self.mod_ready_manager_combo,
                 mod_ready_profile_value,
             )
+            saved_profile_values: List[str] = []
+            try:
+                loaded_profiles = json.loads(str(self.settings.value("upscale/mod_ready_manager_profiles", "[]") or "[]"))
+                if isinstance(loaded_profiles, list):
+                    saved_profile_values = [
+                        str(value or "").strip()
+                        for value in loaded_profiles
+                        if str(value or "").strip() in MOD_PACKAGE_MANAGER_PROFILES
+                    ]
+            except Exception:
+                saved_profile_values = []
+            if not saved_profile_values:
+                saved_profile_values = [mod_ready_profile_value if mod_ready_profile_value in MOD_PACKAGE_MANAGER_PROFILES else "universal"]
+            for profile, checkbox in self.mod_ready_profile_checkboxes.items():
+                checkbox.setChecked(profile in set(saved_profile_values))
             self._set_combo_by_value(
                 self.mod_ready_structure_combo,
                 str(
@@ -14673,7 +15538,12 @@ def run_gui() -> int:
 
         def _apply_mod_ready_export_state(self) -> None:
             enabled = self.enable_mod_ready_loose_export_checkbox.isChecked()
-            uses_manager_metadata = mod_package_profile_uses_manager_metadata(self._combo_value(self.mod_ready_manager_combo))
+            checked_profiles = tuple(
+                profile
+                for profile, checkbox in self.mod_ready_profile_checkboxes.items()
+                if checkbox.isChecked()
+            ) or (self._combo_value(self.mod_ready_manager_combo),)
+            uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in checked_profiles)
             self.mod_ready_export_root_edit.setEnabled(enabled)
             self.mod_ready_export_browse_button.setEnabled(enabled)
             self.mod_ready_package_group.setVisible(enabled)
@@ -14684,6 +15554,9 @@ def run_gui() -> int:
             self.mod_ready_package_description_edit.setEnabled(enabled)
             self.mod_ready_package_nexus_url_edit.setEnabled(enabled)
             self.mod_ready_manager_combo.setEnabled(enabled)
+            self.mod_ready_profiles_widget.setEnabled(enabled)
+            for checkbox in self.mod_ready_profile_checkboxes.values():
+                checkbox.setEnabled(enabled)
             self.mod_ready_structure_combo.setEnabled(enabled)
             self.mod_ready_manifest_checkbox.setEnabled(enabled)
             self.mod_ready_mod_json_checkbox.setEnabled(enabled)
@@ -14713,10 +15586,13 @@ def run_gui() -> int:
             self._save_settings()
 
         def _apply_mod_ready_manager_profile_state(self) -> None:
-            profile_options = mod_package_export_options_for_manager(str(self.mod_ready_manager_combo.currentData() or "universal"))
+            current_profile = str(self.mod_ready_manager_combo.currentData() or "universal")
+            profile_options = mod_package_export_options_for_manager(current_profile)
             index = self.mod_ready_structure_combo.findData(profile_options.structure)
             if index >= 0:
                 self.mod_ready_structure_combo.setCurrentIndex(index)
+            for profile, checkbox in self.mod_ready_profile_checkboxes.items():
+                checkbox.setChecked(profile == current_profile)
             self.mod_ready_manifest_checkbox.setChecked(profile_options.create_manifest_json)
             self.mod_ready_mod_json_checkbox.setChecked(profile_options.create_mod_json)
             self.mod_ready_modinfo_checkbox.setChecked(profile_options.create_modinfo_json)
@@ -15331,11 +16207,17 @@ def run_gui() -> int:
             self._archive_scan_progress_pending = None
             self._mark_archive_browser_render_stale()
             self.archive_browser_first_visible_paint_done = False
+            self.archive_deferred_basic_index_start_pending = False
             self.archive_deferred_enhanced_index_start_pending = False
             self.archive_deferred_derived_cache_write_pending = False
             self.archive_deferred_sidecar_start_pending = False
             self.archive_item_icon_preload_pending_after_ready = False
             self.archive_enhanced_filter_refresh_pending = False
+            self.archive_basic_index_state = "idle"
+            self.archive_enhanced_index_activity = "idle"
+            self.archive_entry_metadata_signature = ""
+            self.archive_entry_metadata_sources = ()
+            self.archive_result_filter_signature = ()
             self.archive_structure_filter_state = "idle"
             self.archive_structure_filter_children = {}
             if self._background_task_active():
@@ -15385,21 +16267,95 @@ def run_gui() -> int:
                 getattr(self, "archive_startup_autoload_defer_preview", False)
                 and not activate_archive_tab
             )
+            if not startup_deferred_archive_load:
+                queued_filter_state = self._capture_archive_filter_state()
+                queued_filter_signature = self._archive_filter_state_signature(queued_filter_state)
+                queue_filters_after_first_list = bool(
+                    queued_filter_signature != self._neutral_archive_filter_signature()
+                )
+                if queue_filters_after_first_list:
+                    self.archive_startup_saved_filter_state = dict(queued_filter_state)
+                    self.archive_startup_saved_filter_apply_pending = True
+                    self.archive_startup_saved_filter_wait_logged = False
+                    self.append_archive_log("Current filters will apply when search is ready.")
+                    self.set_status_message("Current filters will apply when search is ready.")
+                    self._apply_archive_filter_state(
+                        {
+                            "filter_text": "",
+                            "exclude_filter_text": "",
+                            "extension_filter": "*",
+                            "package_filter_text": "",
+                            "structure_filter": "",
+                            "role_filter": "all",
+                            "exclude_common_technical_suffixes": False,
+                            "min_size_kb": 0,
+                            "previewable_only": False,
+                            "view_mode": ARCHIVE_BROWSER_VIEW_MODE,
+                            "sort_column": -1,
+                            "sort_order": "asc",
+                        }
+                    )
+                else:
+                    self.archive_startup_saved_filter_apply_pending = False
+                    self.archive_startup_saved_filter_state = {}
+                    self.archive_startup_saved_filter_wait_logged = False
             browser_view_will_warm_for_startup = bool(browser_view_will_render_now or startup_deferred_archive_load)
             build_browser_tree_index = bool(
+                not startup_deferred_archive_load
+                and
                 self._archive_folder_tree_enabled()
                 and browser_view_will_warm_for_startup
             )
             build_browser_category_index = bool(
+                not startup_deferred_archive_load
+                and
                 self._archive_category_view_enabled()
                 and browser_view_will_warm_for_startup
             )
             initial_sort_column = self.archive_tree_sort_column
             initial_sort_deferred = bool(
+                not startup_deferred_archive_load
+                and
                 browser_view_will_warm_for_startup
                 and archive_browser_sort_is_active(initial_sort_column)
             )
             initial_worker_sort_column = -1 if initial_sort_deferred else initial_sort_column
+            worker_filter_text = self.archive_filter_edit.text().strip()
+            worker_exclude_filter_text = self.archive_exclude_filter_edit.text().strip()
+            worker_extension_filter = self._combo_value(self.archive_extension_filter_combo)
+            worker_package_filter_text = self.archive_package_filter_edit.text().strip()
+            worker_structure_filter = self._current_archive_structure_filter_value()
+            worker_role_filter = self._combo_value(self.archive_role_filter_combo)
+            worker_exclude_common_technical_suffixes = self.archive_exclude_common_technical_checkbox.isChecked()
+            worker_min_size_kb = self.archive_min_size_spin.value()
+            worker_previewable_only = self.archive_previewable_only_checkbox.isChecked()
+            worker_view_mode = self._archive_browser_view_mode()
+            if startup_deferred_archive_load:
+                worker_filter_text = ""
+                worker_exclude_filter_text = ""
+                worker_extension_filter = "*"
+                worker_package_filter_text = ""
+                worker_structure_filter = ""
+                worker_role_filter = "all"
+                worker_exclude_common_technical_suffixes = False
+                worker_min_size_kb = 0
+                worker_previewable_only = False
+                worker_view_mode = ARCHIVE_BROWSER_VIEW_MODE
+                initial_worker_sort_column = -1
+            result_filter_signature = self._archive_filter_signature_from_values(
+                filter_text=worker_filter_text,
+                exclude_filter_text=worker_exclude_filter_text,
+                extension_filter=worker_extension_filter,
+                package_filter_text=worker_package_filter_text,
+                structure_filter=worker_structure_filter,
+                role_filter=worker_role_filter,
+                exclude_common_technical_suffixes=worker_exclude_common_technical_suffixes,
+                min_size_kb=worker_min_size_kb,
+                previewable_only=worker_previewable_only,
+                view_mode=worker_view_mode,
+                sort_column=initial_worker_sort_column,
+                sort_order=self.archive_tree_sort_order,
+            )
             self.archive_initial_sort_apply_pending = initial_sort_deferred
             if initial_sort_deferred:
                 self.append_archive_log(
@@ -15413,18 +16369,25 @@ def run_gui() -> int:
                 force_refresh=force_refresh,
                 build_structure_children=False,
                 build_tree_index=build_browser_tree_index,
-                filter_text=self.archive_filter_edit.text().strip(),
-                exclude_filter_text=self.archive_exclude_filter_edit.text().strip(),
-                extension_filter=self._combo_value(self.archive_extension_filter_combo),
-                package_filter_text=self.archive_package_filter_edit.text().strip(),
-                structure_filter=self._current_archive_structure_filter_value(),
-                role_filter=self._combo_value(self.archive_role_filter_combo),
-                exclude_common_technical_suffixes=self.archive_exclude_common_technical_checkbox.isChecked(),
-                min_size_kb=self.archive_min_size_spin.value(),
-                previewable_only=self.archive_previewable_only_checkbox.isChecked(),
+                filter_text=worker_filter_text,
+                exclude_filter_text=worker_exclude_filter_text,
+                extension_filter=worker_extension_filter,
+                package_filter_text=worker_package_filter_text,
+                structure_filter=worker_structure_filter,
+                role_filter=worker_role_filter,
+                exclude_common_technical_suffixes=worker_exclude_common_technical_suffixes,
+                min_size_kb=worker_min_size_kb,
+                previewable_only=worker_previewable_only,
                 build_category_index=build_browser_category_index,
                 sort_column=initial_worker_sort_column,
                 sort_order=self.archive_tree_sort_order,
+                result_filter_signature=result_filter_signature,
+                load_basic_index_cache=bool(
+                    self.archive_startup_saved_filter_apply_pending
+                    and self._archive_filter_state_needs_path_lookup(
+                        getattr(self, "archive_startup_saved_filter_state", {}) or {}
+                    )
+                ),
                 native_archive_acceleration=performance_settings.native_archive_acceleration,
                 resource_profile=performance_settings.resource_profile,
                 game_executable_fingerprints=self._load_game_executable_fingerprints(),
@@ -15464,31 +16427,52 @@ def run_gui() -> int:
             self.archive_warmup_overlay.hide()
 
         def _apply_archive_scan_progress(self, current: int, total: int, detail: str) -> None:
-            self.archive_scan_progress_label.setText(detail)
-            self._update_startup_splash(detail, current, total)
+            progress_detail = str(detail or "Working...")
+            if bool(getattr(self, "archive_startup_hold_until_ready", False)):
+                self._startup_splash_last_progress_at = time.monotonic()
             if total > 0:
                 completed_value = min(max(current, 0), total)
                 display_value = min(completed_value + 1, total) if detail.startswith("Parsing ") else completed_value
+                percent = int((completed_value / max(total, 1)) * 100)
+                progress_text = f"{display_value:,} / {total:,} ({percent}%)"
+                progress_detail_has_count = bool(
+                    re.search(r"\d[\d,]*\s*/\s*\d[\d,]*", progress_detail)
+                    or re.search(r"\(\s*\d{1,3}%\s*\)", progress_detail)
+                )
+                if progress_detail_has_count:
+                    detail_with_progress = (
+                        progress_detail
+                        if re.search(r"\(\s*\d{1,3}%\s*\)", progress_detail)
+                        else f"{progress_detail} ({percent}%)"
+                    )
+                    bar_format_text = f"{percent}%"
+                else:
+                    detail_with_progress = f"{progress_detail} [{progress_text}]"
+                    bar_format_text = progress_text
+                self.archive_scan_progress_label.setText(detail_with_progress)
+                self._update_startup_splash(detail_with_progress, completed_value, total)
                 self.archive_scan_progress_bar.setRange(0, total)
                 self.archive_scan_progress_bar.setValue(completed_value)
-                self.archive_scan_progress_bar.setFormat(f"{display_value} / {total}")
+                self.archive_scan_progress_bar.setFormat(bar_format_text)
                 self._set_archive_warmup_overlay(
                     True,
                     "Scanning Archive Packages",
-                    detail,
+                    detail_with_progress,
                     current=completed_value,
                     total=total,
-                    fmt=f"{display_value} / {total}",
+                    fmt=bar_format_text,
                 )
             else:
+                self.archive_scan_progress_label.setText(progress_detail)
+                self._update_startup_splash(progress_detail, current, total)
                 self.archive_scan_progress_bar.setRange(0, 0)
                 self.archive_scan_progress_bar.setFormat("Working...")
                 self._set_archive_warmup_overlay(
                     True,
                     "Scanning Archive Packages",
-                    detail,
+                    progress_detail,
                 )
-            self.set_status_message(detail)
+            self.set_status_message(progress_detail if total <= 0 else detail_with_progress)
 
         def _flush_archive_scan_progress(self) -> None:
             pending = self._archive_scan_progress_pending
@@ -15500,7 +16484,11 @@ def run_gui() -> int:
             self._apply_archive_scan_progress(current, total, detail)
 
         def _handle_archive_scan_progress(self, current: int, total: int, detail: str) -> None:
-            self._archive_scan_progress_pending = (int(current or 0), int(total or 0), str(detail or "Working..."))
+            self._archive_scan_progress_pending = (
+                int(current or 0),
+                int(total or 0),
+                self._startup_splash_progress_detail(str(detail or "Working...")),
+            )
             now = time.perf_counter()
             elapsed = now - self._archive_scan_progress_last_flush
             if elapsed >= self._archive_scan_progress_min_interval_s:
@@ -15525,8 +16513,6 @@ def run_gui() -> int:
                 if isinstance(payload.get("path_index"), dict)
                 else {}
             )
-            if not self.archive_entries_by_normalized_path and self.archive_entries:
-                self.archive_entries_by_normalized_path = build_archive_entry_path_index(self.archive_entries)
             self.archive_entries_by_basename = (
                 payload.get("basename_index", {})
                 if isinstance(payload.get("basename_index"), dict)
@@ -15536,6 +16522,36 @@ def run_gui() -> int:
                 payload.get("extension_index", {})
                 if isinstance(payload.get("extension_index"), dict)
                 else {}
+            )
+            extension_counts_payload = payload.get("extension_counts", {})
+            self.archive_extension_counts = Counter(
+                {
+                    str(extension): int(count)
+                    for extension, count in (extension_counts_payload.items() if isinstance(extension_counts_payload, Mapping) else ())
+                    if extension
+                }
+            )
+            if self.archive_entries_by_extension and not self.archive_extension_counts:
+                self.archive_extension_counts = Counter(
+                    {
+                        str(extension): len(items)
+                        for extension, items in self.archive_entries_by_extension.items()
+                        if extension and isinstance(items, list)
+                    }
+                )
+            self.archive_entry_metadata_signature = str(payload.get("entry_metadata_signature", "") or "").strip()
+            self.archive_entry_metadata_sources = tuple(
+                tuple(row)
+                for row in (payload.get("entry_metadata_sources", ()) or ())
+                if isinstance(row, (list, tuple)) and len(row) == 3
+            )
+            self.archive_result_filter_signature = tuple(payload.get("result_filter_signature") or self._current_archive_filter_signature())
+            self.archive_basic_index_state = (
+                "ready"
+                if self.archive_entries_by_normalized_path and self.archive_entries_by_basename and self.archive_entries_by_extension
+                else "warming"
+                if self.archive_entries
+                else "idle"
             )
             name_search_index = payload.get("name_search_index")
             self.archive_name_search_index = (
@@ -15580,8 +16596,13 @@ def run_gui() -> int:
             self.archive_derived_cache_write_pending = bool(
                 payload.get("derived_cache_needs_write") and self.archive_entries
             )
+            self.archive_deferred_basic_index_start_pending = bool(
+                payload.get("basic_index_needs_build") and self.archive_entries
+            )
             enhanced_index_needs_build = bool(payload.get("enhanced_index_needs_build") and self.archive_entries)
             self.archive_enhanced_index_state = "warming" if enhanced_index_needs_build else "ready"
+            self.archive_enhanced_index_activity = "loading" if enhanced_index_needs_build else "idle"
+            self.archive_deferred_enhanced_index_start_pending = bool(enhanced_index_needs_build)
             self.archive_native_derived_cache_ready = bool(payload.get("archive_native_derived_cache_ready"))
             self.archive_sidecar_entries_by_texture_path = (
                 payload.get("sidecar_entries_by_texture_path", {})
@@ -15601,8 +16622,6 @@ def run_gui() -> int:
             if not performance_settings.enable_sidecar_indexing:
                 self.archive_sidecar_entries_by_texture_path = {}
                 self.archive_sidecar_entries_by_texture_basename = {}
-            if not self.archive_entries_by_extension and self.archive_entries:
-                self.archive_entries_by_extension = build_archive_entry_extension_index(self.archive_entries)
             package_root_text = self.archive_package_root_edit.text().strip()
             QTimer.singleShot(
                 0,
@@ -15737,45 +16756,34 @@ def run_gui() -> int:
                     )
                     self.archive_scan_progress_bar.setRange(0, 1)
                     self.archive_scan_progress_bar.setValue(1)
-                    self.archive_scan_progress_bar.setFormat("Ready")
+                    self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
                     self._set_archive_sidecar_status(warmup_text)
                     self.set_status_message(warmup_text)
                     self.append_archive_log(warmup_text)
                 else:
                     self.archive_sidecar_pending_start = False
-                release_startup_after_render = bool(getattr(self, "_startup_splash_window", None) is not None)
-                startup_release_requested = {"done": False}
-
-                def _release_startup_after_archive_render() -> None:
-                    if startup_release_requested["done"]:
-                        return
-                    startup_release_requested["done"] = True
+                release_startup_now = bool(
+                    getattr(self, "_startup_splash_window", None) is not None
+                    and not bool(getattr(self, "archive_startup_hold_until_ready", False))
+                )
+                if release_startup_now:
                     self._update_startup_splash(completion_text, 1, 1)
                     _write_heartbeat("running")
                     self._release_startup_splash()
-
-                on_archive_view_ready: Optional[Callable[[], None]] = None
-                if release_startup_after_render:
-                    on_archive_view_ready = lambda: QTimer.singleShot(0, _release_startup_after_archive_render)
-                force_startup_archive_render = bool(
-                    release_startup_after_render
-                    and getattr(self, "archive_startup_autoload_defer_preview", False)
-                )
                 self._refresh_or_defer_archive_browser_view(
                     activate_tab=self._activate_archive_browser_on_scan_complete,
-                    on_complete=on_archive_view_ready,
-                    force_render=force_startup_archive_render,
+                    on_complete=None,
+                    force_render=False,
                 )
                 self._activate_archive_browser_on_scan_complete = False
                 self._refresh_or_defer_research_archive_picker()
-                self.archive_scan_progress_label.setText(completion_text)
-                self.archive_scan_progress_bar.setRange(0, 1)
-                self.archive_scan_progress_bar.setValue(1)
-                self.archive_scan_progress_bar.setFormat("Ready")
-                self.set_status_message(completion_text)
+                self._set_archive_list_status(completion_text)
                 self.append_archive_log(completion_text)
                 self._set_archive_warmup_overlay(False)
-                if not release_startup_after_render:
+                if (
+                    not release_startup_now
+                    and not bool(getattr(self, "archive_startup_hold_until_ready", False))
+                ):
                     _write_heartbeat("running")
                     self._release_startup_splash()
             finally:
@@ -15784,20 +16792,131 @@ def run_gui() -> int:
                     self.archive_deferred_derived_cache_write_pending = True
                 if start_sidecar_after_finalize:
                     self.archive_deferred_sidecar_start_pending = True
-                self._schedule_archive_post_ready_background_work()
+                if bool(getattr(self, "archive_startup_hold_until_ready", False)):
+                    self.archive_deferred_background_start_pending = False
+                    QTimer.singleShot(0, self._start_archive_deferred_background_work)
+                    QTimer.singleShot(50, self._maybe_release_startup_after_archive_ready)
+                else:
+                    self._schedule_archive_post_ready_background_work()
                 if self.worker_thread is None:
                     self.set_busy(False, build_mode=False)
+
+        def _start_archive_basic_index_worker(self) -> None:
+            if self._shutting_down or not self.archive_entries:
+                self.archive_basic_index_state = "idle"
+                return
+            if self.archive_basic_index_thread is not None:
+                return
+            if (
+                self.archive_entries_by_normalized_path
+                and self.archive_entries_by_basename
+                and self.archive_entries_by_extension
+            ):
+                self.archive_basic_index_state = "ready"
+                return
+            self.archive_basic_index_state = "warming"
+            performance_settings = self._current_archive_performance_settings()
+            package_root_text = self.archive_package_root_edit.text().strip()
+            worker = ArchiveBasicIndexWorker(
+                Path(package_root_text).expanduser(),
+                self.archive_cache_root,
+                tuple(self.archive_entries),
+                native_archive_acceleration=performance_settings.native_archive_acceleration,
+                entry_metadata_signature=self.archive_entry_metadata_signature,
+                entry_metadata_sources=self.archive_entry_metadata_sources,
+            )
+            thread = QThread(self)
+            worker.moveToThread(thread)
+            thread.started.connect(worker.run)
+            worker.log_message.connect(self.append_log)
+            worker.log_message.connect(self.append_archive_log)
+            worker.progress_changed.connect(self._handle_archive_scan_progress)
+            worker.completed.connect(self._handle_archive_basic_index_complete)
+            worker.error.connect(self._handle_archive_basic_index_error)
+            worker.finished.connect(thread.quit)
+            worker.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
+            thread.finished.connect(self._cleanup_archive_basic_index_refs)
+            self.archive_basic_index_worker = worker
+            self.archive_basic_index_thread = thread
+            try:
+                thread.start(QThread.LowPriority)
+            except Exception:
+                thread.start()
+
+        def _handle_archive_basic_index_complete(self, result: object) -> None:
+            if self._shutting_down:
+                return
+            payload = result if isinstance(result, Mapping) else {}
+            path_index = payload.get("path_index")
+            basename_index = payload.get("basename_index")
+            extension_index = payload.get("extension_index")
+            if isinstance(path_index, dict):
+                self.archive_entries_by_normalized_path = path_index
+            if isinstance(basename_index, dict):
+                self.archive_entries_by_basename = basename_index
+            if isinstance(extension_index, dict):
+                self.archive_entries_by_extension = extension_index
+                self.archive_extension_counts = Counter(
+                    {
+                        str(extension): len(items)
+                        for extension, items in extension_index.items()
+                        if extension and isinstance(items, list)
+                    }
+                )
+            self.archive_basic_index_state = "ready"
+            elapsed_s = max(0.0, float(payload.get("elapsed_s", 0.0) or 0.0))
+            _record_runtime_event(
+                "basic_indexes_ready",
+                elapsed_s=elapsed_s,
+                native_used=bool(payload.get("native_used")),
+                path_keys=len(self.archive_entries_by_normalized_path),
+                basename_keys=len(self.archive_entries_by_basename),
+                extension_keys=len(self.archive_entries_by_extension),
+            )
+            if bool(payload.get("cache_loaded")):
+                self.append_archive_log(f"Path lookup loaded from cache in {elapsed_s:.2f}s.")
+            else:
+                self.append_archive_log(f"Path lookup ready in {elapsed_s:.2f}s.")
+            self._set_archive_list_status("Archive list available")
+            self._rebuild_archive_extension_filter_choices()
+            self._refresh_archive_browser_if_pending(reason="basic_indexes_ready")
+            self._try_apply_startup_saved_filters()
+            self._maybe_release_startup_after_archive_ready()
+
+        def _handle_archive_basic_index_error(self, message: str) -> None:
+            self.archive_basic_index_state = "failed"
+            self.append_archive_log(f"Warning: path lookup could not be built: {message}")
+            self.set_status_message("Path lookup failed; direct archive browsing remains available.", error=True)
+            self._try_apply_startup_saved_filters()
+            self._maybe_release_startup_after_archive_ready()
+
+        def _cleanup_archive_basic_index_refs(self) -> None:
+            self.archive_basic_index_thread = None
+            self.archive_basic_index_worker = None
+            self._maybe_release_startup_after_archive_ready()
 
         def _start_archive_enhanced_index_worker(self) -> None:
             if self._shutting_down or not self.archive_entries:
                 self.archive_enhanced_index_state = "idle"
+                self.archive_enhanced_index_activity = "idle"
                 return
             if self.archive_enhanced_index_thread is not None:
                 return
             self.archive_enhanced_index_state = "warming"
-            self.archive_scan_progress_label.setText("Building enhanced item-name search...")
-            self.set_status_message("Building enhanced archive search...")
-            worker = ArchiveEnhancedIndexWorker(self.archive_entries)
+            self.archive_enhanced_index_activity = "loading"
+            self.archive_scan_progress_label.setText("Loading item-name search...")
+            self.archive_scan_progress_bar.setRange(0, 0)
+            self.archive_scan_progress_bar.setFormat("Search")
+            self.set_status_message("Loading item-name search...")
+            package_root_text = self.archive_package_root_edit.text().strip()
+            worker = ArchiveEnhancedIndexWorker(
+                Path(package_root_text).expanduser(),
+                self.archive_cache_root,
+                tuple(self.archive_entries),
+                entry_metadata_signature=self.archive_entry_metadata_signature,
+                entry_metadata_sources=self.archive_entry_metadata_sources,
+            )
             thread = QThread(self)
             worker.moveToThread(thread)
             thread.started.connect(worker.run)
@@ -15820,8 +16939,13 @@ def run_gui() -> int:
         def _handle_archive_enhanced_index_progress(self, current: int, total: int, detail: str) -> None:
             if self._shutting_down:
                 return
-            detail_text = str(detail or "Building enhanced archive search...")
-            self.set_status_message(detail_text)
+            detail_text = str(detail or "Building item-name search...")
+            lower_detail = detail_text.lower()
+            if "load" in lower_detail:
+                self.archive_enhanced_index_activity = "loading"
+            elif "build" in lower_detail:
+                self.archive_enhanced_index_activity = "building"
+            self._handle_archive_scan_progress(current, total, detail_text)
 
         def _handle_archive_enhanced_index_complete(self, result: object) -> None:
             if self._shutting_down:
@@ -15839,26 +16963,40 @@ def run_gui() -> int:
                 if isinstance(row, Mapping)
             ]
             self.archive_enhanced_index_state = "ready"
-            self.archive_derived_cache_write_pending = True
+            self.archive_enhanced_index_activity = "idle"
+            cache_loaded = bool(payload.get("cache_loaded"))
+            self.archive_derived_cache_write_pending = not cache_loaded
             self.archive_asset_catalog_button.setEnabled(bool(self.archive_item_asset_catalog))
             self.archive_material_finder_button.setEnabled(bool(self._archive_material_catalog_rows()))
             self._clear_archive_asset_catalog_icon_cache()
             self._schedule_archive_asset_catalog_icon_preload()
             self._invalidate_archive_browser_name_columns()
-            self.append_archive_log("Enhanced archive item-name search is ready.")
-            self.set_status_message("Enhanced archive item-name search is ready.")
+            if cache_loaded:
+                self.append_archive_log("Item-name search loaded from cache.")
+            else:
+                self.append_archive_log("Item-name search ready.")
+            self._set_archive_list_status("Archive list available")
             if self.archive_initial_sort_apply_pending:
                 self._schedule_archive_initial_sort_after_first_paint(150)
-            QTimer.singleShot(0, self._start_archive_derived_index_cache_writer)
+            if self.archive_enhanced_filter_refresh_pending:
+                self._schedule_archive_pending_enhanced_filter_refresh(150)
+            self._try_apply_startup_saved_filters()
+            if not cache_loaded:
+                QTimer.singleShot(0, self._start_archive_derived_index_cache_writer)
+            self._maybe_release_startup_after_archive_ready()
 
         def _handle_archive_enhanced_index_error(self, message: str) -> None:
             self.archive_enhanced_index_state = "failed"
-            self.append_archive_log(f"Warning: enhanced archive search could not be built: {message}")
-            self.set_status_message("Enhanced archive search failed; direct archive browsing remains available.", error=True)
+            self.archive_enhanced_index_activity = "idle"
+            self.append_archive_log(f"Warning: item-name search could not be built: {message}")
+            self.set_status_message("Item-name search failed; path browsing remains available.", error=True)
+            self._try_apply_startup_saved_filters()
+            self._maybe_release_startup_after_archive_ready()
 
         def _cleanup_archive_enhanced_index_refs(self) -> None:
             self.archive_enhanced_index_thread = None
             self.archive_enhanced_index_worker = None
+            self._maybe_release_startup_after_archive_ready()
 
         def _start_archive_structure_filter_worker(self) -> None:
             if self._shutting_down or not self.archive_entries:
@@ -15925,6 +17063,7 @@ def run_gui() -> int:
                 self.archive_derived_cache_write_pending = False
                 return
 
+            self._handle_archive_scan_progress(0, 0, "Saving item-name search cache...")
             self.archive_derived_cache_write_pending = False
             worker = ArchiveDerivedIndexCacheWriteWorker(
                 Path(package_root_text).expanduser(),
@@ -15936,6 +17075,8 @@ def run_gui() -> int:
                 item_related_display_names=self.archive_item_related_display_names,
                 item_asset_catalog=self.archive_item_asset_catalog,
                 archive_name_search_index=self.archive_name_search_index,
+                entry_metadata_signature=self.archive_entry_metadata_signature,
+                entry_metadata_sources=self.archive_entry_metadata_sources,
             )
             thread = QThread(self)
             worker.moveToThread(thread)
@@ -15960,6 +17101,7 @@ def run_gui() -> int:
             self.archive_derived_cache_worker = None
             if self.archive_derived_cache_write_pending and not self._shutting_down:
                 QTimer.singleShot(0, self._start_archive_derived_index_cache_writer)
+            self._maybe_release_startup_after_archive_ready()
 
         def _start_archive_sidecar_index_worker(self) -> None:
             if self._shutting_down:
@@ -16153,7 +17295,7 @@ def run_gui() -> int:
                 self.archive_scan_progress_label.setText(completion_text)
                 self.archive_scan_progress_bar.setRange(0, 1)
                 self.archive_scan_progress_bar.setValue(1)
-                self.archive_scan_progress_bar.setFormat("Ready")
+                self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
                 self._set_archive_warmup_overlay(False)
             self._finish_archive_sidecar_status(completion_text, success=True)
             self.set_status_message(completion_text)
@@ -16198,7 +17340,7 @@ def run_gui() -> int:
                 self.archive_scan_progress_label.setText(completion_text)
                 self.archive_scan_progress_bar.setRange(0, 1)
                 self.archive_scan_progress_bar.setValue(1)
-                self.archive_scan_progress_bar.setFormat("Ready")
+                self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
                 self._set_archive_warmup_overlay(False)
                 self.set_status_message(completion_text)
                 self.append_archive_log(completion_text)
@@ -16234,7 +17376,7 @@ def run_gui() -> int:
                 self.archive_scan_progress_label.setText(error_text)
                 self.archive_scan_progress_bar.setRange(0, 1)
                 self.archive_scan_progress_bar.setValue(0)
-                self.archive_scan_progress_bar.setFormat("Ready")
+                self.archive_scan_progress_bar.setFormat("Failed")
             self._finish_archive_sidecar_status(error_text, success=False)
             self._set_archive_warmup_overlay(False)
             if self.archive_browser_warmup_pending:
@@ -16259,25 +17401,60 @@ def run_gui() -> int:
             else:
                 self.archive_sidecar_pending_start = False
 
-        def _current_archive_filter_signature(self) -> Tuple[object, ...]:
+        def _archive_filter_signature_from_values(
+            self,
+            *,
+            filter_text: str = "",
+            exclude_filter_text: str = "",
+            extension_filter: str = "*",
+            package_filter_text: str = "",
+            structure_filter: str = "",
+            role_filter: str = "all",
+            exclude_common_technical_suffixes: bool = False,
+            min_size_kb: int = 0,
+            previewable_only: bool = False,
+            view_mode: str = ARCHIVE_BROWSER_VIEW_MODE,
+            sort_column: int = -1,
+            sort_order: str = "asc",
+        ) -> Tuple[object, ...]:
             return (
-                self.archive_filter_edit.text().strip(),
-                self.archive_exclude_filter_edit.text().strip(),
-                normalize_archive_extension_filter(self._combo_value(self.archive_extension_filter_combo)),
-                self.archive_package_filter_edit.text().strip(),
-                self._current_archive_structure_filter_value(),
-                self._combo_value(self.archive_role_filter_combo),
-                bool(self.archive_exclude_common_technical_checkbox.isChecked()),
-                int(self.archive_min_size_spin.value()),
-                bool(self.archive_previewable_only_checkbox.isChecked()),
-                self._archive_browser_view_mode(),
-                int(self.archive_tree_sort_column),
-                self.archive_tree_sort_order,
+                str(filter_text or "").strip(),
+                str(exclude_filter_text or "").strip(),
+                normalize_archive_extension_filter(extension_filter),
+                str(package_filter_text or "").strip(),
+                normalize_archive_structure_filter_value(str(structure_filter or "")),
+                str(role_filter or "all").strip().lower() or "all",
+                bool(exclude_common_technical_suffixes),
+                int(min_size_kb or 0),
+                bool(previewable_only),
+                str(view_mode or ARCHIVE_BROWSER_VIEW_MODE),
+                normalize_archive_browser_sort_column(sort_column),
+                normalize_archive_browser_sort_order(sort_order),
+            )
+
+        def _neutral_archive_filter_signature(self) -> Tuple[object, ...]:
+            return self._archive_filter_signature_from_values()
+
+        def _current_archive_filter_signature(self) -> Tuple[object, ...]:
+            return self._archive_filter_signature_from_values(
+                filter_text=self.archive_filter_edit.text().strip(),
+                exclude_filter_text=self.archive_exclude_filter_edit.text().strip(),
+                extension_filter=self._combo_value(self.archive_extension_filter_combo),
+                package_filter_text=self.archive_package_filter_edit.text().strip(),
+                structure_filter=self._current_archive_structure_filter_value(),
+                role_filter=self._combo_value(self.archive_role_filter_combo),
+                exclude_common_technical_suffixes=self.archive_exclude_common_technical_checkbox.isChecked(),
+                min_size_kb=self.archive_min_size_spin.value(),
+                previewable_only=self.archive_previewable_only_checkbox.isChecked(),
+                view_mode=self._archive_browser_view_mode(),
+                sort_column=self.archive_tree_sort_column,
+                sort_order=self.archive_tree_sort_order,
             )
 
         def _current_archive_browser_render_signature(self) -> Tuple[object, ...]:
+            result_filter_signature = tuple(self.archive_result_filter_signature or self._current_archive_filter_signature())
             return (
-                *self._current_archive_filter_signature(),
+                *result_filter_signature,
                 len(self.archive_entries),
                 len(self.archive_filtered_entries),
                 int(self.archive_filtered_dds_count),
@@ -16286,6 +17463,177 @@ def run_gui() -> int:
                 bool(self.archive_active_asset_catalog_scope),
                 bool(self.archive_initial_sort_apply_pending),
             )
+
+        def _capture_archive_filter_state(self) -> Dict[str, object]:
+            return {
+                "filter_text": self.archive_filter_edit.text().strip(),
+                "exclude_filter_text": self.archive_exclude_filter_edit.text().strip(),
+                "extension_filter": self._combo_value(self.archive_extension_filter_combo),
+                "package_filter_text": self.archive_package_filter_edit.text().strip(),
+                "structure_filter": self._current_archive_structure_filter_value(),
+                "role_filter": self._combo_value(self.archive_role_filter_combo),
+                "exclude_common_technical_suffixes": bool(self.archive_exclude_common_technical_checkbox.isChecked()),
+                "min_size_kb": int(self.archive_min_size_spin.value()),
+                "previewable_only": bool(self.archive_previewable_only_checkbox.isChecked()),
+                "view_mode": self._archive_browser_view_mode(),
+                "sort_column": int(self.archive_tree_sort_column),
+                "sort_order": self.archive_tree_sort_order,
+            }
+
+        def _archive_filter_state_signature(self, state: Mapping[str, object]) -> Tuple[object, ...]:
+            try:
+                sort_column = int(state.get("sort_column", -1))
+            except (TypeError, ValueError):
+                sort_column = -1
+            return self._archive_filter_signature_from_values(
+                filter_text=str(state.get("filter_text", "") or ""),
+                exclude_filter_text=str(state.get("exclude_filter_text", "") or ""),
+                extension_filter=str(state.get("extension_filter", "*") or "*"),
+                package_filter_text=str(state.get("package_filter_text", "") or ""),
+                structure_filter=str(state.get("structure_filter", "") or ""),
+                role_filter=str(state.get("role_filter", "all") or "all"),
+                exclude_common_technical_suffixes=bool(state.get("exclude_common_technical_suffixes", False)),
+                min_size_kb=int(state.get("min_size_kb", 0) or 0),
+                previewable_only=bool(state.get("previewable_only", False)),
+                view_mode=str(state.get("view_mode", ARCHIVE_BROWSER_VIEW_MODE) or ARCHIVE_BROWSER_VIEW_MODE),
+                sort_column=sort_column,
+                sort_order=str(state.get("sort_order", "asc") or "asc"),
+            )
+
+        def _apply_archive_filter_state(self, state: Mapping[str, object]) -> None:
+            widgets: Tuple[QObject, ...] = (
+                self.archive_filter_edit,
+                self.archive_exclude_filter_edit,
+                self.archive_extension_filter_combo,
+                self.archive_package_filter_edit,
+                self.archive_role_filter_combo,
+                self.archive_exclude_common_technical_checkbox,
+                self.archive_min_size_spin,
+                self.archive_previewable_only_checkbox,
+                self.archive_browser_view_mode_combo,
+            )
+            previous_blocks = [widget.blockSignals(True) for widget in widgets]
+            try:
+                self.archive_filter_edit.setText(str(state.get("filter_text", "") or ""))
+                self.archive_exclude_filter_edit.setText(str(state.get("exclude_filter_text", "") or ""))
+                self._rebuild_archive_extension_filter_choices(str(state.get("extension_filter", "*") or "*"))
+                self._set_combo_by_value(self.archive_extension_filter_combo, str(state.get("extension_filter", "*") or "*"))
+                self.archive_package_filter_edit.setText(str(state.get("package_filter_text", "") or ""))
+                self.archive_structure_filter_pending_value = str(state.get("structure_filter", "") or "")
+                self._rebuild_archive_structure_filter_controls(self.archive_structure_filter_pending_value)
+                self._set_combo_by_value(self.archive_role_filter_combo, str(state.get("role_filter", "all") or "all"))
+                self.archive_exclude_common_technical_checkbox.setChecked(bool(state.get("exclude_common_technical_suffixes", False)))
+                self.archive_min_size_spin.setValue(int(state.get("min_size_kb", 0) or 0))
+                self.archive_previewable_only_checkbox.setChecked(bool(state.get("previewable_only", False)))
+                self._set_combo_by_value(self.archive_browser_view_mode_combo, str(state.get("view_mode", ARCHIVE_BROWSER_VIEW_MODE) or ARCHIVE_BROWSER_VIEW_MODE))
+                self.archive_tree_sort_column = normalize_archive_browser_sort_column(state.get("sort_column", -1))
+                self.archive_tree_sort_order = normalize_archive_browser_sort_order(state.get("sort_order", "asc"))
+                self._update_archive_tree_sort_indicator()
+            finally:
+                for widget, blocked in zip(widgets, previous_blocks):
+                    widget.blockSignals(blocked)
+
+        def _archive_saved_filter_needs_item_search(self, state: Mapping[str, object]) -> bool:
+            filter_text = str(state.get("filter_text", "") or "").strip()
+            if not filter_text:
+                return False
+            return not any(char in filter_text for char in "/\\*.?[]")
+
+        def _archive_filter_state_needs_path_lookup(self, state: Mapping[str, object]) -> bool:
+            if not self._archive_saved_filter_needs_item_search(state):
+                return False
+            extension_filter = normalize_archive_extension_filter(str(state.get("extension_filter", "*") or "*"))
+            return extension_filter != ".pac"
+
+        def _current_archive_filter_needs_path_lookup(self) -> bool:
+            return self._archive_filter_state_needs_path_lookup(self._capture_archive_filter_state())
+
+        def _archive_filter_waits_for_item_search(self) -> bool:
+            return (
+                self.archive_enhanced_index_state == "warming"
+                and self._archive_saved_filter_needs_item_search(self._capture_archive_filter_state())
+            )
+
+        def _archive_background_search_ready(self) -> bool:
+            return (
+                str(getattr(self, "archive_basic_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
+                and str(getattr(self, "archive_enhanced_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
+            )
+
+        def _archive_status_text(self, base_text: str = "") -> str:
+            pending: List[str] = []
+            if str(getattr(self, "archive_basic_index_state", "") or "") == "warming":
+                pending.append("Building path lookup")
+            if str(getattr(self, "archive_enhanced_index_state", "") or "") == "warming":
+                activity = str(getattr(self, "archive_enhanced_index_activity", "") or "").lower()
+                pending.append("Loading item-name search" if activity == "loading" else "Building item-name search")
+            if bool(getattr(self, "archive_startup_saved_filter_apply_pending", False)):
+                pending.append("Filters will apply when search is ready")
+            if pending:
+                prefix = str(base_text or "Archive list available").strip()
+                if "archive list available" not in prefix.lower():
+                    prefix = "Archive list available"
+                return f"{prefix}. " + "; ".join(pending) + "."
+            clean_base = str(base_text or "").strip()
+            if clean_base.startswith("Applied archive filters"):
+                return clean_base
+            return "Archive ready."
+
+        def _archive_progress_format_text(self) -> str:
+            return "Ready" if self._archive_background_search_ready() else "List"
+
+        def _set_archive_list_status(self, base_text: str = "Archive list available") -> None:
+            status_text = self._archive_status_text(base_text)
+            self.archive_scan_progress_label.setText(status_text)
+            self.archive_scan_progress_bar.setRange(0, 1)
+            self.archive_scan_progress_bar.setValue(1)
+            self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
+            self.set_status_message(status_text)
+
+        def _startup_archive_core_ready(self) -> bool:
+            return (
+                str(getattr(self, "archive_basic_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
+                and str(getattr(self, "archive_enhanced_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
+                and self.archive_basic_index_thread is None
+                and self.archive_enhanced_index_thread is None
+                and self.archive_derived_cache_thread is None
+                and not self.archive_derived_cache_write_pending
+                and not self.archive_deferred_derived_cache_write_pending
+                and self.worker_thread is None
+                and not self.archive_scan_finalize_pending
+            )
+
+        def _maybe_release_startup_after_archive_ready(self) -> None:
+            if not bool(getattr(self, "archive_startup_hold_until_ready", False)):
+                return
+            if getattr(self, "_startup_splash_window", None) is None:
+                self.archive_startup_hold_until_ready = False
+                return
+            if (
+                (
+                    self.archive_deferred_basic_index_start_pending
+                    or self.archive_deferred_enhanced_index_start_pending
+                    or self.archive_deferred_derived_cache_write_pending
+                )
+                and self.archive_basic_index_thread is None
+                and self.archive_enhanced_index_thread is None
+                and self.archive_derived_cache_thread is None
+            ):
+                QTimer.singleShot(0, self._start_archive_deferred_background_work)
+            if self.archive_startup_saved_filter_apply_pending:
+                self._try_apply_startup_saved_filters()
+                if self.archive_startup_saved_filter_apply_pending or self.worker_thread is not None:
+                    QTimer.singleShot(750, self._maybe_release_startup_after_archive_ready)
+                    return
+            if not self._startup_archive_core_ready():
+                if not self._archive_startup_progress_work_active():
+                    self._update_startup_splash(self._archive_status_text("Archive list available"), 0, 0)
+                QTimer.singleShot(1000, self._maybe_release_startup_after_archive_ready)
+                return
+            self.archive_startup_hold_until_ready = False
+            self._update_startup_splash("Archive ready.", 1, 1)
+            _write_heartbeat("running")
+            self._release_startup_splash()
 
         def _archive_browser_render_is_ready(self) -> bool:
             return (
@@ -16350,22 +17698,43 @@ def run_gui() -> int:
             self.archive_deferred_background_start_pending = False
             if self._shutting_down:
                 return
-            if not self._archive_browser_background_work_allowed():
+            startup_hold = bool(getattr(self, "archive_startup_hold_until_ready", False))
+            browser_visible = self._is_tool_visible_or_current(self.archive_browser_tab)
+            background_allowed = bool(startup_hold or (not browser_visible) or self._archive_browser_background_work_allowed())
+            if self.archive_deferred_basic_index_start_pending and self.archive_basic_index_thread is None:
+                if not background_allowed:
+                    self._schedule_archive_post_ready_background_work(250)
+                    return
+                self.archive_deferred_basic_index_start_pending = False
+                self._start_archive_basic_index_worker()
+                self._schedule_archive_post_ready_background_work(900)
+                return
+            if not background_allowed:
                 self._schedule_archive_post_ready_background_work(
-                    250 if self._is_tool_visible_or_current(self.archive_browser_tab) else 1000
+                    250 if browser_visible else 1000
                 )
                 return
             if (
+                self.archive_basic_index_thread is not None
+                or
                 self.archive_enhanced_index_thread is not None
                 or self.archive_derived_cache_thread is not None
                 or self.archive_sidecar_thread is not None
             ):
                 self._schedule_archive_post_ready_background_work(900)
                 return
+            if self.archive_deferred_enhanced_index_start_pending and self.archive_enhanced_index_thread is None:
+                self.archive_deferred_enhanced_index_start_pending = False
+                self._start_archive_enhanced_index_worker()
+                self._schedule_archive_post_ready_background_work(900)
+                return
             if self.archive_deferred_derived_cache_write_pending and self.archive_derived_cache_thread is None:
                 self.archive_deferred_derived_cache_write_pending = False
                 self._start_archive_derived_index_cache_writer()
                 self._schedule_archive_post_ready_background_work(900)
+                return
+            if startup_hold:
+                self._maybe_release_startup_after_archive_ready()
                 return
             if self.archive_deferred_sidecar_start_pending:
                 self.archive_deferred_sidecar_start_pending = False
@@ -16393,11 +17762,58 @@ def run_gui() -> int:
                     f"Archive Browser activation timing | cause=first_paint | elapsed={elapsed_ms:.0f}ms",
                     verbose=True,
                 )
+                _record_runtime_event("first_paint", surface="archive_browser", elapsed_ms=elapsed_ms)
+                if (
+                    getattr(self, "_startup_splash_window", None) is not None
+                    and float(getattr(self, "_startup_splash_finish_after_paint_deadline", 0.0) or 0.0) > 0.0
+                ):
+                    self._schedule_startup_splash_finish_after_main_window_paint(80)
             self._schedule_archive_post_ready_background_work(550)
             if self.archive_entries and self.archive_structure_filter_state in {"idle", "failed"}:
                 QTimer.singleShot(250, self._start_archive_structure_filter_worker)
             if self.archive_initial_sort_apply_pending:
                 self._schedule_archive_initial_sort_after_first_paint(150)
+            self._try_apply_startup_saved_filters()
+
+        def _try_apply_startup_saved_filters(self) -> None:
+            if self._shutting_down or not bool(getattr(self, "archive_startup_saved_filter_apply_pending", False)):
+                return
+            saved_state = getattr(self, "archive_startup_saved_filter_state", {}) or {}
+            if not isinstance(saved_state, Mapping):
+                self.archive_startup_saved_filter_apply_pending = False
+                return
+            allow_hidden_startup_filter = bool(getattr(self, "archive_startup_hold_until_ready", False))
+            if not self.archive_browser_first_visible_paint_done and not allow_hidden_startup_filter:
+                return
+            waits_for_item_search = self._archive_saved_filter_needs_item_search(saved_state)
+            if waits_for_item_search and self.archive_enhanced_index_state == "warming":
+                if not self.archive_startup_saved_filter_wait_logged:
+                    self.archive_startup_saved_filter_wait_logged = True
+                    self.append_archive_log("Filters will apply when item-name search is ready.")
+                    self._set_archive_list_status("Archive list available")
+                return
+            needs_path_lookup = self._archive_filter_state_needs_path_lookup(saved_state)
+            if self.archive_basic_index_state == "warming" and needs_path_lookup:
+                if not self.archive_startup_saved_filter_wait_logged:
+                    self.archive_startup_saved_filter_wait_logged = True
+                    self.append_archive_log("Filters will apply when path lookup is ready.")
+                    self._set_archive_list_status("Archive list available")
+                return
+            if (
+                self.worker_thread is not None
+                or self.archive_tree_population_active
+                or self.archive_tree_category_population_active
+                or self.archive_tree_clear_active
+            ):
+                QTimer.singleShot(300, self._try_apply_startup_saved_filters)
+                return
+            self.archive_startup_saved_filter_apply_pending = False
+            self.archive_startup_saved_filter_wait_logged = False
+            self._apply_archive_filter_state(saved_state)
+            self.archive_filters_dirty = True
+            self._update_archive_filter_button_state()
+            self.append_archive_log("Applying queued filters after archive list opened.")
+            self._apply_archive_filter()
 
         def _archive_sort_waits_for_enhanced_index(self) -> bool:
             column = normalize_archive_browser_sort_column(self.archive_tree_sort_column)
@@ -16421,7 +17837,7 @@ def run_gui() -> int:
                 return
             if self._archive_sort_waits_for_enhanced_index():
                 self.append_archive_log(
-                    "Archive column sort is waiting for enhanced item-name index before applying name evidence order.",
+                    "Archive column sort is waiting for item-name search before applying name evidence order.",
                     verbose=True,
                 )
                 self._schedule_archive_initial_sort_after_first_paint(700)
@@ -16459,7 +17875,7 @@ def run_gui() -> int:
                 return
             if not self._is_tool_visible_or_current(self.archive_browser_tab):
                 self.append_archive_log(
-                    "Archive Browser activation timing | cause=enhanced_filter_refresh | state=deferred",
+                    "Archive Browser activation timing | cause=item_search_filter_refresh | state=deferred",
                     verbose=True,
                 )
                 return
@@ -16470,9 +17886,14 @@ def run_gui() -> int:
                 or self.archive_tree_population_active
                 or self.archive_tree_category_population_active
                 or self.archive_tree_clear_active
+                or self.archive_enhanced_index_state == "warming"
+                or (
+                    self.archive_basic_index_state == "warming"
+                    and self._current_archive_filter_needs_path_lookup()
+                )
             ):
                 self.append_archive_log(
-                    "Archive Browser activation timing | cause=enhanced_filter_refresh | state=deferred",
+                    "Archive Browser activation timing | cause=item_search_filter_refresh | state=deferred",
                     verbose=True,
                 )
                 self._schedule_archive_pending_enhanced_filter_refresh(500)
@@ -16481,7 +17902,7 @@ def run_gui() -> int:
             preferred_path = current_entry.path if current_entry is not None else ""
             self.archive_enhanced_filter_refresh_pending = False
             self.append_archive_log(
-                "Archive Browser activation timing | cause=enhanced_filter_refresh | state=applied",
+                "Archive Browser activation timing | cause=item_search_filter_refresh | state=applied",
                 verbose=True,
             )
             self._start_archive_filter_worker(preferred_path)
@@ -16730,7 +18151,7 @@ def run_gui() -> int:
             if self._archive_sort_waits_for_enhanced_index():
                 self.archive_initial_sort_apply_pending = True
                 self.append_archive_log(
-                    "Archive name-column sort will apply after enhanced item-name search is ready.",
+                    "Archive name-column sort will apply after item-name search is ready.",
                     verbose=True,
                 )
                 self._schedule_archive_initial_sort_after_first_paint(700)
@@ -16889,6 +18310,32 @@ def run_gui() -> int:
                 self._populate_archive_tree("")
                 self._refresh_or_defer_research_archive_picker()
                 return
+            if self._archive_filter_waits_for_item_search():
+                if self.archive_deferred_enhanced_index_start_pending and self.archive_enhanced_index_thread is None:
+                    self.archive_deferred_enhanced_index_start_pending = False
+                    QTimer.singleShot(0, self._start_archive_enhanced_index_worker)
+                wait_text = "Item-name search is still building. Path searches are available; item-name search will run automatically when ready."
+                self.archive_enhanced_filter_refresh_pending = True
+                self.archive_scan_progress_label.setText(wait_text)
+                self.archive_scan_progress_bar.setRange(0, 0)
+                self.archive_scan_progress_bar.setFormat("Search")
+                self.set_status_message(wait_text)
+                self.append_archive_log(wait_text)
+                self._schedule_archive_pending_enhanced_filter_refresh(500)
+                return
+            if self.archive_basic_index_state == "warming" and self._current_archive_filter_needs_path_lookup():
+                if self.archive_deferred_basic_index_start_pending and self.archive_basic_index_thread is None:
+                    self.archive_deferred_basic_index_start_pending = False
+                    QTimer.singleShot(0, self._start_archive_basic_index_worker)
+                wait_text = "Path lookup is still loading. This search will run automatically when path lookup is ready."
+                self.archive_enhanced_filter_refresh_pending = True
+                self.archive_scan_progress_label.setText(wait_text)
+                self.archive_scan_progress_bar.setRange(0, 0)
+                self.archive_scan_progress_bar.setFormat("Search")
+                self.set_status_message(wait_text)
+                self.append_archive_log(wait_text)
+                self._schedule_archive_pending_enhanced_filter_refresh(500)
+                return
             current_entry = self._current_archive_entry()
             current_entry_path = current_entry.path if current_entry is not None else ""
             self._start_archive_filter_worker(current_entry_path)
@@ -17044,15 +18491,12 @@ def run_gui() -> int:
                 self._refresh_or_defer_research_archive_picker()
                 filtered_entries = len(self.archive_filtered_entries)
                 completion_text = f"Applied archive filters. Showing {filtered_entries:,} entries."
-                self.archive_scan_progress_label.setText(completion_text)
-                self.archive_scan_progress_bar.setRange(0, 1)
-                self.archive_scan_progress_bar.setValue(1)
-                self.archive_scan_progress_bar.setFormat("Ready")
+                self._set_archive_list_status(completion_text)
                 self._set_archive_warmup_overlay(False)
-                self.set_status_message(completion_text)
                 self.append_archive_log(completion_text)
                 self._restore_archive_controls_scroll_after_filter()
                 self.archive_controls_scroll_filter_anchor = None
+                self._maybe_release_startup_after_archive_ready()
 
             defer_default_selection = bool(getattr(self, "archive_startup_autoload_defer_preview", False))
             self.archive_startup_autoload_defer_preview = False
@@ -17573,6 +19017,8 @@ def run_gui() -> int:
             self.archive_item_icon_preload_timer.stop()
             self.archive_item_icon_preload_queue.clear()
             self.archive_item_icon_preload_next_index = 0
+            self.archive_item_icon_visible_warmup_remaining = 0
+            self.archive_item_icon_warmup_user_visible = False
             if self.archive_item_icon_warmup_worker is not None:
                 try:
                     self.archive_item_icon_warmup_worker.stop()
@@ -17602,17 +19048,24 @@ def run_gui() -> int:
             if prepared is not None:
                 self.archive_item_icon_prepared_path_cache.move_to_end(prepared_key)
                 preview_path_text, prepared_note = prepared
-                pixmap = QPixmap(preview_path_text)
-                if not pixmap.isNull():
-                    scaled_value = (
-                        pixmap.scaled(requested_size, requested_size, Qt.KeepAspectRatio, Qt.SmoothTransformation),
-                        prepared_note,
-                    )
-                    self.archive_item_icon_pixmap_cache[cache_key] = scaled_value
-                    self.archive_item_icon_pixmap_cache.move_to_end(cache_key)
-                    while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit:
-                        self.archive_item_icon_pixmap_cache.popitem(last=False)
-                    return scaled_value
+                preview_path = Path(preview_path_text)
+                try:
+                    prepared_exists = preview_path.is_file() and preview_path.stat().st_size > 0
+                except OSError:
+                    prepared_exists = False
+                if prepared_exists:
+                    pixmap = QPixmap(str(preview_path))
+                    if not pixmap.isNull():
+                        scaled_value = (
+                            pixmap.scaled(requested_size, requested_size, Qt.KeepAspectRatio, Qt.SmoothTransformation),
+                            prepared_note,
+                        )
+                        self.archive_item_icon_pixmap_cache[cache_key] = scaled_value
+                        self.archive_item_icon_pixmap_cache.move_to_end(cache_key)
+                        while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit:
+                            self.archive_item_icon_pixmap_cache.popitem(last=False)
+                        return scaled_value
+                self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)
             negative_note = ""
             for (cached_icon_paths, _cached_size, cached_texconv_key), cached_value in reversed(
                 self.archive_item_icon_pixmap_cache.items()
@@ -17669,8 +19122,16 @@ def run_gui() -> int:
                 if not self._archive_asset_catalog_row_values(row, "icon_paths"):
                     continue
                 prepared_key = self._archive_asset_catalog_prepared_icon_cache_key(row)
-                if prepared_key in self.archive_item_icon_prepared_path_cache:
-                    continue
+                prepared = self.archive_item_icon_prepared_path_cache.get(prepared_key)
+                if prepared is not None:
+                    preview_path_text, _prepared_note = prepared
+                    preview_path = Path(preview_path_text)
+                    try:
+                        if preview_path.is_file() and preview_path.stat().st_size > 0:
+                            continue
+                    except OSError:
+                        pass
+                    self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)
                 if self._archive_item_icon_negative_note(prepared_key):
                     continue
                 rows.append(row)
@@ -17684,20 +19145,24 @@ def run_gui() -> int:
             *,
             replace: bool = False,
             front: bool = False,
+            user_visible: bool = False,
             delay_ms: int = 0,
         ) -> None:
             if replace:
                 self.archive_item_icon_preload_timer.stop()
                 self.archive_item_icon_preload_queue.clear()
                 self.archive_item_icon_preload_next_index = 0
+                self.archive_item_icon_visible_warmup_remaining = 0
             if not rows:
                 return
+            visible_request = bool(front or user_visible)
             existing_keys = {
                 self._archive_asset_catalog_prepared_icon_cache_key(row)
                 for row in self.archive_item_icon_preload_queue
                 if isinstance(row, Mapping)
             }
             queued_rows: List[Dict[str, object]] = []
+            requested_keys: List[Tuple[Tuple[str, ...], str]] = []
             for row in rows:
                 if not isinstance(row, Mapping):
                     continue
@@ -17705,16 +19170,61 @@ def run_gui() -> int:
                 icon_paths, _texconv_key = prepared_key
                 if not icon_paths:
                     continue
-                if prepared_key in self.archive_item_icon_prepared_path_cache or prepared_key in existing_keys:
-                    continue
+                prepared = self.archive_item_icon_prepared_path_cache.get(prepared_key)
+                if prepared is not None:
+                    preview_path_text, _prepared_note = prepared
+                    preview_path = Path(preview_path_text)
+                    try:
+                        if preview_path.is_file() and preview_path.stat().st_size > 0:
+                            continue
+                    except OSError:
+                        pass
+                    self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)
                 if self._archive_item_icon_negative_note(prepared_key):
+                    continue
+                requested_keys.append(prepared_key)
+                if prepared_key in existing_keys:
                     continue
                 existing_keys.add(prepared_key)
                 queued_rows.append(dict(row))
+            if visible_request and requested_keys:
+                self.archive_item_icon_visible_warmup_remaining = max(
+                    int(getattr(self, "archive_item_icon_visible_warmup_remaining", 0) or 0),
+                    min(240, len(requested_keys)),
+                )
+                if (
+                    self.archive_item_icon_warmup_thread is not None
+                    and not bool(getattr(self, "archive_item_icon_warmup_user_visible", False))
+                    and self.archive_item_icon_warmup_worker is not None
+                ):
+                    try:
+                        self.archive_item_icon_warmup_worker.stop()
+                    except Exception:
+                        pass
+            promoted_rows: List[Dict[str, object]] = []
+            if front and requested_keys and self.archive_item_icon_preload_queue:
+                requested_key_set = set(requested_keys)
+                retained_queue: List[Dict[str, object]] = []
+                for queued_row in self.archive_item_icon_preload_queue:
+                    queued_key = self._archive_asset_catalog_prepared_icon_cache_key(queued_row)
+                    if queued_key in requested_key_set:
+                        promoted_rows.append(queued_row)
+                    else:
+                        retained_queue.append(queued_row)
+                self.archive_item_icon_preload_queue[:] = retained_queue
             if not queued_rows:
+                if promoted_rows:
+                    self.archive_item_icon_preload_queue[0:0] = promoted_rows
+                if (
+                    visible_request
+                    and (promoted_rows or self.archive_item_icon_preload_queue)
+                    and not self.archive_item_icon_preload_timer.isActive()
+                    and self.archive_item_icon_warmup_thread is None
+                ):
+                    self.archive_item_icon_preload_timer.start(max(0, int(delay_ms)))
                 return
             if front:
-                self.archive_item_icon_preload_queue[0:0] = queued_rows
+                self.archive_item_icon_preload_queue[0:0] = queued_rows + promoted_rows
             else:
                 self.archive_item_icon_preload_queue.extend(queued_rows)
             if not self.archive_item_icon_preload_timer.isActive() and self.archive_item_icon_warmup_thread is None:
@@ -17723,7 +19233,8 @@ def run_gui() -> int:
         def _continue_archive_asset_catalog_icon_preload(self) -> None:
             if not self.archive_item_icon_preload_queue:
                 return
-            if not self._archive_browser_background_work_allowed():
+            visible_remaining = int(getattr(self, "archive_item_icon_visible_warmup_remaining", 0) or 0)
+            if not self._archive_browser_background_work_allowed() and visible_remaining <= 0:
                 self.archive_item_icon_preload_pending_after_ready = True
                 self.archive_item_icon_preload_timer.start(600)
                 return
@@ -17732,15 +19243,18 @@ def run_gui() -> int:
                 return
             if self.archive_item_icon_warmup_thread is not None:
                 return
-            batch_size = 36
+            batch_size = 24 if visible_remaining > 0 else 12
             batch = self.archive_item_icon_preload_queue[:batch_size]
             del self.archive_item_icon_preload_queue[:batch_size]
             self.archive_item_icon_preload_next_index += len(batch)
+            if visible_remaining > 0:
+                self.archive_item_icon_visible_warmup_remaining = max(0, visible_remaining - len(batch))
             texconv_text = self.texconv_path_edit.text().strip()
             texconv_path = Path(texconv_text).expanduser() if texconv_text else None
             if texconv_path is not None and not texconv_path.exists():
                 texconv_path = None
             generation = self.archive_item_icon_warmup_generation
+            self.archive_item_icon_warmup_user_visible = visible_remaining > 0
             worker = ArchiveItemIconWarmupWorker(
                 generation,
                 batch,
@@ -17802,6 +19316,7 @@ def run_gui() -> int:
         def _cleanup_archive_item_icon_warmup_refs(self, generation: int) -> None:
             self.archive_item_icon_warmup_thread = None
             self.archive_item_icon_warmup_worker = None
+            self.archive_item_icon_warmup_user_visible = False
             if int(generation) == int(getattr(self, "archive_item_icon_warmup_generation", -1)):
                 if self.archive_item_icon_preload_queue and not self._shutting_down:
                     self.archive_item_icon_preload_timer.start(40)
@@ -18312,6 +19827,7 @@ def run_gui() -> int:
             dialog = QDialog(self)
             dialog.setWindowTitle("Item Finder")
             dialog.resize(1240, 780)
+            self.archive_item_icon_negative_cache.clear()
             saved_geometry = self.settings.value("ui/item_finder_geometry")
             if saved_geometry:
                 try:
@@ -18470,6 +19986,7 @@ def run_gui() -> int:
             catalog_filter_timer.setSingleShot(True)
             catalog_filter_timer.setInterval(160)
             icon_row_queue: List[QListWidgetItem] = []
+            icon_visible_retry_budget = {"remaining": 8}
             restored_category = str(self.settings.value("ui/item_finder_category", "") or "")
             restored_group = str(self.settings.value("ui/item_finder_group", "") or "")
             restored_selected_key = str(self.settings.value("ui/item_finder_selected_key", "") or "")
@@ -18543,9 +20060,46 @@ def run_gui() -> int:
                     return str(data[0] or ""), str(data[1] or "")
                 return "", ""
 
+            def _catalog_row_prepared_icon_available(row: Mapping[str, object]) -> bool:
+                prepared_key = self._archive_asset_catalog_prepared_icon_cache_key(row)
+                prepared = self.archive_item_icon_prepared_path_cache.get(prepared_key)
+                if prepared is None:
+                    return False
+                preview_path_text, _prepared_note = prepared
+                try:
+                    preview_path = Path(str(preview_path_text))
+                    return preview_path.is_file() and preview_path.stat().st_size > 0
+                except OSError:
+                    return False
+
+            def _apply_catalog_item_cached_icon(item: QListWidgetItem, row: Mapping[str, object]) -> Tuple[bool, str]:
+                pixmap, note = self._cached_archive_asset_catalog_inventory_icon_pixmap(
+                    row,
+                    86,
+                    allow_sync_prepare=False,
+                )
+                if pixmap is None or pixmap.isNull():
+                    return False, note
+                item.setIcon(QIcon(pixmap))
+                item.setToolTip(note or item.toolTip() or "Recovered inventory icon")
+                item.setData(Qt.UserRole + 1, "thumb_loaded")
+                item_rect = item_grid.visualItemRect(item)
+                if item_rect.isValid():
+                    item_grid.viewport().update(item_rect)
+                else:
+                    item_grid.viewport().update()
+                if item is item_grid.currentItem():
+                    icon_preview_timer.start(0)
+                return True, note
+
             def _queue_catalog_row_icons_for_visible_rows() -> None:
                 if not dialog.isVisible():
+                    remaining = int(icon_visible_retry_budget.get("remaining", 0) or 0)
+                    if remaining > 0:
+                        icon_visible_retry_budget["remaining"] = remaining - 1
+                        icon_visible_queue_timer.start(80)
                     return
+                icon_visible_retry_budget["remaining"] = 8
                 viewport_rect = item_grid.viewport().rect().adjusted(-180, -240, 220, 600)
                 visible_candidates: List[QListWidgetItem] = []
                 for row_index in range(item_grid.count()):
@@ -18557,7 +20111,13 @@ def run_gui() -> int:
                         continue
                     if not self._archive_asset_catalog_row_values(row, "icon_paths"):
                         continue
-                    if item.data(Qt.UserRole + 1) in {"thumb_loaded", "thumb_missing", "thumb_pending"}:
+                    state = item.data(Qt.UserRole + 1)
+                    if state == "thumb_loaded":
+                        continue
+                    if state == "thumb_pending" and not _catalog_row_prepared_icon_available(row):
+                        continue
+                    loaded, _note = _apply_catalog_item_cached_icon(item, row)
+                    if loaded:
                         continue
                     item_rect = item_grid.visualItemRect(item)
                     if item_rect.isValid() and item_rect.intersects(viewport_rect):
@@ -18596,6 +20156,7 @@ def run_gui() -> int:
                         if isinstance(item.data(Qt.UserRole), Mapping)
                     ],
                     front=True,
+                    user_visible=True,
                     delay_ms=0,
                 )
                 if icon_row_queue and not icon_row_timer.isActive():
@@ -18626,17 +20187,21 @@ def run_gui() -> int:
                     row = item.data(Qt.UserRole)
                     if not isinstance(row, Mapping):
                         continue
-                    pixmap, note = self._cached_archive_asset_catalog_inventory_icon_pixmap(
-                        row,
-                        86,
-                        allow_sync_prepare=False,
-                    )
-                    if pixmap is not None and not pixmap.isNull():
-                        item.setIcon(QIcon(pixmap))
-                        item.setToolTip(note or item.toolTip() or "Recovered inventory icon")
-                        item.setData(Qt.UserRole + 1, "thumb_loaded")
-                        if item is item_grid.currentItem():
-                            icon_preview_timer.start(0)
+                    loaded, note = _apply_catalog_item_cached_icon(item, row)
+                    if loaded:
+                        pass
+                    else:
+                        note = self._archive_item_icon_negative_note(
+                            self._archive_asset_catalog_prepared_icon_cache_key(row)
+                        )
+                        if not note:
+                            _pixmap, note = self._cached_archive_asset_catalog_inventory_icon_pixmap(
+                                row,
+                                86,
+                                allow_sync_prepare=False,
+                            )
+                    if loaded:
+                        pass
                     elif "warming" in str(note).lower():
                         item.setData(Qt.UserRole + 1, "fallback")
                         if not icon_retry_timer.isActive():
@@ -18750,6 +20315,8 @@ def run_gui() -> int:
                 else:
                     _update_selected_catalog_detail()
                 QTimer.singleShot(0, _queue_catalog_row_icons_for_visible_rows)
+                QTimer.singleShot(90, _queue_catalog_row_icons_for_visible_rows)
+                QTimer.singleShot(300, _queue_catalog_row_icons_for_visible_rows)
 
             def _selected_catalog_row() -> Optional[Dict[str, object]]:
                 item = item_grid.currentItem()
@@ -18795,7 +20362,7 @@ def run_gui() -> int:
                 model_stems = self._archive_asset_catalog_row_values(row, "model_stems")
                 icon_paths = self._archive_asset_catalog_row_values(row, "icon_paths")
                 if icon_paths:
-                    self._queue_archive_asset_catalog_icon_warmup_rows([row], front=True, delay_ms=0)
+                    self._queue_archive_asset_catalog_icon_warmup_rows([row], front=True, user_visible=True, delay_ms=0)
                 localized_names = self._archive_asset_catalog_row_values(row, "localized_names")
                 material_tags = self._archive_asset_catalog_row_values(row, "material_tags")
                 material_evidence = self._archive_asset_catalog_row_values(row, "material_evidence")
@@ -18883,8 +20450,10 @@ def run_gui() -> int:
                     item_rect = item_grid.visualItemRect(item)
                     if item_rect.isValid() and not item_rect.intersects(active_rect):
                         continue
-                    item.setData(Qt.UserRole + 1, "fallback")
-                    matched_items.append(item)
+                    loaded, _note = _apply_catalog_item_cached_icon(item, row)
+                    if not loaded:
+                        item.setData(Qt.UserRole + 1, "fallback")
+                        matched_items.append(item)
                     if len(matched_items) >= 16:
                         break
                 if matched_items:
@@ -18986,13 +20555,13 @@ def run_gui() -> int:
             scope_button.clicked.connect(lambda _checked=False: _scope_selected(include_related=True))
             preview_icon_button.clicked.connect(_find_selected_icon)
             close_button.clicked.connect(dialog.reject)
+            self.archive_item_icon_prepared_callbacks.append(_handle_catalog_icon_prepared)
             _populate_category_tree()
             restored_search_text = str(self.settings.value("ui/item_finder_search_text", "") or "")
             if restored_search_text:
                 search_edit.setText(restored_search_text)
             category_tree.itemSelectionChanged.connect(lambda: catalog_filter_timer.start())
             _populate_catalog()
-            self.archive_item_icon_prepared_callbacks.append(_handle_catalog_icon_prepared)
             try:
                 dialog.exec()
             finally:
@@ -19341,7 +20910,7 @@ def run_gui() -> int:
             self.archive_scan_progress_label.setText(progress_text)
             self.archive_scan_progress_bar.setRange(0, 1)
             self.archive_scan_progress_bar.setValue(1)
-            self.archive_scan_progress_bar.setFormat("Ready")
+            self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
             self.append_archive_log(log_text)
             preferred_path = self.archive_filtered_entries[0].path if self.archive_filtered_entries else ""
             self._populate_archive_tree(preferred_path, rebuild_index=False)
@@ -19981,7 +21550,7 @@ def run_gui() -> int:
             self.archive_scan_progress_label.setText(completion)
             self.archive_scan_progress_bar.setRange(0, 1)
             self.archive_scan_progress_bar.setValue(1)
-            self.archive_scan_progress_bar.setFormat("Ready")
+            self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
             self.set_status_message(completion)
 
         def _ensure_archive_folder_item_populated(self, item: Optional[QTreeWidgetItem]) -> None:
@@ -20494,6 +22063,1032 @@ def run_gui() -> int:
             if kind == "file" and isinstance(value, int) and 0 <= value < len(self.archive_filtered_entries):
                 return self.archive_filtered_entries[value]
             return None
+
+        @staticmethod
+        def _appearance_composite_entry_summary(entries: Sequence[ArchiveEntry], *, limit: int = 4) -> str:
+            paths = [str(getattr(entry, "path", "") or "") for entry in entries if isinstance(entry, ArchiveEntry)]
+            if not paths:
+                return ""
+            visible = paths[: max(1, int(limit or 1))]
+            summary = "; ".join(Path(path.replace("\\", "/")).name for path in visible)
+            remaining = len(paths) - len(visible)
+            if remaining > 0:
+                summary = f"{summary}; +{remaining} more"
+            return summary
+
+        @staticmethod
+        def _appearance_composite_entry_key(entry: ArchiveEntry) -> Tuple[str, str, int]:
+            return (
+                str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lower(),
+                str(getattr(entry, "pamt_path", "") or "").casefold(),
+                int(getattr(entry, "offset", 0) or 0),
+            )
+
+        def _appearance_composite_selected_context(
+            self,
+            current_entry: ArchiveEntry,
+        ) -> Tuple[ArchiveEntry, Optional[ArchiveEntry]]:
+            selected_entries = [entry for entry in self._selected_archive_entries() if isinstance(entry, ArchiveEntry)]
+            current_key = self._appearance_composite_entry_key(current_entry)
+            selected_appearances = [entry for entry in selected_entries if str(entry.extension or "").lower() == ".app_xml"]
+            selected_models = [
+                entry
+                for entry in selected_entries
+                if str(entry.extension or "").lower() in {".pac", ".pam", ".pamlod"}
+                and self._appearance_composite_entry_key(entry) != current_key
+            ]
+            if str(current_entry.extension or "").lower() in {".pac", ".pam", ".pamlod"}:
+                selected_models = [current_entry] + [
+                    entry
+                    for entry in selected_models
+                    if self._appearance_composite_entry_key(entry) != current_key
+                ]
+                if selected_appearances:
+                    return selected_appearances[0], selected_models[0]
+            if str(current_entry.extension or "").lower() == ".app_xml" and len(selected_models) == 1:
+                return current_entry, selected_models[0]
+            return current_entry, None
+
+        def _select_archive_appearance_candidate(
+            self,
+            source_entry: ArchiveEntry,
+            candidates: Sequence[ArchiveEntry],
+        ) -> Optional[ArchiveEntry]:
+            if str(source_entry.extension or "").lower() == ".app_xml":
+                return source_entry
+            candidate_entries = tuple(entry for entry in candidates if isinstance(entry, ArchiveEntry))
+            if not candidate_entries:
+                return None
+            if len(candidate_entries) == 1:
+                return candidate_entries[0]
+
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Choose Body Appearance Context")
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+            label = QLabel(
+                "Multiple appearance XML files reference this selection. Choose the body/head/hair/armor context to use for the composite preview."
+            )
+            label.setWordWrap(True)
+            layout.addWidget(label)
+            candidate_list = QListWidget()
+            candidate_list.setSelectionMode(QAbstractItemView.SingleSelection)
+            for index, candidate in enumerate(candidate_entries):
+                item = QListWidgetItem(candidate.path)
+                item.setToolTip(candidate.path)
+                item.setData(Qt.UserRole, index)
+                candidate_list.addItem(item)
+            candidate_list.setCurrentRow(0)
+            layout.addWidget(candidate_list, stretch=1)
+
+            button_row = QHBoxLayout()
+            button_row.addStretch(1)
+            cancel_button = QPushButton("Cancel")
+            choose_button = QPushButton("Use Appearance")
+            choose_button.setDefault(True)
+            button_row.addWidget(cancel_button)
+            button_row.addWidget(choose_button)
+            layout.addLayout(button_row)
+            cancel_button.clicked.connect(dialog.reject)
+            choose_button.clicked.connect(dialog.accept)
+            candidate_list.itemDoubleClicked.connect(lambda _item: dialog.accept())
+            dialog.resize(760, 420)
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            item = candidate_list.currentItem()
+            if item is None:
+                return None
+            index = item.data(Qt.UserRole)
+            try:
+                return candidate_entries[int(index)]
+            except Exception:
+                return candidate_entries[0]
+
+        def _appearance_swap_selected_context(
+            self,
+            current_entry: Optional[ArchiveEntry],
+        ) -> Tuple[Optional[ArchiveEntry], Optional[ArchiveEntry], str]:
+            selected_entries = [entry for entry in self._selected_archive_entries() if isinstance(entry, ArchiveEntry)]
+            if isinstance(current_entry, ArchiveEntry) and all(
+                self._appearance_composite_entry_key(entry) != self._appearance_composite_entry_key(current_entry)
+                for entry in selected_entries
+            ):
+                selected_entries.append(current_entry)
+            deduped: List[ArchiveEntry] = []
+            seen: set[Tuple[str, str, int]] = set()
+            for entry in selected_entries:
+                key = self._appearance_composite_entry_key(entry)
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(entry)
+            app_entries = [entry for entry in deduped if str(entry.extension or "").lower() == ".app_xml"]
+            model_entries = [entry for entry in deduped if str(entry.extension or "").lower() in {".pac", ".pam", ".pamlod"}]
+            if len(app_entries) == 1 and len(model_entries) == 1:
+                return app_entries[0], model_entries[0], ""
+            if len(model_entries) == 1 and not app_entries:
+                return None, model_entries[0], ""
+            if len(app_entries) == 1 and not model_entries:
+                return app_entries[0], None, "Select exactly one donor .pac/.pam/.pamlod model with this target body appearance context."
+            if len(app_entries) > 1 or len(model_entries) > 1:
+                return None, None, "Select exactly one target body .app_xml and one donor .pac/.pam/.pamlod model for single-PAC armor swap."
+            return None, None, "Select one target body .app_xml and one donor .pac/.pam/.pamlod model first."
+
+        @staticmethod
+        def _appearance_swap_exact_app_match(model_entry: ArchiveEntry, app_entry: ArchiveEntry) -> bool:
+            model_stem = PurePosixPath(str(model_entry.path or "").replace("\\", "/")).stem.strip().casefold()
+            if not model_stem:
+                return False
+            try:
+                data, _decompressed, _note = read_archive_entry_data(app_entry)
+                text = (try_decode_text_like_archive_data(data) or data.decode("utf-8-sig", errors="ignore")).casefold()
+            except Exception:
+                return False
+            exact_name_pattern = re.compile(r"\bname\s*=\s*['\"]" + re.escape(model_stem) + r"['\"]", flags=re.IGNORECASE)
+            return bool(exact_name_pattern.search(text))
+
+        def _find_exact_appearance_contexts_for_model(self, donor_model_entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
+            matches: List[ArchiveEntry] = []
+            for candidate in tuple(self.archive_entries):
+                if str(candidate.extension or "").lower() != ".app_xml":
+                    continue
+                if self._appearance_swap_exact_app_match(donor_model_entry, candidate):
+                    matches.append(candidate)
+            return tuple(matches)
+
+        def _open_current_archive_appearance_swap(self) -> None:
+            entry = self._current_archive_entry()
+            if entry is None:
+                selected_entries = self._selected_archive_entries()
+                entry = selected_entries[0] if selected_entries else None
+            if not isinstance(entry, ArchiveEntry):
+                QMessageBox.warning(self, "No Archive File Selected", "Select one target body .app_xml and one donor .pac/.pam/.pamlod model first.")
+                return
+            self._open_archive_appearance_swap_for_entry(entry)
+
+        def _open_archive_appearance_swap_for_entry(self, entry: ArchiveEntry) -> None:
+            if self.worker_thread is not None:
+                self.set_status_message("Another background task is still running. Wait for it to finish before starting appearance armor swap.", error=True)
+                return
+            if str(entry.extension or "").lower() not in {".app_xml", ".pac", ".pam", ".pamlod"}:
+                QMessageBox.warning(
+                    self,
+                    "Unsupported Appearance Armor Swap Source",
+                    "Appearance Armor Swap requires one target body .app_xml and one donor .pac/.pam/.pamlod model.",
+                )
+                return
+            target_app_entry, donor_model_entry, reason = self._appearance_swap_selected_context(entry)
+            if reason and donor_model_entry is None:
+                QMessageBox.warning(self, "Appearance Armor Swap", reason)
+                return
+            if isinstance(target_app_entry, ArchiveEntry) and isinstance(donor_model_entry, ArchiveEntry):
+                self._begin_archive_appearance_swap_review(target_app_entry, donor_model_entry)
+                return
+            if isinstance(donor_model_entry, ArchiveEntry) and target_app_entry is None:
+                def _task(log: Callable[[str], None]) -> object:
+                    log(f"Searching exact body appearance contexts for {donor_model_entry.basename}...")
+                    return self._find_exact_appearance_contexts_for_model(donor_model_entry)
+
+                def _complete(payload: object) -> None:
+                    candidates = tuple(entry for entry in (payload if isinstance(payload, tuple) else ()) if isinstance(entry, ArchiveEntry))
+                    if not candidates:
+                        QMessageBox.information(
+                            self,
+                            "Choose Body Appearance Context",
+                            "No exact app XML match was found for this donor model. Select the target body .app_xml together with the donor model instead.",
+                        )
+                        return
+                    selected_app = self._select_archive_appearance_candidate(donor_model_entry, candidates)
+                    if selected_app is not None:
+                        self._begin_archive_appearance_swap_review(selected_app, donor_model_entry)
+
+                self._run_utility_task(
+                    status_message=f"Finding exact body appearance contexts for {donor_model_entry.basename}...",
+                    task=_task,
+                    on_complete=_complete,
+                    show_archive_progress=True,
+                )
+                return
+            QMessageBox.warning(self, "Appearance Armor Swap", reason or "Select one target body .app_xml and one donor model.")
+
+        def _begin_archive_appearance_swap_review(self, target_app_entry: ArchiveEntry, donor_model_entry: ArchiveEntry) -> None:
+            archive_entries = tuple(self.archive_entries)
+            path_index = getattr(self, "archive_entries_by_normalized_path", None) or self._build_archive_entry_path_index(archive_entries)
+            basename_index = getattr(self, "archive_entries_by_basename", None) or self._build_archive_entry_basename_index(archive_entries)
+            try:
+                composite_plan = build_appearance_composite_preview_plan(
+                    target_app_entry,
+                    archive_entries,
+                    appearance_entry=target_app_entry,
+                    path_index=path_index,
+                    basename_index=basename_index,
+                )
+            except Exception as exc:
+                QMessageBox.warning(self, "Appearance Armor Swap", f"Could not build the target body appearance context:\n{exc}")
+                return
+            component_index = self._prompt_appearance_composite_override_component(
+                composite_plan,
+                donor_model_entry,
+                purpose="package",
+            )
+            if component_index is None:
+                return
+            component = composite_plan.components[component_index] if 0 <= component_index < len(composite_plan.components) else None
+            model_candidates = tuple(
+                entry
+                for entry in tuple(getattr(component, "resolved_model_entries", ()) or ())
+                if str(getattr(entry, "extension", "") or "").lower() in {".pac", ".pam", ".pamlod"}
+            )
+            target_model_entry: Optional[ArchiveEntry] = None
+            if len(model_candidates) > 1:
+                target_model_entry = self._prompt_appearance_swap_target_model(component, model_candidates)
+                if target_model_entry is None:
+                    return
+            try:
+                swap_plan = build_appearance_single_pac_swap_plan(
+                    target_app_entry,
+                    donor_model_entry,
+                    archive_entries,
+                    target_component_index=component_index,
+                    target_model_entry=target_model_entry,
+                    path_index=path_index,
+                    basename_index=basename_index,
+                )
+            except Exception as exc:
+                QMessageBox.warning(self, "Appearance Armor Swap", f"Could not build the package plan:\n{exc}")
+                return
+            self._open_archive_appearance_swap_review_dialog(
+                composite_plan,
+                swap_plan,
+                target_model_entry=target_model_entry,
+            )
+
+        def _prompt_appearance_swap_target_model(
+            self,
+            component: object,
+            candidates: Sequence[ArchiveEntry],
+        ) -> Optional[ArchiveEntry]:
+            candidate_entries = tuple(entry for entry in candidates if isinstance(entry, ArchiveEntry))
+            if not candidate_entries:
+                return None
+            if len(candidate_entries) == 1:
+                return candidate_entries[0]
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Choose Target Model Path")
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+            label = QLabel(
+                "The selected target component resolves multiple model paths. Choose exactly one virtual model path for single-PAC swap output.\n"
+                f"Component: {getattr(component, 'section', 'Component')} / {getattr(component, 'prefab_name', '')}"
+            )
+            label.setWordWrap(True)
+            layout.addWidget(label)
+            model_list = QListWidget()
+            model_list.setSelectionMode(QAbstractItemView.SingleSelection)
+            for index, candidate in enumerate(candidate_entries):
+                item = QListWidgetItem(candidate.path)
+                item.setToolTip(candidate.path)
+                item.setData(Qt.UserRole, index)
+                model_list.addItem(item)
+            model_list.setCurrentRow(0)
+            layout.addWidget(model_list, stretch=1)
+            button_row = QHBoxLayout()
+            button_row.addStretch(1)
+            cancel_button = QPushButton("Cancel")
+            choose_button = QPushButton("Use Target Model")
+            choose_button.setDefault(True)
+            button_row.addWidget(cancel_button)
+            button_row.addWidget(choose_button)
+            layout.addLayout(button_row)
+            cancel_button.clicked.connect(dialog.reject)
+            choose_button.clicked.connect(dialog.accept)
+            model_list.itemDoubleClicked.connect(lambda _item: dialog.accept())
+            dialog.resize(900, 420)
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            item = model_list.currentItem()
+            if item is None:
+                return None
+            try:
+                return candidate_entries[int(item.data(Qt.UserRole))]
+            except Exception:
+                return candidate_entries[0]
+
+        def _appearance_swap_plan_review_text(self, plan: AppearanceSinglePacSwapPlan) -> str:
+            component = plan.target_component
+            component_label = (
+                f"{getattr(component, 'section', 'Component')} / {getattr(component, 'prefab_name', '')}"
+                if component is not None
+                else "none selected"
+            )
+            texture_count = len(tuple(plan.donor_texture_entries or ()))
+            missing_count = len(tuple(plan.donor_texture_missing_paths or ()))
+            lines = [
+                "Single-PAC Appearance Armor Swap",
+                "",
+                f"Target body appearance context: {plan.target_app_entry.path}",
+                f"Target component: {component_label}",
+                f"Target model path: {getattr(plan.target_model_entry, 'path', '') or 'unresolved'}",
+                f"Donor model path: {plan.donor_model_entry.path}",
+                f"Target material sidecar path: {plan.target_sidecar_path or 'derived path unavailable'}",
+                f"Donor material sidecar: {getattr(plan.donor_sidecar_entry, 'path', '') or 'unresolved'}",
+                f"Included donor texture count: {texture_count:,}",
+                "",
+                f"Slot compatibility: target {plan.target_slot or 'unknown'} / donor {plan.donor_slot or 'unknown'} / {'match' if plan.slot_match else 'not proven'}",
+                f"Body family compatibility: target {plan.target_body_family or 'unknown'} / donor {plan.donor_body_family or 'unknown'} / {'match' if plan.body_family_match else 'not proven'}",
+                "",
+                "Package writes:",
+                "- donor PAC/PAM/PAMLOD bytes -> target component model virtual path",
+                "- donor material sidecar bytes -> target component sidecar virtual path when resolved",
+                "- donor sidecar-referenced DDS bytes -> original donor texture virtual paths",
+                "",
+                "Not written: target .app_xml, prefabdata, skeleton, ragdoll, part-hide files, or game archives.",
+            ]
+            if plan.blocking_reasons:
+                lines.extend(("", "Build disabled:", *[f"- {reason}" for reason in plan.blocking_reasons]))
+            if plan.warnings:
+                lines.extend(("", "Warnings:", *[f"- {warning}" for warning in plan.warnings]))
+            if missing_count:
+                lines.extend(("", "Missing donor textures:", *[f"- {path}" for path in tuple(plan.donor_texture_missing_paths)[:12]]))
+            return "\n".join(lines)
+
+        def _open_archive_appearance_swap_review_dialog(
+            self,
+            composite_plan: AppearanceCompositePreviewPlan,
+            swap_plan: AppearanceSinglePacSwapPlan,
+            *,
+            target_model_entry: Optional[ArchiveEntry] = None,
+        ) -> None:
+            archive_entries = tuple(self.archive_entries)
+            path_index = getattr(self, "archive_entries_by_normalized_path", None) or self._build_archive_entry_path_index(archive_entries)
+            basename_index = getattr(self, "archive_entries_by_basename", None) or self._build_archive_entry_basename_index(archive_entries)
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Appearance Armor Swap Review")
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+            review_edit = QPlainTextEdit()
+            review_edit.setReadOnly(True)
+            review_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+            layout.addWidget(review_edit, stretch=1)
+
+            experimental_checkbox = QCheckBox("Allow experimental mismatched body/slot package")
+            experimental_checkbox.setToolTip(
+                "Enables loose package output when the donor and target body family or armor slot do not match. Preview is still allowed without this."
+            )
+            layout.addWidget(experimental_checkbox)
+
+            button_row = QHBoxLayout()
+            preview_button = QPushButton("Preview What-If Donor")
+            build_button = QPushButton("Build Loose Package")
+            cancel_button = QPushButton("Cancel")
+            button_row.addWidget(preview_button)
+            button_row.addStretch(1)
+            button_row.addWidget(build_button)
+            button_row.addWidget(cancel_button)
+            layout.addLayout(button_row)
+
+            plan_holder: Dict[str, AppearanceSinglePacSwapPlan] = {"plan": swap_plan}
+
+            def _refresh_plan() -> None:
+                try:
+                    refreshed = build_appearance_single_pac_swap_plan(
+                        swap_plan.target_app_entry,
+                        swap_plan.donor_model_entry,
+                        archive_entries,
+                        target_component_index=swap_plan.target_component_index,
+                        target_model_entry=target_model_entry,
+                        allow_experimental_mismatch=experimental_checkbox.isChecked(),
+                        path_index=path_index,
+                        basename_index=basename_index,
+                    )
+                except Exception as exc:
+                    review_edit.setPlainText(f"Could not refresh appearance swap plan:\n{exc}")
+                    build_button.setEnabled(False)
+                    return
+                plan_holder["plan"] = refreshed
+                review_edit.setPlainText(self._appearance_swap_plan_review_text(refreshed))
+                build_button.setEnabled(not bool(refreshed.blocking_reasons))
+
+            def _preview_swap() -> None:
+                current_plan = plan_holder["plan"]
+                component_index = int(current_plan.target_component_index)
+                if component_index < 0 or component_index >= len(composite_plan.components):
+                    QMessageBox.warning(dialog, "Preview What-If Donor", "No valid target component was selected for preview.")
+                    return
+                selected_indexes = set(index for index, component in enumerate(composite_plan.components) if bool(getattr(component, "default_selected", False)))
+                selected_indexes.add(component_index)
+                dialog.accept()
+                self._start_archive_appearance_composite_build(
+                    composite_plan,
+                    tuple(sorted(selected_indexes)),
+                    model_overrides=(
+                        AppearanceCompositeModelOverride(
+                            component_index=component_index,
+                            model_entries=(current_plan.donor_model_entry,),
+                            label="What-if donor",
+                        ),
+                    ),
+                )
+
+            def _build_swap() -> None:
+                current_plan = plan_holder["plan"]
+                if current_plan.blocking_reasons:
+                    QMessageBox.warning(dialog, "Build Loose Package", "\n".join(current_plan.blocking_reasons))
+                    return
+                export_target = self._collect_archive_mod_ready_export_target(
+                    browse_title="Select Appearance Armor Swap Export Root",
+                    prompt_for_metadata=True,
+                    dialog_title="Build Appearance Armor Swap Loose Package",
+                    allow_dmm_texture_structure=False,
+                    parent=dialog,
+                )
+                if export_target is None:
+                    return
+                dialog.accept()
+                self._start_archive_appearance_swap_package_build(current_plan, export_target)
+
+            experimental_checkbox.toggled.connect(lambda _checked=False: _refresh_plan())
+            preview_button.clicked.connect(lambda _checked=False: _preview_swap())
+            build_button.clicked.connect(lambda _checked=False: _build_swap())
+            cancel_button.clicked.connect(dialog.reject)
+            _refresh_plan()
+            dialog.resize(980, 680)
+            dialog.exec()
+
+        def _start_archive_appearance_swap_package_build(
+            self,
+            swap_plan: AppearanceSinglePacSwapPlan,
+            export_target: Tuple[Path, ModPackageInfo, bool, bool, ModPackageExportOptions],
+        ) -> None:
+            parent_root, package_info, create_no_encrypt_file, _include_related_files, export_options = export_target
+
+            def _task(log: Callable[[str], None]) -> object:
+                log("Building single-PAC appearance armor swap package plan...")
+                package_plan = build_appearance_single_pac_swap_package_plan(swap_plan)
+                if package_plan.blocking_reasons:
+                    raise ValueError("\n".join(package_plan.blocking_reasons))
+                target_path = getattr(swap_plan.target_model_entry, "path", "") or "<unresolved>"
+                log(f"Mapping donor model {swap_plan.donor_model_entry.path} -> {target_path}")
+                log(
+                    f"Including {len(package_plan.extra_payloads):,} supplemental donor sidecar/texture payload(s). "
+                    "Target app XML, prefabdata, skeleton, ragdoll, and part-hide files are unchanged."
+                )
+                return export_archive_payloads_to_mod_ready_loose(
+                    package_plan.requests,
+                    parent_root=parent_root,
+                    package_info=package_info,
+                    export_options=export_options,
+                    create_no_encrypt_file=create_no_encrypt_file,
+                    extra_payloads_to_include=package_plan.extra_payloads,
+                    on_log=log,
+                )
+
+            self._run_utility_task_when_idle(
+                status_message=f"Writing appearance armor swap package for {swap_plan.donor_model_entry.basename}...",
+                task=_task,
+                on_complete=self._handle_archive_appearance_swap_package_result,
+                show_archive_progress=True,
+            )
+
+        def _handle_archive_appearance_swap_package_result(self, payload: object) -> None:
+            if not isinstance(payload, ArchiveLooseExportResult):
+                self.set_status_message("Appearance armor swap export finished with an unexpected result payload.", error=True)
+                return
+            QMessageBox.information(
+                self,
+                "Appearance Armor Swap Export Complete",
+                f"Wrote appearance armor swap loose package into:\n{payload.package_root}",
+            )
+            self.set_status_message(f"Wrote appearance armor swap loose package: {payload.package_root}")
+
+        @staticmethod
+        def _appearance_composite_override_score(component: object, override_model_entry: ArchiveEntry) -> Tuple[int, int, int]:
+            override_path = str(getattr(override_model_entry, "path", "") or "").replace("\\", "/").casefold()
+            override_stem = PurePosixPath(override_path).stem
+            component_name = str(getattr(component, "prefab_name", "") or "").casefold()
+            component_paths = " ".join(
+                str(getattr(entry, "path", "") or "").replace("\\", "/").casefold()
+                for entry in tuple(getattr(component, "resolved_model_entries", ()) or ())
+            )
+            common_prefix = 0
+            for left, right in zip(override_stem, component_name):
+                if left != right:
+                    break
+                common_prefix += 1
+            slot_score = 0
+            for slot in (
+                "/9_upperbody/",
+                "/10_lowerbody/",
+                "/11_hand/",
+                "/12_foot/",
+                "/13_hel/",
+                "/19_cloak/",
+                "/18_acc/",
+                "/head/",
+                "/hair/",
+                "/beard/",
+                "/nude/",
+            ):
+                if slot in override_path and slot in component_paths:
+                    slot_score += 100
+            token_score = sum(1 for token in re.split(r"[^a-z0-9]+", override_stem) if len(token) > 1 and token in component_name)
+            return slot_score, common_prefix, token_score
+
+        def _prompt_appearance_composite_override_component(
+            self,
+            plan: AppearanceCompositePreviewPlan,
+            override_model_entry: ArchiveEntry,
+            *,
+            purpose: str = "preview",
+        ) -> Optional[int]:
+            components = tuple(plan.components or ())
+            if not components:
+                return None
+            dialog = QDialog(self)
+            package_mode = str(purpose or "").strip().lower() == "package"
+            dialog.setWindowTitle("Choose Target Component" if package_mode else "Choose Component To Replace")
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+            label_text = (
+                "Choose the target app XML component whose existing model virtual path will receive the donor model in a loose package. "
+                "The target app XML, game archives, skeleton, ragdoll, and part-hide files are not patched.\n"
+                if package_mode
+                else (
+                    "Choose the app XML component to temporarily replace with the selected model. "
+                    "This is a display-only what-if preview; the app XML and archives are not modified.\n"
+                )
+            )
+            label = QLabel(f"{label_text}Selected model: {override_model_entry.path}")
+            label.setWordWrap(True)
+            layout.addWidget(label)
+            component_list = QListWidget()
+            component_list.setSelectionMode(QAbstractItemView.SingleSelection)
+            best_row = 0
+            best_score: Tuple[int, int, int] = (-1, -1, -1)
+            for index, component in enumerate(components):
+                model_summary = self._appearance_composite_entry_summary(tuple(getattr(component, "resolved_model_entries", ()) or ()), limit=2)
+                text = (
+                    f"{getattr(component, 'section', 'Component')} / {getattr(component, 'prefab_name', '')}"
+                    f" -> {model_summary or 'currently unresolved'}"
+                )
+                item = QListWidgetItem(text)
+                item.setToolTip(text)
+                item.setData(Qt.UserRole, index)
+                component_list.addItem(item)
+                score = self._appearance_composite_override_score(component, override_model_entry)
+                if score > best_score:
+                    best_score = score
+                    best_row = index
+            component_list.setCurrentRow(best_row)
+            layout.addWidget(component_list, stretch=1)
+            button_row = QHBoxLayout()
+            button_row.addStretch(1)
+            cancel_button = QPushButton("Cancel")
+            choose_button = QPushButton("Use Target Component" if package_mode else "Use Override")
+            choose_button.setDefault(True)
+            button_row.addWidget(cancel_button)
+            button_row.addWidget(choose_button)
+            layout.addLayout(button_row)
+            cancel_button.clicked.connect(dialog.reject)
+            choose_button.clicked.connect(dialog.accept)
+            component_list.itemDoubleClicked.connect(lambda _item: dialog.accept())
+            dialog.resize(860, 520)
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            item = component_list.currentItem()
+            if item is None:
+                return None
+            try:
+                return int(item.data(Qt.UserRole))
+            except Exception:
+                return best_row
+
+        def _appearance_composite_component_notes(self, component: object) -> str:
+            notes: List[str] = []
+            if bool(getattr(component, "preview_flag", False)):
+                notes.append("Preview=true")
+            scale = float(getattr(component, "scale", 1.0) or 1.0)
+            if abs(scale - 1.0) > 0.0001:
+                notes.append(f"scale {scale:g}")
+            context_entries = tuple(getattr(component, "resolved_context_entries", ()) or ())
+            if context_entries:
+                notes.append(
+                    "context: "
+                    + self._appearance_composite_entry_summary(context_entries, limit=2)
+                )
+            unresolved = tuple(str(value or "") for value in getattr(component, "unresolved_references", ()) or () if str(value or "").strip())
+            if unresolved:
+                notes.append("unresolved: " + ", ".join(unresolved[:2]))
+            warnings = tuple(str(value or "") for value in getattr(component, "warnings", ()) or () if str(value or "").strip())
+            if warnings:
+                notes.extend(warnings[:2])
+            return " | ".join(notes)
+
+        def _prompt_appearance_composite_component_selection(
+            self,
+            plan: AppearanceCompositePreviewPlan,
+            *,
+            override_component_index: Optional[int] = None,
+            override_model_entry: Optional[ArchiveEntry] = None,
+        ) -> Optional[Tuple[int, ...]]:
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Preview Composite Appearance")
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+            appearance_path = str(getattr(plan.appearance_entry, "path", "") or "").strip()
+            source_path = str(getattr(plan.source_entry, "path", "") or "").strip()
+            label_text = (
+                f"Appearance XML: {appearance_path}\nSource: {source_path}"
+                if appearance_path
+                else f"No appearance XML selected. Using selected file evidence only.\nSource: {source_path}"
+            )
+            if override_model_entry is not None and override_component_index is not None:
+                label_text = (
+                    f"{label_text}\nWhat-if override: component #{override_component_index + 1} "
+                    f"will use {override_model_entry.path} for this preview only."
+                )
+            label = QLabel(label_text)
+            label.setWordWrap(True)
+            layout.addWidget(label)
+
+            component_tree = QTreeWidget()
+            component_tree.setColumnCount(5)
+            component_tree.setHeaderLabels(["Use", "Section", "Prefab / Evidence", "Models", "Notes"])
+            component_tree.setSelectionMode(QAbstractItemView.SingleSelection)
+            component_tree.setRootIsDecorated(True)
+            component_tree.setAlternatingRowColors(True)
+            layout.addWidget(component_tree, stretch=1)
+
+            group_items: Dict[str, QTreeWidgetItem] = {}
+            component_items: List[Tuple[QTreeWidgetItem, int]] = []
+
+            def group_for(section: str) -> QTreeWidgetItem:
+                key = str(section or "Context/Unsupported")
+                if key not in group_items:
+                    group_item = QTreeWidgetItem(component_tree, ["", key, "", "", ""])
+                    group_item.setFirstColumnSpanned(True)
+                    group_item.setExpanded(True)
+                    group_items[key] = group_item
+                return group_items[key]
+
+            for component_index, component in enumerate(tuple(plan.components or ())):
+                section = str(getattr(component, "section", "") or "Context/Unsupported")
+                prefab_name = str(getattr(component, "prefab_name", "") or "")
+                model_entries = tuple(getattr(component, "resolved_model_entries", ()) or ())
+                renderable = bool(model_entries)
+                notes_text = self._appearance_composite_component_notes(component)
+                if override_model_entry is not None and override_component_index == component_index:
+                    notes_text = (
+                        f"What-if model override: {override_model_entry.basename}; "
+                        f"{notes_text}" if notes_text else f"What-if model override: {override_model_entry.basename}"
+                    )
+                    renderable = True
+                item = QTreeWidgetItem(
+                    group_for(section),
+                    [
+                        "",
+                        section,
+                        prefab_name,
+                        self._appearance_composite_entry_summary(model_entries),
+                        notes_text,
+                    ],
+                )
+                item.setToolTip(2, prefab_name)
+                item.setToolTip(3, "\n".join(str(getattr(entry, "path", "") or "") for entry in model_entries))
+                item.setToolTip(4, notes_text)
+                item.setData(0, Qt.UserRole, component_index)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                default_checked = bool(getattr(component, "default_selected", False)) or override_component_index == component_index
+                item.setCheckState(0, Qt.Checked if default_checked and renderable else Qt.Unchecked)
+                if not renderable:
+                    item.setDisabled(True)
+                component_items.append((item, component_index))
+
+            warning_lines: List[str] = [str(value) for value in tuple(plan.warnings or ()) if str(value).strip()]
+            for component in tuple(plan.components or ()):
+                warning_lines.extend(str(value) for value in tuple(getattr(component, "warnings", ()) or ()) if str(value).strip())
+                context_entries = tuple(getattr(component, "resolved_context_entries", ()) or ())
+                if context_entries:
+                    warning_lines.append(
+                        f"{getattr(component, 'section', 'Context')} / {getattr(component, 'prefab_name', '')}: "
+                        f"context-only entries: {self._appearance_composite_entry_summary(context_entries, limit=4)}"
+                    )
+            warning_lines.append("Display-only preview: no archive or game files are modified.")
+            warning_lines.append("Socket-only weapons/helmets use raw-origin fallback here unless a body/socket placement context is selected.")
+            warnings_edit = QPlainTextEdit()
+            warnings_edit.setReadOnly(True)
+            warnings_edit.setMaximumHeight(118)
+            warnings_edit.setPlainText("\n".join(dict.fromkeys(warning_lines)))
+            layout.addWidget(warnings_edit)
+
+            button_row = QHBoxLayout()
+            defaults_button = QPushButton("Select Defaults")
+            all_button = QPushButton("Select All Renderable")
+            clear_button = QPushButton("Clear")
+            button_row.addWidget(defaults_button)
+            button_row.addWidget(all_button)
+            button_row.addWidget(clear_button)
+            button_row.addStretch(1)
+            cancel_button = QPushButton("Cancel")
+            preview_button = QPushButton("Preview")
+            preview_button.setDefault(True)
+            button_row.addWidget(cancel_button)
+            button_row.addWidget(preview_button)
+            layout.addLayout(button_row)
+
+            def set_defaults() -> None:
+                for item, component_index in component_items:
+                    component = plan.components[component_index]
+                    if item.isDisabled():
+                        item.setCheckState(0, Qt.Unchecked)
+                    else:
+                        item.setCheckState(
+                            0,
+                            Qt.Checked
+                            if bool(getattr(component, "default_selected", False)) or override_component_index == component_index
+                            else Qt.Unchecked,
+                        )
+
+            def set_all_renderable() -> None:
+                for item, _component_index in component_items:
+                    item.setCheckState(0, Qt.Unchecked if item.isDisabled() else Qt.Checked)
+
+            def clear_all() -> None:
+                for item, _component_index in component_items:
+                    item.setCheckState(0, Qt.Unchecked)
+
+            def accept_if_valid() -> None:
+                selected = [
+                    component_index
+                    for item, component_index in component_items
+                    if not item.isDisabled() and item.checkState(0) == Qt.Checked
+                ]
+                if not selected:
+                    QMessageBox.warning(dialog, "No Renderable Components Selected", "Select at least one renderable component to preview.")
+                    return
+                dialog.accept()
+
+            defaults_button.clicked.connect(set_defaults)
+            all_button.clicked.connect(set_all_renderable)
+            clear_button.clicked.connect(clear_all)
+            cancel_button.clicked.connect(dialog.reject)
+            preview_button.clicked.connect(accept_if_valid)
+            component_tree.expandAll()
+            for column in range(component_tree.columnCount()):
+                component_tree.resizeColumnToContents(column)
+            dialog.resize(1050, 650)
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return tuple(
+                component_index
+                for item, component_index in component_items
+                if not item.isDisabled() and item.checkState(0) == Qt.Checked
+            )
+
+        def _open_current_archive_appearance_composite_preview(self) -> None:
+            entry = self._current_archive_entry()
+            if entry is None:
+                QMessageBox.warning(self, "No Archive File Selected", "Select an .app_xml, .pac/.pam/.pamlod, or prefab file first.")
+                return
+            appearance_entry, override_model_entry = self._appearance_composite_selected_context(entry)
+            self._open_archive_appearance_composite_preview_for_entry(
+                appearance_entry,
+                override_model_entry=override_model_entry,
+            )
+
+        def _open_archive_appearance_composite_preview_for_entry(
+            self,
+            entry: ArchiveEntry,
+            *,
+            override_model_entry: Optional[ArchiveEntry] = None,
+        ) -> None:
+            if not isinstance(entry, ArchiveEntry):
+                QMessageBox.warning(self, "No Archive File Selected", "Select an archive file first.")
+                return
+            if self.worker_thread is not None:
+                self.set_status_message("Another background task is still running. Wait for it to finish before starting composite preview.", error=True)
+                return
+            extension = str(entry.extension or "").lower()
+            if extension not in {".app_xml", ".pac", ".pam", ".pamlod", ".prefab", ".pappt", ".prefabdata_xml"}:
+                QMessageBox.warning(
+                    self,
+                    "Unsupported Composite Source",
+                    "Composite preview supports .app_xml, .pac/.pam/.pamlod, .prefabdata_xml, .prefab, and .pappt selections.",
+                )
+                return
+            if extension == ".app_xml":
+                self._begin_archive_appearance_composite_selection(
+                    entry,
+                    (entry,),
+                    override_model_entry=override_model_entry,
+                )
+                return
+
+            archive_entries = tuple(self.archive_entries)
+
+            def _task(log: Callable[[str], None]) -> object:
+                log(f"Searching appearance XML files that reference {entry.basename}...")
+                return find_appearance_composite_candidates(entry, archive_entries)
+
+            def _complete(payload: object) -> None:
+                candidates = tuple(payload) if isinstance(payload, tuple) else ()
+                self._begin_archive_appearance_composite_selection(
+                    entry,
+                    candidates,
+                    override_model_entry=override_model_entry,
+                )
+
+            self._run_utility_task(
+                status_message=f"Finding appearance contexts for {entry.basename}...",
+                task=_task,
+                on_complete=_complete,
+                show_archive_progress=True,
+            )
+
+        def _begin_archive_appearance_composite_selection(
+            self,
+            entry: ArchiveEntry,
+            candidates: Sequence[ArchiveEntry],
+            *,
+            override_model_entry: Optional[ArchiveEntry] = None,
+        ) -> None:
+            selected_appearance = self._select_archive_appearance_candidate(entry, candidates)
+            if candidates and selected_appearance is None and str(entry.extension or "").lower() != ".app_xml":
+                return
+            archive_entries = tuple(self.archive_entries)
+            path_index = getattr(self, "archive_entries_by_normalized_path", None) or self._build_archive_entry_path_index(archive_entries)
+            basename_index = getattr(self, "archive_entries_by_basename", None) or self._build_archive_entry_basename_index(archive_entries)
+            try:
+                plan = build_appearance_composite_preview_plan(
+                    entry,
+                    archive_entries,
+                    appearance_entry=selected_appearance,
+                    path_index=path_index,
+                    basename_index=basename_index,
+                )
+            except Exception as exc:
+                QMessageBox.warning(self, "Composite Plan Failed", f"Could not build the composite preview plan:\n{exc}")
+                return
+            override_component_index: Optional[int] = None
+            if override_model_entry is not None:
+                override_component_index = self._prompt_appearance_composite_override_component(plan, override_model_entry)
+                if override_component_index is None:
+                    return
+            selected_indexes = self._prompt_appearance_composite_component_selection(
+                plan,
+                override_component_index=override_component_index,
+                override_model_entry=override_model_entry,
+            )
+            if selected_indexes is None:
+                return
+            model_overrides: Tuple[AppearanceCompositeModelOverride, ...] = ()
+            if override_model_entry is not None and override_component_index is not None:
+                model_overrides = (
+                    AppearanceCompositeModelOverride(
+                        component_index=override_component_index,
+                        model_entries=(override_model_entry,),
+                        label="What-if model override",
+                    ),
+                )
+            self._start_archive_appearance_composite_build(plan, selected_indexes, model_overrides=model_overrides)
+
+        def _start_archive_appearance_composite_build(
+            self,
+            plan: AppearanceCompositePreviewPlan,
+            selected_indexes: Sequence[int],
+            *,
+            model_overrides: Sequence[AppearanceCompositeModelOverride] = (),
+        ) -> None:
+            archive_entries = tuple(self.archive_entries)
+            path_index = getattr(self, "archive_entries_by_normalized_path", None) or self._build_archive_entry_path_index(archive_entries)
+            basename_index = getattr(self, "archive_entries_by_basename", None) or self._build_archive_entry_basename_index(archive_entries)
+            texconv_text = self.texconv_path_edit.text().strip()
+            texconv_path = Path(texconv_text).expanduser() if texconv_text else None
+            preview_settings = self._current_model_preview_render_settings()
+
+            def _task(log: Callable[[str], None], stop_event: threading.Event) -> object:
+                log("Building read-only composite appearance preview...")
+                result = build_appearance_composite_model(
+                    plan,
+                    selected_component_indexes=selected_indexes,
+                    model_overrides=model_overrides,
+                    texconv_path=texconv_path,
+                    path_index=path_index,
+                    basename_index=basename_index,
+                    stop_event=stop_event,
+                )
+                prepared_preview_model = None
+                if isinstance(getattr(result, "preview_model", None), ModelPreviewData):
+                    try:
+                        log("Preparing composite appearance preview for D3D11...")
+                        prepared_model, prepared_preview_model = prepare_model_preview(
+                            result.preview_model,
+                            render_settings=preview_settings,
+                            stop_event=stop_event,
+                        )
+                        result = dataclasses.replace(result, preview_model=prepared_model)
+                    except Exception as exc:
+                        result = dataclasses.replace(
+                            result,
+                            warnings=tuple(result.warnings or ()) + (f"D3D11 composite preparation failed: {exc}",),
+                        )
+                return result, prepared_preview_model
+
+            self._run_utility_task_when_idle(
+                status_message="Building composite appearance preview...",
+                task=_task,
+                on_complete=self._handle_archive_appearance_composite_build_result,
+                show_archive_progress=True,
+                task_accepts_cancel=True,
+            )
+
+        def _handle_archive_appearance_composite_build_result(self, payload: object) -> None:
+            prepared_preview_model = None
+            if (
+                isinstance(payload, tuple)
+                and len(payload) == 2
+                and isinstance(payload[0], AppearanceCompositeBuildResult)
+            ):
+                prepared_preview_model = payload[1]
+                payload = payload[0]
+            if not isinstance(payload, AppearanceCompositeBuildResult):
+                QMessageBox.warning(self, "Composite Preview Failed", "Composite preview finished with an unexpected result payload.")
+                return
+            preview_model = payload.preview_model
+            warning_text = "\n".join(str(value) for value in tuple(payload.warnings or ()) if str(value).strip())
+            if not isinstance(preview_model, ModelPreviewData):
+                QMessageBox.warning(
+                    self,
+                    "No Composite Geometry",
+                    warning_text or "No selected appearance component produced renderable model geometry.",
+                )
+                return
+            plan = payload.plan
+            source_path = str(getattr(plan.source_entry, "path", "") or "")
+            appearance_path = str(getattr(plan.appearance_entry, "path", "") or "")
+            selected_components = [
+                plan.components[index]
+                for index in tuple(payload.selected_component_indexes or ())
+                if 0 <= int(index) < len(plan.components)
+            ]
+            overrides_by_index = {
+                int(getattr(override, "component_index", -1)): override
+                for override in tuple(getattr(payload, "model_overrides", ()) or ())
+                if isinstance(override, AppearanceCompositeModelOverride)
+            }
+            detail_lines = [
+                "Read-only composite appearance preview.",
+                "No archive or game files were modified.",
+                f"Source: {source_path}",
+                f"Appearance XML: {appearance_path or 'none; selected-file evidence only'}",
+                "",
+                "Selected components:",
+            ]
+            for component_index, component in [
+                (index, plan.components[index])
+                for index in tuple(payload.selected_component_indexes or ())
+                if 0 <= int(index) < len(plan.components)
+            ]:
+                override = overrides_by_index.get(int(component_index))
+                models = self._appearance_composite_entry_summary(tuple(getattr(component, "resolved_model_entries", ()) or ()), limit=6)
+                if override is not None:
+                    models = self._appearance_composite_entry_summary(tuple(getattr(override, "model_entries", ()) or ()), limit=6)
+                scale = float(getattr(component, "scale", 1.0) or 1.0)
+                preview_flag = " Preview=true" if bool(getattr(component, "preview_flag", False)) else ""
+                override_label = " [what-if override]" if override is not None else ""
+                detail_lines.append(
+                    f"- {getattr(component, 'section', 'Component')} / {getattr(component, 'prefab_name', '')}"
+                    f"{preview_flag}{override_label} scale={scale:g} -> {models or 'no renderable model'}"
+                )
+            if warning_text:
+                detail_lines.extend(("", "Warnings / context:", warning_text))
+            title_source = appearance_path or source_path or "Composite Appearance"
+            title_name = Path(title_source.replace("\\", "/")).name
+            preview_result = ArchivePreviewResult(
+                status="ok",
+                title=f"Composite Appearance: {title_name}",
+                metadata_summary=(
+                    f"{len(selected_components):,} component(s), {preview_model.mesh_count:,} mesh(es), "
+                    f"{preview_model.vertex_count:,} vertices, {preview_model.face_count:,} faces"
+                ),
+                detail_text="\n".join(detail_lines),
+                preview_model=preview_model,
+                prepared_preview_model=prepared_preview_model if isinstance(prepared_preview_model, PreparedModelPreviewData) else None,
+                model_texture_references=tuple(payload.model_texture_references or ()),
+                asset_family_graph=payload.asset_family_graph,
+                preferred_view="model",
+                warning_badge="Composite Context" if warning_text else "",
+                warning_text=warning_text,
+            )
+            preview_result = self._attach_archive_preview_result_images(preview_result)
+            self.current_archive_preview_result = preview_result
+            self._show_archive_preview_result(preview_result, use_loose=False)
+            self.set_status_message(f"Composite appearance preview ready: {title_name}")
 
         def _normalize_archive_entry_path(self, path: str) -> str:
             return path.replace("\\", "/").strip().lower()
@@ -21560,7 +24155,7 @@ def run_gui() -> int:
                 self.archive_scan_progress_label.setText(label)
                 self.archive_scan_progress_bar.setRange(0, 1)
                 self.archive_scan_progress_bar.setValue(1)
-                self.archive_scan_progress_bar.setFormat("Ready")
+                self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
             else:
                 label = f"Preview failed for {entry_name}."
                 if elapsed >= 1.0:
@@ -21920,6 +24515,7 @@ def run_gui() -> int:
                 name
                 for name, thread in (
                     ("archive_scan", getattr(self, "worker_thread", None)),
+                    ("basic_index", getattr(self, "archive_basic_index_thread", None)),
                     ("enhanced_index", getattr(self, "archive_enhanced_index_thread", None)),
                     ("derived_cache_write", getattr(self, "archive_derived_cache_thread", None)),
                     ("sidecar_index", getattr(self, "archive_sidecar_thread", None)),
@@ -21941,6 +24537,7 @@ def run_gui() -> int:
                 "archive_path_index_key_count": len(getattr(self, "archive_entries_by_normalized_path", {}) or {}),
                 "archive_basename_index_key_count": len(getattr(self, "archive_entries_by_basename", {}) or {}),
                 "archive_extension_index_key_count": len(getattr(self, "archive_entries_by_extension", {}) or {}),
+                "archive_basic_index_state": str(getattr(self, "archive_basic_index_state", "") or ""),
                 "archive_name_search_token_count": int(getattr(name_search_index, "row_count", 0) or 0),
                 "archive_asset_family_cache_entries": len(getattr(self, "archive_asset_family_cache", {}) or {}),
                 "archive_active_workers": tuple(active_workers),
@@ -22041,6 +24638,7 @@ def run_gui() -> int:
             self.archive_preview_cache_last_miss_detail = ""
             if clear_native_packages:
                 clear_native_preview_package_cache(self._native_preview_package_cache_root())
+                clear_pac_xml_profile_index_cache(self.settings_file_path.parent)
 
         def _clear_archive_asset_family_cache(self) -> None:
             self.archive_asset_family_cache.clear()
@@ -23417,40 +26015,65 @@ def run_gui() -> int:
             if not isinstance(batches, Sequence) or isinstance(batches, (str, bytes)):
                 return ""
             lines: List[str] = []
+            def _compact_float(value: object) -> str:
+                try:
+                    return f"{float(value):.2f}"
+                except (TypeError, ValueError):
+                    return "?"
+
             for batch_index, batch in enumerate(tuple(batches)[:12]):
                 if not isinstance(batch, Mapping):
                     continue
                 contract = batch.get("material_channel_contract")
-                if not isinstance(contract, Mapping):
-                    continue
-                channels = contract.get("channels", ())
-                channel_labels: List[str] = []
-                if isinstance(channels, Sequence) and not isinstance(channels, (str, bytes)):
-                    for channel in tuple(channels)[:8]:
-                        if isinstance(channel, Mapping):
-                            label = str(channel.get("sketchfab_channel", "") or channel.get("channel", "") or "").strip()
-                            slot = str(channel.get("source_slot", "") or "").strip()
-                            confidence = str(channel.get("confidence", "") or "").strip()
-                            if label:
-                                channel_labels.append(f"{label}:{slot or '?'}:{confidence or '?'}")
-                unresolved = contract.get("unresolved", ())
-                unresolved_slots: List[str] = []
-                if isinstance(unresolved, Sequence) and not isinstance(unresolved, (str, bytes)):
-                    for item in tuple(unresolved)[:6]:
-                        if isinstance(item, Mapping):
-                            slot = str(item.get("slot", "") or "").strip()
-                            if slot:
-                                unresolved_slots.append(slot)
-                material_policy = str(batch.get("material_combiner_policy", "") or "").strip()
-                combiner_state = "combiner=on" if bool(batch.get("material_combiner_active", False)) else "combiner=off"
-                if material_policy:
-                    combiner_state = f"{material_policy}:{combiner_state}"
-                lines.append(
-                    f"batch {batch_index} {contract.get('workflow', 'unknown')}: "
-                    f"{', '.join(channel_labels) or 'no material channels'}; "
-                    f"unresolved={', '.join(unresolved_slots) or 'none'}; "
-                    f"{combiner_state}"
-                )
+                analysis = batch.get("material_analysis")
+                category = str(batch.get("material_category", "") or "").strip()
+                confidence_text = _compact_float(batch.get("material_category_confidence"))
+                reason = str(batch.get("material_category_reason", "") or "").strip()
+                if isinstance(analysis, Mapping):
+                    category = str(analysis.get("category", "") or category).strip()
+                    confidence_text = _compact_float(analysis.get("confidence", batch.get("material_category_confidence")))
+                    reason = str(analysis.get("reason", "") or reason).strip()
+                tint_applied = bool(batch.get("visible_layer_tint_applied", False))
+                tint_strength = _compact_float(batch.get("base_tint_strength", 0.0))
+                response = str(batch.get("material_response_disposition", "") or "").strip()
+                material_suffix = ""
+                if category or reason or response or tint_applied:
+                    material_suffix = (
+                        f"; material={category or 'generic'}:{confidence_text}; "
+                        f"reason={reason or 'unknown'}; tint={'yes' if tint_applied else 'no'}:{tint_strength}; "
+                        f"response={response or 'none'}"
+                    )
+                if isinstance(contract, Mapping):
+                    channels = contract.get("channels", ())
+                    channel_labels: List[str] = []
+                    if isinstance(channels, Sequence) and not isinstance(channels, (str, bytes)):
+                        for channel in tuple(channels)[:8]:
+                            if isinstance(channel, Mapping):
+                                label = str(channel.get("sketchfab_channel", "") or channel.get("channel", "") or "").strip()
+                                slot = str(channel.get("source_slot", "") or "").strip()
+                                confidence = str(channel.get("confidence", "") or "").strip()
+                                if label:
+                                    channel_labels.append(f"{label}:{slot or '?'}:{confidence or '?'}")
+                    unresolved = contract.get("unresolved", ())
+                    unresolved_slots: List[str] = []
+                    if isinstance(unresolved, Sequence) and not isinstance(unresolved, (str, bytes)):
+                        for item in tuple(unresolved)[:6]:
+                            if isinstance(item, Mapping):
+                                slot = str(item.get("slot", "") or "").strip()
+                                if slot:
+                                    unresolved_slots.append(slot)
+                    material_policy = str(batch.get("material_combiner_policy", "") or "").strip()
+                    combiner_state = "combiner=on" if bool(batch.get("material_combiner_active", False)) else "combiner=off"
+                    if material_policy:
+                        combiner_state = f"{material_policy}:{combiner_state}"
+                    lines.append(
+                        f"batch {batch_index} {contract.get('workflow', 'unknown')}: "
+                        f"{', '.join(channel_labels) or 'no material channels'}; "
+                        f"unresolved={', '.join(unresolved_slots) or 'none'}; "
+                        f"{combiner_state}{material_suffix}"
+                    )
+                elif material_suffix:
+                    lines.append(f"batch {batch_index} material: {material_suffix.lstrip('; ')}")
             return "Material Channel Contract: " + " | ".join(lines) if lines else ""
 
         def _format_archive_isolated_renderer_debug(self, payload: Mapping[str, object]) -> str:
@@ -24460,7 +27083,26 @@ def run_gui() -> int:
             supports_textures = can_export_preview and self._archive_model_preview_supports_textures(preview_model)
             material_sidecar_entry = self._current_or_related_material_sidecar_entry()
             bulk_placement_targets = self._selected_archive_bulk_placement_targets()
-            selected_count = len(self._selected_archive_entries())
+            selected_archive_entries = self._selected_archive_entries()
+            selected_count = len(selected_archive_entries)
+            appearance_entry = self._current_archive_entry()
+            appearance_extensions = {".app_xml", ".pac", ".pam", ".pamlod", ".prefab", ".pappt", ".prefabdata_xml"}
+            can_appearance_composite = (
+                isinstance(appearance_entry, ArchiveEntry)
+                and str(appearance_entry.extension or "").lower() in appearance_extensions
+            )
+            swap_selection_entries = list(selected_archive_entries)
+            if isinstance(appearance_entry, ArchiveEntry) and all(
+                self._appearance_composite_entry_key(existing) != self._appearance_composite_entry_key(appearance_entry)
+                for existing in swap_selection_entries
+            ):
+                swap_selection_entries.append(appearance_entry)
+            swap_app_count = sum(1 for entry in swap_selection_entries if str(entry.extension or "").lower() == ".app_xml")
+            swap_model_count = sum(1 for entry in swap_selection_entries if str(entry.extension or "").lower() in {".pac", ".pam", ".pamlod"})
+            can_appearance_swap = (
+                isinstance(appearance_entry, ArchiveEntry)
+                and str(appearance_entry.extension or "").lower() in {".app_xml", ".pac", ".pam", ".pamlod"}
+            ) or (swap_app_count == 1 and swap_model_count == 1)
             busy_reason = "wait for the current background task to finish"
             mesh_reason = busy_reason if not controls_enabled else "select a mesh/model archive entry first"
             hkx_reason = busy_reason if not controls_enabled else "select a .hkx or .hkt archive entry first"
@@ -24486,6 +27128,16 @@ def run_gui() -> int:
                     f"select at least two placement-capable rows; current selection has {len(bulk_placement_targets)}. "
                     "Use Ctrl/Shift-click in Archive Files, then Tools > Bulk Placement Swap"
                 )
+            )
+            appearance_reason = (
+                busy_reason
+                if not controls_enabled
+                else "select an .app_xml, .pac/.pam/.pamlod, .prefabdata_xml, .prefab, or .pappt file first"
+            )
+            appearance_swap_reason = (
+                busy_reason
+                if not controls_enabled
+                else "select one target body .app_xml and one donor .pac/.pam/.pamlod model, or select a donor model to search exact app XML matches"
             )
             self._set_action_button_state(
                 self.archive_model_export_obj_button,
@@ -24531,6 +27183,20 @@ def run_gui() -> int:
                 bulk_reason,
             )
             self._set_action_button_state(
+                self.archive_appearance_composite_button,
+                controls_enabled and can_appearance_composite,
+                "Preview a read-only app XML appearance composite or selected prefab/socket model evidence. "
+                "Multi-select one app XML and one PAC/PAM/PAMLOD to preview a what-if component replacement. No game files are modified.",
+                appearance_reason,
+            )
+            self._set_action_button_state(
+                self.archive_appearance_swap_button,
+                controls_enabled and can_appearance_swap,
+                "Appearance Armor Swap: select one target body app XML and one donor PAC/PAM/PAMLOD. "
+                "Builds a mod-ready loose package; the target app XML, skeleton, ragdoll, and part-hide files are not patched.",
+                appearance_swap_reason,
+            )
+            self._set_action_button_state(
                 self.archive_hkx_export_json_button,
                 controls_enabled and can_hkx_actions,
                 "Export a documented editable JSON patch for decoded Crimson Desert HKX geometry.",
@@ -24569,7 +27235,7 @@ def run_gui() -> int:
             self._set_action_button_state(
                 self.archive_hkx_placement_button,
                 controls_enabled and can_hkx_placement,
-                "Open the related HKX/HKT editor directly on Placement. If the selected model has multiple HKX/HKT files, choose which one to inspect.",
+                "Edit the related HKX/HKT directly on Placement. If the selected model has multiple HKX/HKT files, choose which one to inspect.",
                 hkx_placement_reason,
             )
             self._set_action_button_state(
@@ -25094,7 +27760,7 @@ def run_gui() -> int:
             self._clear_archive_preview_cache(clear_native_packages=True)
             self.append_archive_log(
                 f"Cleared {cleared_count:,} in-memory archive preview cache entr{'y' if cleared_count == 1 else 'ies'} "
-                "and durable native preview packages."
+                "plus durable native preview packages and PAC XML profile index."
             )
             self.set_status_message("Archive preview cache cleared.")
 
@@ -25346,11 +28012,11 @@ def run_gui() -> int:
                     )
                     self._activate_archive_browser_on_scan_complete = False
                     self._refresh_or_defer_research_archive_picker()
-                    ready_text = "Archive browsing ready. Global texture sidecar indexing is disabled."
+                    ready_text = "Archive list available. Global texture sidecar indexing is disabled."
                     self.archive_scan_progress_label.setText(ready_text)
                     self.archive_scan_progress_bar.setRange(0, 1)
                     self.archive_scan_progress_bar.setValue(1)
-                    self.archive_scan_progress_bar.setFormat("Ready")
+                    self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
                     self.set_status_message(ready_text)
                     self.append_archive_log(ready_text)
                     if self.worker_thread is None:
@@ -26406,7 +29072,7 @@ def run_gui() -> int:
             button_row = QHBoxLayout()
             button_row.setContentsMargins(0, 0, 0, 0)
             preview_button = QPushButton("Preview Selected")
-            placement_button = QPushButton("Placement Swap...")
+            placement_button = QPushButton("Weapon Placement Studio...")
             scope_button = QPushButton("Filter to Family")
             scope_button.setToolTip("Filter Archive Files to the required/recommended files in this Asset Family.")
             export_button = QPushButton("Export Family...")
@@ -26452,7 +29118,7 @@ def run_gui() -> int:
 
             preview_button.clicked.connect(lambda _checked=False: preview_selected())
             placement_button.clicked.connect(
-                lambda _checked=False, current_entry=source_entry: self._open_archive_attachment_placement_workspace_dialog(current_entry)
+                lambda _checked=False, current_entry=source_entry: self._open_archive_weapon_placement_studio_dialog(current_entry)
             )
             placement_button.setEnabled(bool(tuple(getattr(graph, "attachment_evidence", ()) or ())))
             scope_button.clicked.connect(lambda _checked=False: scope_family())
@@ -27823,6 +30489,20 @@ def run_gui() -> int:
                         "Preserve target material sidecar bytes",
                         "Keeps target material and texture binding context with the model.",
                     )
+                if extension == ".prefab" and "/prefab/" in candidate_path:
+                    return (
+                        "Preserve target prefab bytes",
+                        "Keeps target-owned prefab/socket reference context with the placement package.",
+                    )
+                if extension in {".hkx", ".hkt"} and (
+                    "/meshphysics/" in candidate_path
+                    or "/havokphysics/" in candidate_path
+                    or "physics" in candidate_path
+                ):
+                    return (
+                        "Preserve target HKX/HKT physics bytes",
+                        "Keeps target-owned physics/collision data with the placement package.",
+                    )
                 if extension == ".dds" and ("itemicon" in candidate_name or "/ui/" in candidate_path):
                     return (
                         "Preserve target item icon bytes",
@@ -28178,6 +30858,281 @@ def run_gui() -> int:
             return best_entry if best_score >= 45 else None
 
         @staticmethod
+        def _attachment_package_path_is_relative_to(path: Path, root: Path) -> bool:
+            try:
+                path.resolve().relative_to(root.resolve())
+                return True
+            except (OSError, ValueError):
+                return False
+
+        def _attachment_package_raw_extract_root(self) -> Optional[Path]:
+            widget = getattr(self, "archive_extract_root_edit", None)
+            raw = widget.text().strip() if widget is not None else ""
+            if not raw:
+                return None
+            try:
+                path = Path(raw).expanduser().resolve()
+            except OSError:
+                return None
+            return path if path.is_dir() else None
+
+        def _attachment_package_output_loose_roots(self) -> List[Path]:
+            roots: List[Path] = []
+            seen: set[str] = set()
+
+            def add_root(raw: object) -> None:
+                if raw is None:
+                    return
+                try:
+                    path = Path(str(raw)).expanduser().resolve()
+                except OSError:
+                    return
+                if not path.is_dir():
+                    return
+                key = str(path).casefold()
+                if key in seen:
+                    return
+                seen.add(key)
+                roots.append(path)
+
+            output_widget = getattr(self, "output_root_edit", None)
+            output_root = output_widget.text().strip() if output_widget is not None else ""
+            add_root(output_root)
+            return roots
+
+        def _attachment_package_loose_target_roots_for_entry(self, entry: ArchiveEntry) -> List[Path]:
+            normalized = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lstrip("/")
+            if normalized.casefold().startswith("files/"):
+                normalized = normalized[6:]
+            if not normalized:
+                return []
+            roots: List[Path] = []
+            seen: set[str] = set()
+            raw_extract_root = self._attachment_package_raw_extract_root()
+
+            def has_target_file(root: Path) -> bool:
+                return (root / "files").joinpath(*PurePosixPath(normalized).parts).is_file() or root.joinpath(*PurePosixPath(normalized).parts).is_file()
+
+            def looks_like_raw_archive_extract_chunk(root: Path) -> bool:
+                try:
+                    resolved = root.expanduser().resolve()
+                except OSError:
+                    return False
+                return bool(
+                    re.fullmatch(r"\d{4}", resolved.name)
+                    and resolved.parent.name.strip().casefold() == "archive_extract"
+                )
+
+            def add_root(root: Path) -> None:
+                try:
+                    resolved = root.expanduser().resolve()
+                except OSError:
+                    return
+                if raw_extract_root is not None and self._attachment_package_path_is_relative_to(resolved, raw_extract_root):
+                    return
+                if looks_like_raw_archive_extract_chunk(resolved):
+                    return
+                key = str(resolved).casefold()
+                if key in seen or not resolved.is_dir() or not has_target_file(resolved):
+                    return
+                seen.add(key)
+                roots.append(resolved)
+
+            for base_root in self._attachment_package_output_loose_roots():
+                add_root(base_root)
+                try:
+                    children = [child for child in base_root.iterdir() if child.is_dir()]
+                except OSError:
+                    children = []
+                for child in children:
+                    add_root(child)
+
+            current_preview = getattr(self, "current_archive_preview_result", None)
+            loose_file_path = str(getattr(current_preview, "loose_file_path", "") or "").strip()
+            if loose_file_path:
+                try:
+                    loose_file = Path(loose_file_path).expanduser().resolve()
+                except OSError:
+                    loose_file = Path()
+                if loose_file.is_file():
+                    for parent in loose_file.parents:
+                        add_root(parent.parent if parent.name.casefold() == "files" else parent)
+
+            roots.sort(key=lambda path: path.stat().st_mtime if path.exists() else 0.0, reverse=True)
+            return roots
+
+        def _attachment_package_loose_target_specs(
+            self,
+            target_entry: ArchiveEntry,
+            target_graph: AssetFamilyGraph,
+            loose_root: Optional[Path],
+        ) -> Tuple[MeshImportSupplementalFileSpec, ...]:
+            if not isinstance(loose_root, Path) or not loose_root.exists():
+                return ()
+            files_root = loose_root / "files" if (loose_root / "files").is_dir() else loose_root
+            specs: List[MeshImportSupplementalFileSpec] = []
+            seen: set[str] = set()
+
+            def normalize_virtual(raw_path: object) -> str:
+                normalized = str(raw_path or "").replace("\\", "/").strip().lstrip("/")
+                if normalized.casefold().startswith("files/"):
+                    normalized = normalized[6:]
+                return normalized
+
+            def local_path_for_virtual(virtual_path: str) -> Optional[Path]:
+                normalized = normalize_virtual(virtual_path)
+                if not normalized:
+                    return None
+                relative = PurePosixPath(normalized)
+                for root in (files_root, loose_root):
+                    candidate = root.joinpath(*relative.parts)
+                    if candidate.is_file():
+                        return candidate
+                return None
+
+            def add_virtual(virtual_path: object, kind: str) -> Optional[Path]:
+                normalized = normalize_virtual(virtual_path)
+                if not normalized:
+                    return None
+                key = normalized.casefold()
+                if key in seen:
+                    return local_path_for_virtual(normalized)
+                local_path = local_path_for_virtual(normalized)
+                if local_path is None:
+                    return None
+                seen.add(key)
+                target = self._find_archive_entry_by_virtual_path(normalized)
+                specs.append(
+                    MeshImportSupplementalFileSpec(
+                        source_path=local_path,
+                        target_path=normalized,
+                        kind=kind,
+                        target_entry=target if isinstance(target, ArchiveEntry) else None,
+                        note=f"Preserve existing target loose file from {loose_root.name}.",
+                    )
+                )
+                return local_path
+
+            def kind_for_support_action(action: object) -> str:
+                normalized_action = str(action or "").casefold()
+                if "prefab" in normalized_action:
+                    return "placement_target_prefab"
+                if "hkx" in normalized_action or "hkt" in normalized_action or "physics" in normalized_action:
+                    return "placement_target_physics"
+                if "paa" in normalized_action or "motion" in normalized_action:
+                    return "placement_target_motion"
+                if "socket" in normalized_action:
+                    return "placement_target_socket"
+                if "icon" in normalized_action:
+                    return "placement_target_icon"
+                if "material" in normalized_action:
+                    return "placement_target_material"
+                if "pac" in normalized_action or "model" in normalized_action:
+                    return "placement_target_model"
+                return "placement_target_support"
+
+            def add_local_path(local_path: Path, kind: str) -> None:
+                try:
+                    if self._attachment_package_path_is_relative_to(local_path, files_root):
+                        relative = local_path.resolve().relative_to(files_root.resolve())
+                    else:
+                        relative = local_path.resolve().relative_to(loose_root.resolve())
+                except (OSError, ValueError):
+                    return
+                normalized = PurePosixPath(*relative.parts).as_posix().lstrip("/")
+                if normalized.casefold().startswith("files/"):
+                    normalized = normalized[6:]
+                key = normalized.casefold()
+                if not normalized or key in seen:
+                    return
+                seen.add(key)
+                target = self._find_archive_entry_by_virtual_path(normalized)
+                specs.append(
+                    MeshImportSupplementalFileSpec(
+                        source_path=local_path,
+                        target_path=normalized,
+                        kind=kind,
+                        target_entry=target if isinstance(target, ArchiveEntry) else None,
+                        note=f"Preserve target-owned loose support file from {loose_root.name}.",
+                    )
+                )
+
+            target_path = normalize_virtual(target_entry.path)
+            target_stem = PurePosixPath(target_path).stem
+            add_virtual(target_path, "placement_target_model")
+
+            sidecar_paths: List[str] = []
+            if target_entry.extension in {".pac", ".pam", ".pamlod"}:
+                sidecar_paths.append(target_path.replace("/model/", "/modelproperty/") + "_xml")
+            target_model = self._attachment_visual_model_entry(target_entry, target_graph)
+            sidecar_entry = self._attachment_package_material_sidecar_for_model(target_entry, target_graph, target_model)
+            if isinstance(sidecar_entry, ArchiveEntry):
+                sidecar_paths.append(sidecar_entry.path)
+            sidecar_local_paths: List[Path] = []
+            for sidecar_path in tuple(dict.fromkeys(sidecar_paths)):
+                local = add_virtual(sidecar_path, "placement_target_material")
+                if isinstance(local, Path):
+                    sidecar_local_paths.append(local)
+
+            texture_pattern = re.compile(
+                r"""(?:_path|path)\s*=\s*["'](?P<path>[^"']+\.(?:dds|png))["']""",
+                re.IGNORECASE,
+            )
+            for sidecar_path in sidecar_local_paths:
+                try:
+                    text = sidecar_path.read_text(encoding="utf-8-sig", errors="ignore")
+                except OSError:
+                    continue
+                for match in texture_pattern.finditer(text):
+                    add_virtual(match.group("path"), "placement_target_texture")
+
+            for icon_entry in self._attachment_package_item_icon_entries(target_entry, target_graph):
+                add_virtual(icon_entry.path, "placement_target_icon")
+            for icon_basename in (
+                f"itemicon_prefab_{target_stem}.dds",
+                f"itemicon_{target_stem}.dds",
+                f"icon_prefab_{target_stem}.dds",
+                f"icon_{target_stem}.dds",
+            ):
+                add_virtual(f"ui/texture/icon/{icon_basename}", "placement_target_icon")
+
+            for action, support_entry, _note in self._attachment_package_target_support_entries(target_entry, target_graph):
+                if isinstance(support_entry, ArchiveEntry):
+                    add_virtual(support_entry.path, kind_for_support_action(action))
+
+            support_extensions = {
+                ".prefab",
+                ".hkx",
+                ".hkt",
+                ".paa",
+                ".paa_metabin",
+                ".motionblending",
+                ".sockets.xml",
+            }
+            target_stem_key = target_stem.casefold()
+            try:
+                loose_files = list(files_root.rglob("*"))
+            except OSError:
+                loose_files = []
+            for local_candidate in loose_files:
+                if not local_candidate.is_file():
+                    continue
+                candidate_name = local_candidate.name.casefold()
+                candidate_stem = PurePosixPath(candidate_name).stem.casefold()
+                suffix_key = ".sockets.xml" if candidate_name.endswith(".sockets.xml") else local_candidate.suffix.casefold()
+                if suffix_key not in support_extensions:
+                    continue
+                if (
+                    candidate_stem != target_stem_key
+                    and not candidate_stem.startswith(f"{target_stem_key}_")
+                    and not candidate_name.startswith(f"{target_stem_key}.")
+                ):
+                    continue
+                add_local_path(local_candidate, kind_for_support_action(suffix_key))
+
+            return tuple(specs)
+
+        @staticmethod
         def _placement_swap_package_info_with_diagnostics(
             package_info: ModPackageInfo,
             diagnostics: Sequence[str],
@@ -28197,6 +31152,8 @@ def run_gui() -> int:
             target_graph: AssetFamilyGraph,
             donor_graph: AssetFamilyGraph,
             *,
+            legacy_raw_prefab_copy: bool = False,
+            copy_source_icon: bool = False,
             experimental_copy_source_model: bool = False,
             experimental_copy_source_hkx: bool = False,
         ) -> Tuple[List[dict], List[str]]:
@@ -28248,10 +31205,25 @@ def run_gui() -> int:
                 "Placement compatibility: "
                 f"{compatibility_status} (target {compatibility.get('target_label')}; source {compatibility.get('donor_label')})."
             )
+            if not legacy_raw_prefab_copy:
+                warnings.append(
+                    "Target-only placement mode: source weapon supplies placement/profile values only; source model, material, textures, prefab bytes, icon, motion, and HKX are not copied."
+                )
+                if copy_source_icon:
+                    source_icon_rows, source_icon_warnings = self._attachment_package_source_icon_override_rows(
+                        target_entry,
+                        donor_entry,
+                        target_graph,
+                        donor_graph,
+                    )
+                    warnings.extend(source_icon_warnings)
+                    for source_icon, target_icon, note in source_icon_rows:
+                        add_row("Copy source item icon bytes (explicit)", source_icon, target_icon, note)
+                return plan_rows, warnings
             if cross_category_risky:
                 warnings.append(
                     "Cross weapon-class placement source detected. Cross-category risky: the placement source appears to be a different weapon subclass. "
-                    "Placement copied, visible model may not change unless Experimental: make visible model follow placement source is enabled."
+                    "Default placement-only mode should be used; legacy raw prefab copy may reference incompatible source files."
                 )
             elif compatibility_status == "Unknown":
                 warnings.append(
@@ -28302,9 +31274,10 @@ def run_gui() -> int:
                 donor_graph,
             )
             warnings.extend(source_icon_warnings)
-            for source_icon, target_icon, note in source_icon_rows:
-                add_row("Copy source item icon bytes", source_icon, target_icon, note)
-                source_icon_target_keys.add(target_icon.path.replace("\\", "/").strip().casefold())
+            if copy_source_icon:
+                for source_icon, target_icon, note in source_icon_rows:
+                    add_row("Copy source item icon bytes (explicit)", source_icon, target_icon, note)
+                    source_icon_target_keys.add(target_icon.path.replace("\\", "/").strip().casefold())
 
             experimental_target_keys: set[str] = set()
             if experimental_copy_source_model:
@@ -28353,27 +31326,30 @@ def run_gui() -> int:
                     warnings.append(
                         "Placement copied with target context preserved "
                         f"({donor_text} source -> {target_text} target). "
-                        "Default risky mode: Placement copied, visible model may not change; source icon is copied when resolved, and raw source HKX/HKT is not copied unless explicitly enabled."
+                        "Legacy raw prefab mode is enabled; source icon and raw source HKX/HKT are still copied only when explicitly enabled."
                     )
                 else:
                     warnings.append(
                         "Known compatible handedness placement copy "
-                        f"({donor_text} source -> {target_text} target): target model/material/motion context stays on the proven sword workflow, and raw source HKX/HKT is not copied unless explicitly enabled."
+                        f"({donor_text} source -> {target_text} target): legacy raw prefab copy is enabled; target model/material/motion context is preserved where resolved."
                     )
 
             for extension in (".hkx", ".hkt"):
                 donor_hkx_entries = self._attachment_package_entries_with_extension(donor_entry, donor_graph, {extension})
                 target_hkx_entries = self._attachment_package_entries_with_extension(target_entry, target_graph, {extension})
-                if preserve_target_context and not experimental_copy_source_hkx:
+                if not experimental_copy_source_hkx:
                     for target_hkx in target_hkx_entries[:1]:
                         add_row(
                             "Preserve target HKX/HKT physics bytes",
                             target_hkx,
                             target_hkx,
-                            "Risk-managed swap: target physics is kept instead of copying source HKX into a potentially incompatible target path.",
+                            "Target physics is kept instead of copying source HKX into the target path.",
                         )
-                    if donor_hkx_entries and not target_hkx_entries:
-                        warnings.append(f"Skipped source {extension}: no target {extension} path was resolved to preserve.")
+                    if donor_hkx_entries:
+                        if target_hkx_entries:
+                            warnings.append(f"Skipped source {extension}: target-owned physics is preserved instead.")
+                        else:
+                            warnings.append(f"Skipped source {extension}: source HKX/physics is disabled unless the replacement-only source-HKX option is enabled.")
                     continue
                 for donor_hkx in donor_hkx_entries[:1]:
                     target_hkx = self._choose_attachment_package_target_entry(
@@ -28384,12 +31360,12 @@ def run_gui() -> int:
                     )
                     if isinstance(target_hkx, ArchiveEntry):
                         action = (
-                            "Copy source HKX/HKT physics bytes (experimental)"
+                            "Replacement-only: copy source HKX/HKT physics bytes"
                             if experimental_copy_source_hkx
                             else "Copy source HKX/HKT physics bytes"
                         )
                         note = (
-                            "Experimental full swap: source physics bytes are written to the target HKX/HKT path; use only when the source and target physics contract is intended to match."
+                            "Replacement-only path: source physics bytes are written to the target HKX/HKT path; not used by normal placement moves."
                             if experimental_copy_source_hkx
                             else "Uses the proven source-copy workflow; HKX table editing remains disabled."
                         )
@@ -32006,84 +34982,1853 @@ def run_gui() -> int:
             if not isinstance(source_entry, ArchiveEntry):
                 self.set_status_message("Select a model, prefab, HKX, or socket XML file first.", error=True)
                 return
-            graph, _references = self._archive_asset_family_graph_for_entry(source_entry)
+            self._run_archive_attachment_placement_prepare(
+                source_entry,
+                None,
+                status_message=f"Preparing target-owned placement builder for {source_entry.basename}...",
+                on_prepared=lambda preparation: self._open_archive_attachment_placement_diff_dialog(
+                    source_entry,
+                    None,
+                    preparation=preparation,
+                ),
+            )
+
+        def _open_archive_weapon_placement_studio_dialog(
+            self,
+            entry: Optional[ArchiveEntry] = None,
+        ) -> None:
+            current_entry = entry if isinstance(entry, ArchiveEntry) else self._current_archive_entry()
+            selected_entries = [candidate for candidate in self._selected_archive_entries() if isinstance(candidate, ArchiveEntry)]
+            if isinstance(current_entry, ArchiveEntry) and all(
+                archive_entry_identity_key(candidate) != archive_entry_identity_key(current_entry)
+                for candidate in selected_entries
+            ):
+                selected_entries.insert(0, current_entry)
+
             dialog = QDialog(self)
-            dialog.setWindowTitle(f"Placement Swap - {source_entry.basename}")
-            dialog.resize(1080, 720)
+            dialog.setWindowTitle("Weapon Placement Studio")
+            dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMaximizeButtonHint | Qt.WindowMinimizeButtonHint)
+            dialog.setSizeGripEnabled(True)
+            dialog.setMinimumSize(QSize(760, 520))
+            dialog.resize(1180, 760)
             layout = QVBoxLayout(dialog)
             layout.setContentsMargins(12, 12, 12, 12)
             layout.setSpacing(8)
+
             intro = QLabel(
-                "Placement is prefab/socket driven. HKX rows are physics context only. "
-                "This workspace previews recovered attachment chains and keeps unproven binary prefab/PAA/HKX writes disabled. "
-                "Direction: the asset opened here is the target that changes; the placement source you choose later only supplies placement."
+                "Build stable weapon placement packages from learned templates. Simple mode preserves target models, icons, HKX, ItemInfo, and PAAC graphs."
             )
             intro.setObjectName("HintLabel")
             intro.setWordWrap(True)
             layout.addWidget(intro)
-            confidence = QLabel("Confidence: " + (str(getattr(graph, "summary", "") or "No placement chain") or "No placement chain"))
-            confidence.setObjectName("HintLabel")
-            confidence.setWordWrap(True)
-            layout.addWidget(confidence)
-            tree = QTreeWidget()
-            tree.setColumnCount(5)
-            tree.setHeaderLabels(["Chain / Field", "Socket / File", "Transform", "Evidence", "Status"])
-            tree.setRootIsDecorated(True)
-            tree.setAlternatingRowColors(True)
-            tree.setUniformRowHeights(True)
-            tree.setSelectionMode(QAbstractItemView.SingleSelection)
-            self._populate_attachment_placement_dialog_tree(tree, graph)
-            header = tree.header()
-            header.setStretchLastSection(True)
-            header.resizeSection(0, 180)
-            header.resizeSection(1, 360)
-            header.resizeSection(2, 150)
-            header.resizeSection(3, 160)
-            layout.addWidget(tree, 1)
+
+            class WeaponPlacementStudioPreview2D(QFrame):
+                def __init__(self, parent: Optional[QWidget] = None) -> None:
+                    super().__init__(parent)
+                    self.setMinimumSize(QSize(360, 300))
+                    self.setFrameShape(QFrame.Shape.StyledPanel)
+                    self._template_id = ""
+                    self._rows: Tuple[WeaponSwapSocketRow, ...] = ()
+                    self._show_shield = True
+                    self._view_mode = "back"
+
+                def set_view_mode(self, view_mode: object) -> None:
+                    normalized = str(view_mode or "back").strip().casefold()
+                    self._view_mode = "side" if normalized == "side" else "back"
+                    self.update()
+
+                def set_preview_state(
+                    self,
+                    *,
+                    template_id: str,
+                    rows: Sequence[WeaponSwapSocketRow],
+                    show_shield: bool,
+                ) -> None:
+                    self._template_id = str(template_id or "")
+                    self._rows = tuple(row for row in rows if isinstance(row, WeaponSwapSocketRow))
+                    self._show_shield = bool(show_shield)
+                    self.update()
+
+                def paintEvent(self, event) -> None:  # type: ignore[override]
+                    super().paintEvent(event)
+                    painter = QPainter(self)
+                    try:
+                        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+                        rect = self.rect().adjusted(12, 12, -12, -12)
+                        background = QLinearGradient(rect.topLeft(), rect.bottomRight())
+                        background.setColorAt(0.0, QColor("#0f172a"))
+                        background.setColorAt(1.0, QColor("#111827"))
+                        painter.fillRect(rect, background)
+
+                        def point(x: float, y: float) -> QPointF:
+                            return QPointF(
+                                rect.left() + (max(0.0, min(1.0, float(x))) * rect.width()),
+                                rect.top() + (max(0.0, min(1.0, float(y))) * rect.height()),
+                            )
+
+                        def soft_pen(color: str, width: int = 1, style: Qt.PenStyle = Qt.PenStyle.SolidLine) -> QPen:
+                            pen = QPen(QColor(color), width, style)
+                            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                            return pen
+
+                        painter.setPen(soft_pen("#1f2937", 1))
+                        for index in range(1, 6):
+                            y = rect.top() + (rect.height() * index / 6.0)
+                            painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
+                        for index in range(1, 4):
+                            x = rect.left() + (rect.width() * index / 4.0)
+                            painter.drawLine(QPointF(x, rect.top()), QPointF(x, rect.bottom()))
+
+                        body_fill = QColor("#253041")
+                        body_edge = QColor("#6b7280")
+                        landmark = QColor("#94a3b8")
+
+                        def draw_label(text: str, pos: QPointF, color: str = "#cbd5e1") -> None:
+                            painter.setPen(soft_pen(color, 1))
+                            painter.drawText(pos, str(text or ""))
+
+                        def draw_back_body() -> None:
+                            torso = QPainterPath()
+                            torso.moveTo(point(0.42, 0.23))
+                            torso.lineTo(point(0.58, 0.23))
+                            torso.cubicTo(point(0.62, 0.35), point(0.62, 0.50), point(0.57, 0.63))
+                            torso.lineTo(point(0.54, 0.72))
+                            torso.lineTo(point(0.46, 0.72))
+                            torso.lineTo(point(0.43, 0.63))
+                            torso.cubicTo(point(0.38, 0.50), point(0.38, 0.35), point(0.42, 0.23))
+                            torso.closeSubpath()
+                            pelvis = QPainterPath()
+                            pelvis.moveTo(point(0.44, 0.69))
+                            pelvis.lineTo(point(0.56, 0.69))
+                            pelvis.lineTo(point(0.58, 0.80))
+                            pelvis.lineTo(point(0.53, 0.83))
+                            pelvis.lineTo(point(0.47, 0.83))
+                            pelvis.lineTo(point(0.42, 0.80))
+                            pelvis.closeSubpath()
+                            painter.setPen(QPen(body_edge, 2))
+                            painter.setBrush(QBrush(body_fill))
+                            painter.drawPath(torso)
+                            painter.drawPath(pelvis)
+                            painter.setBrush(Qt.NoBrush)
+                            painter.setPen(soft_pen("#475569", 10))
+                            painter.drawLine(point(0.40, 0.27), point(0.25, 0.48))
+                            painter.drawLine(point(0.60, 0.27), point(0.75, 0.48))
+                            painter.setPen(soft_pen("#475569", 8))
+                            painter.drawLine(point(0.46, 0.80), point(0.43, 0.94))
+                            painter.drawLine(point(0.54, 0.80), point(0.57, 0.94))
+                            painter.setPen(QPen(body_edge, 2))
+                            painter.setBrush(QBrush(QColor("#1f2937")))
+                            painter.drawEllipse(point(0.50, 0.105), rect.width() * 0.045, rect.height() * 0.052)
+                            painter.setPen(soft_pen("#64748b", 2, Qt.PenStyle.DashLine))
+                            painter.drawLine(point(0.50, 0.18), point(0.50, 0.74))
+                            painter.setPen(soft_pen("#475569", 2))
+                            painter.drawLine(point(0.36, 0.24), point(0.64, 0.24))
+                            painter.drawLine(point(0.42, 0.69), point(0.58, 0.69))
+                            painter.setPen(soft_pen("#38bdf8", 1))
+                            painter.setBrush(QBrush(QColor("#38bdf8")))
+                            for name, marker in (("Spine2", point(0.50, 0.30)), ("Hip", point(0.36, 0.64))):
+                                painter.drawEllipse(marker, 4, 4)
+                                draw_label(name, marker + QPointF(7, -5), "#93c5fd")
+
+                        def draw_side_body() -> None:
+                            torso = QPainterPath()
+                            torso.moveTo(point(0.47, 0.22))
+                            torso.cubicTo(point(0.41, 0.28), point(0.42, 0.50), point(0.47, 0.66))
+                            torso.lineTo(point(0.52, 0.73))
+                            torso.cubicTo(point(0.61, 0.66), point(0.63, 0.45), point(0.59, 0.28))
+                            torso.cubicTo(point(0.56, 0.23), point(0.51, 0.21), point(0.47, 0.22))
+                            torso.closeSubpath()
+                            pelvis = QPainterPath()
+                            pelvis.moveTo(point(0.47, 0.69))
+                            pelvis.lineTo(point(0.56, 0.70))
+                            pelvis.lineTo(point(0.58, 0.80))
+                            pelvis.lineTo(point(0.53, 0.84))
+                            pelvis.lineTo(point(0.46, 0.81))
+                            pelvis.closeSubpath()
+                            painter.setPen(QPen(body_edge, 2))
+                            painter.setBrush(QBrush(body_fill))
+                            painter.drawPath(torso)
+                            painter.drawPath(pelvis)
+                            painter.setBrush(Qt.NoBrush)
+                            painter.setPen(soft_pen("#475569", 9))
+                            painter.drawLine(point(0.47, 0.27), point(0.33, 0.51))
+                            painter.setPen(soft_pen("#475569", 8))
+                            painter.drawLine(point(0.50, 0.80), point(0.48, 0.94))
+                            painter.drawLine(point(0.55, 0.79), point(0.59, 0.94))
+                            painter.setPen(QPen(body_edge, 2))
+                            painter.setBrush(QBrush(QColor("#1f2937")))
+                            painter.drawEllipse(point(0.52, 0.105), rect.width() * 0.042, rect.height() * 0.052)
+                            painter.setPen(soft_pen("#64748b", 2, Qt.PenStyle.DashLine))
+                            painter.drawLine(point(0.50, 0.18), point(0.54, 0.73))
+                            painter.setPen(soft_pen("#475569", 2))
+                            painter.drawLine(point(0.43, 0.25), point(0.60, 0.25))
+                            painter.drawLine(point(0.46, 0.69), point(0.58, 0.69))
+                            painter.setPen(soft_pen("#38bdf8", 1))
+                            painter.setBrush(QBrush(QColor("#38bdf8")))
+                            for name, marker in (("Back", point(0.61, 0.33)), ("Hip", point(0.46, 0.64))):
+                                painter.drawEllipse(marker, 4, 4)
+                                draw_label(name, marker + QPointF(7, -5), "#93c5fd")
+
+                        if self._view_mode == "side":
+                            draw_side_body()
+                        else:
+                            draw_back_body()
+
+                        if self._show_shield and "dual_onehand" in self._template_id:
+                            shield_center = point(0.50, 0.38) if self._view_mode == "back" else point(0.62, 0.40)
+                            painter.setPen(soft_pen("#ef4444", 2))
+                            painter.setBrush(QBrush(QColor(127, 29, 29, 52)))
+                            painter.drawEllipse(shield_center, rect.width() * 0.16, rect.height() * 0.18)
+                            draw_label("shield clearance", shield_center + QPointF(12, 4), "#fca5a5")
+
+                        def row_map(rows: Sequence[WeaponSwapSocketRow]) -> Dict[str, WeaponSwapSocketRow]:
+                            return {str(row.name or "").casefold(): row for row in rows if isinstance(row, WeaponSwapSocketRow)}
+
+                        try:
+                            base_rows = weapon_swap_template_socket_rows(self._template_id)
+                        except Exception:
+                            base_rows = ()
+                        base_by_name = row_map(base_rows)
+
+                        def row_delta(row: WeaponSwapSocketRow) -> Tuple[float, float, float]:
+                            base = base_by_name.get(str(row.name or "").casefold())
+                            if isinstance(base, WeaponSwapSocketRow):
+                                return (
+                                    float(row.translation[0]) - float(base.translation[0]),
+                                    float(row.translation[1]) - float(base.translation[1]),
+                                    float(row.translation[2]) - float(base.translation[2]),
+                                )
+                            return (0.0, 0.0, 0.0)
+
+                        def line_for_row(row: WeaponSwapSocketRow, *, planned: bool) -> Tuple[QPointF, QPointF]:
+                            dx, dy, dz = row_delta(row)
+                            if "dual_onehand" in self._template_id:
+                                is_left = str(row.name or "").endswith("_L_Socket")
+                                side = 1.0 if is_left else -1.0
+                                if self._view_mode == "side":
+                                    start = point(0.58 + (float(row.translation[1]) * -0.55), 0.31 - (float(row.translation[2]) * 0.32))
+                                    end = point(0.42 + (float(row.translation[1]) * -0.42), 0.84 - (float(row.translation[2]) * 0.10))
+                                else:
+                                    sx = 0.50 + (float(row.translation[0]) * 0.85)
+                                    sy = 0.39 - (float(row.translation[2]) * 0.46)
+                                    if "crossed" in self._template_id:
+                                        ex = sx + (0.23 * side)
+                                    else:
+                                        ex = sx - 0.12
+                                    start = point(sx, sy)
+                                    end = point(ex, 0.90 - (float(row.translation[2]) * 0.18))
+                                return start, end
+                            if self._view_mode == "side":
+                                start = point(0.58 + (dy * -0.45), 0.62 - (dz * 0.62))
+                                end = point(0.69 + (dy * -0.32), 0.90 - (dz * 0.18))
+                            else:
+                                start = point(0.36 + (dx * 0.70), 0.64 - (dz * 0.62))
+                                end = point(0.69 + (dx * 0.48), 0.91 - (dz * 0.18))
+                            return start, end
+
+                        def draw_weapon_line(start: QPointF, end: QPointF, color: QColor, label: str, *, planned: bool) -> None:
+                            dx = end.x() - start.x()
+                            dy = end.y() - start.y()
+                            length = max(1.0, math.sqrt((dx * dx) + (dy * dy)))
+                            ux, uy = dx / length, dy / length
+                            px, py = -uy, ux
+                            if planned:
+                                painter.setPen(soft_pen("#334155", 8))
+                                painter.drawLine(start + QPointF(px * 2.0, py * 2.0), end + QPointF(px * 2.0, py * 2.0))
+                            painter.setPen(soft_pen(color.name(), 5 if planned else 3, Qt.PenStyle.SolidLine if planned else Qt.PenStyle.DashLine))
+                            painter.drawLine(start, end)
+                            painter.setPen(soft_pen("#e5e7eb", 2 if planned else 1, Qt.PenStyle.SolidLine if planned else Qt.PenStyle.DashLine))
+                            painter.drawLine(start, end)
+                            guard_center = start + QPointF(ux * 18.0, uy * 18.0)
+                            painter.setPen(soft_pen("#f59e0b", 4 if planned else 2))
+                            painter.drawLine(
+                                guard_center + QPointF(px * 13.0, py * 13.0),
+                                guard_center - QPointF(px * 13.0, py * 13.0),
+                            )
+                            painter.setPen(soft_pen("#fbbf24", 5 if planned else 3))
+                            painter.drawLine(start - QPointF(ux * 26.0, uy * 26.0), start + QPointF(ux * 12.0, uy * 12.0))
+                            painter.setBrush(QBrush(QColor("#f59e0b" if planned else "#60a5fa")))
+                            painter.setPen(Qt.NoPen)
+                            painter.drawEllipse(start, 5 if planned else 4, 5 if planned else 4)
+                            if planned:
+                                draw_label(label, start + QPointF(8, -6), color.name())
+
+                        for row in tuple(base_rows):
+                            if not isinstance(row, WeaponSwapSocketRow):
+                                continue
+                            start, end = line_for_row(row, planned=False)
+                            draw_weapon_line(start, end, QColor("#60a5fa"), "current", planned=False)
+                        for row in self._rows:
+                            start, end = line_for_row(row, planned=True)
+                            label = str(row.name or "planned").replace("_Socket", "").replace("_ChildSocket", "")
+                            draw_weapon_line(start, end, QColor("#34d399"), label, planned=True)
+
+                        painter.setPen(soft_pen("#94a3b8", 1))
+                        painter.drawText(
+                            rect.left() + 12,
+                            rect.bottom() - 12,
+                            "2D estimate fallback: blue default, green planned socket placement",
+                        )
+                    finally:
+                        painter.end()
+
+            splitter = QSplitter(Qt.Horizontal)
+            splitter.setChildrenCollapsible(False)
+            layout.addWidget(splitter, 1)
+
+            controls_widget = QWidget()
+            controls_layout = QVBoxLayout(controls_widget)
+            controls_layout.setContentsMargins(0, 0, 8, 0)
+            controls_layout.setSpacing(8)
+            controls_scroll = QScrollArea(dialog)
+            controls_scroll.setWidgetResizable(True)
+            controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            controls_scroll.setFrameShape(QFrame.Shape.NoFrame)
+            controls_scroll.setMinimumWidth(340)
+            controls_scroll.setWidget(controls_widget)
+            splitter.addWidget(controls_scroll)
+
+            simple_group = QGroupBox("Simple Template")
+            simple_layout = QGridLayout(simple_group)
+            simple_layout.setContentsMargins(8, 8, 8, 8)
+            simple_layout.setHorizontalSpacing(6)
+            simple_layout.setVerticalSpacing(6)
+            template_combo = QComboBox()
+            for template in iter_weapon_swap_templates():
+                template_combo.addItem(template.label, template.template_id)
+                template_combo.setItemData(template_combo.count() - 1, template.description, Qt.ToolTipRole)
+            scope_combo = QComboBox()
+            scope_combo.addItem("Selected PAC", WEAPON_SWAP_TEMPLATE_SELECTED_SCOPE)
+            scope_combo.addItem("Selected archive rows", WEAPON_SWAP_TEMPLATE_SELECTION_SCOPE)
+            scope_combo.addItem("Class-wide PHM", WEAPON_SWAP_TEMPLATE_CLASS_SCOPE)
+            target_label = QLabel("")
+            target_label.setObjectName("HintLabel")
+            target_label.setWordWrap(True)
+            target_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            simple_layout.addWidget(QLabel("Template"), 0, 0)
+            simple_layout.addWidget(template_combo, 0, 1, 1, 2)
+            simple_layout.addWidget(QLabel("Scope"), 1, 0)
+            simple_layout.addWidget(scope_combo, 1, 1, 1, 2)
+            simple_layout.addWidget(QLabel("Targets"), 2, 0)
+            simple_layout.addWidget(target_label, 2, 1, 1, 2)
+            controls_layout.addWidget(simple_group)
+
+            def _template() -> WeaponSwapTemplate:
+                return get_weapon_swap_template(template_combo.currentData())
+
+            def _spin(value: float, minimum: float, maximum: float, step: float, decimals: int = 3, suffix: str = "") -> QDoubleSpinBox:
+                spin = QDoubleSpinBox()
+                spin.setRange(minimum, maximum)
+                spin.setDecimals(decimals)
+                spin.setSingleStep(step)
+                spin.setValue(value)
+                spin.setKeyboardTracking(False)
+                if suffix:
+                    spin.setSuffix(suffix)
+                return spin
+
+            def _slider_for_spin(spin: QDoubleSpinBox, scale: int = 1000) -> QSlider:
+                slider = QSlider(Qt.Orientation.Horizontal)
+                slider.setRange(int(spin.minimum() * scale), int(spin.maximum() * scale))
+                slider.setValue(int(spin.value() * scale))
+                slider.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+                slider.valueChanged.connect(lambda value, target_spin=spin, s=scale: target_spin.setValue(float(value) / float(s)))
+                spin.valueChanged.connect(lambda value, target_slider=slider, s=scale: target_slider.setValue(int(float(value) * s)))
+                return slider
+
+            slider_group = QGroupBox("Position Sliders")
+            slider_layout = QGridLayout(slider_group)
+            slider_layout.setContentsMargins(8, 8, 8, 8)
+            left_right_spin = _spin(0.0, -0.40, 0.40, 0.005)
+            closer_spin = _spin(0.0, -0.40, 0.40, 0.005)
+            up_spin = _spin(0.0, -0.40, 0.40, 0.005)
+            for row, (label, spin) in enumerate((("Left / right", left_right_spin), ("Closer / farther", closer_spin), ("Up / down", up_spin))):
+                slider_layout.addWidget(QLabel(label), row, 0)
+                slider_layout.addWidget(_slider_for_spin(spin), row, 1)
+                slider_layout.addWidget(spin, row, 2)
+            controls_layout.addWidget(slider_group)
+
+            rotation_group = QGroupBox("Rotation Sliders")
+            rotation_layout = QGridLayout(rotation_group)
+            rotation_layout.setContentsMargins(8, 8, 8, 8)
+            pitch_spin = _spin(0.0, -90.0, 90.0, 0.25, 2, " deg")
+            yaw_spin = _spin(0.0, -90.0, 90.0, 0.25, 2, " deg")
+            roll_spin = _spin(0.0, -90.0, 90.0, 0.25, 2, " deg")
+            for row, (label, spin) in enumerate((("Pitch", pitch_spin), ("Yaw", yaw_spin), ("Roll", roll_spin))):
+                rotation_layout.addWidget(QLabel(label), row, 0)
+                rotation_layout.addWidget(_slider_for_spin(spin, 100), row, 1)
+                rotation_layout.addWidget(spin, row, 2)
+            controls_layout.addWidget(rotation_group)
+
+            dual_group = QGroupBox("Dual Sword Linked Controls")
+            dual_layout = QGridLayout(dual_group)
+            dual_layout.setContentsMargins(8, 8, 8, 8)
+            dual_height_spin = _spin(0.0, -0.30, 0.30, 0.005)
+            dual_distance_spin = _spin(0.0, -0.30, 0.30, 0.005)
+            dual_center_spin = _spin(0.0, -0.30, 0.30, 0.005)
+            dual_spread_spin = _spin(0.0, -0.20, 0.20, 0.005)
+            dual_cross_spin = _spin(0.0, -60.0, 60.0, 0.25, 2, " deg")
+            for row, (label, spin, scale) in enumerate(
+                (
+                    ("Height", dual_height_spin, 1000),
+                    ("Body distance", dual_distance_spin, 1000),
+                    ("Center shift", dual_center_spin, 1000),
+                    ("Spread", dual_spread_spin, 1000),
+                    ("Cross angle", dual_cross_spin, 100),
+                )
+            ):
+                dual_layout.addWidget(QLabel(label), row, 0)
+                dual_layout.addWidget(_slider_for_spin(spin, scale), row, 1)
+                dual_layout.addWidget(spin, row, 2)
+            controls_layout.addWidget(dual_group)
+
+            advanced_toggle = QCheckBox("Enable Advanced Features")
+            controls_layout.addWidget(advanced_toggle)
+            advanced_group = QGroupBox("Advanced Template Details")
+            advanced_layout = QVBoxLayout(advanced_group)
+            advanced_layout.setContentsMargins(8, 8, 8, 8)
+            advanced_layout.setSpacing(6)
+            advanced_warning = QLabel(
+                "True 1H/offhand disabled. PAAC/ItemInfo paths are not buildable from the simple page; previous true-1H/offhand and full graph experiments crashed or hung the game."
+            )
+            advanced_warning.setObjectName("HintLabel")
+            advanced_warning.setWordWrap(True)
+            advanced_detail_label = QLabel("Current Evidence Compare / Raw Socket XML Fields")
+            advanced_detail_label.setObjectName("HintLabel")
+            advanced_detail_tree = QTreeWidget()
+            advanced_detail_tree.setColumnCount(3)
+            advanced_detail_tree.setHeaderLabels(["Field", "Current", "Planned"])
+            advanced_detail_tree.setRootIsDecorated(False)
+            advanced_detail_tree.setAlternatingRowColors(True)
+            advanced_detail_tree.setUniformRowHeights(True)
+            advanced_detail_tree.setMaximumHeight(190)
+            advanced_detail_tree.header().setStretchLastSection(True)
+            advanced_detail_tree.header().resizeSection(0, 150)
+            advanced_detail_tree.header().resizeSection(1, 130)
+            package_detail_label = QLabel("")
+            package_detail_label.setObjectName("HintLabel")
+            package_detail_label.setWordWrap(True)
+            preview_diagnostics_label = QLabel("Preview diagnostics: waiting for placement preview.")
+            preview_diagnostics_label.setObjectName("HintLabel")
+            preview_diagnostics_label.setWordWrap(True)
+            preview_diagnostics_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            source_picker_button = QPushButton("Advanced Target-Owned Source Builder...")
+            source_picker_button.setToolTip(
+                "Advanced legacy source picker, evidence comparison, and target-owned prefab placement builder for one selected PAC."
+            )
+            advanced_layout.addWidget(advanced_warning)
+            advanced_layout.addWidget(advanced_detail_label)
+            advanced_layout.addWidget(advanced_detail_tree)
+            advanced_layout.addWidget(preview_diagnostics_label)
+            advanced_layout.addWidget(package_detail_label)
+            advanced_layout.addWidget(source_picker_button)
+            advanced_group.setVisible(False)
+            advanced_toggle.toggled.connect(advanced_group.setVisible)
+            controls_layout.addWidget(advanced_group)
+            controls_layout.addStretch(1)
+
+            right_widget = QWidget()
+            right_layout = QVBoxLayout(right_widget)
+            right_layout.setContentsMargins(8, 0, 0, 0)
+            right_layout.setSpacing(8)
+            right_widget.setMinimumWidth(420)
+            splitter.addWidget(right_widget)
+            preview_group = QGroupBox("Placement Preview")
+            preview_layout = QVBoxLayout(preview_group)
+            preview_layout.setContentsMargins(8, 8, 8, 8)
+            preview_stack = QStackedWidget(preview_group)
+            d3d11_page = QWidget(preview_group)
+            d3d11_layout = QVBoxLayout(d3d11_page)
+            d3d11_layout.setContentsMargins(0, 0, 0, 0)
+            d3d11_layout.setSpacing(6)
+            native_preview_widget = NativeD3D11PreviewHostFrame(d3d11_page)
+            native_preview_widget.setObjectName("WeaponPlacementStudioNativePlacementPreview")
+            native_preview_widget.setAttribute(Qt.WA_NativeWindow, True)
+            native_preview_widget.setMinimumSize(QSize(420, 320))
+            native_preview_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            d3d11_layout.addWidget(native_preview_widget, 1)
+            d3d11_status_label = QLabel("Native D3D11 placement preview is waiting for a package.")
+            d3d11_status_label.setObjectName("HintLabel")
+            d3d11_status_label.setWordWrap(True)
+            d3d11_layout.addWidget(d3d11_status_label)
+            preview_widget = WeaponPlacementStudioPreview2D(preview_group)
+            preview_widget.setObjectName("WeaponPlacementStudio2DPlacementPreview")
+            preview_stack.addWidget(d3d11_page)
+            preview_stack.addWidget(preview_widget)
+            preview_stack.setCurrentWidget(preview_widget)
+            preview_status_label = QLabel("Preview source: 2D estimate while PAC preview loads.")
+            preview_status_label.setObjectName("HintLabel")
+            preview_status_label.setWordWrap(True)
+            preview_status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            preview_control_row = QHBoxLayout()
+            preview_control_row.addWidget(preview_status_label, 1)
+            preview_view_combo = QComboBox()
+            preview_view_combo.addItem("Back view", "back")
+            preview_view_combo.addItem("Side view", "side")
+            preview_view_combo.setToolTip("2D fallback view. The PAC preview can be rotated directly.")
+            preview_control_row.addWidget(QLabel("2D view"))
+            preview_control_row.addWidget(preview_view_combo)
+            show_shield_checkbox = QCheckBox("Show shield clipping guide")
+            show_shield_checkbox.setChecked(True)
+            preview_layout.addWidget(preview_stack, 1)
+            preview_layout.addLayout(preview_control_row)
+            preview_layout.addWidget(show_shield_checkbox)
+            right_layout.addWidget(preview_group, 2)
+            plan_group = QGroupBox("Package Plan")
+            plan_layout = QVBoxLayout(plan_group)
+            plan_layout.setContentsMargins(8, 8, 8, 8)
+            plan_tree = QTreeWidget()
+            plan_tree.setColumnCount(4)
+            plan_tree.setHeaderLabels(["Action", "Target", "Writes", "Notes"])
+            plan_tree.setRootIsDecorated(False)
+            plan_tree.setAlternatingRowColors(True)
+            plan_tree.setUniformRowHeights(True)
+            plan_tree.header().setStretchLastSection(True)
+            plan_tree.header().resizeSection(0, 190)
+            plan_tree.header().resizeSection(1, 280)
+            plan_tree.header().resizeSection(2, 190)
+            plan_layout.addWidget(plan_tree, 1)
+            plan_status = QLabel("")
+            plan_status.setObjectName("HintLabel")
+            plan_status.setWordWrap(True)
+            plan_layout.addWidget(plan_status)
+            right_layout.addWidget(plan_group, 1)
+            splitter.setSizes([430, 720])
+
             button_row = QHBoxLayout()
-            direction = QLabel(
-                "Example: open a 2H sword, then choose a 1H sword as the placement source -> the 2H sword is packaged to use the 1H held/sheath placement."
-            )
-            direction.setObjectName("HintLabel")
-            direction.setWordWrap(True)
-            layout.addWidget(direction)
-            copy_button = QPushButton("Choose Placement Source...")
-            copy_button.setToolTip(
-                "Choose the asset to copy placement from. The asset opened in this window remains the target that will be changed."
-            )
-            edit_socket_button = QPushButton("Edit Socket Values...")
-            edit_socket_button.setToolTip("Manual socket value editor. Normal placement swaps should start with Choose Placement Source.")
-            family_button = QPushButton("Open Asset Family...")
-            close_button = QPushButton("Close")
-            button_row.addWidget(copy_button)
-            button_row.addWidget(edit_socket_button)
-            button_row.addWidget(family_button)
             button_row.addStretch(1)
+            build_button = QPushButton("Build Placement Package...")
+            close_button = QPushButton("Close")
+            button_row.addWidget(build_button)
             button_row.addWidget(close_button)
             layout.addLayout(button_row)
 
-            def _refresh_socket_editor_state() -> None:
-                edit_socket_button.setEnabled(self._attachment_socket_entry_from_selection(graph, tree) is not None)
+            def _selected_scope() -> str:
+                return str(scope_combo.currentData() or WEAPON_SWAP_TEMPLATE_SELECTED_SCOPE)
 
-            def _edit_socket_xml() -> None:
-                socket_entry = self._attachment_socket_entry_from_selection(graph, tree)
-                if not isinstance(socket_entry, ArchiveEntry):
-                    self.set_status_message("No resolved socket XML descriptor is available for this placement chain.", error=True)
+            def _translation_delta() -> Tuple[float, float, float]:
+                return (float(left_right_spin.value()), float(closer_spin.value()), float(up_spin.value()))
+
+            def _rotation_delta() -> Tuple[float, float, float]:
+                return (float(pitch_spin.value()), float(yaw_spin.value()), float(roll_spin.value()))
+
+            def _current_socket_rows() -> Tuple[WeaponSwapSocketRow, ...]:
+                return weapon_swap_template_socket_rows(
+                    _template().template_id,
+                    translation_delta=_translation_delta(),
+                    rotation_delta_degrees=_rotation_delta(),
+                    dual_left_rotation_delta_degrees=(0.0, 0.0, float(dual_cross_spin.value())),
+                    dual_center_delta=float(dual_center_spin.value()),
+                    dual_spread_delta=float(dual_spread_spin.value()),
+                    dual_body_distance_delta=float(dual_distance_spin.value()),
+                    dual_height_delta=float(dual_height_spin.value()),
+                )
+
+            def _original_entry_by_virtual_path(virtual_path: str) -> Optional[ArchiveEntry]:
+                normalized = str(virtual_path or "").replace("\\", "/").strip().strip("/").casefold()
+                if not normalized:
+                    return None
+                candidates = [
+                    candidate
+                    for candidate in tuple(getattr(self, "archive_entries", ()) or ())
+                    if isinstance(candidate, ArchiveEntry)
+                    and not archive_entry_is_mod_package(candidate)
+                    and str(candidate.path or "").replace("\\", "/").strip().strip("/").casefold() == normalized
+                ]
+                return max(candidates, key=archive_entry_load_priority) if candidates else None
+
+            def _original_entry_by_basename(*basenames: str) -> Optional[ArchiveEntry]:
+                wanted = {PurePosixPath(str(name or "").replace("\\", "/")).name.casefold() for name in basenames if str(name or "").strip()}
+                candidates = [
+                    candidate
+                    for candidate in tuple(getattr(self, "archive_entries", ()) or ())
+                    if isinstance(candidate, ArchiveEntry)
+                    and not archive_entry_is_mod_package(candidate)
+                    and PurePosixPath(str(candidate.path or "").replace("\\", "/")).name.casefold() in wanted
+                ]
+                return max(candidates, key=archive_entry_load_priority) if candidates else None
+
+            def _original_entries_by_path() -> Dict[str, ArchiveEntry]:
+                result: Dict[str, ArchiveEntry] = {}
+                for candidate in tuple(getattr(self, "archive_entries", ()) or ()):
+                    if not isinstance(candidate, ArchiveEntry) or archive_entry_is_mod_package(candidate):
+                        continue
+                    key = str(candidate.path or "").replace("\\", "/").strip().strip("/").casefold()
+                    if not key:
+                        continue
+                    current = result.get(key)
+                    if current is None or archive_entry_load_priority(candidate) > archive_entry_load_priority(current):
+                        result[key] = candidate
+                return result
+
+            def _read_entry_bytes(source_entry: ArchiveEntry) -> bytes:
+                payload = read_archive_entry_data(source_entry)
+                return bytes(payload[0] if isinstance(payload, tuple) else payload)
+
+            def _read_entry_text(source_entry: ArchiveEntry) -> str:
+                return _read_entry_bytes(source_entry).decode("utf-8-sig", errors="ignore")
+
+            studio_preview_state: Dict[str, object] = {
+                "request_id": 0,
+                "active": False,
+                "pending": False,
+                "closed": False,
+                "thread": None,
+                "worker": None,
+                "package_thread": None,
+                "package_worker": None,
+                "process": None,
+                "active_package": None,
+                "status_file": None,
+                "status_signature": (0, 0),
+                "status_payload_text": "",
+                "preview_loaded": False,
+                "body_key": "",
+                "body_model": None,
+                "weapon_models": {},
+            }
+            weapon_swap_d3d11_available = bool(platform.system().lower() == "windows" and find_native_d3d11_host() is not None)
+            studio_preview_timer = QTimer(dialog)
+            studio_preview_timer.setSingleShot(True)
+            studio_preview_timer.setInterval(220)
+            studio_d3d11_status_timer = QTimer(dialog)
+            studio_d3d11_status_timer.setInterval(250)
+
+            def _weapon_swap_preview_body_entry() -> Optional[ArchiveEntry]:
+                for basename in WEAPON_PLACEMENT_STUDIO_BODY_PREVIEW_CANDIDATES:
+                    candidate = _original_entry_by_basename(basename)
+                    if isinstance(candidate, ArchiveEntry):
+                        return candidate
+                return None
+
+            def _weapon_swap_preview_weapon_entries(template_id: str) -> Tuple[ArchiveEntry, ...]:
+                template_key = str(template_id or "").strip().casefold()
+
+                def _path(entry: ArchiveEntry) -> str:
+                    return str(getattr(entry, "path", "") or "").replace("\\", "/").strip()
+
+                def _basename(entry: ArchiveEntry) -> str:
+                    return PurePosixPath(_path(entry)).name.casefold()
+
+                def _is_pac(entry: ArchiveEntry) -> bool:
+                    return str(getattr(entry, "extension", "") or "").strip().casefold() == ".pac"
+
+                def _is_normal_weapon_model(entry: ArchiveEntry) -> bool:
+                    name = _basename(entry)
+                    return bool(_is_pac(entry) and name and not name.endswith("_in.pac"))
+
+                def _entry_class(entry: ArchiveEntry) -> str:
+                    try:
+                        return infer_part_in_out_weapon_class(_path(entry))
+                    except Exception:
+                        return ""
+
+                selected_normal = [
+                    entry
+                    for entry in tuple(selected_entries or ())
+                    if isinstance(entry, ArchiveEntry) and _is_normal_weapon_model(entry)
+                ]
+                selected_twohand = [entry for entry in selected_normal if _entry_class(entry) == "twohand_sword"]
+                selected_onehand = [entry for entry in selected_normal if _entry_class(entry) == "onehand_sword"]
+
+                archive_normal = [
+                    entry
+                    for entry in tuple(getattr(self, "archive_entries", ()) or ())
+                    if isinstance(entry, ArchiveEntry)
+                    and not archive_entry_is_mod_package(entry)
+                    and _is_normal_weapon_model(entry)
+                ]
+
+                def _first_by_pattern(class_name: str, path_fragment: str, stem_prefix: str, limit: int) -> Tuple[ArchiveEntry, ...]:
+                    matches = [
+                        entry
+                        for entry in archive_normal
+                        if _entry_class(entry) == class_name
+                        and path_fragment in _path(entry).casefold()
+                        and _basename(entry).startswith(stem_prefix)
+                    ]
+                    matches.sort(key=lambda entry: (archive_entry_load_priority(entry), _path(entry).casefold()), reverse=True)
+                    return tuple(matches[:limit])
+
+                if template_key.startswith("dual_onehand"):
+                    ordered = []
+                    for entry in selected_onehand:
+                        if all(archive_entry_identity_key(entry) != archive_entry_identity_key(existing) for existing in ordered):
+                            ordered.append(entry)
+                        if len(ordered) >= 2:
+                            return tuple(ordered)
+                    for entry in _first_by_pattern("onehand_sword", "/weapon/1_onehandweapon/", "cd_phm_01_sword_", 2):
+                        if all(archive_entry_identity_key(entry) != archive_entry_identity_key(existing) for existing in ordered):
+                            ordered.append(entry)
+                        if len(ordered) >= 2:
+                            return tuple(ordered)
+                    return tuple(ordered)
+
+                ordered_twohand = []
+                for entry in selected_twohand:
+                    ordered_twohand.append(entry)
+                    break
+                if not ordered_twohand:
+                    ordered_twohand.extend(_first_by_pattern("twohand_sword", "/weapon/2_twohandweapon/", "cd_phm_02_sword_", 1))
+                return tuple(ordered_twohand[:1])
+
+            def _studio_preview_status(message: str, *, fallback: bool = False) -> None:
+                color = "#fbbf24" if fallback else "#6ee7b7"
+                preview_status_label.setText(f"<span style='color:{color};font-weight:700;'>Preview source:</span> {escape(str(message or ''))}")
+                preview_diagnostics_label.setText(f"Preview diagnostics: {message}")
+                if fallback:
+                    preview_stack.setCurrentWidget(preview_widget)
+
+            def _studio_d3d11_theme_payload() -> Dict[str, str]:
+                theme = get_theme(self.current_theme_key)
+                return {
+                    "background": str(theme["preview_bg"]),
+                    "text": str(theme["text_muted"]),
+                }
+
+            def _studio_d3d11_cleanup_package(package_dir: object, *, delay_ms: int = 0) -> None:
+                if package_dir is None:
                     return
-                self._open_archive_socket_xml_editor_dialog(socket_entry, owner=dialog)
+                try:
+                    package_path = Path(package_dir)
+                except TypeError:
+                    return
 
-            def _copy_from_donor() -> None:
-                donor = self._open_archive_attachment_donor_picker_dialog(dialog, source_entry)
-                if isinstance(donor, ArchiveEntry):
-                    self._open_archive_attachment_placement_diff_dialog(source_entry, donor)
+                def _remove() -> None:
+                    try:
+                        shutil.rmtree(package_path, ignore_errors=True)
+                    except OSError:
+                        pass
 
-            copy_button.clicked.connect(lambda _checked=False: _copy_from_donor())
-            edit_socket_button.clicked.connect(lambda _checked=False: _edit_socket_xml())
-            tree.currentItemChanged.connect(lambda _current, _previous: _refresh_socket_editor_state())
-            family_button.clicked.connect(lambda _checked=False, current_entry=source_entry: self._open_archive_asset_family_workspace_dialog(current_entry))
-            close_button.clicked.connect(dialog.accept)
-            _refresh_socket_editor_state()
+                if delay_ms > 0:
+                    QTimer.singleShot(int(delay_ms), _remove)
+                else:
+                    _remove()
+
+            def _studio_d3d11_stop_worker() -> None:
+                worker = studio_preview_state.get("package_worker")
+                if isinstance(worker, AlignmentD3D11PackageWorker):
+                    worker.stop()
+
+            def _studio_d3d11_stop_process() -> None:
+                process = studio_preview_state.get("process")
+                package_dir = studio_preview_state.get("active_package")
+                studio_preview_state["process"] = None
+                studio_preview_state["active_package"] = None
+                studio_preview_state["status_file"] = None
+                studio_preview_state["status_signature"] = (0, 0)
+                studio_preview_state["status_payload_text"] = ""
+                studio_preview_state["preview_loaded"] = False
+                studio_d3d11_status_timer.stop()
+                if not isinstance(process, QProcess):
+                    _studio_d3d11_cleanup_package(package_dir)
+                    return
+                try:
+                    process.disconnect()
+                except (RuntimeError, TypeError):
+                    pass
+                try:
+                    if process.state() != QProcess.NotRunning:
+                        process.terminate()
+                        QTimer.singleShot(1200, lambda process=process: self._kill_archive_isolated_renderer_process_if_running(process))
+                        _studio_d3d11_cleanup_package(package_dir, delay_ms=5000)
+                    else:
+                        _studio_d3d11_cleanup_package(package_dir)
+                    process.deleteLater()
+                except RuntimeError:
+                    _studio_d3d11_cleanup_package(package_dir)
+
+            def _studio_d3d11_hard_error(message: str) -> None:
+                detail = str(message or "Native D3D11 placement preview failed.").strip()
+                d3d11_status_label.setText(detail)
+                _studio_preview_status(f"2D estimate; {detail}", fallback=True)
+
+            def _studio_d3d11_poll_status() -> None:
+                status_file = studio_preview_state.get("status_file")
+                if not isinstance(status_file, Path):
+                    return
+                try:
+                    stat = status_file.stat()
+                except OSError:
+                    if bool(studio_preview_state.get("preview_loaded")):
+                        d3d11_status_label.setText("Native D3D11 placement preview loaded.")
+                    return
+                signature = _d3d11_status_file_signature(stat)
+                try:
+                    payload_text = status_file.read_text(encoding="utf-8")
+                except Exception as exc:
+                    d3d11_status_label.setText(f"Native D3D11 status read failed: {exc}")
+                    return
+                if (
+                    signature == studio_preview_state.get("status_signature", (0, 0))
+                    and payload_text == str(studio_preview_state.get("status_payload_text", "") or "")
+                ):
+                    return
+                studio_preview_state["status_signature"] = signature
+                studio_preview_state["status_payload_text"] = payload_text
+                try:
+                    payload = json.loads(payload_text)
+                except Exception as exc:
+                    d3d11_status_label.setText(f"Native D3D11 status read failed: {exc}")
+                    return
+                if not isinstance(payload, Mapping):
+                    return
+                event = str(payload.get("event", "") or "").strip().lower()
+                if event == "loaded":
+                    studio_preview_state["preview_loaded"] = True
+                    native_preview_widget.set_display_mode("overlay")
+                    native_preview_widget.set_render_tuning(self._current_model_preview_render_settings())
+                    d3d11_status_label.setText("Native D3D11 placement preview loaded. Drag/rotate the view to inspect hip and back clearance.")
+                    _studio_preview_status("Native D3D11 PAC body plus weapon PAC placement preview.")
+                elif event == "loading":
+                    if not bool(studio_preview_state.get("preview_loaded")):
+                        d3d11_status_label.setText(str(payload.get("message", "") or "Loading native D3D11 placement preview..."))
+                elif event == "error":
+                    studio_preview_state["preview_loaded"] = False
+                    _studio_d3d11_hard_error(str(payload.get("message", "") or "Native D3D11 placement renderer error."))
+
+            def _studio_d3d11_start_process(package_dir: Path) -> None:
+                status_file = package_dir / "host_status.json"
+                try:
+                    status_file.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                existing_process = studio_preview_state.get("process")
+                if isinstance(existing_process, QProcess) and existing_process.state() != QProcess.NotRunning:
+                    previous_package = studio_preview_state.get("active_package")
+                    studio_preview_state["active_package"] = package_dir
+                    studio_preview_state["status_file"] = status_file
+                    studio_preview_state["status_signature"] = (0, 0)
+                    studio_preview_state["status_payload_text"] = ""
+                    studio_preview_state["preview_loaded"] = False
+                    if native_preview_widget.load_package(package_dir, status_file, reset_view=False):
+                        native_preview_widget.set_display_mode("overlay")
+                        native_preview_widget.set_render_tuning(self._current_model_preview_render_settings())
+                        _studio_d3d11_cleanup_package(previous_package, delay_ms=5000)
+                        studio_d3d11_status_timer.start()
+                        preview_stack.setCurrentWidget(d3d11_page)
+                        d3d11_status_label.setText("Reloading native D3D11 placement preview...")
+                        return
+                    studio_preview_state["active_package"] = previous_package
+                _studio_d3d11_stop_process()
+                studio_preview_state["active_package"] = package_dir
+                studio_preview_state["status_file"] = status_file
+                studio_preview_state["status_signature"] = (0, 0)
+                studio_preview_state["status_payload_text"] = ""
+                studio_preview_state["preview_loaded"] = False
+                process = QProcess(dialog)
+                try:
+                    program, arguments = self._native_d3d11_renderer_command(
+                        package_dir,
+                        status_file,
+                        host_widget=native_preview_widget,
+                        theme_payload=_studio_d3d11_theme_payload(),
+                    )
+                except Exception as exc:
+                    _studio_d3d11_hard_error(f"Native D3D11 unavailable: {exc}")
+                    _studio_d3d11_cleanup_package(package_dir)
+                    return
+                process.setProgram(program)
+                process.setArguments(arguments)
+                try:
+                    process.setWorkingDirectory(str(Path(__file__).resolve().parents[2]))
+                except Exception:
+                    pass
+                process.setProcessChannelMode(QProcess.SeparateChannels)
+                process.readyReadStandardError.connect(
+                    lambda process=process: d3d11_status_label.setText(
+                        "Native D3D11 stderr: "
+                        + bytes(process.readAllStandardError()).decode("utf-8", errors="replace").strip()[-300:]
+                    )
+                    if process is studio_preview_state.get("process")
+                    else None
+                )
+                process.finished.connect(lambda exit_code, exit_status, process=process: _studio_d3d11_finished(process, exit_code, exit_status))
+                process.errorOccurred.connect(
+                    lambda error, process=process: _studio_d3d11_hard_error(f"Native D3D11 process error: {error}")
+                    if process is studio_preview_state.get("process")
+                    else None
+                )
+                studio_preview_state["process"] = process
+                preview_stack.setCurrentWidget(d3d11_page)
+                d3d11_status_label.setText("Starting native D3D11 placement preview...")
+                studio_d3d11_status_timer.start()
+                process.start()
+
+            def _studio_d3d11_finished(process: QProcess, exit_code: int, exit_status: object) -> None:
+                if process is not studio_preview_state.get("process"):
+                    return
+                _studio_d3d11_poll_status()
+                studio_preview_state["process"] = None
+                studio_d3d11_status_timer.stop()
+                package_dir = studio_preview_state.get("active_package")
+                studio_preview_state["active_package"] = None
+                studio_preview_state["status_file"] = None
+                _studio_d3d11_cleanup_package(package_dir)
+                if int(exit_code) != 0:
+                    _studio_d3d11_hard_error(f"Native D3D11 exited with code {int(exit_code)} ({exit_status}).")
+
+            def _studio_d3d11_package_ready(request_id: int, package_dir_object: object, prepare_ms: float, package_ms: float) -> None:
+                try:
+                    package_dir = Path(package_dir_object)
+                except TypeError:
+                    return
+                if int(request_id) != int(studio_preview_state.get("request_id", 0) or 0):
+                    _studio_d3d11_cleanup_package(package_dir)
+                    return
+                d3d11_status_label.setText(f"Native D3D11 package ready: prepare {prepare_ms:.0f} ms, package {package_ms:.0f} ms.")
+                _studio_d3d11_start_process(package_dir)
+
+            def _studio_d3d11_package_error(request_id: int, message: str) -> None:
+                if int(request_id) != int(studio_preview_state.get("request_id", 0) or 0):
+                    return
+                _studio_d3d11_hard_error(f"Native D3D11 package failed: {message}")
+
+            def _studio_d3d11_package_finished() -> None:
+                studio_preview_state["package_thread"] = None
+                studio_preview_state["package_worker"] = None
+                if bool(studio_preview_state.get("pending")) and not bool(studio_preview_state.get("closed")):
+                    studio_preview_state["pending"] = False
+                    QTimer.singleShot(0, _queue_weapon_swap_studio_preview_refresh)
+
+            def _studio_d3d11_start_package_worker(model: ModelPreviewData) -> None:
+                if not weapon_swap_d3d11_available:
+                    _studio_preview_status("2D estimate; native D3D11 preview host is unavailable.", fallback=True)
+                    return
+                if isinstance(studio_preview_state.get("package_thread"), QThread):
+                    studio_preview_state["pending"] = True
+                    _studio_d3d11_stop_worker()
+                    d3d11_status_label.setText("Queued latest native D3D11 placement preview...")
+                    return
+                request_id = int(studio_preview_state.get("request_id", 0) or 0)
+                settings = dataclasses.replace(self._current_model_preview_render_settings())
+                settings.disable_all_support_maps = True
+                settings.disable_normal_map = True
+                settings.disable_material_map = True
+                settings.disable_height_map = True
+                worker = AlignmentD3D11PackageWorker(
+                    request_id,
+                    model,
+                    clamp_model_preview_render_settings(settings),
+                    use_textures=False,
+                    high_quality_textures=False,
+                    enable_material_combiner=False,
+                    original_reference_material_parity=False,
+                    display_mode="overlay",
+                    editor_workspace="placement_visual",
+                )
+                thread = QThread(dialog)
+                worker.moveToThread(thread)
+                thread.started.connect(worker.run)
+                worker.completed.connect(_studio_d3d11_package_ready)
+                worker.error.connect(_studio_d3d11_package_error)
+                worker.finished.connect(thread.quit)
+                worker.finished.connect(worker.deleteLater)
+                thread.finished.connect(thread.deleteLater)
+                thread.finished.connect(_studio_d3d11_package_finished)
+                studio_preview_state["package_worker"] = worker
+                studio_preview_state["package_thread"] = thread
+                d3d11_status_label.setText("Preparing native D3D11 placement preview package...")
+                thread.start()
+
+            studio_d3d11_status_timer.timeout.connect(_studio_d3d11_poll_status)
+
+            def _weapon_swap_studio_proxy_anchor(
+                row: WeaponSwapSocketRow,
+                base_by_name: Mapping[str, WeaponSwapSocketRow],
+                template_id: str,
+            ) -> Tuple[float, float, float]:
+                if str(template_id or "").startswith("dual_onehand"):
+                    return (
+                        float(row.translation[0]) * 1.35,
+                        0.24 + (float(row.translation[2]) * 0.82),
+                        float(row.translation[1]) * 0.82,
+                    )
+                base = base_by_name.get(str(row.name or "").casefold())
+                dx = dy = dz = 0.0
+                if isinstance(base, WeaponSwapSocketRow):
+                    dx = float(row.translation[0]) - float(base.translation[0])
+                    dy = float(row.translation[1]) - float(base.translation[1])
+                    dz = float(row.translation[2]) - float(base.translation[2])
+                return (-0.28 + dx, -0.18 + dz, -0.12 + dy)
+
+            def _weapon_swap_studio_render_rows(
+                rows: Sequence[WeaponSwapSocketRow],
+                template_id: str,
+            ) -> Tuple[WeaponSwapSocketRow, ...]:
+                valid_rows = tuple(row for row in rows if isinstance(row, WeaponSwapSocketRow))
+                if str(template_id or "").startswith("dual_onehand"):
+                    return tuple(row for row in valid_rows if str(row.name or "").startswith("Spine2_")) or valid_rows[:2]
+                preferred = tuple(row for row in valid_rows if "subweapon" in str(row.name or "").casefold())
+                return (preferred or valid_rows)[:1]
+
+            def _weapon_swap_studio_proxy_weapon_meshes(
+                rows: Sequence[WeaponSwapSocketRow],
+                template_id: str,
+                *,
+                show_shield: bool,
+            ) -> List[ModelPreviewMesh]:
+                meshes: List[ModelPreviewMesh] = []
+                try:
+                    base_rows = weapon_swap_template_socket_rows(template_id)
+                except Exception:
+                    base_rows = ()
+                base_by_name = {str(row.name or "").casefold(): row for row in base_rows if isinstance(row, WeaponSwapSocketRow)}
+                long_weapon = not str(template_id or "").startswith("dual_onehand")
+                source_index = 7000
+                for row in _weapon_swap_studio_render_rows(rows, template_id):
+                    source_index += 1
+                    anchor = _weapon_swap_studio_proxy_anchor(row, base_by_name, template_id)
+                    rotation = tuple(float(value) for value in tuple(row.rotation or (0.0, 0.0, 0.0, 1.0))[:4])
+                    length = 0.88 if long_weapon else 0.62
+                    blade_length = length * 0.68
+                    grip_length = length * 0.20
+                    label = str(row.name or "weapon").replace("_Socket", "").replace("_ChildSocket", "")
+                    parts = (
+                        ("sheath", (0.0, (length * 0.46), -0.018), (0.070 if long_weapon else 0.055, length * 0.92, 0.040), (0.20, 0.24, 0.29), "original_reference"),
+                        ("blade", (0.0, grip_length + (blade_length * 0.52), 0.0), (0.032 if long_weapon else 0.026, blade_length, 0.014), (0.22, 0.78, 0.54), "replacement_preview"),
+                        ("grip", (0.0, grip_length * 0.45, 0.0), (0.026, grip_length, 0.026), (0.92, 0.60, 0.20), "replacement_preview"),
+                        ("guard", (0.0, grip_length, 0.0), (0.150 if long_weapon else 0.120, 0.020, 0.024), (0.95, 0.70, 0.28), "replacement_preview"),
+                    )
+                    for part_name, center, size, color, role in parts:
+                        meshes.append(
+                            self._attachment_visual_oriented_box_mesh(
+                                f"weapon swap {label} {part_name}",
+                                center=center,
+                                size=size,
+                                offset=anchor,
+                                rotation=rotation,
+                                color=color,
+                                source_submesh_index=source_index,
+                                preview_role=role,
+                            )
+                        )
+                if show_shield and str(template_id or "").startswith("dual_onehand"):
+                    meshes.append(
+                        self._attachment_visual_oriented_box_mesh(
+                            "weapon swap shield clearance guide",
+                            center=(0.0, 0.30, -0.34),
+                            size=(0.52, 0.58, 0.030),
+                            offset=(0.0, 0.0, 0.0),
+                            rotation=(0.0, 0.0, 0.0, 1.0),
+                            color=(0.50, 0.12, 0.12),
+                            source_submesh_index=-1,
+                            preview_role="original_reference",
+                        )
+                    )
+                return meshes
+
+            def _weapon_swap_studio_actual_weapon_meshes(
+                rows: Sequence[WeaponSwapSocketRow],
+                template_id: str,
+                weapon_models: Sequence[ModelPreviewData],
+            ) -> List[ModelPreviewMesh]:
+                render_rows = _weapon_swap_studio_render_rows(rows, template_id)
+                models = tuple(model for model in tuple(weapon_models or ()) if isinstance(model, ModelPreviewData))
+                if not render_rows or not models:
+                    return []
+                try:
+                    base_rows = weapon_swap_template_socket_rows(template_id)
+                except Exception:
+                    base_rows = ()
+                base_by_name = {str(row.name or "").casefold(): row for row in base_rows if isinstance(row, WeaponSwapSocketRow)}
+                long_weapon = not str(template_id or "").startswith("dual_onehand")
+                model_scale = 0.92 if long_weapon else 0.64
+                pivot = (0.0, -0.38 if long_weapon else -0.30, 0.0)
+                placement_scale = 1.0
+                meshes: List[ModelPreviewMesh] = []
+                source_base = 8100
+                for row_index, row in enumerate(render_rows):
+                    model = models[min(row_index, len(models) - 1)]
+                    anchor = _weapon_swap_studio_proxy_anchor(row, base_by_name, template_id)
+                    rotation = tuple(float(value) for value in tuple(row.rotation or (0.0, 0.0, 0.0, 1.0))[:4])
+                    tint = (0.22, 0.78, 0.54) if row_index == 0 else (0.32, 0.65, 0.95)
+                    cloned = self._attachment_visual_clone_model_meshes(
+                        model,
+                        offset=anchor,
+                        pivot=pivot,
+                        rotation=rotation,
+                        color=tint,
+                        clear_textures=True,
+                        label_prefix=f"weapon swap actual {row.name}",
+                        placement_scale=placement_scale,
+                        use_raw_model_space=False,
+                        max_vertices=36_000,
+                        model_scale=model_scale,
+                    )
+                    for mesh_index, mesh in enumerate(cloned):
+                        mesh.source_submesh_index = source_base + (row_index * 100) + mesh_index
+                        mesh.preview_role = "replacement_preview"
+                    meshes.extend(cloned)
+                return meshes
+
+            def _build_weapon_swap_studio_native_preview_model(
+                body_model: Optional[ModelPreviewData],
+                *,
+                rows: Sequence[WeaponSwapSocketRow],
+                template_id: str,
+                show_shield: bool,
+                body_source_path: str,
+                weapon_models: Sequence[ModelPreviewData] = (),
+                weapon_source_paths: Sequence[str] = (),
+            ) -> Optional[ModelPreviewData]:
+                meshes: List[ModelPreviewMesh] = []
+                if isinstance(body_model, ModelPreviewData):
+                    meshes.extend(
+                        self._attachment_visual_clone_model_meshes(
+                            body_model,
+                            offset=(0.0, 0.0, 0.0),
+                            pivot=(0.0, 0.0, 0.0),
+                            rotation=(0.0, 0.0, 0.0, 1.0),
+                            color=(0.58, 0.60, 0.64),
+                            clear_textures=False,
+                            label_prefix="weapon swap body",
+                            placement_scale=1.0,
+                            use_raw_model_space=False,
+                            max_vertices=90_000,
+                            model_scale=1.0,
+                        )
+                    )
+                if not meshes:
+                    meshes.extend(self._attachment_visual_body_proxy_meshes((), ()))
+                actual_weapon_meshes = _weapon_swap_studio_actual_weapon_meshes(rows, template_id, weapon_models)
+                if actual_weapon_meshes:
+                    meshes.extend(actual_weapon_meshes)
+                    if show_shield and str(template_id or "").startswith("dual_onehand"):
+                        meshes.extend(_weapon_swap_studio_proxy_weapon_meshes((), template_id, show_shield=True))
+                else:
+                    meshes.extend(_weapon_swap_studio_proxy_weapon_meshes(rows, template_id, show_shield=show_shield))
+                for index, mesh in enumerate(meshes):
+                    if isinstance(mesh, ModelPreviewMesh) and int(getattr(mesh, "source_submesh_index", -1) or -1) < 0:
+                        mesh.source_submesh_index = index
+                vertex_count = sum(len(mesh.positions) for mesh in meshes if isinstance(mesh, ModelPreviewMesh))
+                face_count = sum(len(mesh.indices) // 3 for mesh in meshes if isinstance(mesh, ModelPreviewMesh))
+                if not meshes or vertex_count <= 0:
+                    return None
+                return ModelPreviewData(
+                    path="weapon-placement-studio-preview",
+                    format="weapon-placement-studio-preview",
+                    summary=(
+                        "Weapon Placement Studio preview\n"
+                        f"Body context: {body_source_path or 'technical proxy'}\n"
+                        f"Weapon context: {', '.join(str(path) for path in tuple(weapon_source_paths or ())[:3]) or 'proxy geometry'}\n"
+                        "Green/blue weapon geometry is planned socket placement; dark geometry is sheath/clearance context. "
+                        "Preview assets are never exported into the mod package."
+                    ),
+                    mesh_count=len(meshes),
+                    vertex_count=vertex_count,
+                    face_count=face_count,
+                    normalization_center=(0.0, 0.0, 0.0),
+                    normalization_scale=1.0,
+                    meshes=meshes,
+                )
+
+            def _start_weapon_swap_studio_preview_refresh() -> None:
+                if bool(studio_preview_state.get("closed")):
+                    return
+                rows_snapshot = _current_socket_rows()
+                template_id_snapshot = _template().template_id
+                show_shield_snapshot = bool(show_shield_checkbox.isChecked())
+                preview_widget.set_view_mode(preview_view_combo.currentData())
+                preview_widget.set_preview_state(
+                    template_id=template_id_snapshot,
+                    rows=rows_snapshot,
+                    show_shield=show_shield_snapshot,
+                )
+                body_entry = _weapon_swap_preview_body_entry()
+                if not weapon_swap_d3d11_available:
+                    studio_preview_state["body_key"] = ""
+                    studio_preview_state["body_model"] = None
+                    _studio_preview_status("2D estimate; native D3D11 preview host is unavailable.", fallback=True)
+                    return
+                if not isinstance(body_entry, ArchiveEntry):
+                    studio_preview_state["body_key"] = ""
+                    studio_preview_state["body_model"] = None
+                    _studio_preview_status("2D estimate; no preview body PAC found in the loaded archive.", fallback=True)
+                    return
+                if bool(studio_preview_state.get("active")):
+                    studio_preview_state["pending"] = True
+                    return
+                studio_preview_state["active"] = True
+                studio_preview_state["request_id"] = int(studio_preview_state.get("request_id", 0) or 0) + 1
+                request_id = int(studio_preview_state["request_id"])
+                body_key_snapshot = repr(archive_entry_identity_key(body_entry))
+                body_model_snapshot = (
+                    studio_preview_state.get("body_model")
+                    if str(studio_preview_state.get("body_key", "") or "") == body_key_snapshot
+                    else None
+                )
+                weapon_entries_snapshot = _weapon_swap_preview_weapon_entries(template_id_snapshot)
+                weapon_model_cache_snapshot = dict(studio_preview_state.get("weapon_models") or {})
+                texconv_text_snapshot = self.texconv_path_edit.text().strip()
+                texconv_path_snapshot = Path(texconv_text_snapshot).expanduser() if texconv_text_snapshot else None
+                preview_settings_snapshot = dataclasses.replace(self._current_model_preview_render_settings())
+                preview_settings_snapshot.disable_all_support_maps = True
+                preview_settings_snapshot.disable_normal_map = True
+                preview_settings_snapshot.disable_material_map = True
+                preview_settings_snapshot.disable_height_map = True
+                texture_entries_by_normalized_path_snapshot = self.archive_entries_by_normalized_path
+                texture_entries_by_basename_snapshot = self.archive_entries_by_basename
+                sidecar_entries_by_texture_path_snapshot = self.archive_sidecar_entries_by_texture_path
+                sidecar_entries_by_texture_basename_snapshot = self.archive_sidecar_entries_by_texture_basename
+                if isinstance(body_model_snapshot, ModelPreviewData):
+                    _studio_preview_status(f"refreshing PAC overlay for {body_entry.basename}...")
+                else:
+                    preview_stack.setCurrentWidget(preview_widget)
+                    _studio_preview_status(f"loading PAC body preview from {body_entry.basename}...", fallback=True)
+
+                def _preview_task() -> dict:
+                    updated_weapon_cache = dict(weapon_model_cache_snapshot)
+
+                    def _build_preview_model_for_entry(source_entry: ArchiveEntry) -> Optional[ModelPreviewData]:
+                        preview = build_archive_preview_result(
+                            texconv_path_snapshot,
+                            source_entry,
+                            texture_entries_by_normalized_path=texture_entries_by_normalized_path_snapshot,
+                            texture_entries_by_basename=texture_entries_by_basename_snapshot,
+                            sidecar_entries_by_texture_path=sidecar_entries_by_texture_path_snapshot,
+                            sidecar_entries_by_texture_basename=sidecar_entries_by_texture_basename_snapshot,
+                            visible_texture_mode=preview_settings_snapshot.visible_texture_mode,
+                            quality_tier="fast",
+                        )
+                        model = getattr(preview, "preview_model", None)
+                        return model if isinstance(model, ModelPreviewData) else None
+
+                    body_model = body_model_snapshot
+                    if not isinstance(body_model, ModelPreviewData):
+                        body_model = _build_preview_model_for_entry(body_entry)
+                    if not isinstance(body_model, ModelPreviewData):
+                        return {"status": "fallback", "message": f"{body_entry.basename} did not produce renderable geometry."}
+                    weapon_models: List[ModelPreviewData] = []
+                    weapon_source_paths: List[str] = []
+                    for weapon_entry in tuple(weapon_entries_snapshot or ()):
+                        if not isinstance(weapon_entry, ArchiveEntry):
+                            continue
+                        weapon_key = repr(archive_entry_identity_key(weapon_entry))
+                        weapon_model = updated_weapon_cache.get(weapon_key)
+                        if not isinstance(weapon_model, ModelPreviewData):
+                            weapon_model = _build_preview_model_for_entry(weapon_entry)
+                        if isinstance(weapon_model, ModelPreviewData):
+                            updated_weapon_cache[weapon_key] = weapon_model
+                            weapon_models.append(weapon_model)
+                            weapon_source_paths.append(str(weapon_entry.path or ""))
+                    preview_model = _build_weapon_swap_studio_native_preview_model(
+                        body_model,
+                        rows=rows_snapshot,
+                        template_id=template_id_snapshot,
+                        show_shield=show_shield_snapshot,
+                        body_source_path=body_entry.path,
+                        weapon_models=weapon_models,
+                        weapon_source_paths=weapon_source_paths,
+                    )
+                    if not isinstance(preview_model, ModelPreviewData):
+                        return {"status": "fallback", "message": "PAC preview model could not be assembled."}
+                    return {
+                        "status": "native",
+                        "model": preview_model,
+                        "body_model": body_model,
+                        "body_key": body_key_snapshot,
+                        "body_path": body_entry.path,
+                        "body_name": body_entry.basename,
+                        "weapon_names": tuple(entry.basename for entry in tuple(weapon_entries_snapshot or ()) if isinstance(entry, ArchiveEntry)),
+                        "weapon_models": updated_weapon_cache,
+                    }
+
+                worker = VisualPlacementPreviewWorker(request_id, _preview_task)
+                thread = QThread(dialog)
+                worker.moveToThread(thread)
+                thread.started.connect(worker.run)
+
+                def _preview_complete(done_request_id: int, payload: object) -> None:
+                    if bool(studio_preview_state.get("closed")) or int(done_request_id) != int(studio_preview_state.get("request_id", 0) or 0):
+                        return
+                    if not isinstance(payload, Mapping) or payload.get("status") != "native":
+                        message = str(payload.get("message", "PAC preview unavailable.") if isinstance(payload, Mapping) else "PAC preview unavailable.")
+                        _studio_preview_status(f"2D estimate; {message}", fallback=True)
+                        return
+                    model = payload.get("model")
+                    if not isinstance(model, ModelPreviewData):
+                        _studio_preview_status("2D estimate; PAC preview returned no renderable model.", fallback=True)
+                        return
+                    studio_preview_state["body_model"] = payload.get("body_model")
+                    studio_preview_state["body_key"] = str(payload.get("body_key", "") or "")
+                    weapon_models_payload = payload.get("weapon_models")
+                    if isinstance(weapon_models_payload, Mapping):
+                        studio_preview_state["weapon_models"] = dict(weapon_models_payload)
+                    preview_stack.setCurrentWidget(d3d11_page)
+                    weapon_names = tuple(str(name or "") for name in tuple(payload.get("weapon_names", ()) or ()) if str(name or "").strip())
+                    weapon_note = f" and weapon PAC {', '.join(weapon_names[:2])}" if weapon_names else " with proxy weapon geometry"
+                    _studio_preview_status(f"PAC body {payload.get('body_name') or 'body'}{weapon_note}; building native D3D11 view.")
+                    _studio_d3d11_start_package_worker(model)
+
+                def _preview_error(done_request_id: int, message: str) -> None:
+                    if bool(studio_preview_state.get("closed")) or int(done_request_id) != int(studio_preview_state.get("request_id", 0) or 0):
+                        return
+                    _studio_preview_status(f"2D estimate; PAC preview failed: {message}", fallback=True)
+
+                def _preview_finished(_done_request_id: int) -> None:
+                    studio_preview_state["active"] = False
+                    studio_preview_state["thread"] = None
+                    studio_preview_state["worker"] = None
+                    if bool(studio_preview_state.get("pending")) and not bool(studio_preview_state.get("closed")):
+                        studio_preview_state["pending"] = False
+                        QTimer.singleShot(0, _queue_weapon_swap_studio_preview_refresh)
+
+                worker.completed.connect(_preview_complete)
+                worker.error.connect(_preview_error)
+                worker.finished.connect(_preview_finished)
+                worker.finished.connect(thread.quit)
+                worker.finished.connect(worker.deleteLater)
+                thread.finished.connect(thread.deleteLater)
+                studio_preview_state["thread"] = thread
+                studio_preview_state["worker"] = worker
+                thread.start()
+
+            def _queue_weapon_swap_studio_preview_refresh() -> None:
+                if not bool(studio_preview_state.get("closed")):
+                    studio_preview_timer.start()
+
+            studio_preview_timer.timeout.connect(_start_weapon_swap_studio_preview_refresh)
+
+            def _global_xml_alias_spec(
+                entry_for_alias: Optional[ArchiveEntry],
+                payload_text: str,
+                alias_path: str,
+                *,
+                kind: str,
+            ) -> Optional[MeshImportSupplementalFileSpec]:
+                if not isinstance(entry_for_alias, ArchiveEntry) or not str(payload_text or "").strip():
+                    return None
+                current_key = str(entry_for_alias.path or "").replace("\\", "/").strip().strip("/").casefold()
+                alias_clean = str(alias_path or "").replace("\\", "/").strip().strip("/")
+                if not alias_clean or alias_clean.casefold() == current_key:
+                    return None
+                return MeshImportSupplementalFileSpec(
+                    source_path=Path(alias_clean),
+                    target_path=alias_clean,
+                    kind=kind,
+                    payload_data=str(payload_text or "").encode("utf-8"),
+                    note="Weapon Placement Studio CDUMM alias.",
+                )
+
+            def _add_twohand_motion_aliases(
+                requests_by_path: Dict[str, ArchivePatchRequest],
+                log: Callable[[str], None],
+            ) -> int:
+                entries_by_path = _original_entries_by_path()
+                twohand_actionchart_entry = _original_entry_by_virtual_path("actionchart/bin__/upperaction/1_pc/1_phm/twohandsword_upper.paac")
+                if not isinstance(twohand_actionchart_entry, ArchiveEntry):
+                    log("Skip 2H motion aliases: original twohandsword_upper.paac was not found.")
+                    return 0
+                twohand_actionchart_data = _read_entry_bytes(twohand_actionchart_entry)
+                ride_actionchart_entry = _original_entry_by_virtual_path("actionchart/bin__/upperaction/1_pc/1_phm/ride_weapon_twohandsword_upper.paac")
+                longsword_actionchart_entry = _original_entry_by_virtual_path("actionchart/bin__/upperaction/1_pc/1_phm/longsword_upper.paac")
+                weaponin_actionchart_entry = _original_entry_by_virtual_path("actionchart/bin__/upperaction/1_pc/1_phm/basic_upper_weaponin.paac")
+                alias_plan = build_universal_twohand_sword_animation_alias_plan(
+                    twohand_actionchart_data,
+                    _read_entry_bytes(ride_actionchart_entry) if isinstance(ride_actionchart_entry, ArchiveEntry) else b"",
+                    available_paths=tuple(entry.path for entry in entries_by_path.values()),
+                    longsword_actionchart_data=_read_entry_bytes(longsword_actionchart_entry) if isinstance(longsword_actionchart_entry, ArchiveEntry) else b"",
+                    weaponin_actionchart_data=_read_entry_bytes(weaponin_actionchart_entry) if isinstance(weaponin_actionchart_entry, ArchiveEntry) else b"",
+                )
+                if not isinstance(alias_plan, AttachmentAnimationAliasPlanResult) or alias_plan.blocking_reason:
+                    log(f"Skip 2H motion aliases: {getattr(alias_plan, 'blocking_reason', '') or 'planning failed'}")
+                    return 0
+                written = 0
+                for pair in tuple(alias_plan.pairs or ()):
+                    source_key = str(pair.source_path or "").replace("\\", "/").strip().strip("/").casefold()
+                    target_key = str(pair.target_path or "").replace("\\", "/").strip().strip("/").casefold()
+                    source_entry = entries_by_path.get(source_key)
+                    target_entry = entries_by_path.get(target_key)
+                    if not isinstance(source_entry, ArchiveEntry) or not isinstance(target_entry, ArchiveEntry):
+                        continue
+                    requests_by_path[target_key] = ArchivePatchRequest(target_entry, _read_entry_bytes(source_entry))
+                    written += 1
+                log(f"Added {written:,} universal 2H sword motion alias payload(s).")
+                return written
+
+            def _add_dual_motion_aliases(
+                requests_by_path: Dict[str, ArchivePatchRequest],
+                log: Callable[[str], None],
+            ) -> int:
+                alias_pairs = (
+                    ("character/motion/1_pc/1_phm/cd_phm_lswd_00_01_nor_std_weapon_in_longtype_00.paa", "character/motion/1_pc/1_phm/cd_phm_dlsd_00_01_nor_std_weapon_in_longtype_00.paa"),
+                    ("character/motion/1_pc/1_phm/cd_phm_lswd_00_01_sit_std_weapon_in_00.paa", "character/motion/1_pc/1_phm/cd_phm_dlsd_00_01_sit_std_weapon_in_00.paa"),
+                    ("character/motion/1_pc/1_phm/cd_phm_lswd_00_01_sit_std_weapon_out_00.paa", "character/motion/1_pc/1_phm/cd_phm_dlsd_00_01_sit_std_weapon_out_00.paa"),
+                    ("character/motion/1_pc/1_phm/cd_phm_lswd_01_01_alert_nor_std_weapon_out_00.paa", "character/motion/1_pc/1_phm/cd_phm_dlsd_01_01_alert_nor_std_weapon_out_00.paa"),
+                    ("character/motion/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_weapon_out_000.paa", "character/motion/1_pc/1_phm/cd_phm_dualsword_00_01_nor_stand_weapon_out_00.paa"),
+                    ("character/motion/1_pc/1_phm/cd_phm_lswd_00_01_sit_std_weapon_in_00.paa", "character/motion/1_pc/1_phm/cd_phm_swds_00_01_sit_std_weapon_in_00.paa"),
+                    ("character/motion/1_pc/1_phm/cd_phm_lswd_00_01_sit_std_weapon_out_00.paa", "character/motion/1_pc/1_phm/cd_phm_swds_00_01_sit_std_weapon_out_00.paa"),
+                )
+                entries_by_path = _original_entries_by_path()
+                written = 0
+                for source_path, target_path in alias_pairs:
+                    for source_virtual, target_virtual in (
+                        (source_path, target_path),
+                        (
+                            "actionchart/bin__/animmeta/1_pc/1_phm/" + PurePosixPath(source_path).name + "_metabin",
+                            "actionchart/bin__/animmeta/1_pc/1_phm/" + PurePosixPath(target_path).name + "_metabin",
+                        ),
+                    ):
+                        source_key = source_virtual.replace("\\", "/").strip().strip("/").casefold()
+                        target_key = target_virtual.replace("\\", "/").strip().strip("/").casefold()
+                        source_entry = entries_by_path.get(source_key)
+                        target_entry = entries_by_path.get(target_key)
+                        if not isinstance(source_entry, ArchiveEntry) or not isinstance(target_entry, ArchiveEntry):
+                            continue
+                        requests_by_path[target_key] = ArchivePatchRequest(target_entry, _read_entry_bytes(source_entry))
+                        written += 1
+                log(f"Added {written:,} dual 1H back draw/stow motion alias payload(s).")
+                return written
+
+            def _plan_lines_for_template(template: WeaponSwapTemplate, scope: str) -> Tuple[Tuple[str, str, str, str], ...]:
+                if scope != WEAPON_SWAP_TEMPLATE_CLASS_SCOPE:
+                    return (
+                        (
+                            "Open existing placement builder",
+                            getattr(current_entry, "path", "selected target") if isinstance(current_entry, ArchiveEntry) else "selected target",
+                            "target-owned prefab/socket package",
+                            "Selected PAC and selected rows use the current proven placement workflow in v1.",
+                        ),
+                    )
+                if template.template_id == "custom_selected_pac":
+                    return (("Unavailable for class-wide scope", "-", "-", "Choose Selected PAC or Selected archive rows."),)
+                lines = [
+                    ("Patch descriptor XML", "phm_description_player_kliff.xml", "placement descriptor", "No ItemInfo or PAAC graph writes."),
+                ]
+                if template.template_id.startswith("twohand_sword"):
+                    lines.append(("Patch 2H sword socket XML", "cd_phm_02_sword_0001*.sockets.xml", "socket transforms", "45 degree learned hip tilt."))
+                    if template.includes_motion_aliases and template.template_id != "twohand_sword_placement_only":
+                        lines.append(("Alias motion payloads", "PHM 2H sword PAA/PAA_metabin", "animation payload aliases", "Uses conservative existing alias planner; no .paac graph copy."))
+                elif template.template_id.startswith("dual_onehand"):
+                    lines.append(("Patch character socket XML", "phm_01.pab.sockets.xml", "Spine2_R/L socket rows", "Writes shoulder-fix back placement values plus slider deltas."))
+                    lines.append(("Patch 1H sword child socket XML", "weapon/1_onehandweapon/*.sockets.xml", "Spine2_R/L child socket rows", "Keeps weapon and sheath pivot alignment from the working back-placement baseline."))
+                    lines.append(("Alias dual draw/stow payloads", "PHM dual/dlsd PAA/PAA_metabin", "stable motion aliases", "No combat, attack, HKX, ItemInfo, or .paac graph copy."))
+                return tuple(lines)
+
+            def _refresh_studio_state() -> None:
+                template = _template()
+                scope = _selected_scope()
+                template_scope_allowed = scope in template.supported_scopes
+                target_text = "No archive target selected."
+                if selected_entries:
+                    target_text = f"{len(selected_entries):,} selected row(s); current: {selected_entries[0].path}"
+                elif isinstance(current_entry, ArchiveEntry):
+                    target_text = current_entry.path
+                target_label.setText(target_text)
+                dual_visible = template.template_id.startswith("dual_onehand")
+                dual_group.setVisible(dual_visible)
+                source_picker_button.setEnabled(isinstance(current_entry, ArchiveEntry))
+                plan_tree.clear()
+                for action, target, writes, notes in _plan_lines_for_template(template, scope):
+                    plan_tree.addTopLevelItem(QTreeWidgetItem([action, target, writes, notes]))
+                rows = _current_socket_rows()
+                preview_widget.set_view_mode(preview_view_combo.currentData())
+                preview_widget.set_preview_state(
+                    template_id=template.template_id,
+                    rows=rows,
+                    show_shield=show_shield_checkbox.isChecked(),
+                )
+                _queue_weapon_swap_studio_preview_refresh()
+                advanced_detail_tree.clear()
+                if rows:
+                    for row in rows:
+                        advanced_detail_tree.addTopLevelItem(QTreeWidgetItem([row.name, "archive/default", ""]))
+                        advanced_detail_tree.addTopLevelItem(QTreeWidgetItem(["Parent", "", row.parent]))
+                        advanced_detail_tree.addTopLevelItem(
+                            QTreeWidgetItem(["Rotation", "", " ".join(f"{value:.6f}" for value in row.rotation)])
+                        )
+                        advanced_detail_tree.addTopLevelItem(
+                            QTreeWidgetItem(["Translation", "", " ".join(f"{value:.6f}" for value in row.translation)])
+                        )
+                else:
+                    advanced_detail_tree.addTopLevelItem(
+                        QTreeWidgetItem(["Selected PAC", "current placement builder", "target-owned prefab/socket flow"])
+                    )
+                if not template_scope_allowed:
+                    plan_status.setText(f"Template does not support this scope. Supported: {', '.join(template.supported_scopes)}.")
+                    package_detail_label.setText("Package details: no buildable package for this template/scope combination.")
+                    build_button.setEnabled(False)
+                elif scope == WEAPON_SWAP_TEMPLATE_CLASS_SCOPE:
+                    plan_status.setText(
+                        "Class-wide PHM package will use original archive entries only and will not write ItemInfo, PAAC graphs, HKX, combat, or attack files."
+                    )
+                    package_detail_label.setText(
+                        "Package details: descriptor/socket XML plus stable PAA/PAA_metabin motion aliases where the selected template needs them. "
+                        "Disabled risky experiments remain blocked."
+                    )
+                    build_button.setText("Build Placement Package...")
+                    build_button.setEnabled(template.template_id != "custom_selected_pac")
+                else:
+                    plan_status.setText(
+                        "Selected target flow is handled by the advanced target-owned builder so per-weapon prefab/model preservation stays unchanged."
+                    )
+                    package_detail_label.setText(
+                        "Package details: selected PAC mode uses the target-owned placement builder and preserves donor model, icon, physics, and HKX by default."
+                    )
+                    build_button.setText("Continue To Target-Owned Builder...")
+                    build_button.setEnabled(isinstance(current_entry, ArchiveEntry))
+
+            def _build_class_wide_template() -> None:
+                template = _template()
+                if _selected_scope() != WEAPON_SWAP_TEMPLATE_CLASS_SCOPE:
+                    if isinstance(current_entry, ArchiveEntry):
+                        self._open_archive_attachment_placement_workspace_dialog(current_entry)
+                        dialog.accept()
+                    return
+                if template.template_id == "custom_selected_pac":
+                    QMessageBox.warning(dialog, "Weapon Placement Studio", "Custom selected PAC placement is not class-wide.")
+                    return
+                preview = "\n".join(f"- {action}: {target}" for action, target, _writes, _notes in _plan_lines_for_template(template, WEAPON_SWAP_TEMPLATE_CLASS_SCOPE))
+                answer = QMessageBox.question(
+                    dialog,
+                    "Build Weapon Placement Package",
+                    (
+                        f"Build class-wide PHM package for template '{template.label}'?\n\n"
+                        f"{preview}\n\n"
+                        "No original archives will be modified. ItemInfo, PAAC graphs, HKX, combat, and attack files are excluded."
+                    ),
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No,
+                )
+                if answer != QMessageBox.Yes:
+                    return
+                target_settings = self._collect_archive_mod_ready_export_target(
+                    browse_title="Choose Weapon Placement Studio Export Root",
+                    prompt_for_metadata=True,
+                    dialog_title="Weapon Placement Studio",
+                    allow_dmm_texture_structure=False,
+                    initial_package_title=template.template_id.replace("_", "-"),
+                    initial_package_description=template.description,
+                    parent=dialog,
+                )
+                if target_settings is None:
+                    return
+                export_root, package_info, create_no_encrypt_file, _include_related, export_options = target_settings
+                rows_snapshot = _current_socket_rows()
+                translation_snapshot = _translation_delta()
+                rotation_snapshot = _rotation_delta()
+                diagnostics = [
+                    f"Weapon Placement Studio template: {template.label}",
+                    f"Template id: {template.template_id}",
+                    "Scope: Class-wide PHM",
+                    f"Position delta: {translation_snapshot}",
+                    f"Rotation delta: {rotation_snapshot}",
+                    "True 1H/offhand disabled; ItemInfo is not exported.",
+                    "PAAC graph, HKX, combat, and attack files are not exported.",
+                ]
+                package_info = self._placement_swap_package_info_with_diagnostics(package_info, diagnostics)
+
+                def _task(log: Callable[[str], None]) -> ArchiveLooseExportResult:
+                    requests_by_path: Dict[str, ArchivePatchRequest] = {}
+                    supplemental_specs: List[MeshImportSupplementalFileSpec] = []
+                    descriptor_entry = _original_entry_by_basename("phm_description_player_kliff.xml")
+                    if isinstance(descriptor_entry, ArchiveEntry):
+                        descriptor_text = _read_entry_text(descriptor_entry)
+                        if template.template_id.startswith("twohand_sword"):
+                            descriptor_patch = build_part_in_out_socket_attach_point_patch(
+                                descriptor_text,
+                                weapon_class="twohand_sword",
+                                in_socket_bone="Pelvis_L_Socket",
+                                in_child_socket_bone="Pelvis_L_ChildSocket",
+                                placement_state="stowed",
+                            )
+                        else:
+                            descriptor_patch = build_part_in_out_weapon_swap_template_patch(descriptor_text, template.template_id)
+                        if descriptor_patch.diffs:
+                            key = descriptor_entry.path.replace("\\", "/").strip().casefold()
+                            requests_by_path[key] = ArchivePatchRequest(descriptor_entry, descriptor_patch.text.encode("utf-8"))
+                            alias = _global_xml_alias_spec(
+                                descriptor_entry,
+                                descriptor_patch.text,
+                                "character/phm_description_player_kliff.xml",
+                                kind="weapon_swap_descriptor_alias",
+                            )
+                            if alias is not None:
+                                supplemental_specs.append(alias)
+                            for diff in tuple(descriptor_patch.diffs[:24]):
+                                log(f"Patch descriptor XML: {diff.part_name} {diff.field_name}: {diff.old_value or '-'} -> {diff.new_value or '-'}")
+                        else:
+                            log("Descriptor XML already matches the selected template or no matching rows were found.")
+                    else:
+                        log("Descriptor XML phm_description_player_kliff.xml was not found.")
+
+                    if template.template_id.startswith("twohand_sword"):
+                        for socket_path in (
+                            "character/descriptors/socketbonedata/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0001.sockets.xml",
+                            "character/descriptors/socketbonedata/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0001_in.sockets.xml",
+                        ):
+                            socket_entry = _original_entry_by_virtual_path(socket_path)
+                            if not isinstance(socket_entry, ArchiveEntry):
+                                log(f"Skip missing 2H sword socket XML: {socket_path}")
+                                continue
+                            socket_patch = build_socket_bone_weapon_swap_template_patch(
+                                _read_entry_text(socket_entry),
+                                template.template_id,
+                                translation_delta=translation_snapshot,
+                                rotation_delta_degrees=rotation_snapshot,
+                            )
+                            if socket_patch.diffs:
+                                key = socket_entry.path.replace("\\", "/").strip().casefold()
+                                requests_by_path[key] = ArchivePatchRequest(socket_entry, socket_patch.text.encode("utf-8"))
+                                log(f"Patch 2H sword socket XML: {socket_entry.path}; {len(socket_patch.diffs):,} change(s).")
+                        if template.includes_motion_aliases and template.template_id != "twohand_sword_placement_only":
+                            _add_twohand_motion_aliases(requests_by_path, log)
+                    else:
+                        character_socket_entry = _original_entry_by_basename("phm_01.pab.sockets.xml", "identityskeleton.pab.sockets.xml")
+                        if not isinstance(character_socket_entry, ArchiveEntry):
+                            log("Character socket XML phm_01.pab.sockets.xml was not found.")
+                        else:
+                            socket_patch = build_socket_bone_weapon_swap_template_patch(
+                                _read_entry_text(character_socket_entry),
+                                template.template_id,
+                                translation_delta=translation_snapshot,
+                                rotation_delta_degrees=rotation_snapshot,
+                                dual_left_rotation_delta_degrees=(0.0, 0.0, float(dual_cross_spin.value())),
+                                dual_center_delta=float(dual_center_spin.value()),
+                                dual_spread_delta=float(dual_spread_spin.value()),
+                                dual_body_distance_delta=float(dual_distance_spin.value()),
+                                dual_height_delta=float(dual_height_spin.value()),
+                            )
+                            key = character_socket_entry.path.replace("\\", "/").strip().casefold()
+                            requests_by_path[key] = ArchivePatchRequest(character_socket_entry, socket_patch.text.encode("utf-8"))
+                            alias = _global_xml_alias_spec(
+                                character_socket_entry,
+                                socket_patch.text,
+                                "character/phm_01.pab.sockets.xml",
+                                kind="weapon_swap_socket_alias",
+                            )
+                            if alias is not None:
+                                supplemental_specs.append(alias)
+                            log(f"Patch character socket XML: {character_socket_entry.path}; {len(socket_patch.diffs):,} change(s).")
+                        weapon_socket_rows = weapon_swap_template_weapon_socket_rows(template.template_id)
+                        if weapon_socket_rows:
+                            entries_by_path = _original_entries_by_path()
+                            weapon_socket_entries = sorted(
+                                (
+                                    entry
+                                    for key, entry in entries_by_path.items()
+                                    if "/weapon/1_onehandweapon/" in key
+                                    and key.endswith(".sockets.xml")
+                                    and PurePosixPath(key).name.startswith("cd_phm_01_sword_")
+                                ),
+                                key=lambda entry: str(entry.path or "").casefold(),
+                            )
+                            if not weapon_socket_entries:
+                                log("No 1H sword socket XML entries found for dual child socket patch.")
+                            for socket_entry in weapon_socket_entries:
+                                child_patch = build_socket_bone_weapon_swap_rows_patch(
+                                    _read_entry_text(socket_entry),
+                                    weapon_socket_rows,
+                                )
+                                if not child_patch.diffs:
+                                    continue
+                                key = socket_entry.path.replace("\\", "/").strip().casefold()
+                                requests_by_path[key] = ArchivePatchRequest(socket_entry, child_patch.text.encode("utf-8"))
+                                log(
+                                    "Patch 1H sword child socket XML: "
+                                    f"{socket_entry.path}; {len(child_patch.diffs):,} change(s)."
+                                )
+                        if template.includes_motion_aliases:
+                            _add_dual_motion_aliases(requests_by_path, log)
+
+                    if not requests_by_path:
+                        raise ValueError("Weapon Placement Studio did not produce any package payloads.")
+                    return export_archive_payloads_to_mod_ready_loose(
+                        tuple(requests_by_path.values()),
+                        parent_root=export_root,
+                        package_info=package_info,
+                        export_options=export_options,
+                        create_no_encrypt_file=create_no_encrypt_file,
+                        extra_payloads_to_include=tuple(supplemental_specs),
+                        on_log=log,
+                    )
+
+                def _complete(result: object) -> None:
+                    if isinstance(result, ArchiveLooseExportResult):
+                        QMessageBox.information(dialog, "Weapon Placement Studio Complete", f"Wrote weapon placement package:\n{result.package_root}")
+                        self.set_status_message(f"Weapon Placement Studio wrote package: {result.package_root}")
+                        dialog.accept()
+                    else:
+                        self.set_status_message("Weapon Placement Studio export finished with an unexpected result payload.", error=True)
+
+                self._run_utility_task(
+                    status_message=f"Building Weapon Placement Studio package: {template.label}...",
+                    task=_task,
+                    on_complete=_complete,
+                    show_archive_progress=True,
+                )
+
+            def _open_selected_placement_workspace() -> None:
+                if isinstance(current_entry, ArchiveEntry):
+                    self._open_archive_attachment_placement_workspace_dialog(current_entry)
+                    dialog.accept()
+                else:
+                    QMessageBox.warning(dialog, "Weapon Placement Studio", "Select a PAC/model row first.")
+
+            def _shutdown_weapon_swap_studio_preview(_result: int = 0) -> None:
+                studio_preview_state["closed"] = True
+                studio_preview_timer.stop()
+                studio_d3d11_status_timer.stop()
+                studio_preview_state["request_id"] = int(studio_preview_state.get("request_id", 0) or 0) + 1
+                _studio_d3d11_stop_worker()
+                _studio_d3d11_stop_process()
+                active_package = studio_preview_state.get("active_package")
+                _studio_d3d11_cleanup_package(active_package)
+
+            for spin in (
+                left_right_spin,
+                closer_spin,
+                up_spin,
+                pitch_spin,
+                yaw_spin,
+                roll_spin,
+                dual_height_spin,
+                dual_distance_spin,
+                dual_center_spin,
+                dual_spread_spin,
+                dual_cross_spin,
+            ):
+                spin.valueChanged.connect(lambda _value=0.0: _refresh_studio_state())
+
+            def _sync_scope_for_template() -> None:
+                template = _template()
+                if _selected_scope() not in template.supported_scopes:
+                    for index in range(scope_combo.count()):
+                        if str(scope_combo.itemData(index) or "") in template.supported_scopes:
+                            scope_combo.setCurrentIndex(index)
+                            return
+                _refresh_studio_state()
+
+            template_combo.currentIndexChanged.connect(lambda _index=0: _sync_scope_for_template())
+            scope_combo.currentIndexChanged.connect(lambda _index=0: _refresh_studio_state())
+            show_shield_checkbox.toggled.connect(lambda _checked=False: _refresh_studio_state())
+            preview_view_combo.currentIndexChanged.connect(lambda _index=0: _refresh_studio_state())
+            build_button.clicked.connect(lambda _checked=False: _build_class_wide_template())
+            close_button.clicked.connect(dialog.reject)
+            source_picker_button.clicked.connect(lambda _checked=False: _open_selected_placement_workspace())
+            dialog.finished.connect(_shutdown_weapon_swap_studio_preview)
+            _refresh_studio_state()
+            def _fit_weapon_swap_studio_to_screen() -> None:
+                screen = dialog.screen() or self.screen() or QApplication.primaryScreen()
+                if screen is None:
+                    return
+                available = screen.availableGeometry()
+                width = max(760, min(1180, int(available.width()) - 72))
+                height = max(520, min(760, int(available.height()) - 72))
+                dialog.resize(width, height)
+                dialog.move(
+                    available.left() + max(0, (int(available.width()) - width) // 2),
+                    available.top() + max(0, (int(available.height()) - height) // 2),
+                )
+
+            _fit_weapon_swap_studio_to_screen()
+            QTimer.singleShot(0, _fit_weapon_swap_studio_to_screen)
             dialog.exec()
+
+        @staticmethod
+        def _build_archive_asset_family_graph_from_snapshots(
+            entry: ArchiveEntry,
+            *,
+            archive_entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]],
+            archive_entries_by_basename: Mapping[str, Sequence[ArchiveEntry]],
+            archive_item_asset_catalog: Sequence[object],
+        ) -> Tuple[AssetFamilyGraph, Tuple[ArchiveModelTextureReference, ...]]:
+            references = build_archive_relationship_references(
+                entry,
+                archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+                archive_entries_by_basename=archive_entries_by_basename,
+            )
+            combined_references = list(references)
+            item_icon_references = build_archive_item_icon_references_from_catalog(
+                entry,
+                tuple(archive_item_asset_catalog or ()),
+                archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+                archive_entries_by_basename=archive_entries_by_basename,
+                related_references=tuple(combined_references),
+            )
+            if item_icon_references:
+                combined_references = list(merge_archive_reference_rows(combined_references, item_icon_references))
+            graph = build_archive_asset_family_graph(entry, tuple(combined_references))
+            return graph, tuple(combined_references)
+
+        def _run_archive_attachment_placement_prepare(
+            self,
+            target_entry: ArchiveEntry,
+            donor_entry: Optional[ArchiveEntry],
+            *,
+            status_message: str,
+            on_prepared: Callable[[PlacementWorkspacePreparation], None],
+            on_error: Optional[Callable[[str], None]] = None,
+        ) -> bool:
+            if not isinstance(target_entry, ArchiveEntry):
+                self.set_status_message("Select a model, prefab, HKX, or socket XML file first.", error=True)
+                return False
+            if donor_entry is not None and not isinstance(donor_entry, ArchiveEntry):
+                donor_entry = None
+            if self._background_task_active():
+                self.set_status_message(
+                    "Another background task is still running. Wait for it to finish before preparing placement.",
+                    error=True,
+                )
+                return False
+
+            path_index_snapshot = self.archive_entries_by_normalized_path
+            basename_index_snapshot = self.archive_entries_by_basename
+            item_catalog_snapshot = tuple(getattr(self, "archive_item_asset_catalog", ()) or ())
+            build_graph = self._build_archive_asset_family_graph_from_snapshots
+            donor_snapshot = donor_entry
+
+            def _task(log: Callable[[str], None]) -> PlacementWorkspacePreparation:
+                log(f"Resolving target placement family: {target_entry.path}")
+                target_graph, target_references = build_graph(
+                    target_entry,
+                    archive_entries_by_normalized_path=path_index_snapshot,
+                    archive_entries_by_basename=basename_index_snapshot,
+                    archive_item_asset_catalog=item_catalog_snapshot,
+                )
+                donor_graph: Optional[AssetFamilyGraph] = None
+                donor_references: Tuple[ArchiveModelTextureReference, ...] = ()
+                if isinstance(donor_snapshot, ArchiveEntry):
+                    log(f"Resolving source placement family: {donor_snapshot.path}")
+                    donor_graph, donor_references = build_graph(
+                        donor_snapshot,
+                        archive_entries_by_normalized_path=path_index_snapshot,
+                        archive_entries_by_basename=basename_index_snapshot,
+                        archive_item_asset_catalog=item_catalog_snapshot,
+                    )
+                return PlacementWorkspacePreparation(
+                    target_entry=target_entry,
+                    donor_entry=donor_snapshot,
+                    target_graph=target_graph,
+                    target_references=target_references,
+                    donor_graph=donor_graph,
+                    donor_references=donor_references,
+                )
+
+            def _complete(result: object) -> None:
+                if not isinstance(result, PlacementWorkspacePreparation):
+                    self.set_status_message("Placement preparation finished with an unexpected result payload.", error=True)
+                    return
+                if isinstance(result.target_graph, AssetFamilyGraph):
+                    self._remember_archive_asset_family_graph(result.target_entry, result.target_graph, result.target_references)
+                if isinstance(result.donor_entry, ArchiveEntry) and isinstance(result.donor_graph, AssetFamilyGraph):
+                    self._remember_archive_asset_family_graph(result.donor_entry, result.donor_graph, result.donor_references)
+                on_prepared(result)
+
+            def _error(message: str) -> None:
+                if on_error is not None:
+                    on_error(message)
+
+            self._run_utility_task(
+                status_message=status_message,
+                task=_task,
+                on_complete=_complete,
+                on_error=_error,
+                show_archive_progress=True,
+            )
+            return True
 
         def _open_archive_attachment_donor_picker_dialog(
             self,
@@ -32094,13 +36839,19 @@ def run_gui() -> int:
                 return None
             picker = QDialog(parent)
             picker.setWindowTitle(f"Choose Placement Source - {target_entry.basename}")
+            picker.setWindowFlags(
+                picker.windowFlags()
+                | Qt.WindowMaximizeButtonHint
+                | Qt.WindowMinimizeButtonHint
+            )
+            picker.setSizeGripEnabled(True)
             picker.resize(1180, 720)
             layout = QVBoxLayout(picker)
             layout.setContentsMargins(12, 12, 12, 12)
             layout.setSpacing(8)
             intro = QLabel(
-                "Choose the weapon/model to copy placement from. The opened asset stays as the target being replaced at its original paths. "
-                "Pick the visible .pac when possible; CDMW resolves the matching prefab, socket XML, HKX, and motion files before showing the comparison/package plan."
+                "Choose the weapon/model that supplies placement values only. The opened target keeps its own model, textures, icon, prefab, and physics. "
+                "Pick the visible .pac when possible; CDMW resolves the matching placement evidence before showing the package plan."
             )
             intro.setObjectName("HintLabel")
             intro.setWordWrap(True)
@@ -32131,7 +36882,7 @@ def run_gui() -> int:
             guidance = QLabel(
                 "Direction example: if this target is 2H and you choose a 1H source, the 2H target is built to use the 1H placement. "
                 "Recommended pick: .pac model. Direct placement pick: .prefab. HKX is only physics context, but it can still work when the family resolves. "
-                "The comparison step verifies exactly what will be copied from source to target."
+                "The comparison step verifies the source placement values; source mesh, textures, icon, and physics stay out unless explicitly enabled in advanced legacy options."
             )
             guidance.setObjectName("HintLabel")
             guidance.setWordWrap(True)
@@ -32175,6 +36926,8 @@ def run_gui() -> int:
             placement_source_preview_status.setWordWrap(True)
             placement_source_preview_layout.addWidget(placement_source_preview_status)
             placement_source_splitter.addWidget(placement_source_preview_panel)
+            placement_source_splitter.setCollapsible(0, False)
+            placement_source_splitter.setCollapsible(1, False)
             placement_source_splitter.setStretchFactor(0, 3)
             placement_source_splitter.setStretchFactor(1, 2)
             placement_source_splitter.setSizes([720, 420])
@@ -33235,6 +37988,7 @@ def run_gui() -> int:
                             if isinstance(item.data(Qt.UserRole), Mapping)
                         ],
                         front=True,
+                        user_visible=True,
                         delay_ms=0,
                     )
                     if finder_icon_queue and not finder_icon_timer.isActive():
@@ -33280,6 +38034,8 @@ def run_gui() -> int:
                             item.setData(Qt.UserRole + 1, "thumb_loaded")
                         elif "warming" in str(note).lower():
                             item.setData(Qt.UserRole + 1, "fallback")
+                            if not finder_icon_visible_timer.isActive():
+                                finder_icon_visible_timer.start(160)
                         else:
                             if note:
                                 item.setToolTip(f"{item.toolTip()}\n{note}" if item.toolTip() else note)
@@ -33638,6 +38394,54 @@ def run_gui() -> int:
             compare_button.clicked.connect(lambda _checked=False: _accept_current())
             cancel_button.clicked.connect(picker.reject)
             search_edit.setFocus(Qt.FocusReason.OtherFocusReason)
+
+            picker_layout_state = {"mode": ""}
+
+            def _apply_picker_responsive_layout(*, force_sizes: bool = False) -> None:
+                width = max(1, int(picker.width()))
+                compact = width < 980
+                mode = "compact" if compact else "wide"
+                mode_changed = str(picker_layout_state.get("mode") or "") != mode
+                picker_layout_state["mode"] = mode
+                if compact:
+                    if placement_source_splitter.orientation() != Qt.Vertical:
+                        placement_source_splitter.setOrientation(Qt.Vertical)
+                    placement_source_preview_widget.setMinimumWidth(0)
+                    if force_sizes or mode_changed:
+                        placement_source_splitter.setSizes([360, 280])
+                else:
+                    if placement_source_splitter.orientation() != Qt.Horizontal:
+                        placement_source_splitter.setOrientation(Qt.Horizontal)
+                    placement_source_preview_widget.setMinimumWidth(320)
+                    if force_sizes or mode_changed:
+                        placement_source_splitter.setSizes([max(560, int(width * 0.62)), max(320, int(width * 0.32))])
+
+            previous_picker_resize_event = picker.resizeEvent
+
+            def _responsive_picker_resize_event(event: object) -> None:
+                previous_picker_resize_event(event)
+                QTimer.singleShot(0, _apply_picker_responsive_layout)
+
+            picker.resizeEvent = _responsive_picker_resize_event  # type: ignore[method-assign]
+
+            def _fit_picker_to_screen() -> None:
+                screen = picker.screen() or self.screen() or QApplication.primaryScreen()
+                if screen is None:
+                    _apply_picker_responsive_layout(force_sizes=True)
+                    return
+                available = screen.availableGeometry()
+                max_width = min(max(760, int(float(available.width()) * 0.92)), max(640, available.width() - 24))
+                max_height = min(max(540, int(float(available.height()) * 0.88)), max(420, available.height() - 24))
+                picker.resize(min(max_width, max(980, picker.sizeHint().width())), min(max_height, max(620, picker.sizeHint().height())))
+                _apply_picker_responsive_layout(force_sizes=True)
+                frame = picker.frameGeometry()
+                frame.moveCenter(available.center())
+                left = max(available.left(), min(frame.left(), available.right() - frame.width() + 1))
+                top = max(available.top(), min(frame.top(), available.bottom() - frame.height() + 1))
+                picker.move(left, top)
+
+            _fit_picker_to_screen()
+            QTimer.singleShot(0, _fit_picker_to_screen)
             try:
                 if picker.exec() == QDialog.Accepted:
                     donor = result.get("donor")
@@ -33690,13 +38494,13 @@ def run_gui() -> int:
             intro.setWordWrap(True)
             layout.addWidget(intro)
 
-            experimental_model_checkbox = QCheckBox("Experimental: make visible model follow each placement source")
+            experimental_model_checkbox = QCheckBox("Legacy raw prefab copy for bulk (risky)")
             experimental_model_checkbox.setToolTip(
-                "Default off. When enabled, each pair also copies the source .pac/model and .pac_xml/material sidecar onto that target's paths."
+                "Default off. Bulk does not yet build the target-only prefab/descriptor patch used by the single workflow. Enable only for old raw prefab-copy behavior."
             )
-            experimental_hkx_checkbox = QCheckBox("Also copy source HKX/physics for each pair")
+            experimental_hkx_checkbox = QCheckBox("Replacement-only: copy source HKX/physics for each pair")
             experimental_hkx_checkbox.setToolTip(
-                "Advanced and risky. Default off so each target keeps its existing HKX/physics unless explicitly enabled."
+                "Advanced replacement-only option. Normal placement keeps target-owned HKX/physics."
             )
             experimental_hkx_checkbox.setEnabled(False)
             option_row = QHBoxLayout()
@@ -33874,7 +38678,8 @@ def run_gui() -> int:
                         source,
                         target_graph,
                         source_graph,
-                        experimental_copy_source_model=experimental_model_checkbox.isChecked(),
+                        legacy_raw_prefab_copy=experimental_model_checkbox.isChecked(),
+                        experimental_copy_source_model=False,
                         experimental_copy_source_hkx=experimental_hkx_checkbox.isChecked(),
                     )
                 except Exception as exc:
@@ -33888,7 +38693,7 @@ def run_gui() -> int:
                     )
                     return
                 status = _bulk_pair_compatibility_status(warnings) if rows else "Blocked"
-                note = _bulk_pair_ready_note(warnings) if rows else "No safe package rows were produced for this pair."
+                note = _bulk_pair_ready_note(warnings) if rows else "Bulk raw copy is off; use Review Selected Pair for target-only placement package."
                 _set_item_state(target, source=source, rows=rows, warnings=warnings, status=status, note=note)
 
             def _rebuild_all_assigned_pairs() -> None:
@@ -33906,7 +38711,8 @@ def run_gui() -> int:
                             source,
                             target_graph,
                             source_graph,
-                            experimental_copy_source_model=experimental_model_checkbox.isChecked(),
+                            legacy_raw_prefab_copy=experimental_model_checkbox.isChecked(),
+                            experimental_copy_source_model=False,
                             experimental_copy_source_hkx=experimental_hkx_checkbox.isChecked(),
                         )
                     except Exception as exc:
@@ -33920,7 +38726,7 @@ def run_gui() -> int:
                         )
                         continue
                     status = _bulk_pair_compatibility_status(warnings) if rows else "Blocked"
-                    note = _bulk_pair_ready_note(warnings) if rows else "No safe package rows were produced for this pair."
+                    note = _bulk_pair_ready_note(warnings) if rows else "Bulk raw copy is off; use Review Selected Pair for target-only placement package."
                     _set_item_state(target, source=source, rows=rows, warnings=warnings, status=status, note=note)
 
             def _refresh_bulk_experimental_options() -> None:
@@ -34005,12 +38811,12 @@ def run_gui() -> int:
                 bulk_diagnostics = [
                     f"Bulk placement swap pairs: {len(state_snapshot):,}",
                     (
-                        "Experimental mode: source model/material copied to target paths for each pair."
+                        "Legacy bulk raw prefab copy enabled for each pair."
                         if experimental_model_checkbox.isChecked()
-                        else "Default risky mode: Placement copied, visible model may not change for cross-category sources."
+                        else "Bulk target-only placement build disabled; use Review Selected Pair for the safe single-target workflow."
                     ),
                     (
-                        "Experimental source HKX/physics copied where each pair resolves a target path."
+                        "Replacement-only source HKX/physics copied where each pair resolves a target path."
                         if experimental_hkx_checkbox.isChecked()
                         else "Target HKX/physics preserved by default."
                     ),
@@ -34044,6 +38850,9 @@ def run_gui() -> int:
                             if target_key in requests_by_path:
                                 if source_by_target_path.get(target_key) != source_key:
                                     log(f"Skipping duplicate bulk target path already assigned: {target_entry.path}")
+                                continue
+                            if not experimental_model_checkbox.isChecked() and not self._same_archive_entry(source_entry, target_entry):
+                                log(f"Blocked bulk donor row outside legacy raw copy mode: {source_entry.path} -> {target_entry.path}")
                                 continue
                             payload_data, _decompressed, _note = read_archive_entry_data(source_entry)
                             raw_action = row.get("action") if isinstance(row, Mapping) else ""
@@ -34097,37 +38906,116 @@ def run_gui() -> int:
         def _open_archive_attachment_placement_diff_dialog(
             self,
             target_entry: ArchiveEntry,
-            donor_entry: ArchiveEntry,
+            donor_entry: Optional[ArchiveEntry] = None,
+            *,
+            preparation: Optional[PlacementWorkspacePreparation] = None,
         ) -> None:
-            target_graph, _target_refs = self._archive_asset_family_graph_for_entry(target_entry)
-            donor_graph, _donor_refs = self._archive_asset_family_graph_for_entry(donor_entry)
+            if (
+                isinstance(preparation, PlacementWorkspacePreparation)
+                and isinstance(preparation.target_graph, AssetFamilyGraph)
+                and self._same_archive_entry(preparation.target_entry, target_entry)
+                and (
+                    (not isinstance(donor_entry, ArchiveEntry) and not isinstance(preparation.donor_entry, ArchiveEntry))
+                    or (
+                        isinstance(donor_entry, ArchiveEntry)
+                        and isinstance(preparation.donor_entry, ArchiveEntry)
+                        and self._same_archive_entry(preparation.donor_entry, donor_entry)
+                    )
+                )
+            ):
+                target_graph = preparation.target_graph
+                if isinstance(donor_entry, ArchiveEntry) and isinstance(preparation.donor_graph, AssetFamilyGraph):
+                    donor_graph = preparation.donor_graph
+                elif isinstance(donor_entry, ArchiveEntry):
+                    donor_graph, _donor_refs = self._archive_asset_family_graph_for_entry(donor_entry)
+                else:
+                    donor_graph = AssetFamilyGraph(
+                        root_path="",
+                        family_key="",
+                        summary="No placement source selected. Choose a body location to build XML-only placement, or open Advanced source copy.",
+                    )
+            else:
+                target_graph, _target_refs = self._archive_asset_family_graph_for_entry(target_entry)
+                if isinstance(donor_entry, ArchiveEntry):
+                    donor_graph, _donor_refs = self._archive_asset_family_graph_for_entry(donor_entry)
+                else:
+                    donor_graph = AssetFamilyGraph(
+                        root_path="",
+                        family_key="",
+                        summary="No placement source selected. Choose a body location to build XML-only placement, or open Advanced source copy.",
+                    )
             package_plan_rows: List[dict] = []
             package_plan_warnings: List[str] = []
             dialog = QDialog(self)
-            dialog.setWindowTitle("Review Placement Copy Direction")
-            dialog.resize(1420, 900)
+            dialog.setWindowTitle("Weapon Placement")
+            dialog.setWindowFlags(
+                dialog.windowFlags()
+                | Qt.WindowMaximizeButtonHint
+                | Qt.WindowMinimizeButtonHint
+            )
+            dialog.setSizeGripEnabled(True)
+            dialog.resize(1180, 760)
             layout = QVBoxLayout(dialog)
             layout.setContentsMargins(12, 12, 12, 12)
             layout.setSpacing(8)
             intro = QLabel(
-                "Placement copy comparison and package plan. The target is the asset being changed; the placement source only provides prefab/socket placement. "
-                "Unproven binary prefab, PAA, and HKX field editing remains disabled; the package builder copies reviewed source placement bytes, copies the source icon when resolved, and preserves target model/material/motion context."
+                "Move the target weapon between 1H/2H body placements. Default output changes placement only; target model, textures, icon, and physics stay intact."
             )
             intro.setObjectName("HintLabel")
             intro.setWordWrap(True)
             layout.addWidget(intro)
             direction_label = QLabel(
-                f"Direction: TARGET TO CHANGE = {target_entry.path} | PLACEMENT SOURCE = {donor_entry.path}. "
-                "If target is a 2H sword and source is a 1H sword, the generated package makes the 2H target use the 1H placement."
+                f"Target to change: {target_entry.path}"
+                + (f"\nPlacement source: {donor_entry.path}" if isinstance(donor_entry, ArchiveEntry) else "\nPlacement source: none selected")
             )
             direction_label.setObjectName("HintLabel")
             direction_label.setWordWrap(True)
             direction_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             layout.addWidget(direction_label)
-            section_splitter = QSplitter(Qt.Horizontal)
-            layout.addWidget(section_splitter, 1)
+            main_splitter = QSplitter(Qt.Horizontal)
+            main_splitter.setChildrenCollapsible(False)
+            main_splitter.setHandleWidth(10)
+            layout.addWidget(main_splitter, 1)
+
+            left_column = QWidget()
+            left_column.setMinimumWidth(420)
+            left_column_layout = QVBoxLayout(left_column)
+            left_column_layout.setContentsMargins(0, 0, 0, 0)
+            left_column_layout.setSpacing(8)
+            left_scroll = QScrollArea(dialog)
+            left_scroll.setWidgetResizable(True)
+            left_scroll.setMinimumWidth(0)
+            left_scroll_content = QWidget()
+            left_scroll_layout = QVBoxLayout(left_scroll_content)
+            left_scroll_layout.setContentsMargins(0, 0, 0, 0)
+            left_scroll_layout.setSpacing(8)
+            left_scroll.setWidget(left_scroll_content)
+            left_column_layout.addWidget(left_scroll, 1)
+            main_splitter.addWidget(left_column)
+
+            right_column = QWidget()
+            right_column.setMinimumWidth(420)
+            right_column_layout = QVBoxLayout(right_column)
+            right_column_layout.setContentsMargins(0, 0, 0, 0)
+            right_column_layout.setSpacing(8)
+            right_scroll = QScrollArea(dialog)
+            right_scroll.setWidgetResizable(True)
+            right_scroll.setMinimumWidth(0)
+            right_scroll_content = QWidget()
+            right_scroll_layout = QVBoxLayout(right_scroll_content)
+            right_scroll_layout.setContentsMargins(0, 0, 0, 0)
+            right_scroll_layout.setSpacing(8)
+            right_scroll.setWidget(right_scroll_content)
+            right_column_layout.addWidget(right_scroll, 1)
+            main_splitter.addWidget(right_column)
+
+            section_splitter = QSplitter(Qt.Vertical)
+            section_splitter.setChildrenCollapsible(False)
+            section_splitter.setHandleWidth(8)
+            advanced_evidence_section = CollapsibleSection("Advanced: Evidence And Compare", expanded=False)
+            advanced_evidence_section.body_layout.addWidget(section_splitter)
             evidence_section = QGroupBox("Target / Source Evidence")
-            evidence_section.setMinimumWidth(320)
+            evidence_section.setMinimumWidth(0)
             evidence_layout = QVBoxLayout(evidence_section)
             evidence_layout.setContentsMargins(8, 8, 8, 8)
             evidence_layout.setSpacing(6)
@@ -34137,7 +39025,8 @@ def run_gui() -> int:
             tree.setRootIsDecorated(True)
             tree.setAlternatingRowColors(True)
             tree.setUniformRowHeights(True)
-            tree.setMinimumWidth(300)
+            tree.setMinimumWidth(0)
+            tree.setMinimumHeight(260)
             evidence_layout.addWidget(tree, 1)
             section_splitter.addWidget(evidence_section)
 
@@ -34180,9 +39069,18 @@ def run_gui() -> int:
                 if side_item.childCount() <= 0:
                     side_item.addChild(QTreeWidgetItem([side, "No placement chain", "-", "No prefab/socket evidence", "Read-only"]))
 
-            add_graph(f"Target to change: {target_entry.basename}", target_graph)
-            add_graph(f"Placement source: {donor_entry.basename}", donor_graph)
-            tree.expandAll()
+            def _rebuild_source_evidence_tree() -> None:
+                tree.clear()
+                add_graph(f"Target to change: {target_entry.basename}", target_graph)
+                if isinstance(donor_entry, ArchiveEntry):
+                    add_graph(f"Placement source: {donor_entry.basename}", donor_graph)
+                else:
+                    source_item = QTreeWidgetItem(["Placement source", "None selected", "-", "-", "Simple XML placement"])
+                    source_item.setFlags(Qt.ItemIsEnabled)
+                    tree.addTopLevelItem(source_item)
+                tree.expandAll()
+
+            _rebuild_source_evidence_tree()
 
             target_evidence = self._attachment_visual_best_evidence(target_graph)
             donor_evidence = self._attachment_visual_best_evidence(donor_graph)
@@ -34190,7 +39088,7 @@ def run_gui() -> int:
             donor_socket_entry = self._attachment_socket_entry_from_selection(donor_graph)
 
             compare_group = QGroupBox("Socket Value Compare")
-            compare_group.setMinimumWidth(420)
+            compare_group.setMinimumWidth(0)
             compare_layout = QVBoxLayout(compare_group)
             compare_layout.setContentsMargins(8, 8, 8, 8)
             compare_layout.setSpacing(6)
@@ -34208,7 +39106,8 @@ def run_gui() -> int:
             compare_tree.setAlternatingRowColors(True)
             compare_tree.setUniformRowHeights(True)
             compare_tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
-            compare_tree.setMinimumWidth(400)
+            compare_tree.setMinimumWidth(0)
+            compare_tree.setMinimumHeight(260)
             compare_layout.addWidget(compare_tree, stretch=1)
 
             def _evidence_value(evidence: Optional[AttachmentPlacementEvidence], name: str) -> str:
@@ -34246,31 +39145,6 @@ def run_gui() -> int:
                 self._ui_style_status_columns(item, {3: status_text})
                 parent.addChild(item)
 
-            evidence_group = QTreeWidgetItem(["Placement evidence", "", "", "", "Recovered prefab/socket chain values"])
-            evidence_group.setExpanded(True)
-            compare_tree.addTopLevelItem(evidence_group)
-            for label, attr_name, meaning in (
-                ("Character socket", "character_socket_name", "Character-side attach point"),
-                ("Character parent", "character_socket_parent", "Skeleton/socket parent"),
-                ("Character translation", "character_socket_translation", "Character socket translation"),
-                ("Character rotation", "character_socket_rotation", "Character socket rotation"),
-                ("Weapon pivot", "weapon_socket_name", "Weapon-side pivot socket"),
-                ("Weapon parent", "weapon_socket_parent", "Weapon socket parent"),
-                ("Weapon translation", "weapon_socket_translation", "Weapon pivot translation"),
-                ("Weapon rotation", "weapon_socket_rotation", "Weapon pivot rotation"),
-                ("Prefab", "prefab_path", "Prefab that declares placement fields"),
-                ("Socket XML", "socket_file_path", "Weapon socket descriptor"),
-                ("Skeleton", "skeleton_path", "Character skeleton/socket context"),
-                ("Transform fields", "transform_fields", "Prefab placement field names"),
-            ):
-                _add_compare_row(
-                    evidence_group,
-                    label,
-                    _evidence_value(target_evidence, attr_name),
-                    _evidence_value(donor_evidence, attr_name),
-                    meaning,
-                )
-
             def _socket_document(entry: Optional[ArchiveEntry]) -> Optional[AttachmentSocketDocument]:
                 if not isinstance(entry, ArchiveEntry):
                     return None
@@ -34283,98 +39157,221 @@ def run_gui() -> int:
                 except Exception:
                     return None
 
-            target_socket_document = _socket_document(target_socket_entry)
-            donor_socket_document = _socket_document(donor_socket_entry)
-            target_sockets = {
-                str(socket.name or "").strip().casefold(): socket
-                for socket in tuple(getattr(target_socket_document, "sockets", ()) or ())
-                if isinstance(socket, AttachmentSocketInfo) and str(socket.name or "").strip()
-            }
-            donor_sockets = {
-                str(socket.name or "").strip().casefold(): socket
-                for socket in tuple(getattr(donor_socket_document, "sockets", ()) or ())
-                if isinstance(socket, AttachmentSocketInfo) and str(socket.name or "").strip()
-            }
-            important_socket_keys = {
-                str(_evidence_value(target_evidence, "weapon_socket_name")).strip().casefold(),
-                str(_evidence_value(donor_evidence, "weapon_socket_name")).strip().casefold(),
-                str(_evidence_value(target_evidence, "character_socket_name")).strip().casefold(),
-                str(_evidence_value(donor_evidence, "character_socket_name")).strip().casefold(),
-            }
-            important_socket_keys.discard("")
-            socket_keys = list(important_socket_keys)
-            for socket_key in sorted(set(target_sockets) | set(donor_sockets)):
-                if socket_key not in socket_keys:
-                    socket_keys.append(socket_key)
-            socket_group = QTreeWidgetItem(
-                [
-                    "Socket XML rows",
-                    target_socket_entry.path if isinstance(target_socket_entry, ArchiveEntry) else "-",
-                    donor_socket_entry.path if isinstance(donor_socket_entry, ArchiveEntry) else "-",
-                    "Compare",
-                    "Per-socket parent, translation, and rotation values",
-                ]
-            )
-            socket_group.setExpanded(True)
-            compare_tree.addTopLevelItem(socket_group)
-            for socket_key in socket_keys[:80]:
-                target_socket = target_sockets.get(socket_key)
-                donor_socket = donor_sockets.get(socket_key)
-                socket_name = (
-                    str(getattr(target_socket, "name", "") or "")
-                    or str(getattr(donor_socket, "name", "") or "")
-                    or socket_key
+            target_socket_document: Optional[AttachmentSocketDocument] = None
+            donor_socket_document: Optional[AttachmentSocketDocument] = None
+            target_sockets: Dict[str, AttachmentSocketInfo] = {}
+            donor_sockets: Dict[str, AttachmentSocketInfo] = {}
+
+            def _rebuild_compare_tree() -> None:
+                nonlocal target_socket_document, donor_socket_document, target_sockets, donor_sockets
+                compare_tree.clear()
+                evidence_group = QTreeWidgetItem(["Placement evidence", "", "", "", "Recovered prefab/socket chain values"])
+                evidence_group.setExpanded(True)
+                compare_tree.addTopLevelItem(evidence_group)
+                for label, attr_name, meaning in (
+                    ("Character socket", "character_socket_name", "Character-side attach point"),
+                    ("Character parent", "character_socket_parent", "Skeleton/socket parent"),
+                    ("Character translation", "character_socket_translation", "Character socket translation"),
+                    ("Character rotation", "character_socket_rotation", "Character socket rotation"),
+                    ("Weapon pivot", "weapon_socket_name", "Weapon-side pivot socket"),
+                    ("Weapon parent", "weapon_socket_parent", "Weapon socket parent"),
+                    ("Weapon translation", "weapon_socket_translation", "Weapon pivot translation"),
+                    ("Weapon rotation", "weapon_socket_rotation", "Weapon pivot rotation"),
+                    ("Prefab", "prefab_path", "Prefab that declares placement fields"),
+                    ("Socket XML", "socket_file_path", "Weapon socket descriptor"),
+                    ("Skeleton", "skeleton_path", "Character skeleton/socket context"),
+                    ("Transform fields", "transform_fields", "Prefab placement field names"),
+                ):
+                    _add_compare_row(
+                        evidence_group,
+                        label,
+                        _evidence_value(target_evidence, attr_name),
+                        _evidence_value(donor_evidence, attr_name),
+                        meaning,
+                    )
+
+                target_socket_document = _socket_document(target_socket_entry)
+                donor_socket_document = _socket_document(donor_socket_entry)
+                target_sockets = {
+                    str(socket.name or "").strip().casefold(): socket
+                    for socket in tuple(getattr(target_socket_document, "sockets", ()) or ())
+                    if isinstance(socket, AttachmentSocketInfo) and str(socket.name or "").strip()
+                }
+                donor_sockets = {
+                    str(socket.name or "").strip().casefold(): socket
+                    for socket in tuple(getattr(donor_socket_document, "sockets", ()) or ())
+                    if isinstance(socket, AttachmentSocketInfo) and str(socket.name or "").strip()
+                }
+                important_socket_keys = {
+                    str(_evidence_value(target_evidence, "weapon_socket_name")).strip().casefold(),
+                    str(_evidence_value(donor_evidence, "weapon_socket_name")).strip().casefold(),
+                    str(_evidence_value(target_evidence, "character_socket_name")).strip().casefold(),
+                    str(_evidence_value(donor_evidence, "character_socket_name")).strip().casefold(),
+                }
+                important_socket_keys.discard("")
+                socket_keys = list(important_socket_keys)
+                for socket_key in sorted(set(target_sockets) | set(donor_sockets)):
+                    if socket_key not in socket_keys:
+                        socket_keys.append(socket_key)
+                socket_group = QTreeWidgetItem(
+                    [
+                        "Socket XML rows",
+                        target_socket_entry.path if isinstance(target_socket_entry, ArchiveEntry) else "-",
+                        donor_socket_entry.path if isinstance(donor_socket_entry, ArchiveEntry) else "-",
+                        "Compare",
+                        "Per-socket parent, translation, and rotation values",
+                    ]
                 )
-                target_value = "-"
-                donor_value = "-"
-                if isinstance(target_socket, AttachmentSocketInfo):
-                    target_value = (
-                        f"parent {target_socket.parent or '-'} | "
-                        f"T {self._format_attachment_transform(target_socket.translation) or '-'} | "
-                        f"R {self._format_attachment_transform(target_socket.rotation) or '-'}"
+                socket_group.setExpanded(True)
+                compare_tree.addTopLevelItem(socket_group)
+                for socket_key in socket_keys[:80]:
+                    target_socket = target_sockets.get(socket_key)
+                    donor_socket = donor_sockets.get(socket_key)
+                    socket_name = (
+                        str(getattr(target_socket, "name", "") or "")
+                        or str(getattr(donor_socket, "name", "") or "")
+                        or socket_key
                     )
-                if isinstance(donor_socket, AttachmentSocketInfo):
-                    donor_value = (
-                        f"parent {donor_socket.parent or '-'} | "
-                        f"T {self._format_attachment_transform(donor_socket.translation) or '-'} | "
-                        f"R {self._format_attachment_transform(donor_socket.rotation) or '-'}"
-                    )
-                _add_compare_row(socket_group, socket_name, target_value, donor_value, "Socket XML row")
-            compare_tree.expandAll()
-            compare_tree.header().setStretchLastSection(True)
-            compare_tree.header().resizeSection(0, 180)
-            compare_tree.header().resizeSection(1, 360)
-            compare_tree.header().resizeSection(2, 360)
+                    target_value = "-"
+                    donor_value = "-"
+                    if isinstance(target_socket, AttachmentSocketInfo):
+                        target_value = (
+                            f"parent {target_socket.parent or '-'} | "
+                            f"T {self._format_attachment_transform(target_socket.translation) or '-'} | "
+                            f"R {self._format_attachment_transform(target_socket.rotation) or '-'}"
+                        )
+                    if isinstance(donor_socket, AttachmentSocketInfo):
+                        donor_value = (
+                            f"parent {donor_socket.parent or '-'} | "
+                            f"T {self._format_attachment_transform(donor_socket.translation) or '-'} | "
+                            f"R {self._format_attachment_transform(donor_socket.rotation) or '-'}"
+                        )
+                    _add_compare_row(socket_group, socket_name, target_value, donor_value, "Socket XML row")
+                compare_tree.expandAll()
+                compare_tree.header().setStretchLastSection(True)
+                compare_tree.header().resizeSection(0, 180)
+                compare_tree.header().resizeSection(1, 360)
+                compare_tree.header().resizeSection(2, 360)
+
+            _rebuild_compare_tree()
             section_splitter.addWidget(compare_group)
 
-            def _placement_xml_entry_by_basename(*basenames: str) -> Optional[ArchiveEntry]:
+            def _placement_xml_entry_by_basename(*basenames: str, prefer_original: bool = False) -> Optional[ArchiveEntry]:
                 normalized_names = [PurePosixPath(str(name or "").replace("\\", "/")).name.casefold() for name in basenames if str(name or "").strip()]
+                candidates: List[ArchiveEntry] = []
+                seen_candidate_keys: set[Tuple[str, str, int, int]] = set()
+
+                def add_candidate(candidate: object) -> None:
+                    if not isinstance(candidate, ArchiveEntry):
+                        return
+                    key = archive_entry_identity_key(candidate)
+                    if key in seen_candidate_keys:
+                        return
+                    seen_candidate_keys.add(key)
+                    candidates.append(candidate)
+
                 for basename in normalized_names:
                     for candidate in tuple(self.archive_entries_by_basename.get(basename, ()) or ()):
-                        if isinstance(candidate, ArchiveEntry):
-                            return candidate
+                        add_candidate(candidate)
+                if not candidates:
+                    for candidate in tuple(getattr(self, "archive_entries", ()) or ()):
+                        if not isinstance(candidate, ArchiveEntry):
+                            continue
+                        candidate_name = PurePosixPath(candidate.path.replace("\\", "/")).name.casefold()
+                        if candidate_name in normalized_names:
+                            add_candidate(candidate)
+                if prefer_original:
+                    original_candidates = [candidate for candidate in candidates if not archive_entry_is_mod_package(candidate)]
+                    if not original_candidates:
+                        return None
+                    return max(original_candidates, key=archive_entry_load_priority)
+                return candidates[0] if candidates else None
+
+            def _placement_entry_by_virtual_path(virtual_path: str, *fallback_basenames: str) -> Optional[ArchiveEntry]:
+                candidate = self._find_archive_entry_by_virtual_path(virtual_path)
+                if isinstance(candidate, ArchiveEntry):
+                    return candidate
+                return _placement_xml_entry_by_basename(*fallback_basenames)
+
+            def _placement_original_entry_by_virtual_path(virtual_path: str) -> Optional[ArchiveEntry]:
+                normalized_path = str(virtual_path or "").replace("\\", "/").strip().strip("/").casefold()
+                if not normalized_path:
+                    return None
+                candidates = [
+                    candidate
+                    for candidate in tuple(getattr(self, "archive_entries", ()) or ())
+                    if isinstance(candidate, ArchiveEntry)
+                    and not archive_entry_is_mod_package(candidate)
+                    and str(candidate.path or "").replace("\\", "/").strip().strip("/").casefold() == normalized_path
+                ]
+                if not candidates:
+                    return None
+                return max(candidates, key=archive_entry_load_priority)
+
+            def _original_archive_entries_by_virtual_path() -> Dict[str, ArchiveEntry]:
+                result: Dict[str, ArchiveEntry] = {}
                 for candidate in tuple(getattr(self, "archive_entries", ()) or ()):
-                    if not isinstance(candidate, ArchiveEntry):
+                    if not isinstance(candidate, ArchiveEntry) or archive_entry_is_mod_package(candidate):
                         continue
-                    candidate_name = PurePosixPath(candidate.path.replace("\\", "/")).name.casefold()
-                    if candidate_name in normalized_names:
-                        return candidate
-                return None
+                    normalized_path = str(candidate.path or "").replace("\\", "/").strip().strip("/").casefold()
+                    if not normalized_path:
+                        continue
+                    current = result.get(normalized_path)
+                    if current is None or archive_entry_load_priority(candidate) > archive_entry_load_priority(current):
+                        result[normalized_path] = candidate
+                return result
 
             part_in_out_entry = _placement_xml_entry_by_basename("phm_description_player_kliff.xml")
             character_socket_entry = _placement_xml_entry_by_basename("phm_01.pab.sockets.xml", "identityskeleton.pab.sockets.xml")
-            inferred_weapon_class = (
-                infer_part_in_out_weapon_class(target_entry.path)
-                or infer_part_in_out_weapon_class(donor_entry.path)
-                or infer_part_in_out_weapon_class(_evidence_value(target_evidence, "model_path"))
-                or infer_part_in_out_weapon_class(_evidence_value(donor_evidence, "model_path"))
+            iteminfo_entry = _placement_entry_by_virtual_path("gamedata/binary__/client/bin/iteminfo.pabgb", "iteminfo.pabgb")
+            iteminfo_header_entry = _placement_entry_by_virtual_path("gamedata/binary__/client/bin/iteminfo.pabgh", "iteminfo.pabgh")
+            equiptype_entry = _placement_entry_by_virtual_path("gamedata/binary__/client/bin/equiptypeinfo.pabgb", "equiptypeinfo.pabgb")
+            equiptype_header_entry = _placement_entry_by_virtual_path("gamedata/binary__/client/bin/equiptypeinfo.pabgh", "equiptypeinfo.pabgh")
+            universal_part_in_out_entry = _placement_xml_entry_by_basename("phm_description_player_kliff.xml", prefer_original=True)
+            universal_twohandsword_upper_entry = _placement_original_entry_by_virtual_path(
+                "actionchart/bin__/upperaction/1_pc/1_phm/twohandsword_upper.paac"
             )
+            universal_longsword_upper_entry = _placement_original_entry_by_virtual_path(
+                "actionchart/bin__/upperaction/1_pc/1_phm/longsword_upper.paac"
+            )
+            universal_ride_twohandsword_upper_entry = _placement_original_entry_by_virtual_path(
+                "actionchart/bin__/upperaction/1_pc/1_phm/ride_weapon_twohandsword_upper.paac"
+            )
+            universal_basic_weaponin_entry = _placement_original_entry_by_virtual_path(
+                "actionchart/bin__/upperaction/1_pc/1_phm/basic_upper_weaponin.paac"
+            )
+            def _infer_current_weapon_class() -> str:
+                return (
+                    infer_part_in_out_weapon_class(target_entry.path)
+                    or (
+                        infer_part_in_out_weapon_class(donor_entry.path)
+                        if isinstance(donor_entry, ArchiveEntry)
+                        else ""
+                    )
+                    or infer_part_in_out_weapon_class(_evidence_value(target_evidence, "model_path"))
+                    or infer_part_in_out_weapon_class(_evidence_value(donor_evidence, "model_path"))
+                )
+
+            def _infer_current_donor_weapon_class() -> str:
+                return (
+                    infer_part_in_out_weapon_class(donor_entry.path)
+                    if isinstance(donor_entry, ArchiveEntry)
+                    else ""
+                ) or infer_part_in_out_weapon_class(_evidence_value(donor_evidence, "model_path"))
+
+            inferred_weapon_class = _infer_current_weapon_class()
+            donor_inferred_weapon_class = _infer_current_donor_weapon_class()
+            target_loose_roots = self._attachment_package_loose_target_roots_for_entry(target_entry)
             imported_profile_state: Dict[str, object] = {
                 "part_in_out_text": "",
                 "part_in_out_path": "",
                 "socket_text": "",
                 "socket_path": "",
             }
+            behavior_patch_cache: Dict[
+                Tuple[object, ...],
+                Tuple[Optional[ArchiveEntry], Optional[ArchiveEntry], Optional[AttachmentItemInfoBehaviorPatchResult], str],
+            ] = {}
 
             def _read_archive_text(entry: Optional[ArchiveEntry]) -> str:
                 if not isinstance(entry, ArchiveEntry):
@@ -34382,6 +39379,21 @@ def run_gui() -> int:
                 try:
                     data, _decompressed, _note = read_archive_entry_data(entry)
                 except Exception:
+                    return ""
+                return try_decode_text_like_archive_data(data) or data.decode("utf-8-sig", errors="ignore")
+
+            def _read_original_archive_bytes(entry: Optional[ArchiveEntry]) -> bytes:
+                if not isinstance(entry, ArchiveEntry) or archive_entry_is_mod_package(entry):
+                    return b""
+                try:
+                    data, _decompressed, _note = read_archive_entry_data(entry)
+                    return data
+                except Exception:
+                    return b""
+
+            def _read_original_archive_text(entry: Optional[ArchiveEntry]) -> str:
+                data = _read_original_archive_bytes(entry)
+                if not data:
                     return ""
                 return try_decode_text_like_archive_data(data) or data.decode("utf-8-sig", errors="ignore")
 
@@ -34423,34 +39435,85 @@ def run_gui() -> int:
                         return document
                 return _character_socket_document()
 
-            visual_plan_section = QGroupBox("Visual Placement + Package Plan")
-            visual_plan_section.setMinimumWidth(460)
+            visual_plan_section = QGroupBox("Move Weapon On Body")
+            visual_plan_section.setMinimumWidth(0)
+            visual_plan_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
             visual_plan_layout = QVBoxLayout(visual_plan_section)
             visual_plan_layout.setContentsMargins(8, 8, 8, 8)
             visual_plan_layout.setSpacing(8)
-            visual_group = QGroupBox("Visual Placement")
+            visual_group = QGroupBox("Simple Placement")
+            visual_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
             visual_layout = QGridLayout(visual_group)
             visual_layout.setContentsMargins(8, 8, 8, 8)
             visual_layout.setHorizontalSpacing(6)
             visual_layout.setVerticalSpacing(5)
             visual_hint = QLabel(
-                "Visual Placement is part of this Placement Swap: preview current/source placement on body or skeleton context, "
-                "then optionally patch character placement XML for the selected weapon class only."
+                "Choose a 1H/2H source weapon, then build. Default mode moves this target only; model, textures, icon, and physics stay target-owned."
             )
             visual_hint.setObjectName("HintLabel")
             visual_hint.setWordWrap(True)
             visual_layout.addWidget(visual_hint, 0, 0, 1, 4)
-            visual_preview_button = QPushButton("Open Visual Placement Preview...")
-            visual_preview_button.setToolTip("Preview current/source placement on the best available body, real PAB skeleton, or socket proxy.")
-            import_profile_button = QPushButton("Import Placement Profile XML...")
-            import_profile_button.setToolTip("Import a manual profile XML such as phm_description_player_kliff.xml or phm_01.pab.sockets.xml.")
-            visual_layout.addWidget(visual_preview_button, 1, 0)
-            visual_layout.addWidget(import_profile_button, 1, 1)
-            patch_part_in_out_checkbox = QCheckBox("Patch PartInOut placement XML")
-            patch_socket_checkbox = QCheckBox("Patch character socket XML")
+            target_summary = QLabel("")
+            target_summary.setObjectName("HintLabel")
+            target_summary.setWordWrap(True)
+            target_summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            visual_layout.addWidget(target_summary, 1, 0, 1, 4)
+            current_placement_state_label = QLabel("")
+            current_placement_state_label.setObjectName("HintLabel")
+            current_placement_state_label.setWordWrap(True)
+            current_placement_state_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            visual_layout.addWidget(QLabel("Current Placement State"), 2, 0)
+            visual_layout.addWidget(current_placement_state_label, 2, 1, 1, 3)
+            source_copy_button = QPushButton("Choose 1H/2H Source Weapon...")
+            source_copy_button.setToolTip("Choose another weapon only for its placement socket values. Target files stay target-owned.")
+            visual_layout.addWidget(source_copy_button, 3, 0, 1, 4)
+            new_placement_state_label = QLabel("")
+            new_placement_state_label.setObjectName("HintLabel")
+            new_placement_state_label.setWordWrap(True)
+            new_placement_state_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            visual_layout.addWidget(QLabel("New Placement State"), 4, 0)
+            visual_layout.addWidget(new_placement_state_label, 4, 1, 1, 3)
+            swap_type_combo = QComboBox()
+            swap_type_combo.addItem("Placement only (hip/back)", "placement_only")
+            swap_type_combo.addItem("Full 1H/2H behavior (experimental)", "full_behavior")
+            swap_type_combo.setToolTip(
+                "Placement only is the safe default. Full behavior is blocked unless target/source behavior metadata can be patched without unsafe prefab resizing."
+            )
+            behavior_result_label = QLabel("")
+            behavior_result_label.setObjectName("HintLabel")
+            behavior_result_label.setWordWrap(True)
+            behavior_result_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            visual_layout.addWidget(QLabel("Swap type"), 5, 0)
+            visual_layout.addWidget(swap_type_combo, 5, 1)
+            visual_layout.addWidget(behavior_result_label, 5, 2, 1, 2)
+            placement_state_combo = QComboBox()
+            placement_state_combo.addItem("Stowed / on body", "stowed")
+            held_rows = (
+                tuple(
+                    row
+                    for row in part_in_out_rows_for_weapon_class(part_in_out_document, inferred_weapon_class)
+                    if str(getattr(row, "out_socket_bone", "") or "").strip()
+                    or str(getattr(row, "out_child_socket_bone", "") or "").strip()
+                )
+                if isinstance(part_in_out_document, AttachmentPartInOutDocument)
+                else ()
+            )
+            if held_rows:
+                placement_state_combo.addItem("Held / in hand", "held")
+            placement_state_combo.setToolTip("Advanced. Normal 1H/2H placement swaps use stowed/on-body placement.")
+            patch_part_in_out_checkbox = QCheckBox("Advanced: class-wide descriptor fallback")
+            patch_part_in_out_checkbox.setToolTip(
+                "Default off. This edits the global character descriptor for every weapon in the selected class. "
+                "Use only for class-wide hip/back mods or troubleshooting."
+            )
+            patch_socket_checkbox = QCheckBox("Patch socket profile transforms")
             patch_socket_checkbox.setEnabled(False)
-            visual_layout.addWidget(patch_part_in_out_checkbox, 2, 0)
-            visual_layout.addWidget(patch_socket_checkbox, 2, 1)
+            patch_part_in_out_checkbox.setVisible(True)
+            patch_socket_checkbox.setVisible(False)
+            patch_part_in_out_checkbox.setChecked(False)
+            use_profile_transforms_checkbox = QCheckBox("Apply imported socket transform values")
+            use_profile_transforms_checkbox.setEnabled(False)
+            use_profile_transforms_checkbox.setToolTip("Use only after importing edited .sockets.xml numeric transform values.")
             attach_point_combo = QComboBox()
 
             def _populate_attach_point_combo() -> None:
@@ -34462,7 +39525,10 @@ def run_gui() -> int:
                 attach_point_combo.blockSignals(True)
                 try:
                     attach_point_combo.clear()
-                    attach_point_combo.addItem("Keep source placement", "")
+                    attach_point_combo.addItem(
+                        "Use source weapon placement" if isinstance(donor_entry, ArchiveEntry) else "Pick body location manually",
+                        "",
+                    )
                     selected_index = 0
                     character_document = _current_character_socket_document()
                     body_location_choices = build_attachment_body_location_choices(
@@ -34498,41 +39564,83 @@ def run_gui() -> int:
                     attach_point_combo.blockSignals(False)
 
             _populate_attach_point_combo()
-            visual_layout.addWidget(QLabel("Attach point"), 3, 0)
-            visual_layout.addWidget(attach_point_combo, 3, 1, 1, 3)
+            visual_layout.addWidget(QLabel("Manual body location"), 7, 0)
+            visual_layout.addWidget(attach_point_combo, 7, 1, 1, 3)
+            target_context_status = QLabel("")
+            target_context_status.setObjectName("HintLabel")
+            target_context_status.setWordWrap(True)
+            target_context_status.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            visual_layout.addWidget(QLabel("Target Context"), 8, 0)
+            visual_layout.addWidget(target_context_status, 8, 1, 1, 3)
+            simple_ready_status = QLabel("")
+            simple_ready_status.setObjectName("HintLabel")
+            simple_ready_status.setWordWrap(True)
+            visual_layout.addWidget(simple_ready_status, 10, 0, 1, 4)
             visual_status = QLabel("")
             visual_status.setObjectName("HintLabel")
             visual_status.setTextFormat(Qt.RichText)
             visual_status.setWordWrap(True)
             visual_status.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            visual_layout.addWidget(visual_status, 4, 0, 1, 4)
             visual_plan_layout.addWidget(visual_group)
 
-            plan_group = QGroupBox("Safe Placement Copy Package Plan")
+            target_loose_combo = QComboBox()
+            if target_loose_roots:
+                for loose_root in target_loose_roots:
+                    target_loose_combo.addItem(str(loose_root), loose_root)
+            else:
+                target_loose_combo.addItem("No loose target package detected; vanilla target files stay in game.", None)
+                target_loose_combo.setEnabled(False)
+            target_loose_label = QLabel("Target Context Source")
+            target_loose_visible = len(target_loose_roots) > 1
+            target_loose_label.setVisible(target_loose_visible)
+            target_loose_combo.setVisible(target_loose_visible)
+            if target_loose_visible:
+                target_loose_combo.setToolTip("Multiple loose target mods contain this target. Choose which target-owned files to preserve.")
+            visual_layout.addWidget(target_loose_label, 9, 0)
+            visual_layout.addWidget(target_loose_combo, 9, 1, 1, 3)
+
+            plan_group = QGroupBox("Package Plan")
             plan_layout = QVBoxLayout(plan_group)
             plan_layout.setContentsMargins(8, 8, 8, 8)
             plan_layout.setSpacing(6)
-            experimental_model_checkbox = QCheckBox("Experimental: make visible model follow placement source")
-            experimental_model_checkbox.setToolTip(
-                "Default off. When enabled, the package also copies the placement source .pac/model and .pac_xml/material sidecar onto the target paths."
+            legacy_raw_prefab_checkbox = QCheckBox("Legacy raw prefab copy (risky)")
+            legacy_raw_prefab_checkbox.setToolTip(
+                "Default off. Copies donor prefab-style package rows like the old workflow and can pull source references into the target."
             )
-            experimental_hkx_checkbox = QCheckBox("Also copy source HKX/physics to target path")
-            experimental_hkx_checkbox.setToolTip(
-                "Advanced and risky. Default off so target motion/physics stays on the proven placement-copy behavior."
+            legacy_hkx_checkbox = QCheckBox("Replacement-only: copy source HKX/physics")
+            legacy_hkx_checkbox.setToolTip("Replacement-only legacy option. Normal placement keeps target-owned physics/HKX.")
+            legacy_hkx_checkbox.setEnabled(False)
+            legacy_hkx_checkbox.setVisible(False)
+            experimental_prefab_resize_checkbox = QCheckBox("Experimental: allow length-changing prefab role/socket patch")
+            experimental_prefab_resize_checkbox.setToolTip(
+                "Default off. Allows target prefab stream size to change while copying source role/socket metadata. "
+                "This is crash-risk research only until prefab offset/fixup handling is proven."
             )
-            experimental_hkx_checkbox.setEnabled(False)
+            use_source_icon_checkbox = QCheckBox("Use placement source icon")
+            use_source_icon_checkbox.setToolTip("Default off. Target icon stays unless this is explicitly enabled.")
+            use_source_icon_checkbox.setEnabled(isinstance(donor_entry, ArchiveEntry))
             option_row = QHBoxLayout()
-            option_row.addWidget(experimental_model_checkbox)
-            option_row.addWidget(experimental_hkx_checkbox)
+            option_row.addWidget(legacy_raw_prefab_checkbox)
+            option_row.addWidget(legacy_hkx_checkbox)
             option_row.addStretch(1)
-            plan_layout.addLayout(option_row)
+            package_details_section = CollapsibleSection("Advanced: Package Details", expanded=False)
+            placement_state_row = QHBoxLayout()
+            placement_state_row.addWidget(QLabel("Placement state"))
+            placement_state_row.addWidget(placement_state_combo, 1)
+            package_details_section.body_layout.addLayout(placement_state_row)
+            package_details_section.body_layout.addLayout(option_row)
+            package_details_section.body_layout.addWidget(experimental_prefab_resize_checkbox)
+            package_details_section.body_layout.addWidget(use_source_icon_checkbox)
+            package_details_section.body_layout.addWidget(patch_part_in_out_checkbox)
+            package_details_section.body_layout.addWidget(visual_status)
             plan_tree = QTreeWidget()
             plan_tree.setColumnCount(4)
             plan_tree.setHeaderLabels(["Action", "Source file", "Loose target path", "Notes"])
             plan_tree.setRootIsDecorated(False)
             plan_tree.setAlternatingRowColors(True)
             plan_tree.setUniformRowHeights(True)
-            plan_tree.setMinimumWidth(440)
+            plan_tree.setMinimumWidth(0)
+            plan_tree.setMinimumHeight(180)
             plan_tree.header().setStretchLastSection(True)
             plan_tree.header().resizeSection(0, 210)
             plan_tree.header().resizeSection(1, 360)
@@ -34543,73 +39651,147 @@ def run_gui() -> int:
             warning_label.setWordWrap(True)
             plan_layout.addWidget(warning_label)
 
-            custom_icon_group = QGroupBox("Custom Item Icon")
+            custom_icon_group = QGroupBox("Icon")
+            custom_icon_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
             custom_icon_layout = QGridLayout(custom_icon_group)
             custom_icon_layout.setContentsMargins(8, 8, 8, 8)
             custom_icon_layout.setHorizontalSpacing(6)
             custom_icon_layout.setVerticalSpacing(5)
-            custom_icon_checkbox = QCheckBox("Use custom item icon")
+            custom_icon_checkbox = QCheckBox("Use custom icon override")
             custom_icon_checkbox.setToolTip(
-                "Generate an inventory/UI icon from a selected image file or from a folder match. "
-                "The output is written only to an existing resolved target icon path."
+                "Optional override. Existing target icon files from the selected loose mod are preserved automatically."
             )
+            custom_icon_override_button = QPushButton("Override Icon...")
+            custom_icon_clear_button = QPushButton("Clear Override")
             custom_icon_source_edit = QLineEdit()
             custom_icon_source_edit.setPlaceholderText("Choose an image file or a folder to auto-match")
             custom_icon_file_button = QPushButton("File...")
             custom_icon_folder_button = QPushButton("Folder...")
             custom_icon_library_button = QPushButton("Library...")
             custom_icon_target_combo = QComboBox()
-            custom_icon_status = QLabel("Custom item icon disabled.")
+            custom_icon_status = QLabel("Existing target icon is preserved automatically when present in the selected target files.")
             custom_icon_status.setObjectName("HintLabel")
             custom_icon_status.setWordWrap(True)
             custom_icon_status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            custom_icon_layout.addWidget(custom_icon_checkbox, 0, 0, 1, 4)
-            custom_icon_layout.addWidget(QLabel("Source"), 1, 0)
-            custom_icon_layout.addWidget(custom_icon_source_edit, 1, 1)
-            custom_icon_layout.addWidget(custom_icon_file_button, 1, 2)
-            custom_icon_layout.addWidget(custom_icon_folder_button, 1, 3)
-            custom_icon_layout.addWidget(custom_icon_library_button, 1, 4)
-            custom_icon_layout.addWidget(QLabel("Target icon"), 2, 0)
-            custom_icon_layout.addWidget(custom_icon_target_combo, 2, 1, 1, 4)
-            custom_icon_layout.addWidget(custom_icon_status, 3, 0, 1, 5)
+            custom_icon_layout.addWidget(custom_icon_status, 0, 0, 1, 3)
+            custom_icon_layout.addWidget(custom_icon_override_button, 0, 3)
+            custom_icon_layout.addWidget(custom_icon_clear_button, 0, 4)
+            custom_icon_controls_widget = QWidget()
+            custom_icon_controls_layout = QGridLayout(custom_icon_controls_widget)
+            custom_icon_controls_layout.setContentsMargins(0, 4, 0, 0)
+            custom_icon_controls_layout.setHorizontalSpacing(6)
+            custom_icon_controls_layout.setVerticalSpacing(5)
+            custom_icon_controls_layout.addWidget(custom_icon_checkbox, 0, 0, 1, 5)
+            custom_icon_controls_layout.addWidget(QLabel("Source"), 1, 0)
+            custom_icon_controls_layout.addWidget(custom_icon_source_edit, 1, 1)
+            custom_icon_controls_layout.addWidget(custom_icon_file_button, 1, 2)
+            custom_icon_controls_layout.addWidget(custom_icon_folder_button, 1, 3)
+            custom_icon_controls_layout.addWidget(custom_icon_library_button, 1, 4)
+            custom_icon_controls_layout.addWidget(QLabel("Target icon"), 2, 0)
+            custom_icon_controls_layout.addWidget(custom_icon_target_combo, 2, 1, 1, 4)
+            custom_icon_controls_layout.setColumnStretch(1, 1)
+            custom_icon_layout.addWidget(custom_icon_controls_widget, 1, 0, 1, 5)
             custom_icon_layout.setColumnStretch(1, 1)
             target_icon_entries = self._attachment_package_item_icon_entries(target_entry, target_graph)
             for icon_entry in target_icon_entries:
                 custom_icon_target_combo.addItem(icon_entry.path, icon_entry)
             if not target_icon_entries:
                 custom_icon_checkbox.setEnabled(False)
+                custom_icon_override_button.setEnabled(False)
                 custom_icon_target_combo.addItem("No resolved existing target icon path", None)
                 custom_icon_status.setText("No existing target icon path was resolved for this target; custom icon packaging is unavailable.")
-            plan_layout.addWidget(custom_icon_group)
-            visual_plan_layout.addWidget(plan_group, 1)
-            section_splitter.addWidget(visual_plan_section)
+            visual_plan_layout.addWidget(custom_icon_group)
+            left_scroll_layout.addWidget(visual_plan_section)
+            left_scroll_layout.addStretch(1)
+            right_scroll_layout.addWidget(plan_group)
+            advanced_features_toggle = QCheckBox("Enable Advanced Features")
+            advanced_features_toggle.setToolTip("Show package details, imported socket profile, raw socket XML, and evidence/compare tools.")
+            right_scroll_layout.addWidget(advanced_features_toggle)
+            advanced_features_widget = QWidget()
+            advanced_features_layout = QVBoxLayout(advanced_features_widget)
+            advanced_features_layout.setContentsMargins(0, 0, 0, 0)
+            advanced_features_layout.setSpacing(8)
+            advanced_features_widget.setVisible(False)
+            advanced_features_layout.addWidget(package_details_section)
+            class_wide_section = CollapsibleSection("Advanced: Class-Wide Tools", expanded=False)
+            class_wide_hint = QLabel(
+                "Affects all PHM 2H swords. Use only when you want class-wide animation aliases and placement, not one selected weapon."
+            )
+            class_wide_hint.setObjectName("HintLabel")
+            class_wide_hint.setWordWrap(True)
+            universal_twohand_button = QPushButton("Build Universal 2H Swords As 1H")
+            universal_twohand_button.setToolTip(
+                "Class-wide tool. Exports PHM 2H sword animation aliases plus optional hip placement XML. No actionchart PAAC graph copy and no ItemInfo table export."
+            )
+            universal_twohand_true_button = QPushButton("Build Universal 2H Swords As True 1H")
+            universal_twohand_true_button.setToolTip(
+                "Disabled after in-game crash testing. True 1H/offhand needs more than ItemInfo; forcing the partial table patch can hang or crash the game."
+            )
+            universal_twohand_true_button.setEnabled(False)
+            class_wide_section.body_layout.addWidget(class_wide_hint)
+            class_wide_section.body_layout.addWidget(universal_twohand_button)
+            class_wide_section.body_layout.addWidget(universal_twohand_true_button)
+            advanced_features_layout.addWidget(class_wide_section)
+            imported_profile_section = CollapsibleSection("Advanced: Imported Socket Profile", expanded=False)
+            imported_profile_hint = QLabel(
+                "Use only when you have edited socket transform XML and want to copy its numeric offsets/rotations. Normal body-slot changes do not need this."
+            )
+            imported_profile_hint.setObjectName("HintLabel")
+            imported_profile_hint.setWordWrap(True)
+            import_profile_button = QPushButton("Import Placement Profile XML...")
+            import_profile_button.setToolTip("Import phm_description_player_kliff.xml or edited .sockets.xml profile data.")
+            imported_profile_section.body_layout.addWidget(imported_profile_hint)
+            imported_profile_section.body_layout.addWidget(import_profile_button)
+            imported_profile_section.body_layout.addWidget(use_profile_transforms_checkbox)
+            advanced_features_layout.addWidget(imported_profile_section)
             section_splitter.setCollapsible(0, False)
             section_splitter.setCollapsible(1, False)
-            section_splitter.setCollapsible(2, False)
-            section_splitter.setStretchFactor(0, 2)
-            section_splitter.setStretchFactor(1, 3)
-            section_splitter.setStretchFactor(2, 3)
-            section_splitter.setSizes([420, 560, 620])
+            section_splitter.setStretchFactor(0, 1)
+            section_splitter.setStretchFactor(1, 1)
+            section_splitter.setSizes([360, 360])
             footer = QLabel(
-                "This copies placement source prefab data into the target path while keeping the target PAC/material/motion context with the package and copying the source icon when resolved. "
-                "Source socket XML dependencies stay where the copied prefab expects them."
+                "Placement only changes hip/back slot. Full behavior changes target ItemInfo equip type too. Target-owned model, textures, icon, and physics stay intact."
             )
             footer.setObjectName("HintLabel")
             footer.setWordWrap(True)
-            layout.addWidget(footer)
+            visual_plan_layout.addWidget(footer)
             target_socket_button = QPushButton("Open Target Socket XML")
             target_socket_button.setEnabled(isinstance(target_socket_entry, ArchiveEntry))
             donor_socket_button = QPushButton("Open Source Socket XML")
             donor_socket_button.setEnabled(isinstance(donor_socket_entry, ArchiveEntry))
-            build_button = QPushButton("Build Placement Copy Package...")
+            raw_xml_section = CollapsibleSection("Advanced: Raw Socket XML", expanded=False)
+            raw_xml_row = QHBoxLayout()
+            raw_xml_row.addWidget(target_socket_button)
+            raw_xml_row.addWidget(donor_socket_button)
+            raw_xml_row.addStretch(1)
+            raw_xml_section.body_layout.addLayout(raw_xml_row)
+            advanced_features_layout.addWidget(raw_xml_section)
+            advanced_features_layout.addWidget(advanced_evidence_section)
+            right_scroll_layout.addWidget(advanced_features_widget)
+            right_scroll_layout.addStretch(1)
+            main_splitter.setCollapsible(0, False)
+            main_splitter.setCollapsible(1, False)
+            main_splitter.setStretchFactor(0, 2)
+            main_splitter.setStretchFactor(1, 3)
+            main_splitter.setSizes([520, 760])
+            build_button = QPushButton("Build Placement Package...")
             close_button = QPushButton("Close")
             close_row = QHBoxLayout()
             close_row.addStretch(1)
-            close_row.addWidget(target_socket_button)
-            close_row.addWidget(donor_socket_button)
             close_row.addWidget(build_button)
             close_row.addWidget(close_button)
-            layout.addLayout(close_row)
+            left_column_layout.addLayout(close_row)
+
+            def _selected_target_loose_root() -> Optional[Path]:
+                value = target_loose_combo.currentData()
+                return value if isinstance(value, Path) else None
+
+            def _target_loose_specs() -> Tuple[MeshImportSupplementalFileSpec, ...]:
+                return self._attachment_package_loose_target_specs(
+                    target_entry,
+                    target_graph,
+                    _selected_target_loose_root(),
+                )
 
             def _visual_selected_attach_choice() -> Optional[AttachmentBodyLocationChoice]:
                 value = attach_point_combo.currentData()
@@ -34635,6 +39817,295 @@ def run_gui() -> int:
                     weapon_class=inferred_weapon_class,
                 )
 
+            def _selected_loose_file_for_virtual(virtual_path: object) -> Optional[Path]:
+                root = _selected_target_loose_root()
+                normalized = str(virtual_path or "").replace("\\", "/").strip().lstrip("/")
+                if normalized.casefold().startswith("files/"):
+                    normalized = normalized[6:]
+                if not isinstance(root, Path) or not normalized:
+                    return None
+                relative = PurePosixPath(normalized)
+                for base in (root / "files", root):
+                    candidate = base.joinpath(*relative.parts)
+                    if candidate.is_file():
+                        return candidate
+                return None
+
+            def _read_placement_base_text(entry: Optional[ArchiveEntry]) -> str:
+                if not isinstance(entry, ArchiveEntry):
+                    return ""
+                loose_path = _selected_loose_file_for_virtual(entry.path)
+                if isinstance(loose_path, Path):
+                    try:
+                        return loose_path.read_text(encoding="utf-8-sig", errors="ignore")
+                    except OSError:
+                        pass
+                return _read_archive_text(entry)
+
+            def _read_placement_base_bytes(entry: Optional[ArchiveEntry]) -> bytes:
+                if not isinstance(entry, ArchiveEntry):
+                    return b""
+                loose_path = _selected_loose_file_for_virtual(entry.path)
+                if isinstance(loose_path, Path):
+                    try:
+                        return loose_path.read_bytes()
+                    except OSError:
+                        pass
+                try:
+                    data, _decompressed, _note = read_archive_entry_data(entry)
+                    return data
+                except Exception:
+                    return b""
+
+            def _visual_selected_swap_type() -> str:
+                value = str(swap_type_combo.currentData() or "").strip().casefold()
+                return "full_behavior" if value == "full_behavior" else "placement_only"
+
+            def _visual_iteminfo_behavior_patch() -> Tuple[
+                Optional[ArchiveEntry],
+                Optional[ArchiveEntry],
+                Optional[AttachmentItemInfoBehaviorPatchResult],
+                str,
+            ]:
+                if _visual_selected_swap_type() != "full_behavior":
+                    return None, None, None, "Placement only: behavior table is not patched."
+                if not isinstance(donor_entry, ArchiveEntry):
+                    result = AttachmentItemInfoBehaviorPatchResult(
+                        blocking_reason="Choose a 1H/2H source weapon before using full behavior mode."
+                    )
+                    return None, None, result, result.blocking_reason
+                required_entries = (iteminfo_entry, iteminfo_header_entry, equiptype_entry, equiptype_header_entry)
+                if not all(isinstance(entry, ArchiveEntry) for entry in required_entries):
+                    result = AttachmentItemInfoBehaviorPatchResult(
+                        blocking_reason="Full behavior mode needs iteminfo.pabgb/.pabgh and equiptypeinfo.pabgb/.pabgh."
+                    )
+                    return iteminfo_entry, iteminfo_header_entry, result, result.blocking_reason
+                cache_key = (
+                    str(_selected_target_loose_root() or ""),
+                    getattr(iteminfo_entry, "path", ""),
+                    getattr(iteminfo_header_entry, "path", ""),
+                    getattr(equiptype_entry, "path", ""),
+                    getattr(equiptype_header_entry, "path", ""),
+                    getattr(target_entry, "path", ""),
+                    getattr(donor_entry, "path", ""),
+                    inferred_weapon_class,
+                    donor_inferred_weapon_class,
+                )
+                cached = behavior_patch_cache.get(cache_key)
+                if cached is not None:
+                    return cached
+                iteminfo_data = _read_placement_base_bytes(iteminfo_entry)
+                iteminfo_header_data = _read_placement_base_bytes(iteminfo_header_entry)
+                equiptype_data = _read_placement_base_bytes(equiptype_entry)
+                equiptype_header_data = _read_placement_base_bytes(equiptype_header_entry)
+                if not iteminfo_data or not iteminfo_header_data or not equiptype_data or not equiptype_header_data:
+                    result = AttachmentItemInfoBehaviorPatchResult(
+                        data=iteminfo_data,
+                        blocking_reason="Full behavior mode could not read ItemInfo or EquipTypeInfo tables.",
+                    )
+                    value = (iteminfo_entry, iteminfo_header_entry, result, result.blocking_reason)
+                    behavior_patch_cache[cache_key] = value
+                    return value
+                target_model_path = str(_evidence_value(target_evidence, "model_path") or target_entry.path)
+                source_model_path = str(_evidence_value(donor_evidence, "model_path") or donor_entry.path)
+                result = build_iteminfo_behavior_equip_type_patch(
+                    iteminfo_data,
+                    iteminfo_header_data,
+                    equiptype_data,
+                    equiptype_header_data,
+                    target_model_path=target_model_path,
+                    source_model_path=source_model_path,
+                    target_weapon_class=inferred_weapon_class,
+                    source_weapon_class=donor_inferred_weapon_class,
+                )
+                if isinstance(result, AttachmentItemInfoBehaviorPatchResult) and result.blocking_reason:
+                    value = (iteminfo_entry, iteminfo_header_entry, result, result.blocking_reason)
+                    behavior_patch_cache[cache_key] = value
+                    return value
+                if isinstance(result, AttachmentItemInfoBehaviorPatchResult) and result.old_equip_type_name:
+                    value = (
+                        iteminfo_entry,
+                        iteminfo_header_entry,
+                        result,
+                        f"{result.old_equip_type_name or '-'} -> {result.new_equip_type_name or '-'}",
+                    )
+                    behavior_patch_cache[cache_key] = value
+                    return value
+                value = (iteminfo_entry, iteminfo_header_entry, result, "No ItemInfo behavior change was produced.")
+                behavior_patch_cache[cache_key] = value
+                return value
+
+            def _placement_behavior_patch_blocking_reason() -> str:
+                if _visual_selected_swap_type() != "full_behavior":
+                    return ""
+                _entry, _header_entry, patch, note = _visual_iteminfo_behavior_patch()
+                if isinstance(patch, AttachmentItemInfoBehaviorPatchResult) and patch.blocking_reason:
+                    return patch.blocking_reason
+                _prefab_entry, prefab_patch, prefab_note = _visual_target_prefab_patch()
+                if not isinstance(prefab_patch, PrefabAttachmentProfilePatchResult):
+                    return prefab_note or "Full behavior needs a target prefab role patch."
+                return "" if isinstance(patch, AttachmentItemInfoBehaviorPatchResult) else str(note or "")
+
+            def _target_pac_xml_entry_for_patch() -> Optional[ArchiveEntry]:
+                if str(getattr(target_entry, "extension", "") or "").casefold() == ".pac_xml":
+                    return target_entry
+                target_path = str(getattr(target_entry, "path", "") or "").replace("\\", "/").strip()
+                if "/model/" in target_path and str(getattr(target_entry, "extension", "") or "").casefold() in {".pac", ".pam", ".pamlod"}:
+                    direct_path = target_path.replace("/model/", "/modelproperty/", 1) + "_xml"
+                    direct_entry = self._find_archive_entry_by_virtual_path(direct_path)
+                    if isinstance(direct_entry, ArchiveEntry) and str(direct_entry.extension or "").casefold() == ".pac_xml":
+                        return direct_entry
+                target_model = self._attachment_visual_model_entry(target_entry, target_graph)
+                sidecar_entry = self._attachment_package_material_sidecar_for_model(target_entry, target_graph, target_model)
+                if isinstance(sidecar_entry, ArchiveEntry) and str(sidecar_entry.extension or "").casefold() == ".pac_xml":
+                    return sidecar_entry
+                for action, support_entry, _note in self._attachment_package_target_support_entries(target_entry, target_graph):
+                    if (
+                        isinstance(support_entry, ArchiveEntry)
+                        and str(support_entry.extension or "").casefold() == ".pac_xml"
+                        and "material" in str(action or "").casefold()
+                    ):
+                        return support_entry
+                return None
+
+            def _target_prefab_entry_for_patch() -> Optional[ArchiveEntry]:
+                prefab_path = _evidence_value(target_evidence, "prefab_path")
+                candidate = self._find_archive_entry_by_virtual_path(prefab_path)
+                if isinstance(candidate, ArchiveEntry):
+                    return candidate
+                for action, support_entry, _note in self._attachment_package_target_support_entries(target_entry, target_graph):
+                    if (
+                        isinstance(support_entry, ArchiveEntry)
+                        and str(action or "").casefold().startswith("preserve target prefab")
+                    ):
+                        return support_entry
+                return None
+
+            def _descriptor_socket_pair(weapon_class: str, placement_state: str) -> Tuple[str, str, str]:
+                socket_attr = "out_socket_bone" if placement_state == "held" else "in_socket_bone"
+                child_attr = "out_child_socket_bone" if placement_state == "held" else "in_child_socket_bone"
+                document = _current_part_in_out_document()
+                if not isinstance(document, AttachmentPartInOutDocument):
+                    return "", "", ""
+                for row in part_in_out_rows_for_weapon_class(document, weapon_class):
+                    attrs = getattr(row, "attributes", {}) or {}
+                    if str(attrs.get("Visible", "") or "").strip().casefold() == "out":
+                        continue
+                    socket_value = str(getattr(row, socket_attr, "") or "").strip()
+                    child_value = str(getattr(row, child_attr, "") or "").strip()
+                    if socket_value and child_value:
+                        return socket_value, child_value, str(getattr(row, "part_name", "") or "")
+                return "", "", ""
+
+            def _desired_prefab_attach_pair() -> Tuple[str, str]:
+                if _visual_selected_placement_state() != "stowed":
+                    return "", ""
+                attach_socket = _visual_selected_attach_socket()
+                if attach_socket:
+                    return attach_socket, _child_socket_for_attach_point(attach_socket)
+                if isinstance(donor_entry, ArchiveEntry):
+                    if donor_inferred_weapon_class:
+                        descriptor_socket, descriptor_child, _descriptor_part = _descriptor_socket_pair(
+                            donor_inferred_weapon_class,
+                            _visual_selected_placement_state(),
+                        )
+                        if descriptor_socket and descriptor_child:
+                            return descriptor_socket, descriptor_child
+                    evidence_socket = str(_evidence_value(donor_evidence, "character_socket_name") or "").strip()
+                    evidence_child = str(_evidence_value(donor_evidence, "weapon_socket_name") or "").strip()
+                    if evidence_socket and evidence_child:
+                        return evidence_socket, evidence_child
+                return "", ""
+
+            def _desired_stack_equip_type() -> str:
+                attached_socket, _pivot_socket = _desired_prefab_attach_pair()
+                return infer_stack_equip_type_for_socket(attached_socket, _current_character_socket_document())
+
+            def _visual_target_pac_xml_patch() -> Tuple[Optional[ArchiveEntry], Optional[AttachmentStackEquipTypePatchResult], str]:
+                target_equip_type = _desired_stack_equip_type()
+                if not target_equip_type:
+                    return None, None, "No target stack equip type could be inferred from the selected/source socket."
+                target_pac_xml_entry = _target_pac_xml_entry_for_patch()
+                if not isinstance(target_pac_xml_entry, ArchiveEntry):
+                    return None, None, "No target .pac_xml sidecar was resolved; slot metadata patch is unavailable."
+                base_text = _read_placement_base_text(target_pac_xml_entry)
+                if not base_text:
+                    return target_pac_xml_entry, None, "Target .pac_xml sidecar could not be read."
+                patch = build_pac_xml_stack_equip_type_patch(base_text, equip_type=target_equip_type)
+                if not isinstance(patch, AttachmentStackEquipTypePatchResult) or not patch.old_equip_type:
+                    return target_pac_xml_entry, None, "Target .pac_xml has no StackEquipDataContainer _equipType."
+                return target_pac_xml_entry, patch, f"{patch.old_equip_type or '-'} -> {patch.new_equip_type or '-'}"
+
+            def _donor_prefab_entry_for_patch() -> Optional[ArchiveEntry]:
+                if not isinstance(donor_entry, ArchiveEntry):
+                    return None
+                return self._choose_attachment_package_donor_prefab(
+                    donor_entry,
+                    donor_graph,
+                    _target_prefab_entry_for_patch(),
+                )
+
+            def _visual_target_prefab_patch() -> Tuple[Optional[ArchiveEntry], Optional[PrefabAttachmentProfilePatchResult], str]:
+                attached_socket, pivot_socket = _desired_prefab_attach_pair()
+                if not attached_socket or not pivot_socket:
+                    return None, None, ""
+                target_prefab_entry = _target_prefab_entry_for_patch()
+                if not isinstance(target_prefab_entry, ArchiveEntry):
+                    return None, None, "No target prefab was resolved; target-only placement patch is unavailable."
+                loose_path = _selected_loose_file_for_virtual(target_prefab_entry.path)
+                try:
+                    if isinstance(loose_path, Path):
+                        payload_data = loose_path.read_bytes()
+                        base_note = f"loose target prefab {loose_path}"
+                    else:
+                        payload_data, _decompressed, _note = read_archive_entry_data(target_prefab_entry)
+                        base_note = f"archive target prefab {target_prefab_entry.path}"
+                    source_part_name = ""
+                    source_socket_file = ""
+                    source_note = ""
+                    if isinstance(donor_entry, ArchiveEntry) and _visual_selected_swap_type() == "full_behavior":
+                        donor_prefab_entry = _donor_prefab_entry_for_patch()
+                        if not isinstance(donor_prefab_entry, ArchiveEntry):
+                            return target_prefab_entry, None, "Full behavior needs a resolved source prefab role profile."
+                        else:
+                            donor_payload, _donor_decompressed, _donor_note = read_archive_entry_data(donor_prefab_entry)
+                            source_fields = {
+                                field.field_name: field.value
+                                for field in inspect_prefab_attachment_profile_fields(donor_payload)
+                            }
+                            source_part_name = str(source_fields.get("_partName") or "").strip()
+                            source_socket_file = str(source_fields.get("_socketFileName") or "").strip()
+                            if not source_part_name:
+                                return target_prefab_entry, None, "Full behavior needs a source prefab CD_* part role."
+                            if source_part_name:
+                                source_note = f"; source role profile {donor_prefab_entry.path}"
+                    prefab_patch = build_prefab_attachment_profile_patch(
+                        payload_data,
+                        attached_socket_name=attached_socket,
+                        pivot_socket_name=pivot_socket,
+                        part_name=source_part_name,
+                        socket_file_path=source_socket_file,
+                        allow_length_changes=experimental_prefab_resize_checkbox.isChecked(),
+                    )
+                    if (
+                        len(prefab_patch.data) != len(payload_data)
+                        and not experimental_prefab_resize_checkbox.isChecked()
+                    ):
+                        return target_prefab_entry, None, "Target prefab patch unavailable: prefab stream length changed outside experimental mode."
+                except Exception as exc:
+                    if _visual_selected_swap_type() == "full_behavior" and "would resize target prefab" in str(exc):
+                        return (
+                            target_prefab_entry,
+                            None,
+                            f"Full behavior blocked: source role/socket metadata would resize target prefab. {exc}",
+                        )
+                    return target_prefab_entry, None, f"Target prefab patch unavailable: {exc}"
+                return target_prefab_entry, prefab_patch, f"Base: {base_note}{source_note}"
+
+            def _visual_selected_placement_state() -> str:
+                state = str(placement_state_combo.currentData() or "stowed").strip().casefold()
+                return "held" if state == "held" else "stowed"
+
             def _visual_part_in_out_patch(base_text: str) -> AttachmentPartInOutPatchResult:
                 if not patch_part_in_out_checkbox.isChecked() or not inferred_weapon_class:
                     return AttachmentPartInOutPatchResult(text=base_text)
@@ -34646,6 +40117,13 @@ def run_gui() -> int:
                         weapon_class=inferred_weapon_class,
                     )
                 attach_socket = _visual_selected_attach_socket()
+                if not attach_socket and isinstance(donor_entry, ArchiveEntry) and donor_inferred_weapon_class:
+                    return build_part_in_out_socket_class_copy_patch(
+                        base_text,
+                        target_weapon_class=inferred_weapon_class,
+                        source_weapon_class=donor_inferred_weapon_class,
+                        placement_state=_visual_selected_placement_state(),
+                    )
                 if not attach_socket:
                     return AttachmentPartInOutPatchResult(text=base_text)
                 return build_part_in_out_socket_attach_point_patch(
@@ -34653,6 +40131,7 @@ def run_gui() -> int:
                     weapon_class=inferred_weapon_class,
                     in_socket_bone=attach_socket,
                     in_child_socket_bone=_child_socket_for_attach_point(attach_socket),
+                    placement_state=_visual_selected_placement_state(),
                 )
 
             def _visual_socket_patch(base_text: str, part_patch: Optional[AttachmentPartInOutPatchResult] = None) -> AttachmentPartInOutPatchResult:
@@ -34667,7 +40146,7 @@ def run_gui() -> int:
                     socket_names.append(attach_socket)
                 if isinstance(part_patch, AttachmentPartInOutPatchResult):
                     for diff in tuple(part_patch.diffs or ()):
-                        if diff.field_name == "InSocketBone" and diff.new_value:
+                        if diff.field_name in {"InSocketBone", "OutSocketBone"} and diff.new_value:
                             socket_names.append(diff.new_value)
                 if not socket_names:
                     socket_names.extend(
@@ -34684,32 +40163,289 @@ def run_gui() -> int:
                     socket_names=tuple(dict.fromkeys(socket_names)),
                 )
 
-            def _visual_patch_preview_rows() -> List[Tuple[str, str, str]]:
-                rows: List[Tuple[str, str, str]] = []
-                if patch_part_in_out_checkbox.isChecked() and isinstance(part_in_out_entry, ArchiveEntry):
-                    rows.append(
-                        (
-                            "Patch PartInOut placement XML",
-                            part_in_out_entry.path,
-                            f"Selected class: {inferred_weapon_class or 'unknown'}; attach point/profile driven.",
+            def _visual_part_in_out_preview_patch() -> Optional[AttachmentPartInOutPatchResult]:
+                if not patch_part_in_out_checkbox.isChecked() or not isinstance(part_in_out_entry, ArchiveEntry):
+                    return None
+                patch = _visual_part_in_out_patch(_read_placement_base_text(part_in_out_entry))
+                return patch if isinstance(patch, AttachmentPartInOutPatchResult) and bool(patch.diffs) else None
+
+            def _placement_part_in_out_patch_blocking_reason(
+                part_patch: Optional[AttachmentPartInOutPatchResult],
+            ) -> str:
+                if not isinstance(part_patch, AttachmentPartInOutPatchResult) or not part_patch.diffs:
+                    return ""
+                expected_class = str(inferred_weapon_class or "").strip().casefold()
+                if expected_class in {"twohand", "mainhand"}:
+                    return (
+                        "Placement patch scope is too broad. Select a weapon with a resolved exact class before building."
+                    )
+                patched_part_names = tuple(
+                    dict.fromkeys(
+                        tuple(part_patch.patched_part_names or ())
+                        + tuple(str(diff.part_name or "").strip() for diff in tuple(part_patch.diffs or ()))
+                    )
+                )
+                class_by_part = {
+                    name: infer_part_in_out_weapon_class(name)
+                    for name in patched_part_names
+                    if str(name or "").strip()
+                }
+                if expected_class:
+                    invalid_parts = [
+                        name
+                        for name, class_name in class_by_part.items()
+                        if str(class_name or "").strip().casefold() != expected_class
+                    ]
+                    if invalid_parts:
+                        return (
+                            "Placement patch touches unrelated descriptor rows: "
+                            + ", ".join(invalid_parts[:8])
+                            + (" ..." if len(invalid_parts) > 8 else "")
+                        )
+                touched_classes = {
+                    str(class_name or "").strip().casefold()
+                    for class_name in class_by_part.values()
+                    if str(class_name or "").strip()
+                }
+                if len(touched_classes) > 1:
+                    return "Placement patch touches mixed weapon families: " + ", ".join(sorted(touched_classes))
+                return ""
+
+            def _visual_socket_preview_patch(
+                part_patch: Optional[AttachmentPartInOutPatchResult] = None,
+            ) -> Optional[AttachmentPartInOutPatchResult]:
+                if not patch_socket_checkbox.isChecked() or not isinstance(character_socket_entry, ArchiveEntry):
+                    return None
+                patch = _visual_socket_patch(_read_archive_text(character_socket_entry), part_patch)
+                return patch if isinstance(patch, AttachmentPartInOutPatchResult) and bool(patch.diffs) else None
+
+            def _placement_global_xml_alias_specs(
+                entry: Optional[ArchiveEntry],
+                payload_text: str,
+                aliases: Sequence[str],
+                *,
+                kind: str,
+            ) -> Tuple[MeshImportSupplementalFileSpec, ...]:
+                if not isinstance(entry, ArchiveEntry) or not str(payload_text or ""):
+                    return ()
+                current_path = entry.path.replace("\\", "/").strip().lstrip("/")
+                current_key = current_path.casefold()
+                payload_data = str(payload_text or "").encode("utf-8")
+                specs: List[MeshImportSupplementalFileSpec] = []
+                seen: set[str] = {current_key}
+                for alias in aliases:
+                    alias_path = str(alias or "").replace("\\", "/").strip().lstrip("/")
+                    alias_key = alias_path.casefold()
+                    if not alias_path or alias_key in seen:
+                        continue
+                    seen.add(alias_key)
+                    specs.append(
+                        MeshImportSupplementalFileSpec(
+                            source_path=Path(alias_path),
+                            target_path=alias_path,
+                            kind=kind,
+                            payload_data=payload_data,
+                            note="Known working CDUMM placement XML alias.",
                         )
                     )
-                if patch_socket_checkbox.isChecked() and isinstance(character_socket_entry, ArchiveEntry):
+                return tuple(specs)
+
+            def _visual_patch_preview_rows() -> List[Tuple[str, str, str]]:
+                rows: List[Tuple[str, str, str]] = []
+                target_pac_xml_entry, pac_xml_patch, pac_xml_note = _visual_target_pac_xml_patch()
+                if (
+                    isinstance(target_pac_xml_entry, ArchiveEntry)
+                    and isinstance(pac_xml_patch, AttachmentStackEquipTypePatchResult)
+                    and pac_xml_patch.changed
+                ):
+                    rows.append(
+                        (
+                            "Target slot metadata (.pac_xml)",
+                            target_pac_xml_entry.path,
+                            f"StackEquipDataContainer _equipType {pac_xml_note}; preserves target material and physics sidecar data.",
+                        )
+                    )
+                target_prefab_entry, prefab_patch, prefab_note = _visual_target_prefab_patch()
+                if isinstance(target_prefab_entry, ArchiveEntry) and isinstance(prefab_patch, PrefabAttachmentProfilePatchResult):
+                    proof_summary = "; ".join(tuple(prefab_patch.proof_lines[-2:]))
+                    prefab_action = (
+                        "Target prefab placement + role metadata"
+                        if _visual_selected_swap_type() == "full_behavior"
+                        else "Target prefab placement metadata"
+                    )
+                    rows.append(
+                        (
+                            prefab_action,
+                            target_prefab_entry.path,
+                            f"Target-only prefab profile patch. {prefab_note}. {proof_summary}",
+                        )
+                    )
+                behavior_entry, _behavior_header_entry, behavior_patch, behavior_note = _visual_iteminfo_behavior_patch()
+                if (
+                    _visual_selected_swap_type() == "full_behavior"
+                    and isinstance(behavior_entry, ArchiveEntry)
+                    and isinstance(behavior_patch, AttachmentItemInfoBehaviorPatchResult)
+                    and bool(behavior_patch.old_equip_type_name)
+                ):
+                    behavior_action = "ItemInfo behavior" if behavior_patch.changed else "ItemInfo behavior context"
+                    behavior_detail = (
+                        f"{behavior_note}; patches only _equipTypeInfo at 0x{behavior_patch.patch_offset:X}"
+                        if behavior_patch.changed
+                        else f"{behavior_note}; included so full-behavior target context stays explicit"
+                    )
+                    rows.append(
+                        (
+                            behavior_action,
+                            behavior_entry.path,
+                            (
+                                f"{behavior_detail}. Source visual/physics files are not copied."
+                            ),
+                        )
+                    )
+                part_patch = _visual_part_in_out_preview_patch()
+                socket_patch = _visual_socket_preview_patch(part_patch)
+                if isinstance(part_patch, AttachmentPartInOutPatchResult):
+                    patched_part_names = tuple(part_patch.patched_part_names or ())
+                    patched_parts_note = (
+                        "; rows: "
+                        + ", ".join(patched_part_names[:8])
+                        + (" ..." if len(patched_part_names) > 8 else "")
+                        if patched_part_names
+                        else ""
+                    )
+                    rows.append(
+                        (
+                            "Class stowed placement descriptor" if _visual_selected_placement_state() == "stowed" else "Class held placement descriptor",
+                            part_in_out_entry.path,
+                            f"Selected class: {inferred_weapon_class or 'unknown'}; {len(part_patch.diffs)} descriptor change(s){patched_parts_note}.",
+                        )
+                    )
+                if isinstance(socket_patch, AttachmentPartInOutPatchResult):
                     rows.append(
                         (
                             "Patch character socket XML",
                             character_socket_entry.path,
-                            "Uses imported socket profile transforms for selected attach socket(s).",
+                            f"Uses imported socket profile transforms for selected attach socket(s); {len(socket_patch.diffs)} change(s).",
                         )
                     )
                 return rows
 
+            def _descriptor_socket_summary(weapon_class: str, placement_state: str, evidence: Optional[AttachmentPlacementEvidence]) -> str:
+                state_text = "Held / in hand" if placement_state == "held" else "Stowed / on body"
+                socket_value, child_value, part_name = _descriptor_socket_pair(weapon_class, placement_state)
+                if socket_value or child_value:
+                    return f"{state_text}: {socket_value or '-'} -> {child_value or '-'} ({part_name or weapon_class})"
+                evidence_socket = _evidence_value(evidence, "character_socket_name")
+                evidence_child = _evidence_value(evidence, "weapon_socket_name")
+                if evidence_socket or evidence_child:
+                    return f"{state_text}: {evidence_socket or '-'} -> {evidence_child or '-'}"
+                return f"{state_text}: unknown"
+
+            def _new_placement_summary() -> str:
+                state = _visual_selected_placement_state()
+                attach_socket = _visual_selected_attach_socket()
+                if attach_socket:
+                    return f"{'Held / in hand' if state == 'held' else 'Stowed / on body'}: {attach_socket} -> {_child_socket_for_attach_point(attach_socket) or '-'}"
+                if isinstance(donor_entry, ArchiveEntry) and donor_inferred_weapon_class:
+                    return _descriptor_socket_summary(donor_inferred_weapon_class, state, donor_evidence)
+                return "Choose a placement source or body location."
+
             def _refresh_visual_status() -> None:
                 class_text = inferred_weapon_class or "unknown"
+                target_summary.setText(
+                    f"Target: {target_entry.basename} | class: {class_text} | "
+                    f"current: {_evidence_value(target_evidence, 'character_socket_name') or 'unknown'}"
+                )
+                current_placement_state_label.setText(
+                    _descriptor_socket_summary(inferred_weapon_class, _visual_selected_placement_state(), target_evidence)
+                )
+                new_placement_state_label.setText(_new_placement_summary())
+                behavior_entry, _behavior_header_entry, behavior_patch, behavior_note = _visual_iteminfo_behavior_patch()
+                if _visual_selected_swap_type() == "full_behavior":
+                    behavior_block_reason = _placement_behavior_patch_blocking_reason()
+                    if behavior_block_reason:
+                        behavior_result_label.setText(
+                            f"Target visuals: preserved | Target physics/HKX: preserved | Full behavior blocked: {behavior_block_reason}"
+                        )
+                    elif isinstance(behavior_patch, AttachmentItemInfoBehaviorPatchResult) and behavior_patch.old_equip_type_name:
+                        if behavior_patch.changed:
+                            behavior_result_label.setText(
+                                f"Target visuals: preserved | Target physics/HKX: preserved | Behavior: {behavior_patch.old_equip_type_name} -> {behavior_patch.new_equip_type_name}"
+                            )
+                        else:
+                            behavior_result_label.setText(
+                                f"Target visuals: preserved | Target physics/HKX: preserved | Behavior already {behavior_patch.old_equip_type_name}"
+                            )
+                    else:
+                        behavior_result_label.setText(
+                            f"Target visuals: preserved | Target physics/HKX: preserved | {behavior_note or 'Behavior: unresolved'}"
+                        )
+                else:
+                    behavior_result_label.setText(
+                        "Target visuals: preserved | Target physics/HKX: preserved | ItemInfo combat behavior unchanged."
+                    )
+                placement_state_text = (
+                    "held / in hand"
+                    if _visual_selected_placement_state() == "held"
+                    else "stowed / on body"
+                )
                 notes = [
-                    f"<span style='color:#fbbf24;font-weight:700;'>XML patch scope</span> {escape(class_text)}",
-                    "<span style='color:#a78bfa;font-weight:700;'>preview context</span> real body model when resolved; PAB skeleton or proxy fallback otherwise",
+                    f"<span style='color:#fbbf24;font-weight:700;'>target class</span> {escape(class_text)}",
+                    f"<span style='color:#fbbf24;font-weight:700;'>state</span> {escape(placement_state_text)}",
                 ]
+                if _visual_selected_swap_type() == "full_behavior":
+                    if isinstance(behavior_patch, AttachmentItemInfoBehaviorPatchResult) and behavior_patch.changed:
+                        notes.append(
+                            f"<span style='color:#6ee7b7;font-weight:700;'>ItemInfo behavior</span> "
+                            f"{escape(behavior_patch.old_equip_type_name)} -&gt; {escape(behavior_patch.new_equip_type_name)}; "
+                            f"<code>{escape(behavior_entry.path if isinstance(behavior_entry, ArchiveEntry) else 'iteminfo.pabgb')}</code>"
+                        )
+                        for proof_line in tuple(behavior_patch.proof_lines[:3]):
+                            notes.append(f"<span style='color:#93c5fd;font-weight:700;'>behavior proof</span> {escape(proof_line)}")
+                    elif isinstance(behavior_patch, AttachmentItemInfoBehaviorPatchResult) and behavior_patch.blocking_reason:
+                        notes.append(
+                            f"<span style='color:#f59e0b;font-weight:700;'>ItemInfo behavior blocked</span> "
+                            f"{escape(behavior_patch.blocking_reason)}"
+                        )
+                    notes.append(
+                        "<span style='color:#93c5fd;font-weight:700;'>WeaponBehaviorSwapAnalysis</span> "
+                        "per-target full behavior needs proven prefab/actionchart authority; unsafe prefab resize is blocked by default. "
+                        "Class-wide actionchart tool is under Advanced: Class-Wide Tools."
+                    )
+                else:
+                    notes.append("<span style='color:#93c5fd;font-weight:700;'>ItemInfo behavior</span> unchanged (placement only)")
+                target_prefab_entry, prefab_patch, prefab_note = _visual_target_prefab_patch()
+                target_pac_xml_entry, pac_xml_patch, pac_xml_note = _visual_target_pac_xml_patch()
+                if isinstance(target_pac_xml_entry, ArchiveEntry) and isinstance(pac_xml_patch, AttachmentStackEquipTypePatchResult):
+                    if pac_xml_patch.changed:
+                        notes.append(
+                            f"<span style='color:#6ee7b7;font-weight:700;'>target slot metadata</span> "
+                            f"<code>{escape(target_pac_xml_entry.path)}</code>; {escape(pac_xml_note)}"
+                        )
+                    elif pac_xml_patch.old_equip_type:
+                        notes.append(
+                            f"<span style='color:#93c5fd;font-weight:700;'>target slot metadata</span> "
+                            f"<code>{escape(target_pac_xml_entry.path)}</code>; already {escape(pac_xml_patch.old_equip_type)}"
+                        )
+                elif _desired_prefab_attach_pair()[0] and pac_xml_note:
+                    notes.append(f"<span style='color:#f59e0b;font-weight:700;'>target slot metadata unavailable</span> {escape(pac_xml_note)}")
+                if isinstance(target_prefab_entry, ArchiveEntry) and isinstance(prefab_patch, PrefabAttachmentProfilePatchResult):
+                    notes.append(
+                        f"<span style='color:#6ee7b7;font-weight:700;'>target-only patch</span> "
+                        f"<code>{escape(target_prefab_entry.path)}</code>; {escape(prefab_note)}"
+                    )
+                elif _desired_prefab_attach_pair()[0] and prefab_note:
+                    notes.append(f"<span style='color:#f59e0b;font-weight:700;'>target-only patch unavailable</span> {escape(prefab_note)}")
+                if patch_part_in_out_checkbox.isChecked():
+                    notes.append(
+                        "<span style='color:#f59e0b;font-weight:700;'>class-wide descriptor fallback</span> "
+                        "enabled; every weapon in the selected class can move"
+                    )
+                else:
+                    notes.append(
+                        "<span style='color:#93c5fd;font-weight:700;'>class-wide descriptor fallback</span> "
+                        "off; normal build targets only this weapon prefab/metadata"
+                    )
                 if isinstance(part_in_out_entry, ArchiveEntry):
                     notes.append(f"<span style='color:#6ee7b7;font-weight:700;'>PartInOut XML</span> <code>{escape(part_in_out_entry.path)}</code>")
                 else:
@@ -34724,10 +40460,18 @@ def run_gui() -> int:
                     patch_socket_checkbox.setEnabled(False)
                 if imported_profile_state.get("part_in_out_path"):
                     notes.append(f"<span style='color:#34d399;font-weight:700;'>imported PartInOut profile</span> <code>{escape(str(imported_profile_state.get('part_in_out_path') or ''))}</code>")
+                elif isinstance(donor_entry, ArchiveEntry) and donor_inferred_weapon_class and not _visual_selected_attach_socket():
+                    notes.append(
+                        f"<span style='color:#6ee7b7;font-weight:700;'>source placement</span> "
+                        f"{escape(donor_entry.basename)} class {escape(donor_inferred_weapon_class)}; donor files are not copied"
+                    )
                 if imported_profile_state.get("socket_path"):
                     notes.append(f"<span style='color:#34d399;font-weight:700;'>imported socket profile</span> <code>{escape(str(imported_profile_state.get('socket_path') or ''))}</code>")
+                    use_profile_transforms_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
                     patch_socket_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
                 elif not patch_socket_checkbox.isChecked():
+                    use_profile_transforms_checkbox.setEnabled(False)
+                    use_profile_transforms_checkbox.setChecked(False)
                     patch_socket_checkbox.setEnabled(False)
                 attach_socket = _visual_selected_attach_socket()
                 if attach_socket:
@@ -34761,7 +40505,18 @@ def run_gui() -> int:
                     imported_profile_state["socket_text"] = text
                     imported_profile_state["socket_path"] = str(path)
                     patch_socket_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
-                    patch_socket_checkbox.setChecked(isinstance(character_socket_entry, ArchiveEntry))
+                    should_use_profile = False
+                    attach_socket = _visual_selected_attach_socket()
+                    if isinstance(character_socket_entry, ArchiveEntry) and attach_socket:
+                        preview_patch = build_socket_bone_data_profile_patch(
+                            _read_archive_text(character_socket_entry),
+                            text,
+                            socket_names=(attach_socket,),
+                        )
+                        should_use_profile = bool(preview_patch.diffs)
+                    use_profile_transforms_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
+                    use_profile_transforms_checkbox.setChecked(should_use_profile)
+                    patch_socket_checkbox.setChecked(should_use_profile)
                 else:
                     imported_profile_state["part_in_out_text"] = text
                     imported_profile_state["part_in_out_path"] = str(path)
@@ -34771,19 +40526,49 @@ def run_gui() -> int:
                 _refresh_visual_status()
                 _refresh_package_plan()
 
+            def _advanced_features_enabled() -> bool:
+                return bool(advanced_features_toggle.isChecked())
+
+            def _effective_package_plan_rows() -> List[dict]:
+                if not _advanced_features_enabled():
+                    return []
+                effective_rows: List[dict] = []
+                for row in package_plan_rows:
+                    donor = row.get("donor_entry")
+                    target = row.get("target_entry")
+                    action = str(row.get("action") or "")
+                    if not isinstance(donor, ArchiveEntry) or not isinstance(target, ArchiveEntry):
+                        continue
+                    same_entry = self._same_archive_entry(donor, target)
+                    explicit_source_icon = (
+                        use_source_icon_checkbox.isChecked()
+                        and "icon" in action.casefold()
+                        and "explicit" in action.casefold()
+                    )
+                    if legacy_raw_prefab_checkbox.isChecked() or same_entry or explicit_source_icon:
+                        effective_rows.append(row)
+                return effective_rows
+
             def _refresh_package_plan() -> None:
                 nonlocal package_plan_rows, package_plan_warnings
-                package_plan_rows, package_plan_warnings = self._build_attachment_donor_package_plan(
-                    target_entry,
-                    donor_entry,
-                    target_graph,
-                    donor_graph,
-                    experimental_copy_source_model=experimental_model_checkbox.isChecked(),
-                    experimental_copy_source_hkx=experimental_hkx_checkbox.isChecked(),
-                )
+                if isinstance(donor_entry, ArchiveEntry):
+                    package_plan_rows, package_plan_warnings = self._build_attachment_donor_package_plan(
+                        target_entry,
+                        donor_entry,
+                        target_graph,
+                        donor_graph,
+                        legacy_raw_prefab_copy=legacy_raw_prefab_checkbox.isChecked(),
+                        copy_source_icon=use_source_icon_checkbox.isChecked(),
+                        experimental_copy_source_hkx=legacy_hkx_checkbox.isChecked(),
+                    )
+                else:
+                    package_plan_rows, package_plan_warnings = [], []
+                advanced_enabled = _advanced_features_enabled()
+                effective_package_plan_rows = _effective_package_plan_rows()
+                visual_rows = _visual_patch_preview_rows()
                 plan_tree.clear()
-                if package_plan_rows:
-                    for row in package_plan_rows:
+                if effective_package_plan_rows:
+                    for row in effective_package_plan_rows:
                         donor = row.get("donor_entry")
                         target = row.get("target_entry")
                         donor_path = donor.path if isinstance(donor, ArchiveEntry) else "-"
@@ -34800,26 +40585,130 @@ def run_gui() -> int:
                         item.setToolTip(2, target_path)
                         item.setToolTip(3, str(row.get("note") or ""))
                         plan_tree.addTopLevelItem(item)
-                else:
+                elif not visual_rows:
                     plan_tree.addTopLevelItem(
                         QTreeWidgetItem(
                             [
-                                "No safe package rows",
+                                "No buildable placement patch yet",
                                 "-",
                                 "-",
-                                "No resolved source prefab/HKX/PAA path can be paired with this target.",
+                                "Choose a source/body location, or open Advanced if target-only prefab patch is unavailable.",
                             ]
                         )
                     )
-                visual_rows = _visual_patch_preview_rows()
+                patch_scope_blocked = _placement_part_in_out_patch_blocking_reason(_visual_part_in_out_preview_patch())
+                behavior_blocked = _placement_behavior_patch_blocking_reason()
+                _pac_xml_entry, pac_xml_patch, pac_xml_note = _visual_target_pac_xml_patch()
+                pac_xml_blocked = (
+                    pac_xml_note
+                    if _desired_stack_equip_type()
+                    and not (
+                        isinstance(pac_xml_patch, AttachmentStackEquipTypePatchResult)
+                        and (pac_xml_patch.changed or pac_xml_patch.old_equip_type)
+                    )
+                    else ""
+                )
+                _prefab_entry, prefab_patch, prefab_note = _visual_target_prefab_patch()
+                prefab_blocked = (
+                    prefab_note
+                    if _desired_prefab_attach_pair()[0] and not isinstance(prefab_patch, PrefabAttachmentProfilePatchResult)
+                    else ""
+                )
                 for action, target_path, note in visual_rows:
-                    item = QTreeWidgetItem([action, "visual placement", target_path, note])
+                    item = QTreeWidgetItem([action, "target-owned metadata", target_path, note])
                     item.setToolTip(2, target_path)
                     item.setToolTip(3, note)
                     plan_tree.addTopLevelItem(item)
-                warning_label.setText("Review notes: " + " ".join(package_plan_warnings[:5]) if package_plan_warnings else "")
-                warning_label.setVisible(bool(package_plan_warnings))
-                build_button.setEnabled(bool(package_plan_rows or visual_rows))
+                loose_specs = _target_loose_specs()
+                _pac_context_entry, pac_context_patch, _pac_context_note = _visual_target_pac_xml_patch()
+                slot_context = ""
+                if isinstance(pac_context_patch, AttachmentStackEquipTypePatchResult) and pac_context_patch.old_equip_type:
+                    desired_equip_type = pac_context_patch.new_equip_type or _desired_stack_equip_type()
+                    slot_context = f" Target slot: {pac_context_patch.old_equip_type} -> {desired_equip_type}."
+                behavior_context = ""
+                _behavior_entry, _behavior_header_entry, behavior_patch, _behavior_note = _visual_iteminfo_behavior_patch()
+                if isinstance(behavior_patch, AttachmentItemInfoBehaviorPatchResult) and behavior_patch.old_equip_type_name:
+                    if _visual_selected_swap_type() == "full_behavior" and behavior_patch.changed:
+                        behavior_context = (
+                            f" Behavior: {behavior_patch.old_equip_type_name} -> {behavior_patch.new_equip_type_name}."
+                        )
+                    elif _visual_selected_swap_type() == "full_behavior":
+                        behavior_context = f" Behavior already {behavior_patch.old_equip_type_name}."
+                elif _visual_selected_swap_type() == "placement_only":
+                    behavior_context = " Behavior unchanged."
+                target_context_status.setText(
+                    (
+                        f"Modded target files preserved ({len(loose_specs):,}).{slot_context}{behavior_context}"
+                        if loose_specs
+                        else f"Vanilla target files stay in game. Package writes placement metadata only.{slot_context}{behavior_context}"
+                    )
+                )
+                target_context_status.setToolTip(
+                    (
+                        f"Preserving target-owned loose files from {_selected_target_loose_root()}."
+                        if loose_specs
+                        else "No loose target mod detected; vanilla model, textures, icon, and physics are provided by the game."
+                    )
+                )
+                if loose_specs and not advanced_enabled:
+                    plan_tree.addTopLevelItem(
+                        QTreeWidgetItem(
+                            [
+                                "Preserve target-owned files",
+                                f"{len(loose_specs):,} file(s)",
+                                "-",
+                                "Existing modded target model, textures, icon, prefab, and physics are kept.",
+                            ]
+                        )
+                    )
+                for spec in (loose_specs[:40] if advanced_enabled else ()):
+                    item = QTreeWidgetItem(
+                        [
+                            "Preserve existing target loose file",
+                            str(spec.source_path),
+                            str(spec.target_path or "-"),
+                            str(spec.note or "Target-owned model/material/texture/icon payload."),
+                        ]
+                    )
+                    item.setToolTip(1, str(spec.source_path))
+                    item.setToolTip(2, str(spec.target_path or "-"))
+                    plan_tree.addTopLevelItem(item)
+                if advanced_enabled and len(loose_specs) > 40:
+                    plan_tree.addTopLevelItem(
+                        QTreeWidgetItem(
+                            [
+                                "Preserve existing target loose file",
+                                f"{len(loose_specs) - 40:,} more",
+                                "-",
+                                "Additional target-owned loose payloads are preserved.",
+                            ]
+                        )
+                    )
+                warning_parts = (
+                    ([patch_scope_blocked] if patch_scope_blocked else [])
+                    + ([behavior_blocked] if behavior_blocked else [])
+                    + ([pac_xml_blocked] if pac_xml_blocked else [])
+                    + ([prefab_blocked] if prefab_blocked else [])
+                    + (list(package_plan_warnings[:5]) if advanced_enabled else [])
+                )
+                warning_label.setText("Review notes: " + " ".join(warning_parts) if warning_parts else "")
+                warning_label.setVisible(bool(warning_parts))
+                build_ready = bool(effective_package_plan_rows or visual_rows) and not bool(patch_scope_blocked or behavior_blocked)
+                build_button.setEnabled(build_ready)
+                if patch_scope_blocked:
+                    simple_ready_status.setText("Cannot build safely. Open Advanced to review the blocked descriptor patch.")
+                elif behavior_blocked:
+                    simple_ready_status.setText("Cannot build full behavior safely. Use Placement only or choose a resolved 1H/2H source.")
+                elif visual_rows:
+                    simple_ready_status.setText("Ready: target metadata patch. Source weapon files will not be copied.")
+                elif effective_package_plan_rows:
+                    simple_ready_status.setText("Ready: advanced package rows enabled.")
+                elif prefab_blocked:
+                    simple_ready_status.setText(
+                        "Source/body location selected, but target prefab cannot be patched safely. Open Advanced for fallback options."
+                    )
+                else:
+                    simple_ready_status.setText("Pick a 1H/2H source weapon or manual body location to build.")
                 expand_tree_columns_to_available_width(plan_tree)
 
             def _placement_custom_icon_override_spec(*, show_messages: bool) -> Optional[ItemIconOverrideSpec]:
@@ -34858,6 +40747,8 @@ def run_gui() -> int:
                 )
 
             def _refresh_custom_icon_status() -> None:
+                custom_icon_controls_widget.setVisible(bool(custom_icon_checkbox.isChecked()))
+                custom_icon_clear_button.setVisible(bool(custom_icon_checkbox.isChecked()))
                 controls_enabled = bool(custom_icon_checkbox.isChecked() and target_icon_entries)
                 custom_icon_source_edit.setEnabled(controls_enabled)
                 custom_icon_file_button.setEnabled(controls_enabled)
@@ -34865,7 +40756,7 @@ def run_gui() -> int:
                 custom_icon_library_button.setEnabled(controls_enabled)
                 custom_icon_target_combo.setEnabled(controls_enabled)
                 if not custom_icon_checkbox.isChecked():
-                    custom_icon_status.setText("Custom item icon disabled.")
+                    custom_icon_status.setText("Icon: existing target icon is preserved.")
                     return
                 target_icon_entry = custom_icon_target_combo.currentData()
                 if not isinstance(target_icon_entry, ArchiveEntry):
@@ -34920,18 +40811,462 @@ def run_gui() -> int:
                     custom_icon_source_edit.setText(str(selected))
 
             def _refresh_experimental_options() -> None:
-                if not experimental_model_checkbox.isChecked() and experimental_hkx_checkbox.isChecked():
-                    experimental_hkx_checkbox.setChecked(False)
-                experimental_hkx_checkbox.setEnabled(experimental_model_checkbox.isChecked())
+                if not legacy_raw_prefab_checkbox.isChecked() and legacy_hkx_checkbox.isChecked():
+                    legacy_hkx_checkbox.setChecked(False)
+                legacy_hkx_enabled = legacy_raw_prefab_checkbox.isChecked()
+                legacy_hkx_checkbox.setVisible(legacy_hkx_enabled)
+                legacy_hkx_checkbox.setEnabled(legacy_hkx_enabled)
                 _refresh_package_plan()
+
+            def _set_placement_source_loading(active: bool, message: str = "") -> None:
+                source_copy_button.setEnabled(not active)
+                swap_type_combo.setEnabled(not active)
+                placement_state_combo.setEnabled(not active)
+                attach_point_combo.setEnabled(not active)
+                universal_twohand_button.setEnabled(not active)
+                universal_twohand_true_button.setEnabled(not active)
+                use_source_icon_checkbox.setEnabled((not active) and isinstance(donor_entry, ArchiveEntry))
+                donor_socket_button.setEnabled((not active) and isinstance(donor_socket_entry, ArchiveEntry))
+                if active:
+                    build_button.setEnabled(False)
+                    status = message or "Loading placement comparison..."
+                    simple_ready_status.setText(status)
+                    target_context_status.setText(status)
+                    visual_status.setText(status)
+                    warning_label.setText(status)
+                    warning_label.setVisible(True)
+                    plan_tree.clear()
+                    plan_tree.addTopLevelItem(QTreeWidgetItem(["Loading placement comparison...", "-", "-", status]))
+
+            def _apply_prepared_placement_source(prepared: PlacementWorkspacePreparation) -> None:
+                nonlocal target_graph, donor_entry, donor_graph
+                nonlocal target_evidence, donor_evidence, target_socket_entry, donor_socket_entry
+                nonlocal inferred_weapon_class, donor_inferred_weapon_class
+                if not dialog.isVisible():
+                    return
+                if isinstance(prepared.target_graph, AssetFamilyGraph):
+                    target_graph = prepared.target_graph
+                    target_evidence = self._attachment_visual_best_evidence(target_graph)
+                    target_socket_entry = self._attachment_socket_entry_from_selection(target_graph)
+                if not isinstance(prepared.donor_entry, ArchiveEntry) or not isinstance(prepared.donor_graph, AssetFamilyGraph):
+                    _set_placement_source_loading(False)
+                    self.set_status_message("Placement source preparation finished without a source graph.", error=True)
+                    _refresh_visual_status()
+                    _refresh_package_plan()
+                    return
+                donor_entry = prepared.donor_entry
+                donor_graph = prepared.donor_graph
+                donor_evidence = self._attachment_visual_best_evidence(donor_graph)
+                donor_socket_entry = self._attachment_socket_entry_from_selection(donor_graph)
+                inferred_weapon_class = _infer_current_weapon_class()
+                donor_inferred_weapon_class = _infer_current_donor_weapon_class()
+                behavior_patch_cache.clear()
+                direction_label.setText(f"Target to change: {target_entry.path}\nPlacement source: {donor_entry.path}")
+                target_socket_button.setEnabled(isinstance(target_socket_entry, ArchiveEntry))
+                donor_socket_button.setEnabled(isinstance(donor_socket_entry, ArchiveEntry))
+                _rebuild_source_evidence_tree()
+                _rebuild_compare_tree()
+                _populate_attach_point_combo()
+                _apply_default_swap_type()
+                _set_placement_source_loading(False)
+                _refresh_custom_icon_status()
+                _refresh_visual_status()
+                _refresh_package_plan()
+
+            def _choose_placement_source_from_workspace() -> None:
+                donor = self._open_archive_attachment_donor_picker_dialog(dialog, target_entry)
+                if isinstance(donor, ArchiveEntry):
+                    status = "Loading placement comparison..."
+                    _set_placement_source_loading(True, status)
+                    started = self._run_archive_attachment_placement_prepare(
+                        target_entry,
+                        donor,
+                        status_message=f"Loading placement comparison for {target_entry.basename}...",
+                        on_prepared=_apply_prepared_placement_source,
+                        on_error=lambda _message: _set_placement_source_loading(False),
+                    )
+                    if not started:
+                        _set_placement_source_loading(False)
+
+            def _apply_default_swap_type() -> None:
+                swap_type_combo.blockSignals(True)
+                try:
+                    placement_index = swap_type_combo.findData("placement_only")
+                    if placement_index >= 0:
+                        swap_type_combo.setCurrentIndex(placement_index)
+                finally:
+                    swap_type_combo.blockSignals(False)
+
+            def _universal_twohand_sword_part_in_out_patch() -> Tuple[
+                Optional[ArchiveEntry],
+                Optional[AttachmentPartInOutPatchResult],
+                str,
+            ]:
+                if not isinstance(universal_part_in_out_entry, ArchiveEntry):
+                    return None, None, "2H sword hip placement XML was not found; package will contain animation aliases only."
+                base_text = _read_original_archive_text(universal_part_in_out_entry)
+                if not base_text:
+                    return universal_part_in_out_entry, None, "Original 2H sword hip placement XML could not be read."
+                patch = build_part_in_out_socket_attach_point_patch(
+                    base_text,
+                    weapon_class="twohand_sword",
+                    in_socket_bone="Pelvis_L_Socket",
+                    in_child_socket_bone="Pelvis_L_ChildSocket",
+                    placement_state="stowed",
+                )
+                if isinstance(patch, AttachmentPartInOutPatchResult) and patch.diffs:
+                    return universal_part_in_out_entry, patch, f"{len(patch.diffs):,} 2H sword hip placement field(s) patched."
+                return universal_part_in_out_entry, patch, "2H sword hip placement XML included from original archive; no descriptor diff was needed."
+
+            def _universal_twohand_sword_animation_alias_plan() -> Tuple[
+                AttachmentAnimationAliasPlanResult,
+                Dict[str, ArchiveEntry],
+            ]:
+                original_entries_by_path = _original_archive_entries_by_virtual_path()
+                if not isinstance(universal_twohandsword_upper_entry, ArchiveEntry):
+                    return (
+                        AttachmentAnimationAliasPlanResult(
+                            blocking_reason=(
+                                "Universal 2H sword animation aliases need the original "
+                                "actionchart/bin__/upperaction/1_pc/1_phm/twohandsword_upper.paac entry."
+                            )
+                        ),
+                        original_entries_by_path,
+                    )
+                twohand_actionchart_data = _read_original_archive_bytes(universal_twohandsword_upper_entry)
+                if not twohand_actionchart_data:
+                    return (
+                        AttachmentAnimationAliasPlanResult(
+                            blocking_reason="Original twohandsword_upper.paac could not be read for animation reference scanning."
+                        ),
+                        original_entries_by_path,
+                    )
+                ride_actionchart_data = (
+                    _read_original_archive_bytes(universal_ride_twohandsword_upper_entry)
+                    if isinstance(universal_ride_twohandsword_upper_entry, ArchiveEntry)
+                    else b""
+                )
+                longsword_actionchart_data = (
+                    _read_original_archive_bytes(universal_longsword_upper_entry)
+                    if isinstance(universal_longsword_upper_entry, ArchiveEntry)
+                    else b""
+                )
+                weaponin_actionchart_data = (
+                    _read_original_archive_bytes(universal_basic_weaponin_entry)
+                    if isinstance(universal_basic_weaponin_entry, ArchiveEntry)
+                    else b""
+                )
+                plan = build_universal_twohand_sword_animation_alias_plan(
+                    twohand_actionchart_data,
+                    ride_actionchart_data,
+                    available_paths=tuple(entry.path for entry in original_entries_by_path.values()),
+                    longsword_actionchart_data=longsword_actionchart_data,
+                    weaponin_actionchart_data=weaponin_actionchart_data,
+                )
+                return plan, original_entries_by_path
+
+            def _universal_twohand_sword_true_onehand_iteminfo_patch_plan(
+                original_entries_by_path: Mapping[str, ArchiveEntry],
+            ) -> Tuple[
+                Optional[ArchiveEntry],
+                Optional[ArchiveEntry],
+                Optional[AttachmentUniversalItemInfoBehaviorPatchResult],
+                str,
+            ]:
+                def original_entry(path: str) -> Optional[ArchiveEntry]:
+                    return original_entries_by_path.get(str(path or "").replace("\\", "/").strip().strip("/").casefold())
+
+                iteminfo_task_entry = original_entry("gamedata/binary__/client/bin/iteminfo.pabgb")
+                iteminfo_header_task_entry = original_entry("gamedata/binary__/client/bin/iteminfo.pabgh")
+                equiptype_task_entry = original_entry("gamedata/binary__/client/bin/equiptypeinfo.pabgb")
+                equiptype_header_task_entry = original_entry("gamedata/binary__/client/bin/equiptypeinfo.pabgh")
+                required_entries = (
+                    iteminfo_task_entry,
+                    iteminfo_header_task_entry,
+                    equiptype_task_entry,
+                    equiptype_header_task_entry,
+                )
+                if not all(isinstance(entry, ArchiveEntry) for entry in required_entries):
+                    result = AttachmentUniversalItemInfoBehaviorPatchResult(
+                        blocking_reason=(
+                            "True 1H mode needs original iteminfo.pabgb/.pabgh and equiptypeinfo.pabgb/.pabgh."
+                        )
+                    )
+                    return iteminfo_task_entry, iteminfo_header_task_entry, result, result.blocking_reason
+
+                iteminfo_data = _read_original_archive_bytes(iteminfo_task_entry)
+                iteminfo_header_data = _read_original_archive_bytes(iteminfo_header_task_entry)
+                equiptype_data = _read_original_archive_bytes(equiptype_task_entry)
+                equiptype_header_data = _read_original_archive_bytes(equiptype_header_task_entry)
+                if not iteminfo_data or not iteminfo_header_data or not equiptype_data or not equiptype_header_data:
+                    result = AttachmentUniversalItemInfoBehaviorPatchResult(
+                        blocking_reason="True 1H mode could not read ItemInfo or EquipTypeInfo tables from original archives."
+                    )
+                    return iteminfo_task_entry, iteminfo_header_task_entry, result, result.blocking_reason
+
+                result = build_universal_twohand_sword_true_onehand_iteminfo_patch(
+                    iteminfo_data,
+                    iteminfo_header_data,
+                    equiptype_data,
+                    equiptype_header_data,
+                )
+                if isinstance(result, AttachmentUniversalItemInfoBehaviorPatchResult) and result.blocking_reason:
+                    return iteminfo_task_entry, iteminfo_header_task_entry, result, result.blocking_reason
+                if isinstance(result, AttachmentUniversalItemInfoBehaviorPatchResult) and result.changed:
+                    return (
+                        iteminfo_task_entry,
+                        iteminfo_header_task_entry,
+                        result,
+                        f"{result.changed_count:,} 2H sword ItemInfo row(s) patched to true 1H equipment behavior.",
+                    )
+                return iteminfo_task_entry, iteminfo_header_task_entry, result, "No true 1H ItemInfo behavior change was produced."
+
+            def _build_universal_twohand_sword_package(*, include_true_onehand_iteminfo: bool = False) -> None:
+                if include_true_onehand_iteminfo:
+                    QMessageBox.warning(
+                        dialog,
+                        "Build Universal 2H Swords As True 1H",
+                        (
+                            "True 1H/offhand export is disabled after in-game crash testing. "
+                            "The current ItemInfo-only patch is incomplete; it does not safely resolve the equip-state/offhand logic."
+                        ),
+                    )
+                    return
+                alias_plan, original_entries_by_path = _universal_twohand_sword_animation_alias_plan()
+                if not isinstance(alias_plan, AttachmentAnimationAliasPlanResult) or alias_plan.blocking_reason:
+                    QMessageBox.warning(
+                        dialog,
+                        "Build Universal 2H Swords As 1H",
+                        alias_plan.blocking_reason if isinstance(alias_plan, AttachmentAnimationAliasPlanResult) else "Animation alias planning failed.",
+                    )
+                    return
+                placement_entry, placement_patch, placement_note = _universal_twohand_sword_part_in_out_patch()
+                iteminfo_entry_task, iteminfo_header_entry_task, iteminfo_patch, iteminfo_note = (
+                    _universal_twohand_sword_true_onehand_iteminfo_patch_plan(original_entries_by_path)
+                    if include_true_onehand_iteminfo
+                    else (None, None, None, "ItemInfo true 1H behavior patch not requested.")
+                )
+                if (
+                    include_true_onehand_iteminfo
+                    and isinstance(iteminfo_patch, AttachmentUniversalItemInfoBehaviorPatchResult)
+                    and iteminfo_patch.blocking_reason
+                ):
+                    QMessageBox.warning(dialog, "Build Universal 2H Swords As True 1H", iteminfo_patch.blocking_reason)
+                    return
+                preview_lines = [
+                    "- Alias PHM 2H sword animation payloads to matching 1H sword payloads:",
+                ]
+                preview_lines.extend(f"- {line}" for line in tuple(alias_plan.proof_lines or ()))
+                for pair in tuple(alias_plan.pairs[:10]):
+                    preview_lines.append(f"- {pair.source_path} -> {pair.target_path}")
+                if len(alias_plan.pairs) > 10:
+                    preview_lines.append(f"- ...and {len(alias_plan.pairs) - 10:,} more animation alias payload(s)")
+                if isinstance(placement_entry, ArchiveEntry) and isinstance(placement_patch, AttachmentPartInOutPatchResult) and placement_patch.text:
+                    preview_lines.append(f"- Include 2H sword hip placement XML -> {placement_entry.path}")
+                    preview_lines.append("- Include known CDUMM alias -> character/phm_description_player_kliff.xml")
+                else:
+                    preview_lines.append(f"- Placement XML skipped: {placement_note}")
+                if include_true_onehand_iteminfo and isinstance(iteminfo_patch, AttachmentUniversalItemInfoBehaviorPatchResult):
+                    preview_lines.append("- Include experimental ItemInfo true 1H/offhand equipment patch:")
+                    preview_lines.extend(f"- {line}" for line in tuple(iteminfo_patch.proof_lines[:8]))
+                    if len(iteminfo_patch.proof_lines) > 8:
+                        preview_lines.append(f"- ...and {len(iteminfo_patch.proof_lines) - 8:,} more ItemInfo proof line(s)")
+                question = (
+                    "Build universal all-2H-swords-as-1H package?\n\n"
+                    "Scope: PHM 2H sword motion aliases plus 2H sword hip placement XML"
+                    + (" plus guarded ItemInfo true 1H/offhand patch." if include_true_onehand_iteminfo else ".")
+                    + "\n"
+                    "No actionchart .paac graph copy. "
+                    + ("ItemInfo export is limited to 2H sword rows with proven true-1H signatures. " if include_true_onehand_iteminfo else "No ItemInfo table export. ")
+                    + "No axe/spear/hammer/mace/cannon rows. "
+                    "No per-sword model, prefab, icon, or HKX copies.\n\n"
+                    + "\n".join(preview_lines)
+                    + "\n\nNo original archives will be modified."
+                )
+                answer = QMessageBox.question(
+                    dialog,
+                    "Build Universal 2H Swords As True 1H" if include_true_onehand_iteminfo else "Build Universal 2H Swords As 1H",
+                    question,
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No,
+                )
+                if answer != QMessageBox.Yes:
+                    return
+                target_settings = self._collect_archive_mod_ready_export_target(
+                    browse_title="Choose Universal 2H Swords As 1H Export Root",
+                    prompt_for_metadata=True,
+                    dialog_title="Build Universal 2H Swords As True 1H" if include_true_onehand_iteminfo else "Build Universal 2H Swords As 1H",
+                    allow_dmm_texture_structure=False,
+                    initial_package_title="all2h-as-1h true1h" if include_true_onehand_iteminfo else "all2h-as-1h",
+                    initial_package_description=(
+                        "2H swords use matching 1H PHM sword animation payloads where safely resolved. "
+                        + (
+                            "Experimental ItemInfo patch changes 2H sword equipment behavior to 1H/offhand while preserving item rows and assets."
+                            if include_true_onehand_iteminfo
+                            else "Includes 2H sword hip placement XML when available."
+                        )
+                    ),
+                    parent=dialog,
+                )
+                if target_settings is None:
+                    return
+                export_root, package_info, create_no_encrypt_file, _include_related, export_options = target_settings
+                diagnostics = [
+                    "Feature: Universal 2H Swords As 1H",
+                    "Base source: original numeric game archive entries only; modded/loose animation sources blocked.",
+                    "Behavior path: PHM 2H sword motion/motionblending aliases use matching 1H sword payloads where safely resolved.",
+                    "Scanned graphs: twohandsword_upper, ride_weapon_twohandsword_upper, basic_upper_weaponin, and passive refs from longsword_upper when present.",
+                    "Combat/guard PAA aliases are skipped by default; PAA-only combat swaps desync the original 2H actionchart timing.",
+                    "2H sword WeaponCasePart is left unchanged; forcing the 1H case part is not universal across 2H sword prefabs.",
+                    "Actionchart PAAC graph copy is disabled; whole-PAAC 1H graph swaps can hang save loading.",
+                    (
+                        "ItemInfo table is exported with a guarded _equipTypeInfo plus 9-byte one-hand sword-family and _itemType patch for 2H sword rows only."
+                        if include_true_onehand_iteminfo
+                        else "ItemInfo table is not exported; previous ItemInfo-only batch patch can crash the game."
+                    ),
+                    "Other 2H weapon families unchanged: axe, spear, hammer, mace, cannon.",
+                    "No source model/prefab/icon/HKX files copied; only animation payload aliases are exported.",
+                    placement_note,
+                    iteminfo_note,
+                    *tuple(alias_plan.proof_lines or ()),
+                    *tuple(iteminfo_patch.proof_lines if isinstance(iteminfo_patch, AttachmentUniversalItemInfoBehaviorPatchResult) else ()),
+                ]
+                package_info = self._placement_swap_package_info_with_diagnostics(package_info, diagnostics)
+                alias_plan_snapshot = alias_plan
+                original_entries_by_path_snapshot = dict(original_entries_by_path)
+                include_true_onehand_iteminfo_snapshot = bool(include_true_onehand_iteminfo)
+                iteminfo_entry_snapshot = iteminfo_entry_task
+                iteminfo_header_entry_snapshot = iteminfo_header_entry_task
+                iteminfo_patch_snapshot = iteminfo_patch
+
+                def _task(log: Callable[[str], None]) -> ArchiveLooseExportResult:
+                    requests_by_path: Dict[str, ArchivePatchRequest] = {}
+                    alias_request_count = 0
+                    for pair in tuple(alias_plan_snapshot.pairs or ()):
+                        source_key = str(pair.source_path or "").replace("\\", "/").strip().strip("/").casefold()
+                        target_key = str(pair.target_path or "").replace("\\", "/").strip().strip("/").casefold()
+                        source_entry = original_entries_by_path_snapshot.get(source_key)
+                        target_entry = original_entries_by_path_snapshot.get(target_key)
+                        if not isinstance(source_entry, ArchiveEntry) or not isinstance(target_entry, ArchiveEntry):
+                            log(f"Skip unresolved animation alias path: {pair.source_path} -> {pair.target_path}")
+                            continue
+                        payload_data = _read_original_archive_bytes(source_entry)
+                        if not payload_data:
+                            log(f"Skip unreadable animation alias source: {source_entry.path}")
+                            continue
+                        requests_by_path[target_key] = ArchivePatchRequest(target_entry, payload_data)
+                        alias_request_count += 1
+                        log(f"Alias 2H sword animation payload: {source_entry.path} -> {target_entry.path}; {pair.reason}")
+
+                    alias_specs: List[MeshImportSupplementalFileSpec] = []
+                    placement_entry_task, placement_patch_task, placement_note_task = _universal_twohand_sword_part_in_out_patch()
+                    if (
+                        isinstance(placement_entry_task, ArchiveEntry)
+                        and isinstance(placement_patch_task, AttachmentPartInOutPatchResult)
+                        and str(placement_patch_task.text or "")
+                    ):
+                        placement_key = placement_entry_task.path.replace("\\", "/").strip().casefold()
+                        requests_by_path[placement_key] = ArchivePatchRequest(
+                            placement_entry_task,
+                            placement_patch_task.text.encode("utf-8"),
+                        )
+                        alias_specs.extend(
+                            _placement_global_xml_alias_specs(
+                                placement_entry_task,
+                                placement_patch_task.text,
+                                ("character/phm_description_player_kliff.xml",),
+                                kind="placement_descriptor_alias",
+                            )
+                        )
+                        log(f"Include 2H sword hip placement XML: {placement_entry_task.path}; {placement_note_task}")
+                        for diff in tuple(placement_patch_task.diffs[:20]):
+                            log(
+                                "Patch PartInOut placement XML: "
+                                f"{diff.part_name} {diff.field_name}: {diff.old_value or '-'} -> {diff.new_value or '-'}"
+                            )
+                    else:
+                        log(f"Skip 2H sword hip placement XML: {placement_note_task}")
+
+                    if include_true_onehand_iteminfo_snapshot:
+                        if not (
+                            isinstance(iteminfo_entry_snapshot, ArchiveEntry)
+                            and isinstance(iteminfo_header_entry_snapshot, ArchiveEntry)
+                            and isinstance(iteminfo_patch_snapshot, AttachmentUniversalItemInfoBehaviorPatchResult)
+                            and iteminfo_patch_snapshot.changed
+                        ):
+                            raise ValueError("True 1H ItemInfo patch was requested but no validated patch payload was available.")
+                        iteminfo_key = iteminfo_entry_snapshot.path.replace("\\", "/").strip().casefold()
+                        requests_by_path[iteminfo_key] = ArchivePatchRequest(iteminfo_entry_snapshot, iteminfo_patch_snapshot.data)
+                        iteminfo_header_data = _read_original_archive_bytes(iteminfo_header_entry_snapshot)
+                        if iteminfo_header_data:
+                            iteminfo_header_key = iteminfo_header_entry_snapshot.path.replace("\\", "/").strip().casefold()
+                            requests_by_path[iteminfo_header_key] = ArchivePatchRequest(iteminfo_header_entry_snapshot, iteminfo_header_data)
+                            log(f"Include unchanged ItemInfo header companion: {iteminfo_header_entry_snapshot.path}")
+                        else:
+                            log("ItemInfo header companion could not be read; patched iteminfo.pabgb will still be exported.")
+                        log(f"Patch ItemInfo true 1H/offhand behavior: {iteminfo_entry_snapshot.path}; {iteminfo_note}")
+                        for proof_line in tuple(iteminfo_patch_snapshot.proof_lines[:40]):
+                            log(f"ItemInfo true 1H proof: {proof_line}")
+
+                    if alias_request_count <= 0:
+                        raise ValueError("No universal 2H sword animation alias payloads could be read from original archives.")
+
+                    return export_archive_payloads_to_mod_ready_loose(
+                        list(requests_by_path.values()),
+                        parent_root=export_root,
+                        package_info=package_info,
+                        export_options=export_options,
+                        create_no_encrypt_file=create_no_encrypt_file,
+                        extra_payloads_to_include=tuple(alias_specs),
+                        on_log=log,
+                    )
+
+                def _handle_complete(result: object) -> None:
+                    if isinstance(result, ArchiveLooseExportResult):
+                        QMessageBox.information(
+                            dialog,
+                            "Universal 2H Swords As True 1H Complete" if include_true_onehand_iteminfo_snapshot else "Universal 2H Swords As 1H Complete",
+                            f"Wrote universal 2H swords as 1H loose package:\n{result.package_root}",
+                        )
+                        self.set_status_message(
+                            "Wrote universal 2H swords as true 1H package."
+                            if include_true_onehand_iteminfo_snapshot
+                            else "Wrote universal 2H swords as 1H package."
+                        )
+                        dialog.accept()
+                    else:
+                        self.set_status_message(
+                            "Universal 2H swords as 1H export finished with an unexpected result payload.",
+                            error=True,
+                        )
+
+                self._run_utility_task(
+                    status_message=(
+                        "Building universal 2H swords as true 1H package..."
+                        if include_true_onehand_iteminfo
+                        else "Building universal 2H swords as 1H package..."
+                    ),
+                    task=_task,
+                    on_complete=_handle_complete,
+                    show_archive_progress=True,
+                )
 
             def _build_donor_placement_package() -> None:
                 visual_rows = _visual_patch_preview_rows()
-                if not package_plan_rows and not visual_rows:
+                effective_package_plan_rows = _effective_package_plan_rows()
+                patch_scope_blocked = _placement_part_in_out_patch_blocking_reason(_visual_part_in_out_preview_patch())
+                if patch_scope_blocked:
+                    QMessageBox.warning(dialog, "Build Placement Package", patch_scope_blocked)
+                    return
+                behavior_blocked = _placement_behavior_patch_blocking_reason()
+                if behavior_blocked:
+                    QMessageBox.warning(dialog, "Build Placement Package", behavior_blocked)
+                    return
+                if not effective_package_plan_rows and not visual_rows:
                     QMessageBox.warning(
                         dialog,
-                        "Build Placement Copy Package",
-                        "No safe source-copy package rows or visual placement XML patch rows are available for this target/source pair.",
+                        "Build Placement Package",
+                        "Nothing to build yet. Choose a 1H/2H source weapon or a manual body location first.",
                     )
                     return
                 custom_icon_spec = None
@@ -34940,27 +41275,30 @@ def run_gui() -> int:
                     if custom_icon_spec is None:
                         return
                 preview_lines = []
-                for row in package_plan_rows[:8]:
+                for row in effective_package_plan_rows[:8]:
                     donor = row.get("donor_entry")
                     target = row.get("target_entry")
                     if isinstance(donor, ArchiveEntry) and isinstance(target, ArchiveEntry):
                         preview_lines.append(f"- {donor.basename} -> {target.path}")
-                if len(package_plan_rows) > 8:
-                    preview_lines.append(f"- ...and {len(package_plan_rows) - 8} more file(s)")
+                if len(effective_package_plan_rows) > 8:
+                    preview_lines.append(f"- ...and {len(effective_package_plan_rows) - 8} more file(s)")
+                loose_specs = _target_loose_specs()
+                if loose_specs:
+                    preview_lines.append(f"- preserve {len(loose_specs):,} existing target loose file(s)")
                 if custom_icon_spec is not None:
                     preview_lines.append(f"- custom icon {custom_icon_spec.source_path.name} -> {custom_icon_spec.target_path}")
                 for action, target_path, _note in visual_rows:
                     preview_lines.append(f"- {action} -> {target_path}")
                 question = (
-                    "Write a mod-ready loose package using this reviewed placement-copy plan?\n\n"
+                    "Write a mod-ready loose package using this placement plan?\n\n"
                     f"Target that changes: {target_entry.path}\n"
-                    f"Placement source: {donor_entry.path}\n\n"
+                    f"Placement source: {donor_entry.path if isinstance(donor_entry, ArchiveEntry) else 'none'}\n\n"
                     + "\n".join(preview_lines)
                     + "\n\nNo original archives will be modified."
                 )
                 answer = QMessageBox.question(
                     dialog,
-                    "Build Placement Copy Package",
+                    "Build Placement Package",
                     question,
                     QMessageBox.Yes | QMessageBox.No,
                     QMessageBox.No,
@@ -34968,27 +41306,39 @@ def run_gui() -> int:
                 if answer != QMessageBox.Yes:
                     return
                 target_settings = self._collect_archive_mod_ready_export_target(
-                    browse_title="Choose Placement Copy Package Export Root",
+                    browse_title="Choose Placement Package Export Root",
                     prompt_for_metadata=True,
-                    dialog_title="Build Placement Copy Package",
+                    dialog_title="Build Placement Package",
                     allow_dmm_texture_structure=False,
                 )
                 if target_settings is None:
                     return
                 export_root, package_info, create_no_encrypt_file, _include_related, export_options = target_settings
-                plan_snapshot = tuple(dict(row) for row in package_plan_rows)
+                plan_snapshot = tuple(dict(row) for row in effective_package_plan_rows)
                 diagnostics = [
                     f"Target: {target_entry.path}",
-                    f"Placement source: {donor_entry.path}",
+                    f"Placement source: {donor_entry.path if isinstance(donor_entry, ArchiveEntry) else 'none'}",
+                    f"Placement state: {_visual_selected_placement_state()}",
+                    f"Swap type: {_visual_selected_swap_type()}",
                     (
-                        "Experimental mode: source model/material copied to target paths."
-                        if experimental_model_checkbox.isChecked()
-                        else "Default risky mode: Placement copied, visible model may not change for cross-category sources."
+                        "Legacy raw prefab copy enabled."
+                        if legacy_raw_prefab_checkbox.isChecked()
+                        else "Target-only mode: source model/material/textures/icon/prefab bytes are not copied."
                     ),
                     (
-                        "Experimental source HKX/physics copied to target path."
-                        if experimental_hkx_checkbox.isChecked()
-                        else "Target HKX/physics preserved by default."
+                        "Experimental length-changing prefab role/socket patch enabled."
+                        if experimental_prefab_resize_checkbox.isChecked()
+                        else "Length-changing prefab role/socket patch blocked by default."
+                    ),
+                    (
+                        "Replacement-only source HKX/physics copied to target path."
+                        if legacy_hkx_checkbox.isChecked()
+                        else "Source HKX/physics not copied by default."
+                    ),
+                    (
+                        f"Existing target loose files preserved from {_selected_target_loose_root()}."
+                        if _target_loose_specs()
+                        else "No existing target loose package detected; vanilla target files remain in game."
                     ),
                     *tuple(package_plan_warnings[:8]),
                 ]
@@ -35004,30 +41354,97 @@ def run_gui() -> int:
                 for action, target_path, note in _visual_patch_preview_rows():
                     diagnostics.append(f"{action}: {target_path}; {note}")
                 package_info = self._placement_swap_package_info_with_diagnostics(package_info, diagnostics)
+                loose_specs_snapshot = tuple(_target_loose_specs())
 
                 def _task(log: Callable[[str], None]) -> ArchiveLooseExportResult:
                     requests_by_path: Dict[str, ArchivePatchRequest] = {}
                     seen_request_paths: set[str] = set()
+                    alias_specs: List[MeshImportSupplementalFileSpec] = []
+                    behavior_entry, behavior_header_entry, behavior_patch, behavior_note = _visual_iteminfo_behavior_patch()
+                    if _visual_selected_swap_type() == "full_behavior":
+                        if isinstance(behavior_patch, AttachmentItemInfoBehaviorPatchResult) and behavior_patch.blocking_reason:
+                            raise ValueError(behavior_patch.blocking_reason)
+                        if (
+                            isinstance(behavior_entry, ArchiveEntry)
+                            and isinstance(behavior_header_entry, ArchiveEntry)
+                            and isinstance(behavior_patch, AttachmentItemInfoBehaviorPatchResult)
+                            and bool(behavior_patch.old_equip_type_name)
+                        ):
+                            target_key = behavior_entry.path.replace("\\", "/").strip().casefold()
+                            header_key = behavior_header_entry.path.replace("\\", "/").strip().casefold()
+                            header_payload = _read_placement_base_bytes(behavior_header_entry)
+                            if not header_payload:
+                                raise ValueError("Could not read iteminfo.pabgh companion for full behavior package.")
+                            requests_by_path[target_key] = ArchivePatchRequest(behavior_entry, behavior_patch.data)
+                            requests_by_path[header_key] = ArchivePatchRequest(behavior_header_entry, header_payload)
+                            seen_request_paths.add(target_key)
+                            seen_request_paths.add(header_key)
+                            log(
+                                (
+                                    "Patch ItemInfo behavior"
+                                    if behavior_patch.changed
+                                    else "Include ItemInfo behavior context"
+                                )
+                                + f": {behavior_entry.path}; {behavior_note}"
+                            )
+                            log(f"Include unchanged ItemInfo header companion: {behavior_header_entry.path}")
+                            for proof_line in tuple(behavior_patch.proof_lines):
+                                log(f"ItemInfo behavior proof: {proof_line}")
+                    target_pac_xml_entry, pac_xml_patch, pac_xml_note = _visual_target_pac_xml_patch()
+                    if (
+                        isinstance(target_pac_xml_entry, ArchiveEntry)
+                        and isinstance(pac_xml_patch, AttachmentStackEquipTypePatchResult)
+                        and pac_xml_patch.changed
+                    ):
+                        target_key = target_pac_xml_entry.path.replace("\\", "/").strip().casefold()
+                        requests_by_path[target_key] = ArchivePatchRequest(target_pac_xml_entry, pac_xml_patch.text.encode("utf-8"))
+                        seen_request_paths.add(target_key)
+                        log(f"Patch target .pac_xml slot metadata: {target_pac_xml_entry.path}; {pac_xml_note}")
+                    target_prefab_entry, prefab_patch, prefab_note = _visual_target_prefab_patch()
+                    if isinstance(target_prefab_entry, ArchiveEntry) and isinstance(prefab_patch, PrefabAttachmentProfilePatchResult):
+                        target_key = target_prefab_entry.path.replace("\\", "/").strip().casefold()
+                        requests_by_path[target_key] = ArchivePatchRequest(target_prefab_entry, prefab_patch.data)
+                        seen_request_paths.add(target_key)
+                        log(f"Patch target prefab placement: {target_prefab_entry.path}; {prefab_note}")
+                        for proof_line in prefab_patch.proof_lines:
+                            log(f"Prefab socket proof: {proof_line}")
                     for row in plan_snapshot:
                         donor = row.get("donor_entry")
                         target = row.get("target_entry")
                         if not isinstance(donor, ArchiveEntry) or not isinstance(target, ArchiveEntry):
                             continue
                         target_key = target.path.replace("\\", "/").strip().casefold()
+                        action = str(row.get("action") or "Copy source bytes")
+                        same_entry = self._same_archive_entry(donor, target)
+                        explicit_source_icon = (
+                            use_source_icon_checkbox.isChecked()
+                            and "icon" in action.casefold()
+                            and "explicit" in action.casefold()
+                        )
+                        if not (legacy_raw_prefab_checkbox.isChecked() or same_entry or explicit_source_icon):
+                            log(f"Blocked donor file row outside explicit advanced mode: {action}: {donor.path} -> {target.path}")
+                            continue
                         if target_key in seen_request_paths:
                             continue
                         seen_request_paths.add(target_key)
                         payload_data, _decompressed, _note = read_archive_entry_data(donor)
-                        action = str(row.get("action") or "Copy source bytes")
                         log(f"{action}: {donor.path} -> {target.path}")
                         requests_by_path[target_key] = ArchivePatchRequest(target, payload_data)
                     part_patch_for_socket: Optional[AttachmentPartInOutPatchResult] = None
                     if patch_part_in_out_checkbox.isChecked() and isinstance(part_in_out_entry, ArchiveEntry):
-                        base_text = _read_archive_text(part_in_out_entry)
+                        base_text = _read_placement_base_text(part_in_out_entry)
                         part_patch_for_socket = _visual_part_in_out_patch(base_text)
                         if isinstance(part_patch_for_socket, AttachmentPartInOutPatchResult) and part_patch_for_socket.diffs:
                             target_key = part_in_out_entry.path.replace("\\", "/").strip().casefold()
                             requests_by_path[target_key] = ArchivePatchRequest(part_in_out_entry, part_patch_for_socket.text.encode("utf-8"))
+                            alias_specs.extend(
+                                _placement_global_xml_alias_specs(
+                                    part_in_out_entry,
+                                    part_patch_for_socket.text,
+                                    ("character/phm_description_player_kliff.xml",),
+                                    kind="placement_descriptor_alias",
+                                )
+                            )
                             for diff in tuple(part_patch_for_socket.diffs[:20]):
                                 log(
                                     "Patch PartInOut placement XML: "
@@ -35041,6 +41458,14 @@ def run_gui() -> int:
                         if isinstance(socket_patch, AttachmentPartInOutPatchResult) and socket_patch.diffs:
                             target_key = character_socket_entry.path.replace("\\", "/").strip().casefold()
                             requests_by_path[target_key] = ArchivePatchRequest(character_socket_entry, socket_patch.text.encode("utf-8"))
+                            alias_specs.extend(
+                                _placement_global_xml_alias_specs(
+                                    character_socket_entry,
+                                    socket_patch.text,
+                                    ("character/phm_01.pab.sockets.xml",),
+                                    kind="placement_socket_alias",
+                                )
+                            )
                             for diff in tuple(socket_patch.diffs[:20]):
                                 log(
                                     "Patch character socket XML: "
@@ -35070,6 +41495,7 @@ def run_gui() -> int:
                         package_info=package_info,
                         export_options=export_options,
                         create_no_encrypt_file=create_no_encrypt_file,
+                        extra_payloads_to_include=tuple(loose_specs_snapshot) + tuple(alias_specs),
                         on_log=log,
                     )
 
@@ -35077,50 +41503,76 @@ def run_gui() -> int:
                     if isinstance(result, ArchiveLooseExportResult):
                         QMessageBox.information(
                             dialog,
-                            "Placement Copy Package Complete",
-                            f"Wrote placement copy loose package:\n{result.package_root}",
+                            "Placement Package Complete",
+                            f"Wrote placement loose package:\n{result.package_root}",
                         )
-                        self.set_status_message(f"Wrote placement copy package for {target_entry.basename}.")
+                        self.set_status_message(f"Wrote placement package for {target_entry.basename}.")
                         dialog.accept()
                     else:
-                        self.set_status_message("Placement copy package export finished with an unexpected result payload.", error=True)
+                        self.set_status_message("Placement package export finished with an unexpected result payload.", error=True)
 
                 self._run_utility_task(
-                    status_message=f"Building placement copy package for {target_entry.basename}...",
+                    status_message=f"Building placement package for {target_entry.basename}...",
                     task=_task,
                     on_complete=_handle_complete,
                     show_archive_progress=True,
                 )
 
             custom_icon_checkbox.toggled.connect(lambda _checked=False: _refresh_custom_icon_status())
+            custom_icon_override_button.clicked.connect(
+                lambda _checked=False: (custom_icon_checkbox.setChecked(True), _refresh_custom_icon_status())
+            )
+            custom_icon_clear_button.clicked.connect(
+                lambda _checked=False: (
+                    custom_icon_checkbox.setChecked(False),
+                    custom_icon_source_edit.clear(),
+                    use_source_icon_checkbox.setChecked(False),
+                    _refresh_custom_icon_status(),
+                    _refresh_package_plan(),
+                )
+            )
             custom_icon_source_edit.textChanged.connect(lambda _text="": _refresh_custom_icon_status())
             custom_icon_target_combo.currentIndexChanged.connect(lambda _index=0: _refresh_custom_icon_status())
             custom_icon_file_button.clicked.connect(lambda _checked=False: _choose_custom_icon_file())
             custom_icon_folder_button.clicked.connect(lambda _checked=False: _choose_custom_icon_folder())
             custom_icon_library_button.clicked.connect(lambda _checked=False: _choose_custom_icon_library_source())
-            _refresh_custom_icon_status()
-            visual_preview_button.clicked.connect(
-                lambda _checked=False: self._open_archive_attachment_visual_placement_dialog(
-                    target_entry,
-                    donor_entry,
-                    target_graph,
-                    donor_graph,
-                    package_plan_rows=tuple(package_plan_rows),
+            source_copy_button.clicked.connect(lambda _checked=False: _choose_placement_source_from_workspace())
+            advanced_features_toggle.toggled.connect(
+                lambda checked=False: (
+                    advanced_features_widget.setVisible(bool(checked)),
+                    _refresh_visual_status(),
+                    _refresh_package_plan(),
                 )
             )
+            target_loose_combo.currentIndexChanged.connect(lambda _index=0: _refresh_package_plan())
+            swap_type_combo.currentIndexChanged.connect(lambda _index=0: (_refresh_visual_status(), _refresh_package_plan()))
+            _apply_default_swap_type()
+            _refresh_custom_icon_status()
             import_profile_button.clicked.connect(lambda _checked=False: _import_visual_profile_xml())
+            placement_state_combo.currentIndexChanged.connect(lambda _index=0: (_refresh_visual_status(), _refresh_package_plan()))
+            use_profile_transforms_checkbox.toggled.connect(
+                lambda checked=False: (
+                    patch_socket_checkbox.setChecked(bool(checked) and isinstance(character_socket_entry, ArchiveEntry)),
+                    _refresh_visual_status(),
+                    _refresh_package_plan(),
+                )
+            )
             patch_part_in_out_checkbox.toggled.connect(lambda _checked=False: (_refresh_visual_status(), _refresh_package_plan()))
             patch_socket_checkbox.toggled.connect(lambda _checked=False: (_refresh_visual_status(), _refresh_package_plan()))
             attach_point_combo.currentIndexChanged.connect(
                 lambda _index=0: (
-                    patch_part_in_out_checkbox.setChecked(bool(_visual_selected_attach_socket()) or patch_part_in_out_checkbox.isChecked()),
+                    patch_part_in_out_checkbox.setChecked(
+                        bool(str(imported_profile_state.get("part_in_out_text") or "").strip())
+                    ),
                     _refresh_visual_status(),
                     _refresh_package_plan(),
                 )
             )
             _refresh_visual_status()
-            experimental_model_checkbox.toggled.connect(lambda _checked=False: _refresh_experimental_options())
-            experimental_hkx_checkbox.toggled.connect(lambda _checked=False: _refresh_package_plan())
+            legacy_raw_prefab_checkbox.toggled.connect(lambda _checked=False: _refresh_experimental_options())
+            legacy_hkx_checkbox.toggled.connect(lambda _checked=False: _refresh_package_plan())
+            experimental_prefab_resize_checkbox.toggled.connect(lambda _checked=False: (_refresh_visual_status(), _refresh_package_plan()))
+            use_source_icon_checkbox.toggled.connect(lambda _checked=False: _refresh_package_plan())
             _refresh_experimental_options()
             target_socket_button.clicked.connect(
                 lambda _checked=False: self._open_archive_socket_xml_editor_dialog(target_socket_entry, owner=dialog)
@@ -35132,8 +41584,73 @@ def run_gui() -> int:
                 if isinstance(donor_socket_entry, ArchiveEntry)
                 else None
             )
+            universal_twohand_button.clicked.connect(lambda _checked=False: _build_universal_twohand_sword_package())
+            universal_twohand_true_button.clicked.connect(
+                lambda _checked=False: _build_universal_twohand_sword_package(include_true_onehand_iteminfo=True)
+            )
             build_button.clicked.connect(lambda _checked=False: _build_donor_placement_package())
             close_button.clicked.connect(dialog.accept)
+
+            placement_dialog_layout_state = {"mode": ""}
+
+            def _apply_placement_dialog_responsive_layout(*, force_sizes: bool = False) -> None:
+                width = max(1, int(dialog.width()))
+                height = max(1, int(dialog.height()))
+                compact = width < 1040
+                mode = "compact" if compact else "wide"
+                mode_changed = str(placement_dialog_layout_state.get("mode") or "") != mode
+                placement_dialog_layout_state["mode"] = mode
+                if compact:
+                    if main_splitter.orientation() != Qt.Vertical:
+                        main_splitter.setOrientation(Qt.Vertical)
+                    main_splitter.setHandleWidth(8)
+                    left_column.setMinimumWidth(0)
+                    right_column.setMinimumWidth(0)
+                    if force_sizes or mode_changed:
+                        main_splitter.setSizes([max(320, int(height * 0.54)), max(260, int(height * 0.38))])
+                else:
+                    if main_splitter.orientation() != Qt.Horizontal:
+                        main_splitter.setOrientation(Qt.Horizontal)
+                    main_splitter.setHandleWidth(10)
+                    left_column.setMinimumWidth(420)
+                    right_column.setMinimumWidth(420)
+                    if force_sizes or mode_changed:
+                        left_width = max(460, min(680, int(width * 0.42)))
+                        main_splitter.setSizes([left_width, max(420, width - left_width)])
+
+            previous_placement_dialog_resize_event = dialog.resizeEvent
+
+            def _responsive_placement_dialog_resize_event(event: object) -> None:
+                previous_placement_dialog_resize_event(event)
+                QTimer.singleShot(0, _apply_placement_dialog_responsive_layout)
+
+            dialog.resizeEvent = _responsive_placement_dialog_resize_event  # type: ignore[method-assign]
+
+            def _fit_placement_dialog_to_screen() -> None:
+                screen = dialog.screen() or self.screen() or QApplication.primaryScreen()
+                if screen is None:
+                    dialog.resize(1180, 760)
+                    _apply_placement_dialog_responsive_layout(force_sizes=True)
+                    return
+                available = screen.availableGeometry()
+                available_width = max(640, int(available.width()) - 24)
+                available_height = max(420, int(available.height()) - 24)
+                max_width = min(1500, max(760, int(float(available.width()) * 0.92)), available_width)
+                max_height = min(860, max(560, int(float(available.height()) * 0.88)), available_height)
+                size_hint = dialog.sizeHint()
+                target_width = min(max_width, max(min(1180, max_width), int(size_hint.width())))
+                target_height = min(max_height, max(min(720, max_height), int(size_hint.height())))
+                dialog.resize(target_width, target_height)
+                _apply_placement_dialog_responsive_layout(force_sizes=True)
+                frame = dialog.frameGeometry()
+                frame.moveCenter(available.center())
+                left = max(available.left(), min(frame.left(), available.right() - frame.width() + 1))
+                top = max(available.top(), min(frame.top(), available.bottom() - frame.height() + 1))
+                dialog.move(left, top)
+
+            dialog.adjustSize()
+            _fit_placement_dialog_to_screen()
+            QTimer.singleShot(0, _fit_placement_dialog_to_screen)
             dialog.exec()
 
         def _scope_archive_asset_family_for_entry(self, entry: ArchiveEntry, *, include_hints: bool = False) -> None:
@@ -37904,9 +44421,21 @@ def run_gui() -> int:
             path_layout.setColumnStretch(1, 1)
             layout.addLayout(path_layout)
 
-            table = QTableWidget(0, 7)
+            table = QTableWidget(0, 11)
             table.setHorizontalHeaderLabels(
-                ["Use", "Package", "Kind", "Existing metadata", "Payloads", "Manager profile", "Warnings"]
+                [
+                    "Use",
+                    "Package",
+                    "Kind",
+                    "Existing metadata",
+                    "Payloads",
+                    "Manager profile",
+                    "Structure",
+                    "Conflict",
+                    "Language",
+                    "Ready zip",
+                    "Warnings",
+                ]
             )
             table.setSelectionBehavior(QAbstractItemView.SelectRows)
             table.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -37918,7 +44447,11 @@ def run_gui() -> int:
             table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
             table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
             table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
-            table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Stretch)
+            table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
+            table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
+            table.horizontalHeader().setSectionResizeMode(8, QHeaderView.ResizeToContents)
+            table.horizontalHeader().setSectionResizeMode(9, QHeaderView.ResizeToContents)
+            table.horizontalHeader().setSectionResizeMode(10, QHeaderView.Stretch)
             layout.addWidget(table, 1)
 
             status_label = QLabel("Scan a source folder to find packaged mods.")
@@ -37928,24 +44461,20 @@ def run_gui() -> int:
             button_row = QHBoxLayout()
             preview_button = QPushButton("Preview Plan")
             convert_button = QPushButton("Convert Selected")
+            merge_cdumm_button = QPushButton("Merge Selected for CDUMM")
             open_output_button = QPushButton("Open Output Folder")
             close_button = QPushButton("Close")
             button_row.addWidget(preview_button)
             button_row.addWidget(convert_button)
+            button_row.addWidget(merge_cdumm_button)
             button_row.addWidget(open_output_button)
             button_row.addStretch(1)
             button_row.addWidget(close_button)
             layout.addLayout(button_row)
 
             packages: List[RetrofittableModPackage] = []
-            profile_labels = {
-                "universal": "Universal",
-                "dmm": "Definitive Mod Manager",
-                "jmm": "JMM JSON",
-                "cdumm": "CDUMM",
-                "crimson_sharp": "Crimson Sharp / Crimson Browser",
-                "field_json": "Field-JSON v3.1",
-            }
+            profile_labels = dict(MOD_PACKAGE_MANAGER_PROFILE_LABELS)
+            profile_labels["crimson_sharp"] = "Crimson Sharp / Crimson Browser"
 
             def _selected_package_rows() -> List[int]:
                 rows: List[int] = []
@@ -37960,6 +44489,66 @@ def run_gui() -> int:
                 if isinstance(combo, QComboBox):
                     return str(combo.currentData() or "universal")
                 return "universal"
+
+            def _structure_for_row(row: int) -> str:
+                combo = table.cellWidget(row, 6)
+                if isinstance(combo, QComboBox):
+                    return str(combo.currentData() or "")
+                return ""
+
+            def _conflict_mode_for_row(row: int) -> str:
+                combo = table.cellWidget(row, 7)
+                if isinstance(combo, QComboBox):
+                    return str(combo.currentData() or "")
+                return ""
+
+            def _target_language_for_row(row: int) -> str:
+                edit = table.cellWidget(row, 8)
+                if isinstance(edit, QLineEdit):
+                    return edit.text().strip()
+                return ""
+
+            def _ready_zip_for_row(row: int) -> bool:
+                checkbox = table.cellWidget(row, 9)
+                if isinstance(checkbox, QCheckBox):
+                    return checkbox.isChecked()
+                return True
+
+            def _export_options_for_row(row: int) -> ModPackageExportOptions:
+                profile = _manager_for_row(row)
+                defaults = mod_package_export_options_for_manager(profile)
+                structure = _structure_for_row(row) or defaults.structure
+                uses_manager_metadata = mod_package_profile_uses_manager_metadata(profile)
+                return ModPackageExportOptions(
+                    manager_targets=tuple(defaults.manager_targets),
+                    structure=structure,
+                    create_manifest_json=defaults.create_manifest_json,
+                    create_mod_json=defaults.create_mod_json,
+                    create_modinfo_json=defaults.create_modinfo_json,
+                    create_info_json=defaults.create_info_json,
+                    create_no_encrypt_file=defaults.create_no_encrypt_file,
+                    create_zip=_ready_zip_for_row(row),
+                    conflict_mode=_conflict_mode_for_row(row) if uses_manager_metadata else "",
+                    target_language=_target_language_for_row(row) if uses_manager_metadata else "",
+                    files_dir=defaults.files_dir,
+                )
+
+            def _apply_retrofit_profile_defaults(row: int) -> None:
+                profile = _manager_for_row(row)
+                defaults = mod_package_export_options_for_manager(profile)
+                structure_combo = table.cellWidget(row, 6)
+                if isinstance(structure_combo, QComboBox):
+                    index = structure_combo.findData(defaults.structure)
+                    if index >= 0:
+                        structure_combo.setCurrentIndex(index)
+                    structure_combo.setEnabled(profile not in {"jmm", "field_json"})
+                conflict_combo = table.cellWidget(row, 7)
+                language_edit = table.cellWidget(row, 8)
+                uses_manager_metadata = mod_package_profile_uses_manager_metadata(profile)
+                if isinstance(conflict_combo, QComboBox):
+                    conflict_combo.setEnabled(uses_manager_metadata)
+                if isinstance(language_edit, QLineEdit):
+                    language_edit.setEnabled(uses_manager_metadata)
 
             def _populate_table() -> None:
                 table.setRowCount(0)
@@ -37982,7 +44571,27 @@ def run_gui() -> int:
                         manager_combo.setCurrentIndex(default_index)
                     manager_combo.setToolTip("Choose the manager profile to generate for this package.")
                     table.setCellWidget(row, 5, manager_combo)
-                    table.setItem(row, 6, QTableWidgetItem("; ".join(package.warnings) or "-"))
+                    structure_combo = QComboBox()
+                    structure_combo.addItem("Game-relative folders", "game_relative")
+                    structure_combo.addItem("files/ wrapper", "files_wrapper")
+                    structure_combo.addItem("Custom compact paths", "custom_compact_paths")
+                    structure_combo.addItem("DMM texture folder", "dmm_texture")
+                    structure_combo.addItem("Field-JSON v3.1 assets", "field_json_v31")
+                    table.setCellWidget(row, 6, structure_combo)
+                    conflict_combo = QComboBox()
+                    conflict_combo.addItem("Normal", "")
+                    conflict_combo.addItem("Override wins", "override")
+                    table.setCellWidget(row, 7, conflict_combo)
+                    language_edit = QLineEdit()
+                    language_edit.setPlaceholderText("Optional")
+                    table.setCellWidget(row, 8, language_edit)
+                    ready_zip_checkbox = QCheckBox()
+                    ready_zip_checkbox.setChecked(True)
+                    ready_zip_checkbox.setToolTip("Write rebuilt zip beside the converted folder.")
+                    table.setCellWidget(row, 9, ready_zip_checkbox)
+                    table.setItem(row, 10, QTableWidgetItem("; ".join(package.warnings) or "-"))
+                    manager_combo.currentIndexChanged.connect(lambda _index, table_row=row: _apply_retrofit_profile_defaults(table_row))
+                    _apply_retrofit_profile_defaults(row)
                 table.resizeRowsToContents()
                 status_label.setText(f"Found {len(packages):,} packaged mod folder(s).")
 
@@ -38017,9 +44626,18 @@ def run_gui() -> int:
                 for row in rows:
                     package = packages[row]
                     profile = _manager_for_row(row)
-                    lines.append(
-                        f"- {package.name} -> {package.name}_{profile} ({profile_labels.get(profile, profile)}, {len(package.payload_paths)} payload files)"
+                    repair_summary = build_retrofit_path_repair_summary(
+                        package,
+                        archive_entries_by_basename=self.archive_entries_by_basename,
                     )
+                    lines.append(
+                        f"- {package.name} -> {package.name}_{profile} "
+                        f"({profile_labels.get(profile, profile)}, {len(package.payload_paths)} payload files, "
+                        f"repaired={repair_summary.repaired_path_count}, unresolved={repair_summary.unresolved_path_count}, "
+                        f"ambiguous={repair_summary.ambiguous_path_count})"
+                    )
+                    for warning in repair_summary.warnings[:3]:
+                        lines.append(f"  {warning}")
                 QMessageBox.information(dialog, "Retrofit Packaged Mods", "\n".join(lines[:80]))
 
             def _convert_selected() -> None:
@@ -38036,8 +44654,19 @@ def run_gui() -> int:
                         package = packages[row]
                         profile = _manager_for_row(row)
                         try:
-                            result = retrofit_mod_package(package, output_root, manager_profile=profile)
-                            converted.append(f"{package.name}: {result.package_root}")
+                            result = retrofit_mod_package(
+                                package,
+                                output_root,
+                                manager_profile=profile,
+                                export_options=_export_options_for_row(row),
+                                archive_entries_by_basename=self.archive_entries_by_basename,
+                            )
+                            repair_note = (
+                                f" repaired={result.repaired_path_count}"
+                                f" unresolved={result.unresolved_path_count}"
+                                f" ambiguous={result.ambiguous_path_count}"
+                            )
+                            converted.append(f"{package.name}: {result.package_root}{repair_note}")
                         except Exception as exc:
                             failed.append(f"{package.name}: {exc}")
                 finally:
@@ -38054,6 +44683,132 @@ def run_gui() -> int:
                 status_label.setText(message_lines[0] if message_lines else "No packages converted.")
                 QMessageBox.information(dialog, "Retrofit Packaged Mods", "\n".join(message_lines or ["No packages converted."]))
 
+            def _prompt_merged_cdumm_package_info(selected_packages: Sequence[RetrofittableModPackage]) -> Optional[ModPackageInfo]:
+                metadata_dialog = QDialog(dialog)
+                metadata_dialog.setWindowTitle("Merged CDUMM Mod Metadata")
+                metadata_dialog.setModal(True)
+                metadata_dialog.resize(560, 320)
+
+                metadata_layout = QVBoxLayout(metadata_dialog)
+                metadata_layout.setContentsMargins(12, 12, 12, 12)
+                metadata_layout.setSpacing(10)
+
+                hint = QLabel(
+                    "Choose the single mod identity CDUMM should see for the merged package. "
+                    "Import the merged package instead of enabling the separate source mods."
+                )
+                hint.setWordWrap(True)
+                hint.setObjectName("HintLabel")
+                metadata_layout.addWidget(hint)
+
+                names = [package.package_info.title or package.name for package in selected_packages]
+                default_title = " + ".join(names[:3])
+                if len(names) > 3:
+                    default_title += f" + {len(names) - 3} more"
+                default_author = next(
+                    (package.package_info.author for package in selected_packages if package.package_info.author),
+                    "",
+                )
+
+                fields_layout = QGridLayout()
+                fields_layout.setHorizontalSpacing(8)
+                fields_layout.setVerticalSpacing(8)
+                title_edit = QLineEdit(default_title or "Merged CDUMM Mod")
+                version_edit = QLineEdit("1.0")
+                author_edit = QLineEdit(default_author)
+                description_edit = QPlainTextEdit(
+                    "Merged CDUMM package for: " + ", ".join(names)
+                )
+                description_edit.setMaximumHeight(90)
+                fields_layout.addWidget(QLabel("Title"), 0, 0)
+                fields_layout.addWidget(title_edit, 0, 1)
+                fields_layout.addWidget(QLabel("Version"), 1, 0)
+                fields_layout.addWidget(version_edit, 1, 1)
+                fields_layout.addWidget(QLabel("Author"), 2, 0)
+                fields_layout.addWidget(author_edit, 2, 1)
+                fields_layout.addWidget(QLabel("Description"), 3, 0)
+                fields_layout.addWidget(description_edit, 3, 1)
+                fields_layout.setColumnStretch(1, 1)
+                metadata_layout.addLayout(fields_layout)
+
+                metadata_buttons = QHBoxLayout()
+                metadata_buttons.addStretch(1)
+                cancel_metadata_button = QPushButton("Cancel")
+                merge_metadata_button = QPushButton("Merge")
+                metadata_buttons.addWidget(cancel_metadata_button)
+                metadata_buttons.addWidget(merge_metadata_button)
+                metadata_layout.addLayout(metadata_buttons)
+                cancel_metadata_button.clicked.connect(metadata_dialog.reject)
+                merge_metadata_button.clicked.connect(metadata_dialog.accept)
+
+                if metadata_dialog.exec() != QDialog.Accepted:
+                    return None
+                return ModPackageInfo(
+                    title=title_edit.text().strip() or "Merged CDUMM Mod",
+                    version=version_edit.text().strip() or "1.0",
+                    author=author_edit.text().strip(),
+                    description=description_edit.toPlainText().strip(),
+                )
+
+            def _merge_selected_cdumm() -> None:
+                rows = _selected_package_rows()
+                if len(rows) < 2:
+                    QMessageBox.information(dialog, "Retrofit Packaged Mods", "Select at least two packages to merge.")
+                    return
+                selected_packages = [packages[row] for row in rows]
+                merged_info = _prompt_merged_cdumm_package_info(selected_packages)
+                if merged_info is None:
+                    return
+                output_root = Path(output_edit.text().strip()).expanduser()
+                cdumm_defaults = mod_package_export_options_for_manager("cdumm")
+                first_row = rows[0]
+                export_options = ModPackageExportOptions(
+                    manager_targets=("cdumm",),
+                    structure="files_wrapper",
+                    create_manifest_json=True,
+                    create_modinfo_json=True,
+                    create_no_encrypt_file=cdumm_defaults.create_no_encrypt_file,
+                    create_zip=True,
+                    conflict_mode=_conflict_mode_for_row(first_row),
+                    target_language=_target_language_for_row(first_row),
+                    files_dir=cdumm_defaults.files_dir,
+                )
+                QApplication.setOverrideCursor(Qt.WaitCursor)
+                try:
+                    result = merge_retrofittable_mod_packages(
+                        selected_packages,
+                        output_root,
+                        package_info=merged_info,
+                        export_options=export_options,
+                        archive_entries_by_basename=self.archive_entries_by_basename,
+                    )
+                except Exception as exc:
+                    QApplication.restoreOverrideCursor()
+                    status_label.setText("Merged CDUMM package failed.")
+                    QMessageBox.warning(dialog, "Retrofit Packaged Mods", f"Merged CDUMM package failed:\n{exc}")
+                    return
+                finally:
+                    if QApplication.overrideCursor() is not None:
+                        QApplication.restoreOverrideCursor()
+
+                lines = [
+                    f"Merged {len(selected_packages):,} package(s) for CDUMM.",
+                    f"Output: {result.package_root}",
+                    f"Payloads: {len(result.payload_paths):,}",
+                    (
+                        f"Path repair: repaired={result.repaired_path_count} "
+                        f"unresolved={result.unresolved_path_count} ambiguous={result.ambiguous_path_count}"
+                    ),
+                ]
+                if result.zip_path.is_file():
+                    lines.append(f"Zip: {result.zip_path}")
+                if result.warnings:
+                    lines.append("")
+                    lines.append("Warnings:")
+                    lines.extend(result.warnings[:12])
+                status_label.setText(lines[0])
+                QMessageBox.information(dialog, "Retrofit Packaged Mods", "\n".join(lines[:80]))
+
             def _open_output() -> None:
                 output_root = Path(output_edit.text().strip()).expanduser()
                 output_root.mkdir(parents=True, exist_ok=True)
@@ -38064,6 +44819,7 @@ def run_gui() -> int:
             scan_button.clicked.connect(_scan)
             preview_button.clicked.connect(_preview_plan)
             convert_button.clicked.connect(_convert_selected)
+            merge_cdumm_button.clicked.connect(_merge_selected_cdumm)
             open_output_button.clicked.connect(_open_output)
             close_button.clicked.connect(dialog.reject)
 
@@ -38123,8 +44879,20 @@ def run_gui() -> int:
             manager_combo.addItem("Universal / minimal metadata", "universal")
             manager_combo.addItem("CDUMM", "cdumm")
             manager_combo.addItem("Definitive Mod Manager", "dmm")
+            manager_combo.addItem("JMM JSON", "jmm")
             manager_combo.addItem("Crimson Sharp / Crimson Browser", "crimson_sharp")
             manager_combo.addItem("Field-JSON v3.1", "field_json")
+            profile_checks_widget = QWidget()
+            profile_checks_layout = QHBoxLayout(profile_checks_widget)
+            profile_checks_layout.setContentsMargins(0, 0, 0, 0)
+            profile_checks_layout.setSpacing(10)
+            profile_checkboxes: Dict[str, QCheckBox] = {}
+            for profile in MOD_PACKAGE_MANAGER_PROFILES:
+                checkbox = QCheckBox(MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile))
+                checkbox.setChecked(profile == "universal")
+                profile_checks_layout.addWidget(checkbox)
+                profile_checkboxes[profile] = checkbox
+            profile_checks_layout.addStretch(1)
             structure_combo = QComboBox()
             structure_combo.addItem("Game-relative folders", "game_relative")
             structure_combo.addItem("files/ wrapper", "files_wrapper")
@@ -38177,19 +44945,21 @@ def run_gui() -> int:
             form_layout.addWidget(QLabel("Manager profile"), 5, 0)
             form_layout.addWidget(manager_combo, 5, 1, 1, 2)
             form_layout.addWidget(make_help_button("Choose the metadata/layout profile to target. Universal writes neutral Workbench metadata only; individual profiles bias the folder structure for that manager."), 5, 3)
-            form_layout.addWidget(QLabel("Folder structure"), 6, 0)
-            form_layout.addWidget(structure_combo, 6, 1, 1, 2)
-            form_layout.addWidget(make_help_button("Game-relative folders keep exact archive paths. The files/ wrapper places payload paths under files/. Custom compact paths writes character model and sidecar payloads as character/<name>. DMM texture folder writes DDS packages for placement under mods/_textures/ without a files/ wrapper. Field-JSON v3.1 writes DDS assets under assets/ and records vpaths in mod.field.json."), 6, 3)
+            form_layout.addWidget(QLabel("Export profiles"), 6, 0)
+            form_layout.addWidget(profile_checks_widget, 6, 1, 1, 3)
+            form_layout.addWidget(QLabel("Folder structure"), 7, 0)
+            form_layout.addWidget(structure_combo, 7, 1, 1, 2)
+            form_layout.addWidget(make_help_button("Game-relative folders keep exact archive paths. The files/ wrapper places payload paths under files/. Custom compact paths writes character model and sidecar payloads as character/<name>. DMM texture folder writes DDS packages for placement under mods/_textures/ without a files/ wrapper. Field-JSON v3.1 writes DDS assets under assets/ and records vpaths in mod.field.json."), 7, 3)
             conflict_mode_label = QLabel("Conflict mode")
             target_language_label = QLabel("Target language")
             conflict_mode_help = make_help_button("CDUMM compatibility metadata. Normal leaves manager conflict behavior unchanged; Override asks compatible managers to prefer this mod when conflicts are detected.")
             target_language_help = make_help_button("Optional CDUMM compatibility metadata for language-specific packages. Leave empty for general packages.")
-            form_layout.addWidget(conflict_mode_label, 7, 0)
-            form_layout.addWidget(conflict_mode_combo, 7, 1, 1, 2)
-            form_layout.addWidget(conflict_mode_help, 7, 3)
-            form_layout.addWidget(target_language_label, 8, 0)
-            form_layout.addWidget(target_language_edit, 8, 1, 1, 2)
-            form_layout.addWidget(target_language_help, 8, 3)
+            form_layout.addWidget(conflict_mode_label, 8, 0)
+            form_layout.addWidget(conflict_mode_combo, 8, 1, 1, 2)
+            form_layout.addWidget(conflict_mode_help, 8, 3)
+            form_layout.addWidget(target_language_label, 9, 0)
+            form_layout.addWidget(target_language_edit, 9, 1, 1, 2)
+            form_layout.addWidget(target_language_help, 9, 3)
             metadata_checks = QGridLayout()
             metadata_checks.setContentsMargins(0, 0, 0, 0)
             metadata_checks.setHorizontalSpacing(18)
@@ -38215,15 +44985,16 @@ def run_gui() -> int:
                 metadata_checks.addLayout(option_row, index // 2, index % 2)
             metadata_checks.setColumnStretch(0, 1)
             metadata_checks.setColumnStretch(1, 1)
-            form_layout.addWidget(QLabel("Generate"), 9, 0)
-            form_layout.addLayout(metadata_checks, 9, 1, 1, 3)
-            form_layout.addWidget(include_related_files_checkbox, 10, 0, 1, 3)
-            form_layout.addWidget(texture_resolution_manifest_checkbox, 11, 0, 1, 3)
+            form_layout.addWidget(QLabel("Generate"), 10, 0)
+            form_layout.addLayout(metadata_checks, 10, 1, 1, 3)
+            form_layout.addWidget(include_related_files_checkbox, 11, 0, 1, 3)
+            form_layout.addWidget(texture_resolution_manifest_checkbox, 12, 0, 1, 3)
             form_layout.setColumnStretch(1, 1)
             layout.addLayout(form_layout)
 
             def _apply_manager_profile() -> None:
-                profile_options = mod_package_export_options_for_manager(str(manager_combo.currentData() or "universal"))
+                current_profile = str(manager_combo.currentData() or "universal")
+                profile_options = mod_package_export_options_for_manager(current_profile)
                 profile_structure = str(profile_options.structure or "").strip().lower()
                 if profile_structure == "dmm_texture" and not allow_dmm_texture_structure:
                     profile_structure = "game_relative"
@@ -38236,7 +45007,9 @@ def run_gui() -> int:
                 info_json_checkbox.setChecked(profile_options.create_info_json)
                 no_encrypt_checkbox.setChecked(profile_options.create_no_encrypt_file)
                 create_zip_checkbox.setChecked(profile_options.create_zip)
-                uses_manager_metadata = mod_package_profile_uses_manager_metadata(str(manager_combo.currentData() or "universal"))
+                for key, checkbox in profile_checkboxes.items():
+                    checkbox.setChecked(key == current_profile)
+                uses_manager_metadata = mod_package_profile_uses_manager_metadata(current_profile)
                 for widget in (
                     conflict_mode_label,
                     conflict_mode_combo,
@@ -38296,9 +45069,15 @@ def run_gui() -> int:
                 )
                 selected_profile = str(manager_combo.currentData() or "universal")
                 base_options = mod_package_export_options_for_manager(selected_profile)
-                uses_manager_metadata = mod_package_profile_uses_manager_metadata(selected_profile)
+                selected_profiles = tuple(
+                    profile
+                    for profile, checkbox in profile_checkboxes.items()
+                    if checkbox.isChecked()
+                ) or (selected_profile,)
+                uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in selected_profiles)
                 export_options = ModPackageExportOptions(
                     manager_targets=tuple(base_options.manager_targets),
+                    export_profiles=selected_profiles,
                     structure=str(structure_combo.currentData() or base_options.structure),
                     create_manifest_json=manifest_json_checkbox.isChecked(),
                     create_mod_json=mod_json_checkbox.isChecked(),
@@ -38340,6 +45119,8 @@ def run_gui() -> int:
             self.mod_ready_package_author_edit.setText(package_info.author)
             self.mod_ready_package_description_edit.setText(package_info.description)
             self.mod_ready_create_no_encrypt_checkbox.setChecked(create_no_encrypt_file)
+            for profile, checkbox in self.mod_ready_profile_checkboxes.items():
+                checkbox.setChecked(profile in set(export_options.export_profiles or export_options.manager_targets))
             self.schedule_settings_save()
 
             return export_root, package_info, create_no_encrypt_file, include_related_files, export_options
@@ -38354,6 +45135,8 @@ def run_gui() -> int:
             dialog_title: str = "Write Mod-Ready Loose File",
             allow_dmm_texture_structure: bool = True,
             show_texture_resolution_manifest_option: bool = False,
+            initial_package_title: str = "",
+            initial_package_description: str = "",
             parent: Optional[QWidget] = None,
         ) -> Optional[Tuple[Path, ModPackageInfo, bool, bool, ModPackageExportOptions]]:
             config = self.collect_config()
@@ -38378,6 +45161,10 @@ def run_gui() -> int:
                 description=str(getattr(config, "mod_ready_package_description", MOD_READY_PACKAGE_DESCRIPTION) or "").strip(),
                 nexus_url=str(getattr(config, "mod_ready_package_nexus_url", MOD_READY_PACKAGE_NEXUS_URL) or "").strip(),
             )
+            if str(initial_package_title or "").strip():
+                package_info = dataclasses.replace(package_info, title=str(initial_package_title or "").strip())
+            if str(initial_package_description or "").strip():
+                package_info = dataclasses.replace(package_info, description=str(initial_package_description or "").strip())
             create_no_encrypt_file = bool(getattr(config, "mod_ready_create_no_encrypt_file", True))
             if prompt_for_metadata:
                 return self._prompt_archive_mod_ready_export_target(
@@ -38455,7 +45242,9 @@ def run_gui() -> int:
                 hidden_columns = set()
             for column in range(self.archive_tree.columnCount()):
                 self.archive_tree.setColumnHidden(column, column in hidden_columns)
+            self.archive_tree.compact_hidden_columns()
             self._update_archive_tree_sort_indicator()
+            self._schedule_archive_files_pane_fit_to_columns()
 
         def _save_archive_tree_header_settings(self) -> None:
             if not hasattr(self, "archive_tree"):
@@ -38487,7 +45276,9 @@ def run_gui() -> int:
                 self.archive_tree.setColumnHidden(column, False)
                 return
             self.archive_tree.setColumnHidden(column, not visible)
+            self.archive_tree.compact_hidden_columns()
             self.schedule_settings_save()
+            self._schedule_archive_files_pane_fit_to_columns()
 
         def _reset_archive_tree_columns(self) -> None:
             header = self.archive_tree.header()
@@ -38530,6 +45321,7 @@ def run_gui() -> int:
         def _set_all_archive_tree_columns_visible(self) -> None:
             for column in range(self.archive_tree.columnCount()):
                 self.archive_tree.setColumnHidden(column, False)
+            self.archive_tree.compact_hidden_columns()
             self.schedule_settings_save()
 
         def _archive_entry_at_tree_position(self, position) -> Optional[ArchiveEntry]:
@@ -41800,6 +48592,13 @@ def run_gui() -> int:
             _add_menu_section("workflow", "Workflow")
             import_loose_mod_action = menu.addAction(menu_icons["workflow"], "Import Loose Mod Folder...")
             import_loose_mod_action.triggered.connect(lambda _checked=False: self._open_archive_loose_mod_overlay_dialog())
+            weapon_placement_studio_action = menu.addAction(menu_icons["workflow"], "Weapon Placement Studio...")
+            weapon_placement_studio_action.setToolTip(
+                "Build guided 1H/2H weapon placement templates with sliders, placement preview, and conservative package export."
+            )
+            weapon_placement_studio_action.triggered.connect(
+                lambda _checked=False, current_entry=entry: self._open_archive_weapon_placement_studio_dialog(current_entry)
+            )
             bulk_placement_targets = self._selected_archive_bulk_placement_targets()
             if len(bulk_placement_targets) > 1:
                 bulk_placement_action = menu.addAction(menu_icons["workflow"], "Bulk Placement Swap From Selection...")
@@ -41846,13 +48645,14 @@ def run_gui() -> int:
                 family_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._open_archive_asset_family_workspace_dialog(current_entry)
                 )
-                placement_action = menu.addAction(menu_icons["family"], "Open Placement Workspace...")
+                placement_action = menu.addAction(menu_icons["family"], "Weapon Placement Studio...")
+                placement_action.setToolTip("Open the unified placement studio for this selected asset family row.")
                 placement_action.triggered.connect(
-                    lambda _checked=False, current_entry=entry: self._open_archive_attachment_placement_workspace_dialog(current_entry)
+                    lambda _checked=False, current_entry=entry: self._open_archive_weapon_placement_studio_dialog(current_entry)
                 )
-                hkx_placement_action = menu.addAction(menu_icons["family"], "Open HKX Placement...")
+                hkx_placement_action = menu.addAction(menu_icons["family"], "Edit HKX...")
                 hkx_placement_action.setToolTip(
-                    "Open the related HKX/HKT editor directly on Placement. Related HKX/HKT files are resolved only after this action is clicked."
+                    "Edit the related HKX/HKT directly on Placement. Related HKX/HKT files are resolved only after this action is clicked."
                 )
                 hkx_placement_action.setEnabled(self._archive_entry_supports_attachment_placement_workflow(entry))
                 hkx_placement_action.triggered.connect(
@@ -44891,6 +51691,7 @@ def run_gui() -> int:
             alignment_d3d11_loading_state = {"active": False, "frame": 0}
             alignment_d3d11_fast_reload_interval_ms = 180
             alignment_d3d11_package_reload_interval_ms = 560
+            alignment_d3d11_reload_stuck_timeout_s = 6.0
             alignment_d3d11_reload_timer = QTimer(dialog)
             alignment_d3d11_reload_timer.setSingleShot(True)
             alignment_d3d11_reload_timer.setInterval(alignment_d3d11_fast_reload_interval_ms)
@@ -44933,6 +51734,7 @@ def run_gui() -> int:
                 "next_rebuild_reason": "",
                 "pending_fast_transform": None,
                 "preview_loaded": False,
+                "loading_started_at": 0.0,
                 "source_to_d3d11_ids": {},
                 "d3d11_id_to_source_indices": {},
             }
@@ -44961,16 +51763,54 @@ def run_gui() -> int:
                 elif message:
                     alignment_d3d11_preview_status_label.setToolTip(str(message))
                 if active:
+                    if float(alignment_d3d11_state.get("loading_started_at", 0.0) or 0.0) <= 0.0:
+                        alignment_d3d11_state["loading_started_at"] = time.perf_counter()
                     alignment_d3d11_loading_spinner_label.setVisible(True)
                     if not alignment_d3d11_loading_timer.isActive():
                         _tick_alignment_d3d11_loading_spinner()
                         alignment_d3d11_loading_timer.start()
                 else:
+                    alignment_d3d11_state["loading_started_at"] = 0.0
                     alignment_d3d11_loading_timer.stop()
                     alignment_d3d11_loading_spinner_label.setVisible(False)
                     alignment_d3d11_loading_spinner_label.setText("")
 
             alignment_d3d11_loading_timer.timeout.connect(_tick_alignment_d3d11_loading_spinner)
+
+            def _alignment_d3d11_loading_stuck() -> bool:
+                if not bool(alignment_d3d11_loading_state.get("active")):
+                    return False
+                if bool(alignment_d3d11_state.get("preview_loaded")):
+                    return True
+                started_at = float(alignment_d3d11_state.get("loading_started_at", 0.0) or 0.0)
+                if started_at <= 0.0:
+                    return False
+                if time.perf_counter() - started_at < alignment_d3d11_reload_stuck_timeout_s:
+                    return False
+                process = alignment_d3d11_state.get("process")
+                if not isinstance(process, QProcess) or process.state() == QProcess.NotRunning:
+                    return False
+                active_package = alignment_d3d11_state.get("active_package")
+                return isinstance(active_package, Path) and active_package.exists()
+
+            def _clear_stuck_alignment_d3d11_loading(reason: str) -> None:
+                alignment_d3d11_state["preview_loaded"] = True
+                alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
+                alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
+                if alignment_d3d11_view_state:
+                    alignment_d3d11_preview_host.restore_view_state(dict(alignment_d3d11_view_state))
+                _sync_highlight_sets()
+                _replay_alignment_d3d11_fast_transform()
+                _set_alignment_d3d11_loading(False, "Preview ready.")
+                active_package = alignment_d3d11_state.get("active_package")
+                _set_preview_performance_status(
+                    f"D3D11 preview ready - {_alignment_preview_detail_label()} - status event missed",
+                    details=(
+                        f"reason={reason}\n"
+                        f"active_package={active_package}\n"
+                        "The native renderer stayed alive and the package remained active after the load watchdog timeout."
+                    ),
+                )
 
             def _handle_alignment_d3d11_view_state_payload(payload: object) -> None:
                 if not isinstance(payload, Mapping):
@@ -45837,6 +52677,15 @@ def run_gui() -> int:
             mesh_edit_redo_adjustment_stack: List[Dict[int, StaticSourcePartAdjustment]] = []
             mesh_edit_active_stroke: Dict[str, object] = {}
             mesh_edit_selected_vertices_by_submesh: Dict[int, set[int]] = {}
+            morph_slider_profile_root = self.settings_file_path.parent / "mesh_slider_profiles"
+            morph_slider_profiles: List[MeshMorphSliderProfile] = []
+            morph_slider_deltas: Dict[str, MeshMorphSliderDelta] = {}
+            morph_slider_values: Dict[str, float] = {}
+            morph_slider_rows: List[Dict[str, object]] = []
+            morph_slider_post_edit_deltas: List[List[Tuple[float, float, float]]] = []
+            morph_slider_topology_blocked: Dict[str, object] = {"blocked": False, "reason": ""}
+            morph_slider_update_guard: Dict[str, bool] = {"active": False}
+            morph_slider_change_active: Dict[str, bool] = {"active": False}
             texture_material_plan_loaded = {"loaded": False, "loading": False}
             geometry_undo_stack: List[Dict[str, Any]] = []
             geometry_initial_snapshot: Dict[str, Any] = {}
@@ -47667,6 +54516,7 @@ def run_gui() -> int:
                         alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
                         _cleanup_alignment_d3d11_package(previous_package, delay_ms=5000)
                         preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
+                        alignment_d3d11_state["loading_started_at"] = time.perf_counter()
                         _set_alignment_d3d11_loading(
                             True,
                             "Loading preview... please wait.",
@@ -47738,6 +54588,7 @@ def run_gui() -> int:
                 process.errorOccurred.connect(lambda error, process=process: _handle_alignment_d3d11_error(process, error))
                 alignment_d3d11_state["process"] = process
                 preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
+                alignment_d3d11_state["loading_started_at"] = time.perf_counter()
                 _set_alignment_d3d11_loading(True, "Loading preview... please wait.")
                 _set_preview_performance_status(
                     f"Starting D3D11 preview - {_alignment_preview_detail_label()} - "
@@ -47811,6 +54662,8 @@ def run_gui() -> int:
                 except OSError:
                     if bool(alignment_d3d11_state.get("preview_loaded")):
                         _set_alignment_d3d11_loading(False, "Preview ready.")
+                    elif _alignment_d3d11_loading_stuck():
+                        _clear_stuck_alignment_d3d11_loading("missing status file")
                     return
                 signature = _d3d11_status_file_signature(stat)
                 try:
@@ -47824,6 +54677,8 @@ def run_gui() -> int:
                 ):
                     if bool(alignment_d3d11_state.get("preview_loaded")):
                         _set_alignment_d3d11_loading(False, "Preview ready.")
+                    elif _alignment_d3d11_loading_stuck():
+                        _clear_stuck_alignment_d3d11_loading("unchanged status file")
                     return
                 alignment_d3d11_state["status_signature"] = signature
                 alignment_d3d11_state["status_payload_text"] = payload_text
@@ -47899,6 +54754,9 @@ def run_gui() -> int:
                     message = str(payload.get("message", "") or "Loading native D3D11 alignment preview...")
                     if bool(alignment_d3d11_state.get("preview_loaded")):
                         alignment_d3d11_preview_status_label.setToolTip(message)
+                        return
+                    if _alignment_d3d11_loading_stuck():
+                        _clear_stuck_alignment_d3d11_loading("stale loading status")
                         return
                     _set_alignment_d3d11_loading(True, "Loading preview... please wait.", detail=message)
                 elif event == "error":
@@ -48747,6 +55605,9 @@ def run_gui() -> int:
                     "texture_uv_global_transform_state": copy.deepcopy(texture_uv_global_transform_state),
                     "mesh_edit_revision": int(mesh_edit_revision.get("value", 0) or 0),
                     "source_geometry_revision": int(source_geometry_revision.get("value", 0) or 0),
+                    "morph_slider_values": dict(morph_slider_values),
+                    "morph_slider_post_edit_deltas": copy.deepcopy(morph_slider_post_edit_deltas),
+                    "morph_slider_topology_blocked": dict(morph_slider_topology_blocked),
                     "selected_source_index": int(selected_source_part.get("index", -1)),
                     "selected_source_indices": tuple(_selected_source_indices_from_tree()),
                     "selected_target_index": int(selected_target_slot.get("index", -1)),
@@ -48862,6 +55723,18 @@ def run_gui() -> int:
                     )
                     mesh_edit_revision["value"] = int(snapshot.get("mesh_edit_revision", 0) or 0)
                     source_geometry_revision["value"] = int(snapshot.get("source_geometry_revision", 0) or 0)
+                    morph_slider_values.clear()
+                    morph_slider_values.update(
+                        {
+                            str(slider_id): float(value)
+                            for slider_id, value in dict(snapshot.get("morph_slider_values", {}) or {}).items()
+                        }
+                    )
+                    morph_slider_post_edit_deltas[:] = copy.deepcopy(snapshot.get("morph_slider_post_edit_deltas", []))
+                    morph_slider_topology_blocked.clear()
+                    morph_slider_topology_blocked.update(
+                        dict(snapshot.get("morph_slider_topology_blocked", {"blocked": False, "reason": ""}) or {})
+                    )
                     selected_source_part["index"] = int(snapshot.get("selected_source_index", -1) or -1)
                     selected_target_slot["index"] = int(snapshot.get("selected_target_index", -1) or -1)
                     selected_original_part["index"] = int(snapshot.get("selected_original_index", -1) or -1)
@@ -48897,6 +55770,16 @@ def run_gui() -> int:
                     mesh_edit_redo_stack.clear()
                     mesh_edit_undo_adjustment_stack.clear()
                     mesh_edit_redo_adjustment_stack.clear()
+                    try:
+                        restored_morph_slider_post_edit_deltas = copy.deepcopy(morph_slider_post_edit_deltas)
+                        restored_morph_slider_topology_blocked = dict(morph_slider_topology_blocked)
+                        _morph_slider_reload_profiles(preserve_values=True)
+                        morph_slider_post_edit_deltas[:] = restored_morph_slider_post_edit_deltas
+                        morph_slider_topology_blocked.clear()
+                        morph_slider_topology_blocked.update(restored_morph_slider_topology_blocked)
+                        _morph_slider_refresh_controls()
+                    except NameError:
+                        pass
                     texture_overrides_dirty["dirty"] = True
                     texture_sets = group_replacement_texture_sets(
                         texture_files_for_mapping,
@@ -51428,7 +58311,8 @@ def run_gui() -> int:
                         external_material_reset_checkbox.setChecked(True)  # type: ignore[name-defined]
                         prune_unmapped_original_dds_checkbox.setChecked(True)  # type: ignore[name-defined]
                         texture_output_size_combo.setCurrentIndex(max(0, texture_output_size_combo.findData("source")))  # type: ignore[name-defined]
-                        _select_complete_swap_material_profile("source_graph_strict", persist=True)  # type: ignore[name-defined]
+                        current_profile = str(complete_swap_material_profile_combo.currentData() or "").strip()  # type: ignore[name-defined]
+                        _select_complete_swap_material_profile(current_profile or "material_authority_detail_mask", persist=True)  # type: ignore[name-defined]
                         _refresh_sidecar_option_state()  # type: ignore[name-defined]
                         _apply_complete_external_swap_routing_to_ui(push_undo=True)
                     else:
@@ -53917,10 +60801,17 @@ def run_gui() -> int:
                 mesh_edit_falloff_combo = QComboBox()
                 for label, value in (("Smooth", "smooth"), ("Linear", "linear"), ("Sharp", "sharp"), ("Constant", "constant")):
                     mesh_edit_falloff_combo.addItem(label, value)
+                mesh_edit_selection_mode_combo = QComboBox()
+                for label, value in (("Brush Select", "brush"), ("Lasso Select", "lasso"), ("Rectangle Select", "rectangle")):
+                    mesh_edit_selection_mode_combo.addItem(label, value)
+                mesh_edit_selection_mode_combo.setToolTip("Selection mode for the Select Vertices tool.")
                 mesh_edit_mirror_checkbox = QCheckBox("Mirror X")
                 mesh_edit_show_vertices_checkbox = QCheckBox("Vertex dots")
                 mesh_edit_show_vertices_checkbox.setChecked(True)
                 mesh_edit_clear_selection_button = QPushButton("Clear Selection")
+                mesh_edit_grow_selection_button = QPushButton("Grow Selection")
+                mesh_edit_shrink_selection_button = QPushButton("Shrink Selection")
+                mesh_edit_smooth_selection_button = QPushButton("Smooth / Feather Selection")
                 mesh_edit_delete_faces_button = QPushButton("Delete Selected Faces")
                 mesh_edit_delete_faces_button.setToolTip("Delete triangles touched by selected Mesh Editing vertices. Cut boundaries are left open.")
                 mesh_edit_undo_button = QPushButton("Undo")
@@ -53928,6 +60819,9 @@ def run_gui() -> int:
                 mesh_edit_reset_part_button = QPushButton("Reset Scope")
                 for mesh_edit_button in (
                     mesh_edit_clear_selection_button,
+                    mesh_edit_grow_selection_button,
+                    mesh_edit_shrink_selection_button,
+                    mesh_edit_smooth_selection_button,
                     mesh_edit_delete_faces_button,
                     mesh_edit_undo_button,
                     mesh_edit_redo_button,
@@ -53938,6 +60832,52 @@ def run_gui() -> int:
                 mesh_edit_status_label.setObjectName("HintLabel")
                 mesh_edit_status_label.setWordWrap(True)
                 mesh_edit_status_label.setMaximumHeight(54)
+
+                morph_slider_group = QFrame(mesh_edit_page)
+                morph_slider_group.setObjectName("MorphSliderToolbox")
+                morph_slider_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+                morph_slider_layout = QVBoxLayout(morph_slider_group)
+                morph_slider_layout.setContentsMargins(8, 5, 8, 5)
+                morph_slider_layout.setSpacing(4)
+                morph_slider_title_label = QLabel("Morph Sliders")
+                morph_slider_title_label.setObjectName("SectionLabel")
+                morph_slider_status_label = QLabel("No compatible slider profile loaded for this Modify Original mesh.")
+                morph_slider_status_label.setObjectName("HintLabel")
+                morph_slider_status_label.setWordWrap(True)
+                morph_slider_rows_widget = QWidget(morph_slider_group)
+                morph_slider_rows_layout = QVBoxLayout(morph_slider_rows_widget)
+                morph_slider_rows_layout.setContentsMargins(0, 0, 0, 0)
+                morph_slider_rows_layout.setSpacing(3)
+                morph_slider_create_button = QPushButton("Create Slider From Selection")
+                morph_slider_create_button.setToolTip("Save the selected vertices as a Volume Size slider for this Modify Original mesh topology.")
+                morph_slider_manage_button = QPushButton("Manage Profiles")
+                morph_slider_manage_button.setToolTip("Import Body Slider Pro packs or add exact same-topology target-mesh sliders.")
+                morph_slider_manage_menu = QMenu(morph_slider_manage_button)
+                morph_slider_import_action = morph_slider_manage_menu.addAction("Import Slider Pack")
+                morph_slider_add_action = morph_slider_manage_menu.addAction("Add Slider From Target Mesh")
+                morph_slider_manage_menu.addSeparator()
+                morph_slider_reload_action = morph_slider_manage_menu.addAction("Reload Profiles")
+                morph_slider_manage_button.setMenu(morph_slider_manage_menu)
+                morph_slider_reset_button = QPushButton("Reset Sliders")
+                morph_slider_bake_button = QPushButton("Bake Sliders")
+                morph_slider_bake_button.setToolTip("Apply current slider values into the editable base mesh, then reset slider values to zero.")
+                morph_slider_button_row = QHBoxLayout()
+                morph_slider_button_row.setContentsMargins(0, 0, 0, 0)
+                morph_slider_button_row.setSpacing(3)
+                morph_slider_button_row.addWidget(morph_slider_create_button)
+                morph_slider_button_row.addWidget(morph_slider_manage_button)
+                morph_slider_button_row.addStretch(1)
+                morph_slider_reset_bake_row = QHBoxLayout()
+                morph_slider_reset_bake_row.setContentsMargins(0, 0, 0, 0)
+                morph_slider_reset_bake_row.setSpacing(3)
+                morph_slider_reset_bake_row.addWidget(morph_slider_reset_button)
+                morph_slider_reset_bake_row.addWidget(morph_slider_bake_button)
+                morph_slider_reset_bake_row.addStretch(1)
+                morph_slider_layout.addWidget(morph_slider_title_label)
+                morph_slider_layout.addWidget(morph_slider_status_label)
+                morph_slider_layout.addWidget(morph_slider_rows_widget)
+                morph_slider_layout.addLayout(morph_slider_button_row)
+                morph_slider_layout.addLayout(morph_slider_reset_bake_row)
 
                 def _mesh_edit_field(label_text: str, widget: QWidget) -> None:
                     label = QLabel(label_text)
@@ -53958,6 +60898,7 @@ def run_gui() -> int:
                 _mesh_edit_field("Radius", mesh_edit_radius_spin)
                 _mesh_edit_field("Strength", mesh_edit_strength_spin)
                 _mesh_edit_field("Falloff", mesh_edit_falloff_combo)
+                _mesh_edit_field("Selection", mesh_edit_selection_mode_combo)
                 mesh_edit_option_row = QHBoxLayout()
                 mesh_edit_option_row.setContentsMargins(0, 0, 0, 0)
                 mesh_edit_option_row.setSpacing(4)
@@ -53965,7 +60906,14 @@ def run_gui() -> int:
                 mesh_edit_option_row.addWidget(mesh_edit_show_vertices_checkbox)
                 mesh_edit_option_row.addStretch(1)
                 mesh_edit_layout.addLayout(mesh_edit_option_row)
+                mesh_edit_selection_button_row = QHBoxLayout()
+                mesh_edit_selection_button_row.setContentsMargins(0, 0, 0, 0)
+                mesh_edit_selection_button_row.setSpacing(3)
+                mesh_edit_selection_button_row.addWidget(mesh_edit_grow_selection_button)
+                mesh_edit_selection_button_row.addWidget(mesh_edit_shrink_selection_button)
+                mesh_edit_selection_button_row.addWidget(mesh_edit_smooth_selection_button)
                 mesh_edit_layout.addWidget(mesh_edit_clear_selection_button)
+                mesh_edit_layout.addLayout(mesh_edit_selection_button_row)
                 mesh_edit_layout.addWidget(mesh_edit_delete_faces_button)
                 mesh_edit_button_row = QHBoxLayout()
                 mesh_edit_button_row.setContentsMargins(0, 0, 0, 0)
@@ -53987,6 +60935,10 @@ def run_gui() -> int:
 
                 def _mesh_edit_target_mode_for_tool() -> str:
                     return "vertex" if _mesh_edit_current_tool() == "vertex" else "brush"
+
+                def _mesh_edit_selection_mode() -> str:
+                    mode = str(mesh_edit_selection_mode_combo.currentData() or "brush").strip().lower()
+                    return mode if mode in {"brush", "lasso", "rectangle"} else "brush"
 
                 def _mesh_edit_selected_source_index() -> int:
                     try:
@@ -54075,6 +61027,489 @@ def run_gui() -> int:
                         if _mesh_edit_source_index_is_editable(index, require_enabled=require_enabled)
                     )
 
+                def _morph_slider_supported() -> bool:
+                    return bool(
+                        modify_original_clone_mode
+                        and replacement_mesh_base_for_mapping is not None
+                        and replacement_mesh_for_mapping is not None
+                    )
+
+                def _morph_slider_has_loaded_deltas() -> bool:
+                    return bool(morph_slider_deltas)
+
+                def _morph_slider_has_nonzero_values() -> bool:
+                    return any(abs(float(value or 0.0)) > 1e-6 for value in morph_slider_values.values())
+
+                def _morph_slider_zero_post_edit_deltas() -> List[List[Tuple[float, float, float]]]:
+                    if replacement_mesh_base_for_mapping is None:
+                        return []
+                    return [
+                        [(0.0, 0.0, 0.0) for _vertex in tuple(getattr(submesh, "vertices", ()) or ())]
+                        for submesh in tuple(getattr(replacement_mesh_base_for_mapping, "submeshes", ()) or ())
+                    ]
+
+                def _morph_slider_ensure_post_edit_deltas() -> None:
+                    if replacement_mesh_base_for_mapping is None:
+                        morph_slider_post_edit_deltas.clear()
+                        return
+                    expected_counts = [
+                        len(tuple(getattr(submesh, "vertices", ()) or ()))
+                        for submesh in tuple(getattr(replacement_mesh_base_for_mapping, "submeshes", ()) or ())
+                    ]
+                    if len(morph_slider_post_edit_deltas) != len(expected_counts) or any(
+                        len(morph_slider_post_edit_deltas[index]) != expected_count
+                        for index, expected_count in enumerate(expected_counts)
+                    ):
+                        morph_slider_post_edit_deltas[:] = _morph_slider_zero_post_edit_deltas()
+
+                def _morph_slider_zero_post_edit_deltas_for_sources(source_indices: Sequence[int]) -> None:
+                    _morph_slider_ensure_post_edit_deltas()
+                    for raw_source_index in tuple(source_indices or ()):
+                        try:
+                            source_index = int(raw_source_index)
+                        except (TypeError, ValueError):
+                            continue
+                        if 0 <= source_index < len(morph_slider_post_edit_deltas):
+                            morph_slider_post_edit_deltas[source_index] = [
+                                (0.0, 0.0, 0.0)
+                                for _vertex_delta in morph_slider_post_edit_deltas[source_index]
+                            ]
+
+                def _morph_slider_mark_topology_changed(reason: str) -> None:
+                    morph_slider_topology_blocked["blocked"] = True
+                    morph_slider_topology_blocked["reason"] = str(reason or "Topology changed; reset the edited scope before using Morph Sliders.")
+                    _refresh_morph_slider_controls()
+
+                def _morph_slider_refresh_topology_block_state() -> bool:
+                    if replacement_mesh_base_for_mapping is None or replacement_mesh_for_mapping is None:
+                        return False
+                    try:
+                        validate_morph_target(replacement_mesh_base_for_mapping, replacement_mesh_for_mapping)
+                    except Exception as exc:
+                        morph_slider_topology_blocked["blocked"] = True
+                        morph_slider_topology_blocked["reason"] = str(exc)
+                        return False
+                    morph_slider_topology_blocked["blocked"] = False
+                    morph_slider_topology_blocked["reason"] = ""
+                    return True
+
+                def _morph_slider_active_deltas() -> tuple[MeshMorphSliderDelta, ...]:
+                    return tuple(morph_slider_deltas[slider_id] for slider_id in morph_slider_deltas)
+
+                def _morph_slider_slider_only_mesh() -> Optional[ParsedMesh]:
+                    if replacement_mesh_base_for_mapping is None:
+                        return None
+                    return apply_morph_slider_values(
+                        replacement_mesh_base_for_mapping,
+                        _morph_slider_active_deltas(),
+                        morph_slider_values,
+                    )
+
+                def _morph_slider_capture_post_edit_deltas() -> None:
+                    if not _morph_slider_has_loaded_deltas() or replacement_mesh_base_for_mapping is None or replacement_mesh_for_mapping is None:
+                        return
+                    if not _morph_slider_refresh_topology_block_state():
+                        return
+                    slider_only_mesh = _morph_slider_slider_only_mesh()
+                    if slider_only_mesh is None:
+                        return
+                    captured: List[List[Tuple[float, float, float]]] = []
+                    for working_submesh, slider_submesh in zip(replacement_mesh_for_mapping.submeshes, slider_only_mesh.submeshes):
+                        submesh_deltas: List[Tuple[float, float, float]] = []
+                        for working_vertex, slider_vertex in zip(working_submesh.vertices, slider_submesh.vertices):
+                            submesh_deltas.append(
+                                (
+                                    float(working_vertex[0]) - float(slider_vertex[0]),
+                                    float(working_vertex[1]) - float(slider_vertex[1]),
+                                    float(working_vertex[2]) - float(slider_vertex[2]),
+                                )
+                            )
+                        captured.append(submesh_deltas)
+                    morph_slider_post_edit_deltas[:] = captured
+
+                def _morph_slider_apply_to_working_mesh(
+                    *,
+                    increment_revision: bool = True,
+                    refresh_controls: bool = True,
+                    status_message: str = "",
+                ) -> bool:
+                    nonlocal replacement_mesh_for_mapping, replacement_preview_model
+                    if replacement_mesh_base_for_mapping is None:
+                        return False
+                    _morph_slider_ensure_post_edit_deltas()
+                    try:
+                        replacement_mesh_for_mapping = apply_morph_slider_values(
+                            replacement_mesh_base_for_mapping,
+                            _morph_slider_active_deltas(),
+                            morph_slider_values,
+                            post_edit_deltas=morph_slider_post_edit_deltas,
+                        )
+                    except Exception as exc:
+                        morph_slider_topology_blocked["blocked"] = True
+                        morph_slider_topology_blocked["reason"] = str(exc)
+                        if refresh_controls:
+                            _refresh_morph_slider_controls()
+                        return False
+                    replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
+                    if increment_revision:
+                        mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1
+                    static_preview_geometry_cache.clear()
+                    static_preview_prepared_cache.clear()
+                    _refresh_source_tree_selection_state()
+                    _refresh_source_assignment_columns()
+                    if refresh_controls:
+                        _refresh_mesh_edit_controls()
+                    _queue_static_preview_rebuild()
+                    if status_message:
+                        self.set_status_message(status_message)
+                    return True
+
+                def _morph_slider_sync_row_widgets() -> None:
+                    morph_slider_update_guard["active"] = True
+                    try:
+                        for row in morph_slider_rows:
+                            slider_id = str(row.get("slider_id") or "")
+                            value = float(morph_slider_values.get(slider_id, 0.0) or 0.0)
+                            slider = row.get("slider")
+                            spin = row.get("spin")
+                            if isinstance(slider, QSlider):
+                                slider.setValue(int(round(value * 100.0)))
+                            if isinstance(spin, QDoubleSpinBox):
+                                spin.setValue(value)
+                    finally:
+                        morph_slider_update_guard["active"] = False
+
+                def _morph_slider_begin_change(reason: str = "Morph slider") -> None:
+                    if morph_slider_change_active.get("active"):
+                        return
+                    if replacement_mesh_for_mapping is not None:
+                        _mesh_edit_record_snapshot()
+                    morph_slider_change_active["active"] = True
+
+                def _morph_slider_end_change() -> None:
+                    morph_slider_change_active["active"] = False
+
+                def _morph_slider_set_value(
+                    slider_id: str,
+                    percent: float,
+                    *,
+                    record_snapshot: bool = True,
+                    finish_change: bool = True,
+                ) -> None:
+                    if bool(morph_slider_update_guard.get("active")):
+                        return
+                    delta = morph_slider_deltas.get(str(slider_id))
+                    if delta is None or not _morph_slider_supported() or bool(morph_slider_topology_blocked.get("blocked")):
+                        return
+                    clamped = max(float(delta.min_percent), min(float(delta.max_percent), float(percent)))
+                    previous = float(morph_slider_values.get(delta.slider_id, 0.0) or 0.0)
+                    if abs(previous - clamped) <= 1e-6:
+                        return
+                    if record_snapshot:
+                        _morph_slider_begin_change("Morph slider")
+                    morph_slider_values[delta.slider_id] = clamped
+                    _morph_slider_sync_row_widgets()
+                    _morph_slider_apply_to_working_mesh(status_message=f"Applied Morph Slider {delta.label}: {clamped:.2f}%.")
+                    if record_snapshot and finish_change:
+                        _morph_slider_end_change()
+
+                def _morph_slider_clear_rows() -> None:
+                    while morph_slider_rows_layout.count():
+                        item = morph_slider_rows_layout.takeAt(0)
+                        widget = item.widget()
+                        if widget is not None:
+                            widget.deleteLater()
+                    morph_slider_rows.clear()
+
+                def _morph_slider_add_row(delta: MeshMorphSliderDelta) -> None:
+                    row = QFrame(morph_slider_rows_widget)
+                    row_layout = QGridLayout(row)
+                    row_layout.setContentsMargins(0, 0, 0, 0)
+                    row_layout.setHorizontalSpacing(3)
+                    row_layout.setVerticalSpacing(2)
+                    label = QLabel(delta.label)
+                    label.setMinimumWidth(0)
+                    label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+                    reset_button = QPushButton("Reset")
+                    reset_button.setMinimumWidth(0)
+                    slider = QSlider(Qt.Horizontal)
+                    slider.setRange(int(round(delta.min_percent * 100.0)), int(round(delta.max_percent * 100.0)))
+                    slider.setSingleStep(100)
+                    slider.setPageStep(1000)
+                    spin = QDoubleSpinBox()
+                    spin.setRange(float(delta.min_percent), float(delta.max_percent))
+                    spin.setDecimals(2)
+                    spin.setSingleStep(1.0)
+                    spin.setSuffix(" %")
+                    spin.setKeyboardTracking(False)
+                    spin.setMinimumWidth(76)
+                    row_layout.addWidget(label, 0, 0, 1, 3)
+                    row_layout.addWidget(reset_button, 1, 0)
+                    row_layout.addWidget(slider, 1, 1)
+                    row_layout.addWidget(spin, 1, 2)
+                    reset_button.clicked.connect(
+                        lambda _checked=False, sid=delta.slider_id, default=delta.default_percent: _morph_slider_set_value(
+                            sid,
+                            default,
+                        )
+                    )
+                    slider.sliderPressed.connect(lambda sid=delta.slider_id: _morph_slider_begin_change("Morph slider"))
+                    slider.valueChanged.connect(
+                        lambda raw_value, sid=delta.slider_id: _morph_slider_set_value(
+                            sid,
+                            float(raw_value) / 100.0,
+                            record_snapshot=False,
+                            finish_change=False,
+                        )
+                    )
+                    slider.sliderReleased.connect(_morph_slider_end_change)
+                    spin.valueChanged.connect(
+                        lambda value, sid=delta.slider_id: _morph_slider_set_value(
+                            sid,
+                            float(value),
+                        )
+                    )
+                    morph_slider_rows_layout.addWidget(row)
+                    morph_slider_rows.append({"slider_id": delta.slider_id, "slider": slider, "spin": spin, "row": row})
+
+                def _morph_slider_rebuild_rows() -> None:
+                    _morph_slider_clear_rows()
+                    for delta in _morph_slider_active_deltas():
+                        _morph_slider_add_row(delta)
+                    _morph_slider_sync_row_widgets()
+
+                def _morph_slider_refresh_controls() -> None:
+                    supported = _morph_slider_supported()
+                    loaded = _morph_slider_has_loaded_deltas()
+                    blocked = bool(morph_slider_topology_blocked.get("blocked"))
+                    morph_slider_group.setEnabled(supported)
+                    selected_count = sum(len(vertices) for vertices in mesh_edit_selected_vertices_by_submesh.values())
+                    morph_slider_create_button.setEnabled(supported and not blocked and selected_count > 0)
+                    morph_slider_manage_button.setEnabled(supported)
+                    for row in morph_slider_rows:
+                        row_widget = row.get("row")
+                        if isinstance(row_widget, QWidget):
+                            row_widget.setEnabled(supported and loaded and not blocked)
+                    morph_slider_reset_button.setEnabled(supported and loaded and not blocked and _morph_slider_has_nonzero_values())
+                    morph_slider_bake_button.setEnabled(supported and loaded and not blocked and _morph_slider_has_nonzero_values())
+                    if not supported:
+                        morph_slider_status_label.setText("Morph Sliders are available in Modify Original mode for compatible PAC/PAM/PAMLOD meshes.")
+                    elif blocked:
+                        morph_slider_status_label.setText(
+                            "Morph Sliders disabled: "
+                            + str(morph_slider_topology_blocked.get("reason") or "topology changed; use Reset Scope to restore compatibility.")
+                        )
+                    elif loaded:
+                        profile_count = len(morph_slider_profiles)
+                        slider_count = len(morph_slider_deltas)
+                        morph_slider_status_label.setText(
+                            f"Loaded {slider_count:,} slider(s) from {profile_count:,} compatible local profile(s)."
+                        )
+                    else:
+                        morph_slider_status_label.setText("No compatible slider profile loaded for this Modify Original mesh.")
+
+                def _morph_slider_reload_profiles(*, preserve_values: bool = False) -> None:
+                    old_values = dict(morph_slider_values) if preserve_values else {}
+                    morph_slider_profiles.clear()
+                    morph_slider_deltas.clear()
+                    morph_slider_values.clear()
+                    morph_slider_topology_blocked["blocked"] = False
+                    morph_slider_topology_blocked["reason"] = ""
+                    if not _morph_slider_supported() or replacement_mesh_base_for_mapping is None:
+                        morph_slider_post_edit_deltas.clear()
+                        _morph_slider_rebuild_rows()
+                        _morph_slider_refresh_controls()
+                        return
+                    profiles = load_morph_slider_profiles(
+                        morph_slider_profile_root,
+                        replacement_mesh_base_for_mapping,
+                        entry.path,
+                    )
+                    morph_slider_profiles.extend(profiles)
+                    used_slider_ids: set[str] = set()
+                    for profile_index, profile in enumerate(profiles):
+                        for spec in tuple(profile.sliders or ()):
+                            slider_id = str(spec.slider_id or "").strip() or "slider"
+                            base_slider_id = slider_id
+                            duplicate_counter = 2
+                            while slider_id.lower() in used_slider_ids:
+                                slider_id = f"{base_slider_id}_{profile_index + 1}_{duplicate_counter}"
+                                duplicate_counter += 1
+                            try:
+                                delta = load_morph_slider_delta(
+                                    replacement_mesh_base_for_mapping,
+                                    profile,
+                                    spec,
+                                    slider_id=slider_id,
+                                )
+                            except Exception as exc:
+                                self.append_archive_log(f"Skipped incompatible Morph Slider {spec.label or spec.slider_id}: {exc}")
+                                continue
+                            used_slider_ids.add(slider_id.lower())
+                            morph_slider_deltas[delta.slider_id] = delta
+                            morph_slider_values[delta.slider_id] = float(old_values.get(delta.slider_id, delta.default_percent) or 0.0)
+                    morph_slider_post_edit_deltas[:] = _morph_slider_zero_post_edit_deltas()
+                    _morph_slider_capture_post_edit_deltas()
+                    _morph_slider_rebuild_rows()
+                    _morph_slider_refresh_controls()
+
+                def _morph_slider_reset_all() -> None:
+                    if not _morph_slider_has_loaded_deltas():
+                        return
+                    _morph_slider_begin_change("Reset Morph Sliders")
+                    for delta in _morph_slider_active_deltas():
+                        morph_slider_values[delta.slider_id] = float(delta.default_percent)
+                    _morph_slider_sync_row_widgets()
+                    _morph_slider_apply_to_working_mesh(status_message="Reset Morph Sliders.")
+                    _morph_slider_end_change()
+
+                def _morph_slider_bake() -> None:
+                    nonlocal replacement_mesh_base_for_mapping
+                    if replacement_mesh_for_mapping is None or not _morph_slider_has_loaded_deltas():
+                        return
+                    if not _morph_slider_has_nonzero_values():
+                        return
+                    _morph_slider_begin_change("Bake Morph Sliders")
+                    replacement_mesh_base_for_mapping = clone_mesh_for_editing(replacement_mesh_for_mapping)
+                    morph_slider_values.clear()
+                    morph_slider_post_edit_deltas[:] = _morph_slider_zero_post_edit_deltas()
+                    morph_slider_topology_blocked["blocked"] = False
+                    morph_slider_topology_blocked["reason"] = ""
+                    _morph_slider_reload_profiles(preserve_values=False)
+                    mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1
+                    static_preview_geometry_cache.clear()
+                    static_preview_prepared_cache.clear()
+                    _refresh_source_assignment_columns()
+                    _refresh_mesh_edit_controls()
+                    _queue_static_preview_rebuild()
+                    _morph_slider_end_change()
+                    self.set_status_message("Baked Morph Sliders into the editable mesh base.")
+
+                def _morph_slider_import_pack() -> None:
+                    if replacement_mesh_base_for_mapping is None:
+                        QMessageBox.information(dialog, "Morph Sliders", "Open Modify Original for a parsed mesh before importing sliders.")
+                        return
+                    selected = QFileDialog.getExistingDirectory(
+                        dialog,
+                        "Import Slider Pack",
+                        str(self.settings_file_path.parent),
+                    )
+                    if not selected:
+                        return
+                    try:
+                        profile = import_body_slider_profile(
+                            selected,
+                            replacement_mesh_base_for_mapping,
+                            entry.path,
+                            morph_slider_profile_root,
+                        )
+                    except Exception as exc:
+                        QMessageBox.warning(dialog, "Import Slider Pack", str(exc))
+                        return
+                    _morph_slider_reload_profiles(preserve_values=True)
+                    self.set_status_message(f"Imported Morph Slider profile: {profile.name}.")
+
+                def _morph_slider_add_target() -> None:
+                    if replacement_mesh_base_for_mapping is None:
+                        QMessageBox.information(dialog, "Morph Sliders", "Open Modify Original for a parsed mesh before adding sliders.")
+                        return
+                    selected, _selected_filter = QFileDialog.getOpenFileName(
+                        dialog,
+                        "Add Slider From Target Mesh",
+                        str(self.settings_file_path.parent),
+                        "Morph Target Mesh (*.obj *.pac *.pam *.pamlod)",
+                    )
+                    if not selected:
+                        return
+                    try:
+                        profile = import_single_morph_slider_profile(
+                            selected,
+                            replacement_mesh_base_for_mapping,
+                            entry.path,
+                            morph_slider_profile_root,
+                        )
+                    except Exception as exc:
+                        QMessageBox.warning(dialog, "Add Slider From Target Mesh", str(exc))
+                        return
+                    _morph_slider_reload_profiles(preserve_values=True)
+                    self.set_status_message(f"Added Morph Slider profile: {profile.name}.")
+
+                def _morph_slider_default_region_amount() -> float:
+                    if replacement_mesh_base_for_mapping is None:
+                        return 0.01
+                    points: list[tuple[float, float, float]] = []
+                    for source_index, vertices in mesh_edit_selected_vertices_by_submesh.items():
+                        if 0 <= int(source_index) < len(replacement_mesh_base_for_mapping.submeshes):
+                            submesh = replacement_mesh_base_for_mapping.submeshes[int(source_index)]
+                            for vertex_index in tuple(vertices or ()):
+                                if 0 <= int(vertex_index) < len(submesh.vertices):
+                                    vertex = submesh.vertices[int(vertex_index)]
+                                    points.append((float(vertex[0]), float(vertex[1]), float(vertex[2])))
+                    if not points:
+                        return 0.01
+                    min_x = min(point[0] for point in points)
+                    min_y = min(point[1] for point in points)
+                    min_z = min(point[2] for point in points)
+                    max_x = max(point[0] for point in points)
+                    max_y = max(point[1] for point in points)
+                    max_z = max(point[2] for point in points)
+                    diagonal = math.sqrt((max_x - min_x) ** 2 + (max_y - min_y) ** 2 + (max_z - min_z) ** 2)
+                    return max(0.001, diagonal * 0.08)
+
+                def _morph_slider_create_from_selection() -> None:
+                    if replacement_mesh_base_for_mapping is None:
+                        QMessageBox.information(dialog, "Morph Sliders", "Open Modify Original for a parsed mesh before creating sliders.")
+                        return
+                    if not any(bool(vertices) for vertices in mesh_edit_selected_vertices_by_submesh.values()):
+                        QMessageBox.information(dialog, "Morph Sliders", "Select vertices first, then create a region slider.")
+                        return
+                    name, accepted = QInputDialog.getText(
+                        dialog,
+                        "Create Slider From Selection",
+                        "Slider name:",
+                        text="Volume Size",
+                    )
+                    if not accepted or not str(name or "").strip():
+                        return
+                    default_amount = _morph_slider_default_region_amount()
+                    amount, accepted = QInputDialog.getDouble(
+                        dialog,
+                        "Create Slider From Selection",
+                        "100% size amount:",
+                        float(default_amount),
+                        0.000001,
+                        1000000.0,
+                        6,
+                    )
+                    if not accepted:
+                        return
+                    feather, accepted = QInputDialog.getInt(
+                        dialog,
+                        "Create Slider From Selection",
+                        "Feather rings:",
+                        2,
+                        0,
+                        32,
+                        1,
+                    )
+                    if not accepted:
+                        return
+                    try:
+                        profile = create_region_volume_slider_profile(
+                            replacement_mesh_base_for_mapping,
+                            entry.path,
+                            morph_slider_profile_root,
+                            mesh_edit_selected_vertices_by_submesh,
+                            name=str(name),
+                            amount=float(amount),
+                            feather=int(feather),
+                        )
+                    except Exception as exc:
+                        QMessageBox.warning(dialog, "Create Slider From Selection", str(exc))
+                        return
+                    _morph_slider_reload_profiles(preserve_values=True)
+                    self.set_status_message(f"Created Morph Slider profile: {profile.name}.")
+
                 def _mesh_edit_can_edit_scope() -> tuple[bool, str]:
                     if not mesh_edit_supported:
                         return False, "Mesh Editing needs a parsed static mesh source with triangle geometry."
@@ -54085,6 +61520,8 @@ def run_gui() -> int:
                         if _mesh_edit_scope_mode() == "selected":
                             return False, "The selected mesh-edit part is hidden, disabled, or has no editable triangles."
                         return False, "No visible editable source parts are available."
+                    if _mesh_edit_current_tool() == "remove" and _morph_slider_has_nonzero_values():
+                        return False, "Bake or reset Morph Sliders before removing faces."
                     count_text = f"{len(allowed_indices):,} part(s)"
                     return True, f"Drag in the Replacement Preview to edit {count_text}."
 
@@ -54110,6 +61547,7 @@ def run_gui() -> int:
                             strength=float(mesh_edit_strength_spin.value()) / 100.0,
                             falloff=str(mesh_edit_falloff_combo.currentData() or "smooth"),
                             show_vertices=bool(mesh_edit_show_vertices_checkbox.isChecked()),
+                            selection_mode=_mesh_edit_selection_mode(),
                         )
                     for preview_widget in (static_dialog_preview, overlay_dialog_preview, replacement_only_preview):
                         preview_widget.set_mesh_edit_target_mode(target_mode)
@@ -54154,6 +61592,7 @@ def run_gui() -> int:
                         mesh_edit_tool_palette,
                         mesh_edit_radius_spin,
                         mesh_edit_falloff_combo,
+                        mesh_edit_selection_mode_combo,
                         mesh_edit_mirror_checkbox,
                         mesh_edit_show_vertices_checkbox,
                     ):
@@ -54164,8 +61603,12 @@ def run_gui() -> int:
                     mesh_edit_delete_mode_combo.setVisible(remove_tool)
                     mesh_edit_strength_spin.setEnabled(editing_requested and not remove_tool)
                     mesh_edit_clear_selection_button.setEnabled(editing_active)
+                    selection_active = editing_active and any(bool(vertices) for vertices in mesh_edit_selected_vertices_by_submesh.values())
+                    mesh_edit_grow_selection_button.setEnabled(selection_active)
+                    mesh_edit_shrink_selection_button.setEnabled(selection_active)
+                    mesh_edit_smooth_selection_button.setEnabled(selection_active)
                     mesh_edit_delete_faces_button.setEnabled(
-                        editing_active and any(bool(vertices) for vertices in mesh_edit_selected_vertices_by_submesh.values())
+                        selection_active
                     )
                     mesh_edit_undo_button.setEnabled(bool(mesh_edit_undo_stack))
                     mesh_edit_redo_button.setEnabled(bool(mesh_edit_redo_stack))
@@ -54183,6 +61626,7 @@ def run_gui() -> int:
                     mesh_edit_status_label.setText(
                         reason if not editing_active else f"{reason}{selected_text} Edited revision {int(mesh_edit_revision.get('value', 0) or 0)}."
                     )
+                    _morph_slider_refresh_controls()
                     _sync_mesh_edit_preview_settings()
 
                 def _mesh_edit_push_undo_snapshot(snapshot: ParsedMesh) -> None:
@@ -54229,6 +61673,7 @@ def run_gui() -> int:
                 def _mesh_edit_replace_working_mesh(snapshot: ParsedMesh) -> None:
                     nonlocal replacement_mesh_for_mapping, replacement_preview_model
                     replacement_mesh_for_mapping = clone_mesh_for_editing(snapshot)
+                    _morph_slider_capture_post_edit_deltas()
                     replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
                     mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1
                     static_preview_geometry_cache.clear()
@@ -54298,6 +61743,10 @@ def run_gui() -> int:
                         if restore_deleted_output:
                             adjustment = _ensure_source_part_adjustment(source_index)
                             adjustment.enabled = True
+                    if _morph_slider_has_loaded_deltas():
+                        _morph_slider_zero_post_edit_deltas_for_sources(source_indices)
+                        if _morph_slider_refresh_topology_block_state():
+                            _morph_slider_apply_to_working_mesh(increment_revision=False, refresh_controls=False)
                     _mesh_edit_update_mesh_totals()
                     replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
                     mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1
@@ -54434,6 +61883,7 @@ def run_gui() -> int:
                     if replacement_mesh_for_mapping is None:
                         return
                     _mesh_edit_update_mesh_totals()
+                    _morph_slider_capture_post_edit_deltas()
                     replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
                     mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1
                     static_preview_geometry_cache.clear()
@@ -54635,6 +62085,7 @@ def run_gui() -> int:
                                 recompute_normals=True,
                             )
                             _mesh_edit_disable_emptied_parts(compact_result.emptied_submesh_indices)
+                            _morph_slider_mark_topology_changed("Remove Faces changed topology. Use Reset Scope to restore Morph Slider compatibility.")
                             mesh_edit_selected_vertices_by_submesh.clear()
                             removed_faces = int(mesh_edit_active_stroke.get("live_removed_face_count", 0) or 0)
                             mesh_edit_active_stroke.clear()
@@ -54668,6 +62119,7 @@ def run_gui() -> int:
                             self.set_status_message("No faces touched the Mesh Editing brush.")
                             return
                         _mesh_edit_disable_emptied_parts(result.emptied_submesh_indices)
+                        _morph_slider_mark_topology_changed("Remove Faces changed topology. Use Reset Scope to restore Morph Slider compatibility.")
                         mesh_edit_selected_vertices_by_submesh.clear()
                         mesh_edit_active_stroke.clear()
                         _mesh_edit_commit_working_mesh(
@@ -54699,6 +62151,7 @@ def run_gui() -> int:
                         mesh_edit_active_stroke.clear()
                         QMessageBox.warning(dialog, "Mesh Edit Blocked", str(exc))
                         return
+                    _morph_slider_capture_post_edit_deltas()
                     _mesh_edit_update_mesh_totals()
                     replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
                     mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1
@@ -54730,6 +62183,9 @@ def run_gui() -> int:
                     if not can_edit:
                         QMessageBox.information(dialog, "Mesh Editing", reason)
                         return
+                    if _morph_slider_has_nonzero_values():
+                        QMessageBox.information(dialog, "Mesh Editing", "Bake or reset Morph Sliders before removing faces.")
+                        return
                     allowed_indices = set(_mesh_edit_allowed_source_indices())
                     selected_vertices = {
                         int(source_index): sorted({int(vertex_index) for vertex_index in vertices if int(vertex_index) >= 0})
@@ -54755,6 +62211,7 @@ def run_gui() -> int:
                         self.set_status_message("No faces touched the selected Mesh Editing vertices.")
                         return
                     _mesh_edit_disable_emptied_parts(result.emptied_submesh_indices)
+                    _morph_slider_mark_topology_changed("Remove Faces changed topology. Use Reset Scope to restore Morph Slider compatibility.")
                     mesh_edit_selected_vertices_by_submesh.clear()
                     _mesh_edit_update_mesh_totals()
                     replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
@@ -54778,6 +62235,51 @@ def run_gui() -> int:
                     for preview_widget in (static_dialog_preview, overlay_dialog_preview, replacement_only_preview):
                         preview_widget.clear_mesh_edit_vertex_selection()
                     _refresh_mesh_edit_controls()
+
+                def _mesh_edit_set_vertex_selection(selected_vertices_by_submesh: Mapping[int, Iterable[int]]) -> None:
+                    mesh_edit_selected_vertices_by_submesh.clear()
+                    for raw_source_index, raw_vertices in dict(selected_vertices_by_submesh or {}).items():
+                        try:
+                            source_index = int(raw_source_index)
+                        except (TypeError, ValueError):
+                            continue
+                        vertices: set[int] = set()
+                        for raw_vertex_index in tuple(raw_vertices or ()):
+                            try:
+                                vertex_index = int(raw_vertex_index)
+                            except (TypeError, ValueError):
+                                continue
+                            if vertex_index >= 0:
+                                vertices.add(vertex_index)
+                        if vertices:
+                            mesh_edit_selected_vertices_by_submesh[source_index] = vertices
+                    if _alignment_d3d11_preview_active():
+                        alignment_d3d11_preview_host.set_mesh_edit_vertex_selection(mesh_edit_selected_vertices_by_submesh)
+                    for preview_widget in (static_dialog_preview, overlay_dialog_preview, replacement_only_preview):
+                        if hasattr(preview_widget, "set_mesh_edit_vertex_selection"):
+                            preview_widget.set_mesh_edit_vertex_selection(mesh_edit_selected_vertices_by_submesh)
+                    _refresh_mesh_edit_controls()
+
+                def _mesh_edit_grow_selection() -> None:
+                    if replacement_mesh_for_mapping is None:
+                        return
+                    _mesh_edit_set_vertex_selection(
+                        grow_vertex_selection(replacement_mesh_for_mapping, mesh_edit_selected_vertices_by_submesh)
+                    )
+
+                def _mesh_edit_shrink_selection() -> None:
+                    if replacement_mesh_for_mapping is None:
+                        return
+                    _mesh_edit_set_vertex_selection(
+                        shrink_vertex_selection(replacement_mesh_for_mapping, mesh_edit_selected_vertices_by_submesh)
+                    )
+
+                def _mesh_edit_smooth_selection() -> None:
+                    if replacement_mesh_for_mapping is None:
+                        return
+                    _mesh_edit_set_vertex_selection(
+                        smooth_vertex_selection(replacement_mesh_for_mapping, mesh_edit_selected_vertices_by_submesh)
+                    )
 
                 def _mesh_edit_selection_changed(payload: object) -> None:
                     mesh_edit_selected_vertices_by_submesh.clear()
@@ -54830,6 +62332,7 @@ def run_gui() -> int:
                 mesh_edit_tool_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
                 mesh_edit_delete_mode_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
                 mesh_edit_falloff_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
+                mesh_edit_selection_mode_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
                 mesh_edit_radius_spin.valueChanged.connect(lambda _value: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
                 mesh_edit_strength_spin.valueChanged.connect(lambda _value: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
                 mesh_edit_radius_spin.editingFinished.connect(
@@ -54839,10 +62342,19 @@ def run_gui() -> int:
                     lambda: (_commit_spinbox_text(mesh_edit_strength_spin), _refresh_mesh_edit_controls(), _queue_static_preview_refresh())
                 )
                 mesh_edit_clear_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_clear_vertex_selection())
+                mesh_edit_grow_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_grow_selection())
+                mesh_edit_shrink_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_shrink_selection())
+                mesh_edit_smooth_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_smooth_selection())
                 mesh_edit_delete_faces_button.clicked.connect(lambda _checked=False: _mesh_edit_delete_selected_faces())
                 mesh_edit_undo_button.clicked.connect(lambda _checked=False: _mesh_edit_undo())
                 mesh_edit_redo_button.clicked.connect(lambda _checked=False: _mesh_edit_redo())
                 mesh_edit_reset_part_button.clicked.connect(lambda _checked=False: _mesh_edit_reset_scope())
+                morph_slider_create_button.clicked.connect(lambda _checked=False: _morph_slider_create_from_selection())
+                morph_slider_import_action.triggered.connect(lambda _checked=False: _morph_slider_import_pack())
+                morph_slider_add_action.triggered.connect(lambda _checked=False: _morph_slider_add_target())
+                morph_slider_reload_action.triggered.connect(lambda _checked=False: _morph_slider_reload_profiles(preserve_values=True))
+                morph_slider_reset_button.clicked.connect(lambda _checked=False: _morph_slider_reset_all())
+                morph_slider_bake_button.clicked.connect(lambda _checked=False: _morph_slider_bake())
 
                 source_tree.currentItemChanged.connect(_source_selection_changed)
                 source_tree.itemSelectionChanged.connect(_refresh_source_tree_selection_state)
@@ -55057,7 +62569,9 @@ def run_gui() -> int:
                 parts_outliner_layout.addStretch(1)
                 parts_layout.addWidget(parts_outliner_panel, 1)
                 parts_layout.addStretch(1)
+                _morph_slider_reload_profiles()
                 mesh_edit_layout_page.addWidget(mesh_edit_group, 0)
+                mesh_edit_layout_page.addWidget(morph_slider_group, 0)
                 mesh_edit_layout_page.addStretch(1)
 
                 _alignment_startup_step("Preparing replacement texture sources...")
@@ -55748,7 +63262,14 @@ def run_gui() -> int:
                     complete_external_material_reset: bool = False,
                     enable_missing_base_color_parameters: bool = False,
                     texture_output_size_mode: str = "source",
-                    complete_swap_material_profile: str = "source_graph_strict",
+                    complete_swap_material_profile: str = "material_authority_detail_mask",
+                    global_gloss_reduction: float = 0.0,
+                    edge_relief_strength: float = 0.0,
+                    edge_relief_source: str = "hybrid",
+                    accent_glow_strength: float = 0.0,
+                    dark_detail_lift: float = 0.0,
+                    tone_contrast: float = 0.0,
+                    allow_unsafe_material_preflight_export: bool = False,
                     custom_item_icon_override: object | None = None,
                     prune_unmapped_original_texture_parameters: bool = False,
                 ) -> StaticMeshReplacementOptions:
@@ -55784,7 +63305,14 @@ def run_gui() -> int:
                         ),
                         donor_material_plans=list(placement_snapshot.get("donor_material_plans", []) or []),
                         texture_output_size_mode=str(texture_output_size_mode or "source"),
-                        complete_swap_material_profile=str(complete_swap_material_profile or "source_graph_strict"),
+                        complete_swap_material_profile=str(complete_swap_material_profile or "material_authority_detail_mask"),
+                        global_gloss_reduction=max(0.0, min(100.0, float(global_gloss_reduction or 0.0))),
+                        edge_relief_strength=max(0.0, min(100.0, float(edge_relief_strength or 0.0))),
+                        edge_relief_source=str(edge_relief_source or "hybrid"),
+                        accent_glow_strength=max(0.0, min(100.0, float(accent_glow_strength or 0.0))),
+                        dark_detail_lift=max(0.0, min(100.0, float(dark_detail_lift or 0.0))),
+                        tone_contrast=max(-100.0, min(100.0, float(tone_contrast or 0.0))),
+                        allow_unsafe_material_preflight_export=bool(allow_unsafe_material_preflight_export),
                         texture_uv_transforms=list(placement_snapshot.get("texture_uv_transforms", []) or []),
                         source_part_adjustments=list(placement_snapshot.get("source_part_adjustments", []) or []),
                         original_part_copies=list(placement_snapshot.get("original_part_copies", []) or []),
@@ -55807,7 +63335,7 @@ def run_gui() -> int:
                         additional_supplemental_files=list(additional_supplemental_files or []),
                         custom_item_icon_override=custom_item_icon_override,
                         pac_xml_corpus_root=pac_xml_corpus_root,
-                        pac_xml_profile_cache_path=str(self.settings_file_path.parent / "pac_xml_profile_index_v1.json"),
+                        pac_xml_profile_cache_path=str(default_pac_xml_profile_cache_path(self.settings_file_path.parent)),
                     )
 
                 def _unmapped_appended_source_indices(
@@ -61850,8 +69378,8 @@ def run_gui() -> int:
             complete_swap_material_profile_combo = QComboBox()
             complete_swap_material_profile_combo.setObjectName("MeshAlignmentCompleteSwapMaterialProfileCombo")
             visible_complete_swap_material_profile_names = (
-                "material_authority_runtime_xml",
-                "material_authority_clean_source",
+                "material_authority_detail_mask",
+                "material_authority_placeholder_safe_test",
                 "material_authority_manual",
             )
             complete_swap_material_profiles_by_name = {
@@ -61863,12 +69391,14 @@ def run_gui() -> int:
                     complete_swap_material_profile_combo.addItem(profile.label, profile.name)
 
             def _select_complete_swap_material_profile(profile_name: str, *, persist: bool = False) -> None:
-                requested = str(profile_name or "").strip() or "material_authority_runtime_xml"
+                requested = str(profile_name or "").strip() or "material_authority_detail_mask"
                 if requested.startswith("material_authority_manual:"):
                     requested = "material_authority_manual"
+                else:
+                    requested = str(getattr(get_complete_swap_material_profile(requested), "name", "") or requested)
                 profile_index = complete_swap_material_profile_combo.findData(requested)
                 if profile_index < 0:
-                    requested = "material_authority_runtime_xml"
+                    requested = "material_authority_detail_mask"
                     profile_index = complete_swap_material_profile_combo.findData(requested)
                 if profile_index >= 0 and complete_swap_material_profile_combo.currentIndex() != profile_index:
                     complete_swap_material_profile_combo.setCurrentIndex(profile_index)
@@ -61880,26 +69410,179 @@ def run_gui() -> int:
                         pass
 
             complete_swap_profile_store_path = self.settings_file_path.parent / "complete_swap_material_profile.json"
-            stored_complete_swap_material_profile = read_complete_swap_calibrated_material_profile(
+            stored_complete_swap_material_profile_obj = read_complete_swap_calibrated_material_profile(
                 complete_swap_profile_store_path,
-                "material_authority_runtime_xml",
-            ).name
+                "material_authority_detail_mask",
+            )
+            stored_complete_swap_material_profile = str(getattr(stored_complete_swap_material_profile_obj, "name", "") or "")
             saved_complete_swap_material_profile = str(
                 self.settings.value(
                     "settings/complete_swap_material_profile",
-                    stored_complete_swap_material_profile or "material_authority_runtime_xml",
+                    stored_complete_swap_material_profile or "material_authority_detail_mask",
                 )
                 or stored_complete_swap_material_profile
-                or "material_authority_runtime_xml"
+                or "material_authority_detail_mask"
             )
-            if saved_complete_swap_material_profile.startswith("material_authority_manual"):
-                saved_complete_swap_material_profile = "material_authority_runtime_xml"
             _select_complete_swap_material_profile(saved_complete_swap_material_profile)
             complete_swap_material_profile_combo.setToolTip(
-                "Calibration profile for binding source textures into Crimson Desert PAC XML. Runtime XML is the recommended default: it preserves target shader/mask/detail/height/PBD structure and patches compatible source slots only. "
-                "Older ARM/RMA probe profiles remain backend-compatible but are hidden from the normal workflow."
+                "Material Authority uses the proven working-mod route: source color through _overlayColorTexture, source PBR/material mask through _detailMaskTexture, and no glossy color-blend mask. Manual starts from the same route and exposes advanced overrides."
             )
             complete_swap_material_profile_combo.setEnabled(False)
+            global_gloss_reduction_slider = QSlider(Qt.Horizontal)
+            global_gloss_reduction_slider.setObjectName("MeshAlignmentGlobalGlossReductionSlider")
+            global_gloss_reduction_slider.setRange(0, 100)
+            global_gloss_reduction_slider.setSingleStep(1)
+            global_gloss_reduction_slider.setPageStep(10)
+            global_gloss_reduction_spin = QSpinBox()
+            global_gloss_reduction_spin.setObjectName("MeshAlignmentGlobalGlossReductionSpinBox")
+            global_gloss_reduction_spin.setRange(0, 100)
+            global_gloss_reduction_spin.setSuffix("%")
+            global_gloss_reduction_tooltip = (
+                "Extra fallback matte control for generated material masks/scalar slots. "
+                "Material Authority already removes the main glossy color-blend response."
+            )
+            global_gloss_reduction_slider.setToolTip(global_gloss_reduction_tooltip)
+            global_gloss_reduction_spin.setToolTip(global_gloss_reduction_tooltip)
+            try:
+                saved_global_gloss_reduction = int(round(float(self.settings.value("settings/complete_swap_global_gloss_reduction", 0) or 0)))
+            except (TypeError, ValueError, OverflowError):
+                saved_global_gloss_reduction = 0
+            saved_global_gloss_reduction = max(0, min(100, saved_global_gloss_reduction))
+            global_gloss_reduction_slider.setValue(saved_global_gloss_reduction)
+            global_gloss_reduction_spin.setValue(saved_global_gloss_reduction)
+            global_gloss_reduction_hint = QLabel("0% keeps the proven Material Authority response.")
+            global_gloss_reduction_hint.setObjectName("HintLabel")
+            global_gloss_reduction_hint.setWordWrap(True)
+            global_gloss_reduction_row = QHBoxLayout()
+            global_gloss_reduction_row.setContentsMargins(0, 0, 0, 0)
+            global_gloss_reduction_row.setSpacing(5)
+            global_gloss_reduction_row.addWidget(global_gloss_reduction_slider, 1)
+            global_gloss_reduction_row.addWidget(global_gloss_reduction_spin)
+            true_source_basic_group = QGroupBox("Material Authority Adjustments")
+            true_source_basic_group.setObjectName("MeshAlignmentTrueSourceBasicControlsGroup")
+            true_source_basic_form = QGridLayout(true_source_basic_group)
+            true_source_basic_form.setContentsMargins(5, 3, 5, 3)
+            true_source_basic_form.setHorizontalSpacing(6)
+            true_source_basic_form.setVerticalSpacing(2)
+            true_source_basic_form.addWidget(QLabel("Extra matte fallback"), 0, 0)
+            true_source_basic_form.addLayout(global_gloss_reduction_row, 0, 1)
+            true_source_basic_form.addWidget(global_gloss_reduction_hint, 1, 0, 1, 2)
+
+            source_brightness_slider = QSlider(Qt.Horizontal)
+            source_brightness_slider.setObjectName("MeshAlignmentSourceBrightnessSlider")
+            source_brightness_slider.setRange(0, 100)
+            source_brightness_slider.setSingleStep(1)
+            source_brightness_slider.setPageStep(10)
+            source_brightness_spin = QSpinBox()
+            source_brightness_spin.setObjectName("MeshAlignmentSourceBrightnessSpinBox")
+            source_brightness_spin.setRange(0, 100)
+            source_brightness_spin.setSuffix("%")
+            source_brightness_tooltip = (
+                "Lifts dark and midtone source base color before DDS export. "
+                "Use when Material Authority output is correct but too dark."
+            )
+            source_brightness_slider.setToolTip(source_brightness_tooltip)
+            source_brightness_spin.setToolTip(source_brightness_tooltip)
+            try:
+                saved_source_brightness = int(round(float(self.settings.value("settings/complete_swap_source_brightness", 0) or 0)))
+            except (TypeError, ValueError, OverflowError):
+                saved_source_brightness = 0
+            saved_source_brightness = max(0, min(100, saved_source_brightness))
+            source_brightness_slider.setValue(saved_source_brightness)
+            source_brightness_spin.setValue(saved_source_brightness)
+            source_brightness_row = QHBoxLayout()
+            source_brightness_row.setContentsMargins(0, 0, 0, 0)
+            source_brightness_row.setSpacing(5)
+            source_brightness_row.addWidget(source_brightness_slider, 1)
+            source_brightness_row.addWidget(source_brightness_spin)
+
+            edge_relief_slider = QSlider(Qt.Horizontal)
+            edge_relief_slider.setObjectName("MeshAlignmentEdgeReliefSlider")
+            edge_relief_slider.setRange(0, 100)
+            edge_relief_slider.setSingleStep(1)
+            edge_relief_slider.setPageStep(10)
+            edge_relief_spin = QSpinBox()
+            edge_relief_spin.setObjectName("MeshAlignmentEdgeReliefSpinBox")
+            edge_relief_spin.setRange(0, 100)
+            edge_relief_spin.setSuffix("%")
+            edge_relief_tooltip = (
+                "Adds shader/texture relief for source-owned material edges. This does not edit mesh geometry."
+            )
+            edge_relief_slider.setToolTip(edge_relief_tooltip)
+            edge_relief_spin.setToolTip(edge_relief_tooltip)
+            try:
+                saved_edge_relief = int(round(float(self.settings.value("settings/complete_swap_edge_relief_strength", 0) or 0)))
+            except (TypeError, ValueError, OverflowError):
+                saved_edge_relief = 0
+            saved_edge_relief = max(0, min(100, saved_edge_relief))
+            edge_relief_slider.setValue(saved_edge_relief)
+            edge_relief_spin.setValue(saved_edge_relief)
+            edge_relief_row = QHBoxLayout()
+            edge_relief_row.setContentsMargins(0, 0, 0, 0)
+            edge_relief_row.setSpacing(5)
+            edge_relief_row.addWidget(edge_relief_slider, 1)
+            edge_relief_row.addWidget(edge_relief_spin)
+            edge_relief_source_combo = QComboBox()
+            edge_relief_source_combo.setObjectName("MeshAlignmentEdgeReliefSourceCombo")
+            edge_relief_source_combo.addItem("Hybrid", "hybrid")
+            edge_relief_source_combo.addItem("Preserve target support", "preserve_target")
+            edge_relief_source_combo.addItem("Generate from source", "generate_source")
+            saved_edge_source = str(self.settings.value("settings/complete_swap_edge_relief_source", "hybrid") or "hybrid")
+            edge_source_index = edge_relief_source_combo.findData(saved_edge_source)
+            if edge_source_index < 0:
+                edge_source_index = 0
+            edge_relief_source_combo.setCurrentIndex(edge_source_index)
+            edge_relief_source_combo.setToolTip(
+                "Preserve target support keeps compatible height/detail support slots; Generate from source builds simple support from source textures; Hybrid tries target support first."
+            )
+
+            accent_glow_slider = QSlider(Qt.Horizontal)
+            accent_glow_slider.setObjectName("MeshAlignmentAccentGlowSlider")
+            accent_glow_slider.setRange(0, 100)
+            accent_glow_slider.setSingleStep(1)
+            accent_glow_slider.setPageStep(10)
+            accent_glow_spin = QSpinBox()
+            accent_glow_spin.setObjectName("MeshAlignmentAccentGlowSpinBox")
+            accent_glow_spin.setRange(0, 100)
+            accent_glow_spin.setSuffix("%")
+            accent_glow_tooltip = (
+                "Adds emissive shader parameters to source-owned accent parts such as gem, crystal, rune, glow, flame, lens, eye, and other emissive-named materials."
+            )
+            accent_glow_slider.setToolTip(accent_glow_tooltip)
+            accent_glow_spin.setToolTip(accent_glow_tooltip)
+            try:
+                saved_accent_glow = int(round(float(self.settings.value("settings/complete_swap_accent_glow_strength", 0) or 0)))
+            except (TypeError, ValueError, OverflowError):
+                saved_accent_glow = 0
+            saved_accent_glow = max(0, min(100, saved_accent_glow))
+            accent_glow_slider.setValue(saved_accent_glow)
+            accent_glow_spin.setValue(saved_accent_glow)
+            accent_glow_row = QHBoxLayout()
+            accent_glow_row.setContentsMargins(0, 0, 0, 0)
+            accent_glow_row.setSpacing(5)
+            accent_glow_row.addWidget(accent_glow_slider, 1)
+            accent_glow_row.addWidget(accent_glow_spin)
+
+            true_source_basic_hint = QLabel("Defaults keep the proven route; these controls affect generated source-owned DDS/XML only.")
+            true_source_basic_hint.setObjectName("HintLabel")
+            true_source_basic_hint.setWordWrap(True)
+            true_source_basic_form.addWidget(QLabel("Source brightness"), 2, 0)
+            true_source_basic_form.addLayout(source_brightness_row, 2, 1)
+            true_source_basic_form.addWidget(QLabel("Edge relief"), 3, 0)
+            true_source_basic_form.addLayout(edge_relief_row, 3, 1)
+            true_source_basic_form.addWidget(QLabel("Edge relief source"), 4, 0)
+            true_source_basic_form.addWidget(edge_relief_source_combo, 4, 1)
+            true_source_basic_form.addWidget(QLabel("Accent glow"), 5, 0)
+            true_source_basic_form.addLayout(accent_glow_row, 5, 1)
+            true_source_basic_form.addWidget(true_source_basic_hint, 6, 0, 1, 2)
+            unsafe_material_preflight_checkbox = QCheckBox("Allow unsafe material preflight export")
+            unsafe_material_preflight_checkbox.setObjectName("MeshAlignmentUnsafeMaterialPreflightExportCheckbox")
+            unsafe_material_preflight_checkbox.setChecked(False)
+            unsafe_material_preflight_checkbox.setToolTip(
+                "Expert loose-export override. If material preflight finds non-authoritative bindings, write the loose mod anyway. "
+                "This is ignored for direct archive patch and may produce original tint/gloss/layers, grey parts, or missing textures in-game."
+            )
+            unsafe_material_preflight_checkbox.setEnabled(False)
             manual_profile_settings_key = "settings/complete_swap_manual_material_profile"
             manual_profile_presets_key = "settings/complete_swap_manual_material_profile_presets"
             manual_profile_defaults = next(
@@ -61912,16 +69595,17 @@ def run_gui() -> int:
             )
             manual_profile_default_values: Dict[str, object] = {
                 "base_binding_mode": str(getattr(manual_profile_defaults, "base_binding_mode", "overlay_texture") or "overlay_texture"),
-                "mask_binding_mode": str(getattr(manual_profile_defaults, "mask_binding_mode", "color_blending_mask") or "color_blending_mask"),
+                "mask_binding_mode": str(getattr(manual_profile_defaults, "mask_binding_mode", "detail_mask_material") or "detail_mask_material"),
                 "support_policy": str(getattr(manual_profile_defaults, "support_policy", "source_only") or "source_only"),
                 "emissive_mode": str(getattr(manual_profile_defaults, "emissive_mode", "intensity") or "intensity"),
+                "authority_contract": str(getattr(manual_profile_defaults, "authority_contract", "true_source_authority_detail_mask") or "true_source_authority_detail_mask"),
                 "base_color_lift": int(getattr(manual_profile_defaults, "base_color_lift", 68) or 0),
                 "base_color_scale": float(getattr(manual_profile_defaults, "base_color_scale", 0.90) or 0.0),
                 "base_color_gamma": float(getattr(manual_profile_defaults, "base_color_gamma", 0.62) or 0.0),
                 "base_color_saturation": float(getattr(manual_profile_defaults, "base_color_saturation", 0.66) or 0.0),
                 "base_color_value_max": int(getattr(manual_profile_defaults, "base_color_value_max", 218) or 255),
-                "emissive_color_scale": float(getattr(manual_profile_defaults, "emissive_color_scale", 0.18) or 0.0),
-                "emissive_color_saturation": float(getattr(manual_profile_defaults, "emissive_color_saturation", 0.60) or 0.0),
+                "emissive_color_scale": float(getattr(manual_profile_defaults, "emissive_color_scale", None) if getattr(manual_profile_defaults, "emissive_color_scale", None) is not None else 1.0),
+                "emissive_color_saturation": float(getattr(manual_profile_defaults, "emissive_color_saturation", None) if getattr(manual_profile_defaults, "emissive_color_saturation", None) is not None else 1.0),
                 "emissive_color_value_max": int(getattr(manual_profile_defaults, "emissive_color_value_max", 72) or 255),
                 "roughness_default": int(getattr(manual_profile_defaults, "roughness_default", 240) or 0),
                 "roughness_min": int(getattr(manual_profile_defaults, "roughness_min", 246) or 0),
@@ -61948,10 +69632,17 @@ def run_gui() -> int:
                 "force_neutral_layer_support": bool(getattr(manual_profile_defaults, "force_neutral_layer_support", False)),
                 "preserve_target_layer_response": bool(getattr(manual_profile_defaults, "preserve_target_layer_response", False)),
                 "source_color_layer_authority": bool(getattr(manual_profile_defaults, "source_color_layer_authority", False)),
+                "global_gloss_reduction": float(getattr(manual_profile_defaults, "global_gloss_reduction", 0.0) or 0.0),
             }
+            stored_manual_profile_values: Dict[str, object] = {}
+            if stored_complete_swap_material_profile == "material_authority_manual":
+                for key, default_value in manual_profile_default_values.items():
+                    if hasattr(stored_complete_swap_material_profile_obj, key):
+                        stored_manual_profile_values[key] = getattr(stored_complete_swap_material_profile_obj, key, default_value)
 
             def _load_manual_profile_values() -> Dict[str, object]:
                 values = dict(manual_profile_default_values)
+                values.update({str(key): value for key, value in stored_manual_profile_values.items() if str(key) in values})
                 raw = self.settings.value(manual_profile_settings_key, "")
                 if isinstance(raw, str) and raw.strip():
                     try:
@@ -62156,8 +69847,13 @@ def run_gui() -> int:
                 1,
                 "mask_binding_mode",
                 "PBR/mask slot",
-                (("Color blending mask", "color_blending_mask"), ("Scratch scalars only", "scratch_scalars"), ("Disabled", "disabled")),
-                "Where generated AO/roughness/metal mask is written. Scratch scalars skips *_ma.dds and uses sidecar scalar response only. Disabled removes generated PBR response.",
+                (
+                    ("Detail mask material", "detail_mask_material"),
+                    ("Legacy color-blend mask", "color_blending_mask"),
+                    ("Scratch scalars only", "scratch_scalars"),
+                    ("Disabled", "disabled"),
+                ),
+                "Where generated AO/roughness/metal mask is written. Detail mask material is the proven non-gloss route. Legacy color-blend can restore the old glossy response.",
             )
             _manual_combo(
                 2,
@@ -62173,6 +69869,17 @@ def run_gui() -> int:
                 (("Disabled", "disabled"), ("Intensity texture", "intensity")),
                 "Disabled removes glow. Intensity binds source emissive textures or emissive material colors for any glowing part.",
             )
+            _manual_combo(
+                39,
+                "authority_contract",
+                "Authority path",
+                (
+                    ("Material Authority", "true_source_authority_detail_mask"),
+                    ("Legacy True Source", "true_source_authority"),
+                    ("Legacy Runtime XML", "runtime_xml_preserve"),
+                ),
+                "Final-package contract. Material Authority is the proven detail-mask route. Legacy modes are kept only for repair/debug compatibility.",
+            )
             _manual_int(6, "base_color_lift", "Dark lift", 0, 128, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Right brightens black/dark pixels so detail survives. Left keeps source darker.")
             _manual_float(7, "base_color_gamma", "Gamma lift", 0.25, 2.50, 0.05, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Left brightens midtones. Right darkens midtones.")
             _manual_float(8, "base_color_saturation", "Color saturation", 0.00, 2.00, 0.05, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Left makes colors more muted. Right makes colors stronger.")
@@ -62181,21 +69888,21 @@ def run_gui() -> int:
             _manual_float(11, "emissive_color_scale", "Emissive scale", 0.00, 2.00, 0.05, "Affects generated emissive DDS (*_emi.dds) only when source emissive exists. Left dims glow. Right makes glow stronger or blown out.")
             _manual_float(12, "emissive_color_saturation", "Emissive saturation", 0.00, 2.00, 0.05, "Affects generated emissive DDS (*_emi.dds) only when source emissive exists. Left makes emissive color less pure. Right makes it stronger.")
             _manual_int(13, "emissive_color_value_max", "Emissive cap", 0, 255, "Affects generated emissive DDS (*_emi.dds) only when source emissive exists. Left caps brightness. Right allows pure bright emissive.")
-            _manual_int(14, "roughness_default", "Roughness default", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right is dull/matte. Left is shiny if source has no roughness.")
-            _manual_int(15, "roughness_min", "Roughness floor", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right prevents glossy highlights. Left allows shiny source roughness.")
-            _manual_float(16, "roughness_scale", "Roughness scale", 0.00, 2.00, 0.05, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right increases roughness from source map. Left lowers roughness/glossier.")
-            _manual_int(17, "roughness_max", "Roughness cap", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Left limits maximum matte response. Right allows fully matte roughness.")
-            _manual_int(18, "metallic_default", "Metal default", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right makes factor-only parts more metal. Left makes them nonmetal.")
-            _manual_int(19, "metallic_min", "Metal floor", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right forces minimum metal response. Left allows nonmetal.")
-            _manual_float(20, "metallic_scale", "Metal scale", 0.00, 2.00, 0.05, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right keeps/boosts source metallic. Left makes parts less mirror-like.")
-            _manual_int(21, "metallic_max", "Metal cap", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Left limits metal response/bright reflections. Right allows full metal.")
+            _manual_int(14, "roughness_default", "Roughness default", 0, 255, "Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Right is dull/matte. Left is shiny if source has no roughness.")
+            _manual_int(15, "roughness_min", "Roughness floor", 0, 255, "Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Right prevents glossy highlights. Left allows shiny source roughness.")
+            _manual_float(16, "roughness_scale", "Roughness scale", 0.00, 2.00, 0.05, "Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Right increases roughness from source map. Left lowers roughness/glossier.")
+            _manual_int(17, "roughness_max", "Roughness cap", 0, 255, "Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Left limits maximum matte response. Right allows fully matte roughness.")
+            _manual_int(18, "metallic_default", "Metal default", 0, 255, "Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Right makes factor-only parts more metal. Left makes them nonmetal.")
+            _manual_int(19, "metallic_min", "Metal floor", 0, 255, "Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Right forces minimum metal response. Left allows nonmetal.")
+            _manual_float(20, "metallic_scale", "Metal scale", 0.00, 2.00, 0.05, "Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Right keeps/boosts source metallic. Left makes parts less mirror-like.")
+            _manual_int(21, "metallic_max", "Metal cap", 0, 255, "Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Left limits metal response/bright reflections. Right allows full metal.")
             _manual_float(22, "scratch_roughness", "Shader roughness", 0.00, 1.00, 0.05, "Sidecar XML scalar, not a DDS. Right tells runtime wrapper to be rougher. Left permits glossy shader response.")
             _manual_float(23, "scratch_metallic", "Shader metal", 0.00, 1.00, 0.05, "Sidecar XML scalar, not a DDS. Right adds wrapper metallic scalar. Left removes inherited metal scalar.")
             _manual_float(24, "shine_scalar", "Shader shine", 0.00, 1.00, 0.05, "Sidecar XML scalar, not a DDS. Left removes inherited shine. Right restores shine/gloss scalar.")
             _manual_float(25, "displacement_scale_multiplier", "Height scale", 0.00, 1.00, 0.05, "Affects height/detail support (*_disp.dds / *_mg.dds) only when support maps write or preserve them. Left disables raised/blobby height. Right restores height relief.")
             _manual_float(26, "displacement_scale_max", "Height cap", 0.00, 1.00, 0.05, "Affects height/detail support (*_disp.dds / *_mg.dds) only when support maps write or preserve them. Left clamps height. Right allows stronger raised relief.")
-            _manual_int(27, "ao_default", "AO default", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Right is brighter/no ambient darkening. Left darkens missing-AO areas.")
-            _manual_int(28, "alpha_default", "Mask alpha", 0, 255, "Affects generated material mask DDS (*_ma.dds / _colorBlendingMaskTexture). Usually 0. Right may preserve stronger mask alpha response.")
+            _manual_int(27, "ao_default", "AO default", 0, 255, "Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Right is brighter/no ambient darkening. Left darkens missing-AO areas.")
+            _manual_int(28, "alpha_default", "Mask alpha", 0, 255, "Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Usually 0. Right may preserve stronger mask alpha response.")
             _manual_rgb(29, "neutral_color_rgb", "Neutral tint RGB", "Sidecar XML color reset value. Affects tint/scratch/color scalar params only when the target wrapper has those params.")
             _manual_check(30, "force_nonmetal", "Force nonmetal", "Material mask generation: forces metal channel to the Metal default value. No visible effect if PBR/mask output is disabled or unused by the shader.")
             _manual_check(31, "roughness_inverted", "Invert roughness", "Material mask generation: flips roughness channel. Try when matte becomes shiny or shiny becomes matte.")
@@ -62220,7 +69927,7 @@ def run_gui() -> int:
                 "<td>emissive DDS <span style='color:#8b949e;'>*_emi.dds</span></td>"
                 "<td style='color:#8b949e;'>Only when source has emissive.</td></tr>"
                 "<tr><td><span style='color:#79c0ff; font-weight:700;'>PBR mask</span></td>"
-                "<td>material mask DDS <span style='color:#8b949e;'>*_ma.dds / _colorBlendingMaskTexture</span></td>"
+                "<td>material mask DDS <span style='color:#8b949e;'>*_ma.dds / _detailMaskTexture</span></td>"
                 "<td style='color:#8b949e;'>Roughness, metal, AO, mask alpha. Shared masks affect every part using that DDS.</td></tr>"
                 "<tr><td><span style='color:#ffa657; font-weight:700;'>Shader</span></td>"
                 "<td>sidecar XML <span style='color:#8b949e;'>no separate DDS</span></td>"
@@ -62235,7 +69942,7 @@ def run_gui() -> int:
             manual_profile_texture_impact.setObjectName("HintLabel")
             manual_profile_texture_impact.setTextFormat(Qt.RichText)
             manual_profile_texture_impact.setWordWrap(True)
-            manual_profile_layout.addWidget(manual_profile_texture_impact, 39, 0, 1, 4)
+            manual_profile_layout.addWidget(manual_profile_texture_impact, 40, 0, 1, 4)
             manual_profile_preset_group = QGroupBox("Saved Manual Profiles")
             manual_profile_preset_group.setObjectName("MeshAlignmentManualMaterialProfilePresetGroup")
             manual_profile_preset_layout = QGridLayout(manual_profile_preset_group)
@@ -62282,14 +69989,14 @@ def run_gui() -> int:
             manual_profile_preset_layout.addWidget(QLabel("Recommended"), 3, 0)
             manual_profile_preset_layout.addWidget(manual_profile_preset_recommended_edit, 3, 1)
             manual_profile_preset_layout.addLayout(manual_profile_preset_buttons, 4, 1)
-            manual_profile_layout.addWidget(manual_profile_preset_group, 40, 0, 1, 4)
+            manual_profile_layout.addWidget(manual_profile_preset_group, 41, 0, 1, 4)
             manual_profile_apply_button = QPushButton("Apply Manual Settings")
             manual_profile_apply_button.setObjectName("MeshAlignmentManualMaterialProfileApplyButton")
             manual_profile_apply_button.setToolTip("Apply current manual values to the preview/build impact. Sliders do not refresh the model until this is pressed.")
             manual_profile_apply_button.setEnabled(False)
-            manual_profile_reset_button = QPushButton("Reset To Runtime XML")
+            manual_profile_reset_button = QPushButton("Reset To Material Authority")
             manual_profile_reset_button.setObjectName("MeshAlignmentManualMaterialProfileResetButton")
-            manual_profile_reset_button.setToolTip("Reset every manual knob to the current Material Authority Runtime XML baseline.")
+            manual_profile_reset_button.setToolTip("Reset every manual knob to the current Material Authority baseline.")
             manual_profile_apply_row = QHBoxLayout()
             manual_profile_apply_row.setContentsMargins(0, 0, 0, 0)
             manual_profile_apply_row.setSpacing(4)
@@ -62317,7 +70024,7 @@ def run_gui() -> int:
             manual_profile_preview_warning.setWordWrap(True)
             manual_profile_preview_warning.setTextFormat(Qt.RichText)
             manual_profile_preview_warning.setObjectName("WarningLabel")
-            manual_profile_layout.addWidget(manual_profile_preview_warning, 41, 0, 1, 4)
+            manual_profile_layout.addWidget(manual_profile_preview_warning, 42, 0, 1, 4)
             manual_profile_group.setVisible(False)
             manual_profile_ready["ready"] = True
 
@@ -62347,6 +70054,7 @@ def run_gui() -> int:
                 mask_mode = str(current_values.get("mask_binding_mode") or "").strip()
                 support_mode = str(current_values.get("support_policy") or "").strip()
                 emissive_mode = str(current_values.get("emissive_mode") or "").strip()
+                authority_contract = str(current_values.get("authority_contract") or "").strip()
                 allow_factor_colors = bool(current_values.get("allow_factor_only_authority"))
                 inactive: Dict[str, str] = {}
 
@@ -62381,6 +70089,8 @@ def run_gui() -> int:
                 if support_mode == "keep_original_support":
                     for key in ("displacement_scale_multiplier", "displacement_scale_max"):
                         inactive[key] = "No effect: Support maps are preserving original target height/detail."
+                if authority_contract == "runtime_xml_preserve" and support_mode == "keep_original_support":
+                    inactive["force_neutral_layer_support"] = "No effect: Runtime XML preserve keeps target/corpus support unless support maps are changed."
 
                 for key, widgets in manual_profile_effect_widgets.items():
                     reason = inactive.get(key, "")
@@ -62448,7 +70158,7 @@ def run_gui() -> int:
                     else:
                         _set_manual_profile_dirty(True)
 
-            def _reset_manual_material_profile_to_runtime_xml() -> None:
+            def _reset_manual_material_profile_to_material_authority() -> None:
                 _apply_manual_material_profile_values(manual_profile_default_values, persist=True, refresh_preview=False)
 
             def _apply_current_manual_material_profile_to_preview() -> None:
@@ -62553,7 +70263,7 @@ def run_gui() -> int:
                 _refresh_manual_profile_preset_combo("")
 
             def _current_complete_swap_material_profile_token() -> str:
-                profile_name = str(complete_swap_material_profile_combo.currentData() or "material_authority_runtime_xml")
+                profile_name = str(complete_swap_material_profile_combo.currentData() or "material_authority_detail_mask")
                 if profile_name == "material_authority_manual":
                     return serialize_complete_swap_manual_material_profile(_current_manual_material_profile_values())
                 return profile_name
@@ -62569,7 +70279,7 @@ def run_gui() -> int:
             manual_profile_preset_load_button.clicked.connect(_load_selected_manual_profile_preset)
             manual_profile_preset_delete_button.clicked.connect(_delete_selected_manual_profile_preset)
             manual_profile_apply_button.clicked.connect(_apply_current_manual_material_profile_to_preview)
-            manual_profile_reset_button.clicked.connect(_reset_manual_material_profile_to_runtime_xml)
+            manual_profile_reset_button.clicked.connect(_reset_manual_material_profile_to_material_authority)
             sidecar_warning_label = QLabel(
                 "<span style='color:#8b949e;'>Shader wrappers preserved; added parts can emit their own DDS bindings when routed.</span>"
             )
@@ -62663,10 +70373,12 @@ def run_gui() -> int:
             form.addWidget(complete_external_swap_checkbox, 8, 0, 1, 2)
             form.addWidget(QLabel("Runtime material profile"), 9, 0)
             form.addWidget(complete_swap_material_profile_combo, 9, 1)
-            form.addWidget(manual_profile_group, 10, 0, 1, 2)
-            form.addWidget(sidecar_warning_label, 11, 0, 1, 2)
-            form.addWidget(QLabel("Texture size"), 12, 0)
-            form.addWidget(texture_output_size_combo, 12, 1)
+            form.addWidget(true_source_basic_group, 10, 0, 1, 2)
+            form.addWidget(unsafe_material_preflight_checkbox, 11, 0, 1, 2)
+            form.addWidget(manual_profile_group, 12, 0, 1, 2)
+            form.addWidget(sidecar_warning_label, 13, 0, 1, 2)
+            form.addWidget(QLabel("Texture size"), 14, 0)
+            form.addWidget(texture_output_size_combo, 14, 1)
             setup_texture_orientation_row = QHBoxLayout()
             setup_texture_orientation_row.setContentsMargins(0, 0, 0, 0)
             setup_texture_orientation_row.setSpacing(5)
@@ -62674,9 +70386,9 @@ def run_gui() -> int:
             setup_texture_orientation_row.addWidget(setup_texture_flip_u_checkbox)
             setup_texture_orientation_row.addWidget(setup_texture_flip_v_checkbox)
             setup_texture_orientation_row.addWidget(setup_texture_reset_button)
-            form.addWidget(QLabel("Texture orientation"), 13, 0)
-            form.addLayout(setup_texture_orientation_row, 13, 1)
-            form.addWidget(custom_icon_checkbox, 14, 0, 1, 2)
+            form.addWidget(QLabel("Texture orientation"), 15, 0)
+            form.addLayout(setup_texture_orientation_row, 15, 1)
+            form.addWidget(custom_icon_checkbox, 16, 0, 1, 2)
             custom_icon_source_row = QHBoxLayout()
             custom_icon_source_row.setContentsMargins(0, 0, 0, 0)
             custom_icon_source_row.setSpacing(5)
@@ -62684,15 +70396,133 @@ def run_gui() -> int:
             custom_icon_source_row.addWidget(custom_icon_file_button)
             custom_icon_source_row.addWidget(custom_icon_folder_button)
             custom_icon_source_row.addWidget(custom_icon_library_button)
-            form.addWidget(QLabel("Item icon source"), 15, 0)
-            form.addLayout(custom_icon_source_row, 15, 1)
-            form.addWidget(QLabel("Item icon target"), 16, 0)
-            form.addWidget(custom_icon_target_combo, 16, 1)
-            form.addWidget(custom_icon_status, 17, 0, 1, 2)
+            form.addWidget(QLabel("Item icon source"), 17, 0)
+            form.addLayout(custom_icon_source_row, 17, 1)
+            form.addWidget(QLabel("Item icon target"), 18, 0)
+            form.addWidget(custom_icon_target_combo, 18, 1)
+            form.addWidget(custom_icon_status, 19, 0, 1, 2)
             setup_texture_rotate_combo.currentIndexChanged.connect(_save_setup_texture_orientation)
             setup_texture_flip_u_checkbox.toggled.connect(_save_setup_texture_orientation)
             setup_texture_flip_v_checkbox.toggled.connect(_save_setup_texture_orientation)
             setup_texture_reset_button.clicked.connect(_reset_setup_texture_orientation)
+
+            def _set_global_gloss_reduction(value: int, *, refresh: bool = True) -> None:
+                value = max(0, min(100, int(value)))
+                if global_gloss_reduction_slider.value() != value:
+                    global_gloss_reduction_slider.blockSignals(True)
+                    global_gloss_reduction_slider.setValue(value)
+                    global_gloss_reduction_slider.blockSignals(False)
+                if global_gloss_reduction_spin.value() != value:
+                    global_gloss_reduction_spin.blockSignals(True)
+                    global_gloss_reduction_spin.setValue(value)
+                    global_gloss_reduction_spin.blockSignals(False)
+                self.settings.setValue("settings/complete_swap_global_gloss_reduction", value)
+                _refresh_global_gloss_reduction_hint()
+                if refresh:
+                    _refresh_output_impact_review()
+                    _queue_texture_preview_refresh()
+
+            def _refresh_global_gloss_reduction_hint() -> None:
+                value = int(global_gloss_reduction_spin.value())
+                profile_name = str(complete_swap_material_profile_combo.currentData() or "")
+                if not _complete_external_swap_enabled():
+                    global_gloss_reduction_hint.setText("Enable Complete source-owned mesh/material swap to use gloss reduction.")
+                elif profile_name == "material_authority_runtime_xml":
+                    global_gloss_reduction_hint.setText(
+                        "Legacy Runtime XML preserves stock material layers; this only affects generated masks or compatible scalar slots."
+                    )
+                elif profile_name == "material_authority_pbr_source_test" and value >= 90:
+                    global_gloss_reduction_hint.setText("PBR Source Test: strong gloss cut raises source material roughness while preserving source metalness.")
+                elif profile_name == "material_authority_detail_mask":
+                    global_gloss_reduction_hint.setText("Material Authority already bypasses the glossy color-blend mask; this only tunes generated source mask/scalar fallback values.")
+                elif value <= 0:
+                    global_gloss_reduction_hint.setText("0% keeps the proven Material Authority response.")
+                elif value >= 90:
+                    global_gloss_reduction_hint.setText("Strong matte override: CD gloss/smoothness and metal/spec response are driven low.")
+                else:
+                    global_gloss_reduction_hint.setText("Generated source-owned materials get lower CD gloss/smoothness and metal/shine response.")
+
+            def _basic_controls_profile_enabled() -> bool:
+                profile_name = str(complete_swap_material_profile_combo.currentData() or "")
+                return profile_name in {
+                    "material_authority_true_source",
+                    "material_authority_pbr_source_test",
+                    "material_authority_detail_mask",
+                    "material_authority_clean_source",
+                    "material_authority_manual",
+                }
+
+            def _set_spin_slider_pair(
+                slider: QSlider,
+                spin: QSpinBox,
+                value: int,
+                settings_key: str,
+                *,
+                minimum: int = 0,
+                maximum: int = 100,
+                refresh: bool = True,
+            ) -> None:
+                value = max(minimum, min(maximum, int(value)))
+                if slider.value() != value:
+                    slider.blockSignals(True)
+                    slider.setValue(value)
+                    slider.blockSignals(False)
+                if spin.value() != value:
+                    spin.blockSignals(True)
+                    spin.setValue(value)
+                    spin.blockSignals(False)
+                self.settings.setValue(settings_key, value)
+                if refresh:
+                    _refresh_output_impact_review()
+                    _queue_texture_preview_refresh()
+
+            def _set_edge_relief(value: int, *, refresh: bool = True) -> None:
+                _set_spin_slider_pair(
+                    edge_relief_slider,
+                    edge_relief_spin,
+                    value,
+                    "settings/complete_swap_edge_relief_strength",
+                    refresh=refresh,
+                )
+
+            def _set_source_brightness(value: int, *, refresh: bool = True) -> None:
+                _set_spin_slider_pair(
+                    source_brightness_slider,
+                    source_brightness_spin,
+                    value,
+                    "settings/complete_swap_source_brightness",
+                    refresh=refresh,
+                )
+
+            def _set_edge_relief_source(*, refresh: bool = True) -> None:
+                self.settings.setValue(
+                    "settings/complete_swap_edge_relief_source",
+                    str(edge_relief_source_combo.currentData() or "hybrid"),
+                )
+                if refresh:
+                    _refresh_output_impact_review()
+                    _queue_texture_preview_refresh()
+
+            def _set_accent_glow(value: int, *, refresh: bool = True) -> None:
+                _set_spin_slider_pair(
+                    accent_glow_slider,
+                    accent_glow_spin,
+                    value,
+                    "settings/complete_swap_accent_glow_strength",
+                    refresh=refresh,
+                )
+
+            def _refresh_true_source_basic_controls_state() -> None:
+                visible = _basic_controls_profile_enabled()
+                enabled = bool(visible and _complete_external_swap_enabled())
+                true_source_basic_group.setVisible(visible)
+                true_source_basic_group.setEnabled(enabled)
+                if not visible:
+                    true_source_basic_hint.setText("Select Material Authority or Manual to use material controls.")
+                elif not enabled:
+                    true_source_basic_hint.setText("Enable Complete source-owned mesh/material swap to use these controls.")
+                else:
+                    true_source_basic_hint.setText("Defaults are no-op; brightness affects generated source base DDS only.")
 
             def _refresh_sidecar_option_state() -> None:
                 enabled = rebuild_sidecar_checkbox.isChecked()
@@ -62711,7 +70541,18 @@ def run_gui() -> int:
                 source_color_faithful_checkbox.setEnabled(bool(enabled and not complete_mode))
                 external_material_reset_checkbox.setEnabled(bool(enabled and not complete_mode))
                 complete_swap_material_profile_combo.setEnabled(bool(complete_mode))
+                global_gloss_reduction_slider.setEnabled(bool(complete_mode))
+                global_gloss_reduction_spin.setEnabled(bool(complete_mode))
+                source_brightness_slider.setEnabled(bool(complete_mode))
+                source_brightness_spin.setEnabled(bool(complete_mode))
+                accent_glow_slider.setEnabled(bool(complete_mode))
+                accent_glow_spin.setEnabled(bool(complete_mode))
+                unsafe_material_preflight_checkbox.setEnabled(bool(complete_mode))
+                if not complete_mode and unsafe_material_preflight_checkbox.isChecked():
+                    unsafe_material_preflight_checkbox.setChecked(False)
+                _refresh_global_gloss_reduction_hint()
                 _refresh_manual_material_profile_panel()
+                _refresh_true_source_basic_controls_state()
 
             rebuild_sidecar_checkbox.toggled.connect(
                 lambda _checked: (
@@ -62735,9 +70576,19 @@ def run_gui() -> int:
             external_material_reset_checkbox.toggled.connect(
                 lambda checked: rebuild_sidecar_checkbox.setChecked(True) if checked and not rebuild_sidecar_checkbox.isChecked() else _queue_texture_preview_refresh()
             )
+            unsafe_material_preflight_checkbox.toggled.connect(lambda _checked: _refresh_output_impact_review())
+            global_gloss_reduction_slider.valueChanged.connect(lambda value: _set_global_gloss_reduction(int(value)))
+            global_gloss_reduction_spin.valueChanged.connect(lambda value: _set_global_gloss_reduction(int(value)))
+            source_brightness_slider.valueChanged.connect(lambda value: _set_source_brightness(int(value)))
+            source_brightness_spin.valueChanged.connect(lambda value: _set_source_brightness(int(value)))
+            edge_relief_slider.valueChanged.connect(lambda value: _set_edge_relief(int(value)))
+            edge_relief_spin.valueChanged.connect(lambda value: _set_edge_relief(int(value)))
+            edge_relief_source_combo.currentIndexChanged.connect(lambda _index: _set_edge_relief_source())
+            accent_glow_slider.valueChanged.connect(lambda value: _set_accent_glow(int(value)))
+            accent_glow_spin.valueChanged.connect(lambda value: _set_accent_glow(int(value)))
             complete_external_swap_checkbox.toggled.connect(_sync_complete_external_swap_mode)
             def _save_complete_swap_material_profile() -> None:
-                profile_name = str(complete_swap_material_profile_combo.currentData() or "material_authority_runtime_xml")
+                profile_name = str(complete_swap_material_profile_combo.currentData() or "material_authority_detail_mask")
                 self.settings.setValue("settings/complete_swap_material_profile", profile_name)
                 if profile_name == "material_authority_manual":
                     self.settings.setValue(
@@ -62756,6 +70607,8 @@ def run_gui() -> int:
                 lambda _index: (
                     _save_complete_swap_material_profile(),
                     _refresh_manual_material_profile_panel(),
+                    _refresh_global_gloss_reduction_hint(),
+                    _refresh_true_source_basic_controls_state(),
                     _refresh_output_impact_review(),
                     _queue_texture_preview_refresh(),
                 )
@@ -64018,13 +71871,6 @@ def run_gui() -> int:
                 "Build the current replacement in memory and show the final sidecar/DDS preview without writing a package. "
                 "For in-game character swaps this is more authoritative than the live replacement preview."
             )
-            patch_game_files_button: Optional[QPushButton] = None
-            if continue_build_callback is not None:
-                patch_game_files_button = QPushButton("Patch Game Files")
-                patch_game_files_button.setToolTip(
-                    "Directly patch the rebuilt mesh into scanned game archives for testing. "
-                    "A backup is created first and can be restored from Archive Patch Backups."
-                )
             import_button = QPushButton("Build Mod" if continue_build_callback is not None else "Continue")
             import_button.setDefault(True)
             if continue_build_callback is not None:
@@ -64037,16 +71883,8 @@ def run_gui() -> int:
                     replacement_export_allowed["reason"]
                     or "This asset is not currently safe to export through Mesh Replacement."
                 )
-                if patch_game_files_button is not None:
-                    patch_game_files_button.setEnabled(False)
-                    patch_game_files_button.setToolTip(
-                        replacement_export_allowed["reason"]
-                        or "This asset is not currently safe to patch through Mesh Replacement."
-                    )
             buttons.addWidget(cancel_button)
             buttons.addWidget(test_build_preview_button)
-            if patch_game_files_button is not None:
-                buttons.addWidget(patch_game_files_button)
             buttons.addWidget(import_button)
             root_layout.addLayout(buttons)
             build_status_row = QHBoxLayout()
@@ -64083,8 +71921,6 @@ def run_gui() -> int:
                     build_status_bar.setVisible(False)
                     if replacement_export_allowed["allowed"]:
                         import_button.setEnabled(True)
-                        if patch_game_files_button is not None:
-                            patch_game_files_button.setEnabled(True)
                 except RuntimeError:
                     pass
                 if text:
@@ -64271,6 +72107,13 @@ def run_gui() -> int:
                     enable_missing_base_color_parameters=bool(inject_base_color_checkbox.isChecked() or _complete_external_swap_enabled()),
                     texture_output_size_mode=str(texture_output_size_combo.currentData() or "source"),
                     complete_swap_material_profile=str(_current_complete_swap_material_profile_token()),
+                    global_gloss_reduction=float(global_gloss_reduction_spin.value()),
+                    edge_relief_strength=float(edge_relief_spin.value()),
+                    edge_relief_source=str(edge_relief_source_combo.currentData() or "hybrid"),
+                    accent_glow_strength=float(accent_glow_spin.value()),
+                    dark_detail_lift=float(source_brightness_spin.value()),
+                    tone_contrast=0.0,
+                    allow_unsafe_material_preflight_export=bool(unsafe_material_preflight_checkbox.isChecked()),
                     additional_supplemental_files=list(dialog_added_supplemental_files),
                     custom_item_icon_override=custom_item_icon_override,
                     prune_unmapped_original_texture_parameters=bool(
@@ -64368,7 +72211,9 @@ def run_gui() -> int:
                         original_dds_basename_resolver=_archive_dds_preview_sources_for_basename,
                         package_root=final_test_package_root,
                         require_source_owned_colors=bool(_complete_external_swap_enabled()),
+                        strict_source_owned_material_contract=_complete_swap_requires_true_source_authority(static_options),
                         allow_inherited_layer_color_bindings=_complete_swap_allows_inherited_layer_color_bindings(static_options),
+                        material_authority_contract=_complete_swap_authority_contract(static_options),
                     )
                     _refresh_material_plan_from_final_preview(final_preview)
                     final_model_for_display = final_preview.preview_model
@@ -64445,7 +72290,7 @@ def run_gui() -> int:
                     progress.close()
                     QApplication.processEvents()
 
-            def _accept_static_options(output_mode: str = "loose") -> None:
+            def _accept_static_options() -> None:
                 static_options = _build_static_options_from_dialog(show_messages=True)
                 if static_options is None:
                     return
@@ -64453,10 +72298,7 @@ def run_gui() -> int:
                 dialog._static_options = static_options  # type: ignore[attr-defined]
                 if continue_build_callback is not None:
                     import_button.setEnabled(False)
-                    if patch_game_files_button is not None:
-                        patch_game_files_button.setEnabled(False)
-                    action_label = "archive patch" if output_mode == "patch" else "mod build"
-                    _set_alignment_build_status(f"Collecting mesh replacement {action_label} settings...")
+                    _set_alignment_build_status("Collecting mesh replacement mod build settings...")
                     try:
                         started = bool(
                             continue_build_callback(
@@ -64464,13 +72306,13 @@ def run_gui() -> int:
                                 dialog,
                                 _set_alignment_build_status,
                                 _finish_alignment_build_state,
-                                output_mode,
+                                "loose",
                             )
                         )
                     except Exception as exc:
                         QMessageBox.warning(
                             dialog,
-                            "Patch Game Files" if output_mode == "patch" else "Build Mod",
+                            "Build Mod",
                             str(exc),
                         )
                         _finish_alignment_build_state(f"Mesh replacement build failed: {exc}", False)
@@ -64478,24 +72320,16 @@ def run_gui() -> int:
                     if not started:
                         if replacement_export_allowed["allowed"]:
                             import_button.setEnabled(True)
-                            if patch_game_files_button is not None:
-                                patch_game_files_button.setEnabled(True)
                         build_status_bar.setVisible(False)
                     if started:
-                        self.set_status_message(
-                            "Started mesh replacement archive patch. Builder window remains open for more edits."
-                            if output_mode == "patch"
-                            else "Started mesh replacement build. Builder window remains open for more edits."
-                        )
+                        self.set_status_message("Started mesh replacement build. Builder window remains open for more edits.")
                     return
                 dialog_accepted_state["accepted"] = True
                 dialog.accept()
                 if on_accept is not None:
                     QTimer.singleShot(0, lambda options=static_options: _dispatch_alignment_accept(options))
 
-            import_button.clicked.connect(lambda _checked=False: _accept_static_options("loose"))
-            if patch_game_files_button is not None:
-                patch_game_files_button.clicked.connect(lambda _checked=False: _accept_static_options("patch"))
+            import_button.clicked.connect(lambda _checked=False: _accept_static_options())
             test_build_preview_button.clicked.connect(_test_build_final_preview)
 
             def _fit_alignment_dialog_to_screen() -> None:
@@ -64505,12 +72339,16 @@ def run_gui() -> int:
                     _apply_alignment_dialog_responsive_layout(force_sizes=True)
                     return
                 available = screen.availableGeometry()
-                width = min(1720, max(1120, int(float(available.width()) * 0.92)))
-                height = min(900, max(700, int(float(available.height()) * 0.88)))
+                available_width = max(640, int(available.width()) - 24)
+                available_height = max(420, int(available.height()) - 24)
+                width = min(1720, max(760, int(float(available.width()) * 0.92)), available_width)
+                height = min(900, max(560, int(float(available.height()) * 0.88)), available_height)
                 dialog.resize(width, height)
                 frame = dialog.frameGeometry()
                 frame.moveCenter(available.center())
-                dialog.move(frame.topLeft())
+                left = max(available.left(), min(frame.left(), available.right() - frame.width() + 1))
+                top = max(available.top(), min(frame.top(), available.bottom() - frame.height() + 1))
+                dialog.move(left, top)
                 _apply_alignment_dialog_responsive_layout(force_sizes=True)
 
             _alignment_startup_step("Opening Mesh Replacement Builder...")
@@ -64843,6 +72681,10 @@ def run_gui() -> int:
 
                 def _start_commit(preview_result: MeshImportPreviewResult) -> None:
                     def _commit_task(log: Callable[[str], None]) -> object:
+                        unsafe_material_preflight_override = bool(
+                            destination == "loose"
+                            and getattr(static_replacement_options, "allow_unsafe_material_preflight_export", False)
+                        )
                         export_options = None
                         parent_root = None
                         package_info = None
@@ -64927,7 +72769,9 @@ def run_gui() -> int:
                                 original_dds_resolver=_archive_dds_preview_source_for_path,
                                 original_dds_basename_resolver=_archive_dds_preview_sources_for_basename,
                                 require_source_owned_colors=require_source_owned_colors,
+                                strict_source_owned_material_contract=_complete_swap_requires_true_source_authority(static_replacement_options),
                                 allow_inherited_layer_color_bindings=_complete_swap_allows_inherited_layer_color_bindings(static_replacement_options),
+                                material_authority_contract=_complete_swap_authority_contract(static_replacement_options),
                             )
                         except Exception as exc:
                             blocker_lines = (
@@ -64943,29 +72787,39 @@ def run_gui() -> int:
                                 "patch": None,
                                 "final_preview": None,
                                 "preflight_blocked": blocker_lines,
+                                "preflight_hard_blocked": blocker_lines,
                             }
                         if pre_export_preview.preflight_errors:
                             blocker_lines = tuple(str(line) for line in pre_export_preview.preflight_errors if str(line or "").strip())
+                            hard_blockers = material_preflight_hard_blockers(blocker_lines)
                             blockers = "\n".join(f"- {line}" for line in blocker_lines[:12])
                             if len(pre_export_preview.preflight_errors) > 12:
                                 blockers += f"\n- ... {len(pre_export_preview.preflight_errors) - 12:,} more blocker(s)"
-                            if destination == "patch":
+                            if destination == "loose" and unsafe_material_preflight_override and not hard_blockers:
                                 log(
-                                    "Final package texture preflight found direct archive patch warning(s); "
-                                    "continuing because Patch Game Files only writes existing archive entries:\n"
+                                    MATERIAL_PREFLIGHT_OVERRIDE_WARNING
+                                    + "\nContinuing loose export despite overridable material preflight blocker(s):\n"
                                     + blockers
                                 )
+                                apply_material_preflight_override(pre_export_preview)
                             else:
-                                log(
-                                    "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
-                                    + blockers
-                                )
+                                if destination == "patch":
+                                    log(
+                                        "Final package texture preflight blocked direct archive patch because the package contract would not be WYSIWYG:\n"
+                                        + blockers
+                                    )
+                                else:
+                                    log(
+                                        "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
+                                        + blockers
+                                    )
                                 return {
                                     "preview": preview_result,
                                     "loose": None,
                                     "patch": None,
                                     "final_preview": pre_export_preview,
                                     "preflight_blocked": blocker_lines,
+                                    "preflight_hard_blocked": hard_blockers,
                                 }
                         if destination == "patch":
                             if not requests:
@@ -65014,11 +72868,20 @@ def run_gui() -> int:
                                 original_dds_basename_resolver=_archive_dds_preview_sources_for_basename,
                                 package_root=loose_result.package_root,
                                 require_source_owned_colors=require_source_owned_colors,
+                                strict_source_owned_material_contract=_complete_swap_requires_true_source_authority(static_replacement_options),
                                 allow_inherited_layer_color_bindings=_complete_swap_allows_inherited_layer_color_bindings(static_replacement_options),
+                                material_authority_contract=_complete_swap_authority_contract(static_replacement_options),
                             )
                             if final_preview.preflight_errors:
-                                for blocker in final_preview.preflight_errors[:12]:
-                                    log(f"Final package texture preflight blocker: {blocker}")
+                                if unsafe_material_preflight_override and not material_preflight_hard_blockers(final_preview.preflight_errors):
+                                    apply_material_preflight_override(final_preview)
+                                    log(MATERIAL_PREFLIGHT_OVERRIDE_WARNING)
+                                    for blocker in final_preview.warnings[-12:]:
+                                        if str(blocker).startswith("Unsafe material preflight override:"):
+                                            log(str(blocker))
+                                else:
+                                    for blocker in final_preview.preflight_errors[:12]:
+                                        log(f"Final package texture preflight blocker: {blocker}")
                             if bool(getattr(export_options, "create_texture_resolution_manifest", False)):
                                 if final_preview.texture_resolution_manifest.rows:
                                     texture_resolution_manifest_path.write_text(
@@ -65048,6 +72911,11 @@ def run_gui() -> int:
                         preflight_blockers = tuple(
                             str(line)
                             for line in tuple(result.get("preflight_blocked") or ())
+                            if str(line or "").strip()
+                        )
+                        preflight_hard_blockers = tuple(
+                            str(line)
+                            for line in tuple(result.get("preflight_hard_blocked") or ())
                             if str(line or "").strip()
                         )
                         if not isinstance(preview_payload, MeshImportPreviewResult):
@@ -65091,11 +72959,39 @@ def run_gui() -> int:
                             blocker_layout.addWidget(blocker_details, 1)
                             blocker_button_row = QHBoxLayout()
                             blocker_button_row.addStretch(1)
-                            blocker_ok_button = QPushButton("OK")
-                            blocker_ok_button.clicked.connect(blocker_dialog.accept)
-                            blocker_button_row.addWidget(blocker_ok_button)
+                            unsafe_choice = {"export": False}
+                            unsafe_export_button = None
+                            unsafe_export_available = bool(
+                                destination == "loose"
+                                and not preflight_hard_blockers
+                                and not getattr(static_replacement_options, "allow_unsafe_material_preflight_export", False)
+                            )
+                            if unsafe_export_available:
+                                blocker_cancel_button = QPushButton("Cancel")
+                                blocker_cancel_button.clicked.connect(blocker_dialog.reject)
+                                blocker_button_row.addWidget(blocker_cancel_button)
+                                unsafe_export_button = QPushButton("Export Anyway (Unsafe)")
+                                unsafe_export_button.setObjectName("MeshAlignmentUnsafeMaterialPreflightExportButton")
+                                unsafe_export_button.setToolTip(MATERIAL_PREFLIGHT_OVERRIDE_WARNING)
+
+                                def _accept_unsafe_material_preflight_export() -> None:
+                                    unsafe_choice["export"] = True
+                                    blocker_dialog.accept()
+
+                                unsafe_export_button.clicked.connect(_accept_unsafe_material_preflight_export)
+                                blocker_button_row.addWidget(unsafe_export_button)
+                            else:
+                                blocker_ok_button = QPushButton("OK")
+                                blocker_ok_button.clicked.connect(blocker_dialog.accept)
+                                blocker_button_row.addWidget(blocker_ok_button)
                             blocker_layout.addLayout(blocker_button_row)
                             blocker_dialog.exec()
+                            if unsafe_choice.get("export"):
+                                if static_replacement_options is not None:
+                                    setattr(static_replacement_options, "allow_unsafe_material_preflight_export", True)
+                                _set_builder_status("Writing loose mod package with unsafe material preflight override...")
+                                _start_commit(preview_payload)
+                                return
                             _finish_builder_status("Mesh replacement build blocked by final package texture preflight.", False)
                             return
                         if destination == "patch":
@@ -76146,7 +84042,15 @@ def run_gui() -> int:
 
         def collect_config(self) -> AppConfig:
             mod_ready_manager_profile = self._combo_value(self.mod_ready_manager_combo)
-            mod_ready_uses_manager_metadata = mod_package_profile_uses_manager_metadata(mod_ready_manager_profile)
+            mod_ready_manager_profiles = tuple(
+                profile
+                for profile, checkbox in self.mod_ready_profile_checkboxes.items()
+                if checkbox.isChecked()
+            ) or (mod_ready_manager_profile,)
+            mod_ready_uses_manager_metadata = any(
+                mod_package_profile_uses_manager_metadata(profile)
+                for profile in mod_ready_manager_profiles
+            )
             return AppConfig(
                 original_dds_root=self.original_dds_edit.text().strip(),
                 png_root=self.png_root_edit.text().strip(),
@@ -76197,6 +84101,7 @@ def run_gui() -> int:
                 mod_ready_package_description=self.mod_ready_package_description_edit.text().strip(),
                 mod_ready_package_nexus_url=self.mod_ready_package_nexus_url_edit.text().strip(),
                 mod_ready_manager_profile=mod_ready_manager_profile,
+                mod_ready_manager_profiles=mod_ready_manager_profiles,
                 mod_ready_package_structure=self._combo_value(self.mod_ready_structure_combo),
                 mod_ready_create_manifest_json=self.mod_ready_manifest_checkbox.isChecked(),
                 mod_ready_create_mod_json=self.mod_ready_mod_json_checkbox.isChecked(),
@@ -76229,6 +84134,9 @@ def run_gui() -> int:
 
         def _background_task_active(self) -> bool:
             if self.worker_thread is not None:
+                return True
+            if self.archive_basic_index_thread is not None:
+                self.set_status_message("Archive lookup indexes are still warming. Wait for them to finish before refreshing archives.", error=True)
                 return True
             if self.text_search_tab.is_busy():
                 self.set_status_message("Text Search is still running. Stop it first before starting another task.", error=True)
@@ -77397,16 +85305,19 @@ def run_gui() -> int:
             if utility_updates_archive_progress and self.archive_scan_worker is None and self.archive_filter_worker is None:
                 self.archive_scan_progress_bar.setRange(0, 1)
                 self.archive_scan_progress_bar.setValue(1)
-                self.archive_scan_progress_bar.setFormat("Ready")
+                self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
             if rerun_archive_filter:
                 QTimer.singleShot(0, self._apply_archive_filter)
             elif refresh_archive_browser:
                 QTimer.singleShot(0, self._refresh_archive_browser_view)
+            else:
+                QTimer.singleShot(0, self._maybe_release_startup_after_archive_ready)
 
         def _tracked_worker_threads(self) -> List[Tuple[str, Optional[QThread], Optional[object]]]:
             return [
                 ("worker_thread", self.worker_thread, self.scan_worker or self.archive_scan_worker or self.archive_filter_worker or self.build_worker or self.dds_to_png_worker or self.utility_worker),
                 ("archive_sidecar_thread", self.archive_sidecar_thread, self.archive_sidecar_worker),
+                ("archive_basic_index_thread", self.archive_basic_index_thread, self.archive_basic_index_worker),
                 ("archive_derived_cache_thread", self.archive_derived_cache_thread, self.archive_derived_cache_worker),
                 ("archive_enhanced_index_thread", self.archive_enhanced_index_thread, self.archive_enhanced_index_worker),
                 ("archive_structure_filter_thread", self.archive_structure_filter_thread, self.archive_structure_filter_worker),
@@ -77417,17 +85328,20 @@ def run_gui() -> int:
                 ("archive_native_prefetch_thread", self.archive_native_prefetch_thread, self.archive_native_prefetch_worker),
             ]
 
-        def _running_worker_threads(self) -> List[QThread]:
-            running: List[QThread] = []
-            for _name, thread, _worker in self._tracked_worker_threads():
+        def _running_worker_thread_entries(self) -> List[Tuple[str, QThread]]:
+            running: List[Tuple[str, QThread]] = []
+            for name, thread, _worker in self._tracked_worker_threads():
                 if thread is None:
                     continue
                 try:
                     if thread.isRunning():
-                        running.append(thread)
+                        running.append((name, thread))
                 except RuntimeError:
                     continue
             return running
+
+        def _running_worker_threads(self) -> List[QThread]:
+            return [thread for _name, thread in self._running_worker_thread_entries()]
 
         def _request_tracked_workers_to_stop(self) -> None:
             for _name, thread, worker in self._tracked_worker_threads():
@@ -77448,15 +85362,48 @@ def run_gui() -> int:
                     except Exception:
                         pass
 
+        def _force_stop_close_worker_threads(self, running_entries: Sequence[Tuple[str, QThread]]) -> None:
+            worker_names = [name for name, _thread in running_entries]
+            _record_runtime_event("close_force_stop_workers", workers=tuple(worker_names))
+            for _name, thread in running_entries:
+                try:
+                    thread.requestInterruption()
+                except Exception:
+                    pass
+                try:
+                    thread.quit()
+                except Exception:
+                    pass
+                try:
+                    thread.terminate()
+                except Exception:
+                    pass
+
         def _finish_deferred_close_if_workers_stopped(self) -> None:
             if not self._close_after_workers_requested:
                 return
-            running_threads = self._running_worker_threads()
-            if running_threads:
-                self.set_status_message(f"Closing after {len(running_threads):,} background worker(s) stop...")
+            running_entries = self._running_worker_thread_entries()
+            if running_entries:
+                elapsed = (
+                    time.monotonic() - self._close_pending_started_at
+                    if self._close_pending_started_at > 0.0
+                    else 0.0
+                )
+                if elapsed >= CLOSE_WORKER_FORCE_STOP_AFTER_SECONDS and not self._close_force_stop_requested:
+                    self._close_force_stop_requested = True
+                    self._force_stop_close_worker_threads(running_entries)
+                    self.set_status_message("Forcing stalled background worker(s) to stop so the app can close...")
+                    return
+                running_names = ", ".join(name for name, _thread in running_entries[:3])
+                if len(running_entries) > 3:
+                    running_names += ", ..."
+                suffix = f" ({running_names})" if running_names else ""
+                self.set_status_message(f"Closing after {len(running_entries):,} background worker(s) stop{suffix}...")
                 return
             self._close_worker_wait_timer.stop()
             self._close_after_workers_requested = False
+            self._close_pending_started_at = 0.0
+            self._close_force_stop_requested = False
             self._close_force_accept = True
             QTimer.singleShot(0, self.close)
 
@@ -77470,6 +85417,8 @@ def run_gui() -> int:
                 self._finish_deferred_close_if_workers_stopped()
                 return
             self._close_after_workers_requested = True
+            self._close_pending_started_at = time.monotonic()
+            self._close_force_stop_requested = False
             self._shutting_down = True
             self._release_startup_splash()
             self._save_detached_tool_geometries()
@@ -77489,9 +85438,14 @@ def run_gui() -> int:
             self.scheduled_archive_preview_request = None
             self.compare_preview_request_id += 1
             self.archive_preview_request_id += 1
+            self.archive_item_icon_preload_queue.clear()
+            self.archive_item_icon_visible_warmup_remaining = 0
             self._request_tracked_workers_to_stop()
-            self.setEnabled(False)
             self.set_status_message("Closing after active background workers stop...")
+            try:
+                self.hide()
+            except Exception:
+                pass
             self._close_worker_wait_timer.start()
             for thread in self._running_worker_threads():
                 try:
@@ -77575,9 +85529,11 @@ def run_gui() -> int:
 
         _write_heartbeat("startup_splash")
         external_splash_path = os.environ.get("CDMW_STARTUP_SPLASH_COMMAND_FILE", "").strip()
-        if external_splash_path:
-            startup_splash = ExternalStartupSplashAdapter(Path(external_splash_path))
+        external_splash_file = Path(external_splash_path) if external_splash_path else None
+        if external_splash_file is not None and external_splash_file.is_file():
+            startup_splash = ExternalStartupSplashAdapter(external_splash_file)
             startup_splash.set_detail("Preparing application...")
+            close_pyinstaller_boot_splash()
         else:
             startup_splash = StartupSplashDialog()
             if not app.windowIcon().isNull():
@@ -77589,6 +85545,7 @@ def run_gui() -> int:
 
         _write_heartbeat("main_window")
         window = MainWindow(startup_splash=startup_splash)
+        _record_runtime_event("main_window_constructed")
         if not app.windowIcon().isNull():
             window.setWindowIcon(app.windowIcon())
         apply_window_data_fonts(window)

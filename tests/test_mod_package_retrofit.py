@@ -6,10 +6,31 @@ import unittest
 import zipfile
 from pathlib import Path
 
+from cdmw.core.mod_package import ModPackageExportOptions
 from cdmw.core.mod_package_retrofit import (
+    build_retrofit_path_repair_summary,
+    merge_retrofittable_mod_packages,
     retrofit_mod_package,
     scan_retrofittable_mod_packages,
 )
+from cdmw.models import ArchiveEntry
+from cdmw.models import ModPackageInfo
+
+
+def _entry(path: str, root: Path, group: str = "0009") -> ArchiveEntry:
+    pamt_path = root / group / f"{group}.pamt"
+    paz_path = root / group / "0.paz"
+    pamt_path.parent.mkdir(parents=True, exist_ok=True)
+    return ArchiveEntry(
+        path=path,
+        pamt_path=pamt_path,
+        paz_file=paz_path,
+        offset=0,
+        comp_size=1,
+        orig_size=1,
+        flags=0,
+        paz_index=0,
+    )
 
 
 def _write_manifest(root: Path, *, kind: str = "mesh_loose_mod") -> None:
@@ -57,6 +78,49 @@ def _write_mesh_package(root: Path) -> None:
     with zipfile.ZipFile(root / f"{root.name}.zip", "w") as archive:
         archive.writestr("old.txt", "old archive")
     _write_manifest(root)
+
+
+def _write_sword_mesh_package(root: Path, sword_id: str) -> tuple[str, str, str]:
+    model_path = f"character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_{sword_id}.pac"
+    sidecar_path = f"character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_{sword_id}.pac_xml"
+    texture_path = f"character/texture/cd_phm_02_sword_{sword_id}_merged_basecolor.dds"
+    root.joinpath(*Path(model_path).parts).parent.mkdir(parents=True, exist_ok=True)
+    root.joinpath(*Path(sidecar_path).parts).parent.mkdir(parents=True, exist_ok=True)
+    root.joinpath(*Path(texture_path).parts).parent.mkdir(parents=True, exist_ok=True)
+    root.joinpath(*Path(model_path).parts).write_bytes(f"PAC {sword_id}".encode("ascii"))
+    root.joinpath(*Path(sidecar_path).parts).write_text("<xml/>", encoding="utf-8")
+    root.joinpath(*Path(texture_path).parts).write_bytes(b"DDS ")
+    manifest = {
+        "format": "v1",
+        "schema_version": 1,
+        "kind": "mesh_loose_mod",
+        "title": root.name,
+        "name": root.name,
+        "version": "1.0",
+        "author": "Tester",
+        "description": f"{root.name} description",
+        "game_build": ">9",
+        "game_metadata": {"primary_package_group": "0009"},
+        "include_paired_lod": False,
+        "new_paths": [texture_path],
+        "assets": [
+            {
+                "entry_path": model_path,
+                "package_group": "0009",
+                "format": "pac",
+                "vertices": 3,
+                "faces": 1,
+                "submeshes": 1,
+            }
+        ],
+        "files": [
+            {"path": model_path, "package_group": "0009", "format": "pac"},
+            {"path": sidecar_path, "package_group": "0009", "format": "pac_xml"},
+            {"path": texture_path, "package_group": "0009", "format": "dds", "is_new": True},
+        ],
+    }
+    (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return model_path, sidecar_path, texture_path
 
 
 class ModPackageRetrofitTests(unittest.TestCase):
@@ -215,15 +279,311 @@ class ModPackageRetrofitTests(unittest.TestCase):
             self.assertIn("character/model/1_pc/weapon/example.pac", names)
             self.assertNotIn("Wolf Gravestone Sword 2h (JSON).zip", names)
 
+    def test_custom_compact_paths_retrofit_to_jmm_repairs_model_and_sidecar_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "Compact"
+            (source / "files" / "character" / "texture").mkdir(parents=True)
+            (source / "files" / "character" / "example.pac").write_bytes(b"PAC")
+            (source / "files" / "character" / "example.pac_xml").write_text("<xml/>", encoding="utf-8")
+            (source / "files" / "character" / "texture" / "example_new.dds").write_bytes(b"DDS ")
+            manifest = {
+                "format": "v1",
+                "schema_version": 1,
+                "kind": "mesh_loose_mod",
+                "title": "Compact",
+                "name": "Compact",
+                "version": "1.0",
+                "manager_targets": ["cdumm"],
+                "files_dir": "files",
+                "structure": "custom_compact_paths",
+                "new_paths": ["character/texture/example_new.dds"],
+                "assets": [
+                    {
+                        "entry_path": "character/example.pac",
+                        "package_group": "0009",
+                        "format": "pac",
+                    }
+                ],
+                "files": [
+                    {"path": "character/example.pac", "package_group": "0009", "format": "pac"},
+                    {"path": "character/example.pac_xml", "package_group": "0009", "format": "pac_xml"},
+                    {"path": "character/texture/example_new.dds", "format": "dds", "is_new": True},
+                ],
+            }
+            (source / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            package = scan_retrofittable_mod_packages(source)[0]
+            archive_index = {
+                "example.pac": [
+                    _entry("character/model/1_pc/weapon/example.pac", root, "0009"),
+                ],
+                "example.pac_xml": [
+                    _entry("character/modelproperty/1_pc/weapon/example.pac_xml", root, "0009"),
+                ],
+            }
+
+            result = retrofit_mod_package(
+                package,
+                root / "converted",
+                manager_profile="jmm",
+                archive_entries_by_basename=archive_index,
+            )
+
+            self.assertEqual(2, result.repaired_path_count)
+            self.assertTrue((result.package_root / "character" / "model" / "1_pc" / "weapon" / "example.pac").is_file())
+            self.assertTrue((result.package_root / "character" / "modelproperty" / "1_pc" / "weapon" / "example.pac_xml").is_file())
+            self.assertTrue((result.package_root / "character" / "texture" / "example_new.dds").is_file())
+            mod_json = json.loads((result.package_root / "mod.json").read_text(encoding="utf-8"))
+            self.assertEqual("character/model/1_pc/weapon/example.pac", mod_json["target"])
+            self.assertIn("character/model/1_pc/weapon/example.pac", mod_json["files"])
+            self.assertIn("character/modelproperty/1_pc/weapon/example.pac_xml", mod_json["files"])
+            self.assertIn("character/texture/example_new.dds", mod_json["new_paths"])
+            self.assertNotIn("character/example.pac", mod_json["files"])
+
+    def test_compact_repair_uses_assets_group_and_case_insensitive_archive_key(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "AssetOnly"
+            (source / "files" / "character").mkdir(parents=True)
+            (source / "files" / "character" / "example.pac").write_bytes(b"PAC")
+            (source / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "kind": "mesh_loose_mod",
+                        "structure": "custom_compact_paths",
+                        "assets": [
+                            {
+                                "entry_path": "character/example.pac",
+                                "package_group": "0009",
+                                "format": "pac",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            package = scan_retrofittable_mod_packages(source)[0]
+
+            summary = build_retrofit_path_repair_summary(
+                package,
+                archive_entries_by_basename={
+                    "Example.PAC": [
+                        _entry("character/model/1_pc/weapon/example.pac", root, "0009"),
+                        _entry("character/model/1_pc/npc/example.pac", root, "0008"),
+                    ]
+                },
+            )
+
+            self.assertEqual(1, summary.repaired_path_count)
+            self.assertEqual("character/model/1_pc/weapon/example.pac", summary.mappings[0].target_path)
+
+    def test_custom_compact_path_without_archive_index_warns_and_falls_back(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "Compact"
+            (source / "files" / "character").mkdir(parents=True)
+            (source / "files" / "character" / "example.pac").write_bytes(b"PAC")
+            (source / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "kind": "mesh_loose_mod",
+                        "structure": "custom_compact_paths",
+                        "files_dir": "files",
+                        "files": [{"path": "character/example.pac", "package_group": "0009", "format": "pac"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            package = scan_retrofittable_mod_packages(source)[0]
+
+            summary = build_retrofit_path_repair_summary(package)
+            result = retrofit_mod_package(package, root / "converted", manager_profile="jmm")
+
+            self.assertEqual(1, summary.unresolved_path_count)
+            self.assertEqual(1, result.unresolved_path_count)
+            self.assertTrue(any("without loaded archive index" in warning for warning in result.warnings))
+            self.assertTrue((result.package_root / "character" / "example.pac").is_file())
+
+    def test_cdumm_retrofit_accepts_structure_conflict_and_language_options(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "Cdumm"
+            (source / "character" / "texture").mkdir(parents=True)
+            (source / "character" / "texture" / "sample.dds").write_bytes(b"DDS ")
+            (source / "manifest.json").write_text(json.dumps({"title": "Cdumm", "kind": "dds_loose_mod"}), encoding="utf-8")
+            package = scan_retrofittable_mod_packages(source)[0]
+
+            result = retrofit_mod_package(
+                package,
+                root / "converted",
+                manager_profile="cdumm",
+                export_options=ModPackageExportOptions(
+                    manager_targets=("cdumm",),
+                    structure="custom_compact_paths",
+                    create_modinfo_json=True,
+                    conflict_mode="override",
+                    target_language="ko",
+                    create_zip=True,
+                ),
+            )
+
+            manifest = json.loads((result.package_root / "manifest.json").read_text(encoding="utf-8"))
+            modinfo = json.loads((result.package_root / "modinfo.json").read_text(encoding="utf-8"))
+            self.assertEqual("custom_compact_paths", manifest["structure"])
+            self.assertEqual("override", modinfo["conflict_mode"])
+            self.assertEqual("ko", modinfo["target_language"])
+
+    def test_cdumm_merge_combines_distinct_sword_packages(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = root / "Gravey"
+            second = root / "Hehe"
+            first_model, first_sidecar, first_texture = _write_sword_mesh_package(first, "0015")
+            second_model, second_sidecar, second_texture = _write_sword_mesh_package(second, "0009")
+            packages = scan_retrofittable_mod_packages(root)
+            by_name = {package.name: package for package in packages}
+
+            result = merge_retrofittable_mod_packages(
+                (by_name["Gravey"], by_name["Hehe"]),
+                root / "converted",
+                package_info=ModPackageInfo(title="Gravey Hehe Combo", version="1.0", author="Tester"),
+                export_options=ModPackageExportOptions(
+                    manager_targets=("cdumm",),
+                    structure="files_wrapper",
+                    create_modinfo_json=True,
+                    create_zip=True,
+                ),
+            )
+
+            for payload in (first_model, first_sidecar, first_texture, second_model, second_sidecar, second_texture):
+                self.assertTrue(result.package_root.joinpath("files", *Path(payload).parts).is_file())
+            self.assertTrue((result.package_root / "manifest.json").is_file())
+            self.assertTrue((result.package_root / "modinfo.json").is_file())
+            self.assertTrue(result.zip_path.is_file())
+
+            manifest = json.loads((result.package_root / "manifest.json").read_text(encoding="utf-8"))
+            modinfo = json.loads((result.package_root / "modinfo.json").read_text(encoding="utf-8"))
+            self.assertEqual(["cdumm"], manifest["manager_targets"])
+            self.assertEqual("files_wrapper", manifest["structure"])
+            self.assertEqual("Gravey Hehe Combo", modinfo["name"])
+            files = {item["path"]: item for item in manifest["files"]}
+            self.assertEqual("0009", files[first_model]["package_group"])
+            self.assertEqual("0009", files[second_model]["package_group"])
+            self.assertIn(first_texture, manifest["new_paths"])
+            self.assertIn(second_texture, manifest["new_paths"])
+
+            readme = (result.package_root / "README.txt").read_text(encoding="utf-8")
+            self.assertIn("Import this merged package instead of enabling the source mods separately", readme)
+            with zipfile.ZipFile(result.zip_path) as archive:
+                names = set(archive.namelist())
+            self.assertIn(f"files/{first_model}", names)
+            self.assertIn(f"files/{second_model}", names)
+
+    def test_cdumm_merge_blocks_duplicate_resolved_payload_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = root / "First"
+            second = root / "Second"
+            _write_sword_mesh_package(first, "0009")
+            _write_sword_mesh_package(second, "0009")
+            packages = scan_retrofittable_mod_packages(root)
+
+            with self.assertRaisesRegex(ValueError, "duplicate payload paths"):
+                merge_retrofittable_mod_packages(
+                    packages,
+                    root / "converted",
+                    package_info=ModPackageInfo(title="Duplicate Combo", version="1.0"),
+                    export_options=ModPackageExportOptions(manager_targets=("cdumm",), create_zip=True),
+                )
+            self.assertFalse((root / "converted" / "Duplicate Combo_cdumm_merged").exists())
+
+    def test_cdumm_merge_repairs_compact_paths_before_duplicate_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = root / "CompactA"
+            second = root / "CompactB"
+            for source, sword_id in ((first, "0009"), (second, "0015")):
+                (source / "files" / "character").mkdir(parents=True)
+                (source / "files" / "character" / f"cd_phm_02_sword_{sword_id}.pac").write_bytes(b"PAC")
+                manifest = {
+                    "kind": "mesh_loose_mod",
+                    "title": source.name,
+                    "structure": "custom_compact_paths",
+                    "files_dir": "files",
+                    "assets": [
+                        {
+                            "entry_path": f"character/cd_phm_02_sword_{sword_id}.pac",
+                            "package_group": "0009",
+                            "format": "pac",
+                        }
+                    ],
+                    "files": [
+                        {
+                            "path": f"character/cd_phm_02_sword_{sword_id}.pac",
+                            "package_group": "0009",
+                            "format": "pac",
+                        }
+                    ],
+                }
+                (source / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            packages = scan_retrofittable_mod_packages(root)
+            archive_index = {
+                "cd_phm_02_sword_0009.pac": [
+                    _entry(
+                        "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0009.pac",
+                        root,
+                        "0009",
+                    )
+                ],
+                "cd_phm_02_sword_0015.pac": [
+                    _entry(
+                        "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+                        root,
+                        "0009",
+                    )
+                ],
+            }
+
+            result = merge_retrofittable_mod_packages(
+                packages,
+                root / "converted",
+                package_info=ModPackageInfo(title="Compact Combo", version="1.0"),
+                export_options=ModPackageExportOptions(manager_targets=("cdumm",), create_zip=True),
+                archive_entries_by_basename=archive_index,
+            )
+
+            self.assertEqual(2, result.repaired_path_count)
+            self.assertTrue(
+                (
+                    result.package_root
+                    / "files"
+                    / "character"
+                    / "model"
+                    / "1_pc"
+                    / "1_phm"
+                    / "weapon"
+                    / "2_twohandweapon"
+                    / "cd_phm_02_sword_0009.pac"
+                ).is_file()
+            )
+            manifest = json.loads((result.package_root / "manifest.json").read_text(encoding="utf-8"))
+            self.assertIn(
+                "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+                {item["path"] for item in manifest["files"]},
+            )
+
     def test_ui_source_exposes_dialog_and_uses_retrofit_helper(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
 
         self.assertIn("Retrofit Packaged Mods...", source)
-        self.assertIn("QTableWidget(0, 7)", source)
+        self.assertIn("QTableWidget(0, 11)", source)
         self.assertIn("RETROFIT_MANAGER_PROFILES", source)
-        self.assertIn('"jmm": "JMM JSON"', source)
+        self.assertIn("MOD_PACKAGE_MANAGER_PROFILE_LABELS", source)
         self.assertIn("manager_combo.addItem", source)
-        self.assertIn("retrofit_mod_package(package, output_root, manager_profile=profile)", source)
+        self.assertIn("archive_entries_by_basename=self.archive_entries_by_basename", source)
+        self.assertIn("build_retrofit_path_repair_summary", source)
+        self.assertIn("Merge Selected for CDUMM", source)
+        self.assertIn("merge_retrofittable_mod_packages", source)
         self.assertIn("scan_retrofittable_mod_packages(source)", source)
 
 

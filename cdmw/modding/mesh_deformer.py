@@ -421,6 +421,110 @@ def build_vertex_adjacency(submesh: SubMesh) -> list[set[int]]:
     return adjacency
 
 
+def _normalized_selection_by_submesh(
+    mesh: ParsedMesh,
+    selected_vertices_by_submesh: Mapping[int, Iterable[int]] | Iterable[int],
+) -> dict[int, set[int]]:
+    if not isinstance(selected_vertices_by_submesh, Mapping):
+        selected_vertices_by_submesh = {0: selected_vertices_by_submesh}
+    result: dict[int, set[int]] = {}
+    for raw_submesh_index, raw_vertices in selected_vertices_by_submesh.items():
+        try:
+            submesh_index = int(raw_submesh_index)
+        except (TypeError, ValueError):
+            continue
+        if not (0 <= submesh_index < len(mesh.submeshes)):
+            continue
+        vertex_count = len(mesh.submeshes[submesh_index].vertices)
+        selected: set[int] = set()
+        for raw_vertex in tuple(raw_vertices or ()):
+            try:
+                vertex_index = int(raw_vertex)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= vertex_index < vertex_count:
+                selected.add(vertex_index)
+        if selected:
+            result[submesh_index] = selected
+    return result
+
+
+def grow_vertex_selection(
+    mesh: ParsedMesh,
+    selected_vertices_by_submesh: Mapping[int, Iterable[int]] | Iterable[int],
+    *,
+    steps: int = 1,
+) -> dict[int, set[int]]:
+    selection = _normalized_selection_by_submesh(mesh, selected_vertices_by_submesh)
+    for _step in range(max(0, int(steps or 0))):
+        next_selection: dict[int, set[int]] = {index: set(vertices) for index, vertices in selection.items()}
+        for submesh_index, selected in selection.items():
+            adjacency = build_vertex_adjacency(mesh.submeshes[submesh_index])
+            expanded = next_selection.setdefault(submesh_index, set())
+            for vertex_index in selected:
+                if 0 <= vertex_index < len(adjacency):
+                    expanded.update(adjacency[vertex_index])
+        selection = next_selection
+    return selection
+
+
+def shrink_vertex_selection(
+    mesh: ParsedMesh,
+    selected_vertices_by_submesh: Mapping[int, Iterable[int]] | Iterable[int],
+    *,
+    steps: int = 1,
+) -> dict[int, set[int]]:
+    selection = _normalized_selection_by_submesh(mesh, selected_vertices_by_submesh)
+    for _step in range(max(0, int(steps or 0))):
+        next_selection: dict[int, set[int]] = {}
+        for submesh_index, selected in selection.items():
+            adjacency = build_vertex_adjacency(mesh.submeshes[submesh_index])
+            kept: set[int] = set()
+            for vertex_index in selected:
+                if not (0 <= vertex_index < len(adjacency)):
+                    continue
+                neighbors = adjacency[vertex_index]
+                if not neighbors or all(neighbor in selected for neighbor in neighbors):
+                    kept.add(vertex_index)
+            if kept:
+                next_selection[submesh_index] = kept
+        selection = next_selection
+    return selection
+
+
+def smooth_vertex_selection(
+    mesh: ParsedMesh,
+    selected_vertices_by_submesh: Mapping[int, Iterable[int]] | Iterable[int],
+    *,
+    iterations: int = 1,
+) -> dict[int, set[int]]:
+    selection = _normalized_selection_by_submesh(mesh, selected_vertices_by_submesh)
+    for _iteration in range(max(0, int(iterations or 0))):
+        next_selection: dict[int, set[int]] = {}
+        for submesh_index, submesh in enumerate(mesh.submeshes):
+            selected = selection.get(submesh_index, set())
+            if not selected:
+                continue
+            adjacency = build_vertex_adjacency(submesh)
+            smoothed: set[int] = set()
+            for vertex_index, neighbors in enumerate(adjacency):
+                if not neighbors:
+                    if vertex_index in selected:
+                        smoothed.add(vertex_index)
+                    continue
+                selected_neighbor_count = sum(1 for neighbor in neighbors if neighbor in selected)
+                ratio = selected_neighbor_count / max(1, len(neighbors))
+                if vertex_index in selected:
+                    if ratio >= 0.25:
+                        smoothed.add(vertex_index)
+                elif ratio >= 0.65:
+                    smoothed.add(vertex_index)
+            if smoothed:
+                next_selection[submesh_index] = smoothed
+        selection = next_selection
+    return selection
+
+
 def build_x_mirror_pairs(vertices: Sequence[Sequence[object]], *, tolerance: float = 1e-4) -> dict[int, int]:
     buckets: dict[tuple[int, int, int], list[int]] = {}
     normalized_vertices = [_vec3(vertex) for vertex in vertices]

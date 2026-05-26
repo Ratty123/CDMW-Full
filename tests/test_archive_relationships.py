@@ -1,4 +1,5 @@
 import tempfile
+import struct
 import unittest
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from cdmw.core.archive_relationships import (
 from cdmw.core.archive import (
     _prefab_evidence_rows,
     _prefab_material_override_evidence_rows,
+    build_prefab_attachment_profile_patch,
     build_prefab_socket_name_patch,
     build_archive_entry_basename_index,
     build_archive_entry_path_index,
@@ -21,15 +23,28 @@ from cdmw.core.archive import (
     build_archive_preview_result,
     build_archive_relationship_references,
     build_attachment_body_location_choices,
+    build_part_in_out_socket_class_copy_patch,
     build_part_in_out_socket_attach_point_patch,
+    build_part_in_out_socket_weapon_case_part_patch,
     build_part_in_out_socket_profile_patch,
+    build_iteminfo_behavior_equip_type_patch,
+    build_universal_twohand_sword_animation_alias_plan,
+    build_universal_twohand_sword_iteminfo_behavior_patch,
+    build_universal_twohand_sword_true_onehand_iteminfo_patch,
+    build_pac_xml_stack_equip_type_patch,
     build_socket_bone_data_profile_patch,
+    inspect_prefab_attachment_profile_fields,
     inspect_prefab_socket_name_fields,
     infer_attachment_child_socket_name,
     infer_part_in_out_weapon_class,
+    infer_stack_equip_type_for_socket,
+    hashlittle,
+    parse_attachment_equip_type_records,
+    parse_pac_xml_stack_equip_type,
     parse_part_in_out_socket_info_xml,
     parse_socket_bone_data_xml,
     part_in_out_rows_for_weapon_class,
+    resolve_attachment_iteminfo_behavior_record,
 )
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference
 
@@ -66,6 +81,109 @@ class ArchiveRelationshipTests(unittest.TestCase):
             + self._prefab_string("Spine2_B_ChildSocket")
             + self._prefab_string("character/model/1_pc/1_phm/weapon/2_twohandweapon/test.pac")
         )
+
+    def _minimal_prefab_profile_payload(
+        self,
+        *,
+        attached: str,
+        pivot: str,
+        part: str,
+        model: str,
+        socket_file: str,
+    ) -> bytes:
+        base = self._minimal_prefab_socket_payload()
+        marker = self._prefab_string("Spine2_B_Socket") + self._prefab_string("Spine2_B_ChildSocket")
+        prefix = base[: base.index(marker)]
+        return (
+            prefix
+            + self._prefab_string(attached)
+            + self._prefab_string(pivot)
+            + b"\x00\x01\x00\x00"
+            + self._prefab_string(part)
+            + b"\x01\x01\x00\x01"
+            + self._prefab_string(model)
+            + b"\x52\x00\x00\x00"
+            + self._prefab_string(socket_file)
+            + b"\x01\x01\x00\x00"
+        )
+
+    def _lp_string(self, value: str) -> bytes:
+        encoded = value.encode("utf-8")
+        return struct.pack("<I", len(encoded)) + encoded
+
+    def _pabgh(self, rows) -> bytes:
+        return struct.pack("<H", len(rows)) + b"".join(
+            struct.pack("<II", int(row_id) & 0xFFFFFFFF, int(offset)) for row_id, offset in rows
+        )
+
+    def _behavior_swap_tables(self):
+        onehand_hash = 0x5E703280
+        twohand_hash = 0x40C9FFE9
+        giant_hash = 0x265E46C6
+        axe_hash = 0xD00DFEED
+        dagger_hash = 0xA1B2C3D4
+        equip_one = self._lp_string("OneHandSword") + b"\x00\x00\x00\x00"
+        equip_two = self._lp_string("TwoHandSword") + b"\x00\x00\x00\x00"
+        equip_giant = self._lp_string("TwoHandGiantSword") + b"\x00\x00\x00\x00"
+        equip_axe = self._lp_string("TwoHandAxe") + b"\x00\x00\x00\x00"
+        equip_dagger = self._lp_string("OneHandDagger") + b"\x00\x00\x00\x00"
+        equiptype_data = equip_one + equip_two + equip_giant + equip_axe + equip_dagger
+        equiptype_header = self._pabgh(
+            (
+                (onehand_hash, 0),
+                (twohand_hash, len(equip_one)),
+                (giant_hash, len(equip_one) + len(equip_two)),
+                (axe_hash, len(equip_one) + len(equip_two) + len(equip_giant)),
+                (dagger_hash, len(equip_one) + len(equip_two) + len(equip_giant) + len(equip_axe)),
+            )
+        )
+        target_model_hash = hashlittle(b"cd_phm_02_sword_0015", 0xC5EDE)
+        target_model_in_hash = hashlittle(b"cd_phm_02_sword_0015_in", 0xC5EDE)
+        source_model_hash = hashlittle(b"cd_phm_01_sword_0278_r", 0xC5EDE)
+        target_row = (
+            struct.pack("<I", 14705)
+            + self._lp_string("Legendary_Antumbra_TwoHandGiantBastard")
+            + b"\xAA" * 17
+            + struct.pack("<I", twohand_hash)
+            + b"\xBB" * 29
+            + struct.pack("<I", target_model_hash)
+            + b"\xCC" * 13
+            + struct.pack("<I", target_model_in_hash)
+            + b"\xDD" * 41
+        )
+        source_row = (
+            struct.pack("<I", 1000738)
+            + self._lp_string("Taoria_OneHandSword")
+            + b"\x11" * 23
+            + struct.pack("<I", onehand_hash)
+            + b"\x22" * 31
+            + struct.pack("<I", source_model_hash)
+            + b"\x33" * 37
+        )
+        giant_row = (
+            struct.pack("<I", 24000)
+            + self._lp_string("Arena_TwoHandGiantSword")
+            + b"\x44" * 19
+            + struct.pack("<I", giant_hash)
+            + b"\x55" * 43
+        )
+        axe_row = (
+            struct.pack("<I", 25000)
+            + self._lp_string("Arena_TwoHandAxe")
+            + b"\x66" * 21
+            + struct.pack("<I", axe_hash)
+            + b"\x77" * 39
+        )
+        iteminfo_data = target_row + source_row + giant_row + axe_row
+        iteminfo_header = self._pabgh(
+            (
+                (14705, 0),
+                (1000738, len(target_row)),
+                (24000, len(target_row) + len(source_row)),
+                (25000, len(target_row) + len(source_row) + len(giant_row)),
+            )
+        )
+        return iteminfo_data, iteminfo_header, equiptype_data, equiptype_header
 
     def _entries(self, payloads):
         tempdir = tempfile.TemporaryDirectory()
@@ -121,6 +239,69 @@ class ArchiveRelationshipTests(unittest.TestCase):
                 attached_socket_name="RHand_Socket",
                 pivot_socket_name="Basic_ChildSocket",
             )
+
+    def test_prefab_attachment_profile_patch_blocks_length_changing_source_role_by_default(self):
+        target = self._minimal_prefab_profile_payload(
+            attached="Spine2_B_Socket",
+            pivot="Spine2_B_ChildSocket",
+            part="CD_TwoHandWeapon_Sword",
+            model="character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+            socket_file="character/descriptors/socketbonedata/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0001.sockets.xml",
+        )
+        source = self._minimal_prefab_profile_payload(
+            attached="Pelvis_L_Socket",
+            pivot="Pelvis_L_ChildSocket",
+            part="CD_MainWeapon_Sword_R",
+            model="character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0278.pac",
+            socket_file="character/descriptors/socketbonedata/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001_r.sockets.xml",
+        )
+        source_fields = {field.field_name: field.value for field in inspect_prefab_attachment_profile_fields(source)}
+
+        with self.assertRaisesRegex(ValueError, "Unsafe prefab rewrite blocked: replacement would resize target prefab"):
+            build_prefab_attachment_profile_patch(
+                target,
+                attached_socket_name=source_fields["_attachedSocketName"],
+                pivot_socket_name=source_fields["_pivotSocketName"],
+                part_name=source_fields["_partName"],
+                socket_file_path=source_fields["_socketFileName"],
+            )
+
+    def test_prefab_attachment_profile_patch_experimental_allows_length_changing_source_role(self):
+        target = self._minimal_prefab_profile_payload(
+            attached="Spine2_B_Socket",
+            pivot="Spine2_B_ChildSocket",
+            part="CD_TwoHandWeapon_Sword",
+            model="character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+            socket_file="character/descriptors/socketbonedata/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0001.sockets.xml",
+        )
+        source = self._minimal_prefab_profile_payload(
+            attached="Pelvis_L_Socket",
+            pivot="Pelvis_L_ChildSocket",
+            part="CD_MainWeapon_Sword_R",
+            model="character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0278.pac",
+            socket_file="character/descriptors/socketbonedata/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001_r.sockets.xml",
+        )
+        source_fields = {field.field_name: field.value for field in inspect_prefab_attachment_profile_fields(source)}
+
+        result = build_prefab_attachment_profile_patch(
+            target,
+            attached_socket_name=source_fields["_attachedSocketName"],
+            pivot_socket_name=source_fields["_pivotSocketName"],
+            part_name=source_fields["_partName"],
+            socket_file_path=source_fields["_socketFileName"],
+            allow_length_changes=True,
+        )
+
+        self.assertIn(b"Pelvis_L_Socket", result.data)
+        self.assertIn(b"Pelvis_L_ChildSocket", result.data)
+        self.assertIn(b"CD_MainWeapon_Sword_R", result.data)
+        self.assertIn(b"1_onehandweapon/cd_phm_01_sword_0001_r.sockets.xml", result.data)
+        self.assertIn(b"2_twohandweapon/cd_phm_02_sword_0015.pac", result.data)
+        self.assertNotIn(b"1_onehandweapon/cd_phm_01_sword_0278.pac", result.data)
+        self.assertNotEqual(len(target), len(result.data))
+        proof = "\n".join(result.proof_lines)
+        self.assertIn("Target model path is preserved", proof)
+        self.assertIn("Experimental length-changing prefab rewrite enabled", proof)
 
     def test_model_sidecar_resolves_exact_dds_paths(self):
         entries = self._entries(
@@ -591,14 +772,29 @@ class ArchiveRelationshipTests(unittest.TestCase):
                 OutSocketBone="RHand_Socket" InChildSocketBone="Pelvis_L_ChildSocket" />
             <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket"
                 OutSocketBone="RHand_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
+            <PartInOutSocket PartName="CD_TwoHandWeapon_Sword_IN" InSocketBone="Spine2_B_SubWeapon_Socket"
+                OutSocketBone="RHand_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
+            <PartInOutSocket PartName="CD_TwoHandWeapon_Axe" InSocketBone="Spine2_B_SubWeapon_Socket" />
+            <PartInOutSocket PartName="CD_TwoHandWeapon_Mace" InSocketBone="Spine2_B_SubWeapon_Socket" />
+            <PartInOutSocket PartName="CD_TwoHandWeapon_Spear" InSocketBone="Spine2_B_SubWeapon_Socket" />
+            <PartInOutSocket PartName="CD_TwoHandWeapon_WarHammer" InSocketBone="Spine2_B_SubWeapon_Socket" />
             """,
             "character/phm_description_player_kliff.xml",
         )
 
-        self.assertEqual(2, len(document.rows))
+        self.assertEqual(7, len(document.rows))
         self.assertEqual("onehand_sword", infer_part_in_out_weapon_class(document.rows[0].part_name))
         self.assertEqual("twohand_sword", infer_part_in_out_weapon_class(document.rows[1].part_name))
+        self.assertEqual("twohand_sword", infer_part_in_out_weapon_class(document.rows[2].part_name))
+        self.assertEqual("axe", infer_part_in_out_weapon_class(document.rows[3].part_name))
+        self.assertEqual("mace", infer_part_in_out_weapon_class(document.rows[4].part_name))
+        self.assertEqual("spear", infer_part_in_out_weapon_class(document.rows[5].part_name))
+        self.assertEqual("warhammer", infer_part_in_out_weapon_class(document.rows[6].part_name))
         self.assertEqual(["CD_MainWeapon_Sword_R"], [row.part_name for row in part_in_out_rows_for_weapon_class(document, "onehand_sword")])
+        self.assertEqual(
+            ["CD_TwoHandWeapon_Sword", "CD_TwoHandWeapon_Sword_IN"],
+            [row.part_name for row in part_in_out_rows_for_weapon_class(document, "twohand_sword")],
+        )
 
     def test_body_location_choices_use_stack_groups_and_descriptor_child_sockets(self):
         socket_document = parse_socket_bone_data_xml(
@@ -644,14 +840,59 @@ class ArchiveRelationshipTests(unittest.TestCase):
         self.assertEqual("Spine2_B_SubWeapon_ChildSocket", infer_attachment_child_socket_name("Spine2_B_MainWeapon_Socket"))
         self.assertEqual("Spine2_B_Shield_ChildSocket", infer_attachment_child_socket_name("Spine2_B_Shield_Socket"))
 
+    def test_pac_xml_stack_equip_patch_preserves_target_physics_material_context(self):
+        base = """
+        <ModelProperty>
+          <StackEquipDataContainer ItemID="482" _equipType="Back" _offsetLength="0.030000"/>
+          <SkinnedMeshProperty _pbdSimulationMaterialName="WeaponSpline">
+            <ResourceReferencePath_ITexture value="character/texture/darkbringer.dds"/>
+          </SkinnedMeshProperty>
+        </ModelProperty>
+        """
+
+        result = build_pac_xml_stack_equip_type_patch(base, equip_type="Pelvis_R")
+
+        self.assertTrue(result.changed)
+        self.assertEqual("Back", result.old_equip_type)
+        self.assertEqual("Pelvis_R", parse_pac_xml_stack_equip_type(result.text))
+        self.assertIn('_pbdSimulationMaterialName="WeaponSpline"', result.text)
+        self.assertIn('ItemID="482"', result.text)
+        self.assertIn('_offsetLength="0.030000"', result.text)
+        self.assertIn("darkbringer.dds", result.text)
+
+    def test_stack_equip_type_infers_from_socket_document_then_hip_fallbacks(self):
+        document = parse_socket_bone_data_xml(
+            """
+            <SocketBoneData>
+              <SocketList>
+                <Socket Name="Pelvis_R_Socket" Parent="Bip01 Pelvis" />
+                <Socket Name="Spine2_B_SubWeapon_Socket" Parent="Bip01 Spine2" />
+              </SocketList>
+              <StackEquipInfoList>
+                <StackEquipInfo EquipTypeName="Pelvis_R" OriginBoneName="Bip01 Pelvis">
+                  <Socket Name="Pelvis_R_Socket" />
+                </StackEquipInfo>
+              </StackEquipInfoList>
+            </SocketBoneData>
+            """
+        )
+
+        self.assertEqual("Pelvis_R", infer_stack_equip_type_for_socket("Pelvis_R_Socket", document))
+        self.assertEqual("Pelvis_L", infer_stack_equip_type_for_socket("Pelvis_L_Socket", None))
+        self.assertEqual("Back", infer_stack_equip_type_for_socket("Spine2_B_SubWeapon_Socket", None))
+
     def test_part_in_out_profile_patch_detects_imported_back_and_hip_style_changes(self):
         base = """
         <PartInOutSocket PartName="CD_MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket" OutSocketBone="RHand_Socket" InChildSocketBone="Pelvis_L_ChildSocket" />
         <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket" OutSocketBone="RHand_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" Visible="Out" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Axe" InSocketBone="Spine2_B_SubWeapon_Socket" OutSocketBone="RHand_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
         """
         profile = """
         <PartInOutSocket PartName="CD_MainWeapon_Sword_R" InSocketBone="Spine1_B_Socket" OutSocketBone="RHand_Socket" InChildSocketBone="Pelvis_L_ChildSocket" />
         <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Pelvis_B_Socket" OutSocketBone="RHand_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" Visible="Out" InSocketBone="Pelvis_L_Socket" InChildSocketBone="Pelvis_L_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Axe" InSocketBone="Pelvis_L_Socket" OutSocketBone="RHand_Socket" InChildSocketBone="Pelvis_L_ChildSocket" />
         """
 
         one_hand = build_part_in_out_socket_profile_patch(base, profile, weapon_class="onehand_sword")
@@ -661,12 +902,17 @@ class ArchiveRelationshipTests(unittest.TestCase):
 
         two_hand = build_part_in_out_socket_profile_patch(base, profile, weapon_class="twohand_sword")
         self.assertIn('PartName="CD_TwoHandWeapon_Sword" InSocketBone="Pelvis_B_Socket"', two_hand.text)
+        self.assertIn('PartName="CD_TwoHandWeapon_Sword" Visible="Out"', two_hand.text)
+        self.assertNotRegex(two_hand.text, r'Visible="Out"[^>]*InSocketBone=')
+        self.assertIn('PartName="CD_TwoHandWeapon_Axe" InSocketBone="Spine2_B_SubWeapon_Socket"', two_hand.text)
         self.assertEqual(("CD_TwoHandWeapon_Sword",), two_hand.patched_part_names)
 
     def test_part_in_out_attach_point_patch_updates_selected_class_only(self):
         base = """
-        <PartInOutSocket PartName="CD_MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket" InChildSocketBone="Pelvis_L_ChildSocket" />
-        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" />
+        <PartInOutSocket PartName="CD_MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket" InChildSocketBone="Pelvis_L_ChildSocket" OutSocketBone="RHand_Socket" OutChildSocketBone="Basic_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" OutSocketBone="RHand_Socket" OutChildSocketBone="Basic_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" Visible="Out" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Axe" InSocketBone="Spine2_B_SubWeapon_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" OutSocketBone="RHand_Socket" OutChildSocketBone="Basic_ChildSocket" />
         """
 
         result = build_part_in_out_socket_attach_point_patch(
@@ -678,7 +924,557 @@ class ArchiveRelationshipTests(unittest.TestCase):
 
         self.assertIn('CD_MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket"', result.text)
         self.assertIn('CD_TwoHandWeapon_Sword" InSocketBone="Pelvis_B_Socket"', result.text)
+        self.assertIn('CD_TwoHandWeapon_Axe" InSocketBone="Spine2_B_SubWeapon_Socket"', result.text)
         self.assertIn('InChildSocketBone="Pelvis_R_ChildSocket"', result.text)
+        self.assertIn('CD_TwoHandWeapon_Sword" InSocketBone="Pelvis_B_Socket" InChildSocketBone="Pelvis_R_ChildSocket" OutSocketBone="RHand_Socket"', result.text)
+        self.assertIn('PartName="CD_TwoHandWeapon_Sword" Visible="Out"', result.text)
+        self.assertNotRegex(result.text, r'Visible="Out"[^>]*InSocketBone=')
+
+    def test_part_in_out_attach_point_patch_can_update_held_fields_only(self):
+        base = """
+        <PartInOutSocket PartName="CD_MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket" InChildSocketBone="Pelvis_L_ChildSocket" OutSocketBone="RHand_Socket" OutChildSocketBone="Basic_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" OutSocketBone="RHand_Socket" OutChildSocketBone="Basic_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" Visible="Out" />
+        """
+
+        result = build_part_in_out_socket_attach_point_patch(
+            base,
+            weapon_class="twohand_sword",
+            in_socket_bone="LHand_Socket",
+            in_child_socket_bone="InverseF_ChildSocket",
+            placement_state="held",
+        )
+
+        self.assertIn('CD_MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket"', result.text)
+        self.assertIn('CD_TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket"', result.text)
+        self.assertIn('OutSocketBone="LHand_Socket"', result.text)
+        self.assertIn('OutChildSocketBone="InverseF_ChildSocket"', result.text)
+        self.assertIn('PartName="CD_TwoHandWeapon_Sword" Visible="Out"', result.text)
+        self.assertNotRegex(result.text, r'Visible="Out"[^>]*OutSocketBone=')
+        self.assertEqual(["OutSocketBone", "OutChildSocketBone"], [diff.field_name for diff in result.diffs])
+
+    def test_part_in_out_class_copy_patch_moves_target_to_source_placement_only(self):
+        base = """
+        <PartInOutSocket PartName="CD_MainWeapon_Sword_R" InSocketBone="Pelvis_R_Socket" InChildSocketBone="Pelvis_R_ChildSocket" OutSocketBone="RHand_Socket" OutChildSocketBone="Basic_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" OutSocketBone="RHand_Socket" OutChildSocketBone="Basic_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword_IN" InSocketBone="Spine2_B_SubWeapon_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" OutSocketBone="RHand_Socket" OutChildSocketBone="Basic_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" Visible="Out" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Axe" InSocketBone="Spine2_B_SubWeapon_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" OutSocketBone="RHand_Socket" OutChildSocketBone="Basic_ChildSocket" />
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Mace" InSocketBone="Spine2_B_SubWeapon_Socket" InChildSocketBone="Spine2_B_SubWeapon_ChildSocket" OutSocketBone="RHand_Socket" OutChildSocketBone="Basic_ChildSocket" />
+        """
+
+        result = build_part_in_out_socket_class_copy_patch(
+            base,
+            target_weapon_class="twohand_sword",
+            source_weapon_class="onehand_sword",
+        )
+
+        self.assertIn('CD_MainWeapon_Sword_R" InSocketBone="Pelvis_R_Socket"', result.text)
+        self.assertIn('CD_TwoHandWeapon_Sword" InSocketBone="Pelvis_R_Socket"', result.text)
+        self.assertIn('CD_TwoHandWeapon_Sword_IN" InSocketBone="Pelvis_R_Socket"', result.text)
+        self.assertIn('CD_TwoHandWeapon_Axe" InSocketBone="Spine2_B_SubWeapon_Socket"', result.text)
+        self.assertIn('CD_TwoHandWeapon_Mace" InSocketBone="Spine2_B_SubWeapon_Socket"', result.text)
+        self.assertIn('InChildSocketBone="Pelvis_R_ChildSocket"', result.text)
+        self.assertIn('PartName="CD_TwoHandWeapon_Sword" Visible="Out"', result.text)
+        self.assertNotRegex(result.text, r'Visible="Out"[^>]*InSocketBone=')
+        self.assertEqual(("CD_TwoHandWeapon_Sword", "CD_TwoHandWeapon_Sword_IN"), result.patched_part_names)
+        self.assertEqual(4, len(result.diffs))
+        self.assertEqual(
+            ["InSocketBone", "InChildSocketBone", "InSocketBone", "InChildSocketBone"],
+            [diff.field_name for diff in result.diffs],
+        )
+
+    def test_iteminfo_behavior_patch_changes_only_target_equip_type_u32(self):
+        iteminfo_data, iteminfo_header, equiptype_data, equiptype_header = self._behavior_swap_tables()
+
+        equip_records = parse_attachment_equip_type_records(equiptype_data, equiptype_header)
+        self.assertIn("OneHandSword", [record.name for record in equip_records])
+        target_record, target_reason = resolve_attachment_iteminfo_behavior_record(
+            iteminfo_data,
+            iteminfo_header,
+            equip_records,
+            "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+        )
+        source_record, source_reason = resolve_attachment_iteminfo_behavior_record(
+            iteminfo_data,
+            iteminfo_header,
+            equip_records,
+            "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0278.pac",
+        )
+
+        self.assertEqual("", target_reason)
+        self.assertEqual("", source_reason)
+        self.assertEqual("TwoHandSword", target_record.equip_type_name)
+        self.assertEqual("OneHandSword", source_record.equip_type_name)
+
+        result = build_iteminfo_behavior_equip_type_patch(
+            iteminfo_data,
+            iteminfo_header,
+            equiptype_data,
+            equiptype_header,
+            target_model_path="character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+            source_model_path="character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0278.pac",
+            target_weapon_class="twohand_sword",
+            source_weapon_class="onehand_sword",
+        )
+
+        self.assertTrue(result.changed)
+        self.assertEqual("", result.blocking_reason)
+        self.assertEqual("TwoHandSword", result.old_equip_type_name)
+        self.assertEqual("OneHandSword", result.new_equip_type_name)
+        self.assertEqual(0x5E703280, struct.unpack_from("<I", result.data, result.patch_offset)[0])
+        changed_offsets = [index for index, (old, new) in enumerate(zip(iteminfo_data, result.data)) if old != new]
+        self.assertEqual(list(range(result.patch_offset, result.patch_offset + 4)), changed_offsets)
+        self.assertIn("_equipTypeInfo u32 offset", result.proof_lines[-1])
+
+    def test_iteminfo_behavior_patch_blocks_mixed_weapon_families(self):
+        iteminfo_data, iteminfo_header, equiptype_data, equiptype_header = self._behavior_swap_tables()
+
+        result = build_iteminfo_behavior_equip_type_patch(
+            iteminfo_data,
+            iteminfo_header,
+            equiptype_data,
+            equiptype_header,
+            target_model_path="character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+            source_model_path="",
+            target_weapon_class="twohand_sword",
+            source_weapon_class="onehand_dagger",
+            source_equip_type_name="OneHandDagger",
+        )
+
+        self.assertFalse(result.changed)
+        self.assertIn("mixed weapon families", result.blocking_reason)
+        self.assertEqual(iteminfo_data, result.data)
+
+    def test_universal_twohand_sword_behavior_patch_changes_only_2h_swords(self):
+        iteminfo_data, iteminfo_header, equiptype_data, equiptype_header = self._behavior_swap_tables()
+
+        result = build_universal_twohand_sword_iteminfo_behavior_patch(
+            iteminfo_data,
+            iteminfo_header,
+            equiptype_data,
+            equiptype_header,
+        )
+
+        self.assertTrue(result.changed)
+        self.assertEqual("", result.blocking_reason)
+        self.assertEqual(len(iteminfo_data), len(result.data))
+        self.assertEqual(2, result.changed_count)
+        self.assertEqual((("TwoHandGiantSword", 1), ("TwoHandSword", 1)), result.changed_counts_by_source)
+        self.assertEqual("OneHandSword", result.target_equip_type_name)
+        self.assertEqual(0x5E703280, result.target_equip_type_hash)
+        for offset in result.changed_offsets:
+            self.assertNotEqual(0x5E703280, struct.unpack_from("<I", iteminfo_data, offset)[0])
+            self.assertEqual(0x5E703280, struct.unpack_from("<I", result.data, offset)[0])
+        changed_byte_indexes = {
+            index
+            for offset in result.changed_offsets
+            for index in range(offset, offset + 4)
+        }
+        actual_changed_indexes = {
+            index
+            for index, (old, new) in enumerate(zip(iteminfo_data, result.data))
+            if old != new
+        }
+        self.assertEqual(changed_byte_indexes, actual_changed_indexes)
+        axe_offset = iteminfo_data.find(struct.pack("<I", 0xD00DFEED))
+        self.assertGreaterEqual(axe_offset, 0)
+        self.assertEqual(0xD00DFEED, struct.unpack_from("<I", result.data, axe_offset)[0])
+        proof = "\n".join(result.proof_lines)
+        self.assertIn("file length preserved", proof)
+        self.assertIn("TwoHandSword ->", proof)
+        self.assertIn("TwoHandGiantSword ->", proof)
+
+    def test_universal_twohand_sword_true_onehand_patch_updates_equip_signature(self):
+        onehand_hash = 0x5E703280
+        twohand_hash = 0x40C9FFE9
+        giant_hash = 0x265E46C6
+        axe_hash = 0xD00DFEED
+        equip_one = self._lp_string("OneHandSword") + b"\x00\x00\x00\x00"
+        equip_two = self._lp_string("TwoHandSword") + b"\x00\x00\x00\x00"
+        equip_giant = self._lp_string("TwoHandGiantSword") + b"\x00\x00\x00\x00"
+        equip_axe = self._lp_string("TwoHandAxe") + b"\x00\x00\x00\x00"
+        equiptype_data = equip_one + equip_two + equip_giant + equip_axe
+        equiptype_header = self._pabgh(
+            (
+                (onehand_hash, 0),
+                (twohand_hash, len(equip_one)),
+                (giant_hash, len(equip_one) + len(equip_two)),
+                (axe_hash, len(equip_one) + len(equip_two) + len(equip_giant)),
+            )
+        )
+
+        onehand_signature = bytes.fromhex("38 A0 C9 39 BA A0 C9 39 BA")
+        twohand_signature = bytes.fromhex("48 4A 0F 92 41 4A 0F 92 41")
+        giant_signature = bytes.fromhex("44 4A 0F 92 41 4A 0F 92 41")
+
+        def item_row(item_id: int, name: str, equip_hash: int, signature: bytes, item_type: int) -> bytes:
+            return (
+                struct.pack("<I", item_id)
+                + self._lp_string(name)
+                + b"\xAA" * 13
+                + struct.pack("<I", equip_hash)
+                + b"\xBB" * (0x33 - 4)
+                + signature
+                + b"\xCC" * 24
+                + struct.pack("<I", item_type)
+                + b"\xDD" * 19
+            )
+
+        twohand_row = item_row(100, "Test_TwoHandSword", twohand_hash, twohand_signature, 0xCA)
+        giant_row = item_row(101, "Test_TwoHandGiantSword", giant_hash, giant_signature, 0xDA)
+        axe_row = item_row(102, "Test_TwoHandAxe", axe_hash, b"\x99" * 9, 0xCB)
+        iteminfo_data = twohand_row + giant_row + axe_row
+        iteminfo_header = self._pabgh(
+            (
+                (100, 0),
+                (101, len(twohand_row)),
+                (102, len(twohand_row) + len(giant_row)),
+            )
+        )
+
+        result = build_universal_twohand_sword_true_onehand_iteminfo_patch(
+            iteminfo_data,
+            iteminfo_header,
+            equiptype_data,
+            equiptype_header,
+        )
+
+        self.assertTrue(result.changed)
+        self.assertEqual("", result.blocking_reason)
+        self.assertEqual(len(iteminfo_data), len(result.data))
+        self.assertEqual(2, result.changed_count)
+        self.assertEqual((("TwoHandGiantSword", 1), ("TwoHandSword", 1)), result.changed_counts_by_source)
+        twohand_equip_offset = twohand_row.find(struct.pack("<I", twohand_hash))
+        twohand_signature_offset = twohand_equip_offset + 0x33
+        twohand_item_type_offset = twohand_signature_offset + 9 + 24
+        giant_equip_offset = len(twohand_row) + giant_row.find(struct.pack("<I", giant_hash))
+        giant_signature_offset = giant_equip_offset + 0x33
+        giant_item_type_offset = giant_signature_offset + 9 + 24
+        self.assertEqual(onehand_hash, struct.unpack_from("<I", result.data, twohand_equip_offset)[0])
+        self.assertEqual(onehand_hash, struct.unpack_from("<I", result.data, giant_equip_offset)[0])
+        self.assertEqual(onehand_signature, result.data[twohand_signature_offset : twohand_signature_offset + 9])
+        self.assertEqual(onehand_signature, result.data[giant_signature_offset : giant_signature_offset + 9])
+        self.assertEqual(0x67, struct.unpack_from("<I", result.data, twohand_item_type_offset)[0])
+        self.assertEqual(0x67, struct.unpack_from("<I", result.data, giant_item_type_offset)[0])
+        self.assertIn(struct.pack("<I", axe_hash), result.data)
+        proof = "\n".join(result.proof_lines)
+        self.assertIn("9-byte one-hand sword family", proof)
+        self.assertIn("_itemType", proof)
+        self.assertIn("file length preserved", proof)
+
+    def test_universal_twohand_sword_true_onehand_patch_blocks_signature_mismatch(self):
+        onehand_hash = 0x5E703280
+        twohand_hash = 0x40C9FFE9
+        equip_one = self._lp_string("OneHandSword") + b"\x00\x00\x00\x00"
+        equip_two = self._lp_string("TwoHandSword") + b"\x00\x00\x00\x00"
+        equiptype_data = equip_one + equip_two
+        equiptype_header = self._pabgh(((onehand_hash, 0), (twohand_hash, len(equip_one))))
+        row = (
+            struct.pack("<I", 100)
+            + self._lp_string("Bad_TwoHandSword")
+            + b"\xAA" * 13
+            + struct.pack("<I", twohand_hash)
+            + b"\xBB" * (0x33 - 4)
+            + b"\x99" * 9
+            + b"\xCC" * 24
+            + struct.pack("<I", 0xCA)
+            + b"\xDD" * 19
+        )
+
+        result = build_universal_twohand_sword_true_onehand_iteminfo_patch(
+            row,
+            self._pabgh(((100, 0),)),
+            equiptype_data,
+            equiptype_header,
+            source_equip_type_names=("TwoHandSword",),
+        )
+
+        self.assertFalse(result.changed)
+        self.assertIn("expected signature", result.blocking_reason)
+        self.assertEqual(row, result.data)
+
+    def test_universal_twohand_sword_animation_alias_plan_is_conservative(self):
+        twohand_paac = (
+            b"B1_pc/1_phm/cd_phm_longsword_00_01_normal_stand_weapon_out_000.paa\x00"
+            b"/1_pc/1_phm/cd_phm_lswd_01_03_att_nor_move_f_swing_4_00.paa\x00"
+            b">1_pc/1_phm/cd_phm_longsword_01_00_nor_stand_to_0103nor_00.paa\x00"
+            b">1_pc/1_phm/cd_phm_longsword_01_03_nor_stand_to_0100nor_00.paa\x00"
+            b"81_pc/1_phm/cd_phm_lswd_01_01_nor_std_idle_stop_r_00.paa\x00"
+            b"D1_pc/1_phm/cd_phm_longsword_00_01_normal_move_walkfast_end_r_001.paa\x00"
+            b"D1_pc/1_phm/cd_phm_longsword_00_01_normal_move_run_f_end_l_001.paa\x00"
+            b"81_pc/1_phm/cd_phm_lswd_01_00_nor_std_turn90l_00.paa\x00"
+            b"F1_pc/1_phm/cd_phm_lswd_01_00_nor_move_walkfast_jump_f_m_stt_r_00.paa\x00"
+            b"=1_pc/1_phm/cd_phm_lswd_01_00_nor_move_jump_150_stt_r_00.paa\x00"
+            b">1_pc/1_phm/cd_phm_longsword_01_04_att_com_a_1_move_f_swing_4_00.paa\x00"
+            b"91_pc/1_phm/cd_phm_lswd_01_00_def_nor_guard_stt_00.paa\x00"
+            b"B1_pc/1_phm/cd_phm_lswd_01_03_att_nor_move_f_spinatt_ing_00.paa\x00"
+            b"Jcharacter/binary/motionblending/phm_locomotion/lswd_stride.motionblending\x00"
+            b"J1_pc/2_phw/cd_phw_lswd_01_01_nor_std_idle_00.paa\x00"
+        )
+        longsword_paac = (
+            b"<1_pc/1_phm/cd_phm_longsword_01_01_normal_stand_idle_000_00.paa\x00"
+            b"<1_pc/1_phm/cd_phm_longsword_01_03_normal_stand_idle_002.paa\x00"
+            b"81_pc/1_phm/cd_phm_longsword_01_04_def_stand_idle_00.paa\x00"
+            b"C1_pc/1_phm/cd_phm_longsword_01_04_att_com_a_1_move_f_swing_4_00.paa\x00"
+        )
+        weaponin_paac = (
+            b"B1_pc/1_phm/cd_phm_longsword_00_01_normal_stand_weapon_in_000.paa\x00"
+            b"71_pc/1_phm/cd_phm_lswd_00_01_sit_std_weapon_in_00.paa\x00"
+        )
+        available_paths = (
+            "character/motion/1_pc/1_phm/cd_phm_longsword_00_01_normal_stand_weapon_out_000.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_weapon_out_000.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_00_01_normal_stand_weapon_out_000.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_weapon_out_000.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_longsword_00_01_normal_stand_weapon_in_000.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_weapon_in_000.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_00_01_normal_stand_weapon_in_000.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_weapon_in_000.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_longsword_01_00_nor_stand_to_0103nor_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_00_01_normal_stance_change_01_01_002.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_01_00_nor_stand_to_0103nor_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_00_01_normal_stance_change_01_01_002.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_longsword_01_03_nor_stand_to_0100nor_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_01_01_normal_stand_idle_change_00_00_000.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_01_03_nor_stand_to_0100nor_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_01_01_normal_stand_idle_change_00_00_000.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_lswd_01_01_nor_std_idle_stop_r_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_01_01_normal_stand_idle_stop_r_000.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_lswd_01_01_nor_std_idle_stop_r_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_01_01_normal_stand_idle_stop_r_000.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_longsword_00_01_normal_move_walkfast_end_r_001.paa",
+            "character/motion/1_pc/1_phm/cd_phm_swd_00_01_nor_move_walkfast_f_endr_00.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_00_01_normal_move_walkfast_end_r_001.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_swd_00_01_nor_move_walkfast_f_endr_00.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_longsword_00_01_normal_move_run_f_end_l_001.paa",
+            "character/motion/1_pc/1_phm/cd_phm_swd_00_01_nor_move_run_f_endl_00.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_00_01_normal_move_run_f_end_l_001.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_swd_00_01_nor_move_run_f_endl_00.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_lswd_01_00_nor_std_turn90l_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_01_00_nor_stand_turn_90_l_000.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_lswd_01_00_nor_std_turn90l_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_01_00_nor_stand_turn_90_l_000.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_lswd_01_00_nor_move_walkfast_jump_f_m_stt_r_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_swd_00_01_nor_move_walkfast_jump_f_m_stt_r_00.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_lswd_01_00_nor_move_walkfast_jump_f_m_stt_r_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_swd_00_01_nor_move_walkfast_jump_f_m_stt_r_00.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_lswd_01_00_nor_move_jump_150_stt_r_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_basic_00_00_nor_move_jump_150_stt_r_00.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_lswd_01_00_nor_move_jump_150_stt_r_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_basic_00_00_nor_move_jump_150_stt_r_00.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_lswd_01_00_def_nor_guard_stt_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_swd_01_01_def_nor_guard_stt_00.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_lswd_01_00_def_nor_guard_stt_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_swd_01_01_def_nor_guard_stt_00.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_lswd_01_03_att_nor_move_f_spinatt_ing_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_01_01_att_combo_h_1_move_f_swing_9_00.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_lswd_01_03_att_nor_move_f_spinatt_ing_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_01_01_att_combo_h_1_move_f_swing_9_00.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_longsword_01_01_normal_stand_idle_000_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_longsword_01_03_normal_stand_idle_002.paa",
+            "character/motion/1_pc/1_phm/cd_phm_longsword_01_04_def_stand_idle_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_longsword_01_04_att_com_a_1_move_f_swing_4_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_swd_01_01_def_nor_guard_ing_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_01_01_att_combo_a_1_move_f_swing_1_01.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_idle_000.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_01_01_normal_stand_idle_000.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_01_01_normal_stand_idle_002.paa",
+            "character/motion/1_pc/1_phm/cd_phm_sword_01_04_att_com_a_1_move_f_swing_4_00.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_01_01_normal_stand_idle_000_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_01_03_normal_stand_idle_002.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_01_04_def_stand_idle_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_01_04_att_com_a_1_move_f_swing_4_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_swd_01_01_def_nor_guard_ing_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_01_01_att_combo_a_1_move_f_swing_1_01.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_idle_000.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_01_01_normal_stand_idle_000.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_01_01_normal_stand_idle_002.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_01_04_att_com_a_1_move_f_swing_4_00.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_lswd_00_01_sit_std_weapon_in_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_swds_00_01_sit_std_weapon_in_00.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_lswd_00_01_sit_std_weapon_in_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_swds_00_01_sit_std_weapon_in_00.paa_metabin",
+            "character/motion/1_pc/1_phm/00_riding/cd_prh_lswd_01_01_nor_std_weapon_in_00.paa",
+            "character/motion/1_pc/1_phm/00_riding/cd_prh_swd_01_01_nor_std_weapon_in_00.paa",
+            "actionchart/bin__/animmeta/1_pc/1_phm/00_riding/cd_prh_lswd_01_01_nor_std_weapon_in_00.paa_metabin",
+            "actionchart/bin__/animmeta/1_pc/1_phm/00_riding/cd_prh_swd_01_01_nor_std_weapon_in_00.paa_metabin",
+            "character/motion/1_pc/1_phm/cd_phm_lswd_01_03_att_nor_move_f_swing_4_00.paa",
+            "character/motion/1_pc/1_phm/cd_phm_swds_01_01_att_nor_move_f_swing_4_00.paa",
+            "character/binary/motionblending/phm_locomotion/lswd_stride.motionblending",
+            "character/binary/motionblending/phm_locomotion/sword_stride.motionblending",
+            "character/motion/1_pc/2_phw/cd_phw_lswd_01_01_nor_std_idle_00.paa",
+        )
+
+        result = build_universal_twohand_sword_animation_alias_plan(
+            twohand_paac,
+            available_paths=available_paths,
+            longsword_actionchart_data=longsword_paac,
+            weaponin_actionchart_data=weaponin_paac,
+        )
+
+        self.assertEqual("", result.blocking_reason)
+        pairs = {(pair.target_path, pair.source_path) for pair in result.pairs}
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_longsword_00_01_normal_stand_weapon_out_000.paa",
+                "character/motion/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_weapon_out_000.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_00_01_normal_stand_weapon_out_000.paa_metabin",
+                "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_weapon_out_000.paa_metabin",
+            ),
+            pairs,
+        )
+        self.assertNotIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_lswd_01_03_att_nor_move_f_swing_4_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_swds_01_01_att_nor_move_f_swing_4_00.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_longsword_01_00_nor_stand_to_0103nor_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_sword_00_01_normal_stance_change_01_01_002.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_longsword_01_03_nor_stand_to_0100nor_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_sword_01_01_normal_stand_idle_change_00_00_000.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_lswd_01_01_nor_std_idle_stop_r_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_sword_01_01_normal_stand_idle_stop_r_000.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_longsword_00_01_normal_stand_weapon_in_000.paa",
+                "character/motion/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_weapon_in_000.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_longsword_00_01_normal_stand_weapon_in_000.paa_metabin",
+                "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_weapon_in_000.paa_metabin",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_longsword_00_01_normal_move_walkfast_end_r_001.paa",
+                "character/motion/1_pc/1_phm/cd_phm_swd_00_01_nor_move_walkfast_f_endr_00.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_longsword_00_01_normal_move_run_f_end_l_001.paa",
+                "character/motion/1_pc/1_phm/cd_phm_swd_00_01_nor_move_run_f_endl_00.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_lswd_01_00_nor_std_turn90l_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_sword_01_00_nor_stand_turn_90_l_000.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_lswd_01_00_nor_move_walkfast_jump_f_m_stt_r_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_swd_00_01_nor_move_walkfast_jump_f_m_stt_r_00.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_lswd_01_00_nor_move_jump_150_stt_r_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_basic_00_00_nor_move_jump_150_stt_r_00.paa",
+            ),
+            pairs,
+        )
+        self.assertNotIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_lswd_01_00_def_nor_guard_stt_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_swd_01_01_def_nor_guard_stt_00.paa",
+            ),
+            pairs,
+        )
+        self.assertNotIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_lswd_01_03_att_nor_move_f_spinatt_ing_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_sword_01_01_att_combo_h_1_move_f_swing_9_00.paa",
+            ),
+            pairs,
+        )
+        self.assertNotIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_longsword_01_04_def_stand_idle_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_swd_01_01_def_nor_guard_ing_00.paa",
+            ),
+            pairs,
+        )
+        self.assertNotIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_longsword_01_04_att_com_a_1_move_f_swing_4_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_sword_01_01_att_combo_a_1_move_f_swing_1_01.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_longsword_01_03_normal_stand_idle_002.paa",
+                "character/motion/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_idle_000.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/motion/1_pc/1_phm/00_riding/cd_prh_lswd_01_01_nor_std_weapon_in_00.paa",
+                "character/motion/1_pc/1_phm/00_riding/cd_prh_swd_01_01_nor_std_weapon_in_00.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "actionchart/bin__/animmeta/1_pc/1_phm/00_riding/cd_prh_lswd_01_01_nor_std_weapon_in_00.paa_metabin",
+                "actionchart/bin__/animmeta/1_pc/1_phm/00_riding/cd_prh_swd_01_01_nor_std_weapon_in_00.paa_metabin",
+            ),
+            pairs,
+        )
+        self.assertNotIn(
+            (
+                "character/motion/1_pc/1_phm/cd_phm_longsword_01_04_att_com_a_1_move_f_swing_4_00.paa",
+                "character/motion/1_pc/1_phm/cd_phm_sword_01_04_att_com_a_1_move_f_swing_4_00.paa",
+            ),
+            pairs,
+        )
+        self.assertIn(
+            (
+                "character/binary/motionblending/phm_locomotion/lswd_stride.motionblending",
+                "character/binary/motionblending/phm_locomotion/sword_stride.motionblending",
+            ),
+            pairs,
+        )
+        self.assertFalse(any("2_phw" in pair.target_path for pair in result.pairs))
+        self.assertFalse(any("_att_" in pair.target_path or "_def_" in pair.target_path or "guard" in pair.target_path for pair in result.pairs))
+        self.assertIn("filtered", "\n".join(result.proof_lines))
+        self.assertIn("combat/guard", "\n".join(result.proof_lines))
+        self.assertIn("supplemental mounted sheath", "\n".join(result.proof_lines))
+        self.assertIn("no actionchart .paac payloads", "\n".join(result.proof_lines))
 
     def test_socket_profile_patch_detects_manual_transform_changes(self):
         base = """
@@ -699,6 +1495,25 @@ class ArchiveRelationshipTests(unittest.TestCase):
         self.assertIn('Name="Spine1_B_Socket" Parent="Bip_Weapon_Attach_In_01" Rotation="0.181649 -0.660709 -0.705316 0.181649" Translation="-0.200000 0.250000 -0.055000"', result.text)
         self.assertIn('Name="Pelvis_L_Socket" Parent="B_WeaponIn_R_00" Rotation="0 0 0 1" Translation="0 0 0"', result.text)
         self.assertEqual(("Spine1_B_Socket",), result.patched_part_names)
+
+    def test_part_in_out_weapon_case_part_patch_updates_only_target_row(self):
+        base = """
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" InSocketBone="Pelvis_L_Socket" OutSocketBone="RHand_Socket" WeaponCasePart="CD_TwoHandWeapon_Sword_IN"/>
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword_IN" InSocketBone="Pelvis_L_Socket" OutSocketBone="RHand_Socket" WeaponCasePart="CD_TwoHandWeapon_Sword_IN"/>
+        <PartInOutSocket PartName="CD_TwoHandWeapon_Sword" Visible="Out" InSocketBone="Pelvis_L_Socket" OutSocketBone="RHand_Socket" WeaponCasePart="CD_Visible_Only"/>
+        """
+
+        result = build_part_in_out_socket_weapon_case_part_patch(
+            base,
+            part_name="CD_TwoHandWeapon_Sword",
+            weapon_case_part="CD_MainWeapon_Sword_IN_R",
+        )
+
+        self.assertEqual(("CD_TwoHandWeapon_Sword",), result.patched_part_names)
+        self.assertEqual(1, len(result.diffs))
+        self.assertIn('PartName="CD_TwoHandWeapon_Sword" InSocketBone="Pelvis_L_Socket" OutSocketBone="RHand_Socket" WeaponCasePart="CD_MainWeapon_Sword_IN_R"', result.text)
+        self.assertIn('PartName="CD_TwoHandWeapon_Sword_IN" InSocketBone="Pelvis_L_Socket" OutSocketBone="RHand_Socket" WeaponCasePart="CD_TwoHandWeapon_Sword_IN"', result.text)
+        self.assertIn('PartName="CD_TwoHandWeapon_Sword" Visible="Out" InSocketBone="Pelvis_L_Socket" OutSocketBone="RHand_Socket" WeaponCasePart="CD_Visible_Only"', result.text)
 
     def test_asset_family_graph_adds_read_only_attachment_placement_evidence(self):
         prefab_payload = (

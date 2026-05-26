@@ -1,15 +1,25 @@
+import sqlite3
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from cdmw.modding.pac_xml_profiles import (
+    PAC_XML_PROFILE_INDEX_V1_CACHE_NAME,
+    PAC_XML_PROFILE_INDEX_V2_CACHE_NAME,
     build_pac_xml_profile_match_report,
     build_pac_xml_corpus_index,
+    build_pac_xml_corpus_sqlite_cache,
     classify_pac_xml_profile,
     classify_pac_xml_shader_family,
+    clear_pac_xml_profile_index_cache,
+    default_pac_xml_profile_cache_path,
+    hydrate_pac_xml_corpus_index,
     is_stock_runtime_texture_path,
+    legacy_pac_xml_profile_cache_path,
     load_or_build_pac_xml_corpus_index,
     pac_xml_corpus_signature,
+    pac_xml_parameter_for_slot,
     parse_pac_xml_profile,
     select_best_pac_xml_template,
     validate_pac_xml_sidecar_transition,
@@ -212,7 +222,7 @@ class PacXmlProfileTests(unittest.TestCase):
     def test_lazy_corpus_cache_rebuilds_when_signature_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "archive_extract"
-            cache = Path(temp_dir) / "settings" / "pac_xml_profile_index_v1.json"
+            cache = Path(temp_dir) / "settings" / PAC_XML_PROFILE_INDEX_V2_CACHE_NAME
             xml_dir = root / "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon"
             xml_dir.mkdir(parents=True)
             (xml_dir / "cd_phm_02_sword_0015.pac_xml").write_text(
@@ -225,7 +235,10 @@ class PacXmlProfileTests(unittest.TestCase):
             second = load_or_build_pac_xml_corpus_index(root, cache_path=cache)
             self.assertEqual(1, first.xml_count)
             self.assertEqual(1, second.xml_count)
-            self.assertTrue(str(cache).endswith("pac_xml_profile_index_v1.json"))
+            self.assertTrue(str(cache).endswith(PAC_XML_PROFILE_INDEX_V2_CACHE_NAME))
+            self.assertTrue(second.sqlite_backed)
+            self.assertEqual([], second.profiles)
+            hydrate_pac_xml_corpus_index(second)
             self.assertEqual("character/texture/cached_base.dds", second.profiles[0].wrappers[0].texture_refs[0].texture_path)
             (xml_dir / "cd_phm_02_axe_0001.pac_xml").write_text(
                 '<Root><SkinnedMeshMaterialWrapper _subMeshName="AxeHead"><Material _materialName="SkinnedMeshStandard_Ver2"/></SkinnedMeshMaterialWrapper></Root>',
@@ -233,6 +246,64 @@ class PacXmlProfileTests(unittest.TestCase):
             )
             rebuilt = load_or_build_pac_xml_corpus_index(root, cache_path=cache)
             self.assertEqual(2, rebuilt.xml_count)
+
+    def test_sqlite_cache_loads_without_reparsing_xml(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "archive_extract"
+            cache = Path(temp_dir) / "settings" / PAC_XML_PROFILE_INDEX_V2_CACHE_NAME
+            xml_dir = root / "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon"
+            xml_dir.mkdir(parents=True)
+            (xml_dir / "cd_phm_02_sword_0015.pac_xml").write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade"><Material _materialName="SkinnedMeshStandard_Ver2">'
+                '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/cached_base.dds"/></MaterialParameterTexture>'
+                "</Material></SkinnedMeshMaterialWrapper></Root>",
+                encoding="utf-8",
+            )
+            built = load_or_build_pac_xml_corpus_index(root, cache_path=cache)
+            self.assertTrue(built.sqlite_backed)
+            with mock.patch("cdmw.modding.pac_xml_profiles.parse_pac_xml_profile", side_effect=AssertionError("reparsed")):
+                cached = load_or_build_pac_xml_corpus_index(root, cache_path=cache)
+            self.assertTrue(cached.sqlite_backed)
+            self.assertEqual(1, cached.xml_count)
+            self.assertEqual([], cached.profiles)
+
+    def test_sqlite_cache_corrupt_file_rebuilds_and_legacy_json_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings_dir = Path(temp_dir) / "settings"
+            root = Path(temp_dir) / "archive_extract"
+            xml_dir = root / "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon"
+            xml_dir.mkdir(parents=True)
+            (xml_dir / "cd_phm_02_sword_0015.pac_xml").write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade"><Material _materialName="SkinnedMeshStandard_Ver2"/></SkinnedMeshMaterialWrapper></Root>',
+                encoding="utf-8",
+            )
+            legacy = legacy_pac_xml_profile_cache_path(settings_dir)
+            legacy.parent.mkdir(parents=True)
+            legacy.write_text('{"schema":"poison"}', encoding="utf-8")
+            cache = default_pac_xml_profile_cache_path(settings_dir)
+            cache.write_text("not sqlite", encoding="utf-8")
+
+            rebuilt = load_or_build_pac_xml_corpus_index(root, cache_path=cache)
+
+            self.assertEqual(1, rebuilt.xml_count)
+            self.assertTrue(rebuilt.sqlite_backed)
+            self.assertTrue(cache.exists())
+            self.assertEqual('{"schema":"poison"}', legacy.read_text(encoding="utf-8"))
+
+    def test_clear_pac_xml_profile_index_cache_removes_v1_and_v2(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings_dir = Path(temp_dir) / "settings"
+            legacy = legacy_pac_xml_profile_cache_path(settings_dir)
+            current = default_pac_xml_profile_cache_path(settings_dir)
+            legacy.parent.mkdir(parents=True)
+            legacy.write_text("old", encoding="utf-8")
+            current.write_text("new", encoding="utf-8")
+
+            removed = clear_pac_xml_profile_index_cache(settings_dir)
+
+            self.assertFalse(legacy.exists())
+            self.assertFalse(current.exists())
+            self.assertEqual({legacy, current}, set(removed))
 
     def test_profile_match_report_scores_preserved_and_patched_parameters(self) -> None:
         original = (
@@ -288,6 +359,97 @@ class PacXmlProfileTests(unittest.TestCase):
         self.assertTrue(match.supports_slot)
         self.assertEqual("_baseColorTexture", match.template_parameter_name)
         self.assertGreaterEqual(match.score, 0.75)
+
+    def test_sqlite_template_matching_matches_in_memory_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "archive_extract"
+            cache = Path(temp_dir) / "settings" / PAC_XML_PROFILE_INDEX_V2_CACHE_NAME
+            corpus_dir = root / "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon"
+            model_dir = root / "character/model/1_pc/1_phm/weapon/2_twohandweapon"
+            corpus_dir.mkdir(parents=True)
+            model_dir.mkdir(parents=True)
+            (model_dir / "cd_phm_02_sword_template.pac").write_bytes(b"pac")
+            (corpus_dir / "cd_phm_02_sword_template.pac_xml").write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Blade_TEMPLATE">'
+                '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+                '<MaterialParameterBitFlag32 _name="_renderSettingFlag" _value="6"/>'
+                '<MaterialParameterTexture _name="_baseColorTexture"><ResourceReferencePath_ITexture _path="character/texture/template.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/template_n.dds"/></MaterialParameterTexture>'
+                "</Vector></Material></SkinnedMeshMaterialWrapper></Root>",
+                encoding="utf-8",
+            )
+            (corpus_dir / "cd_phm_02_sword_layer.pac_xml").write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Blade_LAYER">'
+                '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+                '<MaterialParameterTexture _name="_grimeDiffuseTextureR"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0202.dds"/></MaterialParameterTexture>'
+                "</Vector></Material></SkinnedMeshMaterialWrapper></Root>",
+                encoding="utf-8",
+            )
+            memory_index = build_pac_xml_corpus_index(root)
+            sqlite_index = build_pac_xml_corpus_sqlite_cache(root, cache)
+            self.assertEqual(memory_index.xml_count, sqlite_index.xml_count)
+            self.assertEqual(memory_index.wrapper_count, sqlite_index.wrapper_count)
+            self.assertEqual(memory_index.parameter_count, sqlite_index.parameter_count)
+            self.assertEqual(memory_index.texture_ref_count, sqlite_index.texture_ref_count)
+            self.assertEqual(memory_index.paired_model_count, sqlite_index.paired_model_count)
+            conn = sqlite3.connect(str(cache))
+            try:
+                self.assertEqual(2, conn.execute("SELECT COUNT(*) FROM wrappers").fetchone()[0])
+                blob_row = conn.execute(
+                    "SELECT texture_refs_blob FROM wrappers WHERE wrapper_name = ?",
+                    ("CD_PHM_02_Blade_TEMPLATE",),
+                ).fetchone()
+                self.assertIsInstance(blob_row[0], bytes)
+                self.assertGreater(len(blob_row[0]), 0)
+            finally:
+                conn.close()
+            target = parse_pac_xml_profile(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Blade_0015">'
+                '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+                '<MaterialParameterBitFlag32 _name="_renderSettingFlag" _value="6"/>'
+                "</Vector></Material></SkinnedMeshMaterialWrapper></Root>",
+                "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac_xml",
+            )
+            memory_match = select_best_pac_xml_template(target, target.wrappers[0], "base", memory_index)
+            sqlite_match = select_best_pac_xml_template(target, target.wrappers[0], "base", sqlite_index)
+            self.assertEqual(memory_match, sqlite_match)
+
+    def test_template_matching_does_not_treat_grime_layer_as_direct_base(self) -> None:
+        grime_only = parse_pac_xml_profile(
+            '<Root><SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Blade_0015">'
+            '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterTexture _name="_grimeDiffuseTextureR"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0202.dds"/></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>",
+            "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac_xml",
+        )
+
+        self.assertEqual("", pac_xml_parameter_for_slot(grime_only.wrappers[0], "base"))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            layer_xml = root / "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_layer.pac_xml"
+            direct_xml = root / "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_direct.pac_xml"
+            layer_xml.parent.mkdir(parents=True)
+            layer_xml.write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Blade_0015">'
+                '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+                '<MaterialParameterTexture _name="_grimeDiffuseTextureR"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0202.dds"/></MaterialParameterTexture>'
+                "</Vector></Material></SkinnedMeshMaterialWrapper></Root>",
+                encoding="utf-8",
+            )
+            direct_xml.write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Blade_TEMPLATE">'
+                '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+                '<MaterialParameterTexture _name="_baseColorTexture"><ResourceReferencePath_ITexture _path="character/texture/template.dds"/></MaterialParameterTexture>'
+                "</Vector></Material></SkinnedMeshMaterialWrapper></Root>",
+                encoding="utf-8",
+            )
+            index = build_pac_xml_corpus_index(root)
+
+        match = select_best_pac_xml_template(grime_only, grime_only.wrappers[0], "base", index)
+        self.assertTrue(match.supports_slot)
+        self.assertEqual("_baseColorTexture", match.template_parameter_name)
+        self.assertEqual("character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_direct.pac_xml", match.template_path)
 
     def test_template_matching_can_recover_unsafe_weapon_shader_with_standard_template(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

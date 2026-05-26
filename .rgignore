@@ -1,0 +1,7 @@
+app_restore_points/
+docs/reverse_engineering/*.json
+build/
+dist/
+.venv/
+.pytest_cache/
+crash_reports/

@@ -491,6 +491,28 @@ class ArchiveBrowserTreeView(QTreeView):
     def invalidate_archive_rows(self, columns: Sequence[int] = ()) -> None:
         self._archive_model.invalidate_rows(columns)
 
+    def compact_hidden_columns(self) -> None:
+        header = self.header()
+        if header is None:
+            return
+        visible_columns: List[int] = []
+        hidden_columns: List[int] = []
+        for visual_index in range(header.count()):
+            logical_index = int(header.logicalIndex(visual_index))
+            if logical_index < 0:
+                continue
+            if self.isColumnHidden(logical_index):
+                hidden_columns.append(logical_index)
+            else:
+                visible_columns.append(logical_index)
+        for target_visual, logical_index in enumerate(visible_columns + hidden_columns):
+            current_visual = int(header.visualIndex(logical_index))
+            if current_visual >= 0 and current_visual != target_visual:
+                header.moveSection(current_visual, target_visual)
+        self.doItemsLayout()
+        header.update()
+        self.viewport().update()
+
     def set_empty_state(self, title: str, detail: str = "") -> None:
         self.empty_title = title
         self.empty_detail = detail

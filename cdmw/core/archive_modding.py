@@ -180,6 +180,7 @@ class ArchiveLooseExportResult:
     written_files: List[Path]
     authority_audit_path: Optional[Path] = None
     authority_mismatch_count: int = 0
+    package_roots: Tuple[Path, ...] = ()
 
 
 @dataclass(slots=True)
@@ -2427,8 +2428,9 @@ def export_archive_payloads_to_mod_ready_loose(
     on_log: Optional[Callable[[str], None]] = None,
 ) -> ArchiveLooseExportResult:
     from cdmw.core.mod_package import (
+        mod_package_expanded_export_options,
         normalize_mod_package_payload_path,
-        resolve_mod_package_root,
+        resolve_mod_package_profile_root,
         write_mod_package_manifest,
     )
     from cdmw.core.mod_package import ModPackageExportOptions
@@ -2436,8 +2438,38 @@ def export_archive_payloads_to_mod_ready_loose(
     if not requests:
         raise ValueError("No archive payloads were provided for mod-ready loose export.")
 
+    base_options = export_options if isinstance(export_options, ModPackageExportOptions) else ModPackageExportOptions()
+    expanded_options = mod_package_expanded_export_options(base_options, kind="archive_loose_mod")
+    if len(expanded_options) > 1:
+        results: List[ArchiveLooseExportResult] = []
+        for profile, profile_options in expanded_options:
+            _safe_log(on_log, f"Writing {profile} mod-ready loose package...")
+            results.append(
+                export_archive_payloads_to_mod_ready_loose(
+                    requests,
+                    parent_root=parent_root,
+                    package_info=package_info,
+                    export_options=profile_options,
+                    create_no_encrypt_file=create_no_encrypt_file,
+                    extra_payloads_to_include=extra_payloads_to_include,
+                    on_log=on_log,
+                )
+            )
+        first_root = results[0].package_root
+        return ArchiveLooseExportResult(
+            package_root=first_root,
+            written_files=[path for result in results for path in result.written_files],
+            package_roots=tuple(result.package_root for result in results),
+        )
+
+    profile, active_export_options = expanded_options[0]
     resolved_parent_root = parent_root.expanduser().resolve()
-    package_root = resolve_mod_package_root(resolved_parent_root, package_info)
+    package_root = resolve_mod_package_profile_root(
+        resolved_parent_root,
+        package_info,
+        str(getattr(active_export_options, "output_profile_suffix", "") or profile),
+        multi_profile=bool(getattr(active_export_options, "output_profile_suffix", "")),
+    )
     package_root.mkdir(parents=True, exist_ok=True)
 
     written_files: List[Path] = []
@@ -2497,12 +2529,12 @@ def export_archive_payloads_to_mod_ready_loose(
         extra_fields={"file_count": len(written_files)},
         new_file_paths=new_file_paths,
         all_payload_paths=payload_paths or [path.relative_to(package_root).as_posix() for path in written_files],
-        export_options=export_options if isinstance(export_options, ModPackageExportOptions) else None,
+        export_options=active_export_options,
         create_no_encrypt_file=create_no_encrypt_file,
     )
     written_files.append(manifest_path)
 
-    return ArchiveLooseExportResult(package_root=package_root, written_files=written_files)
+    return ArchiveLooseExportResult(package_root=package_root, written_files=written_files, package_roots=(package_root,))
 
 
 def export_archive_mesh_payloads_to_mod_ready_loose(
@@ -2524,8 +2556,9 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
     from cdmw.core.mod_package import (
         MeshLooseModAsset,
         MeshLooseModFile,
+        mod_package_expanded_export_options,
         normalize_mod_package_payload_path,
-        resolve_mod_package_root,
+        resolve_mod_package_profile_root,
         write_mesh_loose_mod_package_metadata,
     )
     from cdmw.core.mod_package import ModPackageExportOptions
@@ -2534,8 +2567,46 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
     if not requests:
         raise ValueError("No archive payloads were provided for mesh mod-ready loose export.")
 
+    base_options = export_options if isinstance(export_options, ModPackageExportOptions) else ModPackageExportOptions()
+    expanded_options = mod_package_expanded_export_options(base_options, kind="mesh_loose_mod")
+    if len(expanded_options) > 1:
+        results: List[ArchiveLooseExportResult] = []
+        for profile, profile_options in expanded_options:
+            _safe_log(on_log, f"Writing {profile} mod-ready mesh package...")
+            results.append(
+                export_archive_mesh_payloads_to_mod_ready_loose(
+                    requests,
+                    primary_entry=primary_entry,
+                    preview_result=preview_result,
+                    source_obj_path=source_obj_path,
+                    source_display_label=source_display_label,
+                    parent_root=parent_root,
+                    package_info=package_info,
+                    export_options=profile_options,
+                    create_no_encrypt_file=create_no_encrypt_file,
+                    include_related_files=include_related_files,
+                    related_entries_to_include=related_entries_to_include,
+                    supplemental_files_to_include=supplemental_files_to_include,
+                    on_log=on_log,
+                )
+            )
+        first_root = results[0].package_root
+        return ArchiveLooseExportResult(
+            package_root=first_root,
+            written_files=[path for result in results for path in result.written_files],
+            authority_audit_path=results[0].authority_audit_path,
+            authority_mismatch_count=sum(result.authority_mismatch_count for result in results),
+            package_roots=tuple(result.package_root for result in results),
+        )
+
+    profile, active_export_options = expanded_options[0]
     resolved_parent_root = parent_root.expanduser().resolve()
-    package_root = resolve_mod_package_root(resolved_parent_root, package_info)
+    package_root = resolve_mod_package_profile_root(
+        resolved_parent_root,
+        package_info,
+        str(getattr(active_export_options, "output_profile_suffix", "") or profile),
+        multi_profile=bool(getattr(active_export_options, "output_profile_suffix", "")),
+    )
     _safe_log(on_log, f"Mod-ready mesh package root: {package_root}")
     _clear_existing_mesh_loose_package_root(package_root, resolved_parent_root, on_log=on_log)
     package_root.mkdir(parents=True, exist_ok=True)
@@ -2545,11 +2616,11 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
     source_obj_display = source_display_label.strip() or source_obj_path.expanduser().resolve().as_posix()
     paired_lod_path = (preview_result.paired_lod_path or "").strip().replace("\\", "/")
     primary_path = primary_entry.path.replace("\\", "/")
-    primary_manifest_path = _mesh_loose_export_payload_path(primary_path, export_options)
+    primary_manifest_path = _mesh_loose_export_payload_path(primary_path, active_export_options)
     written_virtual_paths: set[str] = set()
     for request in requests:
         normalized_request_path = normalize_mod_package_payload_path(request.entry.path).as_posix()
-        output_request_path = _mesh_loose_export_payload_path(normalized_request_path, export_options)
+        output_request_path = _mesh_loose_export_payload_path(normalized_request_path, active_export_options)
         relative_parts = PurePosixPath(normalized_request_path).parts
         if not relative_parts:
             raise ValueError(f"Archive path is invalid: {request.entry.path}")
@@ -2590,7 +2661,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
                 f"Skipping selected supplemental file without a mapped loose target: {spec.source_path.name}",
             )
             continue
-        output_target_path = _mesh_loose_export_payload_path(normalized_target_path, export_options)
+        output_target_path = _mesh_loose_export_payload_path(normalized_target_path, active_export_options)
         output_relative_parts = PurePosixPath(output_target_path).parts
         if not output_relative_parts:
             _safe_log(
@@ -2670,7 +2741,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         added_auto_companions: List[ArchiveEntry] = []
         for companion_entry in auto_companion_entries:
             key = str(getattr(companion_entry, "path", "") or "").replace("\\", "/").strip().lower()
-            output_key = _mesh_loose_export_payload_path(key, export_options).lower() if key else ""
+            output_key = _mesh_loose_export_payload_path(key, active_export_options).lower() if key else ""
             if not key or key in existing_related_keys or output_key in written_virtual_paths:
                 continue
             related_entries.append(companion_entry)
@@ -2687,7 +2758,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
     if related_entries:
         for related_entry in related_entries:
             normalized_related_path = normalize_mod_package_payload_path(related_entry.path).as_posix()
-            output_related_path = _mesh_loose_export_payload_path(normalized_related_path, export_options)
+            output_related_path = _mesh_loose_export_payload_path(normalized_related_path, active_export_options)
             if output_related_path.lower() in written_virtual_paths:
                 continue
             output_relative_parts = PurePosixPath(output_related_path).parts
@@ -2745,7 +2816,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         assets=asset_rows,
         files=deduped_file_rows,
         include_paired_lod=bool(paired_lod_path),
-        export_options=export_options if isinstance(export_options, ModPackageExportOptions) else None,
+        export_options=active_export_options,
         create_no_encrypt_file=create_no_encrypt_file,
         game_build=str(game_metadata.get("game_build", "") or ""),
         game_metadata=game_metadata,
@@ -2812,6 +2883,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         written_files=[*written_files, *metadata_files],
         authority_audit_path=authority_audit.audit_path if authority_audit is not None else None,
         authority_mismatch_count=authority_audit.mismatch_count if authority_audit is not None else 0,
+        package_roots=(package_root,),
     )
 
 
@@ -4018,6 +4090,7 @@ def attach_scene_preview_textures(
                 slot_kind=slot_kind,
                 parameter_name=parameter_name,
                 source_texture_path=path_text,
+                source_dds_path=path_text if path.suffix.lower() == ".dds" else "",
                 texture_name=path.name,
                 preview_texture_path=path_text,
                 semantic_type=semantic_type,
@@ -4298,6 +4371,16 @@ def _build_selected_sidecar_texture_bindings(
                     texture_role=texture_role,
                     visualization_state=visualization_state,
                     resolved_texture_exists=binding.resolved_texture_exists,
+                    srgb_mode=str(getattr(binding, "srgb_mode", "") or ""),
+                    parameter_declared_by=str(getattr(binding, "parameter_declared_by", "") or ""),
+                    material_output_quality=str(getattr(binding, "material_output_quality", "") or ""),
+                    layer_role=str(getattr(binding, "layer_role", "") or ""),
+                    layer_channel=str(getattr(binding, "layer_channel", "") or ""),
+                    blend_flags=tuple(
+                        str(value)
+                        for value in tuple(getattr(binding, "blend_flags", ()) or ())
+                        if str(value)
+                    ),
                 )
             )
     return (
@@ -5335,6 +5418,38 @@ def build_mesh_import_preview(
         )
         or ("source_graph_strict" if complete_external_material_reset else "arm_standard")
     )
+    try:
+        complete_swap_global_gloss_reduction = max(
+            0.0,
+            min(100.0, float(getattr(static_replacement_options, "global_gloss_reduction", 0.0) or 0.0)),
+        )
+    except (TypeError, ValueError, OverflowError):
+        complete_swap_global_gloss_reduction = 0.0
+    try:
+        complete_swap_edge_relief_strength = max(
+            0.0,
+            min(100.0, float(getattr(static_replacement_options, "edge_relief_strength", 0.0) or 0.0)),
+        )
+    except (TypeError, ValueError, OverflowError):
+        complete_swap_edge_relief_strength = 0.0
+    complete_swap_edge_relief_source = str(
+        getattr(static_replacement_options, "edge_relief_source", "hybrid") or "hybrid"
+    )
+    try:
+        complete_swap_accent_glow_strength = max(
+            0.0,
+            min(100.0, float(getattr(static_replacement_options, "accent_glow_strength", 0.0) or 0.0)),
+        )
+    except (TypeError, ValueError, OverflowError):
+        complete_swap_accent_glow_strength = 0.0
+    try:
+        complete_swap_dark_detail_lift = max(
+            0.0,
+            min(100.0, float(getattr(static_replacement_options, "dark_detail_lift", 0.0) or 0.0)),
+        )
+    except (TypeError, ValueError, OverflowError):
+        complete_swap_dark_detail_lift = 0.0
+    complete_swap_tone_contrast = 0.0
     if (
         normalized_import_mode == "static_replacement"
         and bool(getattr(static_replacement_options, "neutralize_inherited_material_layers", False))
@@ -5349,6 +5464,26 @@ def build_mesh_import_preview(
         summary_lines.append(
             f"Complete swap material profile: {complete_swap_material_profile}; source PBR maps/factors will be translated into CD runtime support masks."
         )
+        if complete_swap_global_gloss_reduction > 0.0:
+            summary_lines.append(
+                "Global gloss reduction requested: "
+                f"{complete_swap_global_gloss_reduction:.0f}%; CD gloss/smoothness, metallic/spec, and shine response will be reduced."
+            )
+        if complete_swap_edge_relief_strength > 0.0:
+            summary_lines.append(
+                "Edge relief requested: "
+                f"{complete_swap_edge_relief_strength:.0f}% via {complete_swap_edge_relief_source.replace('_', ' ')} support."
+            )
+        if complete_swap_accent_glow_strength > 0.0:
+            summary_lines.append(
+                "Accent glow requested: "
+                f"{complete_swap_accent_glow_strength:.0f}%; accent/emissive source parts will receive emissive shader parameters."
+            )
+        if complete_swap_dark_detail_lift > 0.0:
+            summary_lines.append(
+                "Source brightness requested: "
+                f"{complete_swap_dark_detail_lift:.0f}%; source base DDS shadows and midtones will be lifted."
+            )
     if (
         normalized_import_mode == "static_replacement"
         and (
@@ -5398,6 +5533,12 @@ def build_mesh_import_preview(
                     ),
                     complete_external_material_reset=complete_external_material_reset,
                     complete_swap_material_profile=complete_swap_material_profile,
+                    complete_swap_global_gloss_reduction=complete_swap_global_gloss_reduction,
+                    complete_swap_edge_relief_strength=complete_swap_edge_relief_strength,
+                    complete_swap_edge_relief_source=complete_swap_edge_relief_source,
+                    complete_swap_accent_glow_strength=complete_swap_accent_glow_strength,
+                    complete_swap_dark_detail_lift=complete_swap_dark_detail_lift,
+                    complete_swap_tone_contrast=complete_swap_tone_contrast,
                     removed_target_material_names=tuple(
                         str(getattr(original_mesh.submeshes[int(index)], "material", "") or getattr(original_mesh.submeshes[int(index)], "name", "") or f"target {int(index)}")
                         for index in tuple(getattr(static_replacement_options, "removed_target_submesh_indices", ()) or ())

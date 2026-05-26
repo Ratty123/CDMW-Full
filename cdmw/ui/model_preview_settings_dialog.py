@@ -606,7 +606,7 @@ class ModelPreviewSettingsDialog(QDialog):
             "Runs texture sidecar indexing at normal thread priority instead of low priority. This applies to the next sidecar indexing run."
         )
         self.clear_preview_cache_button = QPushButton("Clear Preview Cache")
-        self.clear_preview_cache_button.setToolTip("Clears in-memory Archive Browser preview results and durable native preview packages. Sidecar scan caches on disk are not removed.")
+        self.clear_preview_cache_button.setToolTip("Clears in-memory Archive Browser preview results, durable native preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.")
         performance_form.addRow("", self.sidecar_indexing_enabled_checkbox)
         performance_form.addRow("Sidecar workers (1-16)", worker_row)
         performance_form.addRow("Preview cache size (12-256)", self.preview_cache_limit_spin)

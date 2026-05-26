@@ -10,17 +10,22 @@ from __future__ import annotations
 import json
 import os
 import re
+import sqlite3
+import zlib
 from collections.abc import Mapping as MappingABC
 from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
-from typing import Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
 
 PAC_XML_CORPUS_ROOT_ENV = "CDMW_PAC_XML_CORPUS_ROOT"
 PAC_XML_SETTINGS_DIR_ENV = "CDMW_SETTINGS_DIR"
-PAC_XML_PROFILE_INDEX_CACHE_NAME = "pac_xml_profile_index_v1.json"
+PAC_XML_PROFILE_INDEX_V1_CACHE_NAME = "pac_xml_profile_index_v1.json"
+PAC_XML_PROFILE_INDEX_V2_CACHE_NAME = "pac_xml_profile_index_v2.sqlite"
+PAC_XML_PROFILE_INDEX_CACHE_NAME = PAC_XML_PROFILE_INDEX_V2_CACHE_NAME
 PAC_XML_PROFILE_INDEX_SCHEMA = "cdmw_pac_xml_profile_index_v1_paths"
+PAC_XML_PROFILE_INDEX_SQLITE_SCHEMA = "cdmw_pac_xml_profile_index_v2_sqlite_compact"
 
 
 def default_pac_xml_corpus_root() -> Path:
@@ -140,6 +145,8 @@ class PacXmlTemplateMatch:
 @dataclass(slots=True)
 class PacXmlCorpusIndex:
     root: Path
+    cache_path: Path = field(default_factory=Path)
+    sqlite_backed: bool = False
     source_file_count: int = 0
     newest_mtime_ns: int = 0
     xml_count: int = 0
@@ -203,17 +210,49 @@ def is_stock_runtime_texture_path(value: str | Path | PurePosixPath) -> bool:
     )
 
 
-def default_pac_xml_profile_cache_path(settings_dir: str | Path | None = None) -> Path:
+def _pac_xml_settings_root(settings_dir: str | Path | None = None) -> Path:
     if settings_dir is not None and str(settings_dir or "").strip():
-        root = Path(settings_dir).expanduser()
+        return Path(settings_dir).expanduser()
     elif str(os.environ.get(PAC_XML_SETTINGS_DIR_ENV, "") or "").strip():
-        root = Path(str(os.environ.get(PAC_XML_SETTINGS_DIR_ENV, "") or "")).expanduser()
+        return Path(str(os.environ.get(PAC_XML_SETTINGS_DIR_ENV, "") or "")).expanduser()
     elif os.environ.get("APPDATA"):
         appdata = os.environ.get("APPDATA")
-        root = Path(appdata) / "CDMW"
+        return Path(appdata) / "CDMW"
     else:
-        root = Path.home() / ".cdmw"
-    return root / PAC_XML_PROFILE_INDEX_CACHE_NAME
+        return Path.home() / ".cdmw"
+
+
+def default_pac_xml_profile_cache_path(settings_dir: str | Path | None = None) -> Path:
+    return _pac_xml_settings_root(settings_dir) / PAC_XML_PROFILE_INDEX_V2_CACHE_NAME
+
+
+def legacy_pac_xml_profile_cache_path(settings_dir: str | Path | None = None) -> Path:
+    return _pac_xml_settings_root(settings_dir) / PAC_XML_PROFILE_INDEX_V1_CACHE_NAME
+
+
+def _sqlite_cache_path_for(cache_path: str | Path | None = None) -> Path:
+    if cache_path is None or not str(cache_path or "").strip():
+        return default_pac_xml_profile_cache_path()
+    path = Path(cache_path).expanduser()
+    if path.name == PAC_XML_PROFILE_INDEX_V1_CACHE_NAME or path.suffix.lower() == ".json":
+        return path.with_name(PAC_XML_PROFILE_INDEX_V2_CACHE_NAME)
+    return path
+
+
+def clear_pac_xml_profile_index_cache(settings_dir: str | Path | None = None) -> tuple[Path, ...]:
+    removed: list[Path] = []
+    for path in (
+        legacy_pac_xml_profile_cache_path(settings_dir),
+        default_pac_xml_profile_cache_path(settings_dir),
+    ):
+        for candidate in (path, Path(str(path) + "-wal"), Path(str(path) + "-shm"), Path(str(path) + "-journal")):
+            try:
+                if candidate.exists():
+                    candidate.unlink()
+                    removed.append(candidate)
+            except OSError:
+                pass
+    return tuple(removed)
 
 
 def classify_pac_xml_shader_family(shader_name: str) -> str:
@@ -731,31 +770,31 @@ def load_or_build_pac_xml_corpus_index(
         base = Path(root).expanduser()
     if base == Path():
         return PacXmlCorpusIndex(root=Path())
-    cache = Path(cache_path).expanduser() if cache_path is not None else default_pac_xml_profile_cache_path()
+    cache = _sqlite_cache_path_for(cache_path)
     count, newest = pac_xml_corpus_signature(base, limit=limit)
-    if not force and count > 0 and cache.is_file():
+    if count <= 0:
+        return PacXmlCorpusIndex(root=base, cache_path=cache, sqlite_backed=False)
+    if not force and cache.is_file():
+        cached = _load_pac_xml_corpus_index_sqlite(cache, base, count=count, newest_mtime_ns=newest)
+        if cached is not None:
+            return cached
+    try:
+        return build_pac_xml_corpus_sqlite_cache(base, cache, limit=limit, source_file_count=count, newest_mtime_ns=newest)
+    except Exception:
+        # Correctness fallback: keep the old in-memory behavior if SQLite is unavailable.
         try:
-            payload = json.loads(cache.read_text(encoding="utf-8"))
-            if (
-                isinstance(payload, MappingABC)
-                and payload.get("schema") == PAC_XML_PROFILE_INDEX_SCHEMA
-                and normalize_pac_xml_path(payload.get("root", "")).lower() == normalize_pac_xml_path(base).lower()
-                and int(payload.get("source_file_count") or 0) == count
-                and int(payload.get("newest_mtime_ns") or 0) == newest
-            ):
-                return pac_xml_corpus_index_from_dict(payload)
+            index = build_pac_xml_corpus_index(base, limit=limit)
+            index.source_file_count = count or index.source_file_count
+            index.newest_mtime_ns = newest or index.newest_mtime_ns
+            return index
         except Exception:
-            pass
-    index = build_pac_xml_corpus_index(base, limit=limit)
-    index.source_file_count = count or index.source_file_count
-    index.newest_mtime_ns = newest or index.newest_mtime_ns
-    if index.xml_count:
-        try:
-            cache.parent.mkdir(parents=True, exist_ok=True)
-            cache.write_text(json.dumps(pac_xml_corpus_index_to_dict(index), separators=(",", ":"), sort_keys=True), encoding="utf-8")
-        except Exception:
-            pass
-    return index
+            return PacXmlCorpusIndex(
+                root=base,
+                cache_path=cache,
+                sqlite_backed=False,
+                source_file_count=count,
+                newest_mtime_ns=newest,
+            )
 
 
 def pac_xml_corpus_signature(root: str | Path, *, limit: int | None = None) -> tuple[int, int]:
@@ -775,7 +814,283 @@ def pac_xml_corpus_signature(root: str | Path, *, limit: int | None = None) -> t
     return count, newest
 
 
+def build_pac_xml_corpus_sqlite_cache(
+    root: str | Path,
+    cache_path: str | Path | None = None,
+    *,
+    limit: int | None = None,
+    source_file_count: int | None = None,
+    newest_mtime_ns: int | None = None,
+) -> PacXmlCorpusIndex:
+    base = Path(root).expanduser()
+    cache = _sqlite_cache_path_for(cache_path)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = cache.with_name(f"{cache.name}.{os.getpid()}.tmp")
+    try:
+        temp_path.unlink()
+    except OSError:
+        pass
+
+    index = PacXmlCorpusIndex(root=base, cache_path=cache, sqlite_backed=True)
+    if source_file_count is not None:
+        index.source_file_count = int(source_file_count)
+    if newest_mtime_ns is not None:
+        index.newest_mtime_ns = int(newest_mtime_ns)
+    if not base.exists():
+        return index
+
+    conn = sqlite3.connect(str(temp_path))
+    try:
+        conn.execute("PRAGMA synchronous=OFF")
+        conn.execute("PRAGMA journal_mode=OFF")
+        conn.execute("PRAGMA temp_store=MEMORY")
+        _create_pac_xml_sqlite_schema(conn)
+        for xml_path in base.rglob("*.pac_xml"):
+            if limit is not None and index.xml_count >= limit:
+                break
+            try:
+                text = xml_path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            index.source_file_count += 0 if source_file_count is not None else 1
+            try:
+                index.newest_mtime_ns = max(index.newest_mtime_ns, xml_path.stat().st_mtime_ns)
+            except OSError:
+                pass
+            rel = normalize_pac_xml_path(xml_path.relative_to(base))
+            report = parse_pac_xml_profile(text, rel)
+            model_rel = rel.replace("/modelproperty/", "/model/")
+            if model_rel.endswith(".pac_xml"):
+                model_rel = model_rel[:-4]
+            if (base / model_rel).exists():
+                index.paired_model_count += 1
+                report = replace(report, paired_model_path=normalize_pac_xml_path(model_rel))
+            _insert_pac_xml_sqlite_report(conn, index, report, profile_order=index.xml_count)
+            index.xml_count += 1
+            index.wrapper_count += len(report.wrappers)
+            index.texture_ref_count += report.texture_ref_count
+            index.families.update([report.profile.family])
+            index.shader_families.update(report.shader_families)
+            index.roles.update(report.roles)
+            index.parameter_count += sum(len(wrapper.parameter_names) for wrapper in report.wrappers)
+            for wrapper in report.wrappers:
+                index.parameter_types.update(wrapper.parameter_types)
+
+        if source_file_count is None:
+            index.source_file_count = index.xml_count
+        if newest_mtime_ns is None and not index.newest_mtime_ns:
+            index.newest_mtime_ns = 0
+        _insert_pac_xml_sqlite_metadata(conn, index)
+        _insert_pac_xml_sqlite_counters(conn, index)
+        conn.commit()
+    except Exception:
+        try:
+            conn.close()
+        finally:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+        raise
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    if index.xml_count:
+        temp_path.replace(cache)
+    else:
+        try:
+            temp_path.unlink()
+        except OSError:
+            pass
+    return index
+
+
+def _create_pac_xml_sqlite_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        CREATE TABLE counters (
+            kind TEXT NOT NULL,
+            name TEXT NOT NULL,
+            count INTEGER NOT NULL,
+            PRIMARY KEY (kind, name)
+        );
+        CREATE TABLE profiles (
+            id INTEGER PRIMARY KEY,
+            profile_order INTEGER NOT NULL,
+            path TEXT NOT NULL,
+            paired_model_path TEXT NOT NULL,
+            family TEXT NOT NULL,
+            slot TEXT NOT NULL,
+            profile_names TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            evidence TEXT NOT NULL,
+            pbd TEXT NOT NULL,
+            texture_ref_count INTEGER NOT NULL,
+            stock_texture_ref_count INTEGER NOT NULL
+        );
+        CREATE TABLE wrappers (
+            id INTEGER PRIMARY KEY,
+            profile_id INTEGER NOT NULL,
+            wrapper_index INTEGER NOT NULL,
+            wrapper_name TEXT NOT NULL,
+            shader_name TEXT NOT NULL,
+            shader_family TEXT NOT NULL,
+            role TEXT NOT NULL,
+            render_setting_flag TEXT NOT NULL,
+            parameter_names TEXT NOT NULL,
+            parameter_types TEXT NOT NULL,
+            texture_refs_blob BLOB NOT NULL
+        );
+        CREATE INDEX idx_profiles_order ON profiles(profile_order);
+        CREATE INDEX idx_wrappers_profile_order ON wrappers(profile_id, wrapper_index);
+        """
+    )
+
+
+def _insert_pac_xml_sqlite_report(
+    conn: sqlite3.Connection,
+    index: PacXmlCorpusIndex,
+    report: PacXmlProfileReport,
+    *,
+    profile_order: int,
+) -> None:
+    cursor = conn.execute(
+        """
+        INSERT INTO profiles (
+            profile_order, path, paired_model_path, family, slot, profile_names,
+            confidence, evidence, pbd, texture_ref_count, stock_texture_ref_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            int(profile_order),
+            report.path,
+            report.paired_model_path,
+            report.profile.family,
+            report.profile.slot,
+            _pack_tuple(report.profile.profiles),
+            float(report.profile.confidence),
+            _pack_tuple(report.profile.evidence),
+            _pack_tuple(report.pbd_materials),
+            int(report.texture_ref_count),
+            int(report.stock_texture_ref_count),
+        ),
+    )
+    profile_id = int(cursor.lastrowid)
+    for wrapper_index, wrapper in enumerate(report.wrappers):
+        wrapper_cursor = conn.execute(
+            """
+            INSERT INTO wrappers (
+                profile_id, wrapper_index, wrapper_name, shader_name, shader_family,
+                role, render_setting_flag, parameter_names, parameter_types, texture_refs_blob
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                profile_id,
+                int(wrapper_index),
+                wrapper.wrapper_name,
+                wrapper.shader_name,
+                wrapper.shader_family,
+                wrapper.role,
+                wrapper.render_setting_flag,
+                _pack_tuple(wrapper.parameter_names),
+                _pack_tuple(wrapper.parameter_types),
+                _pack_texture_refs(wrapper.texture_refs),
+            ),
+        )
+        _ = wrapper_cursor.lastrowid
+
+
+def _insert_pac_xml_sqlite_metadata(conn: sqlite3.Connection, index: PacXmlCorpusIndex) -> None:
+    metadata = {
+        "schema": PAC_XML_PROFILE_INDEX_SQLITE_SCHEMA,
+        "root": normalize_pac_xml_path(index.root),
+        "source_file_count": str(int(index.source_file_count or index.xml_count)),
+        "newest_mtime_ns": str(int(index.newest_mtime_ns)),
+        "xml_count": str(int(index.xml_count)),
+        "paired_model_count": str(int(index.paired_model_count)),
+        "wrapper_count": str(int(index.wrapper_count)),
+        "parameter_count": str(int(index.parameter_count)),
+        "texture_ref_count": str(int(index.texture_ref_count)),
+    }
+    conn.executemany("INSERT INTO metadata(key, value) VALUES (?, ?)", metadata.items())
+
+
+def _insert_pac_xml_sqlite_counters(conn: sqlite3.Connection, index: PacXmlCorpusIndex) -> None:
+    rows: list[tuple[str, str, int]] = []
+    for kind, counter in (
+        ("family", index.families),
+        ("shader_family", index.shader_families),
+        ("role", index.roles),
+        ("parameter_type", index.parameter_types),
+    ):
+        rows.extend((kind, str(name), int(count)) for name, count in counter.items())
+    conn.executemany("INSERT INTO counters(kind, name, count) VALUES (?, ?, ?)", rows)
+
+
+def _load_pac_xml_corpus_index_sqlite(
+    cache_path: str | Path,
+    root: Path,
+    *,
+    count: int,
+    newest_mtime_ns: int,
+) -> PacXmlCorpusIndex | None:
+    cache = Path(cache_path).expanduser()
+    try:
+        conn = sqlite3.connect(str(cache))
+        conn.row_factory = sqlite3.Row
+    except sqlite3.Error:
+        return None
+    try:
+        metadata = {str(row["key"]): str(row["value"]) for row in conn.execute("SELECT key, value FROM metadata")}
+        if (
+            metadata.get("schema") != PAC_XML_PROFILE_INDEX_SQLITE_SCHEMA
+            or normalize_pac_xml_path(metadata.get("root", "")).lower() != normalize_pac_xml_path(root).lower()
+            or int(metadata.get("source_file_count") or 0) != int(count)
+            or int(metadata.get("newest_mtime_ns") or 0) != int(newest_mtime_ns)
+        ):
+            return None
+        index = PacXmlCorpusIndex(
+            root=root,
+            cache_path=cache,
+            sqlite_backed=True,
+            source_file_count=int(metadata.get("source_file_count") or 0),
+            newest_mtime_ns=int(metadata.get("newest_mtime_ns") or 0),
+            xml_count=int(metadata.get("xml_count") or 0),
+            paired_model_count=int(metadata.get("paired_model_count") or 0),
+            wrapper_count=int(metadata.get("wrapper_count") or 0),
+            parameter_count=int(metadata.get("parameter_count") or 0),
+            texture_ref_count=int(metadata.get("texture_ref_count") or 0),
+        )
+        for row in conn.execute("SELECT kind, name, count FROM counters"):
+            kind = str(row["kind"])
+            name = str(row["name"])
+            value = int(row["count"] or 0)
+            if kind == "family":
+                index.families[name] = value
+            elif kind == "shader_family":
+                index.shader_families[name] = value
+            elif kind == "role":
+                index.roles[name] = value
+            elif kind == "parameter_type":
+                index.parameter_types[name] = value
+        return index
+    except Exception:
+        return None
+    finally:
+        conn.close()
+
+
 def pac_xml_corpus_index_to_dict(index: PacXmlCorpusIndex) -> dict[str, object]:
+    reports = index.profiles
+    if index.sqlite_backed and not reports:
+        reports = list(_sqlite_profile_reports(index))
     return {
         "schema": PAC_XML_PROFILE_INDEX_SCHEMA,
         "root": normalize_pac_xml_path(index.root),
@@ -786,7 +1101,7 @@ def pac_xml_corpus_index_to_dict(index: PacXmlCorpusIndex) -> dict[str, object]:
         "wrapper_count": int(index.wrapper_count),
         "parameter_count": int(index.parameter_count),
         "texture_ref_count": int(index.texture_ref_count),
-        "profiles": [_report_to_dict(report) for report in index.profiles],
+        "profiles": [_report_to_dict(report) for report in reports],
     }
 
 
@@ -817,6 +1132,12 @@ def pac_xml_corpus_index_from_dict(payload: Mapping[str, object]) -> PacXmlCorpu
     return index
 
 
+def hydrate_pac_xml_corpus_index(index: PacXmlCorpusIndex) -> PacXmlCorpusIndex:
+    if index.sqlite_backed and not index.profiles and index.cache_path:
+        index.profiles.extend(_sqlite_profile_reports(index))
+    return index
+
+
 def select_best_pac_xml_template(
     target_report: PacXmlProfileReport | None,
     target_wrapper: PacXmlWrapperProfile | None,
@@ -827,7 +1148,7 @@ def select_best_pac_xml_template(
     preferred_shader_families: Sequence[str] = (),
 ) -> PacXmlTemplateMatch:
     slot = str(slot_kind or "").strip().lower()
-    if corpus_index is None or not corpus_index.profiles:
+    if corpus_index is None or (not corpus_index.profiles and not corpus_index.sqlite_backed):
         return PacXmlTemplateMatch(fallback_reason="no corpus index")
     if target_report is None:
         return PacXmlTemplateMatch(fallback_reason="no target PAC XML report")
@@ -840,52 +1161,69 @@ def select_best_pac_xml_template(
     best_report: PacXmlProfileReport | None = None
     best_wrapper: PacXmlWrapperProfile | None = None
     best_parameter = ""
-    for candidate_report in corpus_index.profiles:
-        for candidate_wrapper in candidate_report.wrappers:
-            parameter = pac_xml_parameter_for_slot(candidate_wrapper, slot)
-            supports_slot = bool(parameter)
-            score = 0.0
-            if candidate_report.profile.family == target_profile.family:
-                score += 0.28
-            if candidate_report.profile.slot and candidate_report.profile.slot == target_profile.slot:
-                score += 0.14
-            elif not target_profile.slot or not candidate_report.profile.slot:
-                score += 0.04
-            if target_role and candidate_wrapper.role == target_role:
-                score += 0.18
-            if target_shader and candidate_wrapper.shader_family == target_shader:
-                score += 0.14
-            elif preferred_shaders and candidate_wrapper.shader_family in preferred_shaders:
-                score += 0.12
-            elif allow_shader_mismatch and target_shader and candidate_wrapper.shader_family != target_shader:
-                score -= 0.04
-            if target_wrapper is not None and candidate_wrapper.render_setting_flag == target_wrapper.render_setting_flag:
-                score += 0.05
-            if supports_slot:
-                score += 0.17
-            if target_params:
-                overlap = len(target_params & set(candidate_wrapper.parameter_names))
-                union = len(target_params | set(candidate_wrapper.parameter_names))
-                param_overlap_ratio = (overlap / union) if union else 0.0
-                if union:
-                    score += 0.04 * param_overlap_ratio
-            else:
-                param_overlap_ratio = 0.0
-            if (
-                supports_slot
-                and target_shader
-                and candidate_wrapper.shader_family != target_shader
-                and not allow_shader_mismatch
-                and param_overlap_ratio < 0.35
-            ):
-                continue
-            if candidate_report.pbd_materials and target_report.pbd_materials:
-                score += 0.02
-            if score > best_score:
-                best_score = score
-                best_report = candidate_report
-                best_wrapper = candidate_wrapper
-                best_parameter = parameter
+    best_supported_score = 0.0
+    best_supported_report: PacXmlProfileReport | None = None
+    best_supported_wrapper: PacXmlWrapperProfile | None = None
+    best_supported_parameter = ""
+    saw_candidate = False
+    for candidate_report, candidate_wrapper in _iter_pac_xml_template_candidates(corpus_index, slot):
+        saw_candidate = True
+        parameter = pac_xml_parameter_for_slot(candidate_wrapper, slot)
+        supports_slot = bool(parameter)
+        score = 0.0
+        if candidate_report.profile.family == target_profile.family:
+            score += 0.28
+        if candidate_report.profile.slot and candidate_report.profile.slot == target_profile.slot:
+            score += 0.14
+        elif not target_profile.slot or not candidate_report.profile.slot:
+            score += 0.04
+        if target_role and candidate_wrapper.role == target_role:
+            score += 0.18
+        if target_shader and candidate_wrapper.shader_family == target_shader:
+            score += 0.14
+        elif preferred_shaders and candidate_wrapper.shader_family in preferred_shaders:
+            score += 0.12
+        elif allow_shader_mismatch and target_shader and candidate_wrapper.shader_family != target_shader:
+            score -= 0.04
+        if target_wrapper is not None and candidate_wrapper.render_setting_flag == target_wrapper.render_setting_flag:
+            score += 0.05
+        if supports_slot:
+            score += 0.17
+        if target_params:
+            overlap = len(target_params & set(candidate_wrapper.parameter_names))
+            union = len(target_params | set(candidate_wrapper.parameter_names))
+            param_overlap_ratio = (overlap / union) if union else 0.0
+            if union:
+                score += 0.04 * param_overlap_ratio
+        else:
+            param_overlap_ratio = 0.0
+        if (
+            supports_slot
+            and target_shader
+            and candidate_wrapper.shader_family != target_shader
+            and not allow_shader_mismatch
+            and param_overlap_ratio < 0.35
+        ):
+            continue
+        if candidate_report.pbd_materials and target_report.pbd_materials:
+            score += 0.02
+        if score > best_score:
+            best_score = score
+            best_report = candidate_report
+            best_wrapper = candidate_wrapper
+            best_parameter = parameter
+        if supports_slot and score > best_supported_score:
+            best_supported_score = score
+            best_supported_report = candidate_report
+            best_supported_wrapper = candidate_wrapper
+            best_supported_parameter = parameter
+    if not saw_candidate:
+        return PacXmlTemplateMatch(fallback_reason="no corpus index")
+    if best_supported_report is not None and best_supported_wrapper is not None:
+        best_score = best_supported_score
+        best_report = best_supported_report
+        best_wrapper = best_supported_wrapper
+        best_parameter = best_supported_parameter
     if best_report is None or best_wrapper is None:
         return PacXmlTemplateMatch(fallback_reason="no candidate template")
     supports = bool(best_parameter)
@@ -903,6 +1241,160 @@ def select_best_pac_xml_template(
     )
 
 
+def _iter_pac_xml_template_candidates(
+    corpus_index: PacXmlCorpusIndex,
+    slot_kind: str,
+) -> Iterable[tuple[PacXmlProfileReport, PacXmlWrapperProfile]]:
+    if corpus_index.sqlite_backed and not corpus_index.profiles and corpus_index.cache_path:
+        yield from _sqlite_template_candidates(corpus_index, slot_kind)
+        return
+    for candidate_report in corpus_index.profiles:
+        for candidate_wrapper in candidate_report.wrappers:
+            yield candidate_report, candidate_wrapper
+
+
+def _sqlite_template_candidates(
+    corpus_index: PacXmlCorpusIndex,
+    slot_kind: str,
+) -> Iterable[tuple[PacXmlProfileReport, PacXmlWrapperProfile]]:
+    cache = Path(corpus_index.cache_path)
+    if not cache.is_file():
+        return
+    try:
+        conn = sqlite3.connect(str(cache))
+        conn.row_factory = sqlite3.Row
+    except sqlite3.Error:
+        return
+    try:
+        query = """
+            SELECT
+                p.path AS path,
+                p.paired_model_path AS paired_model_path,
+                p.family AS family,
+                p.slot AS slot,
+                p.profile_names AS profile_names,
+                p.confidence AS confidence,
+                p.evidence AS evidence,
+                p.pbd AS pbd,
+                p.texture_ref_count AS texture_ref_count,
+                p.stock_texture_ref_count AS stock_texture_ref_count,
+                w.id AS wrapper_id,
+                w.wrapper_name AS wrapper_name,
+                w.shader_name AS shader_name,
+                w.shader_family AS shader_family,
+                w.role AS role,
+                w.render_setting_flag AS render_setting_flag,
+                w.parameter_names AS parameter_names,
+                w.parameter_types AS parameter_types,
+                w.texture_refs_blob AS texture_refs_blob
+            FROM wrappers w
+            JOIN profiles p ON p.id = w.profile_id
+            ORDER BY p.profile_order ASC, w.wrapper_index ASC
+        """
+        for row in conn.execute(query):
+            wrapper_name = str(row["wrapper_name"] or "")
+            wrapper = PacXmlWrapperProfile(
+                wrapper_name=wrapper_name,
+                shader_name=str(row["shader_name"] or ""),
+                shader_family=str(row["shader_family"] or "Unknown"),
+                role=str(row["role"] or "body"),
+                render_setting_flag=str(row["render_setting_flag"] or ""),
+                parameter_names=_unpack_tuple(row["parameter_names"]),
+                parameter_types=_unpack_tuple(row["parameter_types"]),
+            )
+            if not pac_xml_parameter_for_slot(wrapper, slot_kind) and str(slot_kind or "").strip().lower() not in {"base", "normal", "emissive"}:
+                wrapper = replace(
+                    wrapper,
+                    texture_refs=_unpack_texture_refs(row["texture_refs_blob"], wrapper_name),
+                )
+            profile = PacXmlProfile(
+                family=str(row["family"] or "unknown"),
+                slot=str(row["slot"] or ""),
+                profiles=_unpack_tuple(row["profile_names"]),
+                confidence=float(row["confidence"] or 0.0),
+                evidence=_unpack_tuple(row["evidence"]),
+            )
+            report = PacXmlProfileReport(
+                path=str(row["path"] or ""),
+                profile=profile,
+                paired_model_path=str(row["paired_model_path"] or ""),
+                wrappers=(wrapper,),
+                pbd_materials=_unpack_tuple(row["pbd"]),
+                texture_ref_count=int(row["texture_ref_count"] or 0),
+                stock_texture_ref_count=int(row["stock_texture_ref_count"] or 0),
+            )
+            yield report, wrapper
+    except Exception:
+        return
+    finally:
+        conn.close()
+
+
+def _sqlite_profile_reports(index: PacXmlCorpusIndex) -> tuple[PacXmlProfileReport, ...]:
+    cache = Path(index.cache_path)
+    if not cache.is_file():
+        return ()
+    try:
+        conn = sqlite3.connect(str(cache))
+        conn.row_factory = sqlite3.Row
+    except sqlite3.Error:
+        return ()
+    try:
+        reports: list[PacXmlProfileReport] = []
+        for profile_row in conn.execute(
+            """
+            SELECT *
+            FROM profiles
+            ORDER BY profile_order ASC
+            """
+        ):
+            wrappers: list[PacXmlWrapperProfile] = []
+            for wrapper_row in conn.execute(
+                """
+                SELECT *
+                FROM wrappers
+                WHERE profile_id = ?
+                ORDER BY wrapper_index ASC
+                """,
+                (int(profile_row["id"]),),
+            ):
+                wrapper_name = str(wrapper_row["wrapper_name"] or "")
+                wrappers.append(
+                    PacXmlWrapperProfile(
+                        wrapper_name=wrapper_name,
+                        shader_name=str(wrapper_row["shader_name"] or ""),
+                        shader_family=str(wrapper_row["shader_family"] or "Unknown"),
+                        role=str(wrapper_row["role"] or "body"),
+                        render_setting_flag=str(wrapper_row["render_setting_flag"] or ""),
+                        parameter_names=_unpack_tuple(wrapper_row["parameter_names"]),
+                        parameter_types=_unpack_tuple(wrapper_row["parameter_types"]),
+                        texture_refs=_unpack_texture_refs(wrapper_row["texture_refs_blob"], wrapper_name),
+                    )
+                )
+            reports.append(
+                PacXmlProfileReport(
+                    path=str(profile_row["path"] or ""),
+                    profile=PacXmlProfile(
+                        family=str(profile_row["family"] or "unknown"),
+                        slot=str(profile_row["slot"] or ""),
+                        profiles=_unpack_tuple(profile_row["profile_names"]),
+                        confidence=float(profile_row["confidence"] or 0.0),
+                        evidence=_unpack_tuple(profile_row["evidence"]),
+                    ),
+                    paired_model_path=str(profile_row["paired_model_path"] or ""),
+                    wrappers=tuple(wrappers),
+                    pbd_materials=_unpack_tuple(profile_row["pbd"]),
+                    texture_ref_count=int(profile_row["texture_ref_count"] or 0),
+                    stock_texture_ref_count=int(profile_row["stock_texture_ref_count"] or 0),
+                )
+            )
+        return tuple(reports)
+    except Exception:
+        return ()
+    finally:
+        conn.close()
+
+
 def pac_xml_parameter_for_slot(wrapper: PacXmlWrapperProfile, slot_kind: str) -> str:
     slot = str(slot_kind or "").strip().lower()
     candidates = {
@@ -918,6 +1410,8 @@ def pac_xml_parameter_for_slot(wrapper: PacXmlWrapperProfile, slot_kind: str) ->
         value = parameter_map.get(candidate.lower())
         if value:
             return value
+    if slot in {"base", "normal", "emissive"}:
+        return ""
     for ref in wrapper.texture_refs:
         if ref.role == slot:
             return ref.parameter_name
@@ -1022,6 +1516,63 @@ def _unpack_tuple(value: object) -> tuple[str, ...]:
     if isinstance(value, str):
         return tuple(part for part in value.split("\x1f") if part)
     return tuple(str(item) for item in tuple(value or ()) if str(item or ""))
+
+
+def _pack_texture_refs(refs: Sequence[PacXmlTextureRef]) -> bytes:
+    rows: list[str] = []
+    for ref in tuple(refs or ()):
+        rows.append(
+            "\x1e".join(
+                (
+                    str(ref.parameter_name or ""),
+                    str(ref.texture_path or ""),
+                    str(ref.role or "unknown"),
+                    "1" if ref.stock_runtime else "0",
+                )
+            )
+        )
+    if not rows:
+        return b""
+    return zlib.compress("\x1f".join(rows).encode("utf-8"), level=6)
+
+
+def _unpack_texture_refs(value: object, wrapper_name: str) -> tuple[PacXmlTextureRef, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, memoryview):
+        raw = value.tobytes()
+    elif isinstance(value, bytes):
+        raw = value
+    elif isinstance(value, str):
+        raw = value.encode("utf-8")
+    else:
+        return ()
+    if not raw:
+        return ()
+    try:
+        text = zlib.decompress(raw).decode("utf-8", errors="ignore")
+    except Exception:
+        try:
+            text = raw.decode("utf-8", errors="ignore")
+        except Exception:
+            return ()
+    refs: list[PacXmlTextureRef] = []
+    for row in text.split("\x1f"):
+        if not row:
+            continue
+        parts = row.split("\x1e")
+        while len(parts) < 4:
+            parts.append("")
+        refs.append(
+            PacXmlTextureRef(
+                wrapper_name=wrapper_name,
+                parameter_name=parts[0],
+                texture_path=parts[1],
+                role=parts[2] or "unknown",
+                stock_runtime=(parts[3] == "1"),
+            )
+        )
+    return tuple(refs)
 
 
 def _protected_param_removal_warnings(original: PacXmlProfileReport, patched: PacXmlProfileReport) -> tuple[str, ...]:

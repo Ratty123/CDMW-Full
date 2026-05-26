@@ -433,6 +433,11 @@ def _lighting_preset_for_settings(settings: ModelPreviewRenderSettings) -> str:
 
 
 def _batch_has_metal_preview_response(batch: Mapping[str, object]) -> bool:
+    if (
+        str(batch.get("material_category", "") or "").strip().lower() == "metal"
+        and _safe_float(batch.get("material_category_confidence"), 0.0) >= 0.45
+    ):
+        return True
     textures = batch.get("textures")
     dds_textures = batch.get("dds_textures")
     if isinstance(textures, Mapping) and any(
@@ -1354,6 +1359,248 @@ def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[s
     }
 
 
+def _slot_has_resolved_texture(
+    textures: Mapping[str, str],
+    dds_textures: Mapping[str, object],
+    slot_name: str,
+) -> bool:
+    slot = str(slot_name or "").strip().lower()
+    if str(textures.get(slot, "") or "").strip():
+        return True
+    entry = dds_textures.get(slot)
+    return bool(
+        isinstance(entry, Mapping)
+        and entry.get("available")
+        and str(entry.get("source_path", "") or "").strip()
+    )
+
+
+def _material_input_descriptor(batch: PreparedModelPreviewBatch) -> str:
+    parts: list[str] = [
+        str(getattr(batch, "material_name", "") or ""),
+        str(getattr(batch, "texture_name", "") or ""),
+        str(getattr(batch, "preview_sidecar_shader_family", "") or ""),
+        str(getattr(batch, "preview_sidecar_material_primitive", "") or ""),
+        str(getattr(batch, "preview_material_texture_name", "") or ""),
+        str(getattr(batch, "preview_material_texture_type", "") or ""),
+        str(getattr(batch, "preview_material_texture_subtype", "") or ""),
+        " ".join(str(value or "") for value in tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ())),
+    ]
+    for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ()):
+        if not isinstance(texture_input, PreviewMaterialTextureInput):
+            continue
+        parts.extend(
+            [
+                texture_input.slot_kind,
+                texture_input.parameter_name,
+                texture_input.source_texture_path,
+                texture_input.source_dds_path,
+                texture_input.texture_name,
+                texture_input.semantic_type,
+                texture_input.semantic_subtype,
+                " ".join(texture_input.packed_channels),
+                texture_input.material_name,
+                texture_input.part_name,
+                texture_input.shader_family,
+                texture_input.layer_role,
+                texture_input.layer_channel,
+                " ".join(texture_input.blend_flags),
+            ]
+        )
+    return " ".join(part.replace("\\", "/") for part in parts if str(part or "").strip()).lower()
+
+
+def _descriptor_contains_token(descriptor: str, token: str) -> bool:
+    token = str(token or "").strip().lower()
+    if not token:
+        return False
+    start = 0
+    while True:
+        index = descriptor.find(token, start)
+        if index < 0:
+            return False
+        end = index + len(token)
+        left_boundary = index == 0 or not descriptor[index - 1].isalnum()
+        right_boundary = end >= len(descriptor) or not descriptor[end].isalnum()
+        if left_boundary and right_boundary:
+            return True
+        start = end
+
+
+def _resolved_batch_material_category(
+    batch: PreparedModelPreviewBatch,
+    *,
+    textures: Mapping[str, str],
+    dds_textures: Mapping[str, object],
+    material_hints: Mapping[str, object],
+    material_contract: Mapping[str, object],
+) -> Tuple[str, float]:
+    family = str(material_contract.get("shader_family", "") or "").strip().lower()
+    if family == "skin":
+        return "skin", 0.90
+    if family == "hair":
+        return "hair", 0.90
+    if family in {"cloth", "cloth_v2"}:
+        return "cloth", 0.84
+
+    descriptor = _material_input_descriptor(batch)
+    nonmetal_tokens = {
+        "skin",
+        "hair",
+        "cloth",
+        "fabric",
+        "flag",
+        "banner",
+        "vest",
+        "tassel",
+        "fringe",
+        "ribbon",
+        "sash",
+        "rope",
+        "leather",
+        "strap",
+        "belt",
+        "grip",
+        "wrap",
+        "handle",
+        "wood",
+        "glass",
+        "gem",
+        "jewel",
+        "crystal",
+        "diamond",
+        "ruby",
+        "sapphire",
+        "emerald",
+        "stone",
+        "rock",
+        "ceramic",
+        "eye",
+        "iris",
+        "pupil",
+        "cornea",
+        "tooth",
+        "teeth",
+        "fur",
+        "brow",
+        "eyebrow",
+        "lash",
+        "eyelash",
+        "face",
+        "nonmetal",
+        "non_metal",
+        "non-metal",
+        "non metal",
+    }
+    if any(_descriptor_contains_token(descriptor, token) for token in ("leather", "hide", "strap", "belt", "grip", "wrap", "handle")):
+        return "leather", 0.72
+    if any(_descriptor_contains_token(descriptor, token) for token in ("wood", "timber")):
+        return "wood", 0.72
+    if any(_descriptor_contains_token(descriptor, token) for token in ("glass", "crystal")):
+        return "glass", 0.72
+    if any(_descriptor_contains_token(descriptor, token) for token in ("gem", "jewel", "diamond", "ruby", "sapphire", "emerald")):
+        return "gem", 0.72
+    if any(_descriptor_contains_token(descriptor, token) for token in ("stone", "rock", "ceramic")):
+        return "stone", 0.72
+    if any(_descriptor_contains_token(descriptor, token) for token in ("eye", "iris", "pupil", "cornea")):
+        return "eye", 0.76
+    if any(_descriptor_contains_token(descriptor, token) for token in ("tooth", "teeth")):
+        return "tooth", 0.76
+    if any(_descriptor_contains_token(descriptor, token) for token in ("hair", "fur", "beard", "brow", "eyebrow", "lash", "eyelash")):
+        return "hair", 0.76
+
+    packed_text = " ".join(str(value or "") for value in tuple(material_contract.get("packed_channels", ()) or ())).lower()
+    strong_nonmetal_descriptor = any(_descriptor_contains_token(descriptor, token) for token in nonmetal_tokens)
+    if any(
+        _descriptor_contains_token(descriptor, token)
+        for token in ("cloth", "fabric", "flag", "banner", "vest", "tassel", "fringe", "ribbon", "sash", "rope", "cloak", "cape", "skirt", "dress", "mantle", "robe", "flap")
+    ):
+        return "cloth", 0.72
+    explicit_metal = bool(
+        not strong_nonmetal_descriptor
+        and (
+            _safe_float(material_hints.get("metalness"), 0.0) >= 0.16
+            or _slot_has_resolved_texture(textures, dds_textures, "metalness")
+            or "metallic" in packed_text
+            or "metalness" in packed_text
+        )
+    )
+    support_metal = bool(
+        _slot_has_resolved_texture(textures, dds_textures, "material")
+        or _slot_has_resolved_texture(textures, dds_textures, "specular")
+        or _slot_has_resolved_texture(textures, dds_textures, "roughness")
+    )
+    weapon_or_metal_tokens = {
+        "metal",
+        "metallic",
+        "steel",
+        "iron",
+        "silver",
+        "gold",
+        "copper",
+        "bronze",
+        "brass",
+        "chrome",
+        "blade",
+        "guard",
+        "hilt",
+        "helmet",
+        "helm",
+        "armor",
+        "armour",
+        "plate",
+        "chain",
+    }
+    token_metal = any(_descriptor_contains_token(descriptor, token) for token in weapon_or_metal_tokens) and not any(
+        _descriptor_contains_token(descriptor, token) for token in nonmetal_tokens
+    )
+    if explicit_metal:
+        return "metal", 0.92
+    if token_metal and (support_metal or _safe_float(material_hints.get("specular"), 0.0) >= 0.20):
+        return "metal", 0.78
+    if token_metal:
+        return "metal", 0.62
+    return "generic", 0.35
+
+
+def _resolved_batch_material_category_reason(
+    category: str,
+    batch: PreparedModelPreviewBatch,
+    *,
+    textures: Mapping[str, str],
+    dds_textures: Mapping[str, object],
+    material_hints: Mapping[str, object],
+    material_contract: Mapping[str, object],
+) -> str:
+    descriptor = _material_input_descriptor(batch)
+    if category == "metal":
+        for token in ("gold", "silver", "copper", "bronze", "brass", "chrome"):
+            if _descriptor_contains_token(descriptor, token):
+                return "metal:color_token"
+        if _safe_float(material_hints.get("metalness"), 0.0) >= 0.16 or _slot_has_resolved_texture(textures, dds_textures, "metalness"):
+            return "metal:material_channel"
+        return "metal:material_or_part_token"
+    if category in {"leather", "wood", "cloth", "skin", "hair", "stone", "tooth"}:
+        return f"nonmetal:{category}_token"
+    if category in {"glass", "gem", "eye"}:
+        return f"glossy_nonmetal:{category}_token"
+    return "generic:no_strong_material_token"
+
+
+def _effective_emissive_intensity(
+    material_hints: Mapping[str, object],
+    *,
+    textures: Mapping[str, str],
+    dds_textures: Mapping[str, object],
+) -> float:
+    hinted = _safe_float(material_hints.get("emissive_intensity"), 0.0)
+    if hinted > 0.0:
+        return hinted
+    if _slot_has_resolved_texture(textures, dds_textures, "emissive"):
+        return 4.0
+    return 0.0
+
+
 def _material_input_to_dict(texture_input: PreviewMaterialTextureInput) -> Dict[str, object]:
     def to_jsonable(value: object) -> object:
         if dataclasses.is_dataclass(value) and not isinstance(value, type):
@@ -1515,6 +1762,9 @@ def _dds_textures_for_batch(
         entry["srgb_mode"] = str(getattr(texture_input, "srgb_mode", "") or "")
         entry["parameter_declared_by"] = str(getattr(texture_input, "parameter_declared_by", "") or "")
         entry["material_output_quality"] = str(getattr(texture_input, "material_output_quality", "") or "")
+        entry["layer_role"] = str(getattr(texture_input, "layer_role", "") or "")
+        entry["layer_channel"] = str(getattr(texture_input, "layer_channel", "") or "")
+        entry["blend_flags"] = list(tuple(getattr(texture_input, "blend_flags", ()) or ()))
         input_entries.append(entry)
     if input_entries:
         output["material_inputs"] = input_entries
@@ -2243,7 +2493,39 @@ def write_isolated_d3d11_preview_package(
             dds_textures=dds_textures,
             combiner_metadata=combiner_metadata,
         )
-        material_hints = _native_material_hints_for_batch(batch)
+        material_hints = dict(_native_material_hints_for_batch(batch))
+        effective_emissive_intensity = _effective_emissive_intensity(
+            material_hints,
+            textures=textures,
+            dds_textures=dds_textures,
+        )
+        if effective_emissive_intensity > _safe_float(material_hints.get("emissive_intensity"), 0.0):
+            material_hints["emissive_intensity"] = effective_emissive_intensity
+            material_hints["emissive_active"] = True
+            material_hints["source"] = "emissive_texture_default"
+            pbr_hints = material_contract.get("pbr_scalar_hints")
+            if isinstance(pbr_hints, dict):
+                pbr_hints["emissive_intensity"] = effective_emissive_intensity
+            decode_profile = material_contract.get("decode_profile")
+            if isinstance(decode_profile, dict):
+                profile_hints = decode_profile.get("pbr_scalar_hints")
+                if isinstance(profile_hints, dict):
+                    profile_hints["emissive_intensity"] = effective_emissive_intensity
+        material_category, material_category_confidence = _resolved_batch_material_category(
+            batch,
+            textures=textures,
+            dds_textures=dds_textures,
+            material_hints=material_hints,
+            material_contract=material_contract,
+        )
+        material_category_reason = _resolved_batch_material_category_reason(
+            material_category,
+            batch,
+            textures=textures,
+            dds_textures=dds_textures,
+            material_hints=material_hints,
+            material_contract=material_contract,
+        )
         emissive_color = _material_hex_color_rgb(material_hints.get("emissive_color", ""))
         if not emissive_color:
             emissive_color = (0.35, 0.68, 1.0)
@@ -2282,6 +2564,23 @@ def write_isolated_d3d11_preview_package(
                 "native_material_hints": material_hints,
                 "material_contract": material_contract,
                 "material_shader_family": str(material_contract.get("shader_family", "generic") or "generic"),
+                "material_category": material_category,
+                "material_category_confidence": material_category_confidence,
+                "material_category_reason": material_category_reason,
+                "material_analysis": {
+                    "category": material_category,
+                    "confidence": material_category_confidence,
+                    "reason": material_category_reason,
+                    "shader_family": str(material_contract.get("shader_family", "generic") or "generic"),
+                    "has_base": bool(textures.get("base") or dds_textures.get("base")),
+                    "has_material": bool(textures.get("material") or dds_textures.get("material")),
+                    "has_specular": bool(textures.get("specular") or dds_textures.get("specular")),
+                    "has_emissive": bool(textures.get("emissive") or dds_textures.get("emissive")),
+                    "roughness_hint": _safe_float(material_hints.get("roughness"), 0.55),
+                    "metalness_hint": _safe_float(material_hints.get("metalness"), 0.0),
+                    "specular_hint": _safe_float(material_hints.get("specular"), 0.08),
+                    "emissive_intensity": _safe_float(material_hints.get("emissive_intensity"), 0.0),
+                },
                 "material_diagnostics": list(tuple(material_contract.get("slot_diagnostics", ()) or ())),
                 "prefer_generated_base_texture": prefer_generated_base_texture,
                 "texture_quality": texture_quality,
@@ -2304,6 +2603,41 @@ def write_isolated_d3d11_preview_package(
         batch_payload["material_channel_diagnostics"] = list(material_channel_contract.get("channels", ())) + list(
             material_channel_contract.get("unresolved", ())
         )
+        note_values = list(str(note) for note in tuple(notes or ()) if str(note))
+        quality_values = sorted(
+            {
+                str(item.get("material_output_quality", "") or "").strip()
+                for item in batch_payload.get("material_inputs", ())
+                if isinstance(item, Mapping) and str(item.get("material_output_quality", "") or "").strip()
+            }
+        )
+        if quality_values:
+            note_values.append(f"material output quality:{','.join(quality_values)}")
+        shader_note = str(material_contract.get("shader_family", "") or "").strip()
+        if shader_note:
+            note_values.append(f"shader family:{shader_note}")
+        if material_category and material_category != "generic":
+            note_values.append(f"material category:{material_category}:{material_category_confidence:.2f}")
+        texture_slots = material_contract.get("texture_slots", {})
+        if isinstance(texture_slots, Mapping):
+            direct_slots = sorted(
+                str(slot_name)
+                for slot_name, slot_state in texture_slots.items()
+                if isinstance(slot_state, Mapping) and str(slot_state.get("status", "") or "") == "direct_dds"
+            )
+            fallback_slots = sorted(
+                str(slot_name)
+                for slot_name, slot_state in texture_slots.items()
+                if isinstance(slot_state, Mapping) and str(slot_state.get("status", "") or "") == "preview_png"
+            )
+            if direct_slots:
+                note_values.append(f"direct DDS slots:{','.join(direct_slots)}")
+            if fallback_slots:
+                note_values.append(f"PNG fallback slots:{','.join(fallback_slots)}")
+        unresolved_count = len(tuple(material_channel_contract.get("unresolved", ()) or ()))
+        if unresolved_count:
+            note_values.append(f"unresolved material channel maps:{unresolved_count}")
+        batch_payload["notes"] = list(dict.fromkeys(note_values))
         cloth_payload = _write_cloth_runtime_payloads(
             package_dir,
             geometry_dir,

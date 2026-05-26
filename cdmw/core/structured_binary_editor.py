@@ -149,6 +149,32 @@ def parse_pabgh_table(data: bytes) -> PabghTable:
     if len(payload) < 2:
         raise ValueError("PABGH table is too short to contain a row count.")
     count = struct.unpack_from("<H", payload, 0)[0]
+    exact_row_sizes = [
+        row_size
+        for row_size in (8, 5)
+        if count > 0 and 2 + count * row_size == len(payload)
+    ]
+    if exact_row_sizes:
+        row_size = exact_row_sizes[0]
+        rows: list[PabghRow] = []
+        offset = 2
+        for index in range(count):
+            if row_size == 5:
+                row_id = payload[offset]
+                target_offset = struct.unpack_from("<I", payload, offset + 1)[0]
+            else:
+                row_id = struct.unpack_from("<I", payload, offset)[0]
+                target_offset = struct.unpack_from("<I", payload, offset + 4)[0]
+            rows.append(PabghRow(index=index, row_id=row_id, offset=target_offset))
+            offset += row_size
+        return PabghTable(
+            row_size=row_size,
+            rows=tuple(rows),
+            proof_lines=(
+                f"Detected {count:,} row(s).",
+                f"Detected exact {row_size}-byte row flavor.",
+            ),
+        )
     candidates: list[tuple[int, int]] = []
     for row_size in (5, 8):
         table_end = 2 + count * row_size

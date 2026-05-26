@@ -18,7 +18,7 @@ Project guidelines:
 Crimson Desert Mod Workbench is built for modders who want one place to:
 
 - browse, preview, extract, and selectively patch files from `.pamt` / `.paz` archives
-- scan loose DDS files and rebuild controlled DDS output with `texconv`
+- scan loose DDS files and rebuild controlled DDS output with bundled DirectXTex/native helpers, with `texconv` kept as an optional legacy fallback
 - optionally convert DDS to PNG before processing
 - optionally upscale through `chaiNNer` or direct `Real-ESRGAN NCNN`
 - edit visible textures inside the app with `Texture Editor`, including paint, erase, fill, gradient, smudge, dodge/burn, patch, sharpen, soften, clone/heal, floating paste/move, masks, channel locks, adjustment layers, brush presets, brush tips/patterns, custom presets, and layered project saves
@@ -27,7 +27,7 @@ Crimson Desert Mod Workbench is built for modders who want one place to:
 - review results in a side-by-side compare view with zoom, pan, and preview-size controls
 - inspect texture sets, references, classification, DDS QA results, and notes in `Research`
 - search archive or loose text-like files such as `.xml`, `.json`, `.cfg`, and `.lua`
-- preview `.pam`, `.pamlod`, and `.pac` meshes in 3D with orbit/zoom, optional textures, referenced-texture actions, OBJ/FBX export, and OBJ import preview / patch workflows
+- preview `.pam`, `.pamlod`, and `.pac` meshes in 3D with orbit/zoom, optional textures, referenced-texture actions, OBJ/FBX export, and OBJ/DAE/glTF/GLB import preview / patch workflows
 - preview `.wem` audio, `.mp4` video, `.bnk` soundbank structure summaries, `.pab` skeleton summaries, and richer text/binary archive formats without leaving the browser
 
 The app still keeps archive mutation explicit and separate from normal browsing. Loose-file DDS workflows remain available, while supported archive mesh/audio replacement paths now run through confirm-before-write patch flows with backup/restore support instead of silent in-place edits.
@@ -46,16 +46,16 @@ The app still keeps archive mutation explicit and separate from normal browsing.
 - `Assets > Icon Creator`: manage icon source images and generate compatible item-icon packages from archive targets
 - `Research > Research`: group related textures, resolve references, inspect DDS QA results, preview archive files, export analysis reports, and store notes
 - `Research > Text Search`: search archive or loose text-like files, preview results with syntax colors, and export matched files
-- `Settings`: persistent theme, font, density, startup, layout, log/code, and safety preferences
+- `Settings`: persistent theme, language, font, density, startup, performance, layout, 3D preview, log/code, and safety preferences
 
 ### Main workflow features
 
 - archive browser for Crimson Desert `.pamt` / `.paz` with flat/tree browsing, cache reuse, extraction, and supported patch workflows
 - archive cache for faster repeated scans
 - real 3D archive preview for supported `.pam`, `.pamlod`, and `.pac` meshes, including optional textured shading and referenced-texture inspection/actions
-- mesh export/import workflows for supported archive meshes, including OBJ export/import preview, FBX export, backup/restore, and paired PAM/PAMLOD handling where possible
+- mesh export/import workflows for supported archive meshes, including OBJ/FBX export, OBJ/DAE/glTF/GLB import preview, backup/restore, and paired PAM/PAMLOD handling where possible
 - archive media preview for `.wem` and `.mp4`, plus Wwise soundbank summaries for `.bnk`
-- DDS-to-PNG conversion with `texconv`
+- DDS-to-PNG conversion with bundled DirectXTex/native helpers and optional `texconv` fallback
 - DDS rebuild with configurable format, size, and mip behavior
 - direct backend support for `Real-ESRGAN NCNN`
 - external `chaiNNer` support for users who already have a working chain
@@ -77,7 +77,7 @@ If you want the safest starting point, use this path first:
 
 1. Run `CrimsonDesertModWorkbench-<version>-windows-portable.exe`.
 2. In `Texture Workflow > Setup`, click `Init Workspace`.
-3. Configure `texconv.exe` or open its official download page from `Setup`.
+3. Use the bundled DirectXTex/native DDS helpers. Configure `texconv.exe` only if you want the optional legacy fallback.
 4. Set `Original DDS root`, `PNG root`, and `Output root`.
 5. In `Texture Workflow > Upscaling`, either:
    - keep the backend disabled if you only want DDS rebuild/testing
@@ -248,7 +248,7 @@ Includes tools for:
 
 - matching Original DDS vs Output DDS review
 - mip and size drift checks
-- preview-based brightness, alpha, and range checks when `texconv` previews are available
+- preview-based brightness, alpha, and range checks when DDS previews are available
 - bulk normal validation
 - CSV / JSON report export
 
@@ -276,7 +276,8 @@ Use the archive browser to:
 - inspect referenced textures for supported mesh previews and open/export/replace resolved DDS entries
 - edit recognized material-sidecar values from `.pac_xml`, `.pam_xml`, `.pamlod_xml`, and `.pami` files, preview approximate changes on associated `.pac` / `.pam` / `.pamlod` models, then export the edited sidecar plus reviewed related files as a mod-ready package
 - export supported meshes as `OBJ` / `FBX`
-- import `OBJ` for preview or patch supported archive meshes, with backup/restore support for archive writes
+- import `OBJ`, `DAE`, `glTF`, or `GLB` for preview or supported archive-mesh replacement, with backup/restore support for archive writes
+- tune Material Authority behavior for mesh replacement packages, including Runtime XML preserve, True Source Authority, and manual overrides
 - export `WAV` from supported audio entries and patch supported `.wem` entries from `WAV`
 - send DDS files directly into the `Texture Workflow` with `DDS To Texture Workflow`
 
@@ -300,7 +301,7 @@ For supported encrypted archive XML cases, the app can also decrypt them determi
 
 ## DDS Output
 
-Final DDS output is rebuilt with `texconv`.
+Final DDS output is rebuilt with the bundled DirectXTex/native helpers first. `texconv.exe` remains an optional legacy fallback.
 
 You can control:
 
@@ -322,10 +323,8 @@ When automatic safety rules are enabled, the planner can also keep some technica
 
 If `texconv.exe` is missing or wrong:
 
-- DDS preview fails
-- DDS-to-PNG conversion fails
-- DDS rebuild fails
-- compare preview generation fails
+- normal DDS preview/rebuild should still use the bundled DirectXTex/native helpers
+- if both native helpers and the optional fallback fail, check the packaged native tools and the Live Log
 
 ### Missing NCNN setup
 
@@ -375,8 +374,9 @@ Main local files and folders include:
 
 The app also supports:
 
-- profile export / import
-- diagnostic bundle export
+- profile export / import for workflow config plus appearance, language, startup, performance, preview, Texture Replacer, Texture Editor, safety, and window/layout settings
+- diagnostic bundle export with the profile payload, logs, cache summary, chain analysis, crash context when available, README, license, and third-party notices
+- detachable work tabs through the `Window` menu, with saved main and detached-window geometry
 
 ## Privacy And Network Behavior
 
@@ -385,7 +385,7 @@ Crimson Desert Mod Workbench does **not** include built-in telemetry, analytics,
 It only opens external pages in your browser when you explicitly trigger actions such as:
 
 - `Open chaiNNer Download Page`
-- `Open texconv Download Page`
+- `Open DirectXTex / texconv Page`
 - `Open Real-ESRGAN NCNN Download Page`
 - `Open Model Pages` in the NCNN model catalog
 
@@ -411,6 +411,7 @@ Build-only requirements are listed in `requirements-build.txt`.
 
 ### External tools used by the app
 
-- `texconv.exe` from Microsoft DirectXTex
+- bundled DirectXTex/native DDS helpers
+- optional `texconv.exe` from Microsoft DirectXTex as a legacy fallback
 - optional `chaiNNer`
 - optional `Real-ESRGAN NCNN`

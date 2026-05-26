@@ -31,6 +31,28 @@ def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> Non
     assert german.translate("Rebuilt DDS folder") == "Neu erstellter DDS-Ordner"
     assert spanish.translate("Shortcuts") == "Atajos"
     assert german.translate("Shortcuts") == "Tastenkurzel"
+    assert spanish.translate("Dashboard") == "Panel"
+    assert german.translate("Dashboard") == "Dashboard"
+    assert spanish.translate("Composite Preview...") == "Vista previa compuesta..."
+    assert german.translate("Composite Preview...") == "Kompositvorschau..."
+    assert spanish.translate("Appearance Armor Swap...") == "Intercambio de armadura de apariencia..."
+    assert german.translate("Appearance Armor Swap...") == "Appearance-Ruestungs-Swap..."
+    assert spanish.translate("Material Authority Manual") == "Autoridad de material manual"
+    assert german.translate("Material Authority Manual") == "Materialautoritaet manuell"
+    assert spanish.translate("Runtime XML preserve") == "Preservar XML runtime"
+    assert german.translate("Runtime XML preserve") == "Runtime XML erhalten"
+    assert spanish.translate("True Source Authority") == "Autoridad de origen real"
+    assert german.translate("True Source Authority") == "Echte Quellenautoritaet"
+    assert spanish.translate("Review Compare") == "Revisar comparacion"
+    assert german.translate("Review Compare") == "Vergleich pruefen"
+    assert spanish.translate("Recolor Variants") == "Variantes de recolor"
+    assert german.translate("Recolor Variants") == "Umfaerbungsvarianten"
+    assert spanish.translate("Stowed / on body") == "Guardado / en el cuerpo"
+    assert german.translate("Stowed / on body") == "Verstaut / am Koerper"
+    assert spanish.translate("Held / in hand") == "Sostenido / en mano"
+    assert german.translate("Held / in hand") == "Gehalten / in der Hand"
+    assert spanish.translate("Open DirectXTex / texconv Page") == "Abrir pagina de DirectXTex / texconv"
+    assert german.translate("Open DirectXTex / texconv Page") == "DirectXTex-/texconv-Seite oeffnen"
     assert spanish.translate(
         "Paint tool active. Brush presets, image stamps, patterns, and symmetry are available here. Alt+click samples a color into the paint swatch."
     ).startswith("Herramienta de pintura activa.")
@@ -87,3 +109,42 @@ def test_archive_browser_documentation_covers_current_functionality_in_supported
     assert "Aktiver Mod" in main_window_source
     assert "statische Geometrie-Miniatur" in main_window_source
     assert "HKX-Platzierung" in main_window_source
+
+
+def test_profile_window_and_documentation_cover_current_settings_scope() -> None:
+    main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+
+    assert "_collect_profile_settings_snapshot" in main_window_source
+    assert '"profile_format": 3' in main_window_source
+    assert '"settings_key_count"' in main_window_source
+    assert "_restore_profile_settings_snapshot" in main_window_source
+    assert "self._load_settings()" in main_window_source
+    assert (
+        "appearance, startup, preview, window/layout, Texture Replacer, and Texture Editor preferences"
+        in main_window_source
+    )
+    assert "Profile &gt; Export Profile" in main_window_source
+    assert "Window &amp; Layout" in main_window_source
+    assert "window/detached/&lt;tool&gt;/geometry" in main_window_source
+
+
+def test_documentation_and_readme_cover_current_mesh_and_dds_workflows() -> None:
+    main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+    readme_source = Path("README.md").read_text(encoding="utf-8")
+
+    assert "Dashboard</b>: compact workspace health" in main_window_source
+    assert "OBJ/DAE/glTF/GLB preview" in main_window_source
+    assert "Appearance Armor Swap</b> loose packages" not in main_window_source
+    assert "Runtime XML preserve</b> keeps target/corpus PAC XML structure" in main_window_source
+    assert "True Source Authority</b> uses original PAC/XML as runtime ABI" in main_window_source
+    assert "Material Authority Manual</b> starts from Runtime XML preserve" in main_window_source
+    assert "Stowed / on body</b> versus <b>Held / in hand" in main_window_source
+    assert "Intercambio de armadura de apariencia" not in main_window_source
+    assert "Autoridad de origen real" in main_window_source
+    assert "Appearance-Ruestungs-Swap" not in main_window_source
+    assert "Echte Quellenautoritaet" in main_window_source
+
+    assert "OBJ/DAE/glTF/GLB import preview" in readme_source
+    assert "DirectXTex/native helpers first" in readme_source
+    assert "texconv.exe` remains an optional legacy fallback" in readme_source
+    assert "Open DirectXTex / texconv Page" in readme_source

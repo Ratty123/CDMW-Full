@@ -23,6 +23,7 @@ dist/
 archive_cache/
 crash_reports/
 item_icon_library/
+app_restore_points/
 
 .tmp_*/
 tmp_*/
@@ -36,6 +37,7 @@ docs/screenshots/*.png
 *.hkx-corpus.csv
 *.sidecar-corpus.json
 *.sidecar-corpus.csv
+docs/reverse_engineering/*.json
 
 # Local extracted game/corpus payloads should stay outside source control.
 *.pamt

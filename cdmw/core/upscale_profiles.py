@@ -141,6 +141,12 @@ class TextureSidecarBinding:
     brightness: float = 1.0
     uv_scale: float = 1.0
     tile_type: str = ""
+    srgb_mode: str = ""
+    parameter_declared_by: str = ""
+    material_output_quality: str = ""
+    layer_role: str = ""
+    layer_channel: str = ""
+    blend_flags: Tuple[str, ...] = ()
 
 
 @dataclass(slots=True, frozen=True)
@@ -848,6 +854,103 @@ def _parse_texture_sidecar_bindings_cached(
             if _looks_like_texture_sidecar_reference(texture_path):
                 yield texture_path.replace("\\", "/")
 
+    def _binding_layer_channel(parameter_name: str) -> str:
+        key = _normalized_parameter_key(parameter_name)
+        if not key:
+            return ""
+        for channel in ("r", "g", "b", "a"):
+            if key.endswith(channel) and any(
+                token in key
+                for token in ("grime", "detail", "layer", "mask", "dyeing", "damage", "colorblending")
+            ):
+                return channel
+        return ""
+
+    def _binding_layer_role(parameter_name: str, texture_path: str) -> str:
+        key = _normalized_parameter_key(parameter_name)
+        stem = PurePosixPath(str(texture_path or "").replace("\\", "/")).stem.lower()
+        if "flowtexture" in key or stem.endswith("_flow") or "ssdmhairdirectiontexture" in key or "hairdirection" in key:
+            return "vector"
+        if any(token in key for token in ("iris", "pupil", "eyecover", "eye")):
+            return "eye"
+        if "damage" in key:
+            return "damage"
+        if "grime" in key:
+            return "grime"
+        if "detaildiffuse" in key or "detailnormal" in key or "detailheight" in key or "detailmaterial" in key:
+            return "detail"
+        if "detailmask" in key or stem.endswith("_mg"):
+            return "detail_mask"
+        if "colorblendingmask" in key or stem.endswith("_ma"):
+            return "mask"
+        if "specular" in key or stem.endswith("_sp"):
+            return "material_response"
+        if "normal" in key or stem.endswith("_n"):
+            return "normal"
+        if "height" in key or "displacement" in key or stem.endswith("_disp") or stem.endswith("_h"):
+            return "height"
+        if any(token in key for token in ("emissive", "glow", "illum")) or stem.endswith(("_emi", "_emc")):
+            return "emissive"
+        if any(token in key for token in ("basecolor", "overlaycolor", "diffuse", "albedo", "colortexture")):
+            return "base"
+        if "material" in key or stem.endswith("_m"):
+            return "material_response"
+        return ""
+
+    def _shader_family_supports_color_blending_mask(shader_family: str) -> bool:
+        compact = re.sub(r"[^a-z0-9]+", "", str(shader_family or "").strip().lower())
+        return bool(
+            "standard" in compact
+            or "staticmultitextured" in compact
+            or "emissive" in compact
+        )
+
+    def _texture_binding_metadata(
+        parameter_name: str,
+        texture_path: str,
+        shader_family: str,
+        *,
+        sidecar_kind_value: str,
+    ) -> Dict[str, object]:
+        key = _normalized_parameter_key(parameter_name)
+        stem = PurePosixPath(str(texture_path or "").replace("\\", "/")).stem.lower()
+        role = _binding_layer_role(parameter_name, texture_path)
+        channel = _binding_layer_channel(parameter_name)
+        if role in {"base", "emissive", "eye"}:
+            srgb_mode = "srgb"
+        elif role in {"normal", "height", "mask", "detail_mask", "material_response", "material", "vector"}:
+            srgb_mode = "linear"
+        else:
+            srgb_mode = "auto"
+        exact_mask = bool(
+            key == "colorblendingmasktexture"
+            and stem.endswith("_ma")
+            and _shader_family_supports_color_blending_mask(shader_family)
+        )
+        if exact_mask or role in {"base", "normal", "height", "emissive"}:
+            material_output_quality = "exact"
+        elif role in {"grime", "detail", "damage", "detail_mask", "material_response", "vector", "eye"}:
+            material_output_quality = "layer"
+        elif role == "mask":
+            material_output_quality = "inferred"
+        else:
+            material_output_quality = "approximate"
+        blend_flags: list[str] = []
+        if role:
+            blend_flags.append(f"role:{role}")
+        if channel:
+            blend_flags.append(f"channel:{channel}")
+        if exact_mask:
+            blend_flags.append("crimson_ma_arm")
+        return {
+            "srgb_mode": srgb_mode,
+            "parameter_declared_by": sidecar_kind_value or "sidecar",
+            "material_output_quality": material_output_quality,
+            "layer_role": role,
+            "layer_channel": channel,
+            "blend_flags": tuple(blend_flags),
+        }
+
     def _append_binding(
         target: List[TextureSidecarBinding],
         *,
@@ -866,6 +969,12 @@ def _parse_texture_sidecar_bindings_cached(
         normalized_texture = normalize_texture_reference_for_sidecar_lookup(texture_path)
         if not normalized_texture:
             return
+        metadata = _texture_binding_metadata(
+            parameter_name,
+            texture_path,
+            shader_family,
+            sidecar_kind_value=sidecar_kind,
+        )
         target.append(
             TextureSidecarBinding(
                 texture_path=texture_path.replace("\\", "/"),
@@ -882,6 +991,12 @@ def _parse_texture_sidecar_bindings_cached(
                 brightness=max(0.1, min(3.0, float(brightness or 1.0))),
                 uv_scale=max(0.05, min(64.0, float(uv_scale or 1.0))),
                 tile_type=tile_type,
+                srgb_mode=str(metadata["srgb_mode"]),
+                parameter_declared_by=str(metadata["parameter_declared_by"]),
+                material_output_quality=str(metadata["material_output_quality"]),
+                layer_role=str(metadata["layer_role"]),
+                layer_channel=str(metadata["layer_channel"]),
+                blend_flags=tuple(metadata["blend_flags"]),
             )
         )
 
@@ -1105,6 +1220,12 @@ def _parse_texture_sidecar_bindings_cached(
             if key in seen:
                 continue
             seen.add(key)
+            metadata = _texture_binding_metadata(
+                parameter_name,
+                texture_path,
+                "",
+                sidecar_kind_value=sidecar_kind,
+            )
             bindings.append(
                 TextureSidecarBinding(
                     texture_path=texture_path,
@@ -1115,6 +1236,12 @@ def _parse_texture_sidecar_bindings_cached(
                     linked_mesh_path=_linked_mesh_path_from_sidecar(sidecar_path, sidecar_kind),
                     part_name=submesh_name,
                     material_name=submesh_name,
+                    srgb_mode=str(metadata["srgb_mode"]),
+                    parameter_declared_by=str(metadata["parameter_declared_by"]),
+                    material_output_quality=str(metadata["material_output_quality"]),
+                    layer_role=str(metadata["layer_role"]),
+                    layer_channel=str(metadata["layer_channel"]),
+                    blend_flags=tuple(metadata["blend_flags"]),
                 )
             )
 

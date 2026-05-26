@@ -485,8 +485,17 @@ std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
 
 std::vector<Entry> scan_package_root(const fs::path& package_root) {
     std::vector<fs::path> pamt_files;
-    for (const auto& item : fs::recursive_directory_iterator(package_root)) {
-        if (item.is_regular_file() && lower_copy(item.path().extension().string()) == ".pamt") pamt_files.push_back(item.path());
+    if (fs::is_regular_file(package_root) && lower_copy(package_root.extension().string()) == ".pamt") {
+        pamt_files.push_back(package_root);
+    } else {
+        for (fs::recursive_directory_iterator it(package_root), end; it != end; ++it) {
+            const fs::directory_entry& item = *it;
+            if (it.depth() == 0 && item.is_directory() && lower_copy(item.path().filename().string()) == "cdmods") {
+                it.disable_recursion_pending();
+                continue;
+            }
+            if (item.is_regular_file() && lower_copy(item.path().extension().string()) == ".pamt") pamt_files.push_back(item.path());
+        }
     }
     if (pamt_files.empty()) throw std::runtime_error("no .pamt files were found under " + package_root.string());
     std::sort(pamt_files.begin(), pamt_files.end());
@@ -833,8 +842,7 @@ int run_derived_index_job(const fs::path& entries_path, const fs::path& report_p
                 return left_path < right_path;
             });
         }
-        auto rows_json = [](const std::map<std::string, std::vector<int>>& rows_by_key) {
-            std::ostringstream out;
+        auto write_rows_json = [](std::ostream& out, const std::map<std::string, std::vector<int>>& rows_by_key) {
             out << "[";
             bool first_row = true;
             for (const auto& row : rows_by_key) {
@@ -848,16 +856,20 @@ int run_derived_index_job(const fs::path& entries_path, const fs::path& report_p
                 out << "]]";
             }
             out << "]";
-            return out.str();
         };
-        std::ostringstream out;
+        if (!report_path.parent_path().empty()) fs::create_directories(report_path.parent_path());
+        std::ofstream out(report_path, std::ios::binary | std::ios::trunc);
+        if (!out) throw std::runtime_error("could not write " + report_path.string());
         out << "{\"status\":\"ok\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol
             << ",\"entry_count\":" << entries.size()
-            << ",\"path_rows\":" << rows_json(path_rows)
-            << ",\"basename_rows\":" << rows_json(basename_rows)
-            << ",\"extension_rows\":" << rows_json(extension_rows)
-            << "}";
-        write_text(report_path, out.str());
+            << ",\"path_rows\":";
+        write_rows_json(out, path_rows);
+        out << ",\"basename_rows\":";
+        write_rows_json(out, basename_rows);
+        out << ",\"extension_rows\":";
+        write_rows_json(out, extension_rows);
+        out << "}";
+        if (!out) throw std::runtime_error("could not finish writing " + report_path.string());
         write_progress_json(progress_path, "complete", static_cast<long long>(entries.size()), static_cast<long long>(entries.size()));
         return 0;
     } catch (const std::exception& exc) {

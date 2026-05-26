@@ -11,7 +11,7 @@ import re
 from types import SimpleNamespace
 import tempfile
 import time
-from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, QSettings, QSize, Qt, QTimer, QUrl, Signal, QSignalBlocker
 from PySide6.QtGui import (
@@ -1273,6 +1273,25 @@ class NativePreviewPanel(QWidget):
 
     def select_mesh_edit_brush_vertices(self) -> None:
         self.mesh_edit_selection_changed.emit({})
+
+    def set_mesh_edit_vertex_selection(self, selected_vertices_by_submesh: Mapping[int, Iterable[int]]) -> None:
+        groups = []
+        for raw_source_index, raw_vertices in dict(selected_vertices_by_submesh or {}).items():
+            try:
+                source_index = int(raw_source_index)
+            except (TypeError, ValueError):
+                continue
+            vertices = []
+            for raw_vertex in tuple(raw_vertices or ()):
+                try:
+                    vertex_index = int(raw_vertex)
+                except (TypeError, ValueError):
+                    continue
+                if vertex_index >= 0:
+                    vertices.append(vertex_index)
+            if vertices:
+                groups.append({"source_submesh_index": source_index, "source_vertex_indices": sorted(set(vertices))})
+        self.mesh_edit_selection_changed.emit({"groups": groups, "selected_vertex_count": sum(len(group["source_vertex_indices"]) for group in groups)})
 
     def set_zoom_factor(self, zoom_factor: float) -> None:
         try:

@@ -46,6 +46,8 @@ class ReplacementTextureSlot:
     base_color_gamma: float = 1.0
     base_color_saturation: float = 1.0
     base_color_value_max: int = 255
+    base_color_shadow_lift: int = 0
+    base_color_tone_contrast: float = 0.0
 
 
 @dataclass(slots=True)
@@ -176,6 +178,8 @@ class CDMaterialRuntimeProfile:
     base_color_gamma: Optional[float] = None
     base_color_saturation: Optional[float] = None
     base_color_value_max: Optional[int] = None
+    base_color_shadow_lift: int = 0
+    base_color_tone_contrast: float = 0.0
     emissive_color_scale: Optional[float] = None
     emissive_color_saturation: Optional[float] = None
     emissive_color_value_max: Optional[int] = None
@@ -186,6 +190,14 @@ class CDMaterialRuntimeProfile:
     metallic_scale: Optional[float] = None
     metallic_max: Optional[int] = None
     xml_profile_mode: str = ""
+    authority_contract: str = ""
+    global_gloss_reduction: float = 0.0
+    gloss_reduction_mode: str = "cd_smoothness_low"
+    edge_relief_strength: float = 0.0
+    edge_relief_source: str = "hybrid"
+    accent_glow_strength: float = 0.0
+    accent_glow_intensity_max: float = 5.5
+    suppress_runtime_placeholder_material_bindings: bool = False
     note: str = ""
 
 
@@ -229,6 +241,7 @@ _MANUAL_PROFILE_FIELD_NAMES = (
     "base_binding_mode",
     "mask_binding_mode",
     "support_policy",
+    "authority_contract",
 )
 
 
@@ -263,6 +276,7 @@ def _material_authority_clean_source_profile() -> CDMaterialRuntimeProfile:
         roughness_min=246,
         metallic_scale=0.34,
         metallic_max=112,
+        gloss_reduction_mode="source_roughness_high",
         note=(
             "Source-owned mesh replacement profile: bind source base/normal/PBR directly, "
             "lift very dark source albedo, cap hot emissive colors, and remove inherited CD grime/detail/height layers."
@@ -295,6 +309,7 @@ def _material_authority_runtime_xml_profile() -> CDMaterialRuntimeProfile:
         emissive_color_saturation=0.60,
         emissive_color_value_max=72,
         xml_profile_mode="runtime_xml",
+        authority_contract="runtime_xml_preserve",
         note=(
             "Recommended XML-first material authority: preserve the target PAC XML shader, wrapper order, "
             "stock material/detail/height/grime/PBD response, and patch only compatible source base/normal/emissive slots."
@@ -302,13 +317,90 @@ def _material_authority_runtime_xml_profile() -> CDMaterialRuntimeProfile:
     )
 
 
+def _material_authority_true_source_profile() -> CDMaterialRuntimeProfile:
+    return replace(
+        _material_authority_clean_source_profile(),
+        name="material_authority_true_source",
+        label="Material Authority True Source",
+        authority_contract="true_source_authority",
+        note=(
+            "Strict source-authority material path: original PAC/XML supplies draw ABI, wrapper order, IDs, "
+            "render flags, and protected cloth/PBD hooks only; active source-owned wrappers use source or "
+            "neutral generated visible material bindings."
+        ),
+    )
+
+
+def _material_authority_pbr_source_test_profile() -> CDMaterialRuntimeProfile:
+    return replace(
+        _material_authority_clean_source_profile(),
+        name="material_authority_pbr_source_test",
+        label="Material Authority PBR Source Test",
+        authority_contract="true_source_authority",
+        roughness_inverted=False,
+        roughness_invert=False,
+        roughness_default=255,
+        roughness_min=240,
+        roughness_scale=1.0,
+        roughness_max=255,
+        metallic_scale=None,
+        metallic_max=None,
+        force_nonmetal=False,
+        scratch_roughness=1.0,
+        scratch_metallic=None,
+        shine_scalar=0.0,
+        gloss_reduction_mode="source_roughness_high",
+        note=(
+            "Experimental source-PBR authority profile: preserve source metalness, drive CD material green as high roughness "
+            "for a matte response, and avoid the inherited CD dye/detail layer color pipeline."
+        ),
+    )
+
+
+def _material_authority_detail_mask_profile() -> CDMaterialRuntimeProfile:
+    return replace(
+        _material_authority_pbr_source_test_profile(),
+        name="material_authority_detail_mask",
+        label="Material Authority",
+        authority_contract="true_source_authority_detail_mask",
+        mask_binding_mode="detail_mask_material",
+        base_color_lift=0,
+        base_color_scale=1.0,
+        base_color_gamma=1.0,
+        base_color_saturation=1.0,
+        base_color_value_max=255,
+        emissive_color_scale=None,
+        emissive_color_saturation=None,
+        emissive_color_value_max=None,
+        note=(
+            "Proven working-mod material authority: bind source base through _overlayColorTexture with the "
+            "working-mod overlay ItemID, route source PBR/material mask through _detailMaskTexture, and remove "
+            "the glossy _colorBlendingMaskTexture response from source-owned wrappers."
+        ),
+    )
+
+
+def _material_authority_placeholder_safe_test_profile() -> CDMaterialRuntimeProfile:
+    return replace(
+        _material_authority_detail_mask_profile(),
+        name="material_authority_placeholder_safe_test",
+        label="Material Authority Placeholder Safe Test",
+        suppress_runtime_placeholder_material_bindings=True,
+        note=(
+            "Test-only Material Authority variant: same proven detail-mask material route, but runtime ABI "
+            "placeholder draw slots stay on their original material wrappers so source glow/emissive bindings "
+            "cannot attach to tiny hidden placeholder triangles."
+        ),
+    )
+
+
 def _material_authority_manual_default_profile() -> CDMaterialRuntimeProfile:
     return replace(
-        _material_authority_runtime_xml_profile(),
+        _material_authority_detail_mask_profile(),
         name=MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME,
         label="Material Authority Manual",
         note=(
-            "Manual source-owned material profile based on Material Authority Runtime XML. "
+            "Manual source-owned material profile based on Material Authority. "
             "UI controls override color, emissive, roughness, metallic, tint reset, displacement, and source-routing behavior."
         ),
     )
@@ -366,6 +458,7 @@ def _manual_material_profile_from_payload(payload: Mapping[str, object]) -> CDMa
         "alpha_default",
         "base_color_lift",
         "base_color_value_max",
+        "base_color_shadow_lift",
         "emissive_color_value_max",
         "roughness_min",
         "roughness_max",
@@ -385,6 +478,7 @@ def _manual_material_profile_from_payload(payload: Mapping[str, object]) -> CDMa
         "base_color_scale",
         "base_color_gamma",
         "base_color_saturation",
+        "base_color_tone_contrast",
         "emissive_color_scale",
         "emissive_color_saturation",
         "roughness_scale",
@@ -410,12 +504,19 @@ def _manual_material_profile_from_payload(payload: Mapping[str, object]) -> CDMa
     for key, allowed in (
         ("emissive_mode", {"disabled", "intensity"}),
         ("base_binding_mode", {"overlay_texture", "overlay_from_colorblend_slot", "tint_only", "disabled"}),
-        ("mask_binding_mode", {"color_blending_mask", "scratch_scalars", "disabled"}),
+        ("mask_binding_mode", {"color_blending_mask", "detail_mask_material", "scratch_scalars", "disabled"}),
         ("support_policy", {"source_only", "generated_or_neutral", "generated_only", "keep_original_support"}),
+        ("authority_contract", {"runtime_xml_preserve", "true_source_authority", "true_source_authority_detail_mask"}),
     ):
         raw = str(payload.get(key, "") or "").strip().lower()
         if raw in allowed:
             updates[key] = raw
+    if "edge_relief_strength" in payload:
+        updates["edge_relief_strength"] = normalize_basic_control_percent(payload.get("edge_relief_strength"))
+    if "edge_relief_source" in payload:
+        updates["edge_relief_source"] = normalize_edge_relief_source(payload.get("edge_relief_source"))
+    if "global_gloss_reduction" in payload:
+        updates["global_gloss_reduction"] = normalize_global_gloss_reduction(payload.get("global_gloss_reduction"))
     raw_rgb = payload.get("neutral_color_rgb")
     if isinstance(raw_rgb, Sequence) and not isinstance(raw_rgb, (str, bytes)) and len(raw_rgb) >= 3:
         try:
@@ -553,6 +654,10 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
             ),
         ),
         _material_authority_runtime_xml_profile(),
+        _material_authority_true_source_profile(),
+        _material_authority_pbr_source_test_profile(),
+        _material_authority_detail_mask_profile(),
+        _material_authority_placeholder_safe_test_profile(),
         _material_authority_manual_default_profile(),
         _material_authority_clean_source_profile(),
         CDMaterialRuntimeProfile(
@@ -601,6 +706,7 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
             support_policy="keep_original_support",
             allow_factor_only_authority=True,
             preserve_target_layer_response=True,
+            authority_contract="runtime_xml_preserve",
             note=(
                 "Comparison profile: patch source base/normal/factor color while preserving the target "
                 "CD height/material/detail layer response that carries edge detail and non-gloss calibration."
@@ -616,6 +722,7 @@ def complete_swap_material_runtime_profiles() -> tuple[CDMaterialRuntimeProfile,
             allow_factor_only_authority=True,
             preserve_target_layer_response=True,
             source_color_layer_authority=True,
+            authority_contract="runtime_xml_preserve",
             note=(
                 "Comparison profile: route source base/factor color into visible CD color layers while "
                 "preserving target normal/height/material support response for edge relief."
@@ -641,6 +748,9 @@ def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRunt
         "manual": MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME,
         "material_authority_user": MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME,
         "manual_material_authority": MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME,
+        "material_authority": "material_authority_detail_mask",
+        "material_authority_default": "material_authority_detail_mask",
+        "recommended_material_authority": "material_authority_detail_mask",
         "runtime_xml": "material_authority_runtime_xml",
         "xml_runtime": "material_authority_runtime_xml",
         "material_authority_xml": "material_authority_runtime_xml",
@@ -648,6 +758,25 @@ def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRunt
         "runtime_xml_authority": "material_authority_runtime_xml",
         "corpus_xml": "material_authority_runtime_xml",
         "xml_authority": "material_authority_runtime_xml",
+        "true_source": "material_authority_true_source",
+        "source_authority": "material_authority_true_source",
+        "material_authority_source": "material_authority_clean_source",
+        "material_authority_true": "material_authority_true_source",
+        "true_source_authority": "material_authority_true_source",
+        "pbr_source_test": "material_authority_pbr_source_test",
+        "source_pbr_test": "material_authority_pbr_source_test",
+        "material_authority_pbr": "material_authority_pbr_source_test",
+        "true_source_pbr": "material_authority_pbr_source_test",
+        "detail_mask": "material_authority_detail_mask",
+        "detail_mask_source": "material_authority_detail_mask",
+        "material_authority_detail": "material_authority_detail_mask",
+        "material_authority_detail_mask": "material_authority_detail_mask",
+        "material_authority_detail_mask_source": "material_authority_detail_mask",
+        "true_source_detail_mask": "material_authority_detail_mask",
+        "placeholder_safe": "material_authority_placeholder_safe_test",
+        "placeholder_safe_test": "material_authority_placeholder_safe_test",
+        "material_authority_placeholder_safe": "material_authority_placeholder_safe_test",
+        "material_authority_placeholder_safe_test": "material_authority_placeholder_safe_test",
         "clean_source": "material_authority_clean_source",
         "material_authority_clean": "material_authority_clean_source",
         "clean_source_authority": "material_authority_clean_source",
@@ -668,6 +797,261 @@ def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRunt
     normalized = aliases.get(normalized, normalized)
     profiles = {profile.name: profile for profile in complete_swap_material_runtime_profiles()}
     return profiles.get(normalized, profiles["arm_standard"])
+
+
+def normalize_global_gloss_reduction(value: object) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    if number <= 0.0:
+        return 0.0
+    if number <= 1.0:
+        number *= 100.0
+    return max(0.0, min(100.0, number))
+
+
+def normalize_basic_control_percent(value: object) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    if number <= 0.0:
+        return 0.0
+    if number <= 1.0:
+        number *= 100.0
+    return max(0.0, min(100.0, number))
+
+
+def normalize_tone_contrast(value: object) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    return max(-100.0, min(100.0, number))
+
+
+def normalize_edge_relief_source(value: object) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "preserve": "preserve_target",
+        "preserve_target_support": "preserve_target",
+        "target": "preserve_target",
+        "generate": "generate_source",
+        "generated": "generate_source",
+        "source": "generate_source",
+        "source_generated": "generate_source",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized not in {"preserve_target", "generate_source", "hybrid"}:
+        return "hybrid"
+    return normalized
+
+
+def _profile_uses_cd_smoothness_mask_response(material_profile: CDMaterialRuntimeProfile) -> bool:
+    """True for source-authority profiles where the runtime mask channel behaves like CD gloss/smoothness."""
+
+    mask_mode = str(getattr(material_profile, "mask_binding_mode", "") or "").strip().lower()
+    xml_mode = str(getattr(material_profile, "xml_profile_mode", "") or "").strip().lower()
+    contract = str(getattr(material_profile, "authority_contract", "") or "").strip().lower()
+    name = str(getattr(material_profile, "name", "") or "").strip().lower()
+    if name == MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME:
+        return mask_mode != "disabled"
+    return bool(
+        mask_mode != "disabled"
+        and xml_mode != "runtime_xml"
+        and contract != "runtime_xml_preserve"
+    )
+
+
+def _profile_global_gloss_reduction(material_profile: CDMaterialRuntimeProfile) -> float:
+    return normalize_global_gloss_reduction(getattr(material_profile, "global_gloss_reduction", 0.0))
+
+
+def _profile_accent_glow_strength(material_profile: Optional[CDMaterialRuntimeProfile]) -> float:
+    if material_profile is None:
+        return 0.0
+    return normalize_basic_control_percent(getattr(material_profile, "accent_glow_strength", 0.0))
+
+
+def _profile_accent_glow_intensity(material_profile: Optional[CDMaterialRuntimeProfile]) -> float:
+    if material_profile is None:
+        return 0.0
+    strength = _profile_accent_glow_strength(material_profile)
+    if strength <= 0.0:
+        return 0.0
+    try:
+        maximum = float(getattr(material_profile, "accent_glow_intensity_max", 5.5) or 5.5)
+    except (TypeError, ValueError, OverflowError):
+        maximum = 5.5
+    return max(0.0, min(20.0, maximum)) * (strength / 100.0)
+
+
+def _profile_gloss_reduction_mode(material_profile: CDMaterialRuntimeProfile) -> str:
+    mode = _sanitize_texture_component(str(getattr(material_profile, "gloss_reduction_mode", "") or "cd_smoothness_low"))
+    aliases = {
+        "cdsmoothnesslow": "cd_smoothness_low",
+        "smoothnesslow": "cd_smoothness_low",
+        "low": "cd_smoothness_low",
+        "cdsmoothnesslowpreservemetal": "cd_smoothness_low_preserve_metal",
+        "smoothnesslowpreservemetal": "cd_smoothness_low_preserve_metal",
+        "lowpreservemetal": "cd_smoothness_low_preserve_metal",
+        "preservemetal": "cd_smoothness_low_preserve_metal",
+        "sourceroughnesshigh": "source_roughness_high",
+        "roughnesshigh": "source_roughness_high",
+        "mattehigh": "source_roughness_high",
+        "pbr": "source_roughness_high",
+    }
+    return aliases.get(
+        mode,
+        mode
+        if mode in {"cd_smoothness_low", "cd_smoothness_low_preserve_metal", "source_roughness_high"}
+        else "cd_smoothness_low",
+    )
+
+
+def _blend_byte_value(value: Optional[int], target: int, strength: float, fallback: int = 0) -> int:
+    current = max(0, min(255, int(value if value is not None else fallback)))
+    wanted = max(0, min(255, int(target)))
+    return max(0, min(255, int(round(current + (wanted - current) * strength))))
+
+
+def _blend_float_value(value: Optional[float], target: float, strength: float, fallback: float = 0.0) -> float:
+    current = float(value if value is not None else fallback)
+    return float(current + (float(target) - current) * strength)
+
+
+def apply_global_gloss_reduction_to_profile(
+    material_profile: CDMaterialRuntimeProfile,
+    reduction: object,
+) -> CDMaterialRuntimeProfile:
+    percent = normalize_global_gloss_reduction(reduction)
+    if percent <= 0.0:
+        return material_profile
+    strength = percent / 100.0
+
+    if _profile_uses_cd_smoothness_mask_response(material_profile):
+        gloss_mode = _profile_gloss_reduction_mode(material_profile)
+        if gloss_mode == "source_roughness_high":
+            scratch_roughness = float(
+                material_profile.scratch_roughness if material_profile.scratch_roughness is not None else 0.0
+            )
+            shine_scalar = float(material_profile.shine_scalar if material_profile.shine_scalar is not None else 0.0)
+            return replace(
+                material_profile,
+                global_gloss_reduction=percent,
+                roughness_default=_blend_byte_value(material_profile.roughness_default, 255, strength, 192),
+                roughness_min=_blend_byte_value(material_profile.roughness_min, 255, strength, 0),
+                roughness_scale=max(1.0, _blend_float_value(material_profile.roughness_scale, 1.0, strength, 1.0)),
+                roughness_max=_blend_byte_value(material_profile.roughness_max, 255, strength, 255),
+                scratch_roughness=max(0.0, min(1.0, _blend_float_value(scratch_roughness, 1.0, strength, 0.0))),
+                scratch_metallic=None,
+                shine_scalar=max(0.0, min(1.0, _blend_float_value(shine_scalar, 0.0, strength, 0.0))),
+                force_nonmetal=False,
+            )
+        if gloss_mode == "cd_smoothness_low_preserve_metal":
+            scratch_smoothness = float(
+                material_profile.scratch_roughness if material_profile.scratch_roughness is not None else 0.125
+            )
+            shine_scalar = float(material_profile.shine_scalar if material_profile.shine_scalar is not None else 0.0)
+            return replace(
+                material_profile,
+                global_gloss_reduction=percent,
+                roughness_default=_blend_byte_value(material_profile.roughness_default, 32, strength, 32),
+                roughness_min=_blend_byte_value(material_profile.roughness_min, 0, strength, 0),
+                roughness_scale=max(0.0, _blend_float_value(material_profile.roughness_scale, 1.0, strength, 1.0)),
+                roughness_max=_blend_byte_value(material_profile.roughness_max, 32, strength, 32),
+                scratch_roughness=max(0.0, min(1.0, _blend_float_value(scratch_smoothness, 0.125, strength, 0.125))),
+                scratch_metallic=material_profile.scratch_metallic,
+                shine_scalar=max(0.0, min(1.0, _blend_float_value(shine_scalar, 0.0, strength, 0.0))),
+                force_nonmetal=False,
+            )
+        # CD Standard_Ver2 weapon masks use the middle material channel as a gloss/smoothness-style
+        # response in practice.  Lowering it makes source-owned swaps visibly more matte; raising it
+        # can leave the same mirror/glass response users are trying to remove.
+        scratch_roughness = float(material_profile.scratch_roughness if material_profile.scratch_roughness is not None else 1.0)
+        scratch_metallic = float(material_profile.scratch_metallic if material_profile.scratch_metallic is not None else 0.0)
+        shine_scalar = float(material_profile.shine_scalar if material_profile.shine_scalar is not None else 0.0)
+        return replace(
+            material_profile,
+            global_gloss_reduction=percent,
+            roughness_default=_blend_byte_value(material_profile.roughness_default, 32, strength, 192),
+            roughness_min=_blend_byte_value(material_profile.roughness_min, 0, strength, material_profile.roughness_default),
+            roughness_scale=max(0.0, _blend_float_value(material_profile.roughness_scale, 1.0, strength, 1.0)),
+            roughness_max=_blend_byte_value(material_profile.roughness_max, 64, strength, 255),
+            metallic_default=_blend_byte_value(material_profile.metallic_default, 0, strength, 0),
+            metallic_min=_blend_byte_value(material_profile.metallic_min, 0, strength, 0),
+            metallic_scale=max(0.0, _blend_float_value(material_profile.metallic_scale, 0.0, strength, 1.0)),
+            metallic_max=_blend_byte_value(material_profile.metallic_max, 0, strength, 255),
+            alpha_default=_blend_byte_value(material_profile.alpha_default, 0, strength, 0),
+            scratch_roughness=max(0.0, min(1.0, _blend_float_value(scratch_roughness, 0.50, strength, 1.0))),
+            scratch_metallic=max(0.0, min(1.0, _blend_float_value(scratch_metallic, 0.0, strength, 0.0))),
+            shine_scalar=max(0.0, min(1.0, _blend_float_value(shine_scalar, 0.0, strength, 0.0))),
+            force_nonmetal=bool(material_profile.force_nonmetal or percent >= 90.0),
+        )
+
+    def lower_byte(value: Optional[int], fallback: int = 0) -> int:
+        return _blend_byte_value(value, 0, strength, fallback)
+
+    def lower_scale(value: Optional[float], fallback: float = 1.0) -> float:
+        current = max(0.0, min(4.0, float(value if value is not None else fallback)))
+        return max(0.0, min(current, current * (1.0 - strength)))
+
+    scratch_roughness = float(material_profile.scratch_roughness if material_profile.scratch_roughness is not None else 0.0)
+    scratch_metallic = float(material_profile.scratch_metallic if material_profile.scratch_metallic is not None else 0.0)
+    shine_scalar = float(material_profile.shine_scalar if material_profile.shine_scalar is not None else 0.0)
+    return replace(
+        material_profile,
+        global_gloss_reduction=percent,
+        metallic_default=lower_byte(material_profile.metallic_default, 0),
+        metallic_min=lower_byte(material_profile.metallic_min, 0),
+        metallic_scale=lower_scale(material_profile.metallic_scale, 1.0),
+        metallic_max=lower_byte(material_profile.metallic_max, 255),
+        scratch_roughness=max(scratch_roughness, scratch_roughness + (1.0 - scratch_roughness) * strength),
+        scratch_metallic=max(0.0, min(scratch_metallic, scratch_metallic * (1.0 - strength))),
+        shine_scalar=max(0.0, min(shine_scalar, shine_scalar * (1.0 - strength))),
+        force_nonmetal=bool(material_profile.force_nonmetal or percent >= 90.0),
+    )
+
+
+def apply_true_source_basic_controls_to_profile(
+    material_profile: CDMaterialRuntimeProfile,
+    *,
+    gloss_reduction: object = 0.0,
+    edge_relief_strength: object = 0.0,
+    edge_relief_source: object = "hybrid",
+    accent_glow_strength: object = 0.0,
+    dark_detail_lift: object = 0.0,
+    tone_contrast: object = 0.0,
+) -> CDMaterialRuntimeProfile:
+    profile = apply_global_gloss_reduction_to_profile(material_profile, gloss_reduction)
+    edge_strength = normalize_basic_control_percent(edge_relief_strength)
+    updates: dict[str, object] = {}
+    brightness_strength = normalize_basic_control_percent(dark_detail_lift)
+    if brightness_strength > 0.0:
+        strength = brightness_strength / 100.0
+        current_shadow_lift = int(max(0, min(100, int(getattr(profile, "base_color_shadow_lift", 0) or 0))))
+        current_gamma = _profile_base_color_gamma(profile)
+        updates["base_color_shadow_lift"] = max(current_shadow_lift, int(round(brightness_strength)))
+        updates["base_color_gamma"] = min(current_gamma, 1.0 - (0.18 * strength))
+    if edge_strength > 0.0:
+        source_mode = normalize_edge_relief_source(edge_relief_source)
+        updates["edge_relief_strength"] = edge_strength
+        updates["edge_relief_source"] = source_mode
+        if source_mode in {"generate_source", "hybrid"}:
+            updates["force_neutral_layer_support"] = True
+        current_scale = getattr(profile, "displacement_scale_multiplier", None)
+        current_cap = getattr(profile, "displacement_scale_max", None)
+        edge_scale = edge_strength / 100.0
+        updates["displacement_scale_multiplier"] = max(float(current_scale or 0.0), edge_scale)
+        updates["displacement_scale_max"] = max(float(current_cap or 0.0), edge_scale)
+    glow_strength = normalize_basic_control_percent(accent_glow_strength)
+    if glow_strength > 0.0:
+        updates["accent_glow_strength"] = glow_strength
+        updates["emissive_mode"] = "intensity"
+    if not updates:
+        return profile
+    return replace(profile, **updates)
 
 
 def complete_swap_material_profile_to_dict(profile: CDMaterialRuntimeProfile) -> dict[str, object]:
@@ -708,6 +1092,8 @@ def complete_swap_material_profile_to_dict(profile: CDMaterialRuntimeProfile) ->
         "base_color_gamma": profile.base_color_gamma,
         "base_color_saturation": profile.base_color_saturation,
         "base_color_value_max": profile.base_color_value_max,
+        "base_color_shadow_lift": int(profile.base_color_shadow_lift),
+        "base_color_tone_contrast": float(profile.base_color_tone_contrast),
         "emissive_color_scale": profile.emissive_color_scale,
         "emissive_color_saturation": profile.emissive_color_saturation,
         "emissive_color_value_max": profile.emissive_color_value_max,
@@ -718,6 +1104,13 @@ def complete_swap_material_profile_to_dict(profile: CDMaterialRuntimeProfile) ->
         "metallic_scale": profile.metallic_scale,
         "metallic_max": profile.metallic_max,
         "xml_profile_mode": profile.xml_profile_mode,
+        "authority_contract": profile.authority_contract,
+        "global_gloss_reduction": float(profile.global_gloss_reduction),
+        "gloss_reduction_mode": profile.gloss_reduction_mode,
+        "edge_relief_strength": float(profile.edge_relief_strength),
+        "edge_relief_source": profile.edge_relief_source,
+        "accent_glow_strength": float(profile.accent_glow_strength),
+        "accent_glow_intensity_max": float(profile.accent_glow_intensity_max),
         "note": profile.note,
     }
 
@@ -803,6 +1196,8 @@ def complete_swap_material_probe_manifest(
             "base_color_gamma": profile.base_color_gamma,
             "base_color_saturation": profile.base_color_saturation,
             "base_color_value_max": profile.base_color_value_max,
+            "base_color_shadow_lift": int(profile.base_color_shadow_lift),
+            "base_color_tone_contrast": float(profile.base_color_tone_contrast),
             "emissive_color_scale": profile.emissive_color_scale,
             "emissive_color_saturation": profile.emissive_color_saturation,
             "emissive_color_value_max": profile.emissive_color_value_max,
@@ -813,6 +1208,12 @@ def complete_swap_material_probe_manifest(
             "metallic_scale": profile.metallic_scale,
             "metallic_max": profile.metallic_max,
             "xml_profile_mode": profile.xml_profile_mode,
+            "authority_contract": profile.authority_contract,
+            "global_gloss_reduction": float(profile.global_gloss_reduction),
+            "edge_relief_strength": float(profile.edge_relief_strength),
+            "edge_relief_source": profile.edge_relief_source,
+            "accent_glow_strength": float(profile.accent_glow_strength),
+            "accent_glow_intensity_max": float(profile.accent_glow_intensity_max),
         },
     }
 
@@ -1246,6 +1647,12 @@ def build_texture_replacement_payloads(
     neutralize_inherited_material_layers: bool = False,
     complete_external_material_reset: bool = False,
     complete_swap_material_profile: str = "arm_standard",
+    complete_swap_global_gloss_reduction: float = 0.0,
+    complete_swap_edge_relief_strength: float = 0.0,
+    complete_swap_edge_relief_source: str = "hybrid",
+    complete_swap_accent_glow_strength: float = 0.0,
+    complete_swap_dark_detail_lift: float = 0.0,
+    complete_swap_tone_contrast: float = 0.0,
     removed_target_material_names: Sequence[str] = (),
     prune_removed_target_texture_parameters: bool = False,
     prune_unmapped_original_texture_parameters: bool = False,
@@ -1254,7 +1661,16 @@ def build_texture_replacement_payloads(
     pac_xml_profile_cache_path: str | Path | None = None,
 ) -> tuple[list[TextureReplacementPayload], TextureReplacementReport]:
     """Build generated DDS and patched sidecar payloads for a static replacement."""
-    material_profile = get_complete_swap_material_profile(complete_swap_material_profile)
+    gloss_reduction = normalize_global_gloss_reduction(complete_swap_global_gloss_reduction)
+    material_profile = apply_true_source_basic_controls_to_profile(
+        get_complete_swap_material_profile(complete_swap_material_profile),
+        gloss_reduction=gloss_reduction,
+        edge_relief_strength=complete_swap_edge_relief_strength,
+        edge_relief_source=complete_swap_edge_relief_source,
+        accent_glow_strength=complete_swap_accent_glow_strength,
+        dark_detail_lift=complete_swap_dark_detail_lift,
+        tone_contrast=complete_swap_tone_contrast,
+    )
     effective_texture_files = tuple(texture_files or ())
     if complete_external_material_reset:
         effective_texture_files = _with_source_material_reference_textures(
@@ -1269,6 +1685,64 @@ def build_texture_replacement_payloads(
             report,
             f"Complete swap material profile: {material_profile.name} ({material_profile.label}).",
         )
+        if gloss_reduction > 0.0:
+            gloss_mode = _profile_gloss_reduction_mode(material_profile)
+            if gloss_mode == "source_roughness_high":
+                gloss_summary = (
+                    f"Global gloss reduction applied: {gloss_reduction:.0f}%; source roughness floor raised "
+                    "while source metalness is preserved for source-owned wrappers."
+                )
+                gloss_channels = (
+                    "Global gloss reduction channels: _colorBlendingMaskTexture G is driven rough/high for source PBR response, "
+                    "B source metalness is preserved, and XML _scratchRoughness/_sheen plus compatible gloss/smoothness/spec scalars are patched when present."
+                )
+            elif gloss_mode == "cd_smoothness_low_preserve_metal":
+                gloss_summary = (
+                    f"Global gloss reduction applied: {gloss_reduction:.0f}%; CD smoothness/gloss response reduced "
+                    "while source metalness is preserved for source-owned wrappers."
+                )
+                gloss_channels = (
+                    "Global gloss reduction channels: _colorBlendingMaskTexture G is driven smoothness-low, "
+                    "B source metalness is preserved, and XML _scratchRoughness/_sheen plus compatible gloss/smoothness scalars are patched when present."
+                )
+            else:
+                gloss_summary = (
+                    f"Global gloss reduction applied: {gloss_reduction:.0f}%; CD gloss/smoothness mask response, "
+                    "metallic/spec, and shine scalars reduced for source-owned wrappers."
+                )
+                gloss_channels = (
+                    "Global gloss reduction channels: _colorBlendingMaskTexture G is driven matte/low for CD gloss response, "
+                    "B/A metallic-spec response is reduced where generated, and XML _scratchRoughness/_scratchMetallic/_sheen "
+                    "plus compatible gloss/smoothness/spec scalars are patched when present."
+                )
+            _warn_once(
+                report,
+                gloss_summary,
+            )
+            _warn_once(
+                report,
+                gloss_channels,
+            )
+            if _profile_is_runtime_xml(material_profile) or _profile_mask_binding_mode(material_profile) == "disabled":
+                _warn_once(
+                    report,
+                    "Global gloss reduction had limited effect for some wrappers because Runtime XML preserves stock material layers unless compatible scalar slots are patched.",
+                )
+        if normalize_basic_control_percent(complete_swap_edge_relief_strength) > 0.0:
+            _warn_once(
+                report,
+                "Edge relief control applied: "
+                f"{normalize_basic_control_percent(complete_swap_edge_relief_strength):.0f}% "
+                f"({normalize_edge_relief_source(complete_swap_edge_relief_source).replace('_', ' ')}); "
+                "height/detail support slots may be preserved or generated when compatible.",
+            )
+        if normalize_basic_control_percent(complete_swap_dark_detail_lift) > 0.0:
+            _warn_once(
+                report,
+                "Source brightness control applied: "
+                f"{normalize_basic_control_percent(complete_swap_dark_detail_lift):.0f}%; "
+                "source base DDS shadows and midtones will be lifted before export.",
+            )
     texture_sets = {texture_set.material_name.lower(): texture_set for texture_set in report.texture_sets}
     _apply_source_material_texture_overrides(
         texture_sets,
@@ -1340,6 +1814,12 @@ def build_texture_replacement_payloads(
                 neutralize_inherited_material_layers=bool(neutralize_inherited_material_layers),
                 complete_external_material_reset=bool(complete_external_material_reset),
                 complete_swap_material_profile=complete_swap_material_profile,
+                complete_swap_global_gloss_reduction=gloss_reduction,
+                complete_swap_edge_relief_strength=complete_swap_edge_relief_strength,
+                complete_swap_edge_relief_source=complete_swap_edge_relief_source,
+                complete_swap_accent_glow_strength=complete_swap_accent_glow_strength,
+                complete_swap_dark_detail_lift=complete_swap_dark_detail_lift,
+                complete_swap_tone_contrast=complete_swap_tone_contrast,
                 removed_target_material_names=removed_target_material_names,
                 prune_removed_target_texture_parameters=prune_removed_target_texture_parameters,
                 prune_unmapped_original_texture_parameters=prune_unmapped_original_texture_parameters,
@@ -1695,6 +2175,12 @@ def _build_rebuilt_pac_driven_payloads(
     neutralize_inherited_material_layers: bool,
     complete_external_material_reset: bool = False,
     complete_swap_material_profile: str = "arm_standard",
+    complete_swap_global_gloss_reduction: float = 0.0,
+    complete_swap_edge_relief_strength: float = 0.0,
+    complete_swap_edge_relief_source: str = "hybrid",
+    complete_swap_accent_glow_strength: float = 0.0,
+    complete_swap_dark_detail_lift: float = 0.0,
+    complete_swap_tone_contrast: float = 0.0,
     removed_target_material_names: Sequence[str] = (),
     prune_removed_target_texture_parameters: bool = False,
     prune_unmapped_original_texture_parameters: bool = False,
@@ -1710,11 +2196,33 @@ def _build_rebuilt_pac_driven_payloads(
     the visible replacement texture set.
     """
     del obj_mesh
-    material_profile = get_complete_swap_material_profile(complete_swap_material_profile)
+    gloss_reduction = normalize_global_gloss_reduction(complete_swap_global_gloss_reduction)
+    material_profile = apply_true_source_basic_controls_to_profile(
+        get_complete_swap_material_profile(complete_swap_material_profile),
+        gloss_reduction=gloss_reduction,
+        edge_relief_strength=complete_swap_edge_relief_strength,
+        edge_relief_source=complete_swap_edge_relief_source,
+        accent_glow_strength=complete_swap_accent_glow_strength,
+        dark_detail_lift=complete_swap_dark_detail_lift,
+        tone_contrast=complete_swap_tone_contrast,
+    )
     references_by_material = _references_by_material(original_texture_refs)
     references_by_target_path = _references_by_target_path(original_texture_refs)
     if complete_external_material_reset and output_draw_sections:
-        active_target_names = list(_source_owned_keep_material_names_for_output_draw_sections(output_draw_sections))
+        keep_names = _source_owned_keep_material_names_for_output_draw_sections(output_draw_sections)
+        active_target_names = list(
+            _source_owned_active_material_names_for_output_draw_sections(
+                output_draw_sections,
+                material_profile=material_profile,
+            )
+        )
+        skipped_placeholder_count = len(tuple(keep_names)) - len(active_target_names)
+        if skipped_placeholder_count > 0 and _profile_suppresses_runtime_placeholder_material_bindings(material_profile):
+            _warn_once(
+                report,
+                "Material Authority Placeholder Safe Test: kept "
+                f"{skipped_placeholder_count:,} runtime placeholder material wrapper(s) unpatched to avoid source glow flicker.",
+            )
     else:
         active_target_names = _active_rebuilt_material_names(rebuilt_mesh, submesh_mappings)
     if not active_target_names:
@@ -1737,6 +2245,12 @@ def _build_rebuilt_pac_driven_payloads(
             neutralize_inherited_material_layers=bool(neutralize_inherited_material_layers),
             complete_external_material_reset=bool(complete_external_material_reset),
             complete_swap_material_profile=complete_swap_material_profile,
+            complete_swap_global_gloss_reduction=gloss_reduction,
+            complete_swap_edge_relief_strength=complete_swap_edge_relief_strength,
+            complete_swap_edge_relief_source=complete_swap_edge_relief_source,
+            complete_swap_accent_glow_strength=complete_swap_accent_glow_strength,
+            complete_swap_dark_detail_lift=complete_swap_dark_detail_lift,
+            complete_swap_tone_contrast=complete_swap_tone_contrast,
             removed_target_material_names=removed_target_material_names,
             prune_removed_target_texture_parameters=prune_removed_target_texture_parameters,
             prune_unmapped_original_texture_parameters=prune_unmapped_original_texture_parameters,
@@ -2067,6 +2581,12 @@ def _build_source_driven_pac_material_payloads(
     neutralize_inherited_material_layers: bool = False,
     complete_external_material_reset: bool = False,
     complete_swap_material_profile: str = "arm_standard",
+    complete_swap_global_gloss_reduction: float = 0.0,
+    complete_swap_edge_relief_strength: float = 0.0,
+    complete_swap_edge_relief_source: str = "hybrid",
+    complete_swap_accent_glow_strength: float = 0.0,
+    complete_swap_dark_detail_lift: float = 0.0,
+    complete_swap_tone_contrast: float = 0.0,
     removed_target_material_names: Sequence[str] = (),
     prune_removed_target_texture_parameters: bool = False,
     prune_unmapped_original_texture_parameters: bool = False,
@@ -2076,7 +2596,15 @@ def _build_source_driven_pac_material_payloads(
     pac_xml_corpus_root: str | Path | None = None,
     pac_xml_profile_cache_path: str | Path | None = None,
 ) -> list[TextureReplacementPayload]:
-    material_profile = get_complete_swap_material_profile(complete_swap_material_profile)
+    material_profile = apply_true_source_basic_controls_to_profile(
+        get_complete_swap_material_profile(complete_swap_material_profile),
+        gloss_reduction=complete_swap_global_gloss_reduction,
+        edge_relief_strength=complete_swap_edge_relief_strength,
+        edge_relief_source=complete_swap_edge_relief_source,
+        accent_glow_strength=complete_swap_accent_glow_strength,
+        dark_detail_lift=complete_swap_dark_detail_lift,
+        tone_contrast=complete_swap_tone_contrast,
+    )
     material_authority_bruteforce = bool(_profile_is_material_authority_bruteforce(material_profile))
     removed_target_material_names = tuple(
         str(name or "").strip()
@@ -2091,6 +2619,11 @@ def _build_source_driven_pac_material_payloads(
             _warn_once(
                 report,
                 "Material authority runtime XML: preserving target/corpus PAC XML shader, wrapper order, stock masks, detail, height, grime, dye, and PBD response; patching compatible direct source slots only.",
+            )
+        elif material_profile.name == "material_authority_pbr_source_test":
+            _warn_once(
+                report,
+                "Material Authority PBR Source Test: using direct source bindings, high material roughness, source metalness, and no inherited dye/detail layer color pipeline.",
             )
         elif _profile_routes_source_color_to_layer_slots(material_profile):
             _warn_once(
@@ -2108,6 +2641,16 @@ def _build_source_driven_pac_material_payloads(
             report,
             "Material authority brute force: preserving target shader texture parameter slots and repointing them to source-derived DDS.",
         )
+    if _profile_authority_contract(material_profile) == "true_source_authority":
+        _warn_once(
+            report,
+            "Material authority true source: original PAC/XML supplies draw ABI and protected hooks only; active source-owned wrappers use source or neutral generated visible material bindings.",
+        )
+    elif _profile_authority_contract(material_profile) == "true_source_authority_detail_mask":
+        _warn_once(
+            report,
+            "Material Authority: source base uses working-mod overlay ItemID and source material mask is routed through _detailMaskTexture to avoid the glossy color-blend response.",
+        )
     if not original_sidecars or (
         not active_target_names
         and not prune_removed_target_texture_parameters
@@ -2117,6 +2660,7 @@ def _build_source_driven_pac_material_payloads(
 
     target_bindings: dict[str, list[tuple[str, str, str]]] = {}
     target_pbr_scalars: dict[str, tuple[int, int, str]] = {}
+    target_emissive_settings: dict[str, tuple[str, float]] = {}
     generated_payloads: list[TextureReplacementPayload] = []
     generated_by_source: dict[tuple[str, str], str] = {}
     emitted_paths: set[str] = set()
@@ -2158,6 +2702,8 @@ def _build_source_driven_pac_material_payloads(
                         f"{corpus_index.xml_count:,} XML; {corpus_index.wrapper_count:,} wrappers; "
                         f"{corpus_index.parameter_count:,} params; paired models {corpus_index.paired_model_count:,}.",
                     )
+                    if bool(getattr(corpus_index, "sqlite_backed", False)):
+                        _warn_once(report, "PAC XML profile cache: sqlite v2; lazy template lookup.")
                 else:
                     root_note = str(pac_xml_corpus_root or "").strip() or f"${{CDMW_PAC_XML_CORPUS_ROOT}}"
                     _warn_once(report, f"PAC XML corpus index unavailable or empty: {root_note}.")
@@ -2389,12 +2935,17 @@ def _build_source_driven_pac_material_payloads(
             if pbr_scalars is not None:
                 target_pbr_scalars[target_name] = pbr_scalars
         bindings: list[tuple[str, str, str]] = []
-        for source_slot in _source_driven_slots(
+        source_slots = list(_source_driven_slots(
             texture_set,
             include_pbr_material_fallback=bool(complete_external_material_reset),
             include_complete_support_fallbacks=bool(complete_external_material_reset),
             material_profile=material_profile,
-        ):
+        ))
+        if not any(str(slot.slot_kind or "").strip().lower() == "emissive" for slot in source_slots):
+            accent_slot = _complete_swap_accent_emissive_slot(texture_set, target_name, material_profile)
+            if accent_slot is not None:
+                source_slots.append(accent_slot)
+        for source_slot in source_slots:
             if not runtime_xml_slot_supported_by_target(target_name, source_slot.slot_kind):
                 continue
             parameter_name = (
@@ -2457,7 +3008,25 @@ def _build_source_driven_pac_material_payloads(
                         "Complete swap generated CD runtime material mask from source PBR/factors "
                         f"for {source_slot.material_name} using profile {material_profile.name}.",
                     )
+                if (
+                    normalize_basic_control_percent(getattr(material_profile, "edge_relief_strength", 0.0)) > 0.0
+                    and str(source_slot.slot_kind or "").strip().lower() in {"height", "detail_mask"}
+                    and "edge_relief" in source_slot.source_path.name.lower()
+                ):
+                    _warn_once(
+                        report,
+                        f"Edge relief generated {source_slot.slot_kind} support for {source_slot.material_name}: "
+                        f"{output_texture_path}.",
+                    )
             bindings.append((parameter_name, output_texture_path, source_slot.slot_kind))
+            if (
+                str(source_slot.slot_kind or "").strip().lower() == "emissive"
+                and _profile_accent_glow_intensity(material_profile) > 0.0
+            ):
+                target_emissive_settings[target_name] = (
+                    _texture_set_accent_glow_color_hex(texture_set, source_slot),
+                    _profile_accent_glow_intensity(material_profile),
+                )
             report.slot_mappings.append(
                 TextureSlotMapping(
                     target_material_name=target_name,
@@ -2510,13 +3079,32 @@ def _build_source_driven_pac_material_payloads(
             cloned_sidecar_text,
             target_bindings,
             exact_only=bool(complete_external_material_reset),
-            shader_name=material_profile.shader if complete_external_material_reset and not _profile_is_runtime_xml(material_profile) else "",
+            shader_name=material_profile.shader
+            if complete_external_material_reset
+            and not _profile_is_runtime_xml(material_profile)
+            and not _profile_preserves_target_layer_response(material_profile)
+            else "",
             insert_missing_slots=bool(complete_external_material_reset and not _profile_is_runtime_xml(material_profile)),
             material_authority_bruteforce=material_authority_bruteforce,
             material_profile=material_profile,
             template_allowed_insertions=runtime_xml_template_insertions if _profile_is_runtime_xml(material_profile) else {},
             template_shader_overrides=runtime_xml_template_shader_overrides if _profile_is_runtime_xml(material_profile) else {},
         )
+        glow_settings = {
+            target_name: target_emissive_settings[target_name]
+            for target_name in target_bindings
+            if target_name in target_emissive_settings
+        }
+        if glow_settings:
+            patched_text, glow_wrappers = _apply_source_emissive_parameters(patched_text, glow_settings)
+            if glow_wrappers:
+                _warn_once(
+                    report,
+                    "Accent glow applied: "
+                    f"{_profile_accent_glow_strength(material_profile):.0f}% "
+                    f"({_profile_accent_glow_intensity(material_profile):.2f} emissive intensity) "
+                    f"on {glow_wrappers:,} source-owned wrapper(s).",
+                )
         neutralized_parameters = 0
         if neutralize_inherited_material_layers and changed_wrappers > 0:
             keep_rules = [
@@ -2547,7 +3135,10 @@ def _build_source_driven_pac_material_payloads(
                 f"Skipped source-driven sidecar {PurePosixPath(sidecar_path).name}; no compatible material wrapper texture slot could be patched."
             )
             continue
-        if complete_external_material_reset and not _profile_preserves_target_layer_response(material_profile) and (
+        if complete_external_material_reset and (
+            not _profile_preserves_target_layer_response(material_profile)
+            or _profile_applies_source_pbr_scalars_with_preserved_layers(material_profile)
+        ) and (
             target_pbr_scalars
             or material_profile.scratch_roughness is not None
             or material_profile.scratch_metallic is not None
@@ -3121,12 +3712,16 @@ def _source_driven_slots(
         gamma = _profile_base_color_gamma(profile)
         saturation = _profile_base_color_saturation(profile)
         value_max = _profile_optional_byte(profile, "base_color_value_max")
+        shadow_lift = int(max(0, min(100, int(getattr(profile, "base_color_shadow_lift", 0) or 0))))
+        tone_contrast = normalize_tone_contrast(getattr(profile, "base_color_tone_contrast", 0.0))
         if (
             lift <= 0
             and scale is None
             and abs(gamma - 1.0) <= 0.0001
             and abs(saturation - 1.0) <= 0.0001
             and value_max is None
+            and shadow_lift <= 0
+            and abs(tone_contrast) <= 0.0001
         ):
             return source_slot
         return replace(
@@ -3136,6 +3731,8 @@ def _source_driven_slots(
             base_color_gamma=gamma,
             base_color_saturation=saturation,
             base_color_value_max=value_max if value_max is not None else 255,
+            base_color_shadow_lift=shadow_lift,
+            base_color_tone_contrast=tone_contrast,
         )
 
     for slot_kind in order:
@@ -3267,12 +3864,19 @@ def _profile_mask_binding_mode(material_profile: CDMaterialRuntimeProfile) -> st
         "colorblending": "color_blending_mask",
         "colorblendingmask": "color_blending_mask",
         "mask": "color_blending_mask",
+        "detailmask": "detail_mask_material",
+        "detailmaskmaterial": "detail_mask_material",
+        "detailmaterial": "detail_mask_material",
+        "materialdetailmask": "detail_mask_material",
         "scratch": "scratch_scalars",
         "scratchscalars": "scratch_scalars",
         "off": "disabled",
         "none": "disabled",
     }
-    return aliases.get(mode, mode if mode in {"color_blending_mask", "scratch_scalars", "disabled"} else "color_blending_mask")
+    return aliases.get(
+        mode,
+        mode if mode in {"color_blending_mask", "detail_mask_material", "scratch_scalars", "disabled"} else "color_blending_mask",
+    )
 
 
 def _profile_support_policy(material_profile: CDMaterialRuntimeProfile) -> str:
@@ -3302,6 +3906,49 @@ def _profile_is_material_authority_bruteforce(material_profile: CDMaterialRuntim
         "material_authority_bruteforce",
         "material_authority_bruteforce_tuned",
     }
+
+
+def _profile_authority_contract(profile: Optional[CDMaterialRuntimeProfile]) -> str:
+    if profile is None:
+        return ""
+    raw = _sanitize_texture_component(str(getattr(profile, "authority_contract", "") or ""))
+    aliases = {
+        "runtime_xml": "runtime_xml_preserve",
+        "runtimexml": "runtime_xml_preserve",
+        "runtime_xml_authority": "runtime_xml_preserve",
+        "runtime_xml_preserve": "runtime_xml_preserve",
+        "corpus_preserve": "runtime_xml_preserve",
+        "preserve": "runtime_xml_preserve",
+        "true_source": "true_source_authority",
+        "source_authority": "true_source_authority",
+        "strict_source": "true_source_authority",
+        "strict_source_authority": "true_source_authority",
+        "true_source_authority": "true_source_authority",
+        "detail_mask_authority": "true_source_authority_detail_mask",
+        "detailmaskauthority": "true_source_authority_detail_mask",
+        "true_source_detail_mask": "true_source_authority_detail_mask",
+        "true_source_authority_detail_mask": "true_source_authority_detail_mask",
+    }
+    resolved = aliases.get(raw, raw)
+    if resolved in {"runtime_xml_preserve", "true_source_authority", "true_source_authority_detail_mask"}:
+        return resolved
+    if _profile_is_runtime_xml(profile):
+        return "runtime_xml_preserve"
+    return ""
+
+
+def complete_swap_material_authority_contract(profile_name: str = "") -> str:
+    """Return the final-package material authority contract for a runtime profile."""
+
+    return _profile_authority_contract(get_complete_swap_material_profile(profile_name))
+
+
+def complete_swap_material_allows_inherited_layer_color_bindings(profile_name: str = "") -> bool:
+    return complete_swap_material_authority_contract(profile_name) == "runtime_xml_preserve"
+
+
+def complete_swap_material_requires_true_source_authority(profile_name: str = "") -> bool:
+    return complete_swap_material_authority_contract(profile_name).startswith("true_source_authority")
 
 
 def _profile_is_runtime_xml(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
@@ -3336,6 +3983,22 @@ def _profile_uses_factor_only_material_mask(material_profile: Optional[CDMateria
 
 def _profile_preserves_target_layer_response(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
     return bool(getattr(material_profile, "preserve_target_layer_response", False))
+
+
+def _profile_applies_source_pbr_scalars_with_preserved_layers(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
+    return _sanitize_texture_component(str(getattr(material_profile, "name", "") or "")) == "material_authority_pbr_source_test"
+
+
+def _profile_uses_detail_mask_material_contract(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
+    if material_profile is None:
+        return False
+    name = _sanitize_texture_component(str(getattr(material_profile, "name", "") or ""))
+    contract = _sanitize_texture_component(str(getattr(material_profile, "authority_contract", "") or ""))
+    return bool(
+        name == "material_authority_detail_mask"
+        or _profile_mask_binding_mode(material_profile) == "detail_mask_material"
+        or contract in {"true_source_authority_detail_mask", "detail_mask_authority", "detailmaskauthority"}
+    )
 
 
 def _profile_routes_source_color_to_layer_slots(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
@@ -3534,15 +4197,23 @@ def _complete_swap_neutral_support_slot(
     material_profile: Optional[CDMaterialRuntimeProfile] = None,
 ) -> ReplacementTextureSlot:
     material_name = str(texture_set.material_name or "material").strip() or "material"
+    profile = material_profile or get_complete_swap_material_profile()
+    normalized_slot = str(slot_kind or "").strip().lower()
+    edge_strength = normalize_basic_control_percent(getattr(profile, "edge_relief_strength", 0.0))
+    edge_mode = normalize_edge_relief_source(getattr(profile, "edge_relief_source", "hybrid"))
+    if edge_strength > 0.0 and edge_mode in {"generate_source", "hybrid"} and normalized_slot in {"height", "detail_mask"}:
+        source_path = _complete_swap_edge_relief_support_png_path(texture_set, normalized_slot, profile)
+    else:
+        source_path = _complete_swap_neutral_support_png_path(
+            material_name,
+            normalized_slot,
+            material_profile=profile,
+        )
     return ReplacementTextureSlot(
         material_name=material_name,
-        slot_kind=slot_kind,
-        source_path=_complete_swap_neutral_support_png_path(
-            material_name,
-            slot_kind,
-            material_profile=material_profile,
-        ),
-        normal_space="directx" if slot_kind == "normal" else "",
+        slot_kind=normalized_slot,
+        source_path=source_path,
+        normal_space="directx" if normalized_slot == "normal" else "",
         source_authority="synthetic",
     )
 
@@ -3719,6 +4390,8 @@ def _complete_swap_runtime_material_mask_png_path(
         str(_profile_optional_byte(material_profile, "metallic_min")),
         str(_profile_optional_scale(material_profile, "metallic_scale")),
         str(_profile_optional_byte(material_profile, "metallic_max")),
+        str(_profile_gloss_reduction_mode(material_profile)),
+        str(_profile_global_gloss_reduction(material_profile)),
     ]
     for slot in (pbr_slot, roughness_slot, metallic_slot, ao_slot):
         if slot is not None:
@@ -3797,6 +4470,17 @@ def _complete_swap_runtime_material_mask_png_path(
         minimum=_profile_optional_byte(material_profile, "metallic_min"),
         maximum=_profile_optional_byte(material_profile, "metallic_max"),
     )
+    gloss_reduction = _profile_global_gloss_reduction(material_profile)
+    if gloss_reduction > 0.0 and _profile_uses_cd_smoothness_mask_response(material_profile):
+        strength = gloss_reduction / 100.0
+        gloss_mode = _profile_gloss_reduction_mode(material_profile)
+        if gloss_mode == "source_roughness_high":
+            roughness = _blend_grayscale_channel_toward(roughness, 255, strength)
+        elif gloss_mode == "cd_smoothness_low_preserve_metal":
+            roughness = _blend_grayscale_channel_toward(roughness, 32, strength)
+        else:
+            roughness = _blend_grayscale_channel_toward(roughness, 32, strength)
+            metallic = _blend_grayscale_channel_toward(metallic, 0, strength)
     Image.merge(
         "RGBA",
         _material_mask_rgba_from_roles(
@@ -3806,6 +4490,14 @@ def _complete_swap_runtime_material_mask_png_path(
         ),
     ).save(path)
     return path
+
+
+def _blend_grayscale_channel_toward(image: object, target_value: int, strength: float):
+    from PIL import Image
+
+    target = max(0, min(255, int(target_value)))
+    amount = max(0.0, min(1.0, float(strength)))
+    return Image.eval(image, lambda value: max(0, min(255, int(round(int(value) + (target - int(value)) * amount)))))
 
 
 def _apply_profile_channel_adjustments(
@@ -3920,6 +4612,61 @@ def _complete_swap_neutral_support_png_path(
     return path
 
 
+def _complete_swap_edge_relief_support_png_path(
+    texture_set: ReplacementTextureSet,
+    slot_kind: str,
+    material_profile: CDMaterialRuntimeProfile,
+) -> Path:
+    normalized_slot = str(slot_kind or "").strip().lower()
+    material_name = str(texture_set.material_name or "material").strip() or "material"
+    strength = normalize_basic_control_percent(getattr(material_profile, "edge_relief_strength", 0.0)) / 100.0
+    source_slot = (
+        texture_set.slots.get("normal")
+        or texture_set.slots.get("base")
+        or texture_set.slots.get("material")
+        or texture_set.slots.get("roughness")
+    )
+    source_path = source_slot.source_path if source_slot is not None else Path()
+    source_key = [material_name, normalized_slot, f"{strength:.6f}", str(source_path)]
+    try:
+        stat = source_path.stat()
+        source_key.extend((str(stat.st_mtime_ns), str(stat.st_size)))
+    except OSError:
+        pass
+    digest = hashlib.sha1("|".join(source_key).encode("utf-8", errors="ignore")).hexdigest()[:12]
+    safe_material = _sanitize_texture_component(material_name) or "material"
+    root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
+    root.mkdir(parents=True, exist_ok=True)
+    path = root / f"{safe_material}_{normalized_slot}_edge_relief_{digest}.png"
+    if path.is_file():
+        return path
+    from PIL import Image, ImageChops, ImageFilter
+
+    size = _first_readable_image_size((source_path,)) or (16, 16)
+    if source_path.is_file():
+        try:
+            with Image.open(source_path) as image:
+                rgba = image.convert("RGBA")
+                if rgba.size != size:
+                    resampling = getattr(Image, "Resampling", Image).LANCZOS
+                    rgba = rgba.resize(size, resampling)
+                luma = rgba.convert("L")
+        except Exception:
+            luma = Image.new("L", size, 128)
+    else:
+        luma = Image.new("L", size, 128)
+    edges = luma.filter(ImageFilter.FIND_EDGES)
+    edge_boost = edges.point(lambda value: max(0, min(255, int(round(int(value) * strength)))))
+    if normalized_slot == "detail_mask":
+        alpha = edge_boost.point(lambda value: max(0, min(255, int(round(int(value) * 0.75)))))
+        Image.merge("RGBA", (edge_boost, edge_boost, edge_boost, alpha)).save(path)
+        return path
+    base = Image.new("L", size, 128)
+    raised = ImageChops.add(base, edge_boost.point(lambda value: int(round(int(value) * 0.35))))
+    Image.merge("RGBA", (raised, raised, raised, Image.new("L", size, 255))).save(path)
+    return path
+
+
 def _source_driven_parameter_name(
     slot_kind: str,
     *,
@@ -3937,6 +4684,8 @@ def _source_driven_parameter_name(
         mask_mode = _profile_mask_binding_mode(profile)
         if mask_mode in {"disabled", "scratch_scalars"}:
             return ""
+        if mask_mode == "detail_mask_material":
+            return "_detailMaskTexture"
     return {
         "base": "_overlayColorTexture",
         "normal": "_normalTexture",
@@ -4033,6 +4782,122 @@ def _source_pbr_scalar_values(texture_set: ReplacementTextureSet) -> Optional[tu
         _byte4_uniform_rgb(int(round(metalness if metalness is not None else 0.0))),
         source_name,
     )
+
+
+_ACCENT_GLOW_TOKENS = {
+    "accent",
+    "core",
+    "crystal",
+    "emissive",
+    "energy",
+    "eye",
+    "fire",
+    "flame",
+    "gem",
+    "glass",
+    "glow",
+    "jewel",
+    "lava",
+    "lens",
+    "light",
+    "magic",
+    "orb",
+    "rune",
+}
+
+
+def _complete_swap_accent_emissive_slot(
+    texture_set: ReplacementTextureSet,
+    target_name: str,
+    material_profile: CDMaterialRuntimeProfile,
+) -> Optional[ReplacementTextureSlot]:
+    if _profile_accent_glow_intensity(material_profile) <= 0.0:
+        return None
+    existing = texture_set.slots.get("emissive")
+    if existing is not None:
+        return existing
+    if not _texture_set_is_accent_glow_candidate(texture_set, target_name):
+        return None
+    base_slot = texture_set.slots.get("base")
+    if base_slot is not None:
+        return replace(
+            base_slot,
+            slot_kind="emissive",
+            source_authority=str(base_slot.source_authority or "synthetic_accent_glow"),
+            base_color_scale=1.0,
+            base_color_lift=0,
+            base_color_gamma=1.0,
+            base_color_saturation=1.0,
+            base_color_value_max=255,
+            base_color_shadow_lift=0,
+            base_color_tone_contrast=0.0,
+        )
+    color = tuple(texture_set.base_color_factor or ())
+    if len(color) >= 3:
+        try:
+            rgb = tuple(max(0.0, min(1.0, float(component))) for component in color[:3])
+        except (TypeError, ValueError, OverflowError):
+            rgb = ()
+        if rgb:
+            return ReplacementTextureSlot(
+                material_name=texture_set.material_name,
+                slot_kind="emissive",
+                source_path=_solid_material_factor_png_path(texture_set.material_name, "accent_emissive", rgb),
+                source_authority="synthetic_accent_glow",
+            )
+    return None
+
+
+def _texture_set_is_accent_glow_candidate(texture_set: ReplacementTextureSet, target_name: str) -> bool:
+    text_parts = [
+        str(texture_set.material_name or ""),
+        str(target_name or ""),
+    ]
+    for slot in tuple((texture_set.slots or {}).values()):
+        text_parts.append(str(getattr(slot, "source_path", "") or ""))
+        text_parts.append(str(getattr(slot, "semantic_subtype", "") or ""))
+        text_parts.append(str(getattr(slot, "source_authority", "") or ""))
+    tokens = {
+        token
+        for token in re.split(r"[^a-z0-9]+", " ".join(text_parts).lower())
+        if token
+    }
+    compact = _sanitize_texture_component(" ".join(text_parts))
+    return bool(tokens.intersection(_ACCENT_GLOW_TOKENS) or any(token in compact for token in _ACCENT_GLOW_TOKENS))
+
+
+def _texture_set_accent_glow_color_hex(
+    texture_set: ReplacementTextureSet,
+    source_slot: Optional[ReplacementTextureSlot],
+) -> str:
+    color = tuple(texture_set.base_color_factor or ())
+    if len(color) < 3 and source_slot is not None:
+        color = tuple(getattr(source_slot, "base_color_factor", ()) or ())
+    if len(color) >= 3:
+        try:
+            rgb = tuple(max(0, min(255, int(round(float(component) * 255.0)))) for component in color[:3])
+            if any(component > 0 for component in rgb):
+                return f"#{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}FF"
+        except (TypeError, ValueError, OverflowError):
+            pass
+    if source_slot is not None:
+        try:
+            from PIL import Image, ImageStat
+
+            with Image.open(source_slot.source_path) as image:
+                rgba = image.convert("RGBA")
+                if max(rgba.size) > 256:
+                    rgba.thumbnail((256, 256))
+                stat = ImageStat.Stat(rgba)
+                rgb = tuple(max(0, min(255, int(round(value)))) for value in stat.mean[:3])
+                if any(component > 10 for component in rgb):
+                    strongest = max(rgb)
+                    if strongest > 0:
+                        boosted = tuple(max(0, min(255, int(round(component * 255.0 / strongest)))) for component in rgb)
+                        return f"#{boosted[0]:02X}{boosted[1]:02X}{boosted[2]:02X}FF"
+        except Exception:
+            pass
+    return "#FFFFFFFF"
 
 
 def _texture_role_for_parameter_and_path(parameter_name: str, texture_path: str) -> str:
@@ -4325,6 +5190,68 @@ def _build_source_driven_sidecar_text(
     )
 
 
+def _apply_detail_mask_material_contract_to_wrapper(
+    wrapper_text: str,
+    material_mask_paths: Sequence[str],
+) -> tuple[str, bool]:
+    """Apply working-mod route: overlay keeps the source color, source PBR mask becomes detail mask."""
+
+    wanted_detail_paths = {
+        _normalize_texture_path(path)
+        for path in tuple(material_mask_paths or ())
+        if _normalize_texture_path(path)
+    }
+    texture_pattern = re.compile(
+        r"\s*<MaterialParameterTexture\b[^>]*>.*?</MaterialParameterTexture>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    changed = False
+    kept_detail = False
+
+    def set_item_id(block: str, item_id: str) -> str:
+        if re.search(r'\bItemID="[^"]*"', block, flags=re.IGNORECASE):
+            return re.sub(r'\bItemID="[^"]*"', f'ItemID="{item_id}"', block, count=1, flags=re.IGNORECASE)
+        return re.sub(r"(<MaterialParameterTexture\b)", rf'\1 ItemID="{item_id}"', block, count=1, flags=re.IGNORECASE)
+
+    def block_path(block: str) -> str:
+        path_match = re.search(r'\b(?:_path|path|Path|_value|Value|value)="([^"]*)"', block, flags=re.IGNORECASE)
+        return str(path_match.group(1) if path_match else "").replace("\\", "/").strip()
+
+    def patch_block(match: re.Match[str]) -> str:
+        nonlocal changed, kept_detail
+        block = match.group(0)
+        parameter_name = _sidecar_parameter_name(block).strip().lower()
+        if parameter_name == "_overlaycolortexture":
+            patched_block = set_item_id(block, "3936485985222654")
+            if patched_block != block:
+                changed = True
+            return patched_block
+        if parameter_name == "_colorblendingmasktexture":
+            changed = True
+            return ""
+        if parameter_name == "_detailmasktexture":
+            normalized_path = _normalize_texture_path(block_path(block))
+            should_keep = False
+            if wanted_detail_paths:
+                should_keep = normalized_path in wanted_detail_paths and not kept_detail
+            else:
+                should_keep = not kept_detail
+            if not should_keep:
+                changed = True
+                return ""
+            kept_detail = True
+            patched_block = set_item_id(block, "2838988925698046")
+            if patched_block != block:
+                changed = True
+            return patched_block
+        return block
+
+    patched = texture_pattern.sub(patch_block, wrapper_text)
+    if changed:
+        patched = _renumber_sidecar_parameter_indexes(patched)
+    return patched, changed
+
+
 def _patch_source_driven_wrapper_texture_slots(
     wrapper_text: str,
     bindings: Sequence[tuple[str, str, str]],
@@ -4340,6 +5267,9 @@ def _patch_source_driven_wrapper_texture_slots(
     changed = False
     used_paths: set[str] = set()
     runtime_xml_profile = _profile_is_runtime_xml(material_profile)
+    detail_mask_material_contract = _profile_uses_detail_mask_material_contract(material_profile)
+    material_mask_paths: list[str] = []
+    forced_emissive_shader = False
     template_allowed_insertions = {
         str(slot or "").strip().lower(): str(parameter or "").strip()
         for slot, parameter in dict(template_allowed_insertions or {}).items()
@@ -4418,19 +5348,37 @@ def _patch_source_driven_wrapper_texture_slots(
                     texture_value,
                 )
         elif slot == "material_mask":
-            patched, did_change = _replace_source_driven_texture_parameter(
-                patched,
-                ("_colorblendingmasktexture", "_overlaycolortexture"),
-                texture_value,
-                preferred_existing_roles=("material_mask",),
-                allow_unclassified_parameter=False,
-            )
-            if not did_change and insertion_allowed("material_mask"):
-                patched, did_change = _insert_source_driven_texture_parameter(
+            if detail_mask_material_contract or requested_parameter_key == "_detailmasktexture":
+                patched, did_change = _replace_source_driven_texture_parameter(
                     patched,
-                    insertion_parameter("material_mask", "_colorBlendingMaskTexture"),
+                    ("_colorblendingmasktexture", "_detailmasktexture"),
                     texture_value,
+                    rename_to="_detailMaskTexture",
+                    preferred_existing_roles=("material_mask", "detail_mask"),
+                    allow_unclassified_parameter=True,
                 )
+                if not did_change and insertion_allowed("material_mask"):
+                    patched, did_change = _insert_source_driven_texture_parameter(
+                        patched,
+                        insertion_parameter("material_mask", "_detailMaskTexture"),
+                        texture_value,
+                    )
+            else:
+                patched, did_change = _replace_source_driven_texture_parameter(
+                    patched,
+                    ("_colorblendingmasktexture", "_overlaycolortexture"),
+                    texture_value,
+                    preferred_existing_roles=("material_mask",),
+                    allow_unclassified_parameter=False,
+                )
+                if not did_change and insertion_allowed("material_mask"):
+                    patched, did_change = _insert_source_driven_texture_parameter(
+                        patched,
+                        insertion_parameter("material_mask", "_colorBlendingMaskTexture"),
+                        texture_value,
+                    )
+            if did_change:
+                material_mask_paths.append(texture_value)
         elif slot == "detail_mask":
             patched, did_change = _replace_source_driven_texture_parameter(
                 patched,
@@ -4468,6 +5416,7 @@ def _patch_source_driven_wrapper_texture_slots(
                     texture_value,
                 )
             if did_change and not runtime_xml_profile:
+                forced_emissive_shader = True
                 patched = re.sub(
                     r'(<Material\b[^>]*\b_materialName=")([^"]*)(")',
                     r"\1SkinnedMeshEmissive_Ver2\3",
@@ -4480,6 +5429,13 @@ def _patch_source_driven_wrapper_texture_slots(
         if did_change:
             changed = True
             used_paths.add(texture_value)
+    if detail_mask_material_contract:
+        patched, contract_changed = _apply_detail_mask_material_contract_to_wrapper(
+            patched,
+            material_mask_paths,
+        )
+        if contract_changed:
+            changed = True
     if _profile_routes_source_color_to_layer_slots(material_profile):
         patched, color_changed, color_used_paths = _route_source_base_to_visible_color_texture_parameters(
             patched,
@@ -4498,7 +5454,7 @@ def _patch_source_driven_wrapper_texture_slots(
             changed = True
             used_paths.update(brute_used_paths)
     effective_shader_name = str(template_shader_name or "").strip() or str(shader_name or "").strip()
-    if changed and effective_shader_name:
+    if changed and effective_shader_name and not forced_emissive_shader:
         patched = _set_source_driven_wrapper_shader_name(patched, effective_shader_name)
     return patched, changed, used_paths
 
@@ -4937,7 +5893,7 @@ def _source_driven_parameter_item_id(parameter_name: str) -> str:
         "_colorblendingmasktexture": "3936485985222654",
         "_detailmasktexture": "2838988925698046",
         "_emissivetexture": "271587251638718",
-        "_emissiveintensitytexture": "1832808279553406",
+        "_emissiveintensitytexture": "1638159983050750",
         "_emissiveprogresstexture": "370587223877118",
         "_materialtexture": "3401228360876030",
         "_metallictexture": "488189023223806",
@@ -5529,6 +6485,32 @@ def _source_owned_keep_material_names_for_output_draw_sections(
     names: list[str] = []
     seen: set[str] = set()
     for section in tuple(output_draw_sections or ()):
+        target_name = str(getattr(section, "target_submesh_name", "") or "").strip()
+        key = _normalize_sidecar_material_name(target_name)
+        if not target_name or not key or key in seen:
+            continue
+        names.append(target_name)
+        seen.add(key)
+    return tuple(names)
+
+
+def _profile_suppresses_runtime_placeholder_material_bindings(
+    material_profile: Optional[CDMaterialRuntimeProfile],
+) -> bool:
+    return bool(getattr(material_profile, "suppress_runtime_placeholder_material_bindings", False))
+
+
+def _source_owned_active_material_names_for_output_draw_sections(
+    output_draw_sections: Sequence[StaticOutputDrawSection],
+    *,
+    material_profile: Optional[CDMaterialRuntimeProfile] = None,
+) -> tuple[str, ...]:
+    names: list[str] = []
+    seen: set[str] = set()
+    skip_placeholders = _profile_suppresses_runtime_placeholder_material_bindings(material_profile)
+    for section in tuple(output_draw_sections or ()):
+        if skip_placeholders and not tuple(getattr(section, "source_submesh_indices", ()) or ()):
+            continue
         target_name = str(getattr(section, "target_submesh_name", "") or "").strip()
         key = _normalize_sidecar_material_name(target_name)
         if not target_name or not key or key in seen:
@@ -6411,14 +7393,20 @@ def _attach_source_texture_reference_base_slots(
         if visible_base_guard and not _source_texture_reference_is_visible_base(matched_path):
             return
         new_authority = str(source_authority or "metadata").strip().lower()
+        allow_shared_explicit_texture = new_authority in {"gltf", "metadata", "manual"}
         for current_material_key, current_texture_set in tuple(grouped.items()):
             for current_slot_key, current_slot in tuple((current_texture_set.slots or {}).items()):
                 if not _paths_match(current_slot.source_path, matched_path):
                     continue
-                if (
-                    str(current_material_key or "").strip().lower() == str(material_name or "").strip().lower()
-                    and str(current_slot_key or "").strip().lower() == normalized_slot
-                ):
+                same_material = str(current_material_key or "").strip().lower() == str(material_name or "").strip().lower()
+                same_slot = str(current_slot_key or "").strip().lower() == normalized_slot
+                if same_material and same_slot:
+                    continue
+                if allow_shared_explicit_texture:
+                    # glTF/scene metadata may legitimately bind one image to
+                    # several materials, or to both visible base and packed PBR
+                    # slots. Do not let filename grouping steal that explicit
+                    # material contract from later source-owned sections.
                     continue
                 if _source_authority_priority(new_authority) <= _source_authority_priority(current_slot.source_authority):
                     return
@@ -8524,6 +9512,28 @@ def _apply_source_pbr_scalar_parameters(
             return body[:insert_at] + insertion + body[insert_at:], True
         return body + insertion, True
 
+    def replace_existing_float(body: str, parameter_names: Sequence[str], value: float) -> tuple[str, bool]:
+        replacement_value = f"{max(0.0, min(1.0, float(value))):.6f}"
+        changed = False
+        patched = body
+        for parameter_name in tuple(parameter_names or ()):
+            parameter_pattern = re.compile(
+                rf'(<MaterialParameterFloat\b[^>]*_name="{re.escape(parameter_name)}"[^>]*_value=")([^"]*)(")',
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+            patched, replace_count = parameter_pattern.subn(rf"\g<1>{replacement_value}\3", patched)
+            changed = changed or bool(replace_count)
+        return patched, changed
+
+    def byte4_to_unit(value: int) -> float:
+        try:
+            raw = int(value)
+        except (TypeError, ValueError, OverflowError):
+            return 0.0
+        if raw > 255:
+            raw = (raw >> 16) & 0xFF
+        return max(0.0, min(1.0, float(raw) / 255.0))
+
     def patch_wrapper(match: re.Match[str]) -> str:
         nonlocal edited_wrappers
         attrs = match.group("attrs")
@@ -8540,10 +9550,132 @@ def _apply_source_pbr_scalar_parameters(
         if shine_value is not None:
             body, shine_changed = set_or_insert_float(body, "_sheen", "403124275642366", float(shine_value))
             changed = changed or shine_changed
+        if roughness_value is not None:
+            body, rough_float_changed = replace_existing_float(
+                body,
+                ("_roughness", "_roughnessScale", "_roughnessValue", "_materialRoughness"),
+                byte4_to_unit(int(roughness_value)),
+            )
+            changed = changed or rough_float_changed
+        if metallic_value is not None:
+            metal_float = byte4_to_unit(int(metallic_value))
+            body, metal_float_changed = replace_existing_float(
+                body,
+                ("_metallic", "_metalness", "_metallicScale", "_specular", "_specularScale", "_reflection", "_reflectivity"),
+                metal_float,
+            )
+            changed = changed or metal_float_changed
+        if shine_value is not None:
+            body, shine_float_changed = replace_existing_float(
+                body,
+                (
+                    "_shine",
+                    "_shininess",
+                    "_gloss",
+                    "_glossiness",
+                    "_smoothness",
+                    "_specularPower",
+                    "_reflectionIntensity",
+                ),
+                float(shine_value),
+            )
+            changed = changed or shine_float_changed
         if changed:
             edited_wrappers += 1
             body = _renumber_sidecar_parameter_indexes(body)
         return f"{match.group(1)}{body}{match.group(5)}"
+
+    return wrapper_pattern.sub(patch_wrapper, sidecar_text), edited_wrappers
+
+
+def _apply_source_emissive_parameters(
+    sidecar_text: str,
+    target_settings: Mapping[str, tuple[str, float]],
+) -> tuple[str, int]:
+    settings_by_key = {
+        _normalize_sidecar_material_name(str(name or "")): (str(color or "#FFFFFFFF"), float(intensity or 0.0))
+        for name, (color, intensity) in dict(target_settings or {}).items()
+        if str(name or "").strip() and float(intensity or 0.0) > 0.0
+    }
+    if not settings_by_key:
+        return sidecar_text, 0
+    wrapper_pattern = re.compile(
+        r"(<(?P<tag>[A-Za-z0-9_:.-]*MaterialWrapper)\b(?P<attrs>[^>]*)>)(?P<body>.*?)(</(?P=tag)>)",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    edited_wrappers = 0
+
+    def selected_settings(attrs: str) -> Optional[tuple[str, float]]:
+        name_match = re.search(r'\b_subMeshName="([^"]*)"', attrs, flags=re.IGNORECASE)
+        wrapper_name = str(name_match.group(1) if name_match else "")
+        wrapper_key = _normalize_sidecar_material_name(wrapper_name)
+        if wrapper_key in settings_by_key:
+            return settings_by_key[wrapper_key]
+        for target_key, settings in settings_by_key.items():
+            if _sidecar_material_names_match(wrapper_name, target_key):
+                return settings
+        return None
+
+    def set_or_insert_color(body: str, parameter_name: str, item_id: str, value: str) -> tuple[str, bool]:
+        cleaned = str(value or "#FFFFFFFF").strip()
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?", cleaned):
+            cleaned = "#FFFFFFFF"
+        if len(cleaned) == 7:
+            cleaned += "FF"
+        cleaned = cleaned.upper()
+        parameter_pattern = re.compile(
+            rf'(<MaterialParameterColor\b[^>]*(?:StringItemID|_name|Name|name)="{re.escape(parameter_name)}"[^>]*\b(?:_value|Value|value)=")([^"]*)(")',
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        replaced_body, replace_count = parameter_pattern.subn(rf"\g<1>{cleaned}\3", body)
+        if replace_count:
+            return replaced_body, True
+        insertion = (
+            f'\n\t\t\t\t\t\t\t<MaterialParameterColor StringItemID="{parameter_name}" '
+            f'ItemID="{item_id}" _name="{parameter_name}" _value="{cleaned}" Index="0"/>'
+        )
+        vector_close = re.search(r"</Vector>", body, flags=re.IGNORECASE)
+        if vector_close:
+            insert_at = vector_close.start()
+            return body[:insert_at] + insertion + body[insert_at:], True
+        return body + insertion, True
+
+    def set_or_insert_float(body: str, parameter_name: str, item_id: str, value: float) -> tuple[str, bool]:
+        replacement_value = f"{max(0.0, min(20.0, float(value))):.6f}"
+        parameter_pattern = re.compile(
+            rf'(<MaterialParameterFloat\b[^>]*(?:StringItemID|_name|Name|name)="{re.escape(parameter_name)}"[^>]*\b(?:_value|Value|value)=")([^"]*)(")',
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        replaced_body, replace_count = parameter_pattern.subn(rf"\g<1>{replacement_value}\3", body)
+        if replace_count:
+            return replaced_body, True
+        insertion = (
+            f'\n\t\t\t\t\t\t\t<MaterialParameterFloat StringItemID="{parameter_name}" '
+            f'ItemID="{item_id}" _name="{parameter_name}" _value="{replacement_value}" Index="0"/>'
+        )
+        vector_close = re.search(r"</Vector>", body, flags=re.IGNORECASE)
+        if vector_close:
+            insert_at = vector_close.start()
+            return body[:insert_at] + insertion + body[insert_at:], True
+        return body + insertion, True
+
+    def patch_wrapper(match: re.Match[str]) -> str:
+        nonlocal edited_wrappers
+        settings = selected_settings(match.group("attrs"))
+        if settings is None:
+            return match.group(0)
+        color, intensity = settings
+        body = match.group("body")
+        body, color_changed = set_or_insert_color(body, "_emissiveColor", "2065176433000446", color)
+        body, intensity_changed = set_or_insert_float(body, "_emissiveIntensity", "3419583792807934", intensity)
+        if not (color_changed or intensity_changed):
+            return match.group(0)
+        edited_wrappers += 1
+        body = _renumber_sidecar_parameter_indexes(body)
+        return _set_source_driven_wrapper_shader_name(
+            f"{match.group(1)}{body}{match.group(5)}",
+            "SkinnedMeshEmissive_Ver2",
+        )
 
     return wrapper_pattern.sub(patch_wrapper, sidecar_text), edited_wrappers
 
@@ -8607,6 +9739,13 @@ def _neutralize_inherited_material_layers(
     displacement_max = _profile_displacement_scale_max(material_profile)
     preserve_scratch_alpha = bool(getattr(material_profile, "preserve_scratch_alpha", False)) if material_profile is not None else False
     preserve_target_layer_response = _profile_preserves_target_layer_response(material_profile)
+    neutralize_preserved_layer_scalars = _profile_applies_source_pbr_scalars_with_preserved_layers(material_profile)
+    preserve_layer_scalar_response = preserve_target_layer_response and not neutralize_preserved_layer_scalars
+    edge_relief_preserve_support = (
+        normalize_basic_control_percent(getattr(material_profile, "edge_relief_strength", 0.0)) > 0.0
+        and normalize_edge_relief_source(getattr(material_profile, "edge_relief_source", "hybrid"))
+        in {"preserve_target", "hybrid"}
+    )
     edited_wrappers = 0
     edited_parameters = 0
 
@@ -8654,10 +9793,26 @@ def _neutralize_inherited_material_layers(
             nonlocal wrapper_edits
             block = texture_match.group(0)
             parameter_name = _sidecar_parameter_name(block).strip().lower()
+            compact_parameter = re.sub(r"[^a-z0-9]+", "", parameter_name)
             path_match = re.search(r'\b_path="([^"]*)"', block, flags=re.IGNORECASE)
             texture_path = _normalize_texture_path(path_match.group(1) if path_match else "")
             if (parameter_name, texture_path) in keep or texture_path in keep_paths:
                 return block
+            if edge_relief_preserve_support:
+                if (
+                    any(
+                        token in compact_parameter
+                        for token in (
+                            "heighttexture",
+                            "detailmasktexture",
+                            "detailnormal",
+                            "detailheight",
+                            "displacement",
+                        )
+                    )
+                    and not any(token in compact_parameter for token in ("diffuse", "albedo", "basecolor", "color", "grime"))
+                ):
+                    return block
             if any(token in parameter_name for token in neutral_texture_tokens):
                 if preserve_target_layer_response:
                     return block
@@ -8680,10 +9835,11 @@ def _neutralize_inherited_material_layers(
                 return f"{flag_match.group(1)}4{flag_match.group(4)}"
             if parameter_name not in neutral_flag_names:
                 return flag_match.group(0)
-            if preserve_target_layer_response:
+            if preserve_layer_scalar_response:
                 return flag_match.group(0)
             wrapper_edits += 1
-            return f"{flag_match.group(1)}0{flag_match.group(4)}"
+            replacement_value = "15" if neutralize_preserved_layer_scalars else "0"
+            return f"{flag_match.group(1)}{replacement_value}{flag_match.group(4)}"
 
         patched_body = re.sub(
             r'(<MaterialParameterBitFlag32\b[^>]*(?:_name|Name)="([^"]*)"[^>]*(?:_value|Value)=")([^"]*)(")',
@@ -8766,7 +9922,7 @@ def _neutralize_inherited_material_layers(
             parameter_name = str(color_match.group(2) or "").strip().lower()
             if not any(token in parameter_name for token in neutral_color_tokens):
                 return color_match.group(0)
-            if preserve_target_layer_response:
+            if preserve_layer_scalar_response:
                 return color_match.group(0)
             original_value = str(color_match.group(3) or "").strip()
             if neutral_rgb is not None:
@@ -8803,7 +9959,7 @@ def _neutralize_inherited_material_layers(
             parameter_name = str(byte_match.group(2) or "").strip().lower()
             if not any(token in parameter_name for token in neutral_byte_tokens):
                 return byte_match.group(0)
-            if preserve_target_layer_response:
+            if preserve_layer_scalar_response:
                 return byte_match.group(0)
             wrapper_edits += 1
             return f"{byte_match.group(1)}0{byte_match.group(4)}"
@@ -8823,7 +9979,7 @@ def _neutralize_inherited_material_layers(
             parameter_name = _sidecar_parameter_name(block).strip().lower()
             if not any(token in parameter_name for token in neutral_byte_tokens):
                 return block
-            if preserve_target_layer_response:
+            if preserve_layer_scalar_response:
                 return block
             wrapper_edits += 1
             if block.endswith("/>"):
@@ -8851,23 +10007,6 @@ def _neutralize_inherited_material_layers(
         )
         edited_wrappers += flat_wrappers
         edited_parameters += flat_parameters
-    if complete_external_reset and edited_parameters:
-        patched, pbd_property_edits = re.subn(
-            r"\s*<OverridedPbdMaterialProperty\b[^>]*/>",
-            "",
-            patched,
-            flags=re.IGNORECASE | re.DOTALL,
-        )
-        if pbd_property_edits:
-            edited_parameters += pbd_property_edits
-        patched, pbd_name_edits = re.subn(
-            r'\s*_pbdSimulationMaterialName="[^"]*"',
-            "",
-            patched,
-            flags=re.IGNORECASE,
-        )
-        if pbd_name_edits:
-            edited_parameters += pbd_name_edits
     if edited_parameters:
         patched = _renumber_sidecar_parameter_indexes(patched)
     return patched, edited_wrappers, edited_parameters
@@ -9586,6 +10725,8 @@ def _source_slot_needs_base_color_adjustment(source_slot: ReplacementTextureSlot
         gamma = max(0.1, min(4.0, float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0)))
         saturation = max(0.0, min(4.0, float(getattr(source_slot, "base_color_saturation", 1.0) or 1.0)))
         value_max = max(0, min(255, int(getattr(source_slot, "base_color_value_max", 255) or 255)))
+        shadow_lift = max(0, min(100, int(getattr(source_slot, "base_color_shadow_lift", 0) or 0)))
+        tone_contrast = normalize_tone_contrast(getattr(source_slot, "base_color_tone_contrast", 0.0))
     except (TypeError, ValueError, OverflowError):
         return False
     return (
@@ -9594,6 +10735,8 @@ def _source_slot_needs_base_color_adjustment(source_slot: ReplacementTextureSlot
         or abs(gamma - 1.0) > 0.0001
         or abs(saturation - 1.0) > 0.0001
         or value_max < 255
+        or shadow_lift > 0
+        or abs(tone_contrast) > 0.0001
     )
 
 
@@ -9608,15 +10751,21 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
     gamma = max(0.1, min(4.0, float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0)))
     saturation = max(0.0, min(4.0, float(getattr(source_slot, "base_color_saturation", 1.0) or 1.0)))
     value_max = max(0, min(255, int(getattr(source_slot, "base_color_value_max", 255) or 255)))
+    shadow_lift = max(0, min(100, int(getattr(source_slot, "base_color_shadow_lift", 0) or 0)))
+    tone_contrast = normalize_tone_contrast(getattr(source_slot, "base_color_tone_contrast", 0.0))
     source_path = source_slot.source_path
     try:
         stat = source_path.stat()
         fingerprint = (
             f"{source_path}|{stat.st_mtime_ns}|{stat.st_size}|{factor}|"
-            f"{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}"
+            f"{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}|"
+            f"{shadow_lift}|{tone_contrast:.6f}"
         )
     except OSError:
-        fingerprint = f"{source_path}|{factor}|{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}"
+        fingerprint = (
+            f"{source_path}|{factor}|{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}|"
+            f"{shadow_lift}|{tone_contrast:.6f}"
+        )
     digest = hashlib.sha1(fingerprint.encode("utf-8", errors="ignore")).hexdigest()[:12]
     root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
     root.mkdir(parents=True, exist_ok=True)
@@ -9624,7 +10773,7 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
     path = root / f"{_sanitize_texture_component(source_path.stem) or 'base'}_{suffix}_{digest}.png"
     if path.is_file():
         return path
-    from PIL import Image, ImageEnhance
+    from PIL import Image, ImageChops, ImageEnhance
 
     with Image.open(source_path) as image:
         rgba = image.convert("RGBA")
@@ -9644,6 +10793,36 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
         if abs(saturation - 1.0) > 0.0001:
             rgb = Image.merge("RGB", (r, g, b))
             rgb = ImageEnhance.Color(rgb).enhance(saturation)
+            r, g, b = rgb.split()
+        if shadow_lift > 0:
+            rgb = Image.merge("RGB", (r, g, b))
+            luma = rgb.convert("L")
+            shadow_mask = luma.point(
+                lambda value: (
+                    max(
+                        0,
+                        min(
+                            255,
+                            int(round((((96.0 - float(value)) / 96.0) ** 1.5) * 255.0)),
+                        ),
+                    )
+                    if int(value) < 96
+                    else 0
+                )
+            )
+            boost = int(round(72.0 * (float(shadow_lift) / 100.0)))
+            if boost > 0:
+                r = Image.composite(ImageChops.add(r, Image.new("L", r.size, boost)), r, shadow_mask)
+                g = Image.composite(ImageChops.add(g, Image.new("L", g.size, boost)), g, shadow_mask)
+                b = Image.composite(ImageChops.add(b, Image.new("L", b.size, boost)), b, shadow_mask)
+        if abs(tone_contrast) > 0.0001:
+            rgb = Image.merge("RGB", (r, g, b))
+            if tone_contrast < 0.0:
+                factor_contrast = max(0.35, 1.0 + 0.55 * (tone_contrast / 100.0))
+                rgb = ImageEnhance.Contrast(rgb).enhance(factor_contrast)
+                rgb = ImageEnhance.Brightness(rgb).enhance(1.0 + 0.10 * (-tone_contrast / 100.0))
+            else:
+                rgb = ImageEnhance.Contrast(rgb).enhance(1.0 + 0.75 * (tone_contrast / 100.0))
             r, g, b = rgb.split()
         if value_max < 255:
             r = r.point(lambda value: min(value_max, int(value)))

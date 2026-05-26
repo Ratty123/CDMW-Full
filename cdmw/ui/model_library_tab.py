@@ -78,6 +78,31 @@ from cdmw.ui.widgets import responsive_sidebar_bounds
 from cdmw.ui.widgets import NativePreviewPanel
 
 
+MODEL_LIBRARY_FILTER_COLUMNS: tuple[tuple[int, str], ...] = (
+    (1, "Name"),
+    (2, "Source"),
+    (3, "Local"),
+    (4, "Textures"),
+    (5, "Format"),
+    (6, "Size"),
+    (7, "License"),
+    (8, "Creator"),
+    (9, "Location"),
+)
+
+TEXTURE_STATUS_HAS_PREFIXES = ("Found (", "In ZIP (", "Resolved (")
+TEXTURE_STATUS_MISSING = "None found"
+
+
+def model_library_texture_status_kind(status: str) -> str:
+    text = str(status or "").strip()
+    if text == TEXTURE_STATUS_MISSING:
+        return "missing"
+    if any(text.startswith(prefix) for prefix in TEXTURE_STATUS_HAS_PREFIXES):
+        return "present"
+    return "unknown"
+
+
 class _ModelLibraryTaskWorker(QObject):
     completed = Signal(object)
     error = Signal(str)
@@ -170,6 +195,7 @@ class ModelLibraryTab(QWidget):
         self._inline_d3d11_status_timer = QTimer(self)
         self._inline_d3d11_status_timer.setInterval(200)
         self._inline_d3d11_status_timer.timeout.connect(self._poll_inline_d3d11_status)
+        self._updating_column_filters = False
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(10, 10, 10, 10)
@@ -371,6 +397,7 @@ class ModelLibraryTab(QWidget):
         self.more_actions_menu = QMenu(self.more_actions_button)
         self.download_import_button = self.more_actions_menu.addAction("Download + Import")
         self.delete_local_button = self.more_actions_menu.addAction("Delete Local")
+        self.delete_no_texture_downloads_button = self.more_actions_menu.addAction("Delete No-Texture Downloads")
         self.open_file_url_button = self.more_actions_menu.addAction("Open File URL")
         self.open_location_button = self.more_actions_menu.addAction("Open Location")
         self.open_page_button = self.more_actions_menu.addAction("Open Page")
@@ -432,6 +459,7 @@ class ModelLibraryTab(QWidget):
         self.open_location_button.triggered.connect(self.open_selected_location)
         self.open_page_button.triggered.connect(self.open_selected_page)
         self.delete_local_button.triggered.connect(self.delete_selected_local_models)
+        self.delete_no_texture_downloads_button.triggered.connect(self.delete_no_texture_downloads)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -474,14 +502,35 @@ class ModelLibraryTab(QWidget):
         self.results_filter_field_combo.addItem("Format", "format")
         self.results_filter_field_combo.addItem("Path / URL", "path")
         self.results_filter_field_combo.addItem("UID", "uid")
+        self.local_texture_filter_label = QLabel("Textures")
+        self.local_texture_filter_combo = QComboBox()
+        self.local_texture_filter_combo.addItem("All", "all")
+        self.local_texture_filter_combo.addItem("Has textures", "has")
+        self.local_texture_filter_combo.addItem("No textures found", "missing")
         self.apply_results_query_button = QPushButton("Search")
         self.clear_results_query_button = QPushButton("Clear")
         filter_row.addWidget(self.results_search_label)
         filter_row.addWidget(self.results_filter_field_combo)
         filter_row.addWidget(self.search_edit, stretch=1)
+        filter_row.addWidget(self.local_texture_filter_label)
+        filter_row.addWidget(self.local_texture_filter_combo)
         filter_row.addWidget(self.apply_results_query_button)
         filter_row.addWidget(self.clear_results_query_button)
         layout.addLayout(filter_row)
+        column_filter_row = QHBoxLayout()
+        column_filter_row.setContentsMargins(0, 0, 0, 0)
+        column_filter_row.setSpacing(4)
+        self.results_column_filter_edits: dict[int, QLineEdit] = {}
+        column_filter_row.addWidget(QLabel("Columns"))
+        for column, label in MODEL_LIBRARY_FILTER_COLUMNS:
+            edit = QLineEdit()
+            edit.setPlaceholderText(label)
+            edit.setClearButtonEnabled(True)
+            edit.setMinimumWidth(70)
+            edit.setMaximumWidth(160 if column in {1, 7, 8, 9} else 110)
+            self.results_column_filter_edits[column] = edit
+            column_filter_row.addWidget(edit, stretch=1 if column in {1, 9} else 0)
+        layout.addLayout(column_filter_row)
         self.results_view_label = QLabel("")
         self.results_view_label.setObjectName("HintLabel")
         self.results_view_label.setWordWrap(True)
@@ -557,6 +606,9 @@ class ModelLibraryTab(QWidget):
         self.apply_results_query_button.clicked.connect(self._apply_active_results_query)
         self.clear_results_query_button.clicked.connect(self._clear_active_results_query)
         self.results_filter_field_combo.currentIndexChanged.connect(lambda _index=0: self._handle_results_filter_field_changed())
+        self.local_texture_filter_combo.currentIndexChanged.connect(lambda _index=0: self._handle_local_texture_filter_changed())
+        for edit in self.results_column_filter_edits.values():
+            edit.textChanged.connect(lambda _text="", editor=edit: self._handle_column_filter_changed(editor))
         return panel
 
     def _build_preview_panel(self) -> QWidget:
@@ -662,12 +714,29 @@ class ModelLibraryTab(QWidget):
             self._schedule_results_filter()
             self._update_results_view_label()
 
+    def _handle_local_texture_filter_changed(self) -> None:
+        if not hasattr(self, "local_texture_filter_combo"):
+            return
+        self.settings.setValue("model_library/local_texture_filter", str(self.local_texture_filter_combo.currentData() or "all"))
+        if self._active_results_view == "local":
+            self._schedule_results_filter()
+            self._update_results_view_label()
+
+    def _handle_column_filter_changed(self, _editor: QLineEdit) -> None:
+        if self._updating_column_filters:
+            return
+        self._save_column_filters_for_active_view()
+        self._schedule_results_filter()
+        self._update_results_view_label()
+
     def _schedule_results_filter(self) -> None:
         self._results_filter_timer.start()
 
     def _flush_debounced_results_filter(self) -> None:
         if self._active_results_view == "local":
             self._populate_results(self.local_models)
+        else:
+            self._populate_results(self.mirror_results)
 
     def _set_results_query_text(self, text: str) -> None:
         self._updating_results_query = True
@@ -681,6 +750,12 @@ class ModelLibraryTab(QWidget):
             return
         index = self.results_filter_field_combo.findData(str(field or "all"))
         self.results_filter_field_combo.setCurrentIndex(index if index >= 0 else 0)
+
+    def _set_local_texture_filter(self, value: str) -> None:
+        if not hasattr(self, "local_texture_filter_combo"):
+            return
+        index = self.local_texture_filter_combo.findData(str(value or "all"))
+        self.local_texture_filter_combo.setCurrentIndex(index if index >= 0 else 0)
 
     def _apply_active_results_query(self) -> None:
         if self._active_results_view == "local":
@@ -777,6 +852,7 @@ class ModelLibraryTab(QWidget):
                 self.search_edit.setPlaceholderText("Filter local models by name, creator, license, format, path, or source")
                 self.results_filter_field_combo.setEnabled(True)
                 self._set_results_filter_field(str(self.settings.value("model_library/local_search_field", "all") or "all"))
+                self._set_local_texture_filter(str(self.settings.value("model_library/local_texture_filter", "all") or "all"))
                 self._set_results_query_text(str(self.settings.value("model_library/local_search_query", "") or ""))
             else:
                 self.results_search_label.setText("Search mirror")
@@ -785,6 +861,10 @@ class ModelLibraryTab(QWidget):
                 self.results_filter_field_combo.setEnabled(False)
                 self._set_results_filter_field("all")
                 self._set_results_query_text(str(self.settings.value("model_library/search_query", self.search_edit.text()) or ""))
+            local_view = self._active_results_view == "local"
+            self.local_texture_filter_label.setVisible(local_view)
+            self.local_texture_filter_combo.setVisible(local_view)
+            self._load_column_filters_for_active_view()
         if persist:
             self.settings.setValue("model_library/results_view", self._active_results_view)
         self._update_results_view_label()
@@ -801,8 +881,14 @@ class ModelLibraryTab(QWidget):
                 else "All fields"
             )
             filter_text = f" Filter: {query} ({field})." if query else ""
+            texture_filter = str(
+                self.local_texture_filter_combo.currentText()
+                if hasattr(self, "local_texture_filter_combo") and self.local_texture_filter_combo.currentData() != "all"
+                else ""
+            )
+            texture_text = f" Textures: {texture_filter}." if texture_filter else ""
             self.results_view_label.setText(
-                f"Local Library | {roots:,} folder(s), including downloaded mirror models when available.{filter_text}"
+                f"Local Library | {roots:,} folder(s), including downloaded mirror models when available.{filter_text}{texture_text}"
             )
             return
         query = str(self.search_edit.text() if hasattr(self, "search_edit") else "").strip()
@@ -869,6 +955,55 @@ class ModelLibraryTab(QWidget):
         if isinstance(payload, list):
             return [str(item) for item in payload if str(item).strip()]
         return list(default)
+
+    def _column_filter_settings_key(self) -> str:
+        return (
+            "model_library/local_column_filters_json"
+            if self._active_results_view == "local"
+            else "model_library/mirror_column_filters_json"
+        )
+
+    def _column_filters_from_settings(self, key: str) -> dict[int, str]:
+        raw = self.settings.value(key, "{}")
+        try:
+            payload = json.loads(str(raw or "{}"))
+        except json.JSONDecodeError:
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+        filters: dict[int, str] = {}
+        for column, _label in MODEL_LIBRARY_FILTER_COLUMNS:
+            value = str(payload.get(str(column), "") or "").strip()
+            if value:
+                filters[column] = value
+        return filters
+
+    def _load_column_filters_for_active_view(self) -> None:
+        if not hasattr(self, "results_column_filter_edits"):
+            return
+        filters = self._column_filters_from_settings(self._column_filter_settings_key())
+        self._updating_column_filters = True
+        try:
+            for column, edit in self.results_column_filter_edits.items():
+                edit.setText(filters.get(column, ""))
+        finally:
+            self._updating_column_filters = False
+
+    def _active_column_filters(self) -> dict[int, str]:
+        if not hasattr(self, "results_column_filter_edits"):
+            return {}
+        filters: dict[int, str] = {}
+        for column, edit in self.results_column_filter_edits.items():
+            value = edit.text().strip()
+            if value:
+                filters[column] = value
+        return filters
+
+    def _save_column_filters_for_active_view(self) -> None:
+        self.settings.setValue(
+            self._column_filter_settings_key(),
+            json.dumps({str(column): value for column, value in self._active_column_filters().items()}),
+        )
 
     def _save_roots(self) -> None:
         self.settings.setValue("model_library/local_roots_json", json.dumps(self.local_roots))
@@ -1774,6 +1909,17 @@ class ModelLibraryTab(QWidget):
     def delete_selected_local_models(self) -> None:
         self._delete_local_payloads(self._local_delete_payloads())
 
+    def delete_no_texture_downloads(self) -> None:
+        payloads = self._visible_no_texture_download_payloads()
+        targets = self._no_texture_download_delete_targets_for_payloads(payloads)
+        if not targets:
+            self._set_status("No visible downloaded local models have explicit missing texture status.", error=True)
+            return
+        if not self._confirm_delete_no_texture_download_targets(targets):
+            self._set_status("Delete cancelled.")
+            return
+        self._delete_local_targets_from_disk(targets, item_label="no-texture download")
+
     def _delete_local_payloads(self, payloads: list[dict[str, object]]) -> None:
         targets = self._local_delete_targets_for_payloads(payloads)
         if not targets:
@@ -1782,7 +1928,9 @@ class ModelLibraryTab(QWidget):
         if not self._confirm_delete_local_targets(targets):
             self._set_status("Delete cancelled.")
             return
+        self._delete_local_targets_from_disk(targets, item_label="local item")
 
+    def _delete_local_targets_from_disk(self, targets: list[tuple[Path, str]], *, item_label: str) -> None:
         deleted: list[Path] = []
         errors: list[str] = []
         for target, _label in targets:
@@ -1814,9 +1962,9 @@ class ModelLibraryTab(QWidget):
                 self._refresh_result_row_statuses()
                 self._update_selection_state()
         if errors:
-            self._set_status(f"Deleted {len(deleted):,} local item(s); {len(errors):,} failed. First error: {errors[0]}", error=True)
+            self._set_status(f"Deleted {len(deleted):,} {item_label}(s); {len(errors):,} failed. First error: {errors[0]}", error=True)
             return
-        self._set_status(f"Deleted {len(deleted):,} local item(s) from disk.")
+        self._set_status(f"Deleted {len(deleted):,} {item_label}(s) from disk.")
 
     def import_selected_model(self) -> None:
         payload = self._selected_payload()
@@ -1998,33 +2146,64 @@ class ModelLibraryTab(QWidget):
 
     def _filtered_result_rows(self, rows: list[dict[str, object]]) -> list[dict[str, object]]:
         self._last_hidden_downloaded_count = 0
+        visible = list(rows)
         if self._active_results_view == "local":
             query = str(self.search_edit.text() if hasattr(self, "search_edit") else "").strip()
-            if not query:
-                return rows
-            field = str(
-                self.results_filter_field_combo.currentData()
-                if hasattr(self, "results_filter_field_combo")
-                else "all"
-            )
+            if query:
+                field = str(
+                    self.results_filter_field_combo.currentData()
+                    if hasattr(self, "results_filter_field_combo")
+                    else "all"
+                )
+                terms = [term.casefold() for term in re.findall(r"[^\s,;]+", query) if term.strip()]
+                if terms:
+                    visible = [payload for payload in visible if self._local_payload_matches_filter(payload, terms, field)]
+            visible = [payload for payload in visible if self._local_texture_filter_matches(payload)]
+        elif self._active_results_view == "mirror" and getattr(self, "hide_downloaded_checkbox", None) and self.hide_downloaded_checkbox.isChecked():
+            mirror_visible: list[dict[str, object]] = []
+            for payload in visible:
+                if not isinstance(payload, dict) or payload.get("kind") != "mirror":
+                    mirror_visible.append(payload)
+                    continue
+                if self._mirror_payload_downloaded(payload):
+                    self._last_hidden_downloaded_count += 1
+                    continue
+                mirror_visible.append(payload)
+            visible = mirror_visible
+        return self._filter_result_rows_by_columns(visible)
+
+    def _local_texture_filter_matches(self, payload: dict[str, object]) -> bool:
+        if not hasattr(self, "local_texture_filter_combo"):
+            return True
+        mode = str(self.local_texture_filter_combo.currentData() or "all")
+        if mode == "all":
+            return True
+        status_kind = model_library_texture_status_kind(self._texture_status_for_payload(payload))
+        if mode == "has":
+            return status_kind == "present"
+        if mode == "missing":
+            return status_kind == "missing"
+        return True
+
+    def _filter_result_rows_by_columns(self, rows: list[dict[str, object]]) -> list[dict[str, object]]:
+        filters = self._active_column_filters()
+        if not filters:
+            return rows
+        filtered: list[dict[str, object]] = []
+        for payload in rows:
+            if self._payload_matches_column_filters(payload, filters):
+                filtered.append(payload)
+        return filtered
+
+    def _payload_matches_column_filters(self, payload: dict[str, object], filters: dict[int, str]) -> bool:
+        for column, query in filters.items():
             terms = [term.casefold() for term in re.findall(r"[^\s,;]+", query) if term.strip()]
             if not terms:
-                return rows
-            return [payload for payload in rows if self._local_payload_matches_filter(payload, terms, field)]
-        if self._active_results_view != "mirror" or not getattr(self, "hide_downloaded_checkbox", None):
-            return rows
-        if not self.hide_downloaded_checkbox.isChecked():
-            return rows
-        visible: list[dict[str, object]] = []
-        for payload in rows:
-            if not isinstance(payload, dict) or payload.get("kind") != "mirror":
-                visible.append(payload)
                 continue
-            if self._mirror_payload_downloaded(payload):
-                self._last_hidden_downloaded_count += 1
-                continue
-            visible.append(payload)
-        return visible
+            haystack = self._result_column_filter_text(payload, column).casefold()
+            if not haystack or not all(term in haystack for term in terms):
+                return False
+        return True
 
     def _local_payload_filter_values(self, payload: dict[str, object], field: str) -> list[str]:
         if field == "name":
@@ -2095,6 +2274,14 @@ class ModelLibraryTab(QWidget):
             return int(payload.get("size", 0) or 0)
         except (TypeError, ValueError):
             return 0
+
+    def _result_column_filter_text(self, payload: dict[str, object], column: int) -> str:
+        if column == 0:
+            return ""
+        if column == 6:
+            size = self._result_size_bytes(payload)
+            return self._format_size(size) if size > 0 else "-"
+        return self._result_sort_text(payload, column)
 
     def _result_sort_text(self, payload: dict[str, object], column: int) -> str:
         if payload.get("kind") == "mirror":
@@ -2295,6 +2482,7 @@ class ModelLibraryTab(QWidget):
         batch_payloads = self._batch_action_payloads()
         batch_mirror_count = sum(1 for selected in batch_payloads if selected.get("kind") == "mirror")
         delete_payloads = self._local_delete_payloads()
+        no_texture_download_count = self._visible_no_texture_download_count()
         checked_count = len(checked_payloads)
         result_count = self.results_tree.topLevelItemCount()
         mirror_url_ready = bool(self.mirror_url_edit.text().strip())
@@ -2315,12 +2503,19 @@ class ModelLibraryTab(QWidget):
         self.open_page_button.setEnabled(has_selection)
         self.delete_local_button.setEnabled(bool(delete_payloads))
         self.delete_local_button.setText("Delete Local" if len(delete_payloads) <= 1 else f"Delete Local ({len(delete_payloads)})")
+        self.delete_no_texture_downloads_button.setEnabled(self._active_results_view == "local" and no_texture_download_count > 0)
+        self.delete_no_texture_downloads_button.setText(
+            "Delete No-Texture Downloads"
+            if no_texture_download_count <= 1
+            else f"Delete No-Texture Downloads ({no_texture_download_count})"
+        )
         self.more_actions_button.setEnabled(
             bool(
                 (is_mirror and mirror_url_ready)
                 or is_mirror
                 or has_selection
                 or delete_payloads
+                or no_texture_download_count
             )
         )
         self.select_all_button.setEnabled(result_count > 0)
@@ -2508,6 +2703,34 @@ class ModelLibraryTab(QWidget):
             targets.append((path, label))
         return targets
 
+    def _no_texture_download_delete_targets_for_payloads(self, payloads: list[dict[str, object]]) -> list[tuple[Path, str]]:
+        targets: list[tuple[Path, str]] = []
+        seen: set[str] = set()
+        for payload in payloads:
+            target = self._no_texture_download_delete_target_for_payload(payload)
+            if target is None:
+                continue
+            path, label = target
+            try:
+                resolved_key = str(path.resolve()).casefold()
+            except OSError:
+                resolved_key = str(path.absolute()).casefold()
+            if resolved_key in seen:
+                continue
+            seen.add(resolved_key)
+            targets.append((path, label))
+        return targets
+
+    def _visible_no_texture_download_payloads(self) -> list[dict[str, object]]:
+        if self._active_results_view != "local" or not hasattr(self, "results_tree"):
+            return []
+        payloads: list[dict[str, object]] = []
+        for index in range(self.results_tree.topLevelItemCount()):
+            payload = self._payload_from_item(self.results_tree.topLevelItem(index))
+            if payload is not None and self._no_texture_download_delete_target_for_payload(payload) is not None:
+                payloads.append(payload)
+        return payloads
+
     def _local_delete_target_for_payload(self, payload: Optional[dict[str, object]]) -> Optional[tuple[Path, str]]:
         if not payload:
             return None
@@ -2530,6 +2753,45 @@ class ModelLibraryTab(QWidget):
             return path, "local model file"
         return None
 
+    def _no_texture_download_delete_target_for_payload(self, payload: Optional[dict[str, object]]) -> Optional[tuple[Path, str]]:
+        if not payload or model_library_texture_status_kind(self._texture_status_for_payload(payload)) != "missing":
+            return None
+        return self._downloaded_model_folder_target_for_payload(payload)
+
+    def _downloaded_model_folder_target_for_payload(self, payload: Optional[dict[str, object]]) -> Optional[tuple[Path, str]]:
+        if not payload:
+            return None
+        try:
+            download_root = self._download_output_root().resolve()
+        except OSError:
+            download_root = self._download_output_root().absolute()
+        asset_dir_text = str(payload.get("asset_dir", "") or "").strip()
+        if asset_dir_text:
+            asset_dir = Path(asset_dir_text)
+            if (
+                asset_dir.is_dir()
+                and (asset_dir / "model_metadata.json").is_file()
+                and self._path_is_under(asset_dir, download_root)
+            ):
+                return asset_dir, "downloaded model folder"
+        archive_path = Path(str(payload.get("archive_path", "") or ""))
+        if archive_path.is_file():
+            metadata_path = self._download_metadata_path_for_local_path(archive_path, download_root)
+            if metadata_path is not None and metadata_path.parent.is_dir() and self._path_is_under(metadata_path.parent, download_root):
+                return metadata_path.parent, "downloaded model folder"
+        return None
+
+    def _path_is_under(self, path: Path, root: Path) -> bool:
+        try:
+            resolved_path = path.resolve()
+        except OSError:
+            resolved_path = path.absolute()
+        try:
+            resolved_root = root.resolve()
+        except OSError:
+            resolved_root = root.absolute()
+        return resolved_path == resolved_root or resolved_root in resolved_path.parents
+
     def _confirm_delete_local_targets(self, targets: list[tuple[Path, str]]) -> bool:
         if not targets:
             return False
@@ -2550,6 +2812,30 @@ class ModelLibraryTab(QWidget):
         box.setDefaultButton(QMessageBox.Cancel)
         box.exec()
         return box.clickedButton() == delete_button
+
+    def _confirm_delete_no_texture_download_targets(self, targets: list[tuple[Path, str]]) -> bool:
+        if not targets:
+            return False
+        box = QMessageBox(self)
+        box.setWindowTitle("Delete No-Texture Downloads")
+        box.setIcon(QMessageBox.Warning)
+        box.setText(f"Delete {len(targets):,} downloaded model folder(s) with no textures found?")
+        listed = "\n".join(f"- {path}" for path, _label in targets[:8])
+        if len(targets) > 8:
+            listed = f"{listed}\n- ... {len(targets) - 8:,} more"
+        box.setInformativeText(
+            "Only visible downloaded Model Library folders with texture status 'None found' are included. "
+            "Standalone local model files are never included in this bulk cleanup.\n\n"
+            f"{listed}"
+        )
+        delete_button = box.addButton("Delete Downloads", QMessageBox.DestructiveRole)
+        box.addButton(QMessageBox.Cancel)
+        box.setDefaultButton(QMessageBox.Cancel)
+        box.exec()
+        return box.clickedButton() == delete_button
+
+    def _visible_no_texture_download_count(self) -> int:
+        return len(self._visible_no_texture_download_payloads())
 
     def _clear_deleted_local_state(self, deleted_targets: list[Path]) -> None:
         def is_deleted_path(value: object) -> bool:
@@ -3190,6 +3476,7 @@ class ModelLibraryTab(QWidget):
         self.generate_icon_button.setEnabled(False)
         self.more_actions_button.setEnabled(False)
         self.delete_local_button.setEnabled(False)
+        self.delete_no_texture_downloads_button.setEnabled(False)
         lower_status = status.lower()
         if "building" in lower_status or "index" in lower_status:
             self.build_index_button.setText("Building...")

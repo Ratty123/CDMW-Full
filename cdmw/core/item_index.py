@@ -1699,10 +1699,15 @@ def build_archive_item_search_index(
     entries: Sequence[ArchiveEntry],
     *,
     on_log: Optional[Callable[[str], None]] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> ArchiveItemSearchIndex:
     try:
+        if on_progress is not None:
+            on_progress(0, 3, "Building item-name search... 0 / 3 phases")
         sources = _collect_archive_item_index_sources(entries, stop_event=stop_event)
+        if on_progress is not None:
+            on_progress(1, 3, "Building item-name search... 1 / 3 phases")
         native_index = _try_build_archive_item_search_index_native(
             entries,
             sources,
@@ -1710,7 +1715,11 @@ def build_archive_item_search_index(
             stop_event=stop_event,
         )
         if native_index is not None:
+            if on_progress is not None:
+                on_progress(3, 3, "Building item-name search... 3 / 3 phases")
             return native_index
+        if on_progress is not None:
+            on_progress(2, 3, "Building item-name search... 2 / 3 phases")
         loc_tables = _parse_archive_localization_tables_from_sources(
             sources,
             on_log=on_log,
@@ -1754,6 +1763,8 @@ def build_archive_item_search_index(
     except RunCancelled:
         raise
 
+    if on_progress is not None:
+        on_progress(3, 3, "Building item-name search... 3 / 3 phases")
     return _build_archive_item_search_index_from_records(
         items,
         sources.model_entries,

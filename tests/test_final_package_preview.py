@@ -10,13 +10,16 @@ from cdmw.core.final_package_preview import (
     FINAL_PREVIEW_MISSING_DDS,
     FINAL_PREVIEW_READY,
     FINAL_PREVIEW_SUPPORT_MAPS_ONLY,
+    MATERIAL_PREFLIGHT_OVERRIDE_WARNING,
     TEXTURE_PLAN_STATUS_LIKELY_GREY,
     TEXTURE_PLAN_STATUS_REVIEW,
     TEXTURE_PLAN_STATUS_READY,
     TEXTURE_PLAN_STATUS_SUPPORT_ONLY,
+    apply_material_preflight_override,
     build_dds_override_table_row,
     build_final_package_preview,
     build_replacement_texture_plan_rows,
+    material_preflight_hard_blockers,
     simplified_part_label,
     texture_plan_control_description,
 )
@@ -466,6 +469,7 @@ class FinalPackagePreviewTests(unittest.TestCase):
                 preview,
                 supplemental_file_specs=specs,
                 require_source_owned_colors=True,
+                material_authority_contract="true_source_authority",
             )
 
             self.assertFalse(result.preflight_errors)
@@ -740,6 +744,7 @@ class FinalPackagePreviewTests(unittest.TestCase):
                 preview,
                 supplemental_file_specs=specs,
                 require_source_owned_colors=True,
+                material_authority_contract="true_source_authority",
             )
 
             blocker_text = "\n".join(result.preflight_errors)
@@ -1096,7 +1101,7 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertIn("non-generated original/support material parameter", warning_text)
             self.assertIn("_grimeDiffuseTextureR", warning_text)
 
-    def test_complete_source_owned_blocks_resolved_inherited_layer_color_by_default(self) -> None:
+    def test_true_source_blocks_resolved_inherited_layer_color_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             original_layer = root / "cd_texturelayer_003_0101.dds"
@@ -1121,6 +1126,7 @@ class FinalPackagePreviewTests(unittest.TestCase):
                 supplemental_file_specs=specs,
                 original_dds_resolver=lambda path: original_layer if path == "character/texture/cd_texturelayer_003_0101.dds" else None,
                 require_source_owned_colors=True,
+                material_authority_contract="true_source_authority",
             )
 
             blocker_text = "\n".join(result.preflight_errors)
@@ -1157,6 +1163,134 @@ class FinalPackagePreviewTests(unittest.TestCase):
 
             self.assertFalse(result.preflight_errors)
             self.assertIn("_grimeDiffuseTextureR", "\n".join(result.warnings))
+            self.assertIn("Runtime XML preserve", "\n".join(result.summary_lines))
+
+    def test_runtime_xml_contract_warns_inherited_direct_color_without_blocking(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            original_base = root / "original_base.dds"
+            original_base.write_bytes(b"DDS original base")
+            preview = _preview("Blade")
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(0, 0, "Blade", [0], 0, 0, "Blade", 1, True),
+            )
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+                '<MaterialParameterTexture _name="_baseColorTexture"><ResourceReferencePath_ITexture _path="character/texture/original_base.dds"/></MaterialParameterTexture>'
+                "</SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(source_path=root / "blade.pac_xml", target_path="character/modelproperty/blade.pac_xml", kind="sidecar_generated", payload_data=sidecar),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                original_dds_resolver=lambda path: original_base if path == "character/texture/original_base.dds" else None,
+                require_source_owned_colors=True,
+                material_authority_contract="runtime_xml_preserve",
+            )
+
+            self.assertFalse(result.preflight_errors)
+            warning_text = "\n".join(result.warnings)
+            self.assertIn("inherits visible color from the game archive", warning_text)
+            self.assertIn("no exact generated source-visible color authority", warning_text)
+            self.assertIn("Runtime XML preserve", "\n".join(result.summary_lines))
+
+    def test_true_source_contract_blocks_inherited_stock_layer_and_support(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            original_layer = root / "cd_texturelayer_003_0101.dds"
+            original_height = root / "original_disp.dds"
+            original_layer.write_bytes(b"DDS stock layer")
+            original_height.write_bytes(b"DDS original height")
+            preview = _preview("Blade")
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(0, 0, "Blade", [0], 0, 0, "Blade", 1, True),
+            )
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+                '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_grimeDiffuseTextureR"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0101.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_heightTexture"><ResourceReferencePath_ITexture _path="character/texture/original_disp.dds"/></MaterialParameterTexture>'
+                "</SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(source_path=root / "blade_base.dds", target_path="character/texture/blade_base.dds", kind="texture_generated", payload_data=b"DDS base"),
+                MeshImportSupplementalFileSpec(source_path=root / "blade.pac_xml", target_path="character/modelproperty/blade.pac_xml", kind="sidecar_generated", payload_data=sidecar),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                original_dds_resolver=lambda path: original_layer if path == "character/texture/cd_texturelayer_003_0101.dds" else original_height if path == "character/texture/original_disp.dds" else None,
+                require_source_owned_colors=True,
+                material_authority_contract="true_source_authority",
+            )
+
+            blocker_text = "\n".join(result.preflight_errors)
+            self.assertIn("inherits visible color from the game archive", blocker_text)
+            self.assertIn("inherits original Height binding", blocker_text)
+            self.assertIn("True Source Authority", "\n".join(result.summary_lines))
+
+    def test_material_preflight_override_downgrades_overridable_source_authority_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            original_layer = root / "cd_texturelayer_003_0101.dds"
+            original_layer.write_bytes(b"DDS stock layer")
+            preview = _preview("Blade")
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(0, 0, "Blade", [0], 0, 0, "Blade", 1, True),
+            )
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+                '<MaterialParameterTexture _name="_grimeDiffuseTextureR"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0101.dds"/></MaterialParameterTexture>'
+                "</SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(source_path=root / "blade.pac_xml", target_path="character/modelproperty/blade.pac_xml", kind="sidecar_generated", payload_data=sidecar),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                original_dds_resolver=lambda path: original_layer if path == "character/texture/cd_texturelayer_003_0101.dds" else None,
+                require_source_owned_colors=True,
+                material_authority_contract="true_source_authority",
+            )
+
+            self.assertTrue(result.preflight_errors)
+            self.assertEqual((), apply_material_preflight_override(result))
+            self.assertFalse(result.preflight_errors)
+            warning_text = "\n".join(result.warnings)
+            self.assertIn(MATERIAL_PREFLIGHT_OVERRIDE_WARNING, warning_text)
+            self.assertIn("Unsafe material preflight override:", warning_text)
+
+    def test_material_preflight_override_keeps_hard_blockers(self) -> None:
+        blockers = material_preflight_hard_blockers(
+            (
+                "Visible color texture is not package-resolved: Blade _baseColorTexture -> character/texture/missing.dds.",
+                "Complete source-owned draw slot has no exact generated source-visible color authority binding: Blade.",
+            )
+        )
+
+        self.assertEqual(1, len(blockers))
+        self.assertIn("not package-resolved", blockers[0])
+
+    def test_clean_source_contract_warns_instead_of_blocks_missing_wrapper_rows(self) -> None:
+        preview = _preview("Blade")
+        preview.source_owned_output_draw_sections = (
+            StaticOutputDrawSection(0, 0, "Blade", [0], 0, 0, "Blade", 1, True),
+        )
+
+        result = build_final_package_preview(
+            preview,
+            supplemental_file_specs=(),
+            require_source_owned_colors=True,
+        )
+
+        self.assertFalse(result.preflight_errors)
+        self.assertIn("no exact generated source-visible color authority", "\n".join(result.warnings))
 
     def test_complete_source_owned_warns_height_when_sidecar_keeps_height_slot(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

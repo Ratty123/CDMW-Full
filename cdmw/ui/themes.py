@@ -950,6 +950,34 @@ def build_app_stylesheet(
         background: {theme["button_disabled"]};
         border-color: {theme["border"]};
     }}
+    QGroupBox#DashboardStatusPanel {{
+        background: {theme["surface"]};
+        border: 1px solid {theme["border"]};
+        border-radius: 6px;
+        margin-top: {max(16, metrics["group_margin_top"] + 4)}px;
+        padding-top: {max(10, metrics["group_pad_top"])}px;
+    }}
+    QGroupBox#DashboardStatusPanel::title {{
+        color: {theme["text_strong"]};
+        font-weight: 700;
+        padding: 0px {metrics["group_title_pad_x"] + 2}px 1px {metrics["group_title_pad_x"] + 2}px;
+    }}
+    QLabel#DashboardStatusName {{
+        color: {theme["text_muted"]};
+        font-size: {hint_size}px;
+        background: transparent;
+    }}
+    QLabel#DashboardStatusValue {{
+        color: {theme["text"]};
+        background: {theme["field_alt"]};
+        border: 1px solid {theme["border"]};
+        border-radius: 4px;
+        padding: 3px 6px;
+    }}
+    QPushButton#DashboardInlineButton {{
+        min-height: {max(24, metrics["button_min_h"])}px;
+        padding: {metrics["button_pad_y"]}px {metrics["button_pad_x"] + 2}px;
+    }}
     QCheckBox {{
         spacing: 8px;
     }}
