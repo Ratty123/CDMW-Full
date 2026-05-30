@@ -275,6 +275,38 @@ def mod_package_export_options_for_manager(profile: str) -> ModPackageExportOpti
     return ModPackageExportOptions(manager_targets=("universal",), structure="game_relative")
 
 
+def mod_package_export_options_for_profiles(
+    profiles: Sequence[str],
+    *,
+    create_zip: bool = False,
+    create_texture_resolution_manifest: bool = False,
+    conflict_mode: str = "",
+    target_language: str = "",
+) -> ModPackageExportOptions:
+    selected_profiles: list[str] = []
+    seen: set[str] = set()
+    for value in tuple(profiles or ()):
+        normalized = normalize_mod_package_manager_profile(str(value or ""))
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        selected_profiles.append(normalized)
+    if not selected_profiles:
+        selected_profiles.append("universal")
+
+    primary = selected_profiles[0]
+    defaults = mod_package_export_options_for_manager(primary)
+    uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in selected_profiles)
+    return dataclasses.replace(
+        defaults,
+        export_profiles=tuple(selected_profiles) if len(selected_profiles) > 1 else (),
+        create_zip=bool(create_zip),
+        create_texture_resolution_manifest=bool(create_texture_resolution_manifest),
+        conflict_mode=str(conflict_mode or "").strip() if uses_manager_metadata else "",
+        target_language=str(target_language or "").strip() if uses_manager_metadata else "",
+    )
+
+
 def sanitize_mod_package_folder_name(name: str) -> str:
     sanitized = re.sub(r'[<>:"/\\\\|?*]+', "_", name).strip(" .")
     return sanitized or "Crimson Desert Mod Workbench Mod"

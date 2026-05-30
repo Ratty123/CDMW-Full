@@ -1,4 +1,4 @@
-"""Topology-preserving mesh deformation helpers for in-app OBJ editing."""
+"""Mesh deformation helpers for in-app geometry editing."""
 
 from __future__ import annotations
 
@@ -26,6 +26,14 @@ class MeshFaceDeleteResult:
     emptied_submesh_indices: tuple[int, ...] = ()
     removed_face_count: int = 0
     removed_vertex_count: int = 0
+
+
+@dataclass
+class MeshSubdivisionResult:
+    affected_submesh_indices: tuple[int, ...] = ()
+    changed_vertices_by_submesh: dict[int, set[int]] | None = None
+    added_vertex_count: int = 0
+    added_face_count: int = 0
 
 
 def mesh_topology_signature(mesh: ParsedMesh) -> MeshTopologySignature:
@@ -135,6 +143,54 @@ def _valid_vertex_index_set(vertex_indices: Iterable[int], vertex_count: int) ->
         if 0 <= index < vertex_count:
             selected.add(index)
     return selected
+
+
+def _average_tuple(values: Sequence[object], a: int, b: int, old_vertex_count: int) -> tuple[float, ...] | None:
+    if len(values) != old_vertex_count:
+        return None
+    try:
+        left = tuple(float(component) for component in values[a])  # type: ignore[arg-type]
+        right = tuple(float(component) for component in values[b])  # type: ignore[arg-type]
+    except (TypeError, ValueError, IndexError):
+        return None
+    length = min(len(left), len(right))
+    if length <= 0:
+        return None
+    return tuple((left[index] + right[index]) * 0.5 for index in range(length))
+
+
+def _blend_bone_assignment(
+    bone_indices: Sequence[object],
+    bone_weights: Sequence[object],
+    a: int,
+    b: int,
+    old_vertex_count: int,
+) -> tuple[tuple[int, ...], tuple[float, ...]] | None:
+    if len(bone_indices) != old_vertex_count or len(bone_weights) != old_vertex_count:
+        return None
+    try:
+        left_indices = tuple(int(value) for value in bone_indices[a])  # type: ignore[arg-type]
+        right_indices = tuple(int(value) for value in bone_indices[b])  # type: ignore[arg-type]
+        left_weights = tuple(float(value) for value in bone_weights[a])  # type: ignore[arg-type]
+        right_weights = tuple(float(value) for value in bone_weights[b])  # type: ignore[arg-type]
+    except (TypeError, ValueError, IndexError):
+        return None
+    weight_by_bone: dict[int, float] = {}
+    for bone, weight in zip(left_indices, left_weights):
+        if bone >= 0 and weight > 0.0:
+            weight_by_bone[bone] = weight_by_bone.get(bone, 0.0) + weight * 0.5
+    for bone, weight in zip(right_indices, right_weights):
+        if bone >= 0 and weight > 0.0:
+            weight_by_bone[bone] = weight_by_bone.get(bone, 0.0) + weight * 0.5
+    width = max(1, min(8, max(len(left_indices), len(right_indices), 4)))
+    top = sorted(weight_by_bone.items(), key=lambda item: item[1], reverse=True)[:width]
+    total = sum(weight for _bone, weight in top) or 1.0
+    blended_indices = [bone for bone, _weight in top]
+    blended_weights = [weight / total for _bone, weight in top]
+    while len(blended_indices) < width:
+        blended_indices.append(0)
+        blended_weights.append(0.0)
+    return tuple(blended_indices), tuple(blended_weights)
 
 
 def _delete_faces_touching_submesh_vertices(
@@ -355,6 +411,165 @@ def delete_faces_touching_vertices(
         emptied_submesh_indices=tuple(emptied),
         removed_face_count=removed_face_count,
         removed_vertex_count=removed_vertex_count,
+    )
+
+
+def subdivide_faces_touching_vertices(
+    mesh: ParsedMesh,
+    selected_vertices_by_submesh: Mapping[int, Iterable[int]],
+    *,
+    max_faces_per_submesh: int = 256,
+    recompute_normals: bool = True,
+) -> MeshSubdivisionResult:
+    affected: list[int] = []
+    changed_vertices: dict[int, set[int]] = {}
+    added_vertex_count = 0
+    added_face_count = 0
+    face_limit = max(1, int(max_faces_per_submesh or 1))
+
+    for raw_submesh_index, raw_vertices in dict(selected_vertices_by_submesh or {}).items():
+        try:
+            submesh_index = int(raw_submesh_index)
+        except (TypeError, ValueError):
+            continue
+        if submesh_index < 0 or submesh_index >= len(mesh.submeshes):
+            continue
+        submesh = mesh.submeshes[submesh_index]
+        old_vertex_count = len(submesh.vertices)
+        selected = _valid_vertex_index_set(raw_vertices, old_vertex_count)
+        if not selected or not submesh.faces:
+            continue
+
+        split_face_indices: set[int] = set()
+        for face_index, face in enumerate(tuple(submesh.faces or ())):
+            if len(face) < 3:
+                continue
+            try:
+                a, b, c = (int(face[0]), int(face[1]), int(face[2]))
+            except (TypeError, ValueError):
+                continue
+            if a in selected or b in selected or c in selected:
+                split_face_indices.add(face_index)
+                if len(split_face_indices) >= face_limit:
+                    break
+        if not split_face_indices:
+            continue
+
+        vertices = [_vec3(vertex) for vertex in submesh.vertices]
+        original_uvs = list(submesh.uvs or [])
+        original_normals = list(submesh.normals or [])
+        original_bone_indices = list(submesh.bone_indices or [])
+        original_bone_weights = list(submesh.bone_weights or [])
+        original_source_vertex_map = list(submesh.source_vertex_map or [])
+        original_source_vertex_offsets = list(submesh.source_vertex_offsets or [])
+        has_uvs = len(original_uvs) == old_vertex_count
+        has_normals = len(original_normals) == old_vertex_count
+        has_bones = len(original_bone_indices) == old_vertex_count and len(original_bone_weights) == old_vertex_count
+        has_source_vertex_map = len(original_source_vertex_map) == old_vertex_count
+        has_source_vertex_offsets = len(original_source_vertex_offsets) == old_vertex_count
+        uvs = list(original_uvs) if has_uvs else []
+        normals = list(original_normals) if has_normals else []
+        bone_indices = list(original_bone_indices) if has_bones else []
+        bone_weights = list(original_bone_weights) if has_bones else []
+        source_vertex_map = list(original_source_vertex_map) if has_source_vertex_map else []
+        source_vertex_offsets = list(original_source_vertex_offsets) if has_source_vertex_offsets else []
+        edge_midpoints: dict[tuple[int, int], int] = {}
+        touched = changed_vertices.setdefault(submesh_index, set())
+
+        def midpoint_index(a: int, b: int) -> int:
+            nonlocal added_vertex_count
+            key = (a, b) if a <= b else (b, a)
+            existing = edge_midpoints.get(key)
+            if existing is not None:
+                return existing
+            midpoint = (
+                (vertices[a][0] + vertices[b][0]) * 0.5,
+                (vertices[a][1] + vertices[b][1]) * 0.5,
+                (vertices[a][2] + vertices[b][2]) * 0.5,
+            )
+            new_index = len(vertices)
+            vertices.append(midpoint)
+            averaged_uv = _average_tuple(original_uvs, a, b, old_vertex_count) if has_uvs else None
+            if has_uvs and averaged_uv is not None:
+                uvs.append(averaged_uv)  # type: ignore[arg-type]
+            averaged_normal = _average_tuple(original_normals, a, b, old_vertex_count) if has_normals else None
+            if has_normals and averaged_normal is not None and len(averaged_normal) >= 3:
+                normals.append(_normalize(averaged_normal[:3]))  # type: ignore[arg-type]
+            blended_bones = (
+                _blend_bone_assignment(original_bone_indices, original_bone_weights, a, b, old_vertex_count)
+                if has_bones
+                else None
+            )
+            if has_bones and blended_bones is not None:
+                indices, weights = blended_bones
+                bone_indices.append(indices)  # type: ignore[arg-type]
+                bone_weights.append(weights)  # type: ignore[arg-type]
+            if has_source_vertex_map:
+                source_vertex_map.append(-1)
+            if has_source_vertex_offsets:
+                source_vertex_offsets.append(-1)
+            edge_midpoints[key] = new_index
+            touched.add(new_index)
+            added_vertex_count += 1
+            return new_index
+
+        new_faces: list[tuple[int, int, int]] = []
+        for face_index, face in enumerate(tuple(submesh.faces or ())):
+            if len(face) < 3:
+                continue
+            try:
+                a, b, c = (int(face[0]), int(face[1]), int(face[2]))
+            except (TypeError, ValueError):
+                continue
+            if not (0 <= a < old_vertex_count and 0 <= b < old_vertex_count and 0 <= c < old_vertex_count):
+                continue
+            if face_index not in split_face_indices:
+                new_faces.append((a, b, c))
+                continue
+            ab = midpoint_index(a, b)
+            bc = midpoint_index(b, c)
+            ca = midpoint_index(c, a)
+            touched.update((a, b, c, ab, bc, ca))
+            new_faces.extend(
+                (
+                    (a, ab, ca),
+                    (ab, b, bc),
+                    (ca, bc, c),
+                    (ab, bc, ca),
+                )
+            )
+            added_face_count += 3
+
+        submesh.vertices = vertices
+        if len(uvs) == len(vertices):
+            submesh.uvs = uvs  # type: ignore[assignment]
+        if len(normals) == len(vertices):
+            submesh.normals = normals  # type: ignore[assignment]
+        if len(bone_indices) == len(vertices):
+            submesh.bone_indices = bone_indices  # type: ignore[assignment]
+        if len(bone_weights) == len(vertices):
+            submesh.bone_weights = bone_weights  # type: ignore[assignment]
+        if len(source_vertex_map) == len(vertices):
+            submesh.source_vertex_map = source_vertex_map  # type: ignore[assignment]
+        if len(source_vertex_offsets) == len(vertices):
+            submesh.source_vertex_offsets = source_vertex_offsets  # type: ignore[assignment]
+        submesh.faces = new_faces
+        submesh.vertex_count = len(vertices)
+        submesh.face_count = len(new_faces)
+        if recompute_normals:
+            recompute_submesh_normals(submesh)
+        affected.append(submesh_index)
+
+    if affected:
+        mesh.total_vertices = sum(len(submesh.vertices) for submesh in mesh.submeshes)
+        mesh.total_faces = sum(len(submesh.faces) for submesh in mesh.submeshes)
+        mesh.has_uvs = any(bool(submesh.uvs) for submesh in mesh.submeshes)
+        mesh.has_bones = any(bool(submesh.bone_indices) or bool(submesh.bone_weights) for submesh in mesh.submeshes)
+    return MeshSubdivisionResult(
+        affected_submesh_indices=tuple(affected),
+        changed_vertices_by_submesh=changed_vertices,
+        added_vertex_count=added_vertex_count,
+        added_face_count=added_face_count,
     )
 
 
@@ -673,6 +888,7 @@ def apply_brush_deformation(
     mirror_x: bool = False,
     mirror_pairs: Mapping[int, int] | None = None,
     adjacency: Sequence[set[int]] | None = None,
+    iterations: int = 1,
     invert: bool = False,
     recompute_normals: bool = True,
 ) -> list[int]:
@@ -701,19 +917,49 @@ def apply_brush_deformation(
         return []
 
     vertices = [_vec3(vertex) for vertex in submesh.vertices]
-    normals = (
-        [_vec3(normal, (0.0, 1.0, 0.0)) for normal in submesh.normals]
-        if len(submesh.normals) == len(vertices)
-        else _compute_smooth_normals(vertices, submesh.faces)
-    )
+    normals: list[Vec3] = []
+    if tool_key == "inflate":
+        normals = (
+            [_vec3(normal, (0.0, 1.0, 0.0)) for normal in submesh.normals]
+            if len(submesh.normals) == len(vertices)
+            else _compute_smooth_normals(vertices, submesh.faces)
+        )
     adjacency_map = list(adjacency or build_vertex_adjacency(submesh)) if tool_key == "smooth" else []
+    iteration_count = max(1, min(12, int(iterations or 1)))
     amount_value = float(amount)
     if abs(amount_value) <= 1e-8:
         amount_value = _length(delta_vec)
     amount_value *= strength_value
     new_vertices = list(vertices)
 
+    if tool_key == "smooth":
+        relax_vertices = list(vertices)
+        for _iteration in range(iteration_count):
+            next_vertices = list(relax_vertices)
+            for index, (weight, _mirrored) in weighted_indices.items():
+                neighbors = adjacency_map[index] if index < len(adjacency_map) else set()
+                if not neighbors:
+                    continue
+                valid_neighbors = [neighbor for neighbor in neighbors if 0 <= int(neighbor) < len(relax_vertices)]
+                if not valid_neighbors:
+                    continue
+                avg = (
+                    sum(relax_vertices[neighbor][0] for neighbor in valid_neighbors) / len(valid_neighbors),
+                    sum(relax_vertices[neighbor][1] for neighbor in valid_neighbors) / len(valid_neighbors),
+                    sum(relax_vertices[neighbor][2] for neighbor in valid_neighbors) / len(valid_neighbors),
+                )
+                vertex = relax_vertices[index]
+                blend = max(0.0, min(1.0, float(weight) * strength_value))
+                next_vertices[index] = (
+                    vertex[0] + (avg[0] - vertex[0]) * blend,
+                    vertex[1] + (avg[1] - vertex[1]) * blend,
+                    vertex[2] + (avg[2] - vertex[2]) * blend,
+                )
+            relax_vertices = next_vertices
+        new_vertices = relax_vertices
     for index, (weight, mirrored) in weighted_indices.items():
+        if tool_key == "smooth":
+            continue
         vertex = vertices[index]
         effective_weight = float(weight) * strength_value
         applied_delta = (-delta_vec[0], delta_vec[1], delta_vec[2]) if mirrored else delta_vec
@@ -728,21 +974,6 @@ def apply_brush_deformation(
             direction = _normalize(_sub(local_center, vertex), (0.0, 0.0, 0.0))
             signed_amount = -abs(amount_value) if invert else abs(amount_value)
             new_vertices[index] = _add(vertex, _mul(direction, signed_amount * float(weight)))
-        elif tool_key == "smooth":
-            neighbors = adjacency_map[index] if index < len(adjacency_map) else set()
-            if not neighbors:
-                continue
-            avg = (
-                sum(vertices[neighbor][0] for neighbor in neighbors) / len(neighbors),
-                sum(vertices[neighbor][1] for neighbor in neighbors) / len(neighbors),
-                sum(vertices[neighbor][2] for neighbor in neighbors) / len(neighbors),
-            )
-            blend = max(0.0, min(1.0, effective_weight))
-            new_vertices[index] = (
-                vertex[0] + (avg[0] - vertex[0]) * blend,
-                vertex[1] + (avg[1] - vertex[1]) * blend,
-                vertex[2] + (avg[2] - vertex[2]) * blend,
-            )
         else:
             new_vertices[index] = _add(vertex, _mul(applied_delta, float(weight) * strength_value))
 

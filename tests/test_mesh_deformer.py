@@ -29,6 +29,26 @@ def _submesh() -> SubMesh:
     )
 
 
+def _strip_submesh(rows: int = 6) -> SubMesh:
+    vertices = []
+    for row in range(rows + 1):
+        vertices.append((0.0, float(row), 0.0))
+        vertices.append((1.0, float(row), 0.0))
+    faces = []
+    for row in range(rows):
+        a = row * 2
+        b = a + 1
+        c = a + 2
+        d = a + 3
+        faces.extend(((a, b, c), (b, d, c)))
+    return SubMesh(
+        name="cloak_strip",
+        material="cloak",
+        vertices=vertices,
+        faces=faces,
+    )
+
+
 class MeshDeformerTests(unittest.TestCase):
     def test_grab_preserves_topology_and_recomputes_normals(self) -> None:
         mesh = ParsedMesh(format="obj", submeshes=[_submesh()])
@@ -114,6 +134,23 @@ class MeshDeformerTests(unittest.TestCase):
         self.assertEqual(before_normals, sm.normals)
         recompute_submesh_normals(sm)
         self.assertEqual(len(sm.normals), len(sm.vertices))
+
+    def test_grab_can_defer_normals_without_creating_normal_output(self) -> None:
+        sm = _submesh()
+        sm.normals = []
+
+        changed = apply_brush_deformation(
+            sm,
+            tool="grab",
+            center=(-1.0, 0.0, 0.0),
+            radius=0.5,
+            strength=1.0,
+            drag_delta=(0.0, 0.0, 0.25),
+            recompute_normals=False,
+        )
+
+        self.assertEqual([0], changed)
+        self.assertEqual([], sm.normals)
 
     def test_live_grab_total_drag_matches_release_delta(self) -> None:
         live = _submesh()
@@ -263,6 +300,30 @@ class MeshDeformerTests(unittest.TestCase):
 
         self.assertEqual(4, compact_result.removed_vertex_count)
         self.assertEqual((0,), compact_result.emptied_submesh_indices)
+        self.assertEqual([], sm.vertices)
+        self.assertEqual([], sm.faces)
+        self.assertEqual(0, mesh.total_vertices)
+        self.assertEqual(0, mesh.total_faces)
+
+    def test_repeated_cloak_shortening_deletes_rows_and_remaps_faces(self) -> None:
+        sm = _strip_submesh(rows=6)
+        mesh = ParsedMesh(format="obj", submeshes=[sm])
+        removed_faces = 0
+
+        for _step in range(6):
+            self.assertTrue(sm.faces)
+            min_y = min(vertex[1] for vertex in sm.vertices)
+            selected = [index for index, vertex in enumerate(sm.vertices) if vertex[1] == min_y]
+            result = delete_faces_touching_vertices(mesh, {0: selected})
+            removed_faces += int(result.removed_face_count)
+
+            self.assertGreater(result.removed_face_count, 0)
+            self.assertEqual(len(sm.vertices), sm.vertex_count)
+            self.assertEqual(len(sm.faces), sm.face_count)
+            for face in sm.faces:
+                self.assertTrue(all(0 <= index < len(sm.vertices) for index in face))
+
+        self.assertEqual(12, removed_faces)
         self.assertEqual([], sm.vertices)
         self.assertEqual([], sm.faces)
         self.assertEqual(0, mesh.total_vertices)

@@ -68,10 +68,10 @@ This file is a practical notice list for repository and release packaging. For a
 
 ### hzeemr/crimsonforge
 
-- Purpose: selectively adapted mesh parsing/export/import and archive-modding reference code
+- Purpose: actively adapted mesh parsing/export/import and archive-modding reference code used by current Workbench mesh, preview, replacement, and package flows
 - Upstream: https://github.com/hzeemr/crimsonforge
 - License: MIT
-- Notes: selected components are vendored under `cdmw/modding/` with the upstream MIT license text included in `VendoredMeshTools_MIT_LICENSE.txt`
+- Notes: selected components remain vendored under `cdmw/modding/` with the upstream MIT license text included in `VendoredMeshTools_MIT_LICENSE.txt`; this is not dead code
 
 ## Redistribution Notes
  

@@ -78,6 +78,17 @@ def _sidecar(shader: str = "SkinnedMeshEmissive_Ver2", intensity: str = "5.5", t
 
 
 class WorkingModMaterialRecipeTests(unittest.TestCase):
+    def test_vendored_crimsonforge_notice_marks_modding_helpers_active(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        notice = (root / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+        modding_init = (root / "cdmw" / "modding" / "__init__.py").read_text(encoding="utf-8")
+
+        self.assertTrue((root / "cdmw" / "modding" / "VendoredMeshTools_MIT_LICENSE.txt").is_file())
+        self.assertIn("hzeemr/crimsonforge", notice)
+        self.assertIn("actively adapted", notice)
+        self.assertIn("not dead code", notice)
+        self.assertIn("used by current Workbench flows", modding_init)
+
     def test_zip_analyzer_detects_crimsonforge_layout_emissive_recipe_and_icon(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

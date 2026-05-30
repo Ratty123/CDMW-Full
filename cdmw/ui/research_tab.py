@@ -153,12 +153,14 @@ def _add_flat_section_help(panel: FlatSectionPanel, text: str) -> None:
 
 
 def _shutdown_thread(thread: Optional[QThread], *, grace_ms: int = 2000, force_ms: int = 2000) -> None:
+    del grace_ms, force_ms
     if thread is None:
         return
+    try:
+        thread.requestInterruption()
+    except Exception:
+        pass
     thread.quit()
-    if thread.wait(grace_ms):
-        return
-    thread.wait(force_ms)
 
 
 class ResearchRefreshWorker(QObject):
@@ -701,7 +703,16 @@ class ResearchTab(QWidget):
     def set_theme(self, _theme_key: str) -> None:
         return
 
-    def shutdown(self) -> None:
+    def iter_shutdown_workers(self) -> tuple[tuple[str, Optional[QThread], Optional[object]], ...]:
+        return (
+            ("refresh_thread", self.refresh_thread, self.refresh_worker),
+            ("ui_constraint_thread", self.ui_constraint_thread, self.ui_constraint_worker),
+            ("resolve_thread", self.resolve_thread, self.resolve_worker),
+            ("unknown_preview_thread", self.unknown_preview_thread, self.unknown_preview_worker),
+            ("archive_picker_preview_thread", self.archive_picker_preview_thread, self.archive_picker_preview_worker),
+        )
+
+    def request_shutdown(self) -> None:
         self._refresh_population_timer.stop()
         self._unknown_population_timer.stop()
         if self.refresh_worker is not None:
@@ -714,14 +725,11 @@ class ResearchTab(QWidget):
             self.unknown_preview_worker.stop()
         if self.archive_picker_preview_worker is not None:
             self.archive_picker_preview_worker.stop()
-        for thread in (
-            self.refresh_thread,
-            self.ui_constraint_thread,
-            self.resolve_thread,
-            self.unknown_preview_thread,
-            self.archive_picker_preview_thread,
-        ):
+        for _name, thread, _worker in self.iter_shutdown_workers():
             _shutdown_thread(thread)
+
+    def shutdown(self) -> None:
+        self.request_shutdown()
 
     def refresh_archive_picker(self) -> None:
         entries = self.get_filtered_archive_entries()

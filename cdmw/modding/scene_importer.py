@@ -145,6 +145,15 @@ class _GltfPayload:
     discovered_texture_files: list[Path]
 
 
+@dataclass(slots=True, frozen=True)
+class _GltfMeshInstance:
+    mesh_index: int
+    transform: tuple[float, ...]
+    node_name: str
+    node_index: int = -1
+    skin_index: int = -1
+
+
 def _scene_result_context(scene_result: SceneImportResult) -> dict[str, object]:
     return {
         "material_bindings": tuple(getattr(scene_result, "material_bindings", ()) or ()),
@@ -915,8 +924,16 @@ def import_gltf(path: str | Path) -> SceneImportResult:
     material_bindings: list[ImportedMaterialBinding] = []
     mesh_instances = _iter_gltf_mesh_instances(payload.document)
     if not mesh_instances:
-        mesh_instances = [(index, _identity_matrix(), "") for index, _mesh in enumerate(payload.document.get("meshes", []) or [])]
-    for mesh_index, transform, node_name in mesh_instances:
+        mesh_instances = [
+            _GltfMeshInstance(index, _identity_matrix(), "")
+            for index, _mesh in enumerate(payload.document.get("meshes", []) or [])
+        ]
+    skin_matrix_cache: dict[tuple[int, int], tuple[tuple[float, ...], ...]] = {}
+    baked_skin_primitive_count = 0
+    for instance in mesh_instances:
+        mesh_index = instance.mesh_index
+        transform = instance.transform
+        node_name = instance.node_name
         gltf_meshes = payload.document.get("meshes", []) or []
         if mesh_index < 0 or mesh_index >= len(gltf_meshes):
             continue
@@ -947,6 +964,19 @@ def import_gltf(path: str | Path) -> SceneImportResult:
                 material=material_name or node_name or mesh_name or f"mesh_{mesh_index}_{primitive_index}",
                 texture=texture_path,
             )
+            skin_matrices: tuple[tuple[float, ...], ...] = ()
+            if instance.skin_index >= 0 and instance.node_index >= 0:
+                cache_key = (instance.node_index, instance.skin_index)
+                skin_matrices = skin_matrix_cache.get(cache_key, ())
+                if cache_key not in skin_matrix_cache:
+                    skin_matrices = _gltf_skin_joint_matrices(
+                        payload,
+                        node_index=instance.node_index,
+                        skin_index=instance.skin_index,
+                    )
+                    skin_matrix_cache[cache_key] = skin_matrices
+            if skin_matrices and _bake_gltf_skin_primitive(payload, primitive, submesh, skin_matrices):
+                baked_skin_primitive_count += 1
             if not submesh.faces:
                 payload.diagnostics.append(
                     f"Skipped glTF primitive {mesh_name or mesh_index}:{primitive_index} because it produced no triangle faces."
@@ -1005,6 +1035,10 @@ def import_gltf(path: str | Path) -> SceneImportResult:
     if payload.discovered_texture_files:
         payload.diagnostics.append(
             f"Discovered {len(payload.discovered_texture_files):,} glTF texture reference(s)."
+        )
+    if baked_skin_primitive_count:
+        payload.diagnostics.append(
+            f"Baked glTF skin weights into static geometry for {baked_skin_primitive_count:,} primitive(s)."
         )
     return _result_with_external_audit(
         source_path,
@@ -1625,7 +1659,7 @@ def _validate_gltf_static_payload(payload: _GltfPayload) -> None:
             f"({', '.join(compressed)}). Export an uncompressed GLB/glTF before importing."
         )
     if doc.get("skins"):
-        payload.diagnostics.append("glTF skins/bones are ignored; import will use static Mesh Replacement only.")
+        payload.diagnostics.append("glTF skins/bones are baked into static geometry when possible; Mesh Replacement remains static.")
     if doc.get("animations"):
         payload.diagnostics.append("glTF animations are ignored; import will use static Mesh Replacement only.")
     warned_morphs = False
@@ -1984,7 +2018,7 @@ def _embedded_gltf_extract_dir(source_path: Path) -> Path:
     return Path(tempfile.gettempdir()) / "cdmw_gltf_imports" / digest
 
 
-def _iter_gltf_mesh_instances(document: dict[str, Any]) -> list[tuple[int, tuple[float, ...], str]]:
+def _iter_gltf_mesh_instances(document: dict[str, Any]) -> list[_GltfMeshInstance]:
     scenes = document.get("scenes", []) or []
     scene_index = _safe_int(document.get("scene"), 0)
     root_nodes: list[int] = []
@@ -1992,7 +2026,7 @@ def _iter_gltf_mesh_instances(document: dict[str, Any]) -> list[tuple[int, tuple
         root_nodes = [_safe_int(value, -1) for value in scenes[scene_index].get("nodes", []) or []]
     if not root_nodes:
         root_nodes = list(range(len(document.get("nodes", []) or [])))
-    instances: list[tuple[int, tuple[float, ...], str]] = []
+    instances: list[_GltfMeshInstance] = []
     for node_index in root_nodes:
         _walk_gltf_node(document, node_index, _identity_matrix(), instances)
     return instances
@@ -2002,7 +2036,7 @@ def _walk_gltf_node(
     document: dict[str, Any],
     node_index: int,
     parent_matrix: tuple[float, ...],
-    instances: list[tuple[int, tuple[float, ...], str]],
+    instances: list[_GltfMeshInstance],
 ) -> None:
     nodes = document.get("nodes", []) or []
     if node_index < 0 or node_index >= len(nodes) or not isinstance(nodes[node_index], dict):
@@ -2012,9 +2046,174 @@ def _walk_gltf_node(
     mesh_index = _safe_int(node.get("mesh"), -1)
     node_name = str(node.get("name", "") or "")
     if mesh_index >= 0:
-        instances.append((mesh_index, matrix, node_name))
+        instances.append(
+            _GltfMeshInstance(
+                mesh_index=mesh_index,
+                transform=matrix,
+                node_name=node_name,
+                node_index=node_index,
+                skin_index=_safe_int(node.get("skin"), -1),
+            )
+        )
     for child_index in node.get("children", []) or []:
         _walk_gltf_node(document, _safe_int(child_index, -1), matrix, instances)
+
+
+def _gltf_node_world_matrices(document: dict[str, Any]) -> tuple[tuple[float, ...], ...]:
+    nodes = document.get("nodes", []) or []
+    parents = [-1] * len(nodes)
+    for node_index, node in enumerate(nodes):
+        if not isinstance(node, dict):
+            continue
+        for child in node.get("children", []) or []:
+            child_index = _safe_int(child, -1)
+            if 0 <= child_index < len(parents):
+                parents[child_index] = node_index
+    local_matrices = [
+        _gltf_node_matrix(node if isinstance(node, dict) else {})
+        for node in nodes
+    ]
+    cache: list[Optional[tuple[float, ...]]] = [None] * len(nodes)
+
+    def resolve(node_index: int, stack: set[int]) -> tuple[float, ...]:
+        if node_index < 0 or node_index >= len(nodes):
+            return _identity_matrix()
+        cached = cache[node_index]
+        if cached is not None:
+            return cached
+        if node_index in stack:
+            return _identity_matrix()
+        parent_index = parents[node_index]
+        if parent_index >= 0:
+            matrix = _multiply_matrix(resolve(parent_index, stack | {node_index}), local_matrices[node_index])
+        else:
+            matrix = local_matrices[node_index]
+        cache[node_index] = matrix
+        return matrix
+
+    return tuple(resolve(index, set()) for index in range(len(nodes)))
+
+
+def _gltf_skin_joint_matrices(
+    payload: _GltfPayload,
+    *,
+    node_index: int,
+    skin_index: int,
+) -> tuple[tuple[float, ...], ...]:
+    skins = payload.document.get("skins", []) or []
+    if skin_index < 0 or skin_index >= len(skins) or not isinstance(skins[skin_index], dict):
+        return ()
+    world_matrices = _gltf_node_world_matrices(payload.document)
+    if node_index < 0 or node_index >= len(world_matrices):
+        return ()
+    node_inverse = _invert_affine_matrix(world_matrices[node_index])
+    if node_inverse is None:
+        payload.diagnostics.append("Skipped glTF skin bake because the skinned mesh node transform is not invertible.")
+        return ()
+    skin = skins[skin_index]
+    joints = [_safe_int(value, -1) for value in skin.get("joints", []) or []]
+    if not joints:
+        return ()
+    inverse_bind_matrices = _gltf_inverse_bind_matrices(
+        payload,
+        accessor_index=_safe_int(skin.get("inverseBindMatrices"), -1),
+        joint_count=len(joints),
+    )
+    matrices: list[tuple[float, ...]] = []
+    for joint_position, joint_index in enumerate(joints):
+        if 0 <= joint_index < len(world_matrices):
+            joint_world = world_matrices[joint_index]
+        else:
+            joint_world = _identity_matrix()
+        inverse_bind = inverse_bind_matrices[joint_position] if joint_position < len(inverse_bind_matrices) else _identity_matrix()
+        matrices.append(_multiply_matrix(_multiply_matrix(node_inverse, joint_world), inverse_bind))
+    return tuple(matrices)
+
+
+def _gltf_inverse_bind_matrices(
+    payload: _GltfPayload,
+    *,
+    accessor_index: int,
+    joint_count: int,
+) -> tuple[tuple[float, ...], ...]:
+    if accessor_index < 0:
+        return tuple(_identity_matrix() for _index in range(joint_count))
+    rows = _read_gltf_accessor(payload, accessor_index, expected_components=16)
+    matrices = [_gltf_mat4_to_row_major(row) for row in rows[:joint_count]]
+    while len(matrices) < joint_count:
+        matrices.append(_identity_matrix())
+    return tuple(matrices)
+
+
+def _gltf_mat4_to_row_major(values: tuple[float, ...]) -> tuple[float, ...]:
+    if len(values) < 16:
+        return _identity_matrix()
+    return (
+        float(values[0]), float(values[4]), float(values[8]), float(values[12]),
+        float(values[1]), float(values[5]), float(values[9]), float(values[13]),
+        float(values[2]), float(values[6]), float(values[10]), float(values[14]),
+        float(values[3]), float(values[7]), float(values[11]), float(values[15]),
+    )
+
+
+def _bake_gltf_skin_primitive(
+    payload: _GltfPayload,
+    primitive: dict[str, Any],
+    submesh: SubMesh,
+    skin_matrices: Sequence[tuple[float, ...]],
+) -> bool:
+    attributes = primitive.get("attributes", {})
+    if not isinstance(attributes, dict):
+        return False
+    joints_accessor = _safe_int(attributes.get("JOINTS_0"), -1)
+    weights_accessor = _safe_int(attributes.get("WEIGHTS_0"), -1)
+    if joints_accessor < 0 or weights_accessor < 0:
+        return False
+    joints = _read_gltf_accessor(payload, joints_accessor, expected_components=4)
+    weights = _read_gltf_accessor(payload, weights_accessor, expected_components=4)
+    if not joints or not weights:
+        return False
+    vertices = list(submesh.vertices)
+    normals = list(submesh.normals)
+    baked_vertices: list[tuple[float, float, float]] = []
+    baked_normals: list[tuple[float, float, float]] = []
+    for vertex_index, vertex in enumerate(vertices):
+        joint_values = joints[vertex_index] if vertex_index < len(joints) else (0.0, 0.0, 0.0, 0.0)
+        weight_values = weights[vertex_index] if vertex_index < len(weights) else (1.0, 0.0, 0.0, 0.0)
+        weight_sum = sum(max(0.0, float(weight)) for weight in weight_values)
+        if weight_sum <= 1e-8:
+            baked_vertices.append(tuple(float(component) for component in vertex[:3]))
+            if vertex_index < len(normals):
+                baked_normals.append(_normalize_vec(tuple(float(component) for component in normals[vertex_index][:3])))
+            continue
+        position_accumulator = [0.0, 0.0, 0.0]
+        normal_accumulator = [0.0, 0.0, 0.0]
+        has_normal = vertex_index < len(normals)
+        for joint_value, raw_weight in zip(joint_values, weight_values):
+            weight = max(0.0, float(raw_weight)) / weight_sum
+            if weight <= 0.0:
+                continue
+            joint_index = int(joint_value)
+            matrix = skin_matrices[joint_index] if 0 <= joint_index < len(skin_matrices) else _identity_matrix()
+            transformed = _transform_point(tuple(float(component) for component in vertex[:3]), matrix)
+            position_accumulator[0] += transformed[0] * weight
+            position_accumulator[1] += transformed[1] * weight
+            position_accumulator[2] += transformed[2] * weight
+            if has_normal:
+                transformed_normal = _transform_vector(tuple(float(component) for component in normals[vertex_index][:3]), matrix)
+                normal_accumulator[0] += transformed_normal[0] * weight
+                normal_accumulator[1] += transformed_normal[1] * weight
+                normal_accumulator[2] += transformed_normal[2] * weight
+        baked_vertices.append((position_accumulator[0], position_accumulator[1], position_accumulator[2]))
+        if has_normal:
+            baked_normals.append(_normalize_vec((normal_accumulator[0], normal_accumulator[1], normal_accumulator[2])))
+    submesh.vertices = baked_vertices
+    submesh.vertex_count = len(baked_vertices)
+    if len(baked_normals) == len(baked_vertices):
+        submesh.normals = baked_normals
+    else:
+        submesh.normals = _compute_smooth_normals(baked_vertices, submesh.faces)
+    return True
 
 
 def _gltf_node_matrix(node: dict[str, Any]) -> tuple[float, ...]:
@@ -2527,6 +2726,33 @@ def _normalize_vec(value: tuple[float, float, float]) -> tuple[float, float, flo
 
 def _identity_matrix() -> tuple[float, ...]:
     return (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+
+
+def _invert_affine_matrix(matrix: tuple[float, ...]) -> Optional[tuple[float, ...]]:
+    if len(matrix) < 16:
+        return None
+    a, b, c, tx = matrix[0], matrix[1], matrix[2], matrix[3]
+    d, e, f, ty = matrix[4], matrix[5], matrix[6], matrix[7]
+    g, h, i, tz = matrix[8], matrix[9], matrix[10], matrix[11]
+    determinant = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+    if abs(determinant) <= 1e-12:
+        return None
+    scale = 1.0 / determinant
+    r00 = (e * i - f * h) * scale
+    r01 = (c * h - b * i) * scale
+    r02 = (b * f - c * e) * scale
+    r10 = (f * g - d * i) * scale
+    r11 = (a * i - c * g) * scale
+    r12 = (c * d - a * f) * scale
+    r20 = (d * h - e * g) * scale
+    r21 = (b * g - a * h) * scale
+    r22 = (a * e - b * d) * scale
+    return (
+        r00, r01, r02, -(r00 * tx + r01 * ty + r02 * tz),
+        r10, r11, r12, -(r10 * tx + r11 * ty + r12 * tz),
+        r20, r21, r22, -(r20 * tx + r21 * ty + r22 * tz),
+        0.0, 0.0, 0.0, 1.0,
+    )
 
 
 def _multiply_matrix(left: tuple[float, ...], right: tuple[float, ...]) -> tuple[float, ...]:

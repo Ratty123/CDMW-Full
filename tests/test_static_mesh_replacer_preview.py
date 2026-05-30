@@ -13,10 +13,12 @@ from cdmw.modding.static_mesh_replacer import (
     StaticSubmeshMapping,
     StaticTextureUvTransform,
     _build_mapped_replacement_mesh,
+    _transformed_replacement_sources,
     analyze_static_replacement,
     build_static_mesh_replacement,
     build_static_replacement_preview_mesh,
     plan_static_output_draw_sections,
+    suggest_static_submesh_mappings,
 )
 
 
@@ -38,6 +40,49 @@ def _large_part(name: str, vertex_count: int) -> SubMesh:
         vertices=[(float(index), float(index % 13), float(index % 7)) for index in range(vertex_count)],
         faces=[(0, 1, 2)] if vertex_count >= 3 else [],
     )
+
+
+def test_transformed_sources_can_freeze_alignment_basis_for_live_mesh_edits() -> None:
+    original = _mesh(
+        "original.pac",
+        [
+            SubMesh(
+                name="target",
+                material="target",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                faces=[(0, 1, 2)],
+            )
+        ],
+    )
+    base = copy.deepcopy(original)
+    edited = _mesh(
+        "edited.pac",
+        [
+            SubMesh(
+                name="target",
+                material="target",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 2.0, 0.0)],
+                faces=[(0, 1, 2)],
+            )
+        ],
+    )
+    transform = StaticReplacementTransform(
+        fit_to_original_bbox=True,
+        preserve_aspect_ratio=False,
+        scale_to_original_length=False,
+    )
+
+    base_vertices = _transformed_replacement_sources(original, base, transform)[0].vertices
+    edited_vertices = _transformed_replacement_sources(
+        original,
+        edited,
+        transform,
+        alignment_basis_mesh=base,
+    )[0].vertices
+
+    assert base_vertices[0] == edited_vertices[0]
+    assert base_vertices[1] == edited_vertices[1]
+    assert base_vertices[2] != edited_vertices[2]
 
 
 def _minimal_pac_original() -> tuple[bytes, ParsedMesh]:
@@ -193,6 +238,78 @@ def _minimal_two_part_pac_original() -> tuple[bytes, ParsedMesh]:
 
 
 class StaticMeshReplacementPreviewTests(unittest.TestCase):
+    def test_static_mapping_avoids_flag_runtime_slot_for_generic_source(self) -> None:
+        vertices = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
+        faces = [(0, 1, 2)]
+        original = _mesh(
+            "cd_phm_02_sword_0015.pac",
+            [
+                SubMesh(name="CD_PHM_02_Sword_Flag_0015", material="CD_PHM_02_Flag_0001", vertices=vertices, faces=faces),
+                SubMesh(name="CD_PHM_02_Blade_0015", material="CD_PHM_02_Blade_0015", vertices=vertices, faces=faces),
+            ],
+        )
+        replacement = _mesh(
+            "verdict_axe.gltf",
+            [
+                SubMesh(name="polySurface265_lambert1_0", material="lambert1", vertices=vertices, faces=faces),
+            ],
+        )
+
+        mappings = suggest_static_submesh_mappings(original, replacement)
+
+        self.assertEqual([], mappings[0].source_submesh_indices)
+        self.assertEqual([0], mappings[1].source_submesh_indices)
+
+    def test_static_mapping_allows_real_flag_source_to_flag_runtime_slot(self) -> None:
+        vertices = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
+        faces = [(0, 1, 2)]
+        original = _mesh(
+            "target.pac",
+            [
+                SubMesh(name="CD_PHM_02_Sword_Flag_0015", material="CD_PHM_02_Flag_0001", vertices=vertices, faces=faces),
+                SubMesh(name="CD_PHM_02_Blade_0015", material="CD_PHM_02_Blade_0015", vertices=vertices, faces=faces),
+            ],
+        )
+        replacement = _mesh(
+            "source.gltf",
+            [
+                SubMesh(name="cloth_flag_panel", material="flag_cloth", vertices=vertices, faces=faces),
+            ],
+        )
+
+        mappings = suggest_static_submesh_mappings(original, replacement)
+
+        self.assertEqual([0], mappings[0].source_submesh_indices)
+        self.assertEqual([], mappings[1].source_submesh_indices)
+
+    def test_complete_source_owned_blocks_generic_source_in_flag_runtime_slot(self) -> None:
+        vertices = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
+        faces = [(0, 1, 2)]
+        original = _mesh(
+            "cd_phm_02_sword_0015.pac",
+            [
+                SubMesh(name="CD_PHM_02_Sword_Flag_0015", material="CD_PHM_02_Flag_0001", vertices=vertices, faces=faces),
+                SubMesh(name="CD_PHM_02_Blade_0015", material="CD_PHM_02_Blade_0015", vertices=vertices, faces=faces),
+            ],
+        )
+        replacement = _mesh(
+            "verdict_axe.gltf",
+            [
+                SubMesh(name="polySurface265_lambert1_0", material="lambert1", vertices=vertices, faces=faces),
+            ],
+        )
+        options = StaticMeshReplacementOptions(
+            complete_external_swap=True,
+            submesh_mappings=[
+                StaticSubmeshMapping(0, "CD_PHM_02_Flag_0001", [0], 0),
+                StaticSubmeshMapping(1, "CD_PHM_02_Blade_0015", [], 1),
+            ],
+        )
+
+        report = analyze_static_replacement(original, replacement, options)
+
+        self.assertTrue(any("Unsafe runtime draw-slot mapping" in error for error in report.errors))
+
     def test_manual_alignment_does_not_apply_hidden_axis_rotation(self) -> None:
         original = _mesh(
             "target.pac",

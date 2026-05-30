@@ -279,6 +279,78 @@ class ModPackageRetrofitTests(unittest.TestCase):
             self.assertIn("character/model/1_pc/weapon/example.pac", names)
             self.assertNotIn("Wolf Gravestone Sword 2h (JSON).zip", names)
 
+    def test_jmm_retrofit_mirrors_player_descriptor_alias_for_placement(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "Placement"
+            root_descriptor = source / "character" / "phm_description_player_kliff.xml"
+            root_descriptor.parent.mkdir(parents=True)
+            root_descriptor.write_text("<Root/>", encoding="utf-8")
+            manifest = {
+                "kind": "archive_loose_mod",
+                "title": "Placement",
+                "name": "Placement",
+                "new_paths": ["character/phm_description_player_kliff.xml"],
+            }
+            (source / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            package = scan_retrofittable_mod_packages(source)[0]
+
+            result = retrofit_mod_package(package, root / "converted", manager_profile="jmm")
+
+            root_alias = result.package_root / "character" / "phm_description_player_kliff.xml"
+            descriptor_alias = (
+                result.package_root
+                / "character"
+                / "descriptors"
+                / "characterdescription"
+                / "phm_description_player_kliff.xml"
+            )
+            self.assertTrue(root_alias.is_file())
+            self.assertTrue(descriptor_alias.is_file())
+            self.assertEqual(root_alias.read_bytes(), descriptor_alias.read_bytes())
+            mod_json = json.loads((result.package_root / "mod.json").read_text(encoding="utf-8"))
+            self.assertIn("character/phm_description_player_kliff.xml", mod_json["files"])
+            self.assertIn("character/descriptors/characterdescription/phm_description_player_kliff.xml", mod_json["files"])
+            self.assertIn("character/phm_description_player_kliff.xml", mod_json["new_paths"])
+            self.assertIn(
+                "character/descriptors/characterdescription/phm_description_player_kliff.xml",
+                mod_json["new_paths"],
+            )
+
+    def test_jmm_retrofit_marks_existing_player_descriptor_alias_as_new_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "Placement"
+            root_descriptor = source / "character" / "phm_description_player_kliff.xml"
+            descriptor_alias = (
+                source
+                / "character"
+                / "descriptors"
+                / "characterdescription"
+                / "phm_description_player_kliff.xml"
+            )
+            root_descriptor.parent.mkdir(parents=True)
+            descriptor_alias.parent.mkdir(parents=True)
+            root_descriptor.write_text("<Root/>", encoding="utf-8")
+            descriptor_alias.write_text("<Root/>", encoding="utf-8")
+            manifest = {
+                "kind": "archive_loose_mod",
+                "title": "Placement",
+                "name": "Placement",
+                "new_paths": ["character/phm_description_player_kliff.xml"],
+            }
+            (source / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            package = scan_retrofittable_mod_packages(source)[0]
+
+            result = retrofit_mod_package(package, root / "converted", manager_profile="jmm")
+
+            mod_json = json.loads((result.package_root / "mod.json").read_text(encoding="utf-8"))
+            self.assertIn("character/phm_description_player_kliff.xml", mod_json["new_paths"])
+            self.assertIn(
+                "character/descriptors/characterdescription/phm_description_player_kliff.xml",
+                mod_json["new_paths"],
+            )
+
     def test_custom_compact_paths_retrofit_to_jmm_repairs_model_and_sidecar_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

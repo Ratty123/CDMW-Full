@@ -61,6 +61,7 @@ class StaticSourcePartAdjustment:
     scale_xyz: tuple[float, float, float] = (1.0, 1.0, 1.0)
     uniform_scale: float = 1.0
     pivot_mode: str = "part_center"
+    material_role: str = ""
 
 
 @dataclass
@@ -202,6 +203,7 @@ class StaticMeshReplacementOptions:
     edge_relief_strength: float = 0.0
     edge_relief_source: str = "hybrid"
     accent_glow_strength: float = 0.0
+    auto_brightness_balance: float = 50.0
     dark_detail_lift: float = 0.0
     tone_contrast: float = 0.0
     allow_unsafe_material_preflight_export: bool = False
@@ -281,6 +283,22 @@ _TOKEN_STOP_WORDS = {
     "object",
     "cube",
     "default",
+}
+
+_SPECIAL_RUNTIME_SLOT_TOKENS = {
+    "banner",
+    "cape",
+    "cloth",
+    "cloak",
+    "fabric",
+    "flag",
+    "flap",
+    "mantle",
+    "ribbon",
+    "sash",
+    "skirt",
+    "sleeve",
+    "tassel",
 }
 
 _GRIP_MARKER_NAMES = ("cdmw_anchor", "cdmw_grip_anchor", "cft_anchor", "cft_grip_anchor")
@@ -1360,6 +1378,7 @@ def _append_static_warnings(
         report.warnings.append(
             "Original mesh has bone/weight data. Static replacement will clone compatible original vertex records; new skinning is not authored from OBJ."
         )
+    _append_special_runtime_slot_mapping_findings(report, original_mesh, replacement_mesh, mappings, options)
 
     original_axis = _dominant_axis(original_mesh)
     replacement_axis = _dominant_axis(replacement_mesh)
@@ -1369,6 +1388,46 @@ def _append_static_warnings(
         )
     if options.transform.fit_to_original_bbox:
         report.warnings.append("Replacement vertices will be fit to the original bounding box before serialization.")
+
+
+def _append_special_runtime_slot_mapping_findings(
+    report: StaticMeshReplacementReport,
+    original_mesh: ParsedMesh,
+    replacement_mesh: ParsedMesh,
+    mappings: list[StaticSubmeshMapping],
+    options: StaticMeshReplacementOptions,
+) -> None:
+    findings: list[str] = []
+    for mapping in mappings:
+        target_index = int(mapping.target_submesh_index)
+        if target_index < 0 or target_index >= len(original_mesh.submeshes):
+            continue
+        target = original_mesh.submeshes[target_index]
+        slot_tokens = _special_runtime_slot_tokens(target)
+        if not slot_tokens:
+            continue
+        for source_index in mapping.source_submesh_indices:
+            if source_index < 0 or source_index >= len(replacement_mesh.submeshes):
+                continue
+            source = replacement_mesh.submeshes[source_index]
+            if _source_matches_special_runtime_slot(source):
+                continue
+            source_label = source.material or source.name or f"source {source_index}"
+            target_label = target.material or target.name or f"target {target_index}"
+            findings.append(f"{source_label} -> {target_label} ({', '.join(sorted(slot_tokens))})")
+    if not findings:
+        return
+    message = (
+        "Unsafe runtime draw-slot mapping: non-cloth/non-flag source geometry is routed into a special "
+        f"cloth/flag-style target slot: {'; '.join(findings[:4])}. "
+        "This can look correct in preview but deform or explode in game; route the source into Blade/Handle/Guard/Acc instead."
+    )
+    if bool(getattr(options, "complete_external_swap", False)) and not bool(
+        getattr(options, "allow_unsafe_material_preflight_export", False)
+    ):
+        report.errors.append(message)
+    else:
+        report.warnings.append(message)
 
 
 def _append_mapping_errors(
@@ -1620,6 +1679,7 @@ def _transformed_replacement_sources(
     *,
     max_source_faces_per_submesh: int | None = None,
     output_source_indices: set[int] | None = None,
+    alignment_basis_mesh: ParsedMesh | None = None,
 ) -> list[SubMesh]:
     bound_indices = None if global_transform_source_indices is None else {int(index) for index in global_transform_source_indices}
     requested_output_indices = None if output_source_indices is None else {int(index) for index in output_source_indices}
@@ -1650,12 +1710,19 @@ def _transformed_replacement_sources(
     # the auto-alignment basis, and preview decimation should not change their
     # rotation/scale pivot. Compute both from the full source mesh before any
     # preview-only face sampling.
+    basis_mesh = alignment_basis_mesh or replacement_mesh
+    basis_sources = [
+        basis_mesh.submeshes[source_index]
+        if 0 <= source_index < len(getattr(basis_mesh, "submeshes", ()) or ())
+        else submesh
+        for source_index, submesh in enumerate(sources)
+    ]
     alignment_bound_sources = [
         submesh
-        for source_index, submesh in enumerate(sources)
+        for source_index, submesh in enumerate(basis_sources)
         if source_index not in exempt_indices and (bound_indices is None or source_index in bound_indices)
-    ] or sources
-    alignment_replacement_mesh = copy.copy(replacement_mesh)
+    ] or basis_sources
+    alignment_replacement_mesh = copy.copy(basis_mesh)
     alignment_replacement_mesh.submeshes = list(alignment_bound_sources)
 
     all_vertices = [vertex for submesh in alignment_bound_sources for vertex in submesh.vertices]
@@ -1664,7 +1731,7 @@ def _transformed_replacement_sources(
     alignment = _compute_anchor_alignment(original_mesh, alignment_replacement_mesh, transform)
     adjustment_pivots = {
         source_index: _center(*_bbox(submesh.vertices))
-        for source_index, submesh in enumerate(sources)
+        for source_index, submesh in enumerate(basis_sources)
         if (
             source_index in adjustments_by_index
             and adjustments_by_index[source_index].enabled
@@ -2117,6 +2184,14 @@ def _name_text(submesh: SubMesh) -> str:
     return f"{submesh.name} {submesh.material} {submesh.texture}".replace("_", " ").replace(".", " ").lower()
 
 
+def _special_runtime_slot_tokens(submesh: SubMesh) -> set[str]:
+    return _semantic_tokens(_name_text(submesh)) & _SPECIAL_RUNTIME_SLOT_TOKENS
+
+
+def _source_matches_special_runtime_slot(source: SubMesh) -> bool:
+    return bool(_special_runtime_slot_tokens(source))
+
+
 def _token_score(
     source_text: str,
     target_text: str,
@@ -2130,6 +2205,13 @@ def _token_score(
     source_tokens = _semantic_tokens(source_text)
     target_tokens = _semantic_tokens(target_text)
     score = 0.0
+    if (
+        source_submesh is not None
+        and target_submesh is not None
+        and (target_tokens & _SPECIAL_RUNTIME_SLOT_TOKENS)
+        and not _source_matches_special_runtime_slot(source_submesh)
+    ):
+        score -= 24.0
     if source_text.strip() and target_text.strip() and source_text.strip() == target_text.strip():
         score += 80.0
     if source_submesh is not None and target_submesh is not None:

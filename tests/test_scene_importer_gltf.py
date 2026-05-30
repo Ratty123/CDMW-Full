@@ -76,6 +76,79 @@ def _triangle_payload(*, image_bytes: bytes = b"", image_mime: str = "image/png"
     return b"".join(chunks), document
 
 
+def _skinned_triangle_payload() -> tuple[bytes, dict]:
+    chunks: list[bytes] = []
+    buffer_views: list[dict] = []
+
+    def add_view(data: bytes, target: int = 0) -> int:
+        offset = sum(len(chunk) for chunk in chunks)
+        padded = _pad4(data)
+        chunks.append(padded)
+        view = {"buffer": 0, "byteOffset": offset, "byteLength": len(data)}
+        if target:
+            view["target"] = target
+        buffer_views.append(view)
+        return len(buffer_views) - 1
+
+    position_view = add_view(struct.pack("<9f", 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0), 34962)
+    normal_view = add_view(struct.pack("<9f", 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0), 34962)
+    uv_view = add_view(struct.pack("<6f", 0.0, 0.0, 1.0, 0.0, 0.0, 1.0), 34962)
+    index_view = add_view(struct.pack("<3H", 0, 1, 2), 34963)
+    joint_view = add_view(struct.pack("<12H", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), 34962)
+    weight_view = add_view(struct.pack("<12f", 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0), 34962)
+    inverse_bind_view = add_view(
+        struct.pack(
+            "<16f",
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            -100.0, 0.0, 0.0, 1.0,
+        ),
+    )
+    accessors = [
+        {"bufferView": position_view, "componentType": 5126, "count": 3, "type": "VEC3"},
+        {"bufferView": normal_view, "componentType": 5126, "count": 3, "type": "VEC3"},
+        {"bufferView": uv_view, "componentType": 5126, "count": 3, "type": "VEC2"},
+        {"bufferView": index_view, "componentType": 5123, "count": 3, "type": "SCALAR"},
+        {"bufferView": joint_view, "componentType": 5123, "count": 3, "type": "VEC4"},
+        {"bufferView": weight_view, "componentType": 5126, "count": 3, "type": "VEC4"},
+        {"bufferView": inverse_bind_view, "componentType": 5126, "count": 1, "type": "MAT4"},
+    ]
+    document = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"byteLength": sum(len(chunk) for chunk in chunks)}],
+        "bufferViews": buffer_views,
+        "accessors": accessors,
+        "materials": [{"name": "Body"}],
+        "meshes": [
+            {
+                "name": "SkinnedTriangle",
+                "primitives": [
+                    {
+                        "attributes": {
+                            "POSITION": 0,
+                            "NORMAL": 1,
+                            "TEXCOORD_0": 2,
+                            "JOINTS_0": 4,
+                            "WEIGHTS_0": 5,
+                        },
+                        "indices": 3,
+                        "material": 0,
+                    }
+                ],
+            }
+        ],
+        "nodes": [
+            {"name": "MeshNode", "mesh": 0, "skin": 0, "translation": [100.0, 0.0, 0.0]},
+            {"name": "JointNode", "translation": [100.0, 5.0, 0.0]},
+        ],
+        "skins": [{"joints": [1], "inverseBindMatrices": 6}],
+        "scenes": [{"nodes": [0, 1]}],
+        "scene": 0,
+    }
+    return b"".join(chunks), document
+
+
 def _write_glb(path: Path, document: dict, bin_chunk: bytes) -> None:
     json_chunk = _pad4(json.dumps(document, separators=(",", ":")).encode("utf-8"))
     bin_payload = _pad4(bin_chunk)
@@ -364,6 +437,24 @@ class GltfSceneImporterTests(unittest.TestCase):
 
             self.assertEqual(mesh.bbox_min, (1.0, 2.0, 3.0))
             self.assertEqual(mesh.bbox_max, (2.0, 3.0, 3.0))
+
+    def test_gltf_skin_weights_are_baked_to_static_geometry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _skinned_triangle_payload()
+            document["buffers"][0]["uri"] = "skinned.bin"
+            (root / "skinned.bin").write_bytes(bin_chunk)
+            path = root / "skinned.gltf"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = import_scene_mesh_with_report(path)
+            mesh = result.mesh
+
+            self.assertEqual(mesh.total_vertices, 3)
+            self.assertEqual(mesh.bbox_min, (0.0, 5.0, 0.0))
+            self.assertEqual(mesh.bbox_max, (1.0, 6.0, 0.0))
+            self.assertFalse(mesh.has_bones)
+            self.assertIn("Baked glTF skin weights into static geometry", " ".join(result.diagnostics))
 
     def test_glb_embedded_image_is_extracted(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

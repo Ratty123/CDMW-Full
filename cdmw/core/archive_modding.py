@@ -218,6 +218,14 @@ class MeshImportSupplementalFileSpec:
     note: str = ""
 
 
+_JMM_DESCRIPTOR_ALIAS_PAIRS: Tuple[Tuple[str, str], ...] = (
+    (
+        "character/phm_description_player_kliff.xml",
+        "character/descriptors/characterdescription/phm_description_player_kliff.xml",
+    ),
+)
+
+
 def _normalize_import_lookup_path(raw_path: str) -> str:
     return str(raw_path or "").replace("\\", "/").strip().lower()
 
@@ -2417,6 +2425,37 @@ def build_archive_texture_payload_from_png(
         return rebuilt_dds_path.read_bytes()
 
 
+def _add_jmm_descriptor_alias_payloads(
+    package_root: Path,
+    *,
+    written_files: List[Path],
+    written_virtual_paths: set[str],
+    payload_paths: List[str],
+    new_file_paths: List[str],
+    on_log: Optional[Callable[[str], None]] = None,
+) -> None:
+    for left, right in _JMM_DESCRIPTOR_ALIAS_PAIRS:
+        left_key = left.casefold()
+        right_key = right.casefold()
+        if left_key in written_virtual_paths and right_key not in written_virtual_paths:
+            source_rel, target_rel = left, right
+        elif right_key in written_virtual_paths and left_key not in written_virtual_paths:
+            source_rel, target_rel = right, left
+        else:
+            continue
+        source_path = package_root.joinpath(*PurePosixPath(source_rel).parts)
+        if not source_path.is_file():
+            continue
+        target_path = package_root.joinpath(*PurePosixPath(target_rel).parts)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_bytes(source_path.read_bytes())
+        written_files.append(target_path)
+        written_virtual_paths.add(target_rel.casefold())
+        payload_paths.append(target_rel)
+        new_file_paths.append(target_rel)
+        _safe_log(on_log, f"Writing JMM descriptor alias payload: {target_rel}")
+
+
 def export_archive_payloads_to_mod_ready_loose(
     requests: Sequence[ArchivePatchRequest],
     *,
@@ -2521,6 +2560,21 @@ def export_archive_payloads_to_mod_ready_loose(
         payload_paths.append(normalized_target_path)
         if not isinstance(spec.target_entry, ArchiveEntry):
             new_file_paths.append(normalized_target_path)
+
+    manager_targets = {
+        str(target or "").strip().casefold()
+        for target in tuple(getattr(active_export_options, "manager_targets", ()) or ())
+        if str(target or "").strip()
+    }
+    if "jmm" in manager_targets:
+        _add_jmm_descriptor_alias_payloads(
+            package_root,
+            written_files=written_files,
+            written_virtual_paths=written_virtual_paths,
+            payload_paths=payload_paths,
+            new_file_paths=new_file_paths,
+            on_log=on_log,
+        )
 
     manifest_path = write_mod_package_manifest(
         package_root,
@@ -5420,7 +5474,7 @@ def build_mesh_import_preview(
     )
     try:
         complete_swap_global_gloss_reduction = max(
-            0.0,
+            -100.0,
             min(100.0, float(getattr(static_replacement_options, "global_gloss_reduction", 0.0) or 0.0)),
         )
     except (TypeError, ValueError, OverflowError):
@@ -5443,13 +5497,26 @@ def build_mesh_import_preview(
     except (TypeError, ValueError, OverflowError):
         complete_swap_accent_glow_strength = 0.0
     try:
+        complete_swap_auto_brightness_balance = max(
+            0.0,
+            min(100.0, float(getattr(static_replacement_options, "auto_brightness_balance", 0.0) or 0.0)),
+        )
+    except (TypeError, ValueError, OverflowError):
+        complete_swap_auto_brightness_balance = 0.0
+    try:
         complete_swap_dark_detail_lift = max(
             0.0,
             min(100.0, float(getattr(static_replacement_options, "dark_detail_lift", 0.0) or 0.0)),
         )
     except (TypeError, ValueError, OverflowError):
         complete_swap_dark_detail_lift = 0.0
-    complete_swap_tone_contrast = 0.0
+    try:
+        complete_swap_tone_contrast = max(
+            -100.0,
+            min(100.0, float(getattr(static_replacement_options, "tone_contrast", 0.0) or 0.0)),
+        )
+    except (TypeError, ValueError, OverflowError):
+        complete_swap_tone_contrast = 0.0
     if (
         normalized_import_mode == "static_replacement"
         and bool(getattr(static_replacement_options, "neutralize_inherited_material_layers", False))
@@ -5464,7 +5531,13 @@ def build_mesh_import_preview(
         summary_lines.append(
             f"Complete swap material profile: {complete_swap_material_profile}; source PBR maps/factors will be translated into CD runtime support masks."
         )
-        if complete_swap_global_gloss_reduction > 0.0:
+        if complete_swap_global_gloss_reduction < 0.0:
+            summary_lines.append(
+                "Global gloss boost requested: "
+                f"{abs(complete_swap_global_gloss_reduction):.0f}%; generated source roughness will be lowered "
+                "and compatible shine/scalar response increased."
+            )
+        elif complete_swap_global_gloss_reduction > 0.0:
             summary_lines.append(
                 "Global gloss reduction requested: "
                 f"{complete_swap_global_gloss_reduction:.0f}%; CD gloss/smoothness, metallic/spec, and shine response will be reduced."
@@ -5483,6 +5556,16 @@ def build_mesh_import_preview(
             summary_lines.append(
                 "Source brightness requested: "
                 f"{complete_swap_dark_detail_lift:.0f}%; source base DDS shadows and midtones will be lifted."
+            )
+        if complete_swap_auto_brightness_balance > 0.0:
+            summary_lines.append(
+                "Auto brightness balance requested: "
+                f"{complete_swap_auto_brightness_balance:.0f}%; source base DDS exposure will be nudged toward a stable midrange."
+            )
+        if abs(complete_swap_tone_contrast) > 0.0:
+            summary_lines.append(
+                "Tone contrast requested: "
+                f"{complete_swap_tone_contrast:+.0f}%; generated source base DDS tone curve will be adjusted."
             )
     if (
         normalized_import_mode == "static_replacement"
@@ -5521,6 +5604,9 @@ def build_mesh_import_preview(
                     enable_missing_base_color_parameters=enable_missing_base_color_parameters,
                     texture_slot_overrides=texture_slot_overrides,
                     source_material_texture_overrides=source_material_texture_overrides,
+                    source_part_adjustments=tuple(
+                        getattr(static_replacement_options, "source_part_adjustments", ()) or ()
+                    ),
                     donor_material_plans=donor_material_plans,
                     texture_output_size_mode=str(
                         getattr(static_replacement_options, "texture_output_size_mode", "source") or "source"
@@ -5537,6 +5623,7 @@ def build_mesh_import_preview(
                     complete_swap_edge_relief_strength=complete_swap_edge_relief_strength,
                     complete_swap_edge_relief_source=complete_swap_edge_relief_source,
                     complete_swap_accent_glow_strength=complete_swap_accent_glow_strength,
+                    complete_swap_auto_brightness_balance=complete_swap_auto_brightness_balance,
                     complete_swap_dark_detail_lift=complete_swap_dark_detail_lift,
                     complete_swap_tone_contrast=complete_swap_tone_contrast,
                     removed_target_material_names=tuple(

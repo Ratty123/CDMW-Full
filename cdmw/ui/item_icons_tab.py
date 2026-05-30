@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
 import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Callable, Optional, Sequence
@@ -77,6 +79,15 @@ def _path_list_to_settings(paths: Sequence[Path]) -> str:
     return json.dumps([str(path) for path in paths])
 
 
+def _safe_icon_library_component(text: object, *, fallback: str = "icon") -> str:
+    raw = str(text or "").replace("\\", "/").strip()
+    name = PurePosixPath(raw).stem if "/" in raw else Path(raw).stem
+    if not name:
+        name = raw
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", str(name or fallback)).strip("-._")
+    return (safe or fallback)[:72]
+
+
 def _is_probable_item_icon_entry(entry: object) -> bool:
     path = str(getattr(entry, "path", "") or "").replace("\\", "/")
     lower = path.lower()
@@ -100,6 +111,7 @@ class ItemIconLibraryTab(QWidget):
     open_target_in_archive_requested = Signal(str)
     RECORD_FILTER_DEBOUNCE_MS = 120
     RECORD_POPULATION_BATCH_SIZE = 250
+    SELECTION_PREVIEW_DEBOUNCE_MS = 160
 
     def __init__(
         self,
@@ -150,6 +162,10 @@ class ItemIconLibraryTab(QWidget):
         self._target_refresh_timer.timeout.connect(self._flush_scheduled_target_refresh)
         self._target_entries_signature: tuple[object, ...] = ()
         self._pending_target_refresh_update_preview = False
+        self._selection_preview_timer = QTimer(self)
+        self._selection_preview_timer.setSingleShot(True)
+        self._selection_preview_timer.setInterval(self.SELECTION_PREVIEW_DEBOUNCE_MS)
+        self._selection_preview_timer.timeout.connect(self._refresh_selected_record_previews)
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(10, 10, 10, 10)
@@ -380,8 +396,14 @@ class ItemIconLibraryTab(QWidget):
         self.add_to_loose_mod_button.clicked.connect(self.add_to_existing_loose_mod)
         return panel
 
-    def shutdown(self) -> None:
+    def iter_shutdown_workers(self) -> tuple[tuple[str, Optional[object], Optional[object]], ...]:
+        return ()
+
+    def request_shutdown(self) -> None:
         self._temp_preview_dir.cleanup()
+
+    def shutdown(self) -> None:
+        self.request_shutdown()
 
     def _emit_status(self, message: str, error: bool = False) -> None:
         self.status_message_requested.emit(message, bool(error))
@@ -575,6 +597,13 @@ class ItemIconLibraryTab(QWidget):
             self._loading_record = False
         if hasattr(self, "delete_source_button"):
             self.delete_source_button.setEnabled(bool(path is not None and path.is_file()))
+        self._schedule_selected_record_previews()
+
+    def _schedule_selected_record_previews(self) -> None:
+        self._selection_preview_timer.start()
+
+    def _refresh_selected_record_previews(self) -> None:
+        self._selection_preview_timer.stop()
         self.update_source_preview()
         self.update_final_preview()
 
@@ -982,6 +1011,70 @@ class ItemIconLibraryTab(QWidget):
         self.scan_library(show_status=True)
         self.select_source_path(copied)
         return copied
+
+    def _available_edited_source_path(self, stem: str, suffix: str) -> Path:
+        self.edited_root.mkdir(parents=True, exist_ok=True)
+        safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", str(stem or "item-icon")).strip("-._")[:180] or "item-icon"
+        safe_suffix = suffix.lower() if suffix and suffix.startswith(".") else ".png"
+        candidate = self.edited_root / f"{safe_stem}{safe_suffix}"
+        counter = 1
+        while candidate.exists():
+            counter += 1
+            candidate = self.edited_root / f"{safe_stem}_{counter}{safe_suffix}"
+        return candidate
+
+    def mesh_editor_generated_icon_path(self, *, target_model_path: object, source_model_path: object) -> Path:
+        target_label = _safe_icon_library_component(target_model_path, fallback="target")
+        source_label = _safe_icon_library_component(source_model_path, fallback="source")
+        stem = f"mesh-editor__target-{target_label}__source-{source_label}"
+        return self._available_edited_source_path(stem, ".png")
+
+    def register_mesh_editor_generated_icon(
+        self,
+        source_path: Path,
+        *,
+        target_model_path: object,
+        source_model_path: object,
+        target_icon_path: str = "",
+        select: bool = False,
+    ) -> Path:
+        source = source_path.expanduser().resolve()
+        if not source.is_file():
+            raise FileNotFoundError(f"Generated Mesh Editor icon was not found: {source}")
+        try:
+            inside_edited_root = source.is_relative_to(self.edited_root.expanduser().resolve())
+        except (AttributeError, OSError):
+            inside_edited_root = False
+        if inside_edited_root:
+            stored = source
+        else:
+            target_label = _safe_icon_library_component(target_model_path, fallback="target")
+            source_label = _safe_icon_library_component(source_model_path, fallback="source")
+            stem = f"mesh-editor__target-{target_label}__source-{source_label}"
+            stored = self._available_edited_source_path(stem, source.suffix.lower() or ".png")
+            shutil.copy2(source, stored)
+
+        target_label = _safe_icon_library_component(target_model_path, fallback="target")
+        source_label = _safe_icon_library_component(source_model_path, fallback="source")
+        tags = ("mesh-editor", f"target:{target_label}", f"source:{source_label}")
+        note_lines = [
+            "Generated in Mesh Editor from the replacement preview.",
+            f"Target model: {str(target_model_path or '').strip() or target_label}",
+            f"Source model: {str(source_model_path or '').strip() or source_label}",
+        ]
+        if target_icon_path:
+            note_lines.append(f"Initial target icon: {target_icon_path}")
+        update_item_icon_library_record_metadata(
+            self.index_path,
+            stored,
+            tags=tags,
+            notes="\n".join(note_lines),
+            favorite=False,
+        )
+        self.scan_library(show_status=False)
+        if select:
+            self.select_source_path(stored)
+        return stored
 
     def choose_source_dialog(self, parent: Optional[QWidget] = None) -> Optional[Path]:
         if not self.records:

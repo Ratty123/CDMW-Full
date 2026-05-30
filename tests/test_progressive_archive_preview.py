@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from cdmw.core import archive
@@ -110,12 +111,32 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertIn('quality_tier="full"', source)
 
     def test_fast_result_does_not_finalize_request_source_guard(self) -> None:
-        source = __import__("pathlib").Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
         handler = source[source.index("def _handle_archive_preview_ready"):source.index("def _handle_archive_preview_error")]
 
         self.assertIn("is_fast_result = quality_tier == \"fast\"", handler)
         self.assertIn("if not is_fast_result:", handler)
         self.assertIn("Fast preview loaded; refining full-quality preview", handler)
+
+    def test_preview_loading_watchdog_preserves_fast_result_source_guard(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        watchdog = source[
+            source.index("def _handle_archive_preview_loading_stall")
+            : source.index("def _stop_archive_preview_loading_indicator")
+        ]
+
+        self.assertIn("archive_preview_loading_request_id", source)
+        self.assertIn("if int(getattr(self, \"archive_preview_loading_request_id\"", source)
+        self.assertIn("preview_phase = \"full_after_fast\"", watchdog)
+        self.assertIn("self.archive_preview_worker.stop()", watchdog)
+        self.assertIn("self.archive_preview_thread.requestInterruption()", watchdog)
+        self.assertIn("self.archive_preview_thread.quit()", watchdog)
+        self.assertIn("shutdown_native_preview_core_service()", watchdog)
+        self.assertIn('"archive_preview_stalled"', watchdog)
+        self.assertIn("preview_stalled=True", watchdog)
+        self.assertIn("request_id=request_id", watchdog)
+        self.assertIn("self.archive_preview_request_id += 1", watchdog)
+        self.assertIn("Fast preview remains visible; full preview timed out and was stopped.", watchdog)
 
 
 if __name__ == "__main__":

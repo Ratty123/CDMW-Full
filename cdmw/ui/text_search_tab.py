@@ -60,12 +60,14 @@ from cdmw.ui.widgets import (
 
 
 def _shutdown_thread(thread: Optional[QThread], *, grace_ms: int = 2000, force_ms: int = 2000) -> None:
+    del grace_ms, force_ms
     if thread is None:
         return
+    try:
+        thread.requestInterruption()
+    except Exception:
+        pass
     thread.quit()
-    if thread.wait(grace_ms):
-        return
-    thread.wait(force_ms)
 
 
 class TextSearchWorker(QObject):
@@ -688,7 +690,13 @@ class TextSearchTab(QWidget):
             "text_search_log.txt": self.log_view.toPlainText(),
         }
 
-    def shutdown(self) -> None:
+    def iter_shutdown_workers(self) -> tuple[tuple[str, Optional[QThread], Optional[object]], ...]:
+        return (
+            ("search_thread", self.search_thread, self.search_worker),
+            ("preview_thread", self.preview_thread, self.preview_worker),
+        )
+
+    def request_shutdown(self) -> None:
         self.flush_settings_save()
         self._preview_debounce_timer.stop()
         self._clear_pending_result_population()
@@ -696,8 +704,11 @@ class TextSearchTab(QWidget):
             self.search_worker.stop()
         if self.preview_worker is not None:
             self.preview_worker.stop()
-        _shutdown_thread(self.search_thread)
-        _shutdown_thread(self.preview_thread)
+        for _name, thread, _worker in self.iter_shutdown_workers():
+            _shutdown_thread(thread)
+
+    def shutdown(self) -> None:
+        self.request_shutdown()
 
     def clear_log(self) -> None:
         self.log_view.clear()

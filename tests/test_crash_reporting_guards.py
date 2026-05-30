@@ -13,6 +13,9 @@ THEMES = ROOT / "cdmw" / "ui" / "themes.py"
 WIDGETS = ROOT / "cdmw" / "ui" / "widgets.py"
 RESEARCH_TAB = ROOT / "cdmw" / "ui" / "research_tab.py"
 TEXT_SEARCH_TAB = ROOT / "cdmw" / "ui" / "text_search_tab.py"
+REPLACE_ASSISTANT_TAB = ROOT / "cdmw" / "ui" / "replace_assistant_tab.py"
+TEXTURE_EDITOR_TAB = ROOT / "cdmw" / "ui" / "texture_editor_tab.py"
+ITEM_ICONS_TAB = ROOT / "cdmw" / "ui" / "item_icons_tab.py"
 
 
 class CrashReportingGuardTests(unittest.TestCase):
@@ -28,9 +31,12 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def _schedule_startup_maintenance", source)
         self.assertIn("def _start_external_startup_splash", source)
         self.assertIn("STARTUP_SPLASH_COMMAND_FILE_ENV", source)
+        self.assertIn("APP_ACTIVATION_REQUEST_FILE_NAME", source)
+        self.assertIn("def _request_existing_instance_activation", source)
         self.assertIn("--startup-splash-host", source)
         self.assertIn("if _startup_splash_process.poll() is None:", source)
         self.assertIn("os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)", source)
+        self.assertIn("_request_existing_instance_activation()", source)
         self.assertIn('_update_pyinstaller_boot_splash("Already running.")', source)
         self.assertIn('_update_pyinstaller_boot_splash("Loading...")', source)
         self.assertLess(
@@ -91,6 +97,11 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("app_icon, _icon_path = load_app_icon()", source)
         self.assertIn("self.setWindowIcon(app_icon)", source)
         self.assertIn("app.setWindowIcon(app_icon)", source)
+        self.assertIn("QSystemTrayIcon", source)
+        self.assertIn("def _configure_system_tray_icon", source)
+        self.assertIn("tray_icon.show()", source)
+        self.assertIn("def _poll_existing_instance_activation_request", source)
+        self.assertIn('self._present_main_window("second_launch")', source)
         self.assertIn("startup_splash.setWindowIcon(app.windowIcon())", source)
         self.assertIn("external_splash_file is not None and external_splash_file.is_file()", source)
         self.assertIn("close_pyinstaller_boot_splash()", source)
@@ -112,6 +123,18 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("d3d11_process_memory", source)
         self.assertIn("archive_isolated_package_worker_active", source)
 
+    def test_runtime_events_include_performance_stability_fields(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        for token in (
+            "close_phase",
+            "responsive_resize_elapsed_ms",
+            "preview_phase",
+            "preview_stalled",
+            "memory_total_private_bytes",
+            "builder_startup_step_elapsed_ms",
+        ):
+            self.assertIn(token, source)
+
     def test_close_waits_for_workers_asynchronously(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
         self.assertIn("def _begin_deferred_close_for_workers", source)
@@ -121,12 +144,54 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("CLOSE_WORKER_FORCE_STOP_AFTER_SECONDS", source)
         self.assertIn("def _force_stop_close_worker_threads", source)
         self.assertIn("self._force_stop_close_worker_threads(running_entries)", source)
+        self.assertIn("def _request_tab_shutdowns(self) -> None:", source)
+        self.assertIn('getattr(tab, "request_shutdown", None)', source)
+        self.assertIn('getattr(tab, "iter_shutdown_workers", None)', source)
+        self.assertIn('close_phase="force_stop"', source)
+        self.assertIn('close_phase="waiting"', source)
+        self.assertIn('close_phase="ready_to_accept"', source)
+        self.assertIn('close_phase="begin_deferred"', source)
+        self.assertIn('close_phase="finalize"', source)
         close_start = source.index("        def _begin_deferred_close_for_workers")
         close_body = source[close_start: source.index("        def _finalize_close", close_start)]
-        self.assertIn("self.hide()", close_body)
+        self.assertNotIn("self.hide()", close_body)
         self.assertNotIn("self.setEnabled(False)", close_body)
+        self.assertNotIn(".wait(", close_body)
         self.assertNotIn("thread.wait(wait_ms)", source)
         self.assertNotIn("wait_ms: int = 1200", source)
+
+    def test_worker_tabs_expose_nonblocking_shutdown_protocol(self) -> None:
+        for tab_path in (
+            TEXT_SEARCH_TAB,
+            RESEARCH_TAB,
+            REPLACE_ASSISTANT_TAB,
+            TEXTURE_EDITOR_TAB,
+            ITEM_ICONS_TAB,
+        ):
+            with self.subTest(tab=tab_path.name):
+                source = tab_path.read_text(encoding="utf-8")
+                self.assertIn("def iter_shutdown_workers", source)
+                self.assertIn("def request_shutdown", source)
+                self.assertIn("self.request_shutdown()", source)
+                self.assertNotIn(".wait(", source)
+
+    def test_clean_native_fault_log_is_suppressed_on_normal_exit(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn('crash_reports_dir / "native_fault_current.log"', source)
+        self.assertIn("def _cleanup_native_fault_log_on_exit(*, clean_exit: bool) -> None:", source)
+        self.assertIn("faulthandler.disable()", source)
+        self.assertIn("fault_log_path.stat().st_size == 0", source)
+        self.assertIn("fault_log_path.unlink()", source)
+        self.assertIn("_cleanup_native_fault_log_on_exit(clean_exit=bool(normal_exit))", source)
+        self.assertNotIn("native fault log session", source)
+
+    def test_previous_session_unclean_reports_are_deduped_by_session(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn("def _crash_report_kind_already_covers_session(kind: str, session_id: str) -> bool:", source)
+        self.assertIn('crash_reports_dir.glob(f"{normalized_kind}_*.log")', source)
+        self.assertIn('_crash_report_kind_already_covers_session("previous_session_unclean_exit", previous_session_id)', source)
+        self.assertIn('"previous_session_unclean_exit_suppressed_duplicate"', source)
+        self.assertIn("if bool(payload.get(\"clean_shutdown\")):\n                return False", source)
 
     def test_archive_scan_breadcrumbs_are_recorded_for_native_faults(self) -> None:
         main_source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -515,6 +580,12 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def _apply_responsive_resize_adjustments(self) -> None:", source)
         self.assertIn("restore_saved_splitters=False", source)
         self.assertIn("schedule_column_autofit=False", source)
+        self.assertIn("adjust_window_geometry=False", source)
+        self.assertIn("def _screen_signature_for_responsive_layout(self) -> Tuple[int, int, float]:", source)
+        self.assertIn("def _handle_responsive_screen_changed(self, _screen: object = None) -> None:", source)
+        self.assertIn("if signature == getattr(self, \"_responsive_last_screen_signature\", (0, 0, 0.0)):", source)
+        self.assertIn("self._responsive_metrics_dirty = True", source)
+        self.assertIn("responsive_resize_elapsed_ms=elapsed_ms", source)
         self.assertIn("def resizeEvent(self, event: object) -> None:", source)
         self.assertIn("self.right_panel_stack.setMaximumWidth(16777215)", research_source)
         self.assertIn("build_bounded_splitter_sizes(total_width, [72, 28], [420, details_min], [None, None])", research_source)

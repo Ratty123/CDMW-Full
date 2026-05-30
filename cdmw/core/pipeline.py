@@ -14,7 +14,7 @@ import tempfile
 import threading
 import time
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, cast
 
@@ -30,6 +30,7 @@ from cdmw.core.chainner import *
 from cdmw.core.mod_package import (
     ModPackageExportOptions,
     mod_package_expanded_export_options,
+    mod_package_export_options_for_profiles,
     mod_package_export_options_for_manager,
     mod_package_profile_uses_manager_metadata,
     resolve_mod_package_profile_root,
@@ -1735,6 +1736,16 @@ def build_mod_package_export_options_from_config(config: AppConfig) -> ModPackag
         if str(value or "").strip()
     )
     selected_profiles = raw_profiles or (profile,)
+    if raw_profiles:
+        conflict_mode = str(getattr(config, "mod_ready_conflict_mode", "") or "").strip().lower()
+        if conflict_mode not in {"", "override"}:
+            conflict_mode = ""
+        return mod_package_export_options_for_profiles(
+            selected_profiles,
+            create_zip=bool(getattr(config, "mod_ready_create_zip", False)),
+            conflict_mode=conflict_mode,
+            target_language=str(getattr(config, "mod_ready_target_language", "") or "").strip(),
+        )
     defaults = mod_package_export_options_for_manager(profile)
     uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(value) for value in selected_profiles)
     structure = str(getattr(config, "mod_ready_package_structure", "") or "").strip().lower()
@@ -5202,7 +5213,7 @@ def write_csv_log(log_path: Path, results: Sequence[JobResult]) -> None:
         )
         writer.writeheader()
         for row in results:
-            writer.writerow(row.__dict__)
+            writer.writerow(asdict(row))
 
 
 def rebuild_dds_files(

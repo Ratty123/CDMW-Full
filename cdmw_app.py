@@ -21,6 +21,7 @@ PYINSTALLER_RUNTIME_MARKER = "cdmw_pyinstaller_runtime.json"
 PYINSTALLER_STALE_UNMARKED_MIN_AGE_SECONDS = 30 * 60
 APP_SINGLE_INSTANCE_MUTEX_NAME = "Local\\CrimsonDesertModWorkbench.SingleInstance"
 STARTUP_SPLASH_COMMAND_FILE_ENV = "CDMW_STARTUP_SPLASH_COMMAND_FILE"
+APP_ACTIVATION_REQUEST_FILE_NAME = "activate_existing.json"
 
 _single_instance_mutex_handle: Optional[int] = None
 _single_instance_lock_handle: Optional[object] = None
@@ -33,6 +34,26 @@ def _bootstrap_root() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent
+
+
+def _existing_instance_activation_request_path() -> Path:
+    return Path(tempfile.gettempdir()) / "CrimsonDesertModWorkbench" / APP_ACTIVATION_REQUEST_FILE_NAME
+
+
+def _request_existing_instance_activation() -> None:
+    try:
+        request_path = _existing_instance_activation_request_path()
+        request_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "pid": os.getpid(),
+            "timestamp": time.time(),
+            "executable": str(Path(sys.executable).resolve()),
+        }
+        temp_path = request_path.with_suffix(request_path.suffix + ".tmp")
+        temp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+        temp_path.replace(request_path)
+    except Exception:
+        pass
 
 
 def _write_bootstrap_report(kind: str, title: str, body: str) -> None:
@@ -465,6 +486,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     run_gui_mode = not args.cli and not args.isolated_renderer_host
     if run_gui_mode:
         if not _acquire_single_instance_guard():
+            _request_existing_instance_activation()
             _update_pyinstaller_boot_splash("Already running.")
             return 0
         _write_current_pyinstaller_runtime_marker()

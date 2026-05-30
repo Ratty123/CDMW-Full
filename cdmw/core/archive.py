@@ -95,7 +95,7 @@ _ARCHIVE_SIDECAR_ENTRY_SIGNATURE_FORMAT = 1
 _ARCHIVE_DERIVED_INDEX_CACHE_MAGIC = b"CTFDERI1"
 _ARCHIVE_DERIVED_INDEX_CACHE_VERSION = 10
 _ARCHIVE_BASIC_INDEX_CACHE_MAGIC = b"CTFBASI1"
-_ARCHIVE_BASIC_INDEX_CACHE_VERSION = 1
+_ARCHIVE_BASIC_INDEX_CACHE_VERSION = 2
 _ARCHIVE_ENTRY_METADATA_SIGNATURE_FORMAT = 1
 _ARCHIVE_DERIVED_INDEX_CACHE_MAX_SAFE_BYTES = 64 * 1024 * 1024
 _ARCHIVE_BASIC_INDEX_CACHE_MAX_SAFE_BYTES = 256 * 1024 * 1024
@@ -660,6 +660,84 @@ class ArchiveNameSearchIndex:
         ]
 
 
+def _native_name_search_cache_row_limit() -> int:
+    raw_value = os.environ.get("CDMW_NATIVE_NAME_SEARCH_ROW_CACHE_LIMIT", "2000000")
+    try:
+        return max(1, int(raw_value))
+    except (TypeError, ValueError):
+        return 2_000_000
+
+
+class _LazyNativeNameSearchTokenRows(Mapping[str, Tuple[int, ...]]):
+    def __init__(
+        self,
+        data: bytes,
+        row_spans: Mapping[str, Tuple[int, int]],
+        *,
+        entry_count: int,
+        source_path: Path,
+        max_cached_rows: Optional[int] = None,
+    ) -> None:
+        self._data = data
+        self._row_spans: Dict[str, Tuple[int, int]] = dict(row_spans)
+        self._entry_count = max(0, int(entry_count))
+        self._source_path = Path(source_path)
+        self._max_cached_rows = max(1, int(max_cached_rows or _native_name_search_cache_row_limit()))
+        self._decoded_rows: OrderedDict[str, Tuple[int, ...]] = OrderedDict()
+        self._decoded_row_count = 0
+        self._lock = threading.RLock()
+
+    @property
+    def decoded_token_count(self) -> int:
+        with self._lock:
+            return len(self._decoded_rows)
+
+    @property
+    def decoded_row_count(self) -> int:
+        with self._lock:
+            return self._decoded_row_count
+
+    @property
+    def source_path(self) -> Path:
+        return self._source_path
+
+    def native_binary_data(self) -> bytes:
+        return self._data
+
+    def __getitem__(self, token: str) -> Tuple[int, ...]:
+        key = str(token or "")
+        with self._lock:
+            cached = self._decoded_rows.get(key)
+            if cached is not None:
+                self._decoded_rows.move_to_end(key)
+                return cached
+            row_span = self._row_spans[key]
+            rows = self._decode_rows(row_span)
+            self._decoded_rows[key] = rows
+            self._decoded_row_count += len(rows)
+            self._evict_decoded_rows()
+            return rows
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._row_spans)
+
+    def __len__(self) -> int:
+        return len(self._row_spans)
+
+    def _decode_rows(self, row_span: Tuple[int, int]) -> Tuple[int, ...]:
+        row_offset, row_count = row_span
+        if row_count <= 0:
+            return ()
+        rows = struct.unpack_from(f"<{row_count}I", self._data, row_offset)
+        entry_count = self._entry_count
+        return tuple(int(row) for row in rows if 0 <= int(row) < entry_count)
+
+    def _evict_decoded_rows(self) -> None:
+        while self._decoded_row_count > self._max_cached_rows and len(self._decoded_rows) > 1:
+            _token, rows = self._decoded_rows.popitem(last=False)
+            self._decoded_row_count = max(0, self._decoded_row_count - len(rows))
+
+
 def _build_archive_name_search_index_python(
     entries: Sequence[ArchiveEntry],
     *,
@@ -768,7 +846,7 @@ def _load_native_name_search_index_binary(
     token_count = read_u32()
     if entry_count != len(entries):
         raise ValueError("native name-search index entry count does not match")
-    token_rows: Dict[str, Tuple[int, ...]] = {}
+    token_row_spans: Dict[str, Tuple[int, int]] = {}
     progress_every = max(1, token_count // 20) if token_count else 1
     if on_progress is not None:
         on_progress(0, max(token_count, 1), f"Loading native archive name search index... 0 / {token_count:,} token(s)")
@@ -782,10 +860,10 @@ def _load_native_name_search_index_binary(
         byte_count = row_count * 4
         if offset + byte_count > len(data):
             raise ValueError("native name-search posting list is truncated")
-        rows = struct.unpack_from(f"<{row_count}I", data, offset) if row_count else ()
+        row_offset = offset
         offset += byte_count
         if token:
-            token_rows[token] = tuple(int(row) for row in rows if 0 <= int(row) < len(entries))
+            token_row_spans[token] = (row_offset, row_count)
         if on_progress is not None and (
             token_index == 0
             or (token_index + 1) % progress_every == 0
@@ -796,10 +874,18 @@ def _load_native_name_search_index_binary(
                 max(token_count, 1),
                 f"Loading native archive name search index... {token_index + 1:,} / {token_count:,} token(s)",
             )
+    if offset != len(data):
+        raise ValueError("native name-search index has trailing data")
+    token_rows = _LazyNativeNameSearchTokenRows(
+        data,
+        token_row_spans,
+        entry_count=len(entries),
+        source_path=Path(binary_path),
+    )
     return ArchiveNameSearchIndex(
         entries=entries,
         token_rows=token_rows,
-        sorted_tokens=tuple(sorted(token_rows)),
+        sorted_tokens=tuple(sorted(token_row_spans)),
         common_aliases=_ARCHIVE_NAME_SEARCH_QUERY_ALIASES,
     )
 
@@ -810,6 +896,17 @@ def _write_native_name_search_index_binary(
     entry_count: int,
 ) -> None:
     binary_path.parent.mkdir(parents=True, exist_ok=True)
+    if (
+        int(entry_count) == int(index.entry_count)
+        and isinstance(index.token_rows, _LazyNativeNameSearchTokenRows)
+    ):
+        try:
+            if binary_path.resolve() == index.token_rows.source_path.resolve() and binary_path.is_file():
+                return
+        except OSError:
+            pass
+        binary_path.write_bytes(index.token_rows.native_binary_data())
+        return
     with binary_path.open("wb") as handle:
         handle.write(b"CDNIDX1\0")
         handle.write(struct.pack("<III", 1, int(entry_count), len(index.token_rows)))
@@ -4490,6 +4587,18 @@ def build_archive_entry_extension_index(entries: Sequence[ArchiveEntry]) -> Dict
     return index
 
 
+def build_archive_entry_role_index(entries: Sequence[ArchiveEntry]) -> Dict[str, List[ArchiveEntry]]:
+    index: Dict[str, List[ArchiveEntry]] = {}
+    texture_roles = {"image", "normal", "material", "impostor", "ui"}
+    for archive_entry in entries:
+        role = archive_entry_role(archive_entry)
+        if role:
+            index.setdefault(role, []).append(archive_entry)
+            if role in texture_roles:
+                index.setdefault("texture", []).append(archive_entry)
+    return index
+
+
 def _encode_archive_entry_index_rows(
     index: Mapping[str, Sequence[ArchiveEntry]],
     entries: Sequence[ArchiveEntry],
@@ -4549,6 +4658,7 @@ def save_archive_basic_index_cache(
     path_index: Mapping[str, Sequence[ArchiveEntry]],
     basename_index: Mapping[str, Sequence[ArchiveEntry]],
     extension_index: Mapping[str, Sequence[ArchiveEntry]],
+    role_index: Mapping[str, Sequence[ArchiveEntry]],
     entry_metadata_signature: Optional[str] = None,
     entry_metadata_sources: Optional[Sequence[Tuple[str, int, int]]] = None,
     on_log: Optional[Callable[[str], None]] = None,
@@ -4575,6 +4685,7 @@ def save_archive_basic_index_cache(
         "path_rows": _encode_archive_entry_index_rows(path_index, entries),
         "basename_rows": _encode_archive_entry_index_rows(basename_index, entries),
         "extension_rows": _encode_archive_entry_index_rows(extension_index, entries),
+        "role_rows": _encode_archive_entry_index_rows(role_index, entries),
     }
     _write_raw_pickle_cache_payload_to_path(
         cache_path,
@@ -4680,20 +4791,24 @@ def load_archive_basic_index_cache(
                     on_log("Archive path lookup cache is out of date: " + "; ".join(reasons or ["metadata changed"]))
                 return None
         if on_progress is not None:
-            on_progress(0, 3, "Loading path lookup cache... 0 / 3 parts")
+            on_progress(0, 4, "Loading path lookup cache... 0 / 4 parts")
         path_index = _decode_archive_entry_index_rows(data.get("path_rows"), entries)
         if on_progress is not None:
-            on_progress(1, 3, "Loading path lookup cache... 1 / 3 parts")
+            on_progress(1, 4, "Loading path lookup cache... 1 / 4 parts")
         basename_index = _decode_archive_entry_index_rows(data.get("basename_rows"), entries)
         if on_progress is not None:
-            on_progress(2, 3, "Loading path lookup cache... 2 / 3 parts")
+            on_progress(2, 4, "Loading path lookup cache... 2 / 4 parts")
         extension_index = _decode_archive_entry_index_rows(data.get("extension_rows"), entries)
         if on_progress is not None:
-            on_progress(3, 3, "Loading path lookup cache... 3 / 3 parts")
+            on_progress(3, 4, "Loading path lookup cache... 3 / 4 parts")
+        role_index = _decode_archive_entry_index_rows(data.get("role_rows"), entries)
+        if on_progress is not None:
+            on_progress(4, 4, "Loading path lookup cache... 4 / 4 parts")
         payload = {
             "path_index": path_index,
             "basename_index": basename_index,
             "extension_index": extension_index,
+            "role_index": role_index,
             "cache_path": str(cache_path),
         }
         _record_timing(timings, "basic_index_cache_load_s", load_started_at)

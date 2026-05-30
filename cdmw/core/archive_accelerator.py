@@ -14,6 +14,7 @@ from cdmw.core.archive import (
     build_archive_entry_basename_index,
     build_archive_entry_extension_index,
     build_archive_entry_path_index,
+    build_archive_entry_role_index,
     load_archive_scan_cache,
     prepare_archive_browser_state,
     resolve_archive_scan_cache_path,
@@ -502,7 +503,13 @@ def build_archive_basic_indexes_accelerated(
     native_enabled: bool = True,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     stop_event: object = None,
-) -> tuple[dict[str, list[ArchiveEntry]], dict[str, list[ArchiveEntry]], dict[str, list[ArchiveEntry]], bool]:
+) -> tuple[
+    dict[str, list[ArchiveEntry]],
+    dict[str, list[ArchiveEntry]],
+    dict[str, list[ArchiveEntry]],
+    dict[str, list[ArchiveEntry]],
+    bool,
+]:
     binary = find_native_archive_accelerator() if native_enabled else None
     if native_enabled and _native_archive_accelerator_ready(binary) and entries:
         assert binary is not None
@@ -546,6 +553,7 @@ def build_archive_basic_indexes_accelerated(
                             _decode_row_index(report.get("path_rows"), entries),
                             _decode_row_index(report.get("basename_rows"), entries),
                             _decode_row_index(report.get("extension_rows"), entries),
+                            build_archive_entry_role_index(entries),
                             True,
                         )
                 except Exception:
@@ -554,6 +562,7 @@ def build_archive_basic_indexes_accelerated(
         build_archive_entry_path_index(entries),
         build_archive_entry_basename_index(entries),
         build_archive_entry_extension_index(entries),
+        build_archive_entry_role_index(entries),
         False,
     )
 

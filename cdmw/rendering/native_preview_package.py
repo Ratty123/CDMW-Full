@@ -2283,12 +2283,25 @@ def _texture_sources_for_batch(
                 max_dimension=support_copy_cap,
             )
             return
-        if kind == "packed_material":
-            if not combiner_decoded:
-                notes.append(f"packed material map skipped:{label}")
-        elif kind == "detail_mask":
-            if not combiner_decoded:
-                notes.append(f"detail mask skipped:{label}")
+        if kind in {"packed_material", "detail_mask"}:
+            if not support_enabled or bool(getattr(render_settings, "disable_material_map", False)):
+                return
+            if textures.get("material"):
+                return
+            if prefer_direct_dds and _preview_source_has_direct_dds_upload(source_path):
+                notes.append(f"{kind} PNG fallback skipped; direct DDS material input available")
+                return
+            textures["material"] = _copy_texture(
+                source_path,
+                package_dir=package_dir,
+                textures_dir=textures_dir,
+                batch_index=batch_index,
+                slot_name="material",
+                copy_cache=copy_cache,
+                notes=notes,
+                max_dimension=support_copy_cap,
+            )
+            return
         elif kind == "opacity":
             notes.append(f"opacity ignored:{label}")
 

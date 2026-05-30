@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import threading
 from html import escape
 from pathlib import Path, PurePosixPath
@@ -63,7 +64,10 @@ from cdmw.core.archive import ArchiveEntry
 from cdmw.core.pipeline import build_compare_preview_pane_result, parse_dds
 from cdmw.core.mod_package import (
     MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY,
+    MOD_PACKAGE_MANAGER_PROFILE_LABELS,
+    MOD_PACKAGE_MANAGER_PROFILES,
     ModPackageExportOptions,
+    mod_package_export_options_for_profiles,
     mod_package_export_options_for_manager,
     mod_package_profile_uses_manager_metadata,
 )
@@ -105,10 +109,14 @@ from cdmw.ui.widgets import (
 
 
 def _shutdown_thread(thread: Optional[QThread], *, grace_ms: int = 1200) -> None:
+    del grace_ms
     if thread is None:
         return
+    try:
+        thread.requestInterruption()
+    except Exception:
+        pass
     thread.quit()
-    thread.wait(grace_ms)
 
 
 def _wrapped_help_tooltip(text: str, *, width: int = 360) -> str:
@@ -646,8 +654,11 @@ class ReplaceAssistantReviewDialog(QDialog):
         if self.worker is not None:
             self.worker.stop()
         if self.thread is not None:
+            try:
+                self.thread.requestInterruption()
+            except Exception:
+                pass
             self.thread.quit()
-            self.thread.wait(2000)
         self.worker = None
         self.thread = None
 
@@ -1086,8 +1097,20 @@ class ReplaceAssistantTab(QWidget):
         self.package_manager_combo.addItem("Universal / minimal metadata", "universal")
         self.package_manager_combo.addItem("CDUMM", "cdumm")
         self.package_manager_combo.addItem("Definitive Mod Manager", "dmm")
+        self.package_manager_combo.addItem("JMM JSON", "jmm")
         self.package_manager_combo.addItem("Crimson Sharp / Crimson Browser", "crimson_sharp")
         self.package_manager_combo.addItem("Field-JSON v3.1", "field_json")
+        self.package_profile_checkboxes: Dict[str, QCheckBox] = {}
+        self.package_profiles_widget = QWidget()
+        package_profiles_layout = QHBoxLayout(self.package_profiles_widget)
+        package_profiles_layout.setContentsMargins(0, 0, 0, 0)
+        package_profiles_layout.setSpacing(10)
+        for profile in MOD_PACKAGE_MANAGER_PROFILES:
+            checkbox = QCheckBox(MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile))
+            checkbox.setChecked(profile == "universal")
+            package_profiles_layout.addWidget(checkbox)
+            self.package_profile_checkboxes[profile] = checkbox
+        package_profiles_layout.addStretch(1)
         self.package_structure_combo = QComboBox()
         self.package_structure_combo.addItem("Game-relative folders", "game_relative")
         self.package_structure_combo.addItem("files/ wrapper", "files_wrapper")
@@ -1116,49 +1139,20 @@ class ReplaceAssistantTab(QWidget):
         package_layout.addWidget(self.package_author_edit, 2, 1)
         package_layout.addWidget(QLabel("Description"), 3, 0)
         package_layout.addWidget(self.package_description_edit, 3, 1)
-        package_layout.addWidget(QLabel("Nexus URL"), 4, 0)
-        package_layout.addWidget(self.package_nexus_edit, 4, 1)
-        package_layout.addWidget(QLabel("Manager profile"), 5, 0)
-        package_layout.addWidget(self.package_manager_combo, 5, 1)
-        package_layout.addWidget(_make_help_button("Choose the metadata/layout profile to target. Universal writes neutral Workbench metadata only; individual profiles bias the folder structure for that manager."), 5, 2)
-        package_layout.addWidget(QLabel("Structure"), 6, 0)
-        package_layout.addWidget(self.package_structure_combo, 6, 1)
-        package_layout.addWidget(_make_help_button("Game-relative folders write files directly under paths such as object/... . The files/ wrapper places payload files under files/. Custom compact paths writes character model and sidecar payloads as character/<name>. DMM texture folder writes DDS packages for placement under mods/_textures/ without a files/ wrapper. Field-JSON v3.1 writes DDS assets under assets/ and records vpaths in mod.field.json."), 6, 2)
-        metadata_grid = QGridLayout()
-        metadata_grid.setContentsMargins(0, 0, 0, 0)
-        metadata_grid.setHorizontalSpacing(18)
-        metadata_grid.setVerticalSpacing(6)
-        metadata_options = (
-            ("manifest_json", self.package_manifest_checkbox),
-            ("mod_json", self.package_mod_json_checkbox),
-            ("modinfo_json", self.package_modinfo_checkbox),
-            ("info_json", self.package_info_json_checkbox),
-            ("no_encrypt", self.create_no_encrypt_checkbox),
-            ("ready_zip", self.package_zip_checkbox),
-        )
-        for index, (key, checkbox) in enumerate(metadata_options):
-            checkbox.setToolTip(_wrapped_help_tooltip(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY[key].description))
-            option_row = QHBoxLayout()
-            option_row.setContentsMargins(0, 0, 0, 0)
-            option_row.setSpacing(6)
-            option_row.addWidget(checkbox)
-            option_row.addWidget(_make_help_button(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY[key].description))
-            option_row.addStretch(1)
-            metadata_grid.addLayout(option_row, index // 2, index % 2)
-        metadata_grid.setColumnStretch(0, 1)
-        metadata_grid.setColumnStretch(1, 1)
-        package_layout.addWidget(QLabel("Generate"), 7, 0)
-        package_layout.addLayout(metadata_grid, 7, 1)
+        package_layout.addWidget(QLabel("Target Mod Managers"), 4, 0)
+        package_layout.addWidget(self.package_profiles_widget, 4, 1, 1, 2)
+        package_layout.addWidget(QLabel("Package output"), 5, 0)
+        package_layout.addWidget(self.package_zip_checkbox, 5, 1, 1, 2)
         self.package_conflict_mode_label = QLabel("Conflict mode")
         self.package_target_language_label = QLabel("Target language")
         self.package_conflict_mode_help = _make_help_button("CDUMM compatibility metadata. Normal leaves manager conflict behavior unchanged; Override asks compatible managers to prefer this mod when conflicts are detected.")
         self.package_target_language_help = _make_help_button("Optional CDUMM compatibility metadata for language-specific packages. Leave empty for general packages.")
-        package_layout.addWidget(self.package_conflict_mode_label, 8, 0)
-        package_layout.addWidget(self.package_conflict_mode_combo, 8, 1)
-        package_layout.addWidget(self.package_conflict_mode_help, 8, 2)
-        package_layout.addWidget(self.package_target_language_label, 9, 0)
-        package_layout.addWidget(self.package_target_language_edit, 9, 1)
-        package_layout.addWidget(self.package_target_language_help, 9, 2)
+        package_layout.addWidget(self.package_conflict_mode_label, 6, 0)
+        package_layout.addWidget(self.package_conflict_mode_combo, 6, 1)
+        package_layout.addWidget(self.package_conflict_mode_help, 6, 2)
+        package_layout.addWidget(self.package_target_language_label, 7, 0)
+        package_layout.addWidget(self.package_target_language_edit, 7, 1)
+        package_layout.addWidget(self.package_target_language_help, 7, 2)
         package_group.body_layout.addLayout(package_layout)
         settings_layout.addWidget(package_group)
 
@@ -1176,6 +1170,9 @@ class ReplaceAssistantTab(QWidget):
             self._sync_package_manager_field_visibility()
 
         self.package_manager_combo.currentIndexChanged.connect(_apply_package_manager_profile)
+        for checkbox in self.package_profile_checkboxes.values():
+            checkbox.toggled.connect(lambda _checked=False: self._sync_package_manager_field_visibility())
+            checkbox.toggled.connect(self.schedule_settings_save)
 
         self.ncnn_group = FlatSectionPanel("Direct Upscale Controls (NCNN only)", body_margins=(10, 10, 10, 10), body_spacing=0)
         ncnn_layout = QGridLayout()
@@ -1501,7 +1498,16 @@ class ReplaceAssistantTab(QWidget):
             or self.build_thread is not None
         )
 
-    def shutdown(self) -> None:
+    def iter_shutdown_workers(self) -> tuple[tuple[str, Optional[QThread], Optional[object]], ...]:
+        return (
+            ("preview_thread", self.preview_thread, self.preview_worker),
+            ("import_thread", self.import_thread, self.import_worker),
+            ("match_thread", self.match_thread, self.match_worker),
+            ("ui_constraint_thread", self.ui_constraint_thread, self.ui_constraint_worker),
+            ("build_thread", self.build_thread, self.build_worker),
+        )
+
+    def request_shutdown(self) -> None:
         if self.review_dialog is not None:
             self.review_dialog.close()
             self.review_dialog = None
@@ -1515,8 +1521,11 @@ class ReplaceAssistantTab(QWidget):
             self.ui_constraint_worker.stop()
         if self.build_worker is not None:
             self.build_worker.stop()
-        for thread in (self.preview_thread, self.import_thread, self.match_thread, self.ui_constraint_thread, self.build_thread):
+        for _name, thread, _worker in self.iter_shutdown_workers():
             _shutdown_thread(thread)
+
+    def shutdown(self) -> None:
+        self.request_shutdown()
 
     def schedule_settings_save(self) -> None:
         if not self._settings_ready:
@@ -1541,6 +1550,17 @@ class ReplaceAssistantTab(QWidget):
         self.settings.setValue("replace_assistant/package_description", self.package_description_edit.text())
         self.settings.setValue("replace_assistant/package_nexus", self.package_nexus_edit.text())
         self.settings.setValue("replace_assistant/package_manager_profile", self._combo_value(self.package_manager_combo))
+        self.settings.setValue(
+            "replace_assistant/package_manager_profiles",
+            json.dumps(
+                [
+                    profile
+                    for profile, checkbox in self.package_profile_checkboxes.items()
+                    if checkbox.isChecked()
+                ],
+                separators=(",", ":"),
+            ),
+        )
         self.settings.setValue("replace_assistant/package_structure", self._combo_value(self.package_structure_combo))
         self.settings.setValue("replace_assistant/package_manifest_json", self.package_manifest_checkbox.isChecked())
         self.settings.setValue("replace_assistant/package_mod_json", self.package_mod_json_checkbox.isChecked())
@@ -1582,6 +1602,21 @@ class ReplaceAssistantTab(QWidget):
             self.package_manager_combo,
             package_profile_value,
         )
+        saved_profile_values: List[str] = []
+        try:
+            loaded_profiles = json.loads(str(self.settings.value("replace_assistant/package_manager_profiles", "[]") or "[]"))
+            if isinstance(loaded_profiles, list):
+                saved_profile_values = [
+                    str(value or "").strip()
+                    for value in loaded_profiles
+                    if str(value or "").strip() in MOD_PACKAGE_MANAGER_PROFILES
+                ]
+        except Exception:
+            saved_profile_values = []
+        if not saved_profile_values:
+            saved_profile_values = [package_profile_value if package_profile_value in MOD_PACKAGE_MANAGER_PROFILES else "universal"]
+        for profile, checkbox in self.package_profile_checkboxes.items():
+            checkbox.setChecked(profile in set(saved_profile_values))
         self._set_combo_by_value(
             self.package_structure_combo,
             str(self.settings.value("replace_assistant/package_structure", self._combo_value(self.package_structure_combo))),
@@ -1705,7 +1740,34 @@ class ReplaceAssistantTab(QWidget):
         self.ncnn_group.setVisible(show_ncnn)
 
     def _sync_package_manager_field_visibility(self) -> None:
-        uses_manager_metadata = mod_package_profile_uses_manager_metadata(self._combo_value(self.package_manager_combo))
+        checked_profiles = tuple(
+            profile
+            for profile, checkbox in self.package_profile_checkboxes.items()
+            if checkbox.isChecked()
+        ) or (self._combo_value(self.package_manager_combo),)
+        uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in checked_profiles)
+        auto_options = mod_package_export_options_for_profiles(
+            checked_profiles,
+            create_zip=self.package_zip_checkbox.isChecked(),
+            conflict_mode=self._combo_value(self.package_conflict_mode_combo) if uses_manager_metadata else "",
+            target_language=self.package_target_language_edit.text().strip() if uses_manager_metadata else "",
+        )
+        self.create_no_encrypt_checkbox.setChecked(auto_options.create_no_encrypt_file)
+        self.package_manifest_checkbox.setChecked(auto_options.create_manifest_json)
+        self.package_mod_json_checkbox.setChecked(auto_options.create_mod_json)
+        self.package_modinfo_checkbox.setChecked(auto_options.create_modinfo_json)
+        self.package_info_json_checkbox.setChecked(auto_options.create_info_json)
+        structure_index = self.package_structure_combo.findData(auto_options.structure)
+        if structure_index >= 0 and self.package_structure_combo.currentIndex() != structure_index:
+            self.package_structure_combo.blockSignals(True)
+            self.package_structure_combo.setCurrentIndex(structure_index)
+            self.package_structure_combo.blockSignals(False)
+        first_profile = checked_profiles[0] if checked_profiles else "universal"
+        manager_index = self.package_manager_combo.findData(first_profile)
+        if manager_index >= 0 and self.package_manager_combo.currentIndex() != manager_index:
+            self.package_manager_combo.blockSignals(True)
+            self.package_manager_combo.setCurrentIndex(manager_index)
+            self.package_manager_combo.blockSignals(False)
         for widget in (
             self.package_conflict_mode_label,
             self.package_conflict_mode_combo,
@@ -1721,7 +1783,12 @@ class ReplaceAssistantTab(QWidget):
         has_items = bool(self.items)
         selected_count = len(self.queue_tree.selectedItems())
         show_ncnn = self._combo_value(self.build_mode_combo) == "upscale_then_rebuild"
-        uses_manager_metadata = mod_package_profile_uses_manager_metadata(self._combo_value(self.package_manager_combo))
+        checked_profiles = tuple(
+            profile
+            for profile, checkbox in self.package_profile_checkboxes.items()
+            if checkbox.isChecked()
+        ) or (self._combo_value(self.package_manager_combo),)
+        uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in checked_profiles)
         self.add_files_button.setEnabled(not busy)
         self.add_folder_button.setEnabled(not busy)
         self.auto_match_button.setEnabled(not busy and has_items)
@@ -1749,13 +1816,9 @@ class ReplaceAssistantTab(QWidget):
         self.package_version_edit.setEnabled(not busy)
         self.package_author_edit.setEnabled(not busy)
         self.package_description_edit.setEnabled(not busy)
-        self.package_nexus_edit.setEnabled(not busy)
-        self.package_manager_combo.setEnabled(not busy)
-        self.package_structure_combo.setEnabled(not busy)
-        self.package_manifest_checkbox.setEnabled(not busy)
-        self.package_mod_json_checkbox.setEnabled(not busy)
-        self.package_modinfo_checkbox.setEnabled(not busy)
-        self.package_info_json_checkbox.setEnabled(not busy)
+        self.package_profiles_widget.setEnabled(not busy)
+        for checkbox in self.package_profile_checkboxes.values():
+            checkbox.setEnabled(not busy)
         self.package_zip_checkbox.setEnabled(not busy)
         self.package_conflict_mode_combo.setEnabled(not busy and uses_manager_metadata)
         self.package_target_language_edit.setEnabled(not busy and uses_manager_metadata)
@@ -2631,6 +2694,13 @@ class ReplaceAssistantTab(QWidget):
             self.package_manager_combo,
             str(getattr(config, "mod_ready_manager_profile", self._combo_value(self.package_manager_combo))),
         )
+        mirrored_profiles = tuple(
+            str(value or "").strip()
+            for value in tuple(getattr(config, "mod_ready_manager_profiles", ()) or ())
+            if str(value or "").strip() in MOD_PACKAGE_MANAGER_PROFILES
+        ) or (str(getattr(config, "mod_ready_manager_profile", "universal") or "universal"),)
+        for profile, checkbox in self.package_profile_checkboxes.items():
+            checkbox.setChecked(profile in set(mirrored_profiles))
         profile_defaults = mod_package_export_options_for_manager(str(getattr(config, "mod_ready_manager_profile", "universal")))
         self._set_combo_by_value(
             self.package_structure_combo,
@@ -2656,21 +2726,17 @@ class ReplaceAssistantTab(QWidget):
         ncnn_exe_path = Path(ncnn_exe_text).expanduser() if ncnn_exe_text else None
         ncnn_model_dir_text = self.ncnn_model_dir_edit.text().strip()
         ncnn_model_dir = Path(ncnn_model_dir_text).expanduser() if ncnn_model_dir_text else None
-        profile = str(self.package_manager_combo.currentData() or "universal")
-        base_export_options = mod_package_export_options_for_manager(profile)
-        uses_manager_metadata = mod_package_profile_uses_manager_metadata(profile)
-        export_options = ModPackageExportOptions(
-            manager_targets=base_export_options.manager_targets,
-            structure=str(self.package_structure_combo.currentData() or base_export_options.structure),
-            create_manifest_json=self.package_manifest_checkbox.isChecked(),
-            create_mod_json=self.package_mod_json_checkbox.isChecked(),
-            create_modinfo_json=self.package_modinfo_checkbox.isChecked(),
-            create_info_json=self.package_info_json_checkbox.isChecked(),
-            create_no_encrypt_file=self.create_no_encrypt_checkbox.isChecked(),
+        selected_profiles = tuple(
+            profile
+            for profile, checkbox in self.package_profile_checkboxes.items()
+            if checkbox.isChecked()
+        ) or (str(self.package_manager_combo.currentData() or "universal"),)
+        uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in selected_profiles)
+        export_options = mod_package_export_options_for_profiles(
+            selected_profiles,
             create_zip=self.package_zip_checkbox.isChecked(),
             conflict_mode=str(self.package_conflict_mode_combo.currentData() or "") if uses_manager_metadata else "",
             target_language=self.package_target_language_edit.text().strip() if uses_manager_metadata else "",
-            files_dir=base_export_options.files_dir,
         )
         return ReplaceAssistantBuildOptions(
             package_output_root=Path(self.package_output_root_edit.text().strip()).expanduser(),

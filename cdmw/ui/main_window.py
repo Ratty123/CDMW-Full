@@ -15,6 +15,7 @@ import re
 import shutil
 import sys
 import threading
+import tempfile
 import time
 import traceback
 import xml.etree.ElementTree as ET
@@ -30,12 +31,6 @@ from urllib.parse import unquote, urlparse
 
 _PROFILE_SETTING_BINARY_TYPE = "qbytearray_base64"
 CLOSE_WORKER_FORCE_STOP_AFTER_SECONDS = 8.0
-WEAPON_PLACEMENT_STUDIO_BODY_PREVIEW_CANDIDATES = (
-    "cd_m0001_00_skeleton_nude_0001.pac",
-    "cd_phm_00_nude_10_0001.pac",
-    "cd_phm_00_nude_00_0001.pac",
-    "cd_phm_00_nude_00_4001.pac",
-)
 
 
 def _encode_profile_setting_value(value: object) -> object:
@@ -282,6 +277,7 @@ from cdmw.modding.mesh_deformer import (
     recompute_mesh_normals,
     shrink_vertex_selection,
     smooth_vertex_selection,
+    subdivide_faces_touching_vertices,
 )
 from cdmw.modding.mesh_morph_sliders import (
     MeshMorphSliderDelta,
@@ -309,10 +305,12 @@ from cdmw.modding.material_replacer import (
     group_replacement_texture_sets,
     is_static_replacement_helper_material_name,
     is_shared_material_layer_texture,
+    material_authority_preview_texture_slots,
     patch_material_sidecar_text,
     read_complete_swap_calibrated_material_profile,
     serialize_complete_swap_manual_material_profile,
     write_complete_swap_calibrated_material_profile,
+    apply_true_source_basic_controls_to_profile,
 )
 from cdmw.core.model_export import export_model_preview_to_obj
 from cdmw.core.mod_package import (
@@ -320,6 +318,7 @@ from cdmw.core.mod_package import (
     MOD_PACKAGE_MANAGER_PROFILE_LABELS,
     MOD_PACKAGE_MANAGER_PROFILES,
     ModPackageExportOptions,
+    mod_package_export_options_for_profiles,
     mod_package_export_options_for_manager,
     mod_package_profile_uses_manager_metadata,
 )
@@ -375,6 +374,15 @@ from cdmw.core.structured_binary_editor import (
 )
 from cdmw.core.model_catalogue import IMPORTABLE_MODEL_EXTENSIONS, is_importable_model_path
 from cdmw.core.weapon_swap_templates import (
+    DUAL_BACK_BASELINE_PACKAGE,
+    DUAL_BACK_SHIELD_DRAW_META_SOURCE_PATH,
+    DUAL_BACK_SHIELD_DRAW_META_TARGET_PATH,
+    DUAL_BACK_SHIELD_DRAW_PAA_SOURCE_PATH,
+    DUAL_BACK_SHIELD_DRAW_PAA_TARGET_PATH,
+    TWOHAND_HORSE_BASELINE_PACKAGE,
+    TWOHAND_HORSE_PAAC_PATH,
+    TWOHAND_HORSE_PAAC_PATCH_NOTE,
+    TWOHAND_HORSE_RELEASE_FIX_VARIANT,
     WEAPON_SWAP_TEMPLATE_CLASS_SCOPE,
     WEAPON_SWAP_TEMPLATE_SELECTED_SCOPE,
     WEAPON_SWAP_TEMPLATE_SELECTION_SCOPE,
@@ -385,9 +393,15 @@ from cdmw.core.weapon_swap_templates import (
     build_socket_bone_weapon_swap_template_patch,
     get_weapon_swap_template,
     iter_weapon_swap_templates,
+    patch_twohand_horse_paac_socket_bytes,
+    twohand_sword_v43_character_socket_rows,
+    twohand_sword_v43_known_weapon_summary,
+    twohand_sword_v43_socket_sidecar_paths,
+    twohand_sword_v43_weapon_socket_rows,
     weapon_swap_template_socket_rows,
     weapon_swap_template_weapon_socket_rows,
 )
+from cdmw.core.xml_text import decode_xml_text_payload, encode_xml_text_like_source
 
 
 def _complete_swap_allows_inherited_layer_color_bindings(options: object = None) -> bool:
@@ -430,16 +444,19 @@ class MeshImportSetupSelection:
     source_texture_evidence: Tuple[Mapping[str, object], ...] = ()
     defer_original_texture_preview: bool = False
     runtime_target_entry: Optional[ArchiveEntry] = None
+    preferred_complete_source_swap: bool = False
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class InGameMeshSwapScopeSelection:
+    complete_swap: bool = False
     prefer_generated_sidecar: bool = True
     use_source_model_payload_directly: bool = False
     retarget_source_family_files: bool = False
     replace_target_sidecar_with_source: bool = False
     replace_target_appearance_with_source: bool = False
     use_character_swap_plan: bool = False
+    include_physics: bool = False
     companion_entries: Tuple[ArchiveEntry, ...] = ()
 
 
@@ -763,6 +780,7 @@ def run_gui() -> int:
             QToolButton,
             QTreeWidget,
             QTreeWidgetItem,
+            QSystemTrayIcon,
             QVBoxLayout,
             QWidget,
         )
@@ -880,6 +898,7 @@ def run_gui() -> int:
         _WM_COPYDATA_COMMAND = 0x43444D57
         _WM_COPYDATA_EVENT = 0x44334431
         _HOST_CLASS = "CDMWNativeD3D11PreviewWindow"
+        _MESH_EDIT_TRIANGLE_FILE_THRESHOLD = 512 * 1024
         view_state_changed = Signal(float, bool)
         view_state_payload_changed = Signal(object)
         debug_details_changed = Signal(str)
@@ -1309,6 +1328,8 @@ def run_gui() -> int:
             falloff: str = "smooth",
             show_vertices: bool = True,
             selection_mode: str = "brush",
+            selection_depth_mode: str = "visible",
+            smooth_iterations: int = 3,
         ) -> bool:
             return self._send_host_json_command(
                 {
@@ -1324,8 +1345,55 @@ def run_gui() -> int:
                     "falloff": str(falloff or "smooth"),
                     "show_vertices": bool(show_vertices),
                     "selection_mode": str(selection_mode or "brush"),
+                    "selection_depth_mode": str(selection_depth_mode or "visible"),
+                    "smooth_iterations": int(smooth_iterations or 3),
                 }
             )
+
+        def update_mesh_edit_vertices(self, groups: Sequence[Mapping[str, object]]) -> bool:
+            return self._send_host_json_command(
+                {
+                    "command": "update_mesh_edit_vertices",
+                    "groups": list(groups or ()),
+                }
+            )
+
+        def replace_mesh_edit_triangles(self, groups: Sequence[Mapping[str, object]]) -> bool:
+            payload = {"command": "replace_mesh_edit_triangles", "groups": list(groups or ())}
+            try:
+                encoded = json.dumps(payload, separators=(",", ":"))
+            except (TypeError, ValueError):
+                return False
+            if len(encoded.encode("utf-8")) <= self._MESH_EDIT_TRIANGLE_FILE_THRESHOLD:
+                return self._send_host_json_command(payload)
+            temp_path: Optional[Path] = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    "w",
+                    encoding="utf-8",
+                    suffix=".json",
+                    prefix="cdmw_mesh_edit_triangles_",
+                    delete=False,
+                ) as temp_file:
+                    temp_file.write(encoded)
+                    temp_path = Path(temp_file.name)
+                ok = self._send_host_json_command(
+                    {
+                        "command": "replace_mesh_edit_triangles_file",
+                        "payload_file": str(temp_path),
+                        "delete_after": True,
+                    }
+                )
+                if not ok and temp_path is not None:
+                    temp_path.unlink(missing_ok=True)
+                return ok
+            except Exception:
+                if temp_path is not None:
+                    try:
+                        temp_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                return False
 
         def clear_mesh_edit_vertex_selection(self) -> bool:
             return self._send_host_json_command({"command": "clear_mesh_edit_selection"})
@@ -1566,6 +1634,7 @@ def run_gui() -> int:
     from cdmw.ui.text_search_tab import TextSearchTab
     from cdmw.ui.item_icons_tab import ItemIconLibraryTab
     from cdmw.ui.model_library_tab import ModelLibraryTab
+    from cdmw.ui.mesh_editor_tab import MeshEditorSessionRequest, MeshEditorTab
     TEXTURE_EDITOR_IMPORT_ERROR: Optional[ModuleNotFoundError] = None
     try:
         from cdmw.ui.texture_editor_tab import TextureEditorTab
@@ -1788,6 +1857,13 @@ def run_gui() -> int:
         child_memory = _runtime_event_child_memory(fields)
         if child_memory:
             payload["child_process_memory"] = child_memory
+        try:
+            payload["memory_total_private_bytes"] = int(process_memory.get("private_bytes", 0) or 0) + sum(
+                int(snapshot.get("private_bytes", 0) or 0)
+                for snapshot in child_memory.values()
+            )
+        except Exception:
+            pass
         for key, value in fields.items():
             payload[str(key)] = _sanitize_runtime_event_value(value)
         _runtime_event_ring.append(payload)
@@ -2086,6 +2162,28 @@ def run_gui() -> int:
         except Exception:
             pass
 
+    def _crash_report_kind_already_covers_session(kind: str, session_id: str) -> bool:
+        normalized_kind = str(kind or "").strip()
+        normalized_session = str(session_id or "").strip()
+        if not normalized_kind or not normalized_session:
+            return False
+        try:
+            candidates = sorted(
+                crash_reports_dir.glob(f"{normalized_kind}_*.log"),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+        except Exception:
+            return False
+        for report_path in candidates[:80]:
+            try:
+                text = report_path.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                continue
+            if normalized_session in text:
+                return True
+        return False
+
     def _format_thread_dump() -> str:
         frames = sys._current_frames()
         thread_names = {thread.ident: thread.name for thread in threading.enumerate()}
@@ -2138,6 +2236,15 @@ def run_gui() -> int:
             previous_pid_alive = _process_is_alive(payload.get("pid"))
             if age_s < 20.0 and previous_pid_alive:
                 return False
+            previous_session_id = str(payload.get("session_id") or "").strip()
+            if _crash_report_kind_already_covers_session("previous_session_unclean_exit", previous_session_id):
+                _record_runtime_event(
+                    "previous_session_unclean_exit_suppressed_duplicate",
+                    previous_session_id=previous_session_id,
+                    heartbeat_age_seconds=round(age_s, 3),
+                    previous_pid_alive=previous_pid_alive,
+                )
+                return True
             previous_context: Dict[str, object] = {
                 "previous_heartbeat": payload,
                 "heartbeat_age_seconds": round(age_s, 3),
@@ -2204,13 +2311,39 @@ def run_gui() -> int:
         try:
             crash_reports_dir.mkdir(parents=True, exist_ok=True)
             _fault_log_handle = (crash_reports_dir / "native_fault_current.log").open("a", encoding="utf-8")
-            _fault_log_handle.write(
-                f"\n\n=== {APP_TITLE} native fault log session {_session_id} {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n"
-            )
             _fault_log_handle.flush()
             faulthandler.enable(file=_fault_log_handle, all_threads=True)
         except Exception:
             _fault_log_handle = None
+
+    def _cleanup_native_fault_log_on_exit(*, clean_exit: bool) -> None:
+        nonlocal _fault_log_handle
+        fault_log_path = crash_reports_dir / "native_fault_current.log"
+        try:
+            if _fault_log_handle is None:
+                return
+            if clean_exit:
+                try:
+                    faulthandler.disable()
+                except Exception:
+                    pass
+            try:
+                _fault_log_handle.flush()
+            except Exception:
+                pass
+            try:
+                _fault_log_handle.close()
+            except Exception:
+                pass
+            _fault_log_handle = None
+            if clean_exit:
+                try:
+                    if fault_log_path.is_file() and fault_log_path.stat().st_size == 0:
+                        fault_log_path.unlink()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def _handle_uncaught_exception(exc_type, exc_value, exc_traceback) -> None:
         formatted = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
@@ -2362,6 +2495,9 @@ def run_gui() -> int:
             if not icon.isNull():
                 return icon, candidate
         return QIcon(), None
+
+    def existing_instance_activation_request_path() -> Path:
+        return Path(tempfile.gettempdir()) / "CrimsonDesertModWorkbench" / "activate_existing.json"
 
     def expand_tree_columns_to_available_width(tree: QTreeWidget) -> None:
         if not isinstance(tree, QTreeWidget):
@@ -2911,6 +3047,7 @@ def run_gui() -> int:
                 path_index: Dict[str, List[ArchiveEntry]] = {}
                 basename_index: Dict[str, List[ArchiveEntry]] = {}
                 extension_index: Dict[str, List[ArchiveEntry]] = {}
+                role_index: Dict[str, List[ArchiveEntry]] = {}
                 extension_counts: Counter[str] = Counter(
                     normalize_archive_extension_filter(entry.extension)
                     for entry in entries
@@ -2977,14 +3114,17 @@ def run_gui() -> int:
                     cached_path_index = basic_cache.get("path_index")
                     cached_basename_index = basic_cache.get("basename_index")
                     cached_extension_index = basic_cache.get("extension_index")
+                    cached_role_index = basic_cache.get("role_index")
                     if (
                         isinstance(cached_path_index, dict)
                         and isinstance(cached_basename_index, dict)
                         and isinstance(cached_extension_index, dict)
+                        and isinstance(cached_role_index, dict)
                     ):
                         path_index = cached_path_index
                         basename_index = cached_basename_index
                         extension_index = cached_extension_index
+                        role_index = cached_role_index
                         basic_indexes_loaded_from_cache = True
                 basic_indexes_needed_before_ready = bool(
                     entries and not basic_indexes_loaded_from_cache and not can_use_initial_list
@@ -2994,7 +3134,7 @@ def run_gui() -> int:
                     self.log_message.emit("Building path lookup...")
                     self.progress_changed.emit(0, 0, "Building path lookup...")
                     path_index_started_at = time.perf_counter()
-                    path_index, basename_index, extension_index, native_basic_indexes_used = build_archive_basic_indexes_accelerated(
+                    path_index, basename_index, extension_index, role_index, native_basic_indexes_used = build_archive_basic_indexes_accelerated(
                         entries,
                         native_enabled=self.native_archive_acceleration,
                         on_progress=self.progress_changed.emit,
@@ -3012,6 +3152,7 @@ def run_gui() -> int:
                             path_index=path_index,
                             basename_index=basename_index,
                             extension_index=extension_index,
+                            role_index=role_index,
                             entry_metadata_signature=entry_metadata_signature or None,
                             entry_metadata_sources=entry_metadata_sources or None,
                             on_log=self.log_message.emit,
@@ -3177,6 +3318,7 @@ def run_gui() -> int:
                         "path_index": path_index,
                         "basename_index": basename_index,
                         "extension_index": extension_index,
+                        "role_index": role_index,
                         "name_search_index": name_search_index,
                         "item_search_aliases": item_search_aliases,
                         "item_display_names": item_display_names,
@@ -3185,7 +3327,9 @@ def run_gui() -> int:
                         "item_asset_catalog": item_asset_catalog,
                         "derived_cache_needs_write": derived_cache_needs_write,
                         "enhanced_index_needs_build": enhanced_index_needs_build,
-                        "basic_index_needs_build": bool(entries and not path_index),
+                        "basic_index_needs_build": bool(
+                            entries and not (path_index and basename_index and extension_index and role_index)
+                        ),
                         "archive_native_derived_cache_ready": bool(native_basic_indexes_used),
                         "extension_counts": dict(extension_counts),
                         "entry_metadata_signature": entry_metadata_signature,
@@ -3332,10 +3476,12 @@ def run_gui() -> int:
                     cached_path_index = basic_cache.get("path_index")
                     cached_basename_index = basic_cache.get("basename_index")
                     cached_extension_index = basic_cache.get("extension_index")
+                    cached_role_index = basic_cache.get("role_index")
                     if (
                         isinstance(cached_path_index, dict)
                         and isinstance(cached_basename_index, dict)
                         and isinstance(cached_extension_index, dict)
+                        and isinstance(cached_role_index, dict)
                     ):
                         elapsed = max(0.0, float(time.perf_counter() - started_at))
                         self.completed.emit(
@@ -3343,6 +3489,7 @@ def run_gui() -> int:
                                 "path_index": cached_path_index,
                                 "basename_index": cached_basename_index,
                                 "extension_index": cached_extension_index,
+                                "role_index": cached_role_index,
                                 "native_used": False,
                                 "cache_loaded": True,
                                 "cache_path": str(basic_cache.get("cache_path") or ""),
@@ -3352,7 +3499,7 @@ def run_gui() -> int:
                         return
                 self.log_message.emit("Building path lookup in background...")
                 self.progress_changed.emit(0, 0, "Building path lookup in background...")
-                path_index, basename_index, extension_index, native_used = build_archive_basic_indexes_accelerated(
+                path_index, basename_index, extension_index, role_index, native_used = build_archive_basic_indexes_accelerated(
                     self.entries,
                     native_enabled=self.native_archive_acceleration,
                     on_progress=self.progress_changed.emit,
@@ -3367,6 +3514,7 @@ def run_gui() -> int:
                         path_index=path_index,
                         basename_index=basename_index,
                         extension_index=extension_index,
+                        role_index=role_index,
                         entry_metadata_signature=self.entry_metadata_signature or None,
                         entry_metadata_sources=self.entry_metadata_sources or None,
                         on_log=self.log_message.emit,
@@ -3381,6 +3529,7 @@ def run_gui() -> int:
                         "path_index": path_index,
                         "basename_index": basename_index,
                         "extension_index": extension_index,
+                        "role_index": role_index,
                         "native_used": bool(native_used),
                         "cache_loaded": False,
                         "cache_path": cache_path_text,
@@ -3891,6 +4040,7 @@ def run_gui() -> int:
                 self.finished.emit(self.request_id)
 
     class ArchiveFilterWorker(QObject):
+        log_message = Signal(str)
         progress_changed = Signal(int, int, str)
         completed = Signal(object)
         error = Signal(str)
@@ -3901,6 +4051,7 @@ def run_gui() -> int:
             entries: Sequence[ArchiveEntry],
             *,
             entries_by_extension: Optional[Dict[str, Sequence[ArchiveEntry]]] = None,
+            entries_by_role: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
             entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
             entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
             archive_name_search_index: Optional[ArchiveNameSearchIndex] = None,
@@ -3931,6 +4082,7 @@ def run_gui() -> int:
             # before the worker even starts running.
             self.entries = entries
             self.entries_by_extension = entries_by_extension or {}
+            self.entries_by_role = entries_by_role or {}
             self.entries_by_normalized_path = entries_by_normalized_path or {}
             self.entries_by_basename = entries_by_basename or {}
             self.archive_name_search_index = archive_name_search_index
@@ -3960,13 +4112,35 @@ def run_gui() -> int:
         def stop(self) -> None:
             self.stop_event.set()
 
+        def _candidate_entries_for_filter(self) -> Tuple[Sequence[ArchiveEntry], str]:
+            candidates: List[Tuple[str, Sequence[ArchiveEntry]]] = []
+            normalized_extension = normalize_archive_extension_filter(self.extension_filter)
+            if normalized_extension and normalized_extension not in {"*", "all", ".*"} and self.entries_by_extension:
+                candidates.append((f"extension:{normalized_extension}", self.entries_by_extension.get(normalized_extension, ())))
+
+            normalized_role = str(self.role_filter or "all").strip().lower()
+            if normalized_role and normalized_role != "all" and self.entries_by_role:
+                candidates.append((f"role:{normalized_role}", self.entries_by_role.get(normalized_role, ())))
+
+            if not candidates:
+                return self.entries, "all"
+            if len(candidates) == 1:
+                return candidates[0][1], candidates[0][0]
+
+            base_label, base_entries = min(candidates, key=lambda item: len(item[1]))
+            filtered_entries: List[ArchiveEntry] = list(base_entries)
+            for label, entries in candidates:
+                if label == base_label:
+                    continue
+                entry_ids = {id(entry) for entry in entries}
+                filtered_entries = [entry for entry in filtered_entries if id(entry) in entry_ids]
+            labels = "+".join(label for label, _entries in candidates)
+            return filtered_entries, labels
+
         @Slot()
         def run(self) -> None:
             try:
-                source_entries = self.entries
-                normalized_extension = normalize_archive_extension_filter(self.extension_filter)
-                if normalized_extension and normalized_extension not in {"*", "all", ".*"} and self.entries_by_extension:
-                    source_entries = self.entries_by_extension.get(normalized_extension, [])
+                source_entries, candidate_source = self._candidate_entries_for_filter()
                 browser_state = prepare_archive_browser_state_accelerated(
                     source_entries,
                     filter_text=self.filter_text,
@@ -3994,6 +4168,21 @@ def run_gui() -> int:
                     native_enabled=self.native_archive_acceleration,
                     resource_profile=self.resource_profile,
                 )
+                accelerator = browser_state.get("archive_accelerator") if isinstance(browser_state, Mapping) else {}
+                fallback_reason = ""
+                native_used = False
+                if isinstance(accelerator, Mapping):
+                    fallback_reason = str(accelerator.get("fallback_reason", "") or "").strip()
+                    native_used = bool(accelerator.get("native_used"))
+                detail = (
+                    "Archive filter candidate set | "
+                    f"source={candidate_source} | "
+                    f"candidates={len(source_entries):,} / {len(self.entries):,} | "
+                    f"native_used={native_used}"
+                )
+                if fallback_reason:
+                    detail += f" | fallback={fallback_reason}"
+                self.log_message.emit(detail)
                 if self.build_category_index:
                     browser_state["category_entry_indexes"] = build_archive_category_entry_index(
                         browser_state.get("filtered_entries", ()),
@@ -5203,7 +5392,7 @@ def run_gui() -> int:
                     use_textures=self.use_textures,
                     high_quality_textures=self.high_quality_textures,
                     backend="d3d11",
-                    enable_material_combiner=self.enable_material_combiner,
+                    enable_material_combiner=bool(self.enable_material_combiner and self.use_textures),
                     prefer_direct_dds=True,
                     original_reference_material_parity=self.original_reference_material_parity,
                     display_mode=self.display_mode,
@@ -5724,6 +5913,17 @@ def run_gui() -> int:
             self._startup_splash_release_pending = False
             self._startup_splash_finish_pending = False
             self._startup_splash_finish_after_paint_deadline = 0.0
+            self.app_tray_icon: Optional[QSystemTrayIcon] = None
+            self.app_tray_menu: Optional[QMenu] = None
+            self._external_activation_last_seen = 0.0
+            try:
+                self._external_activation_last_seen = float(existing_instance_activation_request_path().stat().st_mtime)
+            except OSError:
+                pass
+            self._external_activation_timer = QTimer(self)
+            self._external_activation_timer.setInterval(500)
+            self._external_activation_timer.timeout.connect(self._poll_existing_instance_activation_request)
+            self._external_activation_timer.start()
             self._responsive_screen_signal_connected = False
             self._modeless_alignment_dialogs: Dict[str, QDialog] = {}
             self.archive_preview_refresh_deferred_by_builder = False
@@ -5731,6 +5931,8 @@ def run_gui() -> int:
             self._current_responsive_control_scale = 0.0
             self._applying_responsive_layout = False
             self._responsive_metrics_dirty = True
+            self._responsive_last_screen_signature: Tuple[int, int, float] = (0, 0, 0.0)
+            self._responsive_resize_last_elapsed_ms = 0
             self._responsive_control_widgets: Tuple[QWidget, ...] = ()
             self.current_theme_key = str(self.settings.value("appearance/theme", DEFAULT_UI_THEME))
             self.archive_model_renderer_backend = ARCHIVE_MODEL_RENDERER_DEFAULT
@@ -5791,6 +5993,9 @@ def run_gui() -> int:
             self._archive_scan_progress_pending: Optional[Tuple[int, int, str]] = None
             self._archive_scan_progress_last_flush = 0.0
             self._archive_scan_progress_min_interval_s = 1.0 / 30.0
+            self._archive_load_progress_percent = 0
+            self._archive_load_progress_active = False
+            self._archive_load_progress_detail = ""
             self._archive_scan_progress_timer = QTimer(self)
             self._archive_scan_progress_timer.setSingleShot(True)
             self._archive_scan_progress_timer.setTimerType(Qt.PreciseTimer)
@@ -5880,6 +6085,7 @@ def run_gui() -> int:
             self.archive_entries_by_normalized_path: Dict[str, List[ArchiveEntry]] = {}
             self.archive_entries_by_basename: Dict[str, List[ArchiveEntry]] = {}
             self.archive_entries_by_extension: Dict[str, List[ArchiveEntry]] = {}
+            self.archive_entries_by_role: Dict[str, List[ArchiveEntry]] = {}
             self.archive_extension_counts: Counter[str] = Counter()
             self.archive_entry_metadata_signature = ""
             self.archive_entry_metadata_sources: Tuple[Tuple[object, object, object], ...] = ()
@@ -6002,6 +6208,8 @@ def run_gui() -> int:
             self.archive_browser_warmup_pending = False
             self.archive_browser_warmup_completion_text = ""
             self.archive_preview_loading_started_at = 0.0
+            self.archive_preview_loading_request_id = 0
+            self.archive_preview_loading_stall_reported = False
             self.archive_preview_loading_entry_name = ""
             self.archive_preview_loading_loose = False
             self.archive_preview_quick_result_active = False
@@ -6074,6 +6282,7 @@ def run_gui() -> int:
             app_icon, _icon_path = load_app_icon()
             if not app_icon.isNull():
                 self.setWindowIcon(app_icon)
+            self._configure_system_tray_icon(app_icon)
 
             menu_bar = self.menuBar()
             self.profile_menu = menu_bar.addMenu("Profile")
@@ -7137,53 +7346,20 @@ def run_gui() -> int:
             mod_package_layout.addWidget(self.mod_ready_package_author_edit, 2, 1)
             mod_package_layout.addWidget(QLabel("Description"), 3, 0)
             mod_package_layout.addWidget(self.mod_ready_package_description_edit, 3, 1)
-            mod_package_layout.addWidget(QLabel("Nexus URL"), 4, 0)
-            mod_package_layout.addWidget(self.mod_ready_package_nexus_url_edit, 4, 1)
-            mod_package_layout.addWidget(QLabel("Manager profile"), 5, 0)
-            mod_package_layout.addWidget(self.mod_ready_manager_combo, 5, 1)
-            mod_package_layout.addWidget(make_help_button("Choose the metadata/layout profile to target. Universal writes neutral Workbench metadata only; individual profiles bias the folder structure for that manager."), 5, 2)
-            mod_package_layout.addWidget(QLabel("Export profiles"), 6, 0)
-            mod_package_layout.addWidget(self.mod_ready_profiles_widget, 6, 1, 1, 2)
-            mod_package_layout.addWidget(QLabel("Structure"), 7, 0)
-            mod_package_layout.addWidget(self.mod_ready_structure_combo, 7, 1)
-            mod_package_layout.addWidget(make_help_button("Game-relative folders keep exact archive paths. The files/ wrapper places payload paths under files/. Custom compact paths writes character model and sidecar payloads as character/<name>. DMM texture folder writes DDS packages for placement under mods/_textures/ without a files/ wrapper. Field-JSON v3.1 writes DDS assets under assets/ and records vpaths in mod.field.json."), 7, 2)
-            mod_ready_generate_grid = QGridLayout()
-            mod_ready_generate_grid.setContentsMargins(0, 0, 0, 0)
-            mod_ready_generate_grid.setHorizontalSpacing(18)
-            mod_ready_generate_grid.setVerticalSpacing(6)
-            mod_ready_generate_options = (
-                ("manifest_json", self.mod_ready_manifest_checkbox),
-                ("mod_json", self.mod_ready_mod_json_checkbox),
-                ("modinfo_json", self.mod_ready_modinfo_checkbox),
-                ("info_json", self.mod_ready_info_json_checkbox),
-                ("no_encrypt", self.mod_ready_create_no_encrypt_checkbox),
-                ("ready_zip", self.mod_ready_zip_checkbox),
-            )
-            for index, (key, checkbox) in enumerate(mod_ready_generate_options):
-                checkbox.setToolTip(
-                    f"<qt><div style='width: 360px; white-space: normal;'>{escape(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY[key].description)}</div></qt>"
-                )
-                option_row = QHBoxLayout()
-                option_row.setContentsMargins(0, 0, 0, 0)
-                option_row.setSpacing(6)
-                option_row.addWidget(checkbox)
-                option_row.addWidget(make_help_button(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY[key].description))
-                option_row.addStretch(1)
-                mod_ready_generate_grid.addLayout(option_row, index // 2, index % 2)
-            mod_ready_generate_grid.setColumnStretch(0, 1)
-            mod_ready_generate_grid.setColumnStretch(1, 1)
-            mod_package_layout.addWidget(QLabel("Generate"), 8, 0)
-            mod_package_layout.addLayout(mod_ready_generate_grid, 8, 1)
+            mod_package_layout.addWidget(QLabel("Target Mod Managers"), 4, 0)
+            mod_package_layout.addWidget(self.mod_ready_profiles_widget, 4, 1, 1, 2)
+            mod_package_layout.addWidget(QLabel("Package output"), 5, 0)
+            mod_package_layout.addWidget(self.mod_ready_zip_checkbox, 5, 1, 1, 2)
             self.mod_ready_conflict_mode_label = QLabel("Conflict mode")
             self.mod_ready_target_language_label = QLabel("Target language")
             self.mod_ready_conflict_mode_help = make_help_button("CDUMM compatibility metadata. Normal leaves manager conflict behavior unchanged; Override asks compatible managers to prefer this mod when conflicts are detected.")
             self.mod_ready_target_language_help = make_help_button("Optional CDUMM compatibility metadata for language-specific packages. Leave empty for general packages.")
-            mod_package_layout.addWidget(self.mod_ready_conflict_mode_label, 9, 0)
-            mod_package_layout.addWidget(self.mod_ready_conflict_mode_combo, 9, 1)
-            mod_package_layout.addWidget(self.mod_ready_conflict_mode_help, 9, 2)
-            mod_package_layout.addWidget(self.mod_ready_target_language_label, 10, 0)
-            mod_package_layout.addWidget(self.mod_ready_target_language_edit, 10, 1)
-            mod_package_layout.addWidget(self.mod_ready_target_language_help, 10, 2)
+            mod_package_layout.addWidget(self.mod_ready_conflict_mode_label, 6, 0)
+            mod_package_layout.addWidget(self.mod_ready_conflict_mode_combo, 6, 1)
+            mod_package_layout.addWidget(self.mod_ready_conflict_mode_help, 6, 2)
+            mod_package_layout.addWidget(self.mod_ready_target_language_label, 7, 0)
+            mod_package_layout.addWidget(self.mod_ready_target_language_edit, 7, 1)
+            mod_package_layout.addWidget(self.mod_ready_target_language_help, 7, 2)
             self.mod_ready_package_group.setVisible(False)
             policy_layout.addWidget(self.mod_ready_package_group, 5, 0, 1, 2)
 
@@ -7691,17 +7867,20 @@ def run_gui() -> int:
             archive_status_row.addWidget(self.archive_sidecar_status_widget, alignment=Qt.AlignRight | Qt.AlignTop)
             archive_status_group_layout.addLayout(archive_status_row)
 
-            self.archive_scan_progress_label = QLabel("Ready to scan archive indexes.")
-            self.archive_scan_progress_label.setObjectName("HintLabel")
-            self.archive_scan_progress_label.setWordWrap(True)
-            archive_status_group_layout.addWidget(self.archive_scan_progress_label)
-
             self.archive_scan_progress_bar = QProgressBar()
-            self.archive_scan_progress_bar.setRange(0, 1)
+            self.archive_scan_progress_bar.setRange(0, 100)
             self.archive_scan_progress_bar.setValue(0)
             self.archive_scan_progress_bar.setTextVisible(True)
-            self.archive_scan_progress_bar.setFormat("%v / %m")
+            self.archive_scan_progress_bar.setFormat("0%")
+            self.archive_scan_progress_bar.setToolTip("Ready to scan archive indexes.")
             archive_status_group_layout.addWidget(self.archive_scan_progress_bar)
+
+            self.archive_scan_progress_label = QLabel("Ready")
+            self.archive_scan_progress_label.setObjectName("HintLabel")
+            self.archive_scan_progress_label.setAlignment(Qt.AlignCenter)
+            self.archive_scan_progress_label.setToolTip("Ready to scan archive indexes.")
+            self.archive_scan_progress_label.setWordWrap(False)
+            archive_status_group_layout.addWidget(self.archive_scan_progress_label)
 
             self.archive_preview_settings_status_label = QLabel("")
             self.archive_preview_settings_status_label.setObjectName("HintLabel")
@@ -8073,6 +8252,13 @@ def run_gui() -> int:
                 "Build a loose single-PAC appearance armor swap package from one target body app XML and one donor model."
             )
             self.archive_appearance_swap_button.setEnabled(False)
+            self.archive_open_mesh_editor_button = QPushButton("Open in Mesh Editor...")
+            self.archive_open_mesh_editor_button.setObjectName("ArchiveOpenMeshEditorButton")
+            self.archive_open_mesh_editor_button.setToolTip(
+                "Open the selected archive mesh in the dedicated Mesh Editor workspace. "
+                "Export, preview, patch, and swap actions remain available from the secondary menus."
+            )
+            self.archive_open_mesh_editor_button.setEnabled(False)
             self.archive_model_export_obj_button = QPushButton("Export OBJ...")
             self.archive_model_export_obj_button.setToolTip(
                 "Export the selected archive mesh as Wavefront OBJ with MTL and resolved preview textures for Blender."
@@ -8108,12 +8294,6 @@ def run_gui() -> int:
                 "Use another loaded archive mesh as the replacement source, then open Mesh Replacement Alignment for this target."
             )
             self.archive_model_swap_in_game_button.setEnabled(False)
-            self.archive_bulk_placement_swap_button = QPushButton("Bulk Placement Swap...")
-            self.archive_bulk_placement_swap_button.setToolTip(
-                "Bulk Placement Swap: select two or more placement-capable rows in Archive Files first. "
-                "Each selected row is a target that changes. The workflow then asks you to choose one placement source for each target and writes one combined loose mod folder."
-            )
-            self.archive_bulk_placement_swap_button.setEnabled(False)
             self.archive_hkx_export_json_button = QPushButton("Export HKX JSON...")
             self.archive_hkx_export_json_button.setToolTip(
                 "Export a documented editable JSON patch for decoded Crimson Desert HKX geometry."
@@ -8248,7 +8428,6 @@ def run_gui() -> int:
                 (
                     ("Modify Original Mesh", self.archive_model_modify_original_button),
                     (None, self.archive_model_swap_in_game_button),
-                    ("Bulk Placement Swap", self.archive_bulk_placement_swap_button),
                     ("Inspect Selected Sidecar", self.archive_sidecar_inspect_button),
                     ("Scan Sidecar Corpus", self.archive_sidecar_corpus_button),
                     ("Edit Material Values", self.archive_material_values_button),
@@ -8261,6 +8440,7 @@ def run_gui() -> int:
             archive_preview_title_row.addWidget(self.archive_preview_warning_badge)
             archive_preview_title_row.addWidget(self.archive_preview_loose_toggle_button)
             archive_preview_title_row.addWidget(self.archive_asset_family_button)
+            archive_preview_title_row.addWidget(self.archive_open_mesh_editor_button)
             archive_preview_title_row.addWidget(self.archive_model_preview_settings_button)
 
             archive_preview_toolbar = QWidget()
@@ -8318,6 +8498,7 @@ def run_gui() -> int:
             archive_view_controls_layout.addWidget(self.archive_model_preview_disable_support_checkbox)
             archive_view_controls_layout.addStretch(1)
             for button in (
+                self.archive_open_mesh_editor_button,
                 self.archive_model_export_obj_button,
                 self.archive_model_export_fbx_button,
                 self.archive_model_import_preview_button,
@@ -8325,7 +8506,6 @@ def run_gui() -> int:
                 self.archive_model_import_patch_button,
                 self.archive_model_modify_original_button,
                 self.archive_model_swap_in_game_button,
-                self.archive_bulk_placement_swap_button,
                 self.archive_appearance_composite_button,
                 self.archive_appearance_swap_button,
                 self.archive_hkx_export_json_button,
@@ -8664,6 +8844,20 @@ def run_gui() -> int:
                 )
             )
             self.assets_tabs.addTab(self.archive_browser_tab, "Archive Browser")
+            pump_startup_splash("Preparing mesh editor...")
+            self.mesh_editor_tab = MeshEditorTab(
+                settings=self.settings,
+                theme_key=self.current_theme_key,
+            )
+            self.mesh_editor_tab.status_message_requested.connect(
+                lambda message, is_error: self.set_status_message(message, error=is_error)
+            )
+            self.mesh_editor_tab.modify_original_requested.connect(self._mesh_editor_modify_original_requested)
+            self.mesh_editor_tab.import_replacement_requested.connect(self._mesh_editor_import_replacement_requested)
+            self.mesh_editor_tab.import_preview_requested.connect(self._mesh_editor_import_preview_requested)
+            self.mesh_editor_tab.in_game_swap_requested.connect(self._mesh_editor_in_game_swap_requested)
+            self.mesh_editor_tab.open_archive_target_requested.connect(self._mesh_editor_show_archive_target_requested)
+            self.assets_tabs.addTab(self.mesh_editor_tab, "Mesh Editor")
             pump_startup_splash("Preparing model library...")
             self.model_library_tab = ModelLibraryTab(
                 settings=self.settings,
@@ -8824,6 +9018,7 @@ def run_gui() -> int:
             self._register_detachable_tool("recolor_variants", self.recolor_variants_tab, "Recolor Variants")
             self._register_detachable_tool("texture_editor", self.texture_editor_tab, "Texture Editor")
             self._register_detachable_tool("archive_browser", self.archive_browser_tab, "Archive Browser")
+            self._register_detachable_tool("mesh_editor", self.mesh_editor_tab, "Mesh Editor")
             self._register_detachable_tool("model_library", self.model_library_tab, "Model Library")
             self._register_detachable_tool("research", self.research_tab, "Research")
             self._register_detachable_tool("text_search", self.text_search_tab, "Text Search")
@@ -8918,6 +9113,7 @@ def run_gui() -> int:
             )
             self.archive_model_preview_settings_button.clicked.connect(self._open_model_preview_settings_dialog)
             self.archive_asset_family_button.clicked.connect(self._open_archive_asset_family_workspace_dialog)
+            self.archive_open_mesh_editor_button.clicked.connect(self._open_current_archive_mesh_editor)
             self.archive_model_export_obj_button.clicked.connect(self._export_current_archive_model)
             self.archive_model_export_fbx_button.clicked.connect(
                 lambda: self._export_current_archive_mesh("fbx")
@@ -8927,7 +9123,6 @@ def run_gui() -> int:
             self.archive_model_import_patch_button.clicked.connect(self._patch_current_archive_mesh_from_obj)
             self.archive_model_modify_original_button.clicked.connect(self._modify_current_archive_original_mesh)
             self.archive_model_swap_in_game_button.clicked.connect(self._swap_current_archive_mesh_with_in_game)
-            self.archive_bulk_placement_swap_button.clicked.connect(self._open_archive_bulk_attachment_placement_from_selection)
             self.archive_appearance_composite_button.clicked.connect(self._open_current_archive_appearance_composite_preview)
             self.archive_appearance_swap_button.clicked.connect(self._open_current_archive_appearance_swap)
             self.archive_hkx_export_json_button.clicked.connect(self._export_current_archive_hkx_json)
@@ -10064,7 +10259,7 @@ def run_gui() -> int:
                       <tr><td>Referenced Files</td><td>Connection map for the selected asset.</td><td>Find textures, material sidecars, skeletons, animations, metadata, packages, resolution status, and usage counts.</td></tr>
                       <tr><td>Details</td><td>Structured metadata and diagnostics.</td><td>Check sizes, compression, package labels, strings, import summaries, preview diagnostics, and warnings.</td></tr>
                       <tr><td>Item Finder</td><td>Visual item lookup backed by iteminfo, localization, icons, and archive relationships.</td><td>Search by item name/category, browse icons, jump back to archive entries, and choose a placement source from resolved item assets.</td></tr>
-                      <tr><td>Mesh Actions</td><td>Model export/import, placement, and replacement workflow entry points.</td><td>Export OBJ/FBX, import OBJ/DAE/glTF/GLB preview, import DDS preview, import mesh replacement, swap with another in-game mesh, edit HKX placement context, bulk placement swap, restore backups, edit material values.</td></tr>
+                      <tr><td>Mesh Actions</td><td>Model export/import, placement, and replacement workflow entry points.</td><td>Export OBJ/FBX, import OBJ/DAE/glTF/GLB preview, import DDS preview, import mesh replacement, swap with another in-game mesh, edit HKX placement context, Weapon Placement Batch, restore backups, edit material values.</td></tr>
                       <tr><td>HKX / Placement</td><td>Socket, prefab, and placement-copy workflows for weapons and other attachment-driven assets.</td><td>Edit HKX placement context from HKX/model selections, choose a .pac placement source, use Item Finder, compare source/target placement, edit socket values, and build one loose placement-copy package.</td></tr>
                     </table>
                     <ul>
@@ -10153,7 +10348,6 @@ def run_gui() -> int:
                       <tr><td>Import Mesh</td><td>You are ready to export a supported replacement.</td><td>Lets you choose archive patching or mod-ready loose output where supported.</td></tr>
                       <tr><td>Swap With In-Game Mesh</td><td>You want another loaded archive mesh to replace the selected target mesh.</td><td>Sets a target, then uses the chosen source mesh in Mesh Replacement Alignment with related files carried over where supported.</td></tr>
                       <tr><td>Edit HKX</td><td>You opened an HKX/model and need to copy placement from another weapon/model family.</td><td>Shows target context, lets you choose a placement source, compares source/target placement, and builds a loose placement-copy package.</td></tr>
-                      <tr><td>Bulk Placement Swap</td><td>You selected multiple placement-capable targets.</td><td>Builds one combined loose mod folder using the same package rows as each single placement swap.</td></tr>
                       <tr><td>Edit Material Values</td><td>The selected mesh has a recognized XML/material sidecar.</td><td>Exports edited sidecar values as a mod-ready package instead of hand-editing raw XML blindly.</td></tr>
                     </table>
                     <h4>Mesh Replacement Alignment</h4>
@@ -10167,8 +10361,10 @@ def run_gui() -> int:
                     </ul>
                     <h4>Material Authority and sidecars</h4>
                     <ul>
+                      <li><b>Runtime XML preserve</b> keeps target/corpus PAC XML structure when you need the safest material-sidecar baseline.</li>
+                      <li><b>True Source Authority</b> uses original PAC/XML as runtime ABI while allowing source-owned texture/material authority where compatible.</li>
                       <li><b>Material Authority</b> uses the proven source-owned route: source color through overlay color, source PBR/material mask through detail mask, and no glossy color-blend response.</li>
-                      <li><b>Material Authority Manual</b> starts from that same route and exposes override knobs for advanced repair.</li>
+                      <li><b>Material Authority Manual</b> starts from Runtime XML preserve and exposes override knobs for advanced repair.</li>
                       <li>Legacy Runtime XML and True Source profiles stay loadable for old settings/debug, but are no longer shown as default choices.</li>
                       <li><b>Use Another Original Mesh</b> lets you pick a different original reference when the selected target is not the best authority for alignment/material context.</li>
                       <li>Placement state matters for items with body and hand variants: review <b>Stowed / on body</b> versus <b>Held / in hand</b> before building a package.</li>
@@ -10188,7 +10384,6 @@ def run_gui() -> int:
                       <li>Pick a visible source <code>.pac</code> when possible. The picker can search the archive indexes directly or use <b>Pick From Item Finder</b> to start from item name/icon/category.</li>
                       <li>The placement source picker uses a static geometry thumbnail for source candidates. This keeps browsing stable while still confirming that the selected source is the expected model.</li>
                       <li><b>Compare Placement</b> verifies the resolved prefab/socket/HKX context before packaging. <b>Edit Socket Values</b> is available when the recovered socket XML can be safely shown and written as loose output.</li>
-                      <li><b>Bulk Placement Swap</b> applies the same placement-copy packaging model to several selected targets and writes one combined loose mod folder.</li>
                     </ul>
                     <h4>Audio, video, and text-like media</h4>
                     <ul>
@@ -10586,7 +10781,6 @@ def run_gui() -> int:
                           <li><b>Importar malla</b> continua desde la misma revision y puede escribir salida suelta mod-ready o parche compatible despues de confirmar.</li>
                           <li><b>Intercambiar con malla del juego</b> marca una malla del archivo como destino y usa otra malla cargada como origen para el flujo de alineacion.</li>
                           <li><b>Editar HKX</b> y <b>Elegir origen de colocacion</b> copian datos de prefab/socket desde otro arma/modelo. Elige el <code>.pac</code> visible cuando sea posible; el selector muestra una miniatura estatica de geometria y la edicion visual se abre en D3D11 nativo.</li>
-                          <li><b>Intercambio masivo de colocacion</b> crea un solo paquete suelto para varios objetivos compatibles.</li>
                           <li>Los parches directos son compatibles solo para formatos donde la app puede reconstruir datos de forma segura.</li>
                         </ul>
                         """,
@@ -10733,7 +10927,6 @@ def run_gui() -> int:
                               <tr><td>Importar malla</td><td>Crear reemplazo soportado.</td><td>Permite parche o salida suelta mod-ready donde sea compatible.</td></tr>
                               <tr><td>Intercambiar con malla del juego</td><td>Usar otra malla del archivo como reemplazo del objetivo seleccionado.</td><td>Abre Alineacion de reemplazo de malla y conserva archivos relacionados cuando es compatible.</td></tr>
                               <tr><td>Editar HKX</td><td>Copiar colocacion desde otra familia de arma/modelo.</td><td>Muestra contexto del objetivo, permite elegir origen, compara colocacion y crea paquete suelto de colocacion.</td></tr>
-                              <tr><td>Intercambio masivo de colocacion</td><td>Varios objetivos compatibles estan seleccionados.</td><td>Crea un solo paquete mod-ready usando las mismas filas que cada intercambio individual.</td></tr>
                             </table>
                             <h4>Alineacion de reemplazo de malla</h4>
                             <ul>
@@ -10765,7 +10958,6 @@ def run_gui() -> int:
                               <li>Elige un <code>.pac</code> visible como origen cuando sea posible. Puedes buscar en los indices del archivo o usar <b>Item Finder</b> para empezar por nombre, icono o categoria.</li>
                               <li>El selector de origen muestra una miniatura estatica de geometria para confirmar el modelo; la edicion visual se abre en D3D11 nativo.</li>
                               <li><b>Comparar colocacion</b> verifica prefab/socket/HKX resueltos antes de empaquetar. <b>Editar valores de socket</b> aparece cuando el XML recuperado se puede mostrar y escribir de forma segura.</li>
-                              <li><b>Intercambio masivo de colocacion</b> aplica el mismo modelo de paquete a varios objetivos y escribe una sola carpeta suelta.</li>
                             </ul>
                             """,
                         },
@@ -11042,7 +11234,6 @@ def run_gui() -> int:
                           <li><b>Mesh importieren</b> nutzt dieselbe Pruefung und kann nach Bestaetigung mod-fertige Loose-Ausgabe oder kompatible Patches schreiben.</li>
                           <li><b>Mit Ingame-Mesh tauschen</b> markiert eine Archiv-Mesh als Ziel und nutzt eine andere geladene Mesh als Quelle fuer die Ausrichtung.</li>
                           <li><b>HKX bearbeiten</b> und <b>Platzierungsquelle waehlen</b> kopieren Prefab-/Socket-Daten von einer anderen Waffen-/Modellfamilie. Wenn moeglich den sichtbaren <code>.pac</code> waehlen; der Picker zeigt eine statische Geometrie-Miniatur, die visuelle Bearbeitung laeuft in nativem D3D11.</li>
-                          <li><b>Bulk Placement Swap</b> erstellt ein einziges Loose-Paket fuer mehrere kompatible Ziele.</li>
                           <li>Direkte Patches sind nur fuer Formate sinnvoll, die die App sicher rekonstruieren kann.</li>
                         </ul>
                         """,
@@ -11189,7 +11380,6 @@ def run_gui() -> int:
                               <tr><td>Mesh importieren</td><td>Unterstuetzten Ersatz erstellen.</td><td>Erlaubt Patch oder mod-fertige Loose-Ausgabe, wo kompatibel.</td></tr>
                               <tr><td>Mit Ingame-Mesh tauschen</td><td>Eine andere Archiv-Mesh als Ersatz fuer das gewaehlte Ziel verwenden.</td><td>Oeffnet Mesh-Ersetzungsausrichtung und uebernimmt verwandte Dateien, wenn kompatibel.</td></tr>
                               <tr><td>HKX bearbeiten</td><td>Platzierung aus einer anderen Waffen-/Modellfamilie kopieren.</td><td>Zeigt Zielkontext, waehlt Quelle, vergleicht Platzierung und erstellt ein Loose-Platzierungspaket.</td></tr>
-                              <tr><td>Bulk Placement Swap</td><td>Mehrere platzierungsfaehige Ziele sind gewaehlt.</td><td>Erstellt ein kombiniertes mod-fertiges Paket mit denselben Zeilen wie einzelne Platzierungs-Swaps.</td></tr>
                             </table>
                             <h4>Mesh-Ersetzungsausrichtung</h4>
                             <ul>
@@ -11221,7 +11411,6 @@ def run_gui() -> int:
                               <li>Wenn moeglich einen sichtbaren <code>.pac</code> als Quelle waehlen. Du kannst direkt in Archivindizes suchen oder mit <b>Item Finder</b> ueber Name, Icon oder Kategorie starten.</li>
                               <li>Der Quellen-Picker zeigt eine statische Geometrie-Miniatur zur Modellbestaetigung; die visuelle Bearbeitung laeuft in nativem D3D11.</li>
                               <li><b>Platzierung vergleichen</b> prueft aufgeloeste Prefab-/Socket-/HKX-Daten vor dem Paketbau. <b>Socket-Werte bearbeiten</b> erscheint, wenn das wiederhergestellte XML sicher angezeigt und geschrieben werden kann.</li>
-                              <li><b>Bulk Placement Swap</b> nutzt dasselbe Paketmodell fuer mehrere Ziele und schreibt einen einzigen Loose-Ordner.</li>
                             </ul>
                             """,
                         },
@@ -12417,6 +12606,79 @@ def run_gui() -> int:
                 return False
             return Path(package_root_text).expanduser().exists()
 
+        def _configure_system_tray_icon(self, app_icon: QIcon) -> None:
+            if not QSystemTrayIcon.isSystemTrayAvailable():
+                return
+            icon = QIcon(app_icon)
+            if icon.isNull():
+                icon = QIcon(self.windowIcon())
+            if icon.isNull():
+                return
+            tray_menu = QMenu(self)
+            show_action = tray_menu.addAction("Show Crimson Desert Mod Workbench")
+            show_action.triggered.connect(lambda _checked=False: self._present_main_window("tray_menu_show"))
+            tray_menu.addSeparator()
+            exit_action = tray_menu.addAction("Exit")
+            exit_action.triggered.connect(lambda _checked=False: self.close())
+            tray_icon = QSystemTrayIcon(icon, self)
+            tray_icon.setToolTip(APP_TITLE)
+            tray_icon.setContextMenu(tray_menu)
+            tray_icon.activated.connect(self._handle_system_tray_activated)
+            tray_icon.show()
+            self.app_tray_menu = tray_menu
+            self.app_tray_icon = tray_icon
+
+        def _handle_system_tray_activated(self, reason: object) -> None:
+            trigger = getattr(QSystemTrayIcon.ActivationReason, "Trigger", None)
+            double_click = getattr(QSystemTrayIcon.ActivationReason, "DoubleClick", None)
+            if reason in {trigger, double_click}:
+                self._present_main_window("tray_icon")
+
+        def _present_main_window(self, reason: str = "") -> None:
+            if self.isMinimized():
+                self.showNormal()
+            else:
+                self.show()
+            try:
+                self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
+            except Exception:
+                pass
+            try:
+                self.raise_()
+                self.activateWindow()
+                QApplication.alert(self, 2500)
+            except Exception:
+                pass
+            if bool(getattr(self, "_close_after_workers_requested", False)):
+                self.set_status_message("Close is still waiting for background workers to stop.")
+            _record_runtime_event("main_window_present_requested", reason=str(reason or "unknown"))
+
+        def _poll_existing_instance_activation_request(self) -> None:
+            request_path = existing_instance_activation_request_path()
+            try:
+                stat_result = request_path.stat()
+            except OSError:
+                return
+            request_seen = float(getattr(stat_result, "st_mtime", 0.0) or 0.0)
+            if request_seen <= float(getattr(self, "_external_activation_last_seen", 0.0) or 0.0):
+                return
+            try:
+                payload = json.loads(request_path.read_text(encoding="utf-8"))
+            except Exception:
+                payload = {}
+            self._external_activation_last_seen = request_seen
+            try:
+                request_path.unlink()
+            except OSError:
+                pass
+            if isinstance(payload, Mapping):
+                try:
+                    if int(payload.get("pid", 0) or 0) == os.getpid():
+                        return
+                except (TypeError, ValueError):
+                    pass
+            self._present_main_window("second_launch")
+
         def attach_startup_splash(self, splash: Optional[object], *, hold_main_window: bool = False) -> None:
             self._startup_splash_window = splash
             self._startup_splash_holds_main_window = bool(hold_main_window)
@@ -12758,12 +13020,14 @@ def run_gui() -> int:
             restore_saved_splitters: bool = True,
             schedule_column_autofit: bool = True,
             apply_expensive_metrics: bool = True,
+            adjust_window_geometry: bool = True,
         ) -> None:
             if getattr(self, "_applying_responsive_layout", False):
                 return
             screen = self.screen() or QApplication.primaryScreen()
             if screen is None:
                 return
+            started_at = time.perf_counter()
             self._applying_responsive_layout = True
             try:
                 if apply_expensive_metrics or getattr(self, "_responsive_metrics_dirty", True):
@@ -12772,6 +13036,8 @@ def run_gui() -> int:
                     self._responsive_metrics_dirty = False
                 available = screen.availableGeometry()
                 if (
+                    adjust_window_geometry
+                    and
                     not self.isMaximized()
                     and not self.isFullScreen()
                     and (self.width() > available.width() - 24 or self.height() > available.height() - 24)
@@ -12780,7 +13046,7 @@ def run_gui() -> int:
                         max(self.minimumWidth(), min(int(available.width() * 0.94), available.width() - 24)),
                         max(self.minimumHeight(), min(int(available.height() * 0.92), available.height() - 24)),
                     )
-                if not self.isMaximized() and not self.isFullScreen():
+                if adjust_window_geometry and not self.isMaximized() and not self.isFullScreen():
                     frame = self.frameGeometry()
                     x = frame.x()
                     y = frame.y()
@@ -12796,6 +13062,16 @@ def run_gui() -> int:
                 if schedule_column_autofit:
                     self._schedule_column_autofit()
             finally:
+                elapsed_ms = int(max(0.0, time.perf_counter() - started_at) * 1000)
+                self._responsive_resize_last_elapsed_ms = elapsed_ms
+                if elapsed_ms >= 40 or apply_expensive_metrics or restore_saved_splitters:
+                    _record_runtime_event(
+                        "responsive_resize_applied",
+                        responsive_resize_elapsed_ms=elapsed_ms,
+                        restore_saved_splitters=bool(restore_saved_splitters),
+                        apply_expensive_metrics=bool(apply_expensive_metrics),
+                        adjust_window_geometry=bool(adjust_window_geometry),
+                    )
                 self._applying_responsive_layout = False
 
         def _apply_responsive_resize_adjustments(self) -> None:
@@ -12803,18 +13079,36 @@ def run_gui() -> int:
                 restore_saved_splitters=False,
                 schedule_column_autofit=False,
                 apply_expensive_metrics=False,
+                adjust_window_geometry=False,
             )
+
+        def _screen_signature_for_responsive_layout(self) -> Tuple[int, int, float]:
+            screen = self.screen() or QApplication.primaryScreen()
+            if screen is None:
+                return (0, 0, 0.0)
+            geometry = screen.availableGeometry()
+            try:
+                pixel_ratio = float(screen.devicePixelRatio())
+            except Exception:
+                pixel_ratio = 1.0
+            return (int(geometry.width()), int(geometry.height()), round(pixel_ratio, 3))
+
+        def _handle_responsive_screen_changed(self, _screen: object = None) -> None:
+            if getattr(self, "_applying_responsive_layout", False):
+                return
+            signature = self._screen_signature_for_responsive_layout()
+            if signature == getattr(self, "_responsive_last_screen_signature", (0, 0, 0.0)):
+                return
+            self._responsive_last_screen_signature = signature
+            self._responsive_metrics_dirty = True
+            self._responsive_resize_timer.start(260)
 
         def _connect_responsive_screen_signals(self) -> None:
             window_handle = self.windowHandle()
             if window_handle is None or getattr(self, "_responsive_screen_signal_connected", False):
                 return
-            window_handle.screenChanged.connect(
-                lambda _screen: None if getattr(self, "_applying_responsive_layout", False) else (
-                    setattr(self, "_responsive_metrics_dirty", True),
-                    self._responsive_resize_timer.start(),
-                )
-            )
+            self._responsive_last_screen_signature = self._screen_signature_for_responsive_layout()
+            window_handle.screenChanged.connect(self._handle_responsive_screen_changed)
             self._responsive_screen_signal_connected = True
 
         def _schedule_column_autofit(self) -> None:
@@ -15544,24 +15838,38 @@ def run_gui() -> int:
                 if checkbox.isChecked()
             ) or (self._combo_value(self.mod_ready_manager_combo),)
             uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in checked_profiles)
+            auto_options = mod_package_export_options_for_profiles(
+                checked_profiles,
+                create_zip=self.mod_ready_zip_checkbox.isChecked(),
+                conflict_mode=self._combo_value(self.mod_ready_conflict_mode_combo) if uses_manager_metadata else "",
+                target_language=self.mod_ready_target_language_edit.text().strip() if uses_manager_metadata else "",
+            )
+            first_profile = checked_profiles[0] if checked_profiles else "universal"
+            manager_index = self.mod_ready_manager_combo.findData(first_profile)
+            if manager_index >= 0 and self.mod_ready_manager_combo.currentIndex() != manager_index:
+                self.mod_ready_manager_combo.blockSignals(True)
+                self.mod_ready_manager_combo.setCurrentIndex(manager_index)
+                self.mod_ready_manager_combo.blockSignals(False)
+            structure_index = self.mod_ready_structure_combo.findData(auto_options.structure)
+            if structure_index >= 0 and self.mod_ready_structure_combo.currentIndex() != structure_index:
+                self.mod_ready_structure_combo.blockSignals(True)
+                self.mod_ready_structure_combo.setCurrentIndex(structure_index)
+                self.mod_ready_structure_combo.blockSignals(False)
+            self.mod_ready_manifest_checkbox.setChecked(auto_options.create_manifest_json)
+            self.mod_ready_mod_json_checkbox.setChecked(auto_options.create_mod_json)
+            self.mod_ready_modinfo_checkbox.setChecked(auto_options.create_modinfo_json)
+            self.mod_ready_info_json_checkbox.setChecked(auto_options.create_info_json)
+            self.mod_ready_create_no_encrypt_checkbox.setChecked(auto_options.create_no_encrypt_file)
             self.mod_ready_export_root_edit.setEnabled(enabled)
             self.mod_ready_export_browse_button.setEnabled(enabled)
             self.mod_ready_package_group.setVisible(enabled)
-            self.mod_ready_create_no_encrypt_checkbox.setEnabled(enabled)
             self.mod_ready_package_title_edit.setEnabled(enabled)
             self.mod_ready_package_version_edit.setEnabled(enabled)
             self.mod_ready_package_author_edit.setEnabled(enabled)
             self.mod_ready_package_description_edit.setEnabled(enabled)
-            self.mod_ready_package_nexus_url_edit.setEnabled(enabled)
-            self.mod_ready_manager_combo.setEnabled(enabled)
             self.mod_ready_profiles_widget.setEnabled(enabled)
             for checkbox in self.mod_ready_profile_checkboxes.values():
                 checkbox.setEnabled(enabled)
-            self.mod_ready_structure_combo.setEnabled(enabled)
-            self.mod_ready_manifest_checkbox.setEnabled(enabled)
-            self.mod_ready_mod_json_checkbox.setEnabled(enabled)
-            self.mod_ready_modinfo_checkbox.setEnabled(enabled)
-            self.mod_ready_info_json_checkbox.setEnabled(enabled)
             self.mod_ready_zip_checkbox.setEnabled(enabled)
             for widget in (
                 self.mod_ready_conflict_mode_label,
@@ -15761,9 +16069,8 @@ def run_gui() -> int:
             self.append_log(status_message)
             self._utility_updates_archive_progress = bool(show_archive_progress)
             if self._utility_updates_archive_progress:
-                self.archive_scan_progress_label.setText(status_message)
-                self.archive_scan_progress_bar.setRange(0, 0)
-                self.archive_scan_progress_bar.setFormat("Working...")
+                self._reset_archive_load_progress()
+                self._set_archive_load_progress(status_message)
                 self.append_archive_log(status_message)
 
             worker = UtilityWorker(
@@ -15847,9 +16154,7 @@ def run_gui() -> int:
                 return
             if message.startswith("[") and ("] EXTRACT " in message or "] FAIL " in message):
                 return
-            self.archive_scan_progress_label.setText(message)
-            self.archive_scan_progress_bar.setRange(0, 0)
-            self.archive_scan_progress_bar.setFormat("Working...")
+            self._set_archive_load_progress(message)
             self.append_archive_log(message)
             self.set_status_message(message)
 
@@ -15857,15 +16162,7 @@ def run_gui() -> int:
             if not self._utility_updates_archive_progress:
                 return
             detail_text = str(detail or "").strip() or "Working..."
-            self.archive_scan_progress_label.setText(detail_text)
-            if total > 0:
-                bounded_current = min(max(int(current), 0), int(total))
-                self.archive_scan_progress_bar.setRange(0, int(total))
-                self.archive_scan_progress_bar.setValue(bounded_current)
-                self.archive_scan_progress_bar.setFormat("Archive files: %v / %m")
-            else:
-                self.archive_scan_progress_bar.setRange(0, 0)
-                self.archive_scan_progress_bar.setFormat(detail_text)
+            self._set_archive_load_progress(detail_text, current, total)
             self.set_status_message(detail_text)
 
         def _directory_has_contents(self, path: Path) -> bool:
@@ -16235,10 +16532,10 @@ def run_gui() -> int:
             self._activate_archive_browser_on_scan_complete = activate_archive_tab
             if activate_archive_tab:
                 self._activate_tool_widget(self.archive_browser_tab)
-            self.archive_scan_progress_label.setText("Preparing archive refresh..." if force_refresh else "Preparing archive scan / cache load...")
-            self.archive_scan_progress_bar.setRange(0, 0)
-            self.archive_scan_progress_bar.setFormat("Working...")
-            self._update_startup_splash("Preparing archive refresh..." if force_refresh else "Preparing archive scan / cache load...")
+            self._reset_archive_load_progress()
+            preparing_text = "Preparing archive refresh..." if force_refresh else "Preparing archive scan / cache load..."
+            self._set_archive_load_progress(preparing_text)
+            self._update_startup_splash(f"{preparing_text} (1%)", 1, 100)
             _write_heartbeat("archive_refresh" if force_refresh else "archive_load")
             self._set_archive_warmup_overlay(
                 True,
@@ -16384,7 +16681,7 @@ def run_gui() -> int:
                 result_filter_signature=result_filter_signature,
                 load_basic_index_cache=bool(
                     self.archive_startup_saved_filter_apply_pending
-                    and self._archive_filter_state_needs_path_lookup(
+                    and self._archive_filter_state_needs_basic_lookup(
                         getattr(self, "archive_startup_saved_filter_state", {}) or {}
                     )
                 ),
@@ -16426,47 +16723,125 @@ def run_gui() -> int:
                 return
             self.archive_warmup_overlay.hide()
 
+        def _reset_archive_load_progress(self) -> None:
+            self._archive_load_progress_percent = 0
+            self._archive_load_progress_active = True
+            self._archive_load_progress_detail = ""
+
+        def _archive_progress_phase_for_detail(self, detail: str) -> Tuple[str, int, int]:
+            text = " ".join(str(detail or "Working").split())
+            lowered = text.lower()
+            if "fail" in lowered or "error" in lowered:
+                return "Failed", 0, 0
+            if "cancel" in lowered or "stop" in lowered:
+                return "Stopping", 0, 0
+            if (
+                "archive ready" in lowered
+                or "archive scan complete" in lowered
+                or "loaded " in lowered and "archive entries" in lowered and "background" not in lowered
+            ):
+                return "Ready", 100, 100
+            if "render" in lowered or "browser view" in lowered or "browser items" in lowered:
+                return "Rendering", 90, 99
+            if "opening archive list" in lowered or "preparing archive list" in lowered:
+                return "List", 86, 90
+            if "sidecar" in lowered:
+                return "Sidecar", 86, 98
+            if (
+                "item-name" in lowered
+                or "name search" in lowered
+                or "name-search" in lowered
+                or "path lookup" in lowered
+                or "derived index" in lowered
+                or "category index" in lowered
+                or "browser indexes" in lowered
+            ):
+                return "Indexing", 72, 88
+            if "cache" in lowered and any(token in lowered for token in ("building", "compressing", "writing", "written", "saving")):
+                return "Cache", 55, 74
+            if "cache" in lowered:
+                return "Cache", 4, 38
+            if "native archive scan" in lowered or "archive indexes" in lowered or "parsing " in lowered:
+                return "Scanning", 8, 55
+            if "refresh" in lowered or "scan" in lowered:
+                return "Scanning", 8, 55
+            if "preparing" in lowered:
+                return "Preparing", 1, 4
+            return "Working", 1, 95
+
+        def _archive_progress_percent_for_detail(self, current: int, total: int, detail: str) -> int:
+            phase, start, end = self._archive_progress_phase_for_detail(detail)
+            if phase in {"Ready", "Failed", "Stopping"}:
+                return start
+            previous = int(getattr(self, "_archive_load_progress_percent", 0) or 0)
+            bounded_total = max(0, int(total or 0))
+            if bounded_total > 0:
+                bounded_current = min(max(int(current or 0), 0), bounded_total)
+                fraction = bounded_current / max(bounded_total, 1)
+                candidate = int(round(start + (max(end, start) - start) * fraction))
+            else:
+                candidate = start if previous < start else min(max(end - 1, start), previous + 1)
+            if bool(getattr(self, "_archive_load_progress_active", False)):
+                candidate = max(previous, candidate)
+            return min(max(candidate, 0), 100)
+
+        def _set_archive_load_progress(
+            self,
+            detail: str,
+            current: int = 0,
+            total: int = 0,
+            *,
+            phase: str = "",
+            percent: Optional[int] = None,
+            allow_decrease: bool = False,
+        ) -> None:
+            detail_text = str(detail or "Working...").strip() or "Working..."
+            phase_text = str(phase or "").strip()
+            if not phase_text:
+                phase_text = self._archive_progress_phase_for_detail(detail_text)[0]
+            if percent is None:
+                percent_value = self._archive_progress_percent_for_detail(current, total, detail_text)
+            else:
+                percent_value = min(max(int(percent), 0), 100)
+            previous = int(getattr(self, "_archive_load_progress_percent", 0) or 0)
+            if not allow_decrease:
+                percent_value = max(previous, percent_value)
+            self._archive_load_progress_active = percent_value < 100 and phase_text not in {"Ready", "Failed"}
+            self._archive_load_progress_percent = percent_value
+            self._archive_load_progress_detail = detail_text
+            if hasattr(self, "archive_scan_progress_bar"):
+                self.archive_scan_progress_bar.setRange(0, 100)
+                self.archive_scan_progress_bar.setValue(percent_value)
+                self.archive_scan_progress_bar.setFormat(f"{percent_value}%")
+                self.archive_scan_progress_bar.setToolTip(detail_text)
+            if hasattr(self, "archive_scan_progress_label"):
+                self.archive_scan_progress_label.setText(phase_text)
+                self.archive_scan_progress_label.setToolTip(detail_text)
+
         def _apply_archive_scan_progress(self, current: int, total: int, detail: str) -> None:
             progress_detail = str(detail or "Working...")
             if bool(getattr(self, "archive_startup_hold_until_ready", False)):
                 self._startup_splash_last_progress_at = time.monotonic()
             if total > 0:
                 completed_value = min(max(current, 0), total)
-                display_value = min(completed_value + 1, total) if detail.startswith("Parsing ") else completed_value
-                percent = int((completed_value / max(total, 1)) * 100)
-                progress_text = f"{display_value:,} / {total:,} ({percent}%)"
-                progress_detail_has_count = bool(
-                    re.search(r"\d[\d,]*\s*/\s*\d[\d,]*", progress_detail)
-                    or re.search(r"\(\s*\d{1,3}%\s*\)", progress_detail)
-                )
-                if progress_detail_has_count:
-                    detail_with_progress = (
-                        progress_detail
-                        if re.search(r"\(\s*\d{1,3}%\s*\)", progress_detail)
-                        else f"{progress_detail} ({percent}%)"
-                    )
-                    bar_format_text = f"{percent}%"
-                else:
-                    detail_with_progress = f"{progress_detail} [{progress_text}]"
-                    bar_format_text = progress_text
-                self.archive_scan_progress_label.setText(detail_with_progress)
-                self._update_startup_splash(detail_with_progress, completed_value, total)
-                self.archive_scan_progress_bar.setRange(0, total)
-                self.archive_scan_progress_bar.setValue(completed_value)
-                self.archive_scan_progress_bar.setFormat(bar_format_text)
+                percent = self._archive_progress_percent_for_detail(completed_value, total, progress_detail)
+                phase_percent = int(round(100.0 * completed_value / max(total, 1)))
+                detail_with_progress = f"{progress_detail} ({phase_percent}%)"
+                self._set_archive_load_progress(progress_detail, completed_value, total, percent=percent)
+                self._update_startup_splash(detail_with_progress, percent, 100)
                 self._set_archive_warmup_overlay(
                     True,
                     "Scanning Archive Packages",
                     detail_with_progress,
                     current=completed_value,
                     total=total,
-                    fmt=bar_format_text,
+                    fmt=f"{percent}%",
                 )
             else:
-                self.archive_scan_progress_label.setText(progress_detail)
-                self._update_startup_splash(progress_detail, current, total)
-                self.archive_scan_progress_bar.setRange(0, 0)
-                self.archive_scan_progress_bar.setFormat("Working...")
+                percent = self._archive_progress_percent_for_detail(current, total, progress_detail)
+                detail_with_progress = progress_detail
+                self._set_archive_load_progress(progress_detail, current, total, percent=percent)
+                self._update_startup_splash(detail_with_progress, percent, 100)
                 self._set_archive_warmup_overlay(
                     True,
                     "Scanning Archive Packages",
@@ -16523,6 +16898,11 @@ def run_gui() -> int:
                 if isinstance(payload.get("extension_index"), dict)
                 else {}
             )
+            self.archive_entries_by_role = (
+                payload.get("role_index", {})
+                if isinstance(payload.get("role_index"), dict)
+                else {}
+            )
             extension_counts_payload = payload.get("extension_counts", {})
             self.archive_extension_counts = Counter(
                 {
@@ -16548,7 +16928,12 @@ def run_gui() -> int:
             self.archive_result_filter_signature = tuple(payload.get("result_filter_signature") or self._current_archive_filter_signature())
             self.archive_basic_index_state = (
                 "ready"
-                if self.archive_entries_by_normalized_path and self.archive_entries_by_basename and self.archive_entries_by_extension
+                if (
+                    self.archive_entries_by_normalized_path
+                    and self.archive_entries_by_basename
+                    and self.archive_entries_by_extension
+                    and self.archive_entries_by_role
+                )
                 else "warming"
                 if self.archive_entries
                 else "idle"
@@ -16689,13 +17074,11 @@ def run_gui() -> int:
                 or self._is_tool_visible_or_current(self.archive_browser_tab)
             )
             _write_heartbeat("archive_finalize")
-            self.archive_scan_progress_label.setText(
-                "Rendering archive browser view..." if rendering_archive_view else "Finalizing archive load..."
-            )
-            self.archive_scan_progress_bar.setRange(0, 0)
-            self.archive_scan_progress_bar.setFormat("Rendering..." if rendering_archive_view else "Finalizing...")
-            self.set_status_message("Rendering archive browser view..." if rendering_archive_view else "Finalizing archive load...")
-            self.append_archive_log("Rendering archive browser view..." if rendering_archive_view else "Finalizing archive load...")
+            finalize_text = "Rendering archive browser view..." if rendering_archive_view else "Finalizing archive load..."
+            self._set_archive_load_progress(finalize_text, percent=90 if rendering_archive_view else 96)
+            self._update_startup_splash(f"{finalize_text} ({self._archive_load_progress_percent}%)", self._archive_load_progress_percent, 100)
+            self.set_status_message(finalize_text)
+            self.append_archive_log(finalize_text)
             self.archive_scan_finalize_pending = True
             QTimer.singleShot(
                 0,
@@ -16751,12 +17134,11 @@ def run_gui() -> int:
                     self.archive_stats_label.setText(
                         f"{len(self.archive_entries):,} archive entries loaded. Texture sidecar cache is warming in the background."
                     )
-                    self.archive_scan_progress_label.setText(
-                        "Archive entries loaded. Texture sidecar cache is tracked in the compact status indicator."
+                    self._set_archive_load_progress(
+                        "Archive entries loaded. Texture sidecar cache is tracked in the compact status indicator.",
+                        phase="Sidecar",
+                        percent=96,
                     )
-                    self.archive_scan_progress_bar.setRange(0, 1)
-                    self.archive_scan_progress_bar.setValue(1)
-                    self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
                     self._set_archive_sidecar_status(warmup_text)
                     self.set_status_message(warmup_text)
                     self.append_archive_log(warmup_text)
@@ -16811,6 +17193,7 @@ def run_gui() -> int:
                 self.archive_entries_by_normalized_path
                 and self.archive_entries_by_basename
                 and self.archive_entries_by_extension
+                and self.archive_entries_by_role
             ):
                 self.archive_basic_index_state = "ready"
                 return
@@ -16851,6 +17234,7 @@ def run_gui() -> int:
             path_index = payload.get("path_index")
             basename_index = payload.get("basename_index")
             extension_index = payload.get("extension_index")
+            role_index = payload.get("role_index")
             if isinstance(path_index, dict):
                 self.archive_entries_by_normalized_path = path_index
             if isinstance(basename_index, dict):
@@ -16864,6 +17248,8 @@ def run_gui() -> int:
                         if extension and isinstance(items, list)
                     }
                 )
+            if isinstance(role_index, dict):
+                self.archive_entries_by_role = role_index
             self.archive_basic_index_state = "ready"
             elapsed_s = max(0.0, float(payload.get("elapsed_s", 0.0) or 0.0))
             _record_runtime_event(
@@ -16873,6 +17259,7 @@ def run_gui() -> int:
                 path_keys=len(self.archive_entries_by_normalized_path),
                 basename_keys=len(self.archive_entries_by_basename),
                 extension_keys=len(self.archive_entries_by_extension),
+                role_keys=len(self.archive_entries_by_role),
             )
             if bool(payload.get("cache_loaded")):
                 self.append_archive_log(f"Path lookup loaded from cache in {elapsed_s:.2f}s.")
@@ -16905,9 +17292,7 @@ def run_gui() -> int:
                 return
             self.archive_enhanced_index_state = "warming"
             self.archive_enhanced_index_activity = "loading"
-            self.archive_scan_progress_label.setText("Loading item-name search...")
-            self.archive_scan_progress_bar.setRange(0, 0)
-            self.archive_scan_progress_bar.setFormat("Search")
+            self._set_archive_load_progress("Loading item-name search...", phase="Indexing")
             self.set_status_message("Loading item-name search...")
             package_root_text = self.archive_package_root_edit.text().strip()
             worker = ArchiveEnhancedIndexWorker(
@@ -17292,10 +17677,7 @@ def run_gui() -> int:
                 else f"Texture sidecar bindings indexed{elapsed_suffix}."
             )
             if self.worker_thread is None and not self._utility_updates_archive_progress:
-                self.archive_scan_progress_label.setText(completion_text)
-                self.archive_scan_progress_bar.setRange(0, 1)
-                self.archive_scan_progress_bar.setValue(1)
-                self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
+                self._set_archive_load_progress(completion_text, phase="Ready", percent=100)
                 self._set_archive_warmup_overlay(False)
             self._finish_archive_sidecar_status(completion_text, success=True)
             self.set_status_message(completion_text)
@@ -17337,10 +17719,7 @@ def run_gui() -> int:
                 self.archive_stats_label.setText(
                     f"{len(self.archive_entries):,} archive entries loaded. Texture sidecar cache ready."
                 )
-                self.archive_scan_progress_label.setText(completion_text)
-                self.archive_scan_progress_bar.setRange(0, 1)
-                self.archive_scan_progress_bar.setValue(1)
-                self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
+                self._set_archive_load_progress(completion_text, phase="Ready", percent=100)
                 self._set_archive_warmup_overlay(False)
                 self.set_status_message(completion_text)
                 self.append_archive_log(completion_text)
@@ -17373,10 +17752,7 @@ def run_gui() -> int:
             self.append_log(f"ERROR: {error_text}")
             self.append_archive_log(f"ERROR: {error_text}")
             if self.worker_thread is None and not self._utility_updates_archive_progress:
-                self.archive_scan_progress_label.setText(error_text)
-                self.archive_scan_progress_bar.setRange(0, 1)
-                self.archive_scan_progress_bar.setValue(0)
-                self.archive_scan_progress_bar.setFormat("Failed")
+                self._set_archive_load_progress(error_text, phase="Failed", percent=0, allow_decrease=True)
             self._finish_archive_sidecar_status(error_text, success=False)
             self._set_archive_warmup_overlay(False)
             if self.archive_browser_warmup_pending:
@@ -17545,8 +17921,26 @@ def run_gui() -> int:
             extension_filter = normalize_archive_extension_filter(str(state.get("extension_filter", "*") or "*"))
             return extension_filter != ".pac"
 
+        def _archive_filter_state_needs_basic_lookup(self, state: Mapping[str, object]) -> bool:
+            extension_filter = normalize_archive_extension_filter(str(state.get("extension_filter", "*") or "*"))
+            if extension_filter and extension_filter not in {"*", "all", ".*"}:
+                return True
+            role_filter = str(state.get("role_filter", "all") or "all").strip().lower()
+            if role_filter and role_filter != "all":
+                return True
+            try:
+                sort_column = int(state.get("sort_column", -1))
+            except (TypeError, ValueError):
+                sort_column = -1
+            if archive_browser_sort_is_active(sort_column):
+                return True
+            return self._archive_filter_state_needs_path_lookup(state)
+
         def _current_archive_filter_needs_path_lookup(self) -> bool:
             return self._archive_filter_state_needs_path_lookup(self._capture_archive_filter_state())
+
+        def _current_archive_filter_needs_basic_lookup(self) -> bool:
+            return self._archive_filter_state_needs_basic_lookup(self._capture_archive_filter_state())
 
         def _archive_filter_waits_for_item_search(self) -> bool:
             return (
@@ -17580,14 +17974,14 @@ def run_gui() -> int:
             return "Archive ready."
 
         def _archive_progress_format_text(self) -> str:
-            return "Ready" if self._archive_background_search_ready() else "List"
+            return f"{min(max(int(getattr(self, '_archive_load_progress_percent', 100)), 0), 100)}%"
 
         def _set_archive_list_status(self, base_text: str = "Archive list available") -> None:
             status_text = self._archive_status_text(base_text)
-            self.archive_scan_progress_label.setText(status_text)
-            self.archive_scan_progress_bar.setRange(0, 1)
-            self.archive_scan_progress_bar.setValue(1)
-            self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
+            if self._archive_background_search_ready():
+                self._set_archive_load_progress(status_text, phase="Ready", percent=100)
+            else:
+                self._set_archive_load_progress(status_text, phase="Indexing", percent=90)
             self.set_status_message(status_text)
 
         def _startup_archive_core_ready(self) -> bool:
@@ -17792,11 +18186,14 @@ def run_gui() -> int:
                     self.append_archive_log("Filters will apply when item-name search is ready.")
                     self._set_archive_list_status("Archive list available")
                 return
-            needs_path_lookup = self._archive_filter_state_needs_path_lookup(saved_state)
-            if self.archive_basic_index_state == "warming" and needs_path_lookup:
+            needs_basic_lookup = self._archive_filter_state_needs_basic_lookup(saved_state)
+            if self.archive_basic_index_state == "warming" and needs_basic_lookup:
+                if self.archive_deferred_basic_index_start_pending and self.archive_basic_index_thread is None:
+                    self.archive_deferred_basic_index_start_pending = False
+                    QTimer.singleShot(0, self._start_archive_basic_index_worker)
                 if not self.archive_startup_saved_filter_wait_logged:
                     self.archive_startup_saved_filter_wait_logged = True
-                    self.append_archive_log("Filters will apply when path lookup is ready.")
+                    self.append_archive_log("Filters will apply when archive lookup indexes are ready.")
                     self._set_archive_list_status("Archive list available")
                 return
             if (
@@ -17889,7 +18286,7 @@ def run_gui() -> int:
                 or self.archive_enhanced_index_state == "warming"
                 or (
                     self.archive_basic_index_state == "warming"
-                    and self._current_archive_filter_needs_path_lookup()
+                    and self._current_archive_filter_needs_basic_lookup()
                 )
             ):
                 self.append_archive_log(
@@ -17913,18 +18310,12 @@ def run_gui() -> int:
             if self.archive_tree_clear_active:
                 self._cancel_archive_tree_clear()
                 pause_text = "Archive list update paused while filters are being edited. Press Apply Filters to refresh."
-                self.archive_scan_progress_label.setText(pause_text)
-                self.archive_scan_progress_bar.setRange(0, 1)
-                self.archive_scan_progress_bar.setValue(0)
-                self.archive_scan_progress_bar.setFormat("Paused")
+                self._set_archive_load_progress(pause_text, phase="Paused", percent=0, allow_decrease=True)
                 self.set_status_message(pause_text)
             if self.archive_tree_population_active:
                 self._cancel_archive_tree_population()
                 pause_text = "Archive list update paused while filters are being edited. Press Apply Filters to refresh."
-                self.archive_scan_progress_label.setText(pause_text)
-                self.archive_scan_progress_bar.setRange(0, 1)
-                self.archive_scan_progress_bar.setValue(0)
-                self.archive_scan_progress_bar.setFormat("Paused")
+                self._set_archive_load_progress(pause_text, phase="Paused", percent=0, allow_decrease=True)
                 self.set_status_message(pause_text)
             if self.archive_filter_worker is not None:
                 try:
@@ -18160,9 +18551,10 @@ def run_gui() -> int:
                 if self.archive_filter_worker is not None:
                     self.archive_filter_apply_pending = True
                     self.archive_filter_worker.stop()
-                    self.archive_scan_progress_label.setText("Stopping previous archive filter before applying column sort...")
-                    self.archive_scan_progress_bar.setRange(0, 0)
-                    self.archive_scan_progress_bar.setFormat("Stopping...")
+                    self._set_archive_load_progress(
+                        "Stopping previous archive filter before applying column sort...",
+                        phase="Stopping",
+                    )
                 else:
                     self.archive_browser_refresh_pending = True
                     self.set_status_message("Archive column sort will apply after the current task finishes.")
@@ -18296,9 +18688,7 @@ def run_gui() -> int:
                 if self.archive_filter_worker is not None:
                     self.archive_filter_apply_pending = True
                     self.archive_filter_worker.stop()
-                    self.archive_scan_progress_label.setText("Stopping previous archive filter...")
-                    self.archive_scan_progress_bar.setRange(0, 0)
-                    self.archive_scan_progress_bar.setFormat("Stopping...")
+                    self._set_archive_load_progress("Stopping previous archive filter...", phase="Stopping")
                     self.set_status_message("Stopping previous archive filter...")
                 return
             if not self.archive_entries:
@@ -18316,22 +18706,18 @@ def run_gui() -> int:
                     QTimer.singleShot(0, self._start_archive_enhanced_index_worker)
                 wait_text = "Item-name search is still building. Path searches are available; item-name search will run automatically when ready."
                 self.archive_enhanced_filter_refresh_pending = True
-                self.archive_scan_progress_label.setText(wait_text)
-                self.archive_scan_progress_bar.setRange(0, 0)
-                self.archive_scan_progress_bar.setFormat("Search")
+                self._set_archive_load_progress(wait_text, phase="Indexing")
                 self.set_status_message(wait_text)
                 self.append_archive_log(wait_text)
                 self._schedule_archive_pending_enhanced_filter_refresh(500)
                 return
-            if self.archive_basic_index_state == "warming" and self._current_archive_filter_needs_path_lookup():
+            if self.archive_basic_index_state == "warming" and self._current_archive_filter_needs_basic_lookup():
                 if self.archive_deferred_basic_index_start_pending and self.archive_basic_index_thread is None:
                     self.archive_deferred_basic_index_start_pending = False
                     QTimer.singleShot(0, self._start_archive_basic_index_worker)
-                wait_text = "Path lookup is still loading. This search will run automatically when path lookup is ready."
+                wait_text = "Archive lookup indexes are still loading. This search will run automatically when lookup is ready."
                 self.archive_enhanced_filter_refresh_pending = True
-                self.archive_scan_progress_label.setText(wait_text)
-                self.archive_scan_progress_bar.setRange(0, 0)
-                self.archive_scan_progress_bar.setFormat("Search")
+                self._set_archive_load_progress(wait_text, phase="Indexing")
                 self.set_status_message(wait_text)
                 self.append_archive_log(wait_text)
                 self._schedule_archive_pending_enhanced_filter_refresh(500)
@@ -18362,9 +18748,8 @@ def run_gui() -> int:
             self.archive_filter_requested_signature = request_signature
             self.archive_filter_apply_pending = False
             self._mark_archive_browser_render_stale()
-            self.archive_scan_progress_label.setText("Preparing archive filter...")
-            self.archive_scan_progress_bar.setRange(0, 0)
-            self.archive_scan_progress_bar.setFormat("Working...")
+            self._reset_archive_load_progress()
+            self._set_archive_load_progress("Preparing archive filter...", phase="Filtering")
             self.set_status_message("Applying archive filters...")
             self.append_archive_log("Applying archive filters...")
             performance_settings = self._current_archive_performance_settings()
@@ -18372,6 +18757,7 @@ def run_gui() -> int:
             worker = ArchiveFilterWorker(
                 self.archive_entries,
                 entries_by_extension=self.archive_entries_by_extension,
+                entries_by_role=self.archive_entries_by_role,
                 entries_by_normalized_path=self.archive_entries_by_normalized_path,
                 entries_by_basename=self.archive_entries_by_basename,
                 archive_name_search_index=self.archive_name_search_index,
@@ -18401,6 +18787,7 @@ def run_gui() -> int:
             worker.moveToThread(thread)
 
             thread.started.connect(worker.run)
+            worker.log_message.connect(lambda message: self.append_archive_log(message, verbose=True))
             worker.progress_changed.connect(self._handle_archive_scan_progress)
             worker.completed.connect(self._handle_archive_filter_complete)
             worker.error.connect(self._handle_worker_error)
@@ -18425,10 +18812,7 @@ def run_gui() -> int:
                 self.archive_filters_dirty = True
                 self._update_archive_filter_button_state()
                 stale_text = "Archive filter inputs changed while results were still loading. Press Apply Filters to refresh."
-                self.archive_scan_progress_label.setText(stale_text)
-                self.archive_scan_progress_bar.setRange(0, 1)
-                self.archive_scan_progress_bar.setValue(0)
-                self.archive_scan_progress_bar.setFormat("Stale")
+                self._set_archive_load_progress(stale_text, phase="Stale", percent=0, allow_decrease=True)
                 self.set_status_message(stale_text)
                 return
             self.archive_filtered_entries = (
@@ -18467,9 +18851,7 @@ def run_gui() -> int:
             self.archive_filters_dirty = False
             self.archive_enhanced_filter_refresh_pending = False
             self._update_archive_filter_button_state()
-            self.archive_scan_progress_label.setText("Rendering archive browser view...")
-            self.archive_scan_progress_bar.setRange(0, 0)
-            self.archive_scan_progress_bar.setFormat("Rendering...")
+            self._set_archive_load_progress("Rendering archive browser view...", phase="Rendering", percent=90)
             self._set_archive_warmup_overlay(
                 True,
                 "Preparing Archive Browser View",
@@ -19004,6 +19386,7 @@ def run_gui() -> int:
             prepared_key: Tuple[Tuple[str, ...], str],
             note: str,
         ) -> None:
+            self._forget_archive_item_icon_pixmap_cache(prepared_key)
             self.archive_item_icon_negative_cache[prepared_key] = (
                 time.monotonic(),
                 str(note or "Icon preview could not be prepared."),
@@ -19011,6 +19394,19 @@ def run_gui() -> int:
             self.archive_item_icon_negative_cache.move_to_end(prepared_key)
             while len(self.archive_item_icon_negative_cache) > self.archive_item_icon_prepared_cache_limit:
                 self.archive_item_icon_negative_cache.popitem(last=False)
+
+        def _forget_archive_item_icon_pixmap_cache(
+            self,
+            prepared_key: Tuple[Tuple[str, ...], str],
+        ) -> None:
+            icon_paths, texconv_key = prepared_key
+            stale_keys = [
+                cache_key
+                for cache_key in self.archive_item_icon_pixmap_cache
+                if cache_key[0] == icon_paths and cache_key[2] == texconv_key
+            ]
+            for cache_key in stale_keys:
+                self.archive_item_icon_pixmap_cache.pop(cache_key, None)
 
         def _clear_archive_asset_catalog_icon_cache(self) -> None:
             self.archive_item_icon_warmup_generation += 1
@@ -19041,8 +19437,12 @@ def run_gui() -> int:
                 return None, "No recovered inventory icon could be resolved for this row."
             cached = self.archive_item_icon_pixmap_cache.get(cache_key)
             if cached is not None:
-                self.archive_item_icon_pixmap_cache.move_to_end(cache_key)
-                return cached
+                cached_pixmap, _cached_note = cached
+                if cached_pixmap is None or cached_pixmap.isNull():
+                    self.archive_item_icon_pixmap_cache.pop(cache_key, None)
+                else:
+                    self.archive_item_icon_pixmap_cache.move_to_end(cache_key)
+                    return cached
             prepared_key = (icon_paths, texconv_key)
             prepared = self.archive_item_icon_prepared_path_cache.get(prepared_key)
             if prepared is not None:
@@ -19066,16 +19466,14 @@ def run_gui() -> int:
                             self.archive_item_icon_pixmap_cache.popitem(last=False)
                         return scaled_value
                 self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)
-            negative_note = ""
             for (cached_icon_paths, _cached_size, cached_texconv_key), cached_value in reversed(
-                self.archive_item_icon_pixmap_cache.items()
+                list(self.archive_item_icon_pixmap_cache.items())
             ):
                 if cached_icon_paths != icon_paths or cached_texconv_key != texconv_key:
                     continue
                 cached_pixmap, cached_note = cached_value
                 if cached_pixmap is None or cached_pixmap.isNull():
-                    if cached_note and not negative_note:
-                        negative_note = cached_note
+                    self.archive_item_icon_pixmap_cache.pop((cached_icon_paths, _cached_size, cached_texconv_key), None)
                     continue
                 scaled_value = (
                     cached_pixmap.scaled(requested_size, requested_size, Qt.KeepAspectRatio, Qt.SmoothTransformation),
@@ -19086,23 +19484,18 @@ def run_gui() -> int:
                 while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit:
                     self.archive_item_icon_pixmap_cache.popitem(last=False)
                 return scaled_value
-            if negative_note:
-                result = (None, negative_note)
-                self.archive_item_icon_pixmap_cache[cache_key] = result
-                self.archive_item_icon_pixmap_cache.move_to_end(cache_key)
-                while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit:
-                    self.archive_item_icon_pixmap_cache.popitem(last=False)
-                return result
             negative_note = self._archive_item_icon_negative_note(prepared_key)
             if negative_note:
                 return None, negative_note
             if not allow_sync_prepare:
                 return None, "Icon preview is warming in the background."
             result = self._archive_asset_catalog_inventory_icon_pixmap(row, requested_size)
-            self.archive_item_icon_pixmap_cache[cache_key] = result
-            self.archive_item_icon_pixmap_cache.move_to_end(cache_key)
-            while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit:
-                self.archive_item_icon_pixmap_cache.popitem(last=False)
+            pixmap, _note = result
+            if pixmap is not None and not pixmap.isNull():
+                self.archive_item_icon_pixmap_cache[cache_key] = result
+                self.archive_item_icon_pixmap_cache.move_to_end(cache_key)
+                while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit:
+                    self.archive_item_icon_pixmap_cache.popitem(last=False)
             return result
 
         def _schedule_archive_asset_catalog_icon_preload(self, delay_ms: int = 900) -> None:
@@ -19302,6 +19695,7 @@ def run_gui() -> int:
                     except Exception:
                         pass
                 return
+            self._forget_archive_item_icon_pixmap_cache(cache_key)
             self.archive_item_icon_prepared_path_cache[cache_key] = (str(preview_path), str(note or "Recovered inventory icon"))
             self.archive_item_icon_prepared_path_cache.move_to_end(cache_key)
             while len(self.archive_item_icon_prepared_path_cache) > self.archive_item_icon_prepared_cache_limit:
@@ -20907,10 +21301,7 @@ def run_gui() -> int:
                 self.archive_tree_index_ready = False
             self.archive_filters_dirty = False
             self._update_archive_filter_button_state()
-            self.archive_scan_progress_label.setText(progress_text)
-            self.archive_scan_progress_bar.setRange(0, 1)
-            self.archive_scan_progress_bar.setValue(1)
-            self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
+            self._set_archive_load_progress(progress_text, phase="Ready", percent=100)
             self.append_archive_log(log_text)
             preferred_path = self.archive_filtered_entries[0].path if self.archive_filtered_entries else ""
             self._populate_archive_tree(preferred_path, rebuild_index=False)
@@ -21218,12 +21609,12 @@ def run_gui() -> int:
             self.archive_tree_clear_batch_size = self._suggest_archive_tree_clear_batch_size(total_items)
             self._archive_tree_clear_on_complete = on_complete
             self.archive_tree.setEnabled(False)
-            self.archive_scan_progress_label.setText(
-                f"Clearing previous archive rows in batches... 0 / {total_items:,}"
+            self._set_archive_load_progress(
+                f"Rendering archive browser cleanup... 0 / {total_items:,}",
+                0,
+                total_items,
+                phase="Rendering",
             )
-            self.archive_scan_progress_bar.setRange(0, max(1, total_items))
-            self.archive_scan_progress_bar.setValue(0)
-            self.archive_scan_progress_bar.setFormat("%v / %m")
             self.archive_tree_clear_timer.start()
             return True
 
@@ -21245,12 +21636,12 @@ def run_gui() -> int:
                 self.archive_tree.setUpdatesEnabled(True)
             self.archive_tree_clear_removed_items += removed_this_batch
             total_items = max(1, self.archive_tree_clear_total_items)
-            self.archive_scan_progress_label.setText(
-                f"Clearing previous archive rows in batches... {self.archive_tree_clear_removed_items:,} / {total_items:,}"
+            self._set_archive_load_progress(
+                f"Rendering archive browser cleanup... {self.archive_tree_clear_removed_items:,} / {total_items:,}",
+                self.archive_tree_clear_removed_items,
+                total_items,
+                phase="Rendering",
             )
-            self.archive_scan_progress_bar.setRange(0, total_items)
-            self.archive_scan_progress_bar.setValue(min(self.archive_tree_clear_removed_items, total_items))
-            self.archive_scan_progress_bar.setFormat("%v / %m")
             if self.archive_tree.topLevelItemCount() > 0:
                 self.archive_tree_clear_timer.start()
                 return
@@ -21358,18 +21749,16 @@ def run_gui() -> int:
                     f"Rendering archive browser view in batches to keep the UI responsive... "
                     f"{end_index:,} / {total_entries:,}"
                 )
-                self._update_startup_splash(progress_text, end_index, total_entries)
-                self.archive_scan_progress_label.setText(progress_text)
-                self.archive_scan_progress_bar.setRange(0, max(1, total_entries))
-                self.archive_scan_progress_bar.setValue(end_index)
-                self.archive_scan_progress_bar.setFormat("%v / %m")
+                self._set_archive_load_progress(progress_text, end_index, total_entries, phase="Rendering")
+                render_percent = int(getattr(self, "_archive_load_progress_percent", 0) or 0)
+                self._update_startup_splash(f"{progress_text} ({render_percent}%)", render_percent, 100)
                 self._set_archive_warmup_overlay(
                     True,
                     "Preparing Archive Browser View",
                     progress_text,
                     current=end_index,
                     total=total_entries,
-                    fmt=f"{end_index} / {total_entries}",
+                    fmt=f"{render_percent}%",
                 )
                 self.set_status_message(progress_text)
                 self.archive_tree_population_last_progress_update = now
@@ -21487,10 +21876,7 @@ def run_gui() -> int:
                 f"Rendering {category} category in batches... "
                 f"{end_index:,} / {render_total:,}"
             )
-            self.archive_scan_progress_label.setText(progress_text)
-            self.archive_scan_progress_bar.setRange(0, max(1, render_total))
-            self.archive_scan_progress_bar.setValue(end_index)
-            self.archive_scan_progress_bar.setFormat("%v / %m")
+            self._set_archive_load_progress(progress_text, end_index, render_total, phase="Rendering")
             self.set_status_message(progress_text)
             self.archive_tree_category_population_timer.start()
 
@@ -21516,10 +21902,7 @@ def run_gui() -> int:
                     f"Rendering {category} category in batches... "
                     f"{end_index:,} / {render_total:,}"
                 )
-                self.archive_scan_progress_label.setText(progress_text)
-                self.archive_scan_progress_bar.setRange(0, max(1, render_total))
-                self.archive_scan_progress_bar.setValue(end_index)
-                self.archive_scan_progress_bar.setFormat("%v / %m")
+                self._set_archive_load_progress(progress_text, end_index, render_total, phase="Rendering")
                 self.set_status_message(progress_text)
                 self.archive_tree_category_population_timer.start()
                 return
@@ -21547,10 +21930,7 @@ def run_gui() -> int:
             completion = f"Rendered {min(rendered_count, total_count):,} visible row(s) for {category or 'category'}."
             if total_count > rendered_count:
                 completion += f" {total_count - rendered_count:,} hidden; refine filters to browse the rest."
-            self.archive_scan_progress_label.setText(completion)
-            self.archive_scan_progress_bar.setRange(0, 1)
-            self.archive_scan_progress_bar.setValue(1)
-            self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
+            self._set_archive_load_progress(completion, phase="Ready", percent=100)
             self.set_status_message(completion)
 
         def _ensure_archive_folder_item_populated(self, item: Optional[QTreeWidgetItem]) -> None:
@@ -21931,18 +22311,16 @@ def run_gui() -> int:
                             "Rendering archive browser items in batches to keep the UI responsive... "
                             f"{initial_end_index:,} / {total_entries:,}"
                         )
-                        self._update_startup_splash(progress_text, initial_end_index, total_entries)
-                        self.archive_scan_progress_label.setText(progress_text)
-                        self.archive_scan_progress_bar.setRange(0, max(1, total_entries))
-                        self.archive_scan_progress_bar.setValue(initial_end_index)
-                        self.archive_scan_progress_bar.setFormat("%v / %m")
+                        self._set_archive_load_progress(progress_text, initial_end_index, total_entries, phase="Rendering")
+                        render_percent = int(getattr(self, "_archive_load_progress_percent", 0) or 0)
+                        self._update_startup_splash(f"{progress_text} ({render_percent}%)", render_percent, 100)
                         self._set_archive_warmup_overlay(
                             True,
                             "Preparing Archive Browser View",
                             progress_text,
                             current=initial_end_index,
                             total=total_entries,
-                            fmt=f"{initial_end_index} / {total_entries}",
+                            fmt=f"{render_percent}%",
                         )
                         self.set_status_message(progress_text)
                         self.archive_tree_population_timer.start()
@@ -24103,6 +24481,8 @@ def run_gui() -> int:
 
         def _start_archive_preview_loading_indicator(self, entry: Optional[ArchiveEntry]) -> None:
             self.archive_preview_loading_started_at = time.perf_counter()
+            self.archive_preview_loading_request_id = int(getattr(self, "archive_preview_request_id", 0) or 0)
+            self.archive_preview_loading_stall_reported = False
             self.archive_preview_loading_entry_name = entry.basename if entry is not None else "selected file"
             self.archive_preview_loading_loose = bool(self.archive_preview_requested_loose)
             self.archive_scan_progress_bar.setRange(0, 0)
@@ -24116,7 +24496,13 @@ def run_gui() -> int:
         def _update_archive_preview_loading_indicator(self) -> None:
             if self.archive_preview_loading_started_at <= 0.0:
                 return
+            if int(getattr(self, "archive_preview_loading_request_id", 0) or 0) != int(getattr(self, "archive_preview_request_id", 0) or 0):
+                self._stop_archive_preview_loading_indicator(success=None)
+                return
             elapsed = max(0.0, time.perf_counter() - self.archive_preview_loading_started_at)
+            if elapsed >= 60.0:
+                self._handle_archive_preview_loading_stall(elapsed)
+                return
             prefix = "Loading loose-file preview" if self.archive_preview_loading_loose else "Loading preview"
             detail = f"{prefix} for {self.archive_preview_loading_entry_name}... {elapsed:.1f}s"
             self.archive_scan_progress_label.setText(detail)
@@ -24134,6 +24520,61 @@ def run_gui() -> int:
             if not self.archive_preview_quick_result_active:
                 self._set_archive_preview_base_detail_text(loading_text, include_current_model_debug=False)
 
+        def _handle_archive_preview_loading_stall(self, elapsed: float) -> None:
+            if bool(getattr(self, "archive_preview_loading_stall_reported", False)):
+                return
+            self.archive_preview_loading_stall_reported = True
+            request_id = int(getattr(self, "archive_preview_loading_request_id", 0) or 0)
+            has_fast_result = str(getattr(getattr(self, "current_archive_preview_result", None), "quality_tier", "") or "").strip().lower() == "fast"
+            preview_phase = "full_after_fast" if has_fast_result or self.archive_preview_quick_result_active else "initial"
+            if self.archive_preview_worker is not None:
+                try:
+                    self.archive_preview_worker.stop()
+                except Exception:
+                    pass
+            if self.archive_preview_thread is not None:
+                try:
+                    self.archive_preview_thread.requestInterruption()
+                except Exception:
+                    pass
+                try:
+                    self.archive_preview_thread.quit()
+                except Exception:
+                    pass
+            try:
+                shutdown_native_preview_core_service()
+            except Exception:
+                pass
+            _record_runtime_event(
+                "archive_preview_stalled",
+                preview_stalled=True,
+                preview_phase=preview_phase,
+                request_id=request_id,
+                elapsed_seconds=round(float(elapsed), 3),
+                path=str(getattr(self._current_archive_entry(), "path", "") or ""),
+            )
+            self.archive_preview_request_id += 1
+            self.pending_archive_preview_request = None
+            self.scheduled_archive_preview_request = None
+            self.archive_preview_debounce_timer.stop()
+            self.archive_preview_loading_timer.stop()
+            self.archive_preview_loading_started_at = 0.0
+            self.archive_preview_loading_entry_name = ""
+            self.archive_preview_loading_loose = False
+            self.archive_preview_quick_result_active = False
+            if has_fast_result:
+                message = "Fast preview remains visible; full preview timed out and was stopped."
+                self.archive_scan_progress_label.setText(message)
+                self.archive_scan_progress_bar.setRange(0, 1)
+                self.archive_scan_progress_bar.setValue(1)
+                self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
+                self.archive_preview_health_label.setText(message)
+                self.archive_preview_health_label.setVisible(True)
+                self.set_status_message(message, error=True)
+                return
+            self._clear_archive_preview("Preview timed out while loading. Select the file again or use Fast Detail.")
+            self.set_status_message("Archive preview timed out and was stopped.", error=True)
+
         def _stop_archive_preview_loading_indicator(self, *, success: Optional[bool]) -> None:
             elapsed = (
                 max(0.0, time.perf_counter() - self.archive_preview_loading_started_at)
@@ -24143,6 +24584,8 @@ def run_gui() -> int:
             entry_name = self.archive_preview_loading_entry_name
             self.archive_preview_loading_timer.stop()
             self.archive_preview_loading_started_at = 0.0
+            self.archive_preview_loading_request_id = 0
+            self.archive_preview_loading_stall_reported = False
             self.archive_preview_loading_entry_name = ""
             self.archive_preview_loading_loose = False
             self.archive_preview_quick_result_active = False
@@ -24537,11 +24980,22 @@ def run_gui() -> int:
                 "archive_path_index_key_count": len(getattr(self, "archive_entries_by_normalized_path", {}) or {}),
                 "archive_basename_index_key_count": len(getattr(self, "archive_entries_by_basename", {}) or {}),
                 "archive_extension_index_key_count": len(getattr(self, "archive_entries_by_extension", {}) or {}),
+                "archive_role_index_key_count": len(getattr(self, "archive_entries_by_role", {}) or {}),
                 "archive_basic_index_state": str(getattr(self, "archive_basic_index_state", "") or ""),
                 "archive_name_search_token_count": int(getattr(name_search_index, "row_count", 0) or 0),
                 "archive_asset_family_cache_entries": len(getattr(self, "archive_asset_family_cache", {}) or {}),
                 "archive_active_workers": tuple(active_workers),
                 "archive_preview_cache_entries": len(getattr(self, "archive_preview_cache", {}) or {}),
+                "archive_preview_cache_prepared_bytes": sum(
+                    self._archive_preview_result_prepared_bytes(cached_result)
+                    for cached_result in tuple(getattr(self, "archive_preview_cache", {}).values())
+                    if isinstance(cached_result, ArchivePreviewResult)
+                ),
+                "archive_preview_current_prepared_bytes": (
+                    self._archive_preview_result_prepared_bytes(result)
+                    if isinstance(result, ArchivePreviewResult)
+                    else 0
+                ),
                 "archive_item_icon_cache_entries": len(getattr(self, "archive_item_icon_pixmap_cache", {}) or {}),
                 "archive_item_icon_cache_limit": int(getattr(self, "archive_item_icon_pixmap_cache_limit", 0) or 0),
                 "archive_item_icon_preload_limit": int(getattr(self, "archive_item_icon_preload_limit", 0) or 0),
@@ -24593,6 +25047,11 @@ def run_gui() -> int:
                 "d3d11_render_suppressed_count": int(d3d11_payload.get("render_suppressed_count", 0) or 0),
                 "d3d11_parent_unresponsive_count": int(d3d11_payload.get("parent_unresponsive_count", 0) or 0),
             }
+            payload["memory_total_private_bytes"] = (
+                int(payload.get("main_process_private_bytes", 0) or 0)
+                + int(payload.get("preview_core_process_private_bytes", 0) or 0)
+                + int(payload.get("d3d11_process_private_bytes", 0) or 0)
+            )
             return payload
 
         def _record_archive_memory_audit(
@@ -24998,6 +25457,52 @@ def run_gui() -> int:
             )
             self.archive_preview_cache.move_to_end(cache_key)
             self._trim_archive_preview_cache()
+
+        def _strip_archive_preview_heavy_payloads_for_mesh_editor(self, entry: Optional[ArchiveEntry]) -> None:
+            stripped_entries = 0
+            reclaimed_prepared_bytes = 0
+            for cache_key, cached_result in list(self.archive_preview_cache.items()):
+                if not isinstance(cached_result, ArchivePreviewResult):
+                    continue
+                reclaimed_prepared_bytes += self._archive_preview_result_prepared_bytes(cached_result)
+                self.archive_preview_cache[cache_key] = self._clone_archive_preview_result_for_cache(
+                    cached_result,
+                    keep_prepared_model=False,
+                )
+                stripped_entries += 1
+            current_result = getattr(self, "current_archive_preview_result", None)
+            current_prepared_bytes = (
+                self._archive_preview_result_prepared_bytes(current_result)
+                if isinstance(current_result, ArchivePreviewResult)
+                else 0
+            )
+            if isinstance(current_result, ArchivePreviewResult):
+                self.current_archive_preview_result = self._clone_archive_preview_result_for_cache(
+                    current_result,
+                    keep_prepared_model=False,
+                )
+            current_entry = self._current_archive_entry()
+            same_current_entry = bool(
+                entry is not None
+                and current_entry is not None
+                and self._same_archive_entry(current_entry, entry)
+            )
+            if same_current_entry and self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
+                try:
+                    self._shutdown_archive_isolated_renderer_host()
+                except Exception as exc:
+                    _record_runtime_event(
+                        "mesh_editor_archive_preview_pause_failed",
+                        path=str(getattr(entry, "path", "") or ""),
+                        message=str(exc),
+                    )
+            _record_runtime_event(
+                "mesh_editor_archive_preview_payloads_stripped",
+                path=str(getattr(entry, "path", "") or ""),
+                same_current_entry=same_current_entry,
+                stripped_cache_entries=stripped_entries,
+                reclaimed_prepared_bytes=reclaimed_prepared_bytes + current_prepared_bytes,
+            )
 
         def _trim_archive_preview_cache(self) -> None:
             while len(self.archive_preview_cache) > self.archive_preview_cache_limit:
@@ -27082,9 +27587,7 @@ def run_gui() -> int:
             can_export_preview = preview_model is not None and not self.archive_preview_showing_loose
             supports_textures = can_export_preview and self._archive_model_preview_supports_textures(preview_model)
             material_sidecar_entry = self._current_or_related_material_sidecar_entry()
-            bulk_placement_targets = self._selected_archive_bulk_placement_targets()
             selected_archive_entries = self._selected_archive_entries()
-            selected_count = len(selected_archive_entries)
             appearance_entry = self._current_archive_entry()
             appearance_extensions = {".app_xml", ".pac", ".pam", ".pamlod", ".prefab", ".pappt", ".prefabdata_xml"}
             can_appearance_composite = (
@@ -27121,14 +27624,6 @@ def run_gui() -> int:
                 if not controls_enabled
                 else "select a material sidecar, or a model with a resolved material sidecar, first"
             )
-            bulk_reason = busy_reason if not controls_enabled else (
-                "select two or more placement-capable target rows in Archive Files first"
-                if selected_count <= 0
-                else (
-                    f"select at least two placement-capable rows; current selection has {len(bulk_placement_targets)}. "
-                    "Use Ctrl/Shift-click in Archive Files, then Tools > Bulk Placement Swap"
-                )
-            )
             appearance_reason = (
                 busy_reason
                 if not controls_enabled
@@ -27138,6 +27633,12 @@ def run_gui() -> int:
                 busy_reason
                 if not controls_enabled
                 else "select one target body .app_xml and one donor .pac/.pam/.pamlod model, or select a donor model to search exact app XML matches"
+            )
+            self._set_action_button_state(
+                self.archive_open_mesh_editor_button,
+                controls_enabled and can_mesh_actions,
+                "Open the selected archive mesh in Assets > Mesh Editor. This is the primary mesh-editing workspace.",
+                mesh_reason,
             )
             self._set_action_button_state(
                 self.archive_model_export_obj_button,
@@ -27174,13 +27675,6 @@ def run_gui() -> int:
                 controls_enabled and can_mesh_actions,
                 "Create an editable clone workspace from the selected archive mesh, then re-import it through Mesh Replacement Geometry.",
                 mesh_reason,
-            )
-            self._set_action_button_state(
-                self.archive_bulk_placement_swap_button,
-                controls_enabled and len(bulk_placement_targets) > 1,
-                "Bulk Placement Swap: select two or more placement-capable rows in Archive Files first. "
-                "Each selected row is a target that changes; then choose one placement source per target and build one combined loose mod folder.",
-                bulk_reason,
             )
             self._set_action_button_state(
                 self.archive_appearance_composite_button,
@@ -28013,10 +28507,7 @@ def run_gui() -> int:
                     self._activate_archive_browser_on_scan_complete = False
                     self._refresh_or_defer_research_archive_picker()
                     ready_text = "Archive list available. Global texture sidecar indexing is disabled."
-                    self.archive_scan_progress_label.setText(ready_text)
-                    self.archive_scan_progress_bar.setRange(0, 1)
-                    self.archive_scan_progress_bar.setValue(1)
-                    self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
+                    self._set_archive_load_progress(ready_text, phase="Ready", percent=100)
                     self.set_status_message(ready_text)
                     self.append_archive_log(ready_text)
                     if self.worker_thread is None:
@@ -29297,7 +29788,8 @@ def run_gui() -> int:
             except Exception as exc:
                 QMessageBox.warning(owner or self, "Socket XML Editor", f"Could not read socket XML:\n{exc}")
                 return
-            original_text = data.decode("utf-8-sig", errors="ignore")
+            decoded_socket_xml = decode_xml_text_payload(data)
+            original_text = decoded_socket_xml.text
             try:
                 root = ET.fromstring(original_text)
             except Exception as exc:
@@ -29769,7 +30261,7 @@ def run_gui() -> int:
                 except Exception as exc:
                     QMessageBox.warning(dialog, "Compare Socket XML", f"Could not read compare socket XML:\n{exc}")
                     return
-                _load_compare_sockets(data.decode("utf-8-sig", errors="ignore"), entry.path, entry)
+                _load_compare_sockets(decode_xml_text_payload(data).text, entry.path, entry)
 
             def _open_archive_socket_compare_picker() -> None:
                 picker = QDialog(dialog)
@@ -29884,7 +30376,7 @@ def run_gui() -> int:
                     return
                 source_path = Path(selected_path)
                 try:
-                    text = source_path.read_text(encoding="utf-8-sig", errors="ignore")
+                    text = decode_xml_text_payload(source_path.read_bytes()).text
                 except Exception as exc:
                     QMessageBox.warning(dialog, "Compare Socket XML", f"Could not read socket XML:\n{exc}")
                     return
@@ -29968,7 +30460,7 @@ def run_gui() -> int:
                 if target_settings is None:
                     return
                 export_root, package_info, create_no_encrypt_file, _include_related, export_options = target_settings
-                request = ArchivePatchRequest(socket_entry, payload_text.encode("utf-8"))
+                request = ArchivePatchRequest(socket_entry, encode_xml_text_like_source(payload_text, decoded_socket_xml))
 
                 def _task(log: Callable[[str], None]) -> ArchiveLooseExportResult:
                     log(f"Writing edited socket XML for {socket_entry.path}...")
@@ -31904,7 +32396,7 @@ def run_gui() -> int:
             if isinstance(entry, ArchiveEntry):
                 try:
                     data, _decompressed, _note = read_archive_entry_data(entry)
-                    document = parse_socket_bone_data_xml(data.decode("utf-8-sig", errors="ignore"), source_path=entry.path)
+                    document = parse_socket_bone_data_xml(decode_xml_text_payload(data).text, source_path=entry.path)
                 except Exception:
                     document = None
                 if isinstance(document, AttachmentSocketDocument) and (document.sockets or document.stack_equip_infos):
@@ -31913,7 +32405,7 @@ def run_gui() -> int:
             if loose_path is None:
                 return None
             try:
-                document = parse_socket_bone_data_xml(loose_path.read_text(encoding="utf-8-sig", errors="ignore"), source_path=str(loose_path))
+                document = parse_socket_bone_data_xml(decode_xml_text_payload(loose_path.read_bytes()).text, source_path=str(loose_path))
             except Exception:
                 return None
             return document if document.sockets or document.stack_equip_infos else None
@@ -33268,7 +33760,8 @@ def run_gui() -> int:
         ) -> Optional[bytes]:
             try:
                 data, _decompressed, _note = read_archive_entry_data(socket_entry)
-                original_text = data.decode("utf-8-sig", errors="ignore")
+                decoded_socket_xml = decode_xml_text_payload(data)
+                original_text = decoded_socket_xml.text
                 root = ET.fromstring(original_text)
             except Exception:
                 return None
@@ -33305,10 +33798,11 @@ def run_gui() -> int:
                 current_rotation,
             )
             target_socket.set("Rotation", self._format_attachment_transform_values(new_rotation))
-            return self._attachment_socket_xml_text(
+            payload_text = self._attachment_socket_xml_text(
                 root,
                 include_declaration=original_text.lstrip().startswith("<?xml"),
-            ).encode("utf-8")
+            )
+            return encode_xml_text_like_source(payload_text, decoded_socket_xml)
 
         def _open_archive_attachment_safe_placement_dialog(
             self,
@@ -35016,25 +35510,29 @@ def run_gui() -> int:
             layout.setSpacing(8)
 
             intro = QLabel(
-                "Build stable weapon placement packages from learned templates. Simple mode preserves target models, icons, HKX, ItemInfo, and PAAC graphs."
+                "Build stable weapon placement packages from learned templates. Simple mode preserves target models, icons, HKX, and ItemInfo; 2H templates use only the validated mounted PAAC socket patch."
             )
             intro.setObjectName("HintLabel")
             intro.setWordWrap(True)
             layout.addWidget(intro)
 
-            class WeaponPlacementStudioPreview2D(QFrame):
+            class _WeaponPlacementStudioPlacementMap(QFrame):
                 def __init__(self, parent: Optional[QWidget] = None) -> None:
                     super().__init__(parent)
-                    self.setMinimumSize(QSize(360, 300))
+                    self.setMinimumSize(QSize(500, 340))
                     self.setFrameShape(QFrame.Shape.StyledPanel)
                     self._template_id = ""
                     self._rows: Tuple[WeaponSwapSocketRow, ...] = ()
+                    self._baseline_rows: Tuple[WeaponSwapSocketRow, ...] = ()
+                    self._weapon_paths: Tuple[str, ...] = ()
+                    self._body_path = ""
+                    self._native_note = ""
                     self._show_shield = True
                     self._view_mode = "back"
 
                 def set_view_mode(self, view_mode: object) -> None:
                     normalized = str(view_mode or "back").strip().casefold()
-                    self._view_mode = "side" if normalized == "side" else "back"
+                    self._view_mode = normalized if normalized in {"back", "side", "top"} else "back"
                     self.update()
 
                 def set_preview_state(
@@ -35042,10 +35540,18 @@ def run_gui() -> int:
                     *,
                     template_id: str,
                     rows: Sequence[WeaponSwapSocketRow],
+                    baseline_rows: Sequence[WeaponSwapSocketRow] = (),
+                    weapon_paths: Sequence[str] = (),
+                    body_path: str = "",
+                    native_note: str = "",
                     show_shield: bool,
                 ) -> None:
                     self._template_id = str(template_id or "")
                     self._rows = tuple(row for row in rows if isinstance(row, WeaponSwapSocketRow))
+                    self._baseline_rows = tuple(row for row in baseline_rows if isinstance(row, WeaponSwapSocketRow))
+                    self._weapon_paths = tuple(str(path or "") for path in tuple(weapon_paths or ()) if str(path or "").strip())
+                    self._body_path = str(body_path or "").strip()
+                    self._native_note = str(native_note or "").strip()
                     self._show_shield = bool(show_shield)
                     self.update()
 
@@ -35054,16 +35560,19 @@ def run_gui() -> int:
                     painter = QPainter(self)
                     try:
                         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-                        rect = self.rect().adjusted(12, 12, -12, -12)
+                        rect = self.rect().adjusted(10, 10, -10, -10)
                         background = QLinearGradient(rect.topLeft(), rect.bottomRight())
                         background.setColorAt(0.0, QColor("#0f172a"))
-                        background.setColorAt(1.0, QColor("#111827"))
+                        background.setColorAt(1.0, QColor("#101820"))
                         painter.fillRect(rect, background)
+
+                        canvas = QRectF(rect.left() + 10, rect.top() + 10, rect.width() - 20, max(190, int(rect.height() * 0.66)))
+                        readout = QRectF(rect.left() + 10, canvas.bottom() + 10, rect.width() - 20, rect.bottom() - canvas.bottom() - 18)
 
                         def point(x: float, y: float) -> QPointF:
                             return QPointF(
-                                rect.left() + (max(0.0, min(1.0, float(x))) * rect.width()),
-                                rect.top() + (max(0.0, min(1.0, float(y))) * rect.height()),
+                                canvas.left() + (max(0.0, min(1.0, float(x))) * canvas.width()),
+                                canvas.top() + (max(0.0, min(1.0, float(y))) * canvas.height()),
                             )
 
                         def soft_pen(color: str, width: int = 1, style: Qt.PenStyle = Qt.PenStyle.SolidLine) -> QPen:
@@ -35072,123 +35581,132 @@ def run_gui() -> int:
                             pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
                             return pen
 
-                        painter.setPen(soft_pen("#1f2937", 1))
+                        painter.setPen(soft_pen("#203040", 1))
                         for index in range(1, 6):
-                            y = rect.top() + (rect.height() * index / 6.0)
-                            painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
+                            y = canvas.top() + (canvas.height() * index / 6.0)
+                            painter.drawLine(QPointF(canvas.left(), y), QPointF(canvas.right(), y))
                         for index in range(1, 4):
-                            x = rect.left() + (rect.width() * index / 4.0)
-                            painter.drawLine(QPointF(x, rect.top()), QPointF(x, rect.bottom()))
+                            x = canvas.left() + (canvas.width() * index / 4.0)
+                            painter.drawLine(QPointF(x, canvas.top()), QPointF(x, canvas.bottom()))
 
-                        body_fill = QColor("#253041")
-                        body_edge = QColor("#6b7280")
-                        landmark = QColor("#94a3b8")
+                        def text_rect(x: float, y: float, w: float, h: float) -> QRectF:
+                            return QRectF(
+                                rect.left() + (rect.width() * x),
+                                rect.top() + (rect.height() * y),
+                                rect.width() * w,
+                                rect.height() * h,
+                            )
 
-                        def draw_label(text: str, pos: QPointF, color: str = "#cbd5e1") -> None:
+                        def draw_label(text: str, pos: QPointF, color: str = "#cbd5e1", *, bold: bool = False) -> None:
+                            font = painter.font()
+                            font.setBold(bool(bold))
+                            painter.setFont(font)
                             painter.setPen(soft_pen(color, 1))
                             painter.drawText(pos, str(text or ""))
+                            font.setBold(False)
+                            painter.setFont(font)
+
+                        body_fill = QColor("#273443")
+                        body_edge = QColor("#91a0ad")
+                        cloak_fill = QColor(51, 65, 85, 70)
+                        planned_color = QColor("#35d48b")
+                        baseline_color = QColor("#6ea8ff")
 
                         def draw_back_body() -> None:
+                            cloak = QPainterPath()
+                            cloak.moveTo(point(0.38, 0.20))
+                            cloak.lineTo(point(0.62, 0.20))
+                            cloak.cubicTo(point(0.68, 0.38), point(0.68, 0.66), point(0.57, 0.92))
+                            cloak.lineTo(point(0.43, 0.92))
+                            cloak.cubicTo(point(0.32, 0.66), point(0.32, 0.38), point(0.38, 0.20))
+                            cloak.closeSubpath()
+                            painter.setPen(soft_pen("#64748b", 2, Qt.PenStyle.DashLine))
+                            painter.setBrush(QBrush(cloak_fill))
+                            painter.drawPath(cloak)
+
                             torso = QPainterPath()
-                            torso.moveTo(point(0.42, 0.23))
-                            torso.lineTo(point(0.58, 0.23))
-                            torso.cubicTo(point(0.62, 0.35), point(0.62, 0.50), point(0.57, 0.63))
-                            torso.lineTo(point(0.54, 0.72))
-                            torso.lineTo(point(0.46, 0.72))
-                            torso.lineTo(point(0.43, 0.63))
-                            torso.cubicTo(point(0.38, 0.50), point(0.38, 0.35), point(0.42, 0.23))
+                            torso.moveTo(point(0.41, 0.23))
+                            torso.lineTo(point(0.59, 0.23))
+                            torso.cubicTo(point(0.62, 0.42), point(0.61, 0.61), point(0.55, 0.76))
+                            torso.lineTo(point(0.45, 0.76))
+                            torso.cubicTo(point(0.39, 0.61), point(0.38, 0.42), point(0.41, 0.23))
                             torso.closeSubpath()
-                            pelvis = QPainterPath()
-                            pelvis.moveTo(point(0.44, 0.69))
-                            pelvis.lineTo(point(0.56, 0.69))
-                            pelvis.lineTo(point(0.58, 0.80))
-                            pelvis.lineTo(point(0.53, 0.83))
-                            pelvis.lineTo(point(0.47, 0.83))
-                            pelvis.lineTo(point(0.42, 0.80))
-                            pelvis.closeSubpath()
                             painter.setPen(QPen(body_edge, 2))
                             painter.setBrush(QBrush(body_fill))
                             painter.drawPath(torso)
-                            painter.drawPath(pelvis)
-                            painter.setBrush(Qt.NoBrush)
-                            painter.setPen(soft_pen("#475569", 10))
-                            painter.drawLine(point(0.40, 0.27), point(0.25, 0.48))
-                            painter.drawLine(point(0.60, 0.27), point(0.75, 0.48))
-                            painter.setPen(soft_pen("#475569", 8))
-                            painter.drawLine(point(0.46, 0.80), point(0.43, 0.94))
-                            painter.drawLine(point(0.54, 0.80), point(0.57, 0.94))
+                            painter.setPen(soft_pen("#94a3b8", 2))
+                            painter.drawLine(point(0.36, 0.25), point(0.64, 0.25))
+                            painter.drawLine(point(0.42, 0.76), point(0.58, 0.76))
+                            painter.setPen(soft_pen("#475569", 2, Qt.PenStyle.DashLine))
+                            painter.drawLine(point(0.50, 0.20), point(0.50, 0.90))
                             painter.setPen(QPen(body_edge, 2))
-                            painter.setBrush(QBrush(QColor("#1f2937")))
-                            painter.drawEllipse(point(0.50, 0.105), rect.width() * 0.045, rect.height() * 0.052)
-                            painter.setPen(soft_pen("#64748b", 2, Qt.PenStyle.DashLine))
-                            painter.drawLine(point(0.50, 0.18), point(0.50, 0.74))
-                            painter.setPen(soft_pen("#475569", 2))
-                            painter.drawLine(point(0.36, 0.24), point(0.64, 0.24))
-                            painter.drawLine(point(0.42, 0.69), point(0.58, 0.69))
-                            painter.setPen(soft_pen("#38bdf8", 1))
-                            painter.setBrush(QBrush(QColor("#38bdf8")))
-                            for name, marker in (("Spine2", point(0.50, 0.30)), ("Hip", point(0.36, 0.64))):
-                                painter.drawEllipse(marker, 4, 4)
-                                draw_label(name, marker + QPointF(7, -5), "#93c5fd")
+                            painter.setBrush(QBrush(QColor("#202938")))
+                            painter.drawEllipse(point(0.50, 0.105), canvas.width() * 0.042, canvas.height() * 0.052)
+                            draw_label("back view", point(0.03, 0.07), "#93c5fd", bold=True)
 
                         def draw_side_body() -> None:
-                            torso = QPainterPath()
-                            torso.moveTo(point(0.47, 0.22))
-                            torso.cubicTo(point(0.41, 0.28), point(0.42, 0.50), point(0.47, 0.66))
-                            torso.lineTo(point(0.52, 0.73))
-                            torso.cubicTo(point(0.61, 0.66), point(0.63, 0.45), point(0.59, 0.28))
-                            torso.cubicTo(point(0.56, 0.23), point(0.51, 0.21), point(0.47, 0.22))
-                            torso.closeSubpath()
-                            pelvis = QPainterPath()
-                            pelvis.moveTo(point(0.47, 0.69))
-                            pelvis.lineTo(point(0.56, 0.70))
-                            pelvis.lineTo(point(0.58, 0.80))
-                            pelvis.lineTo(point(0.53, 0.84))
-                            pelvis.lineTo(point(0.46, 0.81))
-                            pelvis.closeSubpath()
+                            cloak = QPainterPath()
+                            cloak.moveTo(point(0.47, 0.20))
+                            cloak.cubicTo(point(0.65, 0.30), point(0.68, 0.63), point(0.58, 0.92))
+                            cloak.lineTo(point(0.44, 0.92))
+                            cloak.cubicTo(point(0.36, 0.66), point(0.37, 0.35), point(0.47, 0.20))
+                            cloak.closeSubpath()
+                            painter.setPen(soft_pen("#64748b", 2, Qt.PenStyle.DashLine))
+                            painter.setBrush(QBrush(cloak_fill))
+                            painter.drawPath(cloak)
+                            body = QPainterPath()
+                            body.moveTo(point(0.47, 0.23))
+                            body.cubicTo(point(0.42, 0.34), point(0.43, 0.59), point(0.49, 0.77))
+                            body.lineTo(point(0.57, 0.76))
+                            body.cubicTo(point(0.62, 0.57), point(0.61, 0.34), point(0.55, 0.23))
+                            body.closeSubpath()
                             painter.setPen(QPen(body_edge, 2))
                             painter.setBrush(QBrush(body_fill))
-                            painter.drawPath(torso)
-                            painter.drawPath(pelvis)
-                            painter.setBrush(Qt.NoBrush)
-                            painter.setPen(soft_pen("#475569", 9))
-                            painter.drawLine(point(0.47, 0.27), point(0.33, 0.51))
-                            painter.setPen(soft_pen("#475569", 8))
-                            painter.drawLine(point(0.50, 0.80), point(0.48, 0.94))
-                            painter.drawLine(point(0.55, 0.79), point(0.59, 0.94))
+                            painter.drawPath(body)
+                            painter.setPen(soft_pen("#475569", 2, Qt.PenStyle.DashLine))
+                            painter.drawLine(point(0.53, 0.20), point(0.53, 0.90))
                             painter.setPen(QPen(body_edge, 2))
-                            painter.setBrush(QBrush(QColor("#1f2937")))
-                            painter.drawEllipse(point(0.52, 0.105), rect.width() * 0.042, rect.height() * 0.052)
-                            painter.setPen(soft_pen("#64748b", 2, Qt.PenStyle.DashLine))
-                            painter.drawLine(point(0.50, 0.18), point(0.54, 0.73))
-                            painter.setPen(soft_pen("#475569", 2))
-                            painter.drawLine(point(0.43, 0.25), point(0.60, 0.25))
-                            painter.drawLine(point(0.46, 0.69), point(0.58, 0.69))
-                            painter.setPen(soft_pen("#38bdf8", 1))
-                            painter.setBrush(QBrush(QColor("#38bdf8")))
-                            for name, marker in (("Back", point(0.61, 0.33)), ("Hip", point(0.46, 0.64))):
-                                painter.drawEllipse(marker, 4, 4)
-                                draw_label(name, marker + QPointF(7, -5), "#93c5fd")
+                            painter.setBrush(QBrush(QColor("#202938")))
+                            painter.drawEllipse(point(0.52, 0.105), canvas.width() * 0.040, canvas.height() * 0.052)
+                            draw_label("side depth", point(0.03, 0.07), "#93c5fd", bold=True)
 
-                        if self._view_mode == "side":
+                        def draw_top_body() -> None:
+                            painter.setPen(soft_pen("#64748b", 2, Qt.PenStyle.DashLine))
+                            painter.setBrush(QBrush(cloak_fill))
+                            painter.drawEllipse(point(0.50, 0.54), canvas.width() * 0.23, canvas.height() * 0.24)
+                            painter.setPen(QPen(body_edge, 2))
+                            painter.setBrush(QBrush(body_fill))
+                            painter.drawEllipse(point(0.50, 0.54), canvas.width() * 0.14, canvas.height() * 0.16)
+                            painter.setPen(soft_pen("#475569", 2))
+                            painter.drawLine(point(0.30, 0.54), point(0.70, 0.54))
+                            painter.drawLine(point(0.50, 0.32), point(0.50, 0.78))
+                            draw_label("top depth", point(0.03, 0.07), "#93c5fd", bold=True)
+
+                        if self._view_mode == "top":
+                            draw_top_body()
+                        elif self._view_mode == "side":
                             draw_side_body()
                         else:
                             draw_back_body()
 
                         if self._show_shield and "dual_onehand" in self._template_id:
-                            shield_center = point(0.50, 0.38) if self._view_mode == "back" else point(0.62, 0.40)
-                            painter.setPen(soft_pen("#ef4444", 2))
-                            painter.setBrush(QBrush(QColor(127, 29, 29, 52)))
-                            painter.drawEllipse(shield_center, rect.width() * 0.16, rect.height() * 0.18)
-                            draw_label("shield clearance", shield_center + QPointF(12, 4), "#fca5a5")
+                            shield_center = point(0.38, 0.48) if self._view_mode == "back" else point(0.64, 0.50)
+                            if self._view_mode == "top":
+                                shield_center = point(0.35, 0.54)
+                            painter.setPen(soft_pen("#f97316", 2))
+                            painter.setBrush(QBrush(QColor(249, 115, 22, 48)))
+                            painter.drawEllipse(shield_center, canvas.width() * 0.12, canvas.height() * 0.18)
+                            draw_label("shield", shield_center + QPointF(12, 4), "#fdba74")
 
                         def row_map(rows: Sequence[WeaponSwapSocketRow]) -> Dict[str, WeaponSwapSocketRow]:
                             return {str(row.name or "").casefold(): row for row in rows if isinstance(row, WeaponSwapSocketRow)}
 
-                        try:
-                            base_rows = weapon_swap_template_socket_rows(self._template_id)
-                        except Exception:
-                            base_rows = ()
+                        base_rows = self._baseline_rows
+                        if not base_rows:
+                            try:
+                                base_rows = weapon_swap_template_socket_rows(self._template_id)
+                            except Exception:
+                                base_rows = ()
                         base_by_name = row_map(base_rows)
 
                         def row_delta(row: WeaponSwapSocketRow) -> Tuple[float, float, float]:
@@ -35201,25 +35719,42 @@ def run_gui() -> int:
                                 )
                             return (0.0, 0.0, 0.0)
 
+                        def display_rows(rows: Sequence[WeaponSwapSocketRow]) -> Tuple[WeaponSwapSocketRow, ...]:
+                            valid_rows = tuple(row for row in rows if isinstance(row, WeaponSwapSocketRow))
+                            if "dual_onehand" in self._template_id:
+                                spine_rows = tuple(row for row in valid_rows if str(row.name or "").startswith("Spine2_"))
+                                return spine_rows or valid_rows[:2]
+                            subweapon_rows = tuple(row for row in valid_rows if "childsocket" in str(row.name or "").casefold())
+                            return (subweapon_rows or valid_rows)[:1]
+
                         def line_for_row(row: WeaponSwapSocketRow, *, planned: bool) -> Tuple[QPointF, QPointF]:
                             dx, dy, dz = row_delta(row)
                             if "dual_onehand" in self._template_id:
                                 is_left = str(row.name or "").endswith("_L_Socket")
                                 side = 1.0 if is_left else -1.0
-                                if self._view_mode == "side":
-                                    start = point(0.58 + (float(row.translation[1]) * -0.55), 0.31 - (float(row.translation[2]) * 0.32))
-                                    end = point(0.42 + (float(row.translation[1]) * -0.42), 0.84 - (float(row.translation[2]) * 0.10))
+                                tx = float(row.translation[0])
+                                ty = float(row.translation[1])
+                                tz = float(row.translation[2])
+                                if self._view_mode == "top":
+                                    start = point(0.50 + (tx * 0.92), 0.55 - (tz * 1.85))
+                                    end = point(0.50 + ((tx + side * 0.24) * 0.92), 0.56 - (tz * 1.40))
+                                elif self._view_mode == "side":
+                                    start = point(0.55 + (tz * 1.80), 0.36 - (ty * 0.62))
+                                    end = point(0.47 + (tz * 1.45), 0.90 - (ty * 0.18))
                                 else:
-                                    sx = 0.50 + (float(row.translation[0]) * 0.85)
-                                    sy = 0.39 - (float(row.translation[2]) * 0.46)
+                                    sx = 0.50 + (tx * 0.92)
+                                    sy = 0.44 - (ty * 0.62)
                                     if "crossed" in self._template_id:
                                         ex = sx + (0.23 * side)
                                     else:
                                         ex = sx - 0.12
                                     start = point(sx, sy)
-                                    end = point(ex, 0.90 - (float(row.translation[2]) * 0.18))
+                                    end = point(ex, 0.90 - (ty * 0.16))
                                 return start, end
-                            if self._view_mode == "side":
+                            if self._view_mode == "top":
+                                start = point(0.34 + (dx * 0.90), 0.62 - (dy * 1.45))
+                                end = point(0.70 + (dx * 0.55), 0.73 - (dy * 1.12))
+                            elif self._view_mode == "side":
                                 start = point(0.58 + (dy * -0.45), 0.62 - (dz * 0.62))
                                 end = point(0.69 + (dy * -0.32), 0.90 - (dz * 0.18))
                             else:
@@ -35233,10 +35768,9 @@ def run_gui() -> int:
                             length = max(1.0, math.sqrt((dx * dx) + (dy * dy)))
                             ux, uy = dx / length, dy / length
                             px, py = -uy, ux
-                            if planned:
-                                painter.setPen(soft_pen("#334155", 8))
-                                painter.drawLine(start + QPointF(px * 2.0, py * 2.0), end + QPointF(px * 2.0, py * 2.0))
-                            painter.setPen(soft_pen(color.name(), 5 if planned else 3, Qt.PenStyle.SolidLine if planned else Qt.PenStyle.DashLine))
+                            painter.setPen(soft_pen("#111827", 9 if planned else 6))
+                            painter.drawLine(start + QPointF(px * 2.0, py * 2.0), end + QPointF(px * 2.0, py * 2.0))
+                            painter.setPen(soft_pen(color.name(), 6 if planned else 4, Qt.PenStyle.SolidLine if planned else Qt.PenStyle.DashLine))
                             painter.drawLine(start, end)
                             painter.setPen(soft_pen("#e5e7eb", 2 if planned else 1, Qt.PenStyle.SolidLine if planned else Qt.PenStyle.DashLine))
                             painter.drawLine(start, end)
@@ -35252,24 +35786,55 @@ def run_gui() -> int:
                             painter.setPen(Qt.NoPen)
                             painter.drawEllipse(start, 5 if planned else 4, 5 if planned else 4)
                             if planned:
-                                draw_label(label, start + QPointF(8, -6), color.name())
+                                draw_label(label, start + QPointF(8, -6), color.name(), bold=True)
 
-                        for row in tuple(base_rows):
+                        for row in display_rows(base_rows):
                             if not isinstance(row, WeaponSwapSocketRow):
                                 continue
                             start, end = line_for_row(row, planned=False)
-                            draw_weapon_line(start, end, QColor("#60a5fa"), "current", planned=False)
-                        for row in self._rows:
+                            draw_weapon_line(start, end, baseline_color, "baseline", planned=False)
+                        for row in display_rows(self._rows):
                             start, end = line_for_row(row, planned=True)
                             label = str(row.name or "planned").replace("_Socket", "").replace("_ChildSocket", "")
-                            draw_weapon_line(start, end, QColor("#34d399"), label, planned=True)
+                            draw_weapon_line(start, end, planned_color, label, planned=True)
 
-                        painter.setPen(soft_pen("#94a3b8", 1))
-                        painter.drawText(
-                            rect.left() + 12,
-                            rect.bottom() - 12,
-                            "2D estimate fallback: blue default, green planned socket placement",
-                        )
+                        painter.setPen(soft_pen("#60a5fa", 2, Qt.PenStyle.DashLine))
+                        painter.drawLine(point(0.05, 0.95), point(0.17, 0.95))
+                        draw_label("baseline", point(0.18, 0.96), "#93c5fd")
+                        painter.setPen(soft_pen("#35d48b", 4))
+                        painter.drawLine(point(0.34, 0.95), point(0.46, 0.95))
+                        draw_label("planned", point(0.47, 0.96), "#86efac")
+
+                        painter.setPen(soft_pen("#334155", 1))
+                        painter.setBrush(QBrush(QColor(15, 23, 42, 160)))
+                        painter.drawRoundedRect(readout, 6, 6)
+                        readout_font = painter.font()
+                        readout_font.setPointSize(max(8, readout_font.pointSize()))
+                        painter.setFont(readout_font)
+                        painter.setPen(soft_pen("#cbd5e1", 1))
+                        readout_lines = []
+                        if "dual_onehand" in self._template_id:
+                            readout_lines.append("Dual axes: body socket Y = height; body socket Z = body distance; X = left/right spread.")
+                        else:
+                            readout_lines.append("2H axes: hip socket placement plus weapon child tilt; mounted socket patch is package-only.")
+                        for row in display_rows(self._rows)[:3]:
+                            dx, dy, dz = row_delta(row)
+                            readout_lines.append(
+                                f"{row.name}: T {row.translation[0]:+.3f} {row.translation[1]:+.3f} {row.translation[2]:+.3f}; delta {dx:+.3f} {dy:+.3f} {dz:+.3f}"
+                            )
+                        if self._body_path:
+                            readout_lines.append(f"Body PAC candidate: {PurePosixPath(self._body_path).name}")
+                        if self._weapon_paths:
+                            names = ", ".join(PurePosixPath(path).name for path in self._weapon_paths[:2])
+                            if len(self._weapon_paths) > 2:
+                                names += f" +{len(self._weapon_paths) - 2}"
+                            readout_lines.append(f"Weapon PAC: {names}")
+                        if self._native_note:
+                            readout_lines.append(self._native_note)
+                        line_y = readout.top() + 18
+                        for line in readout_lines[:6]:
+                            painter.drawText(QRectF(readout.left() + 10, line_y - 12, readout.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter, line)
+                            line_y += 18
                     finally:
                         painter.end()
 
@@ -35312,6 +35877,20 @@ def run_gui() -> int:
             simple_layout.addWidget(scope_combo, 1, 1, 1, 2)
             simple_layout.addWidget(QLabel("Targets"), 2, 0)
             simple_layout.addWidget(target_label, 2, 1, 1, 2)
+            target_tree = QTreeWidget()
+            target_tree.setColumnCount(4)
+            target_tree.setHeaderLabels(["Target", "Role", "Mode", "Status"])
+            target_tree.setRootIsDecorated(False)
+            target_tree.setAlternatingRowColors(True)
+            target_tree.setUniformRowHeights(True)
+            target_tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+            target_tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            target_tree.setMaximumHeight(170)
+            target_tree.header().setStretchLastSection(True)
+            target_tree.header().resizeSection(0, 260)
+            target_tree.header().resizeSection(1, 100)
+            target_tree.header().resizeSection(2, 130)
+            simple_layout.addWidget(target_tree, 3, 0, 1, 3)
             controls_layout.addWidget(simple_group)
 
             def _template() -> WeaponSwapTemplate:
@@ -35369,10 +35948,12 @@ def run_gui() -> int:
             dual_center_spin = _spin(0.0, -0.30, 0.30, 0.005)
             dual_spread_spin = _spin(0.0, -0.20, 0.20, 0.005)
             dual_cross_spin = _spin(0.0, -60.0, 60.0, 0.25, 2, " deg")
+            dual_height_spin.setToolTip("Learned dual-back height axis: Spine2_R/L body socket Y. Positive raises; negative lowers.")
+            dual_distance_spin.setToolTip("Learned dual-back depth axis: Spine2_R/L body socket Z. Positive moves outward; negative moves inward.")
             for row, (label, spin, scale) in enumerate(
                 (
                     ("Height", dual_height_spin, 1000),
-                    ("Body distance", dual_distance_spin, 1000),
+                    ("Depth / body distance", dual_distance_spin, 1000),
                     ("Center shift", dual_center_spin, 1000),
                     ("Spread", dual_spread_spin, 1000),
                     ("Cross angle", dual_cross_spin, 100),
@@ -35390,7 +35971,7 @@ def run_gui() -> int:
             advanced_layout.setContentsMargins(8, 8, 8, 8)
             advanced_layout.setSpacing(6)
             advanced_warning = QLabel(
-                "True 1H/offhand disabled. PAAC/ItemInfo paths are not buildable from the simple page; previous true-1H/offhand and full graph experiments crashed or hung the game."
+                "True 1H/offhand disabled. ItemInfo and full PAAC graph swaps are not buildable from the simple page; previous true-1H/offhand and full graph experiments crashed or hung the game."
             )
             advanced_warning.setObjectName("HintLabel")
             advanced_warning.setWordWrap(True)
@@ -35437,7 +36018,24 @@ def run_gui() -> int:
             preview_group = QGroupBox("Placement Preview")
             preview_layout = QVBoxLayout(preview_group)
             preview_layout.setContentsMargins(8, 8, 8, 8)
-            preview_stack = QStackedWidget(preview_group)
+            preview_stack = QTabWidget(preview_group)
+            map_page = QWidget(preview_group)
+            map_layout = QVBoxLayout(map_page)
+            map_layout.setContentsMargins(0, 0, 0, 0)
+            map_layout.setSpacing(6)
+            placement_map_widget = _WeaponPlacementStudioPlacementMap(map_page)
+            placement_map_widget.setObjectName("WeaponPlacementStudioPlacementMap")
+            placement_map_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            map_layout.addWidget(placement_map_widget, 1)
+            map_control_row = QHBoxLayout()
+            map_control_row.addWidget(QLabel("Map view"))
+            map_view_combo = QComboBox(map_page)
+            map_view_combo.addItem("Back", "back")
+            map_view_combo.addItem("Side depth", "side")
+            map_view_combo.addItem("Top depth", "top")
+            map_control_row.addWidget(map_view_combo)
+            map_control_row.addStretch(1)
+            map_layout.addLayout(map_control_row)
             d3d11_page = QWidget(preview_group)
             d3d11_layout = QVBoxLayout(d3d11_page)
             d3d11_layout.setContentsMargins(0, 0, 0, 0)
@@ -35448,28 +36046,29 @@ def run_gui() -> int:
             native_preview_widget.setMinimumSize(QSize(420, 320))
             native_preview_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             d3d11_layout.addWidget(native_preview_widget, 1)
-            d3d11_status_label = QLabel("Native D3D11 placement preview is waiting for a package.")
+            d3d11_status_label = QLabel("Native D3D11 placement preview is idle.")
             d3d11_status_label.setObjectName("HintLabel")
             d3d11_status_label.setWordWrap(True)
             d3d11_layout.addWidget(d3d11_status_label)
-            preview_widget = WeaponPlacementStudioPreview2D(preview_group)
-            preview_widget.setObjectName("WeaponPlacementStudio2DPlacementPreview")
-            preview_stack.addWidget(d3d11_page)
-            preview_stack.addWidget(preview_widget)
-            preview_stack.setCurrentWidget(preview_widget)
-            preview_status_label = QLabel("Preview source: 2D estimate while PAC preview loads.")
+            preview_busy_bar = QProgressBar(d3d11_page)
+            preview_busy_bar.setRange(0, 0)
+            preview_busy_bar.setTextVisible(False)
+            preview_busy_bar.setFixedHeight(4)
+            preview_busy_bar.setVisible(False)
+            d3d11_layout.addWidget(preview_busy_bar)
+            preview_stack.addTab(map_page, "Placement Map")
+            preview_stack.addTab(d3d11_page, "Native PAC")
+            preview_stack.setCurrentWidget(map_page)
+            preview_status_label = QLabel("Preview source: placement map updates instantly; click Build Native PAC Preview for decoded PAC geometry.")
             preview_status_label.setObjectName("HintLabel")
             preview_status_label.setWordWrap(True)
             preview_status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             preview_control_row = QHBoxLayout()
             preview_control_row.addWidget(preview_status_label, 1)
-            preview_view_combo = QComboBox()
-            preview_view_combo.addItem("Back view", "back")
-            preview_view_combo.addItem("Side view", "side")
-            preview_view_combo.setToolTip("2D fallback view. The PAC preview can be rotated directly.")
-            preview_control_row.addWidget(QLabel("2D view"))
-            preview_control_row.addWidget(preview_view_combo)
-            show_shield_checkbox = QCheckBox("Show shield clipping guide")
+            preview_refresh_button = QPushButton("Build Native PAC Preview")
+            preview_refresh_button.setToolTip("Lazy-load the selected body and weapon PACs, then build a native D3D11 placement preview. The dialog no longer starts this automatically.")
+            preview_control_row.addWidget(preview_refresh_button)
+            show_shield_checkbox = QCheckBox("Show shield/cloak clearance")
             show_shield_checkbox.setChecked(True)
             preview_layout.addWidget(preview_stack, 1)
             preview_layout.addLayout(preview_control_row)
@@ -35506,6 +36105,88 @@ def run_gui() -> int:
 
             def _selected_scope() -> str:
                 return str(scope_combo.currentData() or WEAPON_SWAP_TEMPLATE_SELECTED_SCOPE)
+
+            def _studio_candidate_entries() -> Tuple[ArchiveEntry, ...]:
+                result: List[ArchiveEntry] = []
+                seen: set[Tuple[str, str, int]] = set()
+                for candidate in tuple(selected_entries or ()):
+                    if not isinstance(candidate, ArchiveEntry):
+                        continue
+                    key = archive_entry_identity_key(candidate)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    result.append(candidate)
+                return tuple(result)
+
+            def _studio_entry_role_label(entry: ArchiveEntry) -> str:
+                path = str(entry.path or "").replace("\\", "/")
+                try:
+                    weapon_class = infer_part_in_out_weapon_class(path)
+                except Exception:
+                    weapon_class = ""
+                if weapon_class == "twohand_sword":
+                    return "2H sword"
+                if weapon_class == "onehand_sword":
+                    return "1H sword"
+                extension = str(entry.extension or "").lower()
+                if extension in {".hkx", ".hkt"}:
+                    return "HKX"
+                if extension.endswith("xml"):
+                    return "Socket/XML"
+                return archive_browser_entry_category(entry)
+
+            def _studio_placement_capable_targets() -> Tuple[ArchiveEntry, ...]:
+                return tuple(entry for entry in _studio_candidate_entries() if self._archive_entry_supports_attachment_placement_workflow(entry))
+
+            def _studio_primary_target() -> Optional[ArchiveEntry]:
+                if isinstance(current_entry, ArchiveEntry) and self._archive_entry_supports_attachment_placement_workflow(current_entry):
+                    return current_entry
+                targets = _studio_placement_capable_targets()
+                return targets[0] if targets else None
+
+            def _studio_scope_targets(scope: str) -> Tuple[ArchiveEntry, ...]:
+                normalized = str(scope or "").strip()
+                if normalized == WEAPON_SWAP_TEMPLATE_SELECTION_SCOPE:
+                    return _studio_placement_capable_targets()
+                if normalized == WEAPON_SWAP_TEMPLATE_SELECTED_SCOPE:
+                    target = _studio_primary_target()
+                    return (target,) if isinstance(target, ArchiveEntry) else ()
+                return ()
+
+            def _populate_studio_target_tree(scope: str) -> None:
+                target_tree.clear()
+                normalized = str(scope or "").strip()
+                if normalized == WEAPON_SWAP_TEMPLATE_CLASS_SCOPE:
+                    item = QTreeWidgetItem(["PHM class-wide template", "Descriptor", "Class-wide", "Ready"])
+                    item.setToolTip(0, "Writes learned descriptor/socket template payloads for the PHM class-wide route.")
+                    target_tree.addTopLevelItem(item)
+                    self._ui_style_status_columns(item, {3: "Ready"})
+                    return
+                candidates = _studio_candidate_entries()
+                if not candidates:
+                    item = QTreeWidgetItem(["No Archive Files target selected", "-", normalized or "-", "Blocked"])
+                    target_tree.addTopLevelItem(item)
+                    self._ui_style_status_columns(item, {3: "Blocked"})
+                    return
+                selected_scope_target_keys = {archive_entry_identity_key(entry) for entry in _studio_scope_targets(normalized)}
+                for candidate in candidates:
+                    ready = self._archive_entry_supports_attachment_placement_workflow(candidate)
+                    key = archive_entry_identity_key(candidate)
+                    if normalized == WEAPON_SWAP_TEMPLATE_SELECTED_SCOPE and key not in selected_scope_target_keys:
+                        status = "Queued"
+                        mode = "Selected rows"
+                    else:
+                        status = "Ready" if ready else "Not placement-capable"
+                        mode = "Target-owned" if normalized == WEAPON_SWAP_TEMPLATE_SELECTED_SCOPE else "Batch target"
+                    item = QTreeWidgetItem([candidate.path, _studio_entry_role_label(candidate), mode, status])
+                    item.setData(0, Qt.ItemDataRole.UserRole, candidate)
+                    item.setToolTip(0, candidate.path)
+                    item.setToolTip(3, "Can open the target-owned placement builder." if ready else "This row cannot use the placement workflow.")
+                    target_tree.addTopLevelItem(item)
+                    self._ui_style_status_columns(item, {3: status})
+                if target_tree.topLevelItemCount() > 0:
+                    target_tree.setCurrentItem(target_tree.topLevelItem(0))
 
             def _translation_delta() -> Tuple[float, float, float]:
                 return (float(left_right_spin.value()), float(closer_spin.value()), float(up_spin.value()))
@@ -35567,10 +36248,64 @@ def run_gui() -> int:
                 return bytes(payload[0] if isinstance(payload, tuple) else payload)
 
             def _read_entry_text(source_entry: ArchiveEntry) -> str:
-                return _read_entry_bytes(source_entry).decode("utf-8-sig", errors="ignore")
+                return decode_xml_text_payload(_read_entry_bytes(source_entry)).text
+
+            def _encode_entry_text(source_entry: ArchiveEntry, payload_text: str) -> bytes:
+                return encode_xml_text_like_source(payload_text, _read_entry_bytes(source_entry))
+
+            def _weapon_swap_preview_body_candidates(_template_id: str) -> Tuple[ArchiveEntry, ...]:
+                # Use known PHM body meshes for preview. The cd_m0001 skeleton-nude PAC can decode as
+                # non-body geometry in the native/Python mesh preview path, which is what created the blob view.
+                preferred_basenames = (
+                    "cd_phm_00_nude_10_0001.pac",
+                    "cd_phm_00_nude_00_0001.pac",
+                    "cd_phm_00_nude_00_4001.pac",
+                )
+                result: List[ArchiveEntry] = []
+                seen: set[Tuple[str, str, int]] = set()
+                for basename in preferred_basenames:
+                    entry = _original_entry_by_basename(basename)
+                    if isinstance(entry, ArchiveEntry):
+                        key = archive_entry_identity_key(entry)
+                        if key not in seen:
+                            seen.add(key)
+                            result.append(entry)
+                fallback_candidates: List[ArchiveEntry] = []
+                for candidate in tuple(getattr(self, "archive_entries", ()) or ()):
+                    if not isinstance(candidate, ArchiveEntry) or archive_entry_is_mod_package(candidate):
+                        continue
+                    path = str(candidate.path or "").replace("\\", "/").strip()
+                    path_key = path.casefold()
+                    name = PurePosixPath(path).name.casefold()
+                    if str(getattr(candidate, "extension", "") or "").strip().casefold() != ".pac":
+                        continue
+                    if name in {basename.casefold() for basename in preferred_basenames}:
+                        continue
+                    if "/1_pc/1_phm/" not in path_key:
+                        continue
+                    if not (
+                        name.startswith("cd_phm_00_nude_")
+                        or name.startswith("cd_phm_00_body_")
+                        or "/body/" in path_key
+                    ):
+                        continue
+                    fallback_candidates.append(candidate)
+                fallback_candidates.sort(key=lambda entry: str(getattr(entry, "path", "") or "").casefold())
+                fallback_candidates.sort(key=archive_entry_load_priority, reverse=True)
+                for entry in fallback_candidates:
+                    key = archive_entry_identity_key(entry)
+                    if key not in seen:
+                        seen.add(key)
+                        result.append(entry)
+                return tuple(result[:8])
+
+            def _weapon_swap_preview_body_entry(template_id: str) -> Optional[ArchiveEntry]:
+                candidates = _weapon_swap_preview_body_candidates(template_id)
+                return candidates[0] if candidates else None
 
             studio_preview_state: Dict[str, object] = {
                 "request_id": 0,
+                "preview_enabled": False,
                 "active": False,
                 "pending": False,
                 "closed": False,
@@ -35584,26 +36319,25 @@ def run_gui() -> int:
                 "status_signature": (0, 0),
                 "status_payload_text": "",
                 "preview_loaded": False,
-                "body_key": "",
-                "body_model": None,
-                "weapon_models": {},
+                "load_stage": "",
             }
-            weapon_swap_d3d11_available = bool(platform.system().lower() == "windows" and find_native_d3d11_host() is not None)
+            studio_preview_weapon_entry_cache: Dict[str, Tuple[ArchiveEntry, ...]] = {}
+            weapon_swap_d3d11_host_path = find_native_d3d11_host() if platform.system().lower() == "windows" else None
+            weapon_swap_d3d11_available = bool(weapon_swap_d3d11_host_path is not None)
             studio_preview_timer = QTimer(dialog)
             studio_preview_timer.setSingleShot(True)
-            studio_preview_timer.setInterval(220)
+            studio_preview_timer.setInterval(350)
             studio_d3d11_status_timer = QTimer(dialog)
             studio_d3d11_status_timer.setInterval(250)
-
-            def _weapon_swap_preview_body_entry() -> Optional[ArchiveEntry]:
-                for basename in WEAPON_PLACEMENT_STUDIO_BODY_PREVIEW_CANDIDATES:
-                    candidate = _original_entry_by_basename(basename)
-                    if isinstance(candidate, ArchiveEntry):
-                        return candidate
-                return None
+            studio_d3d11_load_timeout_timer = QTimer(dialog)
+            studio_d3d11_load_timeout_timer.setSingleShot(True)
+            studio_d3d11_load_timeout_timer.setInterval(15000)
 
             def _weapon_swap_preview_weapon_entries(template_id: str) -> Tuple[ArchiveEntry, ...]:
                 template_key = str(template_id or "").strip().casefold()
+                cached = studio_preview_weapon_entry_cache.get(template_key)
+                if cached is not None:
+                    return cached
 
                 def _path(entry: ArchiveEntry) -> str:
                     return str(getattr(entry, "path", "") or "").replace("\\", "/").strip()
@@ -35632,23 +36366,34 @@ def run_gui() -> int:
                 selected_twohand = [entry for entry in selected_normal if _entry_class(entry) == "twohand_sword"]
                 selected_onehand = [entry for entry in selected_normal if _entry_class(entry) == "onehand_sword"]
 
-                archive_normal = [
-                    entry
-                    for entry in tuple(getattr(self, "archive_entries", ()) or ())
-                    if isinstance(entry, ArchiveEntry)
-                    and not archive_entry_is_mod_package(entry)
-                    and _is_normal_weapon_model(entry)
-                ]
+                archive_entries_snapshot = tuple(getattr(self, "archive_entries", ()) or ())
 
-                def _first_by_pattern(class_name: str, path_fragment: str, stem_prefix: str, limit: int) -> Tuple[ArchiveEntry, ...]:
-                    matches = [
-                        entry
-                        for entry in archive_normal
-                        if _entry_class(entry) == class_name
-                        and path_fragment in _path(entry).casefold()
-                        and _basename(entry).startswith(stem_prefix)
-                    ]
-                    matches.sort(key=lambda entry: (archive_entry_load_priority(entry), _path(entry).casefold()), reverse=True)
+                def _first_by_pattern(
+                    class_name: str,
+                    path_fragment: str,
+                    stem_prefix: str,
+                    limit: int,
+                    preferred_basenames: Sequence[str] = (),
+                ) -> Tuple[ArchiveEntry, ...]:
+                    matches: List[ArchiveEntry] = []
+                    for entry in archive_entries_snapshot:
+                        if (
+                            isinstance(entry, ArchiveEntry)
+                            and not archive_entry_is_mod_package(entry)
+                            and _is_normal_weapon_model(entry)
+                            and _entry_class(entry) == class_name
+                            and path_fragment in _path(entry).casefold()
+                            and _basename(entry).startswith(stem_prefix)
+                        ):
+                            matches.append(entry)
+                    preferred_order = {
+                        str(name or "").strip().casefold(): index
+                        for index, name in enumerate(tuple(preferred_basenames or ()))
+                        if str(name or "").strip()
+                    }
+                    matches.sort(key=lambda entry: _path(entry).casefold())
+                    matches.sort(key=archive_entry_load_priority, reverse=True)
+                    matches.sort(key=lambda entry: preferred_order.get(_basename(entry).casefold(), 9999))
                     return tuple(matches[:limit])
 
                 if template_key.startswith("dual_onehand"):
@@ -35657,28 +36402,91 @@ def run_gui() -> int:
                         if all(archive_entry_identity_key(entry) != archive_entry_identity_key(existing) for existing in ordered):
                             ordered.append(entry)
                         if len(ordered) >= 2:
-                            return tuple(ordered)
-                    for entry in _first_by_pattern("onehand_sword", "/weapon/1_onehandweapon/", "cd_phm_01_sword_", 2):
+                            result = tuple(ordered)
+                            studio_preview_weapon_entry_cache[template_key] = result
+                            return result
+                    for entry in _first_by_pattern(
+                        "onehand_sword",
+                        "/weapon/1_onehandweapon/",
+                        "cd_phm_01_sword_",
+                        2,
+                        preferred_basenames=("cd_phm_01_sword_0001.pac", "cd_phm_01_sword_0002.pac"),
+                    ):
                         if all(archive_entry_identity_key(entry) != archive_entry_identity_key(existing) for existing in ordered):
                             ordered.append(entry)
                         if len(ordered) >= 2:
-                            return tuple(ordered)
-                    return tuple(ordered)
+                            result = tuple(ordered)
+                            studio_preview_weapon_entry_cache[template_key] = result
+                            return result
+                    result = tuple(ordered)
+                    studio_preview_weapon_entry_cache[template_key] = result
+                    return result
 
                 ordered_twohand = []
                 for entry in selected_twohand:
                     ordered_twohand.append(entry)
                     break
                 if not ordered_twohand:
-                    ordered_twohand.extend(_first_by_pattern("twohand_sword", "/weapon/2_twohandweapon/", "cd_phm_02_sword_", 1))
-                return tuple(ordered_twohand[:1])
+                    ordered_twohand.extend(
+                        _first_by_pattern(
+                            "twohand_sword",
+                            "/weapon/2_twohandweapon/",
+                            "cd_phm_02_sword_",
+                            1,
+                            preferred_basenames=(
+                                "cd_phm_02_sword_0009.pac",
+                                "cd_phm_02_sword_0014.pac",
+                                "cd_phm_02_sword_0015.pac",
+                                "cd_phm_02_sword_0036.pac",
+                            ),
+                        )
+                    )
+                result = tuple(ordered_twohand[:1])
+                studio_preview_weapon_entry_cache[template_key] = result
+                return result
 
-            def _studio_preview_status(message: str, *, fallback: bool = False) -> None:
-                color = "#fbbf24" if fallback else "#6ee7b7"
+            def _update_weapon_swap_studio_placement_map(rows: Sequence[WeaponSwapSocketRow], template_id: str) -> str:
+                try:
+                    baseline_rows = weapon_swap_template_socket_rows(template_id)
+                except Exception:
+                    baseline_rows = ()
+                weapon_entries = _weapon_swap_preview_weapon_entries(template_id)
+                body_entry = _weapon_swap_preview_body_entry(template_id)
+                weapon_paths = tuple(str(entry.path or "") for entry in weapon_entries if isinstance(entry, ArchiveEntry))
+                body_path = str(body_entry.path or "") if isinstance(body_entry, ArchiveEntry) else ""
+                native_note = "Native PAC preview is manual; map stays live while sliders change."
+                placement_map_widget.set_preview_state(
+                    template_id=template_id,
+                    rows=tuple(rows or ()),
+                    baseline_rows=baseline_rows,
+                    weapon_paths=weapon_paths,
+                    body_path=body_path,
+                    native_note=native_note,
+                    show_shield=bool(show_shield_checkbox.isChecked()),
+                )
+                body_name = PurePosixPath(body_path).name if body_path else "no body PAC candidate"
+                weapon_names = ", ".join(PurePosixPath(path).name for path in weapon_paths[:2]) if weapon_paths else "no weapon PAC candidate"
+                return f"live placement map; body {body_name}; weapon {weapon_names}; native PAC preview starts only when requested."
+
+            def _studio_preview_status(message: str, *, warning: bool = False, show_native: bool = False) -> None:
+                color = "#fbbf24" if warning else "#6ee7b7"
                 preview_status_label.setText(f"<span style='color:{color};font-weight:700;'>Preview source:</span> {escape(str(message or ''))}")
                 preview_diagnostics_label.setText(f"Preview diagnostics: {message}")
-                if fallback:
-                    preview_stack.setCurrentWidget(preview_widget)
+                if show_native:
+                    preview_stack.setCurrentWidget(d3d11_page)
+
+            def _studio_preview_set_busy(active: bool, message: str = "") -> None:
+                preview_busy_bar.setVisible(bool(active))
+                preview_refresh_button.setEnabled(True)
+                if message:
+                    d3d11_status_label.setText(message)
+
+            def _studio_d3d11_start_load_watchdog(stage: str) -> None:
+                studio_preview_state["load_stage"] = str(stage or "native host load")
+                studio_d3d11_load_timeout_timer.start()
+
+            def _studio_d3d11_cancel_load_watchdog() -> None:
+                studio_d3d11_load_timeout_timer.stop()
 
             def _studio_d3d11_theme_payload() -> Dict[str, str]:
                 theme = get_theme(self.current_theme_key)
@@ -35721,6 +36529,7 @@ def run_gui() -> int:
                 studio_preview_state["status_payload_text"] = ""
                 studio_preview_state["preview_loaded"] = False
                 studio_d3d11_status_timer.stop()
+                _studio_d3d11_cancel_load_watchdog()
                 if not isinstance(process, QProcess):
                     _studio_d3d11_cleanup_package(package_dir)
                     return
@@ -35741,8 +36550,20 @@ def run_gui() -> int:
 
             def _studio_d3d11_hard_error(message: str) -> None:
                 detail = str(message or "Native D3D11 placement preview failed.").strip()
+                _studio_d3d11_cancel_load_watchdog()
+                _studio_preview_set_busy(False)
                 d3d11_status_label.setText(detail)
-                _studio_preview_status(f"2D estimate; {detail}", fallback=True)
+                _studio_preview_status(f"Native PAC preview unavailable: {detail}", warning=True, show_native=True)
+
+            def _studio_d3d11_load_timeout() -> None:
+                if bool(studio_preview_state.get("closed")) or bool(studio_preview_state.get("preview_loaded")):
+                    return
+                stage = str(studio_preview_state.get("load_stage", "") or "native host load").strip()
+                _studio_d3d11_stop_process()
+                _studio_d3d11_hard_error(
+                    f"Native D3D11 load timed out after 15s during {stage}. "
+                    "The preview package was prepared, but the native host did not report loaded/error status."
+                )
 
             def _studio_d3d11_poll_status() -> None:
                 status_file = studio_preview_state.get("status_file")
@@ -35752,6 +36573,7 @@ def run_gui() -> int:
                     stat = status_file.stat()
                 except OSError:
                     if bool(studio_preview_state.get("preview_loaded")):
+                        _studio_preview_set_busy(False)
                         d3d11_status_label.setText("Native D3D11 placement preview loaded.")
                     return
                 signature = _d3d11_status_file_signature(stat)
@@ -35777,10 +36599,12 @@ def run_gui() -> int:
                 event = str(payload.get("event", "") or "").strip().lower()
                 if event == "loaded":
                     studio_preview_state["preview_loaded"] = True
+                    _studio_d3d11_cancel_load_watchdog()
+                    _studio_preview_set_busy(False)
                     native_preview_widget.set_display_mode("overlay")
                     native_preview_widget.set_render_tuning(self._current_model_preview_render_settings())
                     d3d11_status_label.setText("Native D3D11 placement preview loaded. Drag/rotate the view to inspect hip and back clearance.")
-                    _studio_preview_status("Native D3D11 PAC body plus weapon PAC placement preview.")
+                    _studio_preview_status("Native D3D11 decoded PAC placement preview loaded.", show_native=True)
                 elif event == "loading":
                     if not bool(studio_preview_state.get("preview_loaded")):
                         d3d11_status_label.setText(str(payload.get("message", "") or "Loading native D3D11 placement preview..."))
@@ -35807,8 +36631,9 @@ def run_gui() -> int:
                         native_preview_widget.set_render_tuning(self._current_model_preview_render_settings())
                         _studio_d3d11_cleanup_package(previous_package, delay_ms=5000)
                         studio_d3d11_status_timer.start()
+                        _studio_d3d11_start_load_watchdog("native host package reload")
                         preview_stack.setCurrentWidget(d3d11_page)
-                        d3d11_status_label.setText("Reloading native D3D11 placement preview...")
+                        _studio_preview_set_busy(True, "Reloading native D3D11 placement preview...")
                         return
                     studio_preview_state["active_package"] = previous_package
                 _studio_d3d11_stop_process()
@@ -35852,22 +36677,27 @@ def run_gui() -> int:
                 )
                 studio_preview_state["process"] = process
                 preview_stack.setCurrentWidget(d3d11_page)
-                d3d11_status_label.setText("Starting native D3D11 placement preview...")
+                _studio_preview_set_busy(True, "Starting native D3D11 placement preview...")
                 studio_d3d11_status_timer.start()
+                _studio_d3d11_start_load_watchdog("native host process start")
                 process.start()
 
             def _studio_d3d11_finished(process: QProcess, exit_code: int, exit_status: object) -> None:
                 if process is not studio_preview_state.get("process"):
                     return
                 _studio_d3d11_poll_status()
+                loaded_before_exit = bool(studio_preview_state.get("preview_loaded"))
                 studio_preview_state["process"] = None
                 studio_d3d11_status_timer.stop()
+                _studio_d3d11_cancel_load_watchdog()
                 package_dir = studio_preview_state.get("active_package")
                 studio_preview_state["active_package"] = None
                 studio_preview_state["status_file"] = None
                 _studio_d3d11_cleanup_package(package_dir)
                 if int(exit_code) != 0:
                     _studio_d3d11_hard_error(f"Native D3D11 exited with code {int(exit_code)} ({exit_status}).")
+                elif not loaded_before_exit:
+                    _studio_d3d11_hard_error("Native D3D11 exited before reporting a loaded placement preview.")
 
             def _studio_d3d11_package_ready(request_id: int, package_dir_object: object, prepare_ms: float, package_ms: float) -> None:
                 try:
@@ -35883,6 +36713,7 @@ def run_gui() -> int:
             def _studio_d3d11_package_error(request_id: int, message: str) -> None:
                 if int(request_id) != int(studio_preview_state.get("request_id", 0) or 0):
                     return
+                _studio_preview_set_busy(False)
                 _studio_d3d11_hard_error(f"Native D3D11 package failed: {message}")
 
             def _studio_d3d11_package_finished() -> None:
@@ -35894,12 +36725,14 @@ def run_gui() -> int:
 
             def _studio_d3d11_start_package_worker(model: ModelPreviewData) -> None:
                 if not weapon_swap_d3d11_available:
-                    _studio_preview_status("2D estimate; native D3D11 preview host is unavailable.", fallback=True)
+                    _studio_preview_set_busy(False)
+                    d3d11_status_label.setText("Native D3D11 preview host is unavailable.")
+                    _studio_preview_status("Native PAC preview unavailable: D3D11 preview host is not available.", warning=True, show_native=True)
                     return
                 if isinstance(studio_preview_state.get("package_thread"), QThread):
                     studio_preview_state["pending"] = True
                     _studio_d3d11_stop_worker()
-                    d3d11_status_label.setText("Queued latest native D3D11 placement preview...")
+                    _studio_preview_set_busy(True, "Queued latest native D3D11 placement preview...")
                     return
                 request_id = int(studio_preview_state.get("request_id", 0) or 0)
                 settings = dataclasses.replace(self._current_model_preview_render_settings())
@@ -35929,29 +36762,11 @@ def run_gui() -> int:
                 thread.finished.connect(_studio_d3d11_package_finished)
                 studio_preview_state["package_worker"] = worker
                 studio_preview_state["package_thread"] = thread
-                d3d11_status_label.setText("Preparing native D3D11 placement preview package...")
+                _studio_preview_set_busy(True, "Preparing native D3D11 placement preview package...")
                 thread.start()
 
             studio_d3d11_status_timer.timeout.connect(_studio_d3d11_poll_status)
-
-            def _weapon_swap_studio_proxy_anchor(
-                row: WeaponSwapSocketRow,
-                base_by_name: Mapping[str, WeaponSwapSocketRow],
-                template_id: str,
-            ) -> Tuple[float, float, float]:
-                if str(template_id or "").startswith("dual_onehand"):
-                    return (
-                        float(row.translation[0]) * 1.35,
-                        0.24 + (float(row.translation[2]) * 0.82),
-                        float(row.translation[1]) * 0.82,
-                    )
-                base = base_by_name.get(str(row.name or "").casefold())
-                dx = dy = dz = 0.0
-                if isinstance(base, WeaponSwapSocketRow):
-                    dx = float(row.translation[0]) - float(base.translation[0])
-                    dy = float(row.translation[1]) - float(base.translation[1])
-                    dz = float(row.translation[2]) - float(base.translation[2])
-                return (-0.28 + dx, -0.18 + dz, -0.12 + dy)
+            studio_d3d11_load_timeout_timer.timeout.connect(_studio_d3d11_load_timeout)
 
             def _weapon_swap_studio_render_rows(
                 rows: Sequence[WeaponSwapSocketRow],
@@ -35963,70 +36778,58 @@ def run_gui() -> int:
                 preferred = tuple(row for row in valid_rows if "subweapon" in str(row.name or "").casefold())
                 return (preferred or valid_rows)[:1]
 
-            def _weapon_swap_studio_proxy_weapon_meshes(
-                rows: Sequence[WeaponSwapSocketRow],
+            def _weapon_swap_studio_preview_anchor(
+                row: WeaponSwapSocketRow,
+                base_by_name: Mapping[str, WeaponSwapSocketRow],
                 template_id: str,
-                *,
-                show_shield: bool,
-            ) -> List[ModelPreviewMesh]:
-                meshes: List[ModelPreviewMesh] = []
-                try:
-                    base_rows = weapon_swap_template_socket_rows(template_id)
-                except Exception:
-                    base_rows = ()
-                base_by_name = {str(row.name or "").casefold(): row for row in base_rows if isinstance(row, WeaponSwapSocketRow)}
-                long_weapon = not str(template_id or "").startswith("dual_onehand")
-                source_index = 7000
-                for row in _weapon_swap_studio_render_rows(rows, template_id):
-                    source_index += 1
-                    anchor = _weapon_swap_studio_proxy_anchor(row, base_by_name, template_id)
-                    rotation = tuple(float(value) for value in tuple(row.rotation or (0.0, 0.0, 0.0, 1.0))[:4])
-                    length = 0.88 if long_weapon else 0.62
-                    blade_length = length * 0.68
-                    grip_length = length * 0.20
-                    label = str(row.name or "weapon").replace("_Socket", "").replace("_ChildSocket", "")
-                    parts = (
-                        ("sheath", (0.0, (length * 0.46), -0.018), (0.070 if long_weapon else 0.055, length * 0.92, 0.040), (0.20, 0.24, 0.29), "original_reference"),
-                        ("blade", (0.0, grip_length + (blade_length * 0.52), 0.0), (0.032 if long_weapon else 0.026, blade_length, 0.014), (0.22, 0.78, 0.54), "replacement_preview"),
-                        ("grip", (0.0, grip_length * 0.45, 0.0), (0.026, grip_length, 0.026), (0.92, 0.60, 0.20), "replacement_preview"),
-                        ("guard", (0.0, grip_length, 0.0), (0.150 if long_weapon else 0.120, 0.020, 0.024), (0.95, 0.70, 0.28), "replacement_preview"),
+            ) -> Tuple[float, float, float]:
+                if str(template_id or "").startswith("dual_onehand"):
+                    return (
+                        float(row.translation[0]) * 1.35,
+                        0.05 + (float(row.translation[1]) * 0.95),
+                        float(row.translation[2]) * 1.60,
                     )
-                    for part_name, center, size, color, role in parts:
-                        meshes.append(
-                            self._attachment_visual_oriented_box_mesh(
-                                f"weapon swap {label} {part_name}",
-                                center=center,
-                                size=size,
-                                offset=anchor,
-                                rotation=rotation,
-                                color=color,
-                                source_submesh_index=source_index,
-                                preview_role=role,
-                            )
-                        )
-                if show_shield and str(template_id or "").startswith("dual_onehand"):
-                    meshes.append(
-                        self._attachment_visual_oriented_box_mesh(
-                            "weapon swap shield clearance guide",
-                            center=(0.0, 0.30, -0.34),
-                            size=(0.52, 0.58, 0.030),
-                            offset=(0.0, 0.0, 0.0),
-                            rotation=(0.0, 0.0, 0.0, 1.0),
-                            color=(0.50, 0.12, 0.12),
-                            source_submesh_index=-1,
-                            preview_role="original_reference",
-                        )
-                    )
-                return meshes
+                base = base_by_name.get(str(row.name or "").casefold())
+                dx = dy = dz = 0.0
+                if isinstance(base, WeaponSwapSocketRow):
+                    dx = float(row.translation[0]) - float(base.translation[0])
+                    dy = float(row.translation[1]) - float(base.translation[1])
+                    dz = float(row.translation[2]) - float(base.translation[2])
+                return (-0.28 + dx, -0.18 + dz, -0.12 + dy)
 
-            def _weapon_swap_studio_actual_weapon_meshes(
+            def _weapon_swap_studio_model_is_usable(model: object, *, minimum_faces: int = 12) -> bool:
+                if not isinstance(model, ModelPreviewData) or not getattr(model, "meshes", None):
+                    return False
+                if int(getattr(model, "face_count", 0) or 0) < int(minimum_faces):
+                    return False
+                positions: List[Tuple[float, float, float]] = []
+                for mesh in tuple(getattr(model, "meshes", ()) or ()):
+                    if isinstance(mesh, ModelPreviewMesh):
+                        positions.extend(tuple(mesh.positions or ())[:2048])
+                    if len(positions) >= 2048:
+                        break
+                if len(positions) < 3:
+                    return False
+                xs = [float(position[0]) for position in positions]
+                ys = [float(position[1]) for position in positions]
+                zs = [float(position[2]) for position in positions]
+                spans = (max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs))
+                if not all(math.isfinite(value) for value in spans):
+                    return False
+                return max(spans) >= 0.08 and max(spans) <= 4.0
+
+            def _weapon_swap_studio_real_weapon_meshes(
                 rows: Sequence[WeaponSwapSocketRow],
                 template_id: str,
                 weapon_models: Sequence[ModelPreviewData],
+                *,
+                label_prefix: str,
+                source_index_base: int,
+                preview_role: str,
+                color: Tuple[float, float, float],
             ) -> List[ModelPreviewMesh]:
-                render_rows = _weapon_swap_studio_render_rows(rows, template_id)
-                models = tuple(model for model in tuple(weapon_models or ()) if isinstance(model, ModelPreviewData))
-                if not render_rows or not models:
+                usable_models = tuple(model for model in tuple(weapon_models or ()) if _weapon_swap_studio_model_is_usable(model))
+                if not usable_models:
                     return []
                 try:
                     base_rows = weapon_swap_template_socket_rows(template_id)
@@ -36034,87 +36837,140 @@ def run_gui() -> int:
                     base_rows = ()
                 base_by_name = {str(row.name or "").casefold(): row for row in base_rows if isinstance(row, WeaponSwapSocketRow)}
                 long_weapon = not str(template_id or "").startswith("dual_onehand")
-                model_scale = 0.92 if long_weapon else 0.64
-                pivot = (0.0, -0.38 if long_weapon else -0.30, 0.0)
-                placement_scale = 1.0
                 meshes: List[ModelPreviewMesh] = []
-                source_base = 8100
-                for row_index, row in enumerate(render_rows):
-                    model = models[min(row_index, len(models) - 1)]
-                    anchor = _weapon_swap_studio_proxy_anchor(row, base_by_name, template_id)
-                    rotation = tuple(float(value) for value in tuple(row.rotation or (0.0, 0.0, 0.0, 1.0))[:4])
-                    tint = (0.22, 0.78, 0.54) if row_index == 0 else (0.32, 0.65, 0.95)
-                    cloned = self._attachment_visual_clone_model_meshes(
+                for row_index, row in enumerate(_weapon_swap_studio_render_rows(rows, template_id)):
+                    model = usable_models[row_index % len(usable_models)]
+                    label = str(row.name or "weapon").replace("_Socket", "").replace("_ChildSocket", "")
+                    clones = self._attachment_visual_clone_model_meshes(
                         model,
-                        offset=anchor,
-                        pivot=pivot,
-                        rotation=rotation,
-                        color=tint,
+                        offset=_weapon_swap_studio_preview_anchor(row, base_by_name, template_id),
+                        pivot=(0.0, 0.0, 0.0),
+                        rotation=tuple(float(value) for value in tuple(row.rotation or (0.0, 0.0, 0.0, 1.0))[:4]),
+                        color=color,
                         clear_textures=True,
-                        label_prefix=f"weapon swap actual {row.name}",
-                        placement_scale=placement_scale,
+                        label_prefix=f"{label_prefix} {label}",
+                        placement_scale=1.0,
                         use_raw_model_space=False,
-                        max_vertices=36_000,
-                        model_scale=model_scale,
+                        max_vertices=120_000,
+                        model_scale=0.34 if long_weapon else 0.26,
                     )
-                    for mesh_index, mesh in enumerate(cloned):
-                        mesh.source_submesh_index = source_base + (row_index * 100) + mesh_index
-                        mesh.preview_role = "replacement_preview"
-                    meshes.extend(cloned)
+                    source_index = int(source_index_base) + row_index + 1
+                    for clone in clones:
+                        clone.source_submesh_index = source_index
+                        clone.preview_role = preview_role
+                    meshes.extend(clones)
+                return meshes
+
+            def _weapon_swap_studio_body_meshes(body_model: ModelPreviewData) -> List[ModelPreviewMesh]:
+                if not _weapon_swap_studio_model_is_usable(body_model, minimum_faces=80):
+                    return []
+                meshes = self._attachment_visual_clone_model_meshes(
+                    body_model,
+                    offset=(0.0, 0.03, 0.0),
+                    pivot=(0.0, 0.0, 0.0),
+                    rotation=(0.0, 0.0, 0.0, 1.0),
+                    color=(0.58, 0.58, 0.52),
+                    clear_textures=True,
+                    label_prefix="body PAC",
+                    placement_scale=1.0,
+                    use_raw_model_space=False,
+                    max_vertices=90_000,
+                    model_scale=0.42,
+                )
+                for index, mesh in enumerate(meshes):
+                    mesh.source_submesh_index = index
+                    mesh.preview_role = "original_reference"
+                return meshes
+
+            def _weapon_swap_studio_clearance_meshes(template_id: str, *, show_shield: bool) -> List[ModelPreviewMesh]:
+                meshes: List[ModelPreviewMesh] = [
+                    self._attachment_visual_oriented_box_mesh(
+                        "cloak clearance volume",
+                        center=(0.0, 0.10, -0.06),
+                        size=(0.42, 0.88, 0.035),
+                        offset=(0.0, 0.0, 0.0),
+                        rotation=(0.0, 0.0, 0.0, 1.0),
+                        color=(0.20, 0.27, 0.36),
+                        source_submesh_index=-1,
+                        preview_role="original_reference",
+                    )
+                ]
+                if show_shield and str(template_id or "").startswith("dual_onehand"):
+                    meshes.append(
+                        self._attachment_visual_oriented_box_mesh(
+                            "shield clearance volume",
+                            center=(-0.24, 0.36, -0.22),
+                            size=(0.40, 0.54, 0.030),
+                            offset=(0.0, 0.0, 0.0),
+                            rotation=(0.0, 0.0, 0.0, 1.0),
+                            color=(0.86, 0.32, 0.12),
+                            source_submesh_index=-1,
+                            preview_role="original_reference",
+                        )
+                    )
                 return meshes
 
             def _build_weapon_swap_studio_native_preview_model(
-                body_model: Optional[ModelPreviewData],
                 *,
                 rows: Sequence[WeaponSwapSocketRow],
                 template_id: str,
+                body_model: ModelPreviewData,
+                weapon_models: Sequence[ModelPreviewData],
                 show_shield: bool,
-                body_source_path: str,
-                weapon_models: Sequence[ModelPreviewData] = (),
                 weapon_source_paths: Sequence[str] = (),
             ) -> Optional[ModelPreviewData]:
+                try:
+                    baseline_rows = weapon_swap_template_socket_rows(template_id)
+                except Exception:
+                    baseline_rows = ()
+                if not _weapon_swap_studio_model_is_usable(body_model, minimum_faces=80):
+                    return None
+                usable_weapon_models = tuple(model for model in tuple(weapon_models or ()) if _weapon_swap_studio_model_is_usable(model))
+                if not usable_weapon_models:
+                    return None
                 meshes: List[ModelPreviewMesh] = []
-                if isinstance(body_model, ModelPreviewData):
-                    meshes.extend(
-                        self._attachment_visual_clone_model_meshes(
-                            body_model,
-                            offset=(0.0, 0.0, 0.0),
-                            pivot=(0.0, 0.0, 0.0),
-                            rotation=(0.0, 0.0, 0.0, 1.0),
-                            color=(0.58, 0.60, 0.64),
-                            clear_textures=False,
-                            label_prefix="weapon swap body",
-                            placement_scale=1.0,
-                            use_raw_model_space=False,
-                            max_vertices=90_000,
-                            model_scale=1.0,
-                        )
+                meshes.extend(_weapon_swap_studio_body_meshes(body_model))
+                meshes.extend(_weapon_swap_studio_clearance_meshes(template_id, show_shield=show_shield))
+                meshes.extend(
+                    _weapon_swap_studio_real_weapon_meshes(
+                        baseline_rows,
+                        template_id,
+                        usable_weapon_models,
+                        label_prefix="baseline",
+                        source_index_base=7000,
+                        preview_role="original_reference",
+                        color=(0.30, 0.48, 0.82),
                     )
-                if not meshes:
-                    meshes.extend(self._attachment_visual_body_proxy_meshes((), ()))
-                actual_weapon_meshes = _weapon_swap_studio_actual_weapon_meshes(rows, template_id, weapon_models)
-                if actual_weapon_meshes:
-                    meshes.extend(actual_weapon_meshes)
-                    if show_shield and str(template_id or "").startswith("dual_onehand"):
-                        meshes.extend(_weapon_swap_studio_proxy_weapon_meshes((), template_id, show_shield=True))
-                else:
-                    meshes.extend(_weapon_swap_studio_proxy_weapon_meshes(rows, template_id, show_shield=show_shield))
+                )
+                meshes.extend(
+                    _weapon_swap_studio_real_weapon_meshes(
+                        rows,
+                        template_id,
+                        usable_weapon_models,
+                        label_prefix="planned",
+                        source_index_base=7200,
+                        preview_role="replacement_preview",
+                        color=(0.22, 0.78, 0.54),
+                    )
+                )
                 for index, mesh in enumerate(meshes):
                     if isinstance(mesh, ModelPreviewMesh) and int(getattr(mesh, "source_submesh_index", -1) or -1) < 0:
                         mesh.source_submesh_index = index
+                    if isinstance(mesh, ModelPreviewMesh) and not str(getattr(mesh, "preview_role", "") or ""):
+                        mesh.preview_role = "original_reference"
                 vertex_count = sum(len(mesh.positions) for mesh in meshes if isinstance(mesh, ModelPreviewMesh))
                 face_count = sum(len(mesh.indices) // 3 for mesh in meshes if isinstance(mesh, ModelPreviewMesh))
                 if not meshes or vertex_count <= 0:
                     return None
                 return ModelPreviewData(
-                    path="weapon-placement-studio-preview",
-                    format="weapon-placement-studio-preview",
+                    path="weapon-placement-studio-decoded-pac-preview",
+                    format="weapon-placement-studio-decoded-pac-preview",
                     summary=(
                         "Weapon Placement Studio preview\n"
-                        f"Body context: {body_source_path or 'technical proxy'}\n"
-                        f"Weapon context: {', '.join(str(path) for path in tuple(weapon_source_paths or ())[:3]) or 'proxy geometry'}\n"
-                        "Green/blue weapon geometry is planned socket placement; dark geometry is sheath/clearance context. "
-                        "Preview assets are never exported into the mod package."
+                        f"Body context: decoded PAC geometry from {PurePosixPath(str(getattr(body_model, 'path', '') or '')).name or 'body PAC'}.\n"
+                        f"Weapon context: {', '.join(str(path) for path in tuple(weapon_source_paths or ())[:3]) or 'decoded weapon PAC geometry'}\n"
+                        "Blue geometry is the current template baseline; green geometry is planned placement. "
+                        "Clearance volumes are viewport guides only and are never exported."
                     ),
                     mesh_count=len(meshes),
                     vertex_count=vertex_count,
@@ -36125,114 +36981,134 @@ def run_gui() -> int:
                 )
 
             def _start_weapon_swap_studio_preview_refresh() -> None:
-                if bool(studio_preview_state.get("closed")):
+                if bool(studio_preview_state.get("closed")) or not bool(studio_preview_state.get("preview_enabled")):
                     return
                 rows_snapshot = _current_socket_rows()
                 template_id_snapshot = _template().template_id
                 show_shield_snapshot = bool(show_shield_checkbox.isChecked())
-                preview_widget.set_view_mode(preview_view_combo.currentData())
-                preview_widget.set_preview_state(
-                    template_id=template_id_snapshot,
-                    rows=rows_snapshot,
-                    show_shield=show_shield_snapshot,
-                )
-                body_entry = _weapon_swap_preview_body_entry()
+                preview_stack.setCurrentWidget(d3d11_page)
                 if not weapon_swap_d3d11_available:
-                    studio_preview_state["body_key"] = ""
-                    studio_preview_state["body_model"] = None
-                    _studio_preview_status("2D estimate; native D3D11 preview host is unavailable.", fallback=True)
+                    _studio_preview_set_busy(False)
+                    if platform.system().lower() != "windows":
+                        detail = "D3D11 preview host is Windows-only."
+                    else:
+                        detail = "D3D11 preview host is not built or CDMW_D3D11_PREVIEW_BIN does not point to it."
+                    d3d11_status_label.setText(f"Native D3D11 preview host unavailable: {detail}")
+                    _studio_preview_status(f"Native PAC preview unavailable: {detail}", warning=True, show_native=True)
                     return
-                if not isinstance(body_entry, ArchiveEntry):
-                    studio_preview_state["body_key"] = ""
-                    studio_preview_state["body_model"] = None
-                    _studio_preview_status("2D estimate; no preview body PAC found in the loaded archive.", fallback=True)
+                weapon_entries_snapshot = _weapon_swap_preview_weapon_entries(template_id_snapshot)
+                body_entries_snapshot = _weapon_swap_preview_body_candidates(template_id_snapshot)
+                if not body_entries_snapshot:
+                    _studio_preview_set_busy(False)
+                    message = "Preflight blocked: no PHM body PAC candidate was found for native placement preview."
+                    d3d11_status_label.setText(message)
+                    _studio_preview_status(message, warning=True, show_native=True)
+                    return
+                if not weapon_entries_snapshot:
+                    _studio_preview_set_busy(False)
+                    message = "Preflight blocked: no weapon PAC candidate was found for native placement preview."
+                    d3d11_status_label.setText(message)
+                    _studio_preview_status(message, warning=True, show_native=True)
                     return
                 if bool(studio_preview_state.get("active")):
                     studio_preview_state["pending"] = True
+                    _studio_preview_set_busy(True, "Queued latest native PAC placement preview...")
                     return
                 studio_preview_state["active"] = True
                 studio_preview_state["request_id"] = int(studio_preview_state.get("request_id", 0) or 0) + 1
                 request_id = int(studio_preview_state["request_id"])
-                body_key_snapshot = repr(archive_entry_identity_key(body_entry))
-                body_model_snapshot = (
-                    studio_preview_state.get("body_model")
-                    if str(studio_preview_state.get("body_key", "") or "") == body_key_snapshot
-                    else None
-                )
-                weapon_entries_snapshot = _weapon_swap_preview_weapon_entries(template_id_snapshot)
-                weapon_model_cache_snapshot = dict(studio_preview_state.get("weapon_models") or {})
                 texconv_text_snapshot = self.texconv_path_edit.text().strip()
                 texconv_path_snapshot = Path(texconv_text_snapshot).expanduser() if texconv_text_snapshot else None
-                preview_settings_snapshot = dataclasses.replace(self._current_model_preview_render_settings())
-                preview_settings_snapshot.disable_all_support_maps = True
-                preview_settings_snapshot.disable_normal_map = True
-                preview_settings_snapshot.disable_material_map = True
-                preview_settings_snapshot.disable_height_map = True
+                preview_settings_snapshot = self._current_model_preview_render_settings()
                 texture_entries_by_normalized_path_snapshot = self.archive_entries_by_normalized_path
                 texture_entries_by_basename_snapshot = self.archive_entries_by_basename
                 sidecar_entries_by_texture_path_snapshot = self.archive_sidecar_entries_by_texture_path
                 sidecar_entries_by_texture_basename_snapshot = self.archive_sidecar_entries_by_texture_basename
-                if isinstance(body_model_snapshot, ModelPreviewData):
-                    _studio_preview_status(f"refreshing PAC overlay for {body_entry.basename}...")
-                else:
-                    preview_stack.setCurrentWidget(preview_widget)
-                    _studio_preview_status(f"loading PAC body preview from {body_entry.basename}...", fallback=True)
+                _studio_preview_set_busy(True, "Preflight passed. Loading decoded PAC body/weapon geometry...")
+                _studio_preview_status("preflight passed; decoding real PAC body and weapon geometry; fallback blob renderer is disabled.", show_native=True)
 
                 def _preview_task() -> dict:
-                    updated_weapon_cache = dict(weapon_model_cache_snapshot)
-
-                    def _build_preview_model_for_entry(source_entry: ArchiveEntry) -> Optional[ModelPreviewData]:
-                        preview = build_archive_preview_result(
-                            texconv_path_snapshot,
-                            source_entry,
-                            texture_entries_by_normalized_path=texture_entries_by_normalized_path_snapshot,
-                            texture_entries_by_basename=texture_entries_by_basename_snapshot,
-                            sidecar_entries_by_texture_path=sidecar_entries_by_texture_path_snapshot,
-                            sidecar_entries_by_texture_basename=sidecar_entries_by_texture_basename_snapshot,
-                            visible_texture_mode=preview_settings_snapshot.visible_texture_mode,
-                            quality_tier="fast",
-                        )
-                        model = getattr(preview, "preview_model", None)
-                        return model if isinstance(model, ModelPreviewData) else None
-
-                    body_model = body_model_snapshot
-                    if not isinstance(body_model, ModelPreviewData):
-                        body_model = _build_preview_model_for_entry(body_entry)
-                    if not isinstance(body_model, ModelPreviewData):
-                        return {"status": "fallback", "message": f"{body_entry.basename} did not produce renderable geometry."}
-                    weapon_models: List[ModelPreviewData] = []
                     weapon_source_paths: List[str] = []
                     for weapon_entry in tuple(weapon_entries_snapshot or ()):
                         if not isinstance(weapon_entry, ArchiveEntry):
                             continue
-                        weapon_key = repr(archive_entry_identity_key(weapon_entry))
-                        weapon_model = updated_weapon_cache.get(weapon_key)
-                        if not isinstance(weapon_model, ModelPreviewData):
-                            weapon_model = _build_preview_model_for_entry(weapon_entry)
+                        weapon_source_paths.append(str(weapon_entry.path or ""))
+                    if not weapon_entries_snapshot:
+                        return {"status": "unavailable", "message": "No weapon PAC candidate was found for native placement preview."}
+
+                    def _load_model(source_entry: ArchiveEntry, role: str) -> Tuple[Optional[ModelPreviewData], str]:
+                        try:
+                            result = build_archive_preview_result(
+                                texconv_path_snapshot,
+                                source_entry,
+                                companion_entry=self._find_archive_preview_companion_entry(source_entry),
+                                texture_entries_by_normalized_path=texture_entries_by_normalized_path_snapshot,
+                                texture_entries_by_basename=texture_entries_by_basename_snapshot,
+                                sidecar_entries_by_texture_path=sidecar_entries_by_texture_path_snapshot,
+                                sidecar_entries_by_texture_basename=sidecar_entries_by_texture_basename_snapshot,
+                                visible_texture_mode=preview_settings_snapshot.visible_texture_mode,
+                                support_texture_slots=(),
+                                quality_tier="fast",
+                            )
+                        except Exception as exc:
+                            return None, f"{role} {source_entry.basename}: {exc}"
+                        model = getattr(result, "preview_model", None)
+                        if not _weapon_swap_studio_model_is_usable(model, minimum_faces=80 if role == "body" else 12):
+                            detail = str(getattr(result, "detail_text", "") or "").strip().splitlines()
+                            suffix = f" ({detail[-1]})" if detail else ""
+                            return None, f"{role} {source_entry.basename}: decoded geometry was rejected{suffix}"
+                        return model, ""
+
+                    body_model: Optional[ModelPreviewData] = None
+                    body_entry_used: Optional[ArchiveEntry] = None
+                    body_errors: List[str] = []
+                    for body_candidate in tuple(body_entries_snapshot or ()):
+                        if not isinstance(body_candidate, ArchiveEntry):
+                            continue
+                        candidate_model, body_error = _load_model(body_candidate, "body")
+                        if isinstance(candidate_model, ModelPreviewData):
+                            body_model = candidate_model
+                            body_entry_used = body_candidate
+                            break
+                        if body_error:
+                            body_errors.append(body_error)
+                    if not isinstance(body_model, ModelPreviewData) or not isinstance(body_entry_used, ArchiveEntry):
+                        return {
+                            "status": "unavailable",
+                            "message": "Body PAC geometry could not be decoded from candidates: "
+                            + ("; ".join(body_errors[:4]) if body_errors else "no candidate decoded."),
+                        }
+
+                    weapon_models: List[ModelPreviewData] = []
+                    model_errors: List[str] = []
+                    for weapon_entry in tuple(weapon_entries_snapshot or ()):
+                        if not isinstance(weapon_entry, ArchiveEntry):
+                            continue
+                        weapon_model, weapon_error = _load_model(weapon_entry, "weapon")
                         if isinstance(weapon_model, ModelPreviewData):
-                            updated_weapon_cache[weapon_key] = weapon_model
                             weapon_models.append(weapon_model)
-                            weapon_source_paths.append(str(weapon_entry.path or ""))
+                        elif weapon_error:
+                            model_errors.append(weapon_error)
+                    if not weapon_models:
+                        return {
+                            "status": "unavailable",
+                            "message": "; ".join(model_errors[:3]) or "Weapon PAC geometry could not be decoded.",
+                        }
                     preview_model = _build_weapon_swap_studio_native_preview_model(
-                        body_model,
                         rows=rows_snapshot,
                         template_id=template_id_snapshot,
-                        show_shield=show_shield_snapshot,
-                        body_source_path=body_entry.path,
+                        body_model=body_model,
                         weapon_models=weapon_models,
+                        show_shield=show_shield_snapshot,
                         weapon_source_paths=weapon_source_paths,
                     )
                     if not isinstance(preview_model, ModelPreviewData):
-                        return {"status": "fallback", "message": "PAC preview model could not be assembled."}
+                        return {"status": "unavailable", "message": "Decoded PAC placement preview model could not be assembled."}
                     return {
                         "status": "native",
                         "model": preview_model,
-                        "body_model": body_model,
-                        "body_key": body_key_snapshot,
-                        "body_path": body_entry.path,
-                        "body_name": body_entry.basename,
+                        "body_name": body_entry_used.basename,
                         "weapon_names": tuple(entry.basename for entry in tuple(weapon_entries_snapshot or ()) if isinstance(entry, ArchiveEntry)),
-                        "weapon_models": updated_weapon_cache,
                     }
 
                 worker = VisualPlacementPreviewWorker(request_id, _preview_task)
@@ -36244,28 +37120,31 @@ def run_gui() -> int:
                     if bool(studio_preview_state.get("closed")) or int(done_request_id) != int(studio_preview_state.get("request_id", 0) or 0):
                         return
                     if not isinstance(payload, Mapping) or payload.get("status") != "native":
-                        message = str(payload.get("message", "PAC preview unavailable.") if isinstance(payload, Mapping) else "PAC preview unavailable.")
-                        _studio_preview_status(f"2D estimate; {message}", fallback=True)
+                        message = str(payload.get("message", "Native PAC preview unavailable.") if isinstance(payload, Mapping) else "Native PAC preview unavailable.")
+                        _studio_preview_set_busy(False)
+                        d3d11_status_label.setText(message)
+                        _studio_preview_status(f"Native PAC preview unavailable: {message}", warning=True, show_native=True)
                         return
                     model = payload.get("model")
                     if not isinstance(model, ModelPreviewData):
-                        _studio_preview_status("2D estimate; PAC preview returned no renderable model.", fallback=True)
+                        _studio_preview_set_busy(False)
+                        d3d11_status_label.setText("Native PAC preview returned no renderable model.")
+                        _studio_preview_status("Native PAC preview unavailable: no renderable model returned.", warning=True, show_native=True)
                         return
-                    studio_preview_state["body_model"] = payload.get("body_model")
-                    studio_preview_state["body_key"] = str(payload.get("body_key", "") or "")
-                    weapon_models_payload = payload.get("weapon_models")
-                    if isinstance(weapon_models_payload, Mapping):
-                        studio_preview_state["weapon_models"] = dict(weapon_models_payload)
                     preview_stack.setCurrentWidget(d3d11_page)
                     weapon_names = tuple(str(name or "") for name in tuple(payload.get("weapon_names", ()) or ()) if str(name or "").strip())
-                    weapon_note = f" and weapon PAC {', '.join(weapon_names[:2])}" if weapon_names else " with proxy weapon geometry"
-                    _studio_preview_status(f"PAC body {payload.get('body_name') or 'body'}{weapon_note}; building native D3D11 view.")
+                    body_name = str(payload.get("body_name", "") or "")
+                    weapon_note = f" with {', '.join(weapon_names[:2])}" if weapon_names else ""
+                    body_note = f"{body_name}" if body_name else "body PAC"
+                    _studio_preview_status(f"decoded PAC preview from {body_note}{weapon_note}; building native D3D11 view.", show_native=True)
                     _studio_d3d11_start_package_worker(model)
 
                 def _preview_error(done_request_id: int, message: str) -> None:
                     if bool(studio_preview_state.get("closed")) or int(done_request_id) != int(studio_preview_state.get("request_id", 0) or 0):
                         return
-                    _studio_preview_status(f"2D estimate; PAC preview failed: {message}", fallback=True)
+                    _studio_preview_set_busy(False)
+                    d3d11_status_label.setText(f"Native PAC preview failed: {message}")
+                    _studio_preview_status(f"Native PAC preview failed: {message}", warning=True, show_native=True)
 
                 def _preview_finished(_done_request_id: int) -> None:
                     studio_preview_state["active"] = False
@@ -36286,8 +37165,14 @@ def run_gui() -> int:
                 thread.start()
 
             def _queue_weapon_swap_studio_preview_refresh() -> None:
-                if not bool(studio_preview_state.get("closed")):
+                if not bool(studio_preview_state.get("closed")) and bool(studio_preview_state.get("preview_enabled")):
                     studio_preview_timer.start()
+
+            def _request_weapon_swap_studio_preview_refresh() -> None:
+                if bool(studio_preview_state.get("closed")):
+                    return
+                studio_preview_state["preview_enabled"] = True
+                _queue_weapon_swap_studio_preview_refresh()
 
             studio_preview_timer.timeout.connect(_start_weapon_swap_studio_preview_refresh)
 
@@ -36304,11 +37189,12 @@ def run_gui() -> int:
                 alias_clean = str(alias_path or "").replace("\\", "/").strip().strip("/")
                 if not alias_clean or alias_clean.casefold() == current_key:
                     return None
+                payload_data = _encode_entry_text(entry_for_alias, str(payload_text or ""))
                 return MeshImportSupplementalFileSpec(
                     source_path=Path(alias_clean),
                     target_path=alias_clean,
                     kind=kind,
-                    payload_data=str(payload_text or "").encode("utf-8"),
+                    payload_data=payload_data,
                     note="Weapon Placement Studio CDUMM alias.",
                 )
 
@@ -36348,6 +37234,27 @@ def run_gui() -> int:
                 log(f"Added {written:,} universal 2H sword motion alias payload(s).")
                 return written
 
+            def _add_twohand_v51a_horse_paac_patch(
+                requests_by_path: Dict[str, ArchivePatchRequest],
+                log: Callable[[str], None],
+            ) -> int:
+                paac_entry = _original_entry_by_virtual_path(TWOHAND_HORSE_PAAC_PATH)
+                if not isinstance(paac_entry, ArchiveEntry):
+                    log(f"Skip v51A mounted 2H PAAC socket patch: {TWOHAND_HORSE_PAAC_PATH} was not found.")
+                    return 0
+                patched_data, replacement_count = patch_twohand_horse_paac_socket_bytes(_read_entry_bytes(paac_entry))
+                if replacement_count <= 0:
+                    log("Skip v51A mounted 2H PAAC socket patch: Spine2_B_SubWeapon_Socket was not found.")
+                    return 0
+                key = paac_entry.path.replace("\\", "/").strip().casefold()
+                requests_by_path[key] = ArchivePatchRequest(paac_entry, patched_data)
+                log(
+                    "Patch mounted 2H PAAC v51A release-safe graph: "
+                    f"{paac_entry.path}; {replacement_count:,} back-socket reference(s) retargeted to Pelvis_L_SubWeapon_Socket. "
+                    "Uses current original PAAC bytes so horseback held/heavy release remains fixed."
+                )
+                return 1
+
             def _add_dual_motion_aliases(
                 requests_by_path: Dict[str, ArchivePatchRequest],
                 log: Callable[[str], None],
@@ -36379,58 +37286,95 @@ def run_gui() -> int:
                             continue
                         requests_by_path[target_key] = ArchivePatchRequest(target_entry, _read_entry_bytes(source_entry))
                         written += 1
+                # v27A crossed-sword baseline: shield-equipped draw uses the 004 sword slot.
+                # Keep the v18 back-draw PAA body to avoid the dlsd attack-stance regression,
+                # but keep the smoother dualsword metadata proven in v19A/v27A.
+                for source_virtual, target_virtual in (
+                    (DUAL_BACK_SHIELD_DRAW_PAA_SOURCE_PATH, DUAL_BACK_SHIELD_DRAW_PAA_TARGET_PATH),
+                    (DUAL_BACK_SHIELD_DRAW_META_SOURCE_PATH, DUAL_BACK_SHIELD_DRAW_META_TARGET_PATH),
+                ):
+                    source_key = source_virtual.replace("\\", "/").strip().strip("/").casefold()
+                    target_key = target_virtual.replace("\\", "/").strip().strip("/").casefold()
+                    source_entry = entries_by_path.get(source_key)
+                    target_entry = entries_by_path.get(target_key)
+                    if not isinstance(source_entry, ArchiveEntry) or not isinstance(target_entry, ArchiveEntry):
+                        log(f"Skip v27A shield draw alias: missing {source_virtual} or {target_virtual}.")
+                        continue
+                    requests_by_path[target_key] = ArchivePatchRequest(target_entry, _read_entry_bytes(source_entry))
+                    written += 1
                 log(f"Added {written:,} dual 1H back draw/stow motion alias payload(s).")
                 return written
 
             def _plan_lines_for_template(template: WeaponSwapTemplate, scope: str) -> Tuple[Tuple[str, str, str, str], ...]:
                 if scope != WEAPON_SWAP_TEMPLATE_CLASS_SCOPE:
+                    targets = _studio_scope_targets(scope)
+                    if scope == WEAPON_SWAP_TEMPLATE_SELECTION_SCOPE:
+                        return (
+                            (
+                                "Open batch target builder",
+                                f"{len(targets):,} selected placement-capable row(s)",
+                                "one combined loose mod folder",
+                                "Choose one placement source per target; package rows stay target-owned unless advanced legacy copy is enabled.",
+                            ),
+                            (
+                                "Preserve target assets",
+                                "models, icons, HKX, ItemInfo",
+                                "excluded by default",
+                                "The batch flow keeps each selected row as the target that changes.",
+                            ),
+                        )
                     return (
                         (
-                            "Open existing placement builder",
-                            getattr(current_entry, "path", "selected target") if isinstance(current_entry, ArchiveEntry) else "selected target",
+                            "Open selected target builder",
+                            targets[0].path if targets else "selected target",
                             "target-owned prefab/socket package",
-                            "Selected PAC and selected rows use the current proven placement workflow in v1.",
+                            "Specific PAC/weapon flow preserves target model, icon, physics, HKX, and ItemInfo unless advanced options are enabled.",
                         ),
                     )
                 if template.template_id == "custom_selected_pac":
                     return (("Unavailable for class-wide scope", "-", "-", "Choose Selected PAC or Selected archive rows."),)
                 lines = [
-                    ("Patch descriptor XML", "phm_description_player_kliff.xml", "placement descriptor", "No ItemInfo or PAAC graph writes."),
+                    ("Patch descriptor XML", "phm_description_player_kliff.xml", "placement descriptor", "No ItemInfo; mounted PAAC socket patch listed separately for 2H templates."),
                 ]
                 if template.template_id.startswith("twohand_sword"):
-                    lines.append(("Patch 2H sword socket XML", "cd_phm_02_sword_0001*.sockets.xml", "socket transforms", "45 degree learned hip tilt."))
+                    lines.append(("Patch 2H sword socket XML", "cd_phm_02_sword_0001*.sockets.xml plus tested sheath sidecars", "socket transforms", "v43 hip tilt plus horse stow fallback rows."))
+                    lines.append(("Patch mounted 2H PAAC", "ride_weapon_twohandsword_upper.paac", "current-graph socket retarget", f"{TWOHAND_HORSE_RELEASE_FIX_VARIANT}: current original graph keeps horseback held/heavy release fixed; same-length back socket retarget keeps hip stow."))
                     if template.includes_motion_aliases and template.template_id != "twohand_sword_placement_only":
-                        lines.append(("Alias motion payloads", "PHM 2H sword PAA/PAA_metabin", "animation payload aliases", "Uses conservative existing alias planner; no .paac graph copy."))
+                        lines.append(("Alias motion payloads", "PHM 2H sword PAA/PAA_metabin", "animation payload aliases", "Uses conservative existing alias planner; combat and full PAAC graph swaps remain blocked."))
+                    lines.append(("Validated sword coverage", twohand_sword_v43_known_weapon_summary(), "tested baseline notes", "Darkbringer, Rhett's Longsword, Vessel of Dark Pursuit, and Hwando are recorded as v43-tested 2H swords."))
                 elif template.template_id.startswith("dual_onehand"):
                     lines.append(("Patch character socket XML", "phm_01.pab.sockets.xml", "Spine2_R/L socket rows", "Writes shoulder-fix back placement values plus slider deltas."))
                     lines.append(("Patch 1H sword child socket XML", "weapon/1_onehandweapon/*.sockets.xml", "Spine2_R/L child socket rows", "Keeps weapon and sheath pivot alignment from the working back-placement baseline."))
-                    lines.append(("Alias dual draw/stow payloads", "PHM dual/dlsd PAA/PAA_metabin", "stable motion aliases", "No combat, attack, HKX, ItemInfo, or .paac graph copy."))
+                    lines.append(("Alias dual draw/stow payloads", "PHM dual/dlsd PAA/PAA_metabin", "stable motion aliases", f"{DUAL_BACK_BASELINE_PACKAGE}: shield draw 004 uses v18 back-draw PAA plus smooth dualsword metadata; no combat, HKX, ItemInfo, or .paac graph copy."))
                 return tuple(lines)
 
             def _refresh_studio_state() -> None:
                 template = _template()
                 scope = _selected_scope()
                 template_scope_allowed = scope in template.supported_scopes
-                target_text = "No archive target selected."
-                if selected_entries:
-                    target_text = f"{len(selected_entries):,} selected row(s); current: {selected_entries[0].path}"
-                elif isinstance(current_entry, ArchiveEntry):
-                    target_text = current_entry.path
+                scope_targets = _studio_scope_targets(scope)
+                candidate_count = len(_studio_candidate_entries())
+                if scope == WEAPON_SWAP_TEMPLATE_CLASS_SCOPE:
+                    target_text = "Class-wide PHM route: learned descriptor/socket template package."
+                elif scope == WEAPON_SWAP_TEMPLATE_SELECTION_SCOPE:
+                    target_text = f"{len(scope_targets):,} placement-capable target(s) from {candidate_count:,} selected archive row(s)."
+                elif scope_targets:
+                    target_text = scope_targets[0].path
+                else:
+                    target_text = "Select a PAC/model/HKX/socket row in Archive Files first."
                 target_label.setText(target_text)
+                _populate_studio_target_tree(scope)
                 dual_visible = template.template_id.startswith("dual_onehand")
                 dual_group.setVisible(dual_visible)
-                source_picker_button.setEnabled(isinstance(current_entry, ArchiveEntry))
+                source_picker_button.setEnabled(bool(scope_targets))
                 plan_tree.clear()
                 for action, target, writes, notes in _plan_lines_for_template(template, scope):
                     plan_tree.addTopLevelItem(QTreeWidgetItem([action, target, writes, notes]))
                 rows = _current_socket_rows()
-                preview_widget.set_view_mode(preview_view_combo.currentData())
-                preview_widget.set_preview_state(
-                    template_id=template.template_id,
-                    rows=rows,
-                    show_shield=show_shield_checkbox.isChecked(),
-                )
-                _queue_weapon_swap_studio_preview_refresh()
+                map_summary = _update_weapon_swap_studio_placement_map(rows, template.template_id)
+                if not bool(preview_busy_bar.isVisible()):
+                    _studio_preview_status(map_summary)
+                    d3d11_status_label.setText("Native PAC preview is idle. Click Build Native PAC Preview to decode body/weapon PAC geometry.")
                 advanced_detail_tree.clear()
                 if rows:
                     for row in rows:
@@ -36452,30 +37396,47 @@ def run_gui() -> int:
                     build_button.setEnabled(False)
                 elif scope == WEAPON_SWAP_TEMPLATE_CLASS_SCOPE:
                     plan_status.setText(
-                        "Class-wide PHM package will use original archive entries only and will not write ItemInfo, PAAC graphs, HKX, combat, or attack files."
+                        "Class-wide PHM package will use original archive entries only. ItemInfo, HKX, combat, attack files, and full PAAC graph swaps are excluded; the 2H template may write the validated v51A mounted PAAC socket patch."
                     )
                     package_detail_label.setText(
                         "Package details: descriptor/socket XML plus stable PAA/PAA_metabin motion aliases where the selected template needs them. "
-                        "Disabled risky experiments remain blocked."
+                        "The 2H v51A current-graph horse socket patch is allowed; disabled risky experiments remain blocked."
                     )
                     build_button.setText("Build Placement Package...")
                     build_button.setEnabled(template.template_id != "custom_selected_pac")
                 else:
-                    plan_status.setText(
-                        "Selected target flow is handled by the advanced target-owned builder so per-weapon prefab/model preservation stays unchanged."
-                    )
+                    if scope == WEAPON_SWAP_TEMPLATE_SELECTION_SCOPE and len(scope_targets) > 1:
+                        plan_status.setText(
+                            "Batch flow opens one target-owned row list. Choose a placement source for each selected target, then write one combined loose mod folder."
+                        )
+                        build_button.setText("Open Batch Target Builder...")
+                    elif len(scope_targets) == 1:
+                        plan_status.setText(
+                            "Selected target flow opens the proven target-owned builder for this specific PAC/weapon row."
+                        )
+                        build_button.setText("Open Selected Target Builder...")
+                    else:
+                        plan_status.setText("Select one or more placement-capable Archive Files rows first.")
+                        build_button.setText("Open Target Builder...")
                     package_detail_label.setText(
-                        "Package details: selected PAC mode uses the target-owned placement builder and preserves donor model, icon, physics, and HKX by default."
+                        "Package details: target-owned placement keeps donor model, icon, physics, HKX, ItemInfo, and source PAAC graph out of the default output."
                     )
-                    build_button.setText("Continue To Target-Owned Builder...")
-                    build_button.setEnabled(isinstance(current_entry, ArchiveEntry))
+                    build_button.setEnabled(bool(scope_targets))
 
             def _build_class_wide_template() -> None:
                 template = _template()
-                if _selected_scope() != WEAPON_SWAP_TEMPLATE_CLASS_SCOPE:
-                    if isinstance(current_entry, ArchiveEntry):
-                        self._open_archive_attachment_placement_workspace_dialog(current_entry)
+                scope = _selected_scope()
+                if scope != WEAPON_SWAP_TEMPLATE_CLASS_SCOPE:
+                    targets = _studio_scope_targets(scope)
+                    if scope == WEAPON_SWAP_TEMPLATE_SELECTION_SCOPE and len(targets) > 1:
+                        self._open_archive_bulk_attachment_placement_dialog(targets)
                         dialog.accept()
+                        return
+                    if targets:
+                        self._open_archive_attachment_placement_workspace_dialog(targets[0])
+                        dialog.accept()
+                    else:
+                        QMessageBox.warning(dialog, "Weapon Placement Studio", "Select a placement-capable PAC/model/HKX/socket row first.")
                     return
                 if template.template_id == "custom_selected_pac":
                     QMessageBox.warning(dialog, "Weapon Placement Studio", "Custom selected PAC placement is not class-wide.")
@@ -36487,7 +37448,7 @@ def run_gui() -> int:
                     (
                         f"Build class-wide PHM package for template '{template.label}'?\n\n"
                         f"{preview}\n\n"
-                        "No original archives will be modified. ItemInfo, PAAC graphs, HKX, combat, and attack files are excluded."
+                        "No original archives will be modified. ItemInfo, HKX, combat, attack files, and full PAAC graph swaps are excluded."
                     ),
                     QMessageBox.Yes | QMessageBox.No,
                     QMessageBox.No,
@@ -36516,7 +37477,10 @@ def run_gui() -> int:
                     f"Position delta: {translation_snapshot}",
                     f"Rotation delta: {rotation_snapshot}",
                     "True 1H/offhand disabled; ItemInfo is not exported.",
-                    "PAAC graph, HKX, combat, and attack files are not exported.",
+                    "Full PAAC graph swaps, HKX, combat, and attack files are not exported.",
+                    f"2H v43 baseline: {TWOHAND_HORSE_BASELINE_PACKAGE}.",
+                    f"2H mounted PAAC fix: {TWOHAND_HORSE_PAAC_PATCH_NOTE}.",
+                    f"2H v43 tested swords: {twohand_sword_v43_known_weapon_summary()}",
                 ]
                 package_info = self._placement_swap_package_info_with_diagnostics(package_info, diagnostics)
 
@@ -36538,7 +37502,7 @@ def run_gui() -> int:
                             descriptor_patch = build_part_in_out_weapon_swap_template_patch(descriptor_text, template.template_id)
                         if descriptor_patch.diffs:
                             key = descriptor_entry.path.replace("\\", "/").strip().casefold()
-                            requests_by_path[key] = ArchivePatchRequest(descriptor_entry, descriptor_patch.text.encode("utf-8"))
+                            requests_by_path[key] = ArchivePatchRequest(descriptor_entry, _encode_entry_text(descriptor_entry, descriptor_patch.text))
                             alias = _global_xml_alias_spec(
                                 descriptor_entry,
                                 descriptor_patch.text,
@@ -36555,24 +37519,73 @@ def run_gui() -> int:
                         log("Descriptor XML phm_description_player_kliff.xml was not found.")
 
                     if template.template_id.startswith("twohand_sword"):
-                        for socket_path in (
-                            "character/descriptors/socketbonedata/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0001.sockets.xml",
-                            "character/descriptors/socketbonedata/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0001_in.sockets.xml",
-                        ):
-                            socket_entry = _original_entry_by_virtual_path(socket_path)
-                            if not isinstance(socket_entry, ArchiveEntry):
-                                log(f"Skip missing 2H sword socket XML: {socket_path}")
-                                continue
-                            socket_patch = build_socket_bone_weapon_swap_template_patch(
-                                _read_entry_text(socket_entry),
+                        character_socket_entry = _original_entry_by_basename("phm_01.pab.sockets.xml", "identityskeleton.pab.sockets.xml")
+                        if isinstance(character_socket_entry, ArchiveEntry):
+                            character_socket_patch = build_socket_bone_weapon_swap_rows_patch(
+                                _read_entry_text(character_socket_entry),
+                                twohand_sword_v43_character_socket_rows(),
+                            )
+                            if character_socket_patch.diffs:
+                                key = character_socket_entry.path.replace("\\", "/").strip().casefold()
+                                requests_by_path[key] = ArchivePatchRequest(character_socket_entry, _encode_entry_text(character_socket_entry, character_socket_patch.text))
+                                log(
+                                    "Patch PHM character socket fallback: "
+                                    f"{character_socket_entry.path}; {len(character_socket_patch.diffs):,} change(s)."
+                                )
+                        else:
+                            log("Skip v43 PHM character socket fallback: phm_01.pab.sockets.xml was not found.")
+
+                        patched_shared_sheath_text = ""
+                        patched_shared_sheath_entry: Optional[ArchiveEntry] = None
+                        twohand_rows = tuple(
+                            weapon_swap_template_socket_rows(
                                 template.template_id,
                                 translation_delta=translation_snapshot,
                                 rotation_delta_degrees=rotation_snapshot,
                             )
+                        ) + tuple(twohand_sword_v43_weapon_socket_rows())
+                        for socket_path in twohand_sword_v43_socket_sidecar_paths():
+                            socket_key_hint = socket_path.replace("\\", "/").strip().strip("/").casefold()
+                            socket_entry = _original_entry_by_virtual_path(socket_path)
+                            if not isinstance(socket_entry, ArchiveEntry):
+                                log(f"Skip missing 2H sword socket XML: {socket_path}")
+                                continue
+                            socket_patch = build_socket_bone_weapon_swap_rows_patch(
+                                _read_entry_text(socket_entry),
+                                twohand_rows,
+                            )
                             if socket_patch.diffs:
                                 key = socket_entry.path.replace("\\", "/").strip().casefold()
-                                requests_by_path[key] = ArchivePatchRequest(socket_entry, socket_patch.text.encode("utf-8"))
+                                requests_by_path[key] = ArchivePatchRequest(socket_entry, _encode_entry_text(socket_entry, socket_patch.text))
+                                if socket_key_hint.endswith("/cd_phm_02_sword_0001_in.sockets.xml"):
+                                    patched_shared_sheath_text = socket_patch.text
+                                    patched_shared_sheath_entry = socket_entry
                                 log(f"Patch 2H sword socket XML: {socket_entry.path}; {len(socket_patch.diffs):,} change(s).")
+                            elif socket_key_hint.endswith("/cd_phm_02_sword_0001_in.sockets.xml"):
+                                patched_shared_sheath_text = socket_patch.text
+                                patched_shared_sheath_entry = socket_entry
+                        if patched_shared_sheath_text:
+                            for socket_path in twohand_sword_v43_socket_sidecar_paths():
+                                socket_key_hint = socket_path.replace("\\", "/").strip().strip("/").casefold()
+                                if not socket_key_hint.endswith("_in.sockets.xml") or socket_key_hint in requests_by_path:
+                                    continue
+                                if _original_entry_by_virtual_path(socket_path) is not None:
+                                    continue
+                                supplemental_specs.append(
+                                    MeshImportSupplementalFileSpec(
+                                        source_path=Path(socket_path),
+                                        target_path=socket_path,
+                                        kind="weapon_swap_twohand_sheath_socket_alias",
+                                        payload_data=(
+                                            _encode_entry_text(patched_shared_sheath_entry, patched_shared_sheath_text)
+                                            if isinstance(patched_shared_sheath_entry, ArchiveEntry)
+                                            else encode_xml_text_like_source(patched_shared_sheath_text)
+                                        ),
+                                        note=f"v43 tested 2H sheath socket sidecar cloned from cd_phm_02_sword_0001_in.sockets.xml for {PurePosixPath(socket_path).name}.",
+                                    )
+                                )
+                                log(f"Add v43 tested 2H sheath socket sidecar: {socket_path}")
+                        _add_twohand_v51a_horse_paac_patch(requests_by_path, log)
                         if template.includes_motion_aliases and template.template_id != "twohand_sword_placement_only":
                             _add_twohand_motion_aliases(requests_by_path, log)
                     else:
@@ -36592,7 +37605,7 @@ def run_gui() -> int:
                                 dual_height_delta=float(dual_height_spin.value()),
                             )
                             key = character_socket_entry.path.replace("\\", "/").strip().casefold()
-                            requests_by_path[key] = ArchivePatchRequest(character_socket_entry, socket_patch.text.encode("utf-8"))
+                            requests_by_path[key] = ArchivePatchRequest(character_socket_entry, _encode_entry_text(character_socket_entry, socket_patch.text))
                             alias = _global_xml_alias_spec(
                                 character_socket_entry,
                                 socket_patch.text,
@@ -36625,7 +37638,7 @@ def run_gui() -> int:
                                 if not child_patch.diffs:
                                     continue
                                 key = socket_entry.path.replace("\\", "/").strip().casefold()
-                                requests_by_path[key] = ArchivePatchRequest(socket_entry, child_patch.text.encode("utf-8"))
+                                requests_by_path[key] = ArchivePatchRequest(socket_entry, _encode_entry_text(socket_entry, child_patch.text))
                                 log(
                                     "Patch 1H sword child socket XML: "
                                     f"{socket_entry.path}; {len(child_patch.diffs):,} change(s)."
@@ -36661,16 +37674,32 @@ def run_gui() -> int:
                 )
 
             def _open_selected_placement_workspace() -> None:
-                if isinstance(current_entry, ArchiveEntry):
-                    self._open_archive_attachment_placement_workspace_dialog(current_entry)
+                targets = _studio_scope_targets(_selected_scope())
+                if _selected_scope() == WEAPON_SWAP_TEMPLATE_SELECTION_SCOPE and len(targets) > 1:
+                    self._open_archive_bulk_attachment_placement_dialog(targets)
+                    dialog.accept()
+                elif targets:
+                    self._open_archive_attachment_placement_workspace_dialog(targets[0])
                     dialog.accept()
                 else:
-                    QMessageBox.warning(dialog, "Weapon Placement Studio", "Select a PAC/model row first.")
+                    QMessageBox.warning(dialog, "Weapon Placement Studio", "Select a placement-capable PAC/model/HKX/socket row first.")
+
+            def _open_target_tree_entry(item: Optional[QTreeWidgetItem], _column: int = 0) -> None:
+                entry = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
+                if isinstance(entry, ArchiveEntry) and self._archive_entry_supports_attachment_placement_workflow(entry):
+                    self._open_archive_attachment_placement_workspace_dialog(entry)
+                    dialog.accept()
+                elif _selected_scope() == WEAPON_SWAP_TEMPLATE_SELECTION_SCOPE and len(_studio_scope_targets(_selected_scope())) > 1:
+                    _open_selected_placement_workspace()
+                else:
+                    QMessageBox.warning(dialog, "Weapon Placement Studio", "Select a placement-capable PAC/model/HKX/socket row first.")
 
             def _shutdown_weapon_swap_studio_preview(_result: int = 0) -> None:
                 studio_preview_state["closed"] = True
+                studio_preview_state["preview_enabled"] = False
                 studio_preview_timer.stop()
                 studio_d3d11_status_timer.stop()
+                studio_d3d11_load_timeout_timer.stop()
                 studio_preview_state["request_id"] = int(studio_preview_state.get("request_id", 0) or 0) + 1
                 _studio_d3d11_stop_worker()
                 _studio_d3d11_stop_process()
@@ -36704,12 +37733,15 @@ def run_gui() -> int:
             template_combo.currentIndexChanged.connect(lambda _index=0: _sync_scope_for_template())
             scope_combo.currentIndexChanged.connect(lambda _index=0: _refresh_studio_state())
             show_shield_checkbox.toggled.connect(lambda _checked=False: _refresh_studio_state())
-            preview_view_combo.currentIndexChanged.connect(lambda _index=0: _refresh_studio_state())
+            map_view_combo.currentIndexChanged.connect(lambda _index=0: placement_map_widget.set_view_mode(map_view_combo.currentData()))
+            preview_refresh_button.clicked.connect(lambda _checked=False: _request_weapon_swap_studio_preview_refresh())
+            target_tree.itemDoubleClicked.connect(_open_target_tree_entry)
             build_button.clicked.connect(lambda _checked=False: _build_class_wide_template())
             close_button.clicked.connect(dialog.reject)
             source_picker_button.clicked.connect(lambda _checked=False: _open_selected_placement_workspace())
             dialog.finished.connect(_shutdown_weapon_swap_studio_preview)
             _refresh_studio_state()
+
             def _fit_weapon_swap_studio_to_screen() -> None:
                 screen = dialog.screen() or self.screen() or QApplication.primaryScreen()
                 if screen is None:
@@ -38456,7 +39488,7 @@ def run_gui() -> int:
             if len(targets) <= 1:
                 QMessageBox.information(
                     self,
-                    "Bulk Placement Swap",
+                    "Weapon Placement Batch",
                     "Select two or more weapon/model/prefab/HKX/socket rows in Archive Browser first.",
                 )
                 return
@@ -38477,26 +39509,26 @@ def run_gui() -> int:
                 seen_targets.add(key)
                 targets.append(entry)
             if len(targets) <= 0:
-                QMessageBox.information(self, "Bulk Placement Swap", "No placement-capable target rows were selected.")
+                QMessageBox.information(self, "Weapon Placement Batch", "No placement-capable target rows were selected.")
                 return
 
             dialog = QDialog(self)
-            dialog.setWindowTitle(f"Bulk Placement Swap - {len(targets):,} target(s)")
+            dialog.setWindowTitle(f"Weapon Placement Batch - {len(targets):,} target(s)")
             dialog.resize(1240, 760)
             layout = QVBoxLayout(dialog)
             layout.setContentsMargins(12, 12, 12, 12)
             layout.setSpacing(8)
             intro = QLabel(
-                "Bulk placement swap runs the same per-target placement-copy package plan that the single workflow uses. "
+                "Weapon Placement Batch runs the same per-target placement-copy package plan that the single workflow uses. "
                 "Each row is a target to change; choose one placement source for that row, then build one combined mod folder."
             )
             intro.setObjectName("HintLabel")
             intro.setWordWrap(True)
             layout.addWidget(intro)
 
-            experimental_model_checkbox = QCheckBox("Legacy raw prefab copy for bulk (risky)")
+            experimental_model_checkbox = QCheckBox("Legacy raw prefab copy for batch (risky)")
             experimental_model_checkbox.setToolTip(
-                "Default off. Bulk does not yet build the target-only prefab/descriptor patch used by the single workflow. Enable only for old raw prefab-copy behavior."
+                "Default off. Batch does not yet build the target-only prefab/descriptor patch used by the single workflow. Enable only for old raw prefab-copy behavior."
             )
             experimental_hkx_checkbox = QCheckBox("Replacement-only: copy source HKX/physics for each pair")
             experimental_hkx_checkbox.setToolTip(
@@ -38693,7 +39725,7 @@ def run_gui() -> int:
                     )
                     return
                 status = _bulk_pair_compatibility_status(warnings) if rows else "Blocked"
-                note = _bulk_pair_ready_note(warnings) if rows else "Bulk raw copy is off; use Review Selected Pair for target-only placement package."
+                note = _bulk_pair_ready_note(warnings) if rows else "Batch raw copy is off; use Review Selected Pair for target-only placement package."
                 _set_item_state(target, source=source, rows=rows, warnings=warnings, status=status, note=note)
 
             def _rebuild_all_assigned_pairs() -> None:
@@ -38726,7 +39758,7 @@ def run_gui() -> int:
                         )
                         continue
                     status = _bulk_pair_compatibility_status(warnings) if rows else "Blocked"
-                    note = _bulk_pair_ready_note(warnings) if rows else "Bulk raw copy is off; use Review Selected Pair for target-only placement package."
+                    note = _bulk_pair_ready_note(warnings) if rows else "Batch raw copy is off; use Review Selected Pair for target-only placement package."
                     _set_item_state(target, source=source, rows=rows, warnings=warnings, status=status, note=note)
 
             def _refresh_bulk_experimental_options() -> None:
@@ -38764,7 +39796,7 @@ def run_gui() -> int:
                 if len(ready_states) != len(targets):
                     QMessageBox.information(
                         dialog,
-                        "Bulk Placement Swap",
+                        "Weapon Placement Batch",
                         "Choose a valid placement source for every target before building the combined package.",
                     )
                     return
@@ -38781,7 +39813,7 @@ def run_gui() -> int:
                     preview_lines.append(f"- ...and {len(ready_states) - 10:,} more target(s)")
                 if QMessageBox.question(
                     dialog,
-                    "Build One Bulk Placement Mod Folder",
+                    "Build Weapon Placement Batch Mod Folder",
                     (
                         f"Write one mod-ready loose folder for {len(ready_states):,} placement swap target(s)?\n\n"
                         + "\n".join(preview_lines)
@@ -38792,9 +39824,9 @@ def run_gui() -> int:
                 ) != QMessageBox.Yes:
                     return
                 target_settings = self._collect_archive_mod_ready_export_target(
-                    browse_title="Choose Bulk Placement Swap Export Root",
+                    browse_title="Choose Weapon Placement Batch Export Root",
                     prompt_for_metadata=True,
-                    dialog_title="Build Bulk Placement Swap Package",
+                    dialog_title="Build Weapon Placement Batch Package",
                     allow_dmm_texture_structure=False,
                 )
                 if target_settings is None:
@@ -38809,11 +39841,11 @@ def run_gui() -> int:
                     for state in ready_states
                 )
                 bulk_diagnostics = [
-                    f"Bulk placement swap pairs: {len(state_snapshot):,}",
+                    f"Weapon Placement Batch pairs: {len(state_snapshot):,}",
                     (
-                        "Legacy bulk raw prefab copy enabled for each pair."
+                        "Legacy batch raw prefab copy enabled for each pair."
                         if experimental_model_checkbox.isChecked()
-                        else "Bulk target-only placement build disabled; use Review Selected Pair for the safe single-target workflow."
+                        else "Batch target-only placement build disabled; use Review Selected Pair for the safe single-target workflow."
                     ),
                     (
                         "Replacement-only source HKX/physics copied where each pair resolves a target path."
@@ -38839,7 +39871,7 @@ def run_gui() -> int:
                         rows = tuple(state.get("rows") or ())
                         if not isinstance(target, ArchiveEntry) or not isinstance(source, ArchiveEntry):
                             continue
-                        log(f"Bulk placement pair {index:,}/{len(state_snapshot):,}: {target.path} <- {source.path}")
+                        log(f"Weapon Placement Batch pair {index:,}/{len(state_snapshot):,}: {target.path} <- {source.path}")
                         for row in rows:
                             source_entry = row.get("donor_entry") if isinstance(row, Mapping) else None
                             target_entry = row.get("target_entry") if isinstance(row, Mapping) else None
@@ -38849,10 +39881,10 @@ def run_gui() -> int:
                             source_key = source_entry.path.replace("\\", "/").strip().casefold()
                             if target_key in requests_by_path:
                                 if source_by_target_path.get(target_key) != source_key:
-                                    log(f"Skipping duplicate bulk target path already assigned: {target_entry.path}")
+                                    log(f"Skipping duplicate batch target path already assigned: {target_entry.path}")
                                 continue
                             if not experimental_model_checkbox.isChecked() and not self._same_archive_entry(source_entry, target_entry):
-                                log(f"Blocked bulk donor row outside legacy raw copy mode: {source_entry.path} -> {target_entry.path}")
+                                log(f"Blocked batch donor row outside legacy raw copy mode: {source_entry.path} -> {target_entry.path}")
                                 continue
                             payload_data, _decompressed, _note = read_archive_entry_data(source_entry)
                             raw_action = row.get("action") if isinstance(row, Mapping) else ""
@@ -38861,7 +39893,7 @@ def run_gui() -> int:
                             requests_by_path[target_key] = ArchivePatchRequest(target_entry, payload_data)
                             source_by_target_path[target_key] = source_key
                     if not requests_by_path:
-                        raise ValueError("No bulk placement package payloads could be read.")
+                        raise ValueError("No Weapon Placement Batch package payloads could be read.")
                     return export_archive_payloads_to_mod_ready_loose(
                         list(requests_by_path.values()),
                         parent_root=export_root,
@@ -38875,16 +39907,16 @@ def run_gui() -> int:
                     if isinstance(result, ArchiveLooseExportResult):
                         QMessageBox.information(
                             dialog,
-                            "Bulk Placement Swap Complete",
+                            "Weapon Placement Batch Complete",
                             f"Wrote one combined placement swap package:\n{result.package_root}",
                         )
-                        self.set_status_message(f"Wrote bulk placement swap package for {len(ready_states):,} target(s).")
+                        self.set_status_message(f"Wrote Weapon Placement Batch package for {len(ready_states):,} target(s).")
                         dialog.accept()
                     else:
-                        self.set_status_message("Bulk placement swap export finished with an unexpected result payload.", error=True)
+                        self.set_status_message("Weapon Placement Batch export finished with an unexpected result payload.", error=True)
 
                 self._run_utility_task(
-                    status_message=f"Building bulk placement swap package for {len(ready_states):,} target(s)...",
+                    status_message=f"Building Weapon Placement Batch package for {len(ready_states):,} target(s)...",
                     task=_task,
                     on_complete=_handle_complete,
                     show_archive_progress=True,
@@ -39151,7 +40183,7 @@ def run_gui() -> int:
                 try:
                     data, _decompressed, _note = read_archive_entry_data(entry)
                     return parse_socket_bone_data_xml(
-                        data.decode("utf-8-sig", errors="ignore"),
+                        decode_xml_text_payload(data).text,
                         entry.path,
                     )
                 except Exception:
@@ -39380,7 +40412,7 @@ def run_gui() -> int:
                     data, _decompressed, _note = read_archive_entry_data(entry)
                 except Exception:
                     return ""
-                return try_decode_text_like_archive_data(data) or data.decode("utf-8-sig", errors="ignore")
+                return decode_xml_text_payload(data).text
 
             def _read_original_archive_bytes(entry: Optional[ArchiveEntry]) -> bytes:
                 if not isinstance(entry, ArchiveEntry) or archive_entry_is_mod_package(entry):
@@ -39395,7 +40427,7 @@ def run_gui() -> int:
                 data = _read_original_archive_bytes(entry)
                 if not data:
                     return ""
-                return try_decode_text_like_archive_data(data) or data.decode("utf-8-sig", errors="ignore")
+                return decode_xml_text_payload(data).text
 
             def _character_socket_document() -> Optional[AttachmentSocketDocument]:
                 text = _read_archive_text(character_socket_entry)
@@ -39837,7 +40869,7 @@ def run_gui() -> int:
                 loose_path = _selected_loose_file_for_virtual(entry.path)
                 if isinstance(loose_path, Path):
                     try:
-                        return loose_path.read_text(encoding="utf-8-sig", errors="ignore")
+                        return decode_xml_text_payload(loose_path.read_bytes()).text
                     except OSError:
                         pass
                 return _read_archive_text(entry)
@@ -39856,6 +40888,9 @@ def run_gui() -> int:
                     return data
                 except Exception:
                     return b""
+
+            def _encode_placement_base_text(entry: Optional[ArchiveEntry], payload_text: str) -> bytes:
+                return encode_xml_text_like_source(payload_text, _read_placement_base_bytes(entry))
 
             def _visual_selected_swap_type() -> str:
                 value = str(swap_type_combo.currentData() or "").strip().casefold()
@@ -40230,7 +41265,7 @@ def run_gui() -> int:
                     return ()
                 current_path = entry.path.replace("\\", "/").strip().lstrip("/")
                 current_key = current_path.casefold()
-                payload_data = str(payload_text or "").encode("utf-8")
+                payload_data = _encode_placement_base_text(entry, str(payload_text or ""))
                 specs: List[MeshImportSupplementalFileSpec] = []
                 seen: set[str] = {current_key}
                 for alias in aliases:
@@ -40496,7 +41531,7 @@ def run_gui() -> int:
                     return
                 path = Path(selected).expanduser()
                 try:
-                    text = path.read_text(encoding="utf-8-sig", errors="ignore")
+                    text = decode_xml_text_payload(path.read_bytes()).text
                 except Exception as exc:
                     QMessageBox.warning(dialog, "Import Placement Profile XML", f"Could not read profile XML:\n{exc}")
                     return
@@ -41168,7 +42203,7 @@ def run_gui() -> int:
                         placement_key = placement_entry_task.path.replace("\\", "/").strip().casefold()
                         requests_by_path[placement_key] = ArchivePatchRequest(
                             placement_entry_task,
-                            placement_patch_task.text.encode("utf-8"),
+                            _encode_placement_base_text(placement_entry_task, placement_patch_task.text),
                         )
                         alias_specs.extend(
                             _placement_global_xml_alias_specs(
@@ -41397,7 +42432,7 @@ def run_gui() -> int:
                         and pac_xml_patch.changed
                     ):
                         target_key = target_pac_xml_entry.path.replace("\\", "/").strip().casefold()
-                        requests_by_path[target_key] = ArchivePatchRequest(target_pac_xml_entry, pac_xml_patch.text.encode("utf-8"))
+                        requests_by_path[target_key] = ArchivePatchRequest(target_pac_xml_entry, _encode_placement_base_text(target_pac_xml_entry, pac_xml_patch.text))
                         seen_request_paths.add(target_key)
                         log(f"Patch target .pac_xml slot metadata: {target_pac_xml_entry.path}; {pac_xml_note}")
                     target_prefab_entry, prefab_patch, prefab_note = _visual_target_prefab_patch()
@@ -41436,7 +42471,7 @@ def run_gui() -> int:
                         part_patch_for_socket = _visual_part_in_out_patch(base_text)
                         if isinstance(part_patch_for_socket, AttachmentPartInOutPatchResult) and part_patch_for_socket.diffs:
                             target_key = part_in_out_entry.path.replace("\\", "/").strip().casefold()
-                            requests_by_path[target_key] = ArchivePatchRequest(part_in_out_entry, part_patch_for_socket.text.encode("utf-8"))
+                            requests_by_path[target_key] = ArchivePatchRequest(part_in_out_entry, _encode_placement_base_text(part_in_out_entry, part_patch_for_socket.text))
                             alias_specs.extend(
                                 _placement_global_xml_alias_specs(
                                     part_in_out_entry,
@@ -41457,7 +42492,7 @@ def run_gui() -> int:
                         socket_patch = _visual_socket_patch(base_text, part_patch_for_socket)
                         if isinstance(socket_patch, AttachmentPartInOutPatchResult) and socket_patch.diffs:
                             target_key = character_socket_entry.path.replace("\\", "/").strip().casefold()
-                            requests_by_path[target_key] = ArchivePatchRequest(character_socket_entry, socket_patch.text.encode("utf-8"))
+                            requests_by_path[target_key] = ArchivePatchRequest(character_socket_entry, _encode_placement_base_text(character_socket_entry, socket_patch.text))
                             alias_specs.extend(
                                 _placement_global_xml_alias_specs(
                                     character_socket_entry,
@@ -42190,10 +43225,17 @@ def run_gui() -> int:
             show_only_action.triggered.connect(lambda _checked=False: self._scope_current_archive_entry_only())
 
             if role == "Mesh":
+                open_mesh_editor_action = menu.addAction("Open in Mesh Editor...")
+                open_mesh_editor_action.setToolTip("Open this mesh in the dedicated Mesh Editor workspace.")
+                open_mesh_editor_action.triggered.connect(
+                    lambda _checked=False, entry=current_entry: self._launch_archive_mesh_editor_for_entry(entry)
+                )
                 export_mesh_action = menu.addAction("Export Mesh...")
                 export_mesh_action.triggered.connect(lambda _checked=False: self._export_current_archive_model())
                 modify_original_action = menu.addAction("Modify Original...")
-                modify_original_action.triggered.connect(lambda _checked=False, entry=current_entry: self._start_archive_modify_original_workspace(entry))
+                modify_original_action.triggered.connect(
+                    lambda _checked=False, entry=current_entry: self._mesh_editor_modify_original_requested(entry)
+                )
                 import_mesh_preview_action = menu.addAction("Import Mesh Preview...")
                 import_mesh_preview_action.triggered.connect(lambda _checked=False: self._preview_current_archive_mesh_import())
                 show_hkx_action = menu.addAction("Show Related HKX/Physics")
@@ -44851,7 +45893,7 @@ def run_gui() -> int:
             layout.setSpacing(10)
 
             intro_label = QLabel(
-                "Choose one shared mod-package export profile. The same metadata and structure rules are used by every mod-ready export path."
+                "Choose target mod managers. The app will write the right folders and metadata for each selected manager."
                 + (
                     " You can also include the resolved related DDS and sidecar files that were detected for the selected mesh."
                     if show_include_related_files_option
@@ -44872,16 +45914,7 @@ def run_gui() -> int:
             version_edit = QLineEdit(str(getattr(initial_package_info, "version", "") or "").strip())
             author_edit = QLineEdit(str(getattr(initial_package_info, "author", "") or "").strip())
             description_edit = QLineEdit(str(getattr(initial_package_info, "description", "") or "").strip())
-            default_dialog_options = mod_package_export_options_for_manager("universal")
-            no_encrypt_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["no_encrypt"].label)
-            no_encrypt_checkbox.setChecked(bool(initial_create_no_encrypt and default_dialog_options.create_no_encrypt_file))
-            manager_combo = QComboBox()
-            manager_combo.addItem("Universal / minimal metadata", "universal")
-            manager_combo.addItem("CDUMM", "cdumm")
-            manager_combo.addItem("Definitive Mod Manager", "dmm")
-            manager_combo.addItem("JMM JSON", "jmm")
-            manager_combo.addItem("Crimson Sharp / Crimson Browser", "crimson_sharp")
-            manager_combo.addItem("Field-JSON v3.1", "field_json")
+            default_dialog_options = mod_package_export_options_for_profiles(("universal",))
             profile_checks_widget = QWidget()
             profile_checks_layout = QHBoxLayout(profile_checks_widget)
             profile_checks_layout.setContentsMargins(0, 0, 0, 0)
@@ -44893,23 +45926,8 @@ def run_gui() -> int:
                 profile_checks_layout.addWidget(checkbox)
                 profile_checkboxes[profile] = checkbox
             profile_checks_layout.addStretch(1)
-            structure_combo = QComboBox()
-            structure_combo.addItem("Game-relative folders", "game_relative")
-            structure_combo.addItem("files/ wrapper", "files_wrapper")
-            structure_combo.addItem("Custom compact paths", "custom_compact_paths")
-            if allow_dmm_texture_structure:
-                structure_combo.addItem("DMM texture folder", "dmm_texture")
-            structure_combo.addItem("Field-JSON v3.1 assets", "field_json_v31")
             create_zip_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["ready_zip"].label)
             create_zip_checkbox.setChecked(default_dialog_options.create_zip)
-            mod_json_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["mod_json"].label)
-            mod_json_checkbox.setChecked(default_dialog_options.create_mod_json)
-            modinfo_json_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["modinfo_json"].label)
-            modinfo_json_checkbox.setChecked(default_dialog_options.create_modinfo_json)
-            manifest_json_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["manifest_json"].label)
-            manifest_json_checkbox.setChecked(default_dialog_options.create_manifest_json)
-            info_json_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["info_json"].label)
-            info_json_checkbox.setChecked(default_dialog_options.create_info_json)
             conflict_mode_combo = QComboBox()
             conflict_mode_combo.addItem("Normal conflicts", "")
             conflict_mode_combo.addItem("Override wins", "override")
@@ -44942,74 +45960,34 @@ def run_gui() -> int:
             form_layout.addWidget(author_edit, 3, 1, 1, 2)
             form_layout.addWidget(QLabel("Description"), 4, 0)
             form_layout.addWidget(description_edit, 4, 1, 1, 2)
-            form_layout.addWidget(QLabel("Manager profile"), 5, 0)
-            form_layout.addWidget(manager_combo, 5, 1, 1, 2)
-            form_layout.addWidget(make_help_button("Choose the metadata/layout profile to target. Universal writes neutral Workbench metadata only; individual profiles bias the folder structure for that manager."), 5, 3)
-            form_layout.addWidget(QLabel("Export profiles"), 6, 0)
-            form_layout.addWidget(profile_checks_widget, 6, 1, 1, 3)
-            form_layout.addWidget(QLabel("Folder structure"), 7, 0)
-            form_layout.addWidget(structure_combo, 7, 1, 1, 2)
-            form_layout.addWidget(make_help_button("Game-relative folders keep exact archive paths. The files/ wrapper places payload paths under files/. Custom compact paths writes character model and sidecar payloads as character/<name>. DMM texture folder writes DDS packages for placement under mods/_textures/ without a files/ wrapper. Field-JSON v3.1 writes DDS assets under assets/ and records vpaths in mod.field.json."), 7, 3)
+            form_layout.addWidget(QLabel("Target Mod Managers"), 5, 0)
+            form_layout.addWidget(profile_checks_widget, 5, 1, 1, 3)
+            form_layout.addWidget(QLabel("Package output"), 6, 0)
+            form_layout.addWidget(create_zip_checkbox, 6, 1, 1, 3)
             conflict_mode_label = QLabel("Conflict mode")
             target_language_label = QLabel("Target language")
             conflict_mode_help = make_help_button("CDUMM compatibility metadata. Normal leaves manager conflict behavior unchanged; Override asks compatible managers to prefer this mod when conflicts are detected.")
             target_language_help = make_help_button("Optional CDUMM compatibility metadata for language-specific packages. Leave empty for general packages.")
-            form_layout.addWidget(conflict_mode_label, 8, 0)
-            form_layout.addWidget(conflict_mode_combo, 8, 1, 1, 2)
-            form_layout.addWidget(conflict_mode_help, 8, 3)
-            form_layout.addWidget(target_language_label, 9, 0)
-            form_layout.addWidget(target_language_edit, 9, 1, 1, 2)
-            form_layout.addWidget(target_language_help, 9, 3)
-            metadata_checks = QGridLayout()
-            metadata_checks.setContentsMargins(0, 0, 0, 0)
-            metadata_checks.setHorizontalSpacing(18)
-            metadata_checks.setVerticalSpacing(6)
-            metadata_options = (
-                ("manifest_json", manifest_json_checkbox),
-                ("mod_json", mod_json_checkbox),
-                ("modinfo_json", modinfo_json_checkbox),
-                ("info_json", info_json_checkbox),
-                ("no_encrypt", no_encrypt_checkbox),
-                ("ready_zip", create_zip_checkbox),
-            )
-            for index, (key, checkbox) in enumerate(metadata_options):
-                checkbox.setToolTip(
-                    f"<qt><div style='width: 360px; white-space: normal;'>{escape(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY[key].description)}</div></qt>"
-                )
-                option_row = QHBoxLayout()
-                option_row.setContentsMargins(0, 0, 0, 0)
-                option_row.setSpacing(6)
-                option_row.addWidget(checkbox)
-                option_row.addWidget(make_help_button(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY[key].description))
-                option_row.addStretch(1)
-                metadata_checks.addLayout(option_row, index // 2, index % 2)
-            metadata_checks.setColumnStretch(0, 1)
-            metadata_checks.setColumnStretch(1, 1)
-            form_layout.addWidget(QLabel("Generate"), 10, 0)
-            form_layout.addLayout(metadata_checks, 10, 1, 1, 3)
-            form_layout.addWidget(include_related_files_checkbox, 11, 0, 1, 3)
-            form_layout.addWidget(texture_resolution_manifest_checkbox, 12, 0, 1, 3)
+            form_layout.addWidget(conflict_mode_label, 7, 0)
+            form_layout.addWidget(conflict_mode_combo, 7, 1, 1, 2)
+            form_layout.addWidget(conflict_mode_help, 7, 3)
+            form_layout.addWidget(target_language_label, 8, 0)
+            form_layout.addWidget(target_language_edit, 8, 1, 1, 2)
+            form_layout.addWidget(target_language_help, 8, 3)
+            form_layout.addWidget(include_related_files_checkbox, 9, 0, 1, 3)
+            form_layout.addWidget(texture_resolution_manifest_checkbox, 10, 0, 1, 3)
             form_layout.setColumnStretch(1, 1)
             layout.addLayout(form_layout)
 
+            def _selected_profiles() -> Tuple[str, ...]:
+                return tuple(
+                    profile
+                    for profile, checkbox in profile_checkboxes.items()
+                    if checkbox.isChecked()
+                ) or ("universal",)
+
             def _apply_manager_profile() -> None:
-                current_profile = str(manager_combo.currentData() or "universal")
-                profile_options = mod_package_export_options_for_manager(current_profile)
-                profile_structure = str(profile_options.structure or "").strip().lower()
-                if profile_structure == "dmm_texture" and not allow_dmm_texture_structure:
-                    profile_structure = "game_relative"
-                structure_index = structure_combo.findData(profile_structure)
-                if structure_index >= 0:
-                    structure_combo.setCurrentIndex(structure_index)
-                manifest_json_checkbox.setChecked(profile_options.create_manifest_json)
-                mod_json_checkbox.setChecked(profile_options.create_mod_json)
-                modinfo_json_checkbox.setChecked(profile_options.create_modinfo_json)
-                info_json_checkbox.setChecked(profile_options.create_info_json)
-                no_encrypt_checkbox.setChecked(profile_options.create_no_encrypt_file)
-                create_zip_checkbox.setChecked(profile_options.create_zip)
-                for key, checkbox in profile_checkboxes.items():
-                    checkbox.setChecked(key == current_profile)
-                uses_manager_metadata = mod_package_profile_uses_manager_metadata(current_profile)
+                uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in _selected_profiles())
                 for widget in (
                     conflict_mode_label,
                     conflict_mode_combo,
@@ -45020,7 +45998,8 @@ def run_gui() -> int:
                 ):
                     widget.setVisible(uses_manager_metadata)
 
-            manager_combo.currentIndexChanged.connect(_apply_manager_profile)
+            for checkbox in profile_checkboxes.values():
+                checkbox.toggled.connect(lambda _checked=False: _apply_manager_profile())
             _apply_manager_profile()
 
             hint_label = QLabel(
@@ -45067,23 +46046,10 @@ def run_gui() -> int:
                     description=description_edit.text().strip(),
                     nexus_url="",
                 )
-                selected_profile = str(manager_combo.currentData() or "universal")
-                base_options = mod_package_export_options_for_manager(selected_profile)
-                selected_profiles = tuple(
-                    profile
-                    for profile, checkbox in profile_checkboxes.items()
-                    if checkbox.isChecked()
-                ) or (selected_profile,)
+                selected_profiles = _selected_profiles()
                 uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in selected_profiles)
-                export_options = ModPackageExportOptions(
-                    manager_targets=tuple(base_options.manager_targets),
-                    export_profiles=selected_profiles,
-                    structure=str(structure_combo.currentData() or base_options.structure),
-                    create_manifest_json=manifest_json_checkbox.isChecked(),
-                    create_mod_json=mod_json_checkbox.isChecked(),
-                    create_modinfo_json=modinfo_json_checkbox.isChecked(),
-                    create_info_json=info_json_checkbox.isChecked(),
-                    create_no_encrypt_file=no_encrypt_checkbox.isChecked(),
+                export_options = mod_package_export_options_for_profiles(
+                    selected_profiles,
                     create_zip=create_zip_checkbox.isChecked(),
                     create_texture_resolution_manifest=texture_resolution_manifest_checkbox.isChecked()
                     if show_texture_resolution_manifest_option
@@ -45094,7 +46060,7 @@ def run_gui() -> int:
                 result[:] = [
                     export_root,
                     package_info,
-                    bool(no_encrypt_checkbox.isChecked()),
+                    bool(export_options.create_no_encrypt_file),
                     bool(include_related_files_checkbox.isChecked()),
                     export_options,
                 ]
@@ -46232,6 +47198,9 @@ def run_gui() -> int:
                     and source_stem in basename
                 )
 
+            def _is_source_physics_companion(entry: ArchiveEntry) -> bool:
+                return str(entry.extension or "").strip().lower() in {".hkx", ".hkt"}
+
             def _material_contract_stats(entries: Sequence[ArchiveEntry]) -> Dict[str, object]:
                 wrapper_count = 0
                 pbd_names: List[str] = []
@@ -46284,6 +47253,7 @@ def run_gui() -> int:
             preserve_source_contract_default = bool(
                 item_family_scope and (source_has_pbd_contract or source_has_larger_material_contract)
             )
+            complete_swap_scope_default = True
 
             dialog = QDialog(self)
             dialog.setWindowTitle("In-Game Mesh Swap Scope")
@@ -46309,24 +47279,29 @@ def run_gui() -> int:
                     contract_reason_parts.append(
                         f"source has {source_wrapper_count} material wrapper(s), target has {target_wrapper_count}"
                     )
-                contract_warning = QLabel(
-                    "Donor material contract warning: "
-                    + "; ".join(contract_reason_parts)
-                    + ". Defaulting to direct source model payload plus source sidecar retargeting. "
-                    "The alignment/rebuild path writes target-slot geometry and can make donor dynamic parts static. "
-                    "Use Select Physics only when you intentionally want to override the target meshphysics file too."
+                    contract_warning = QLabel(
+                        "Donor material contract warning: "
+                        + "; ".join(contract_reason_parts)
+                    + ". Defaulting to Complete In-Game Swap through the placement workflow. "
+                    "This keeps transform/removal review, routes source-owned materials, and auto-selects source physics with a crash-risk warning."
                 )
                 contract_warning.setWordWrap(True)
                 contract_warning.setStyleSheet("color: #fdd663;")
                 layout.addWidget(contract_warning)
 
+            complete_swap_checkbox = QCheckBox("Complete In-Game Swap (source mesh/material/textures/physics)")
+            complete_swap_checkbox.setChecked(bool(complete_swap_scope_default))
+            complete_swap_checkbox.setToolTip(
+                "Recommended default. Uses placement/rebuild so offsets, transforms, and removed parts still apply, "
+                "then enables complete source-owned material routing and includes source DDS plus HKX/HKT physics rows."
+            )
             generated_sidecar_checkbox = QCheckBox("Default to generated/retargeted material sidecar in Mesh Replacement Alignment")
-            generated_sidecar_checkbox.setChecked(not preserve_source_contract_default)
+            generated_sidecar_checkbox.setChecked(True)
             generated_sidecar_checkbox.setToolTip(
                 "This preselects the alignment option that patches the target material sidecar from the mapping/texture plan."
             )
             direct_source_model_checkbox = QCheckBox("Use source model payload directly instead of rebuilding target geometry")
-            direct_source_model_checkbox.setChecked(bool(preserve_source_contract_default))
+            direct_source_model_checkbox.setChecked(False)
             direct_source_model_checkbox.setToolTip(
                 "Writes the selected source .pac/.pam/.pamlod bytes to the target model path. "
                 "This best preserves source material/physics contracts, but the alignment transform is not applied."
@@ -46338,7 +47313,7 @@ def run_gui() -> int:
                 "Source DDS textures stay at source texture paths because source sidecars reference them there."
             )
             replace_source_sidecar_checkbox = QCheckBox("Replace target material sidecar with selected source sidecar payload")
-            replace_source_sidecar_checkbox.setChecked(bool(preserve_source_contract_default))
+            replace_source_sidecar_checkbox.setChecked(False)
             replace_source_sidecar_checkbox.setToolTip(
                 "Copies selected source .pac_xml/.pami/.xml bytes into the target material sidecar path. Review carefully."
             )
@@ -46363,6 +47338,15 @@ def run_gui() -> int:
             if not item_family_scope:
                 retarget_source_family_checkbox.setEnabled(False)
                 retarget_source_family_checkbox.setToolTip("Available for weapon/item model swaps.")
+            complete_swap_warning = QLabel(
+                "Complete swap auto-selects source DDS textures and all source HKX/HKT physics rows. "
+                "Physics overrides can crash when source and target do not share the same runtime contract; skeleton rows remain manual."
+            )
+            complete_swap_warning.setWordWrap(True)
+            complete_swap_warning.setStyleSheet("color: #fdd663;")
+            complete_swap_warning.setVisible(bool(complete_swap_checkbox.isChecked()))
+            layout.addWidget(complete_swap_checkbox)
+            layout.addWidget(complete_swap_warning)
             layout.addWidget(generated_sidecar_checkbox)
             layout.addWidget(direct_source_model_checkbox)
             layout.addWidget(retarget_source_family_checkbox)
@@ -46425,8 +47409,8 @@ def run_gui() -> int:
                     return "Override DDS at this archive path while the mod is enabled"
                 if entry.extension in {".hkx", ".hkt"} and item_family_scope and not same_weapon_folder:
                     return (
-                        "Manual/risky: source and target are different weapon folders, so physics is not auto-selected. "
-                        "Check only if you intentionally want to override the target meshphysics file."
+                        "Risky physics override: source and target are different weapon folders. "
+                        "Complete swap selects this row, but it can crash if the runtime physics contracts do not match."
                     )
                 if entry.extension in {".pab", ".pabc", ".pabv", ".hkx", ".hkt"}:
                     return "REPLACES this game file while enabled; rig/physics-sensitive"
@@ -46467,7 +47451,12 @@ def run_gui() -> int:
                 if edge is not None and edge.include_policy in {ARCHIVE_REL_INCLUDE_REQUIRED, ARCHIVE_REL_INCLUDE_RECOMMENDED} and not edge.risk:
                     # Safe graph rows are selected only when the surgical character plan is active.
                     default_checked = bool(character_swap_plan_checkbox.isChecked()) and related_entry.extension == ".dds"
-                if item_family_scope and retarget_source_family_checkbox.isChecked():
+                if complete_swap_scope_default:
+                    default_checked = bool(
+                        related_entry.extension == ".dds"
+                        or _is_source_physics_companion(related_entry)
+                    )
+                elif item_family_scope and retarget_source_family_checkbox.isChecked():
                     default_checked = (
                         related_entry.extension == ".dds"
                         or (
@@ -46508,7 +47497,7 @@ def run_gui() -> int:
 
             helper = QLabel(
                 "For weapon/item swaps, source material sidecar + source DDS is the safest default donor contract. "
-                "Source meshphysics HKX/HKT is only auto-selected when source and target are in the same weapon folder; cross-folder physics stays explicit because it can crash in game. "
+                "Complete In-Game Swap auto-selects source DDS and all source HKX/HKT physics rows, with a visible warning because cross-family physics can crash in game. "
                 "The direct source model option preserves that contract best, but it skips alignment transforms. "
                 "Appearance descriptors are separate from material sidecars: for character body swaps they can redirect the target character to source prefabs, "
                 "customization metadata, scale values, skeleton variations, sockets, and prefabdata references. "
@@ -46523,13 +47512,13 @@ def run_gui() -> int:
             select_item_family_button = QPushButton("Select Item Family")
             select_item_family_button.setToolTip(
                 "Select source sidecar and source DDS textures for weapon/item swaps. "
-                "Meshphysics is included only when source and target are in the same weapon folder; prefab/socket rows stay manual."
+                "Use Complete In-Game Swap or Select Physics when source HKX/HKT should replace target physics; prefab/socket rows stay manual."
             )
             select_textures_button = QPushButton("Select Textures")
             select_sidecars_button = QPushButton("Select Sidecars")
             select_physics_button = QPushButton("Select Physics")
             select_physics_button.setToolTip(
-                "Select source meshphysics HKX/HKT rows. This is manual because physics contracts can differ across one-hand, two-hand, ranged, and accessory assets."
+                "Select all source HKX/HKT rows. Physics contracts can differ across one-hand, two-hand, ranged, and accessory assets, so test in game."
             )
             select_appearance_button = QPushButton("Select Graph Textures")
             select_appearance_button.setToolTip(
@@ -46567,9 +47556,44 @@ def run_gui() -> int:
                     entry = entries_by_key.get(str(item.data(0, Qt.UserRole) or ""))
                     item.setText(4, _target_path_for_scope_row(entry) if entry is not None else "")
 
+            def _select_complete_swap_entries() -> None:
+                generated_sidecar_checkbox.setChecked(True)
+                direct_source_model_checkbox.setChecked(False)
+                replace_source_sidecar_checkbox.setChecked(False)
+                if item_family_scope:
+                    retarget_source_family_checkbox.setChecked(True)
+                for index in range(companion_tree.topLevelItemCount()):
+                    item = companion_tree.topLevelItem(index)
+                    if item is None or not (item.flags() & Qt.ItemIsUserCheckable):
+                        continue
+                    entry = entries_by_key.get(str(item.data(0, Qt.UserRole) or ""))
+                    if entry is None:
+                        continue
+                    should_select = bool(
+                        entry.extension == ".dds"
+                        or _is_source_physics_companion(entry)
+                    )
+                    item.setCheckState(0, Qt.Checked if should_select else Qt.Unchecked)
+                _refresh_scope_target_paths()
+
+            def _sync_complete_swap_scope_mode(checked: bool) -> None:
+                checked = bool(checked)
+                complete_swap_warning.setVisible(checked)
+                generated_sidecar_checkbox.setEnabled(not checked)
+                direct_source_model_checkbox.setEnabled(not checked)
+                replace_source_sidecar_checkbox.setEnabled(not checked)
+                retarget_source_family_checkbox.setEnabled(bool(item_family_scope and not checked))
+                if checked:
+                    _select_complete_swap_entries()
+                else:
+                    if not item_family_scope:
+                        retarget_source_family_checkbox.setEnabled(False)
+                    _refresh_scope_target_paths()
+
             def _select_item_family_entries() -> None:
                 if not item_family_scope:
                     return
+                complete_swap_checkbox.setChecked(False)
                 retarget_source_family_checkbox.setChecked(True)
                 replace_source_sidecar_checkbox.setChecked(True)
                 generated_sidecar_checkbox.setChecked(False)
@@ -46624,7 +47648,7 @@ def run_gui() -> int:
             select_sidecars_button.clicked.connect(_refresh_scope_target_paths)
             select_physics_button.clicked.connect(
                 lambda _checked=False: _set_checked_by_predicate(
-                    lambda entry: str(entry.extension or "").strip().lower() in {".hkx", ".hkt"} and _is_source_item_meshphysics(entry),
+                    lambda entry: _is_source_physics_companion(entry),
                     True,
                 )
             )
@@ -46632,8 +47656,10 @@ def run_gui() -> int:
             replace_source_sidecar_checkbox.toggled.connect(lambda _checked: _refresh_scope_target_paths())
             replace_source_appearance_checkbox.toggled.connect(lambda _checked: _refresh_scope_target_paths())
             retarget_source_family_checkbox.toggled.connect(lambda _checked: _refresh_scope_target_paths())
+            complete_swap_checkbox.toggled.connect(_sync_complete_swap_scope_mode)
             direct_source_model_checkbox.toggled.connect(
                 lambda checked: (
+                    complete_swap_checkbox.setChecked(False),
                     generated_sidecar_checkbox.setChecked(False),
                     replace_source_sidecar_checkbox.setChecked(True),
                     retarget_source_family_checkbox.setChecked(True),
@@ -46681,6 +47707,7 @@ def run_gui() -> int:
                 _select_character_graph_entries()
 
             character_swap_plan_checkbox.toggled.connect(_character_swap_plan_toggled)
+            _sync_complete_swap_scope_mode(bool(complete_swap_checkbox.isChecked()))
 
             if dialog.exec() != QDialog.Accepted:
                 return None
@@ -46706,12 +47733,14 @@ def run_gui() -> int:
                         selected_entries.append(entry)
                         selected_keys.add(key)
             return InGameMeshSwapScopeSelection(
+                complete_swap=bool(complete_swap_checkbox.isChecked()),
                 prefer_generated_sidecar=bool(generated_sidecar_checkbox.isChecked()),
                 use_source_model_payload_directly=bool(direct_source_model_checkbox.isChecked()),
                 retarget_source_family_files=bool(retarget_source_family_checkbox.isChecked()),
                 replace_target_sidecar_with_source=bool(replace_source_sidecar_checkbox.isChecked()),
                 replace_target_appearance_with_source=bool(replace_source_appearance_checkbox.isChecked()),
                 use_character_swap_plan=bool(character_swap_plan_checkbox.isChecked()),
+                include_physics=any(_is_source_physics_companion(entry) for entry in selected_entries),
                 companion_entries=tuple(selected_entries),
             )
 
@@ -46814,6 +47843,10 @@ def run_gui() -> int:
                 if source_companion.path in replaced_source_sidecar_paths:
                     continue
                 if source_companion.path in replaced_source_appearance_paths:
+                    continue
+                if scope.complete_swap and self._archive_entry_is_material_sidecar(source_companion):
+                    continue
+                if scope.complete_swap and self._archive_entry_is_appearance_descriptor(source_companion):
                     continue
                 try:
                     payload_data, _decompressed, _note = read_archive_entry_data(source_companion)
@@ -48599,19 +49632,6 @@ def run_gui() -> int:
             weapon_placement_studio_action.triggered.connect(
                 lambda _checked=False, current_entry=entry: self._open_archive_weapon_placement_studio_dialog(current_entry)
             )
-            bulk_placement_targets = self._selected_archive_bulk_placement_targets()
-            if len(bulk_placement_targets) > 1:
-                bulk_placement_action = menu.addAction(menu_icons["workflow"], "Bulk Placement Swap From Selection...")
-                bulk_placement_action.setToolTip(
-                    "Each selected row is a target that changes. Choose one placement source for each target, then build one combined loose mod folder."
-                )
-                bulk_placement_action.triggered.connect(lambda _checked=False: self._open_archive_bulk_attachment_placement_dialog(bulk_placement_targets))
-            else:
-                bulk_placement_action = menu.addAction(menu_icons["workflow"], "Bulk Placement Swap From Selection...")
-                bulk_placement_action.setEnabled(False)
-                bulk_placement_action.setToolTip(
-                    "Select two or more placement-capable rows first: .pac/.pam/.pamlod, .prefab, .hkx/.hkt, or .sockets.xml."
-                )
 
             family_extensions = {
                 ".pac",
@@ -48645,11 +49665,6 @@ def run_gui() -> int:
                 family_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._open_archive_asset_family_workspace_dialog(current_entry)
                 )
-                placement_action = menu.addAction(menu_icons["family"], "Weapon Placement Studio...")
-                placement_action.setToolTip("Open the unified placement studio for this selected asset family row.")
-                placement_action.triggered.connect(
-                    lambda _checked=False, current_entry=entry: self._open_archive_weapon_placement_studio_dialog(current_entry)
-                )
                 hkx_placement_action = menu.addAction(menu_icons["family"], "Edit HKX...")
                 hkx_placement_action.setToolTip(
                     "Edit the related HKX/HKT directly on Placement. Related HKX/HKT files are resolved only after this action is clicked."
@@ -48680,6 +49695,12 @@ def run_gui() -> int:
                 )
 
             if entry.extension in ARCHIVE_MESH_EXTENSIONS:
+                _add_menu_section("mesh", "Mesh Editor")
+                open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor...")
+                open_mesh_editor_action.setToolTip("Open this archive mesh in the dedicated Mesh Editor workspace.")
+                open_mesh_editor_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._launch_archive_mesh_editor_for_entry(current_entry)
+                )
                 _add_menu_section("mesh", "Mesh Export")
                 export_obj_action = menu.addAction(menu_icons["mesh"], "Export OBJ...")
                 export_obj_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "obj"))
@@ -48695,7 +49716,7 @@ def run_gui() -> int:
                 _add_menu_section("mesh", "Mesh Edit")
                 modify_original_action = menu.addAction(menu_icons["mesh"], "Modify Original...")
                 modify_original_action.triggered.connect(
-                    lambda _checked=False, current_entry=entry: self._start_archive_modify_original_workspace(current_entry)
+                    lambda _checked=False, current_entry=entry: self._mesh_editor_modify_original_requested(current_entry)
                 )
                 import_preview_action = menu.addAction(menu_icons["mesh"], "Import Mesh Preview...")
                 import_preview_action.triggered.connect(
@@ -50296,6 +51317,7 @@ def run_gui() -> int:
             if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
                 self.set_status_message("Select a supported archive mesh first.", error=True)
                 return
+            self._open_mesh_editor_for_entry(entry, mode="modify_original", activate=True)
             selection = self._prompt_archive_modify_original_workspace_options(entry)
             if selection is None:
                 return
@@ -50996,6 +52018,16 @@ def run_gui() -> int:
                 if not dialog.isVisible():
                     self._modeless_alignment_dialogs.pop(str(key or ""), None)
                     return False
+                if hasattr(self, "mesh_editor_tab"):
+                    try:
+                        builder_host = self.mesh_editor_tab.builder_host()
+                    except RuntimeError:
+                        builder_host = None
+                    if isinstance(builder_host, QWidget) and dialog.parentWidget() is builder_host:
+                        self._activate_tool_widget(self.mesh_editor_tab)
+                        dialog.show()
+                        dialog.raise_()
+                        return True
                 dialog.showNormal()
                 dialog.raise_()
                 dialog.activateWindow()
@@ -51027,12 +52059,14 @@ def run_gui() -> int:
             scene_import_result: Optional[SceneImportResult] = None,
             original_mesh: Optional[ParsedMesh] = None,
             preferred_rebuild_material_sidecar: Optional[bool] = None,
+            preferred_complete_source_swap: bool = False,
             dialog_title: str = "Mesh Replacement Builder",
             placement_context_note: str = "",
             source_texture_evidence: Sequence[Mapping[str, object]] = (),
             extra_supplemental_specs: Sequence[MeshImportSupplementalFileSpec] = (),
             defer_original_texture_preview: bool = False,
             runtime_export_target_entry: Optional[ArchiveEntry] = None,
+            embedded_host: Optional[QWidget] = None,
             continue_build_callback: Optional[
                 Callable[
                     [
@@ -51052,6 +52086,7 @@ def run_gui() -> int:
             if self._activate_modeless_alignment_dialog(alignment_dialog_key):
                 self.set_status_message("Mesh Replacement Builder is already open for this target/source pair.")
                 return
+            embedded_alignment_builder = isinstance(embedded_host, QWidget)
             preview_build_entry = (
                 runtime_export_target_entry
                 if isinstance(runtime_export_target_entry, ArchiveEntry)
@@ -51087,15 +52122,21 @@ def run_gui() -> int:
             startup_progress.show()
             QApplication.processEvents()
             startup_progress_closed = {"closed": False}
+            alignment_startup_step_state = {"started_at": 0.0}
 
             def _alignment_startup_step(message: str) -> None:
                 if startup_progress_closed["closed"]:
                     return
+                previous_step_started_at = float(alignment_startup_step_state.get("started_at", 0.0) or 0.0)
+                now = time.perf_counter()
+                elapsed_ms = int(max(0.0, now - previous_step_started_at) * 1000) if previous_step_started_at > 0.0 else 0
+                alignment_startup_step_state["started_at"] = now
                 _record_runtime_event(
                     "mesh_alignment_startup_step",
                     path=getattr(entry, "path", ""),
                     dialog_title=dialog_title,
                     message=str(message or ""),
+                    builder_startup_step_elapsed_ms=elapsed_ms,
                     modify_original_clone=modify_original_clone_mode,
                     defer_original_texture_preview=defer_original_texture_preview,
                 )
@@ -51111,15 +52152,21 @@ def run_gui() -> int:
                 QApplication.processEvents()
 
             _alignment_startup_step("Creating alignment window...")
-            dialog = QDialog(self)
+            dialog = QDialog(embedded_host if embedded_alignment_builder else self)
             dialog.setObjectName("MeshReplacementAlignmentDialog")
             dialog.setWindowTitle(dialog_title or "Mesh Replacement Builder")
-            dialog.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
-            dialog.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
+            if embedded_alignment_builder:
+                dialog.setWindowFlags(Qt.Widget)
+            else:
+                dialog.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
+                dialog.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
             dialog.setModal(False)
             dialog.setWindowModality(Qt.NonModal)
-            dialog.setMinimumSize(980, 700)
-            dialog.setSizeGripEnabled(True)
+            if embedded_alignment_builder:
+                dialog.setMinimumSize(0, 0)
+            else:
+                dialog.setMinimumSize(980, 700)
+            dialog.setSizeGripEnabled(not embedded_alignment_builder)
             self._register_modeless_alignment_dialog(alignment_dialog_key, dialog)
             alignment_dialog_closing = {"closing": False}
 
@@ -51307,9 +52354,9 @@ def run_gui() -> int:
             root_layout = QVBoxLayout(dialog)
             alignment_control_min_width = 520
             alignment_control_content_min_width = 560
-            mesh_edit_control_min_width = 236
-            mesh_edit_control_content_min_width = 248
-            mesh_edit_control_max_width = 300
+            mesh_edit_control_min_width = 460
+            mesh_edit_control_content_min_width = 420
+            mesh_edit_control_max_width = 540
             alignment_preview_min_width = 420
             main_splitter = QSplitter(Qt.Horizontal, dialog)
             main_splitter.setChildrenCollapsible(False)
@@ -51752,6 +52799,11 @@ def run_gui() -> int:
                     f"{frames[frame_index]}"
                     "</span>"
                 )
+                try:
+                    if _alignment_d3d11_loading_stuck():
+                        _clear_stuck_alignment_d3d11_loading("loading watchdog")
+                except NameError:
+                    pass
 
             def _set_alignment_d3d11_loading(active: bool, message: str = "", *, detail: str = "") -> None:
                 active = bool(active)
@@ -51777,6 +52829,46 @@ def run_gui() -> int:
 
             alignment_d3d11_loading_timer.timeout.connect(_tick_alignment_d3d11_loading_spinner)
 
+            def _reset_alignment_d3d11_request_state(
+                *,
+                increment_request: bool = True,
+                clear_loading: bool = False,
+                message: str = "",
+            ) -> None:
+                if increment_request:
+                    alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
+                for key, value in (
+                    ("queued_model", None),
+                    ("queued_label", ""),
+                    ("queued_display_mode", ""),
+                    ("queued_reason", ""),
+                    ("queued_transform_generation", 0),
+                    ("pending_model", None),
+                    ("pending_label", ""),
+                    ("pending_display_mode", ""),
+                    ("pending_reason", ""),
+                    ("pending_transform_generation", 0),
+                    ("active_package_request_id", 0),
+                ):
+                    alignment_d3d11_state[key] = value
+                if clear_loading:
+                    alignment_d3d11_state["preview_loaded"] = False
+                    _set_alignment_d3d11_loading(False, message or "Preview idle.")
+
+            def _alignment_d3d11_request_active() -> bool:
+                process = alignment_d3d11_state.get("process")
+                if isinstance(process, QProcess) and process.state() != QProcess.NotRunning:
+                    return True
+                thread = alignment_d3d11_state.get("thread")
+                if isinstance(thread, QThread) and thread.isRunning():
+                    return True
+                if isinstance(alignment_d3d11_state.get("queued_model"), ModelPreviewData):
+                    return True
+                if isinstance(alignment_d3d11_state.get("pending_model"), ModelPreviewData):
+                    return True
+                active_package = alignment_d3d11_state.get("active_package")
+                return isinstance(active_package, Path) and active_package.exists()
+
             def _alignment_d3d11_loading_stuck() -> bool:
                 if not bool(alignment_d3d11_loading_state.get("active")):
                     return False
@@ -51787,6 +52879,8 @@ def run_gui() -> int:
                     return False
                 if time.perf_counter() - started_at < alignment_d3d11_reload_stuck_timeout_s:
                     return False
+                if not _alignment_d3d11_request_active():
+                    return True
                 process = alignment_d3d11_state.get("process")
                 if not isinstance(process, QProcess) or process.state() == QProcess.NotRunning:
                     return False
@@ -51794,6 +52888,21 @@ def run_gui() -> int:
                 return isinstance(active_package, Path) and active_package.exists()
 
             def _clear_stuck_alignment_d3d11_loading(reason: str) -> None:
+                process = alignment_d3d11_state.get("process")
+                active_package = alignment_d3d11_state.get("active_package")
+                process_active = isinstance(process, QProcess) and process.state() != QProcess.NotRunning
+                package_active = isinstance(active_package, Path) and active_package.exists()
+                if not process_active and not package_active:
+                    _reset_alignment_d3d11_request_state(
+                        increment_request=False,
+                        clear_loading=True,
+                        message="Preview idle.",
+                    )
+                    _set_preview_performance_status(
+                        "D3D11 preview loading state cleared.",
+                        details=f"reason={reason}",
+                    )
+                    return
                 alignment_d3d11_state["preview_loaded"] = True
                 alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
                 alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
@@ -51802,7 +52911,6 @@ def run_gui() -> int:
                 _sync_highlight_sets()
                 _replay_alignment_d3d11_fast_transform()
                 _set_alignment_d3d11_loading(False, "Preview ready.")
-                active_package = alignment_d3d11_state.get("active_package")
                 _set_preview_performance_status(
                     f"D3D11 preview ready - {_alignment_preview_detail_label()} - status event missed",
                     details=(
@@ -52122,6 +53230,30 @@ def run_gui() -> int:
             def _apply_alignment_dialog_responsive_layout(*, force_sizes: bool = False) -> None:
                 width = max(1, int(dialog.width()))
                 height = max(1, int(dialog.height()))
+                if embedded_alignment_builder:
+                    if main_splitter.orientation() != Qt.Horizontal:
+                        main_splitter.setOrientation(Qt.Horizontal)
+                    main_splitter.setHandleWidth(8)
+                    main_splitter.setCollapsible(0, False)
+                    main_splitter.setCollapsible(1, False)
+                    main_splitter.setStretchFactor(0, 0)
+                    main_splitter.setStretchFactor(1, 1)
+                    controls_panel.setVisible(True)
+                    controls_panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+                    content_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+                    controls_panel.setMinimumWidth(260)
+                    content_container.setMinimumWidth(0)
+                    controls_panel.setMaximumWidth(16777215)
+                    content_container.setMaximumWidth(16777215)
+                    preview_panel.setMinimumWidth(220)
+                    if preview_splitter.orientation() != Qt.Horizontal:
+                        preview_splitter.setOrientation(Qt.Horizontal)
+                    if force_sizes or alignment_dialog_layout_state.get("mode") != "embedded":
+                        control_width = max(320, min(520, int(width * 0.34)))
+                        main_splitter.setSizes([control_width, max(220, width - control_width)])
+                        preview_splitter.setSizes([max(180, int((width - control_width) * 0.38)), max(220, int((width - control_width) * 0.58))])
+                    alignment_dialog_layout_state["mode"] = "embedded"
+                    return
                 compact = width < 1680
                 mode = "compact" if compact else "wide"
                 mode_changed = str(alignment_dialog_layout_state.get("mode") or "") != mode
@@ -52162,7 +53294,7 @@ def run_gui() -> int:
                         preview_splitter.setOrientation(Qt.Horizontal)
                     if force_sizes or mode_changed:
                         if mesh_edit_tools_active:
-                            control_width = max(mesh_edit_control_min_width, min(mesh_edit_control_max_width, int(width * 0.13)))
+                            control_width = max(mesh_edit_control_min_width, min(mesh_edit_control_max_width, int(width * 0.24)))
                         else:
                             control_width = max(620, min(1040, int(width * 0.42)))
                         main_splitter.setSizes([control_width, max(760, width - control_width)])
@@ -52188,11 +53320,14 @@ def run_gui() -> int:
                 scroll.setObjectName(object_name)
                 scroll.setWidgetResizable(True)
                 scroll.setFrameShape(QFrame.NoFrame)
-                scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff if embedded_alignment_builder else Qt.ScrollBarAsNeeded)
                 scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
                 page = QWidget(scroll)
-                page.setMinimumWidth(alignment_control_content_min_width)
-                page.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
+                page.setMinimumWidth(0 if embedded_alignment_builder else alignment_control_content_min_width)
+                page.setSizePolicy(
+                    QSizePolicy.Ignored if embedded_alignment_builder else QSizePolicy.MinimumExpanding,
+                    QSizePolicy.Preferred,
+                )
                 page_layout = QVBoxLayout(page)
                 page_layout.setContentsMargins(3, 2, 3, 2)
                 page_layout.setSpacing(3)
@@ -52203,7 +53338,7 @@ def run_gui() -> int:
             setup_tab, setup_page, setup_layout = _new_alignment_scroll_tab("MeshAlignmentSetupScrollTab")
             parts_tab, parts_page, parts_layout = _new_alignment_scroll_tab("MeshAlignmentPartsScrollTab")
             mesh_edit_tab, mesh_edit_page, mesh_edit_layout_page = _new_alignment_scroll_tab("MeshAlignmentMeshEditingScrollTab")
-            mesh_edit_page.setMinimumWidth(mesh_edit_control_content_min_width)
+            mesh_edit_page.setMinimumWidth(0 if embedded_alignment_builder else mesh_edit_control_content_min_width)
             mesh_edit_layout_page.setContentsMargins(0, 0, 0, 0)
             mesh_edit_layout_page.setSpacing(0)
             mesh_edit_tab.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -52589,6 +53724,8 @@ def run_gui() -> int:
             transform_source_indices: set[int] = set()
             direct_source_preview_index_map: Dict[int, int] = {}
             source_overlay_preview_index_map: Dict[int, int] = {}
+            source_selection_overlay_preview_index_map: Dict[int, int] = {}
+            source_selection_overlay_editor_id_map: Dict[int, int] = {}
             preview_submesh_index_map: Dict[int, int] = {}
             appended_source_indices: set[int] = set()
             independent_output_source_indices: set[int] = set()
@@ -52624,6 +53761,7 @@ def run_gui() -> int:
                 "sidecar_reports": (),
             }
             texture_overrides_dirty = {"dirty": True}
+            material_authority_preview_signature_state = {"visible": "", "cache": ""}
             static_preview_refresh_timer = QTimer(dialog)
             static_preview_refresh_timer.setSingleShot(True)
             static_preview_refresh_timer.setInterval(140)
@@ -52673,8 +53811,8 @@ def run_gui() -> int:
             dialog_added_supplemental_files: List[Path] = []
             mesh_edit_undo_stack: List[ParsedMesh] = []
             mesh_edit_redo_stack: List[ParsedMesh] = []
-            mesh_edit_undo_adjustment_stack: List[Dict[int, StaticSourcePartAdjustment]] = []
-            mesh_edit_redo_adjustment_stack: List[Dict[int, StaticSourcePartAdjustment]] = []
+            mesh_edit_undo_adjustment_stack: List[Dict[int, bool]] = []
+            mesh_edit_redo_adjustment_stack: List[Dict[int, bool]] = []
             mesh_edit_active_stroke: Dict[str, object] = {}
             mesh_edit_selected_vertices_by_submesh: Dict[int, set[int]] = {}
             morph_slider_profile_root = self.settings_file_path.parent / "mesh_slider_profiles"
@@ -52807,6 +53945,36 @@ def run_gui() -> int:
                     return "Fast detail"
                 return "Auto detail"
 
+            def _alignment_auto_detail_uses_fast_package(label: str = "", model: object = None) -> bool:
+                if modify_original_clone_mode:
+                    return True
+                if str(label or "").strip().casefold() == "final test build preview":
+                    return False
+                face_count = 0
+                texture_slot_count = 0
+                for mesh in tuple(getattr(model, "meshes", ()) or ()):
+                    try:
+                        face_count += max(0, int(len(getattr(mesh, "indices", ()) or ()) // 3))
+                    except Exception:
+                        pass
+                    for attr_name in (
+                        "preview_texture_path",
+                        "preview_texture_dds_path",
+                        "preview_normal_texture_path",
+                        "preview_normal_texture_dds_path",
+                        "preview_material_texture_path",
+                        "preview_material_texture_dds_path",
+                        "preview_height_texture_path",
+                        "preview_height_texture_dds_path",
+                    ):
+                        if str(getattr(mesh, attr_name, "") or "").strip():
+                            texture_slot_count += 1
+                if face_count >= 80_000:
+                    return True
+                if texture_slot_count >= 4:
+                    return True
+                return True
+
             def _live_alignment_preview_status_message() -> str:
                 detail = _alignment_preview_detail_label()
                 if _alignment_preview_detail_mode() == "full":
@@ -52816,6 +53984,12 @@ def run_gui() -> int:
             def _alignment_preview_is_interactive() -> bool:
                 try:
                     return time.monotonic() < float(static_preview_interactive_until.get("time", 0.0) or 0.0)
+                except Exception:
+                    return False
+
+            def _mesh_edit_raw_preview_active() -> bool:
+                try:
+                    return bool(mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active())
                 except Exception:
                     return False
 
@@ -52840,10 +54014,6 @@ def run_gui() -> int:
                         return 0
                 except NameError:
                     pass
-                if modify_original_clone_mode:
-                    appended_geometry = int(source_geometry_revision.get("value", 0) or 0) > 0
-                    if not appended_geometry:
-                        return 0
                 mesh = replacement_mesh_for_mapping or replacement_mesh_base_for_mapping
                 if mesh is None:
                     return 0
@@ -52854,6 +54024,20 @@ def run_gui() -> int:
                 ]
                 total_faces = sum(submesh_face_counts)
                 render_submesh_count = max(1, len(submesh_face_counts))
+                appended_geometry = 0
+                if modify_original_clone_mode:
+                    appended_geometry = int(source_geometry_revision.get("value", 0) or 0)
+                    if appended_geometry <= 0:
+                        if _alignment_preview_detail_mode() == "full":
+                            return 0
+                        if total_faces >= 45_000 or _alignment_preview_detail_mode() == "fast":
+                            return _adaptive_alignment_preview_face_limit(
+                                render_submesh_count,
+                                target_total_faces=35_000,
+                                minimum=2_000,
+                                maximum=10_000,
+                            )
+                        return 0
                 if total_faces <= 80_000:
                     return 0
                 preview_detail_mode = _alignment_preview_detail_mode()
@@ -52877,7 +54061,7 @@ def run_gui() -> int:
                         minimum=2_500,
                         maximum=12_000,
                     )
-                if modify_original_clone_mode and int(source_geometry_revision.get("value", 0) or 0) > 0:
+                if modify_original_clone_mode and appended_geometry > 0:
                     if total_faces >= 120_000:
                         return 3_000
                     if total_faces >= 40_000:
@@ -53348,6 +54532,12 @@ def run_gui() -> int:
 
             def _queue_selection_preview_refresh(*_args: object) -> None:
                 if _alignment_d3d11_preview_active():
+                    _mark_alignment_d3d11_rebuild_reason("geometry")
+                    if int(static_preview_batch_state.get("depth", 0) or 0) > 0:
+                        static_preview_batch_state["refresh"] = True
+                        return
+                    _mark_final_test_preview_stale()
+                    static_preview_refresh_timer.start()
                     return
                 _queue_static_preview_refresh()
 
@@ -53671,8 +54861,14 @@ def run_gui() -> int:
                 except Exception:
                     return False
 
-            def _alignment_d3d11_editor_ids_for_source_indices(source_indices: Sequence[int]) -> tuple[int, ...]:
-                source_to_editor = alignment_d3d11_state.get("source_to_d3d11_ids")
+            def _alignment_d3d11_editor_ids_for_source_indices(
+                source_indices: Sequence[int],
+                *,
+                selection_overlay: bool = False,
+            ) -> tuple[int, ...]:
+                source_to_editor = alignment_d3d11_state.get(
+                    "source_selection_overlay_to_d3d11_ids" if selection_overlay else "source_to_d3d11_ids"
+                )
                 has_editor_map = isinstance(source_to_editor, Mapping) and bool(source_to_editor)
                 editor_ids: set[int] = set()
                 for raw_index in tuple(source_indices or ()):
@@ -53693,7 +54889,7 @@ def run_gui() -> int:
                             mapped_ids = ()
                     if mapped_ids:
                         editor_ids.update(mapped_ids)
-                    elif not has_editor_map and source_index >= 0:
+                    elif not selection_overlay and not has_editor_map and source_index >= 0:
                         editor_ids.add(source_index)
                 return tuple(sorted(editor_ids))
 
@@ -53705,6 +54901,21 @@ def run_gui() -> int:
                 editor_to_source = alignment_d3d11_state.get("d3d11_id_to_source_indices")
                 if isinstance(editor_to_source, Mapping) and editor_to_source:
                     raw_sources = editor_to_source.get(editor_id, ())
+                    try:
+                        source_indices = tuple(
+                            sorted({
+                                int(source_index)
+                                for source_index in tuple(raw_sources or ())
+                                if int(source_index) >= 0
+                            })
+                        )
+                        if source_indices:
+                            return source_indices
+                    except (TypeError, ValueError):
+                        pass
+                overlay_editor_to_source = alignment_d3d11_state.get("selection_overlay_d3d11_id_to_source_indices")
+                if isinstance(overlay_editor_to_source, Mapping) and overlay_editor_to_source:
+                    raw_sources = overlay_editor_to_source.get(editor_id, ())
                     try:
                         return tuple(
                             sorted({
@@ -53818,6 +55029,17 @@ def run_gui() -> int:
                         return seq
                     return seq[:limit] + seq[-limit:]
 
+                def _file_signature(path_value: object) -> tuple[str, int, int]:
+                    path_text = str(path_value or "").strip()
+                    if not path_text:
+                        return ("", 0, 0)
+                    try:
+                        path = Path(path_text).expanduser()
+                        stat = path.stat()
+                        return (str(path), int(stat.st_size), int(stat.st_mtime_ns))
+                    except (OSError, TypeError, ValueError):
+                        return (path_text, 0, 0)
+
                 mesh_signatures = []
                 for mesh in getattr(model, "meshes", ()) or ():
                     material_inputs = tuple(
@@ -53829,6 +55051,9 @@ def run_gui() -> int:
                             str(getattr(item, "source_texture_path", "") or ""),
                             str(getattr(item, "source_dds_path", "") or ""),
                             str(getattr(item, "preview_texture_path", "") or ""),
+                            _file_signature(getattr(item, "source_texture_path", "")),
+                            _file_signature(getattr(item, "source_dds_path", "")),
+                            _file_signature(getattr(item, "preview_texture_path", "")),
                             tuple(getattr(item, "packed_channels", ()) or ()),
                         )
                         for item in tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())[:24]
@@ -53853,6 +55078,10 @@ def run_gui() -> int:
                             str(getattr(mesh, "preview_material_texture_dds_path", "") or ""),
                             str(getattr(mesh, "preview_height_texture_path", "") or ""),
                             str(getattr(mesh, "preview_height_texture_dds_path", "") or ""),
+                            _file_signature(getattr(mesh, "preview_texture_path", "")),
+                            _file_signature(getattr(mesh, "preview_texture_dds_path", "")),
+                            _file_signature(getattr(mesh, "preview_material_texture_path", "")),
+                            _file_signature(getattr(mesh, "preview_material_texture_dds_path", "")),
                             getattr(mesh, "preview_texture_flip_vertical", None),
                             tuple(getattr(mesh, "preview_texture_tint", ()) or ()),
                             float(getattr(mesh, "preview_texture_brightness", 1.0) or 1.0),
@@ -53882,6 +55111,8 @@ def run_gui() -> int:
                 display_mode: str,
                 package_quality: str,
             ) -> str:
+                if _mesh_edit_raw_preview_active():
+                    return ""
                 if _alignment_d3d11_uses_accurate_package(label, model):
                     return ""
                 package_settings = (
@@ -54157,11 +55388,18 @@ def run_gui() -> int:
                 if detail_mode == "fast":
                     return False
                 if detail_mode == "auto":
-                    return False
+                    return not _alignment_auto_detail_uses_fast_package(label, model)
                 return False
 
             def _alignment_d3d11_package_quality(label: str, model: object = None) -> tuple[ModelPreviewRenderSettings, bool, bool, str]:
                 settings = _current_alignment_preview_render_settings()
+                if _mesh_edit_raw_preview_active():
+                    raw_settings = dataclasses.replace(settings)
+                    raw_settings.disable_all_support_maps = True
+                    raw_settings.disable_normal_map = True
+                    raw_settings.disable_material_map = True
+                    raw_settings.disable_height_map = True
+                    return clamp_model_preview_render_settings(raw_settings), False, False, "mesh_edit_raw"
                 if _alignment_d3d11_uses_accurate_package(label, model):
                     return settings, True, True, "accurate"
                 fast_settings = dataclasses.replace(settings)
@@ -54346,14 +55584,15 @@ def run_gui() -> int:
                         _start_alignment_d3d11_process(cached_package_dir, request_id=request_id)
                         return
                 alignment_d3d11_state["last_cache_event"] = "bypass" if not cache_key else "miss"
+                mesh_edit_raw_package = _mesh_edit_raw_preview_active()
                 worker = AlignmentD3D11PackageWorker(
                     request_id,
                     model,
                     settings,
-                    use_textures=True,
+                    use_textures=not mesh_edit_raw_package,
                     high_quality_textures=high_quality_textures,
                     enable_material_combiner=enable_material_combiner,
-                    original_reference_material_parity=True,
+                    original_reference_material_parity=not mesh_edit_raw_package,
                     display_mode=requested_display_mode,
                     editor_workspace="modify_original_alignment" if modify_original_clone_mode else "mesh_replacement_alignment",
                 )
@@ -54368,7 +55607,10 @@ def run_gui() -> int:
                 thread.finished.connect(_cleanup_alignment_d3d11_package_worker_refs)
                 alignment_d3d11_state["worker"] = worker
                 alignment_d3d11_state["thread"] = thread
-                loading_detail = "resolving textures" if high_quality_textures else "building mesh and low-res textures"
+                if mesh_edit_raw_package:
+                    loading_detail = "building raw edit mesh"
+                else:
+                    loading_detail = "resolving textures" if high_quality_textures else "building mesh and low-res textures"
                 _set_alignment_d3d11_loading(
                     True,
                     f"Loading preview... please wait, {loading_detail}.",
@@ -54824,10 +56066,22 @@ def run_gui() -> int:
                     geometry_active = _alignment_geometry_tab_active()
                     highlight_active = geometry_active or control_tabs.widget(control_tabs.currentIndex()) is textures_tab
                     gizmo_enabled = bool(preview_gizmo_checkbox.isChecked())
-                    d3d11_highlighted_indices = (
-                        _alignment_d3d11_editor_ids_for_source_indices(tuple(highlighted_source_indices))
-                        if highlight_active else ()
-                    )
+                    d3d11_highlight_ids: set[int] = set()
+                    if highlight_active:
+                        selected_source_overlay_ids = _alignment_d3d11_editor_ids_for_source_indices(
+                            tuple(selected_source_highlight_indices),
+                            selection_overlay=True,
+                        )
+                        if selected_source_overlay_ids:
+                            d3d11_highlight_ids.update(selected_source_overlay_ids)
+                        else:
+                            d3d11_highlight_ids.update(
+                                _alignment_d3d11_editor_ids_for_source_indices(tuple(selected_source_highlight_indices))
+                            )
+                        d3d11_highlight_ids.update(
+                            _alignment_d3d11_editor_ids_for_source_indices(tuple(selected_target_source_highlight_indices))
+                        )
+                    d3d11_highlighted_indices = tuple(sorted(d3d11_highlight_ids))
                     d3d11_original_highlighted_indices = tuple(sorted(int(index) for index in highlighted_original_indices)) if highlight_active else ()
                     d3d11_selected_indices = (
                         _alignment_default_d3d11_editor_ids()
@@ -54983,13 +56237,21 @@ def run_gui() -> int:
                 ("Handle / grip", "handle"),
                 ("Guard / crossguard", "guard"),
                 ("Accessory / detail", "accessory/detail"),
+                ("Glow / emissive", "glow"),
                 ("Cloth / fabric", "cloth"),
                 ("Armor / body", "armor/body"),
                 ("Unknown", "unknown"),
             )
 
-            def _source_role_label(source_index: int) -> str:
+            def _source_role_override_value(source_index: int) -> str:
                 override = str(source_role_overrides.get(source_index, "") or "").strip()
+                if override:
+                    return override
+                adjustment = source_part_adjustments.get(source_index)
+                return str(getattr(adjustment, "material_role", "") or "").strip()
+
+            def _source_role_label(source_index: int) -> str:
+                override = _source_role_override_value(source_index)
                 if override:
                     return override
                 if replacement_mesh_for_mapping is None or source_index < 0 or source_index >= len(replacement_mesh_for_mapping.submeshes):
@@ -55428,6 +56690,7 @@ def run_gui() -> int:
                     and all(abs(float(value) - 1.0) <= 1e-8 for value in adjustment.scale_xyz)
                     and abs(float(adjustment.uniform_scale) - 1.0) <= 1e-8
                     and str(adjustment.pivot_mode or "part_center") == "part_center"
+                    and not str(getattr(adjustment, "material_role", "") or "").strip()
                 )
 
             def _current_source_part_adjustments() -> List[StaticSourcePartAdjustment]:
@@ -55436,6 +56699,25 @@ def run_gui() -> int:
                     for _source_index, adjustment in sorted(source_part_adjustments.items())
                     if not _is_default_source_part_adjustment(adjustment)
                 ]
+
+            def _set_source_role_override_value(source_index: int, role_value: str) -> str:
+                try:
+                    source_index = int(source_index)
+                except (TypeError, ValueError):
+                    return ""
+                if source_index < 0:
+                    return ""
+                normalized_role = str(role_value or "").strip()
+                if normalized_role:
+                    source_role_overrides[source_index] = normalized_role
+                else:
+                    source_role_overrides.pop(source_index, None)
+                adjustment = _ensure_source_part_adjustment(source_index)
+                adjustment.material_role = normalized_role
+                if _is_default_source_part_adjustment(adjustment):
+                    source_part_adjustments.pop(source_index, None)
+                texture_overrides_dirty["dirty"] = True
+                return normalized_role
 
             def _disabled_source_part_indices() -> tuple[int, ...]:
                 return tuple(
@@ -56580,16 +57862,81 @@ def run_gui() -> int:
                     if chosen is copy_action:
                         _copy_original_part_to_alignment_clipboard(_selected_original_index_from_tree())
 
+                def _apply_source_role_selection(source_index: int, role_value: str, undo_label: str = "Change source role") -> None:
+                    try:
+                        source_index = int(source_index)
+                    except (TypeError, ValueError):
+                        return
+                    if source_index < 0:
+                        return
+                    _push_geometry_undo_snapshot(undo_label)
+                    _set_source_role_override_value(source_index, role_value)
+                    _refresh_source_assignment_columns()
+                    try:
+                        _refresh_parts_outliner()
+                    except NameError:
+                        pass
+                    try:
+                        _load_selected_part_controls()
+                    except NameError:
+                        pass
+                    try:
+                        _refresh_source_material_plan(force=True)
+                    except TypeError:
+                        _refresh_source_material_plan()
+                    except NameError:
+                        pass
+                    _queue_static_preview_rebuild()
+
+                def _open_source_tree_role_dropdown(item: QTreeWidgetItem, column: int) -> None:
+                    source_index = _selected_source_index()
+                    if source_index < 0:
+                        return
+                    menu = QMenu(source_tree)
+                    for label, role_value in (
+                        ("Auto / inferred", ""),
+                        ("Blade", "blade"),
+                        ("Handle / grip", "handle"),
+                        ("Guard / crossguard", "guard"),
+                        ("Accessory / detail", "accessory/detail"),
+                        ("Glow / emissive", "glow"),
+                        ("Cloth / fabric", "cloth"),
+                        ("Unknown", "unknown"),
+                    ):
+                        action = menu.addAction(label)
+                        action.setData(role_value)
+                    rect = source_tree.visualItemRect(item)
+                    point = source_tree.viewport().mapToGlobal(rect.bottomLeft())
+                    chosen = menu.exec(point)
+                    if chosen is None:
+                        return
+                    _apply_source_role_selection(source_index, str(chosen.data() or ""))
+
+                def _handle_source_tree_item_clicked(item: QTreeWidgetItem, column: int) -> None:
+                    if item is None or int(column) != 3:
+                        return
+                    _open_source_tree_role_dropdown(item, column)
+
                 def _show_replacement_sources_context_menu(pos: QPoint) -> None:
                     item = source_tree.itemAt(pos)
                     if item is not None:
                         source_tree.setCurrentItem(item)
+                    source_index = _selected_source_index()
                     menu = QMenu(source_tree)
                     paste_action = menu.addAction("Paste As Replacement Source")
                     paste_action.setEnabled(_alignment_part_clipboard_can_paste())
+                    menu.addSeparator()
+                    glow_role_action = menu.addAction("Set Role: Glow / emissive")
+                    auto_role_action = menu.addAction("Set Role: Auto / inferred")
+                    glow_role_action.setEnabled(source_index >= 0)
+                    auto_role_action.setEnabled(source_index >= 0)
                     chosen = menu.exec(source_tree.viewport().mapToGlobal(pos))
                     if chosen is paste_action:
                         _paste_alignment_part_clipboard_as_replacement_source()
+                    elif chosen is glow_role_action and source_index >= 0:
+                        _apply_source_role_selection(source_index, "glow", "Set source role glow")
+                    elif chosen is auto_role_action and source_index >= 0:
+                        _apply_source_role_selection(source_index, "", "Clear source role")
 
                 original_copy_button.clicked.connect(lambda _checked=False: _copy_selected_original_part(assign_to_target=False))
                 original_copy_assign_button.clicked.connect(lambda _checked=False: _copy_selected_original_part(assign_to_target=True))
@@ -56597,8 +57944,10 @@ def run_gui() -> int:
                 original_tree.customContextMenuRequested.connect(_show_original_parts_context_menu)
                 source_tree.setContextMenuPolicy(Qt.CustomContextMenu)
                 source_tree.customContextMenuRequested.connect(_show_replacement_sources_context_menu)
+                source_tree.itemClicked.connect(_handle_source_tree_item_clicked)
                 original_parts_label = QLabel("<span style='color:#79c0ff; font-weight:700;'>Original reference parts</span>")
                 original_parts_label.setTextFormat(Qt.RichText)
+                original_parts_label.setVisible(False)
                 mapping_layout.addWidget(original_parts_label)
                 _fit_alignment_tree_height_to_rows(original_tree, minimum=72, screen_margin=520, maximum=220)
                 _auto_fit_alignment_tree_columns(
@@ -56607,14 +57956,19 @@ def run_gui() -> int:
                     (48, 220, 140, 180, 160),
                     expand_column=1,
                 )
+                original_tree.setVisible(False)
                 mapping_layout.addWidget(original_tree, 0)
-                original_button_row = QHBoxLayout()
+                original_button_panel = QWidget()
+                original_button_panel.setVisible(False)
+                original_button_row = QHBoxLayout(original_button_panel)
+                original_button_row.setContentsMargins(0, 0, 0, 0)
                 original_button_row.addWidget(original_copy_button)
                 original_button_row.addWidget(original_copy_assign_button)
                 original_button_row.addWidget(original_clear_selection_button)
                 original_button_row.addStretch(1)
-                mapping_layout.addLayout(original_button_row)
+                mapping_layout.addWidget(original_button_panel)
                 mapping_layout.addWidget(source_parts_group, 0)
+                source_parts_group.setVisible(False)
 
                 _alignment_startup_step("Queuing replacement-source list...")
                 source_tree_population_timer = QTimer(dialog)
@@ -57204,12 +58558,7 @@ def run_gui() -> int:
                     if source_index < 0:
                         return
                     _push_geometry_undo_snapshot("Change source role")
-                    normalized_role = str(role_value or "").strip()
-                    if normalized_role:
-                        source_role_overrides[source_index] = normalized_role
-                    else:
-                        source_role_overrides.pop(source_index, None)
-                    texture_overrides_dirty["dirty"] = True
+                    normalized_role = _set_source_role_override_value(source_index, role_value)
                     _refresh_source_assignment_columns()
                     _refresh_parts_outliner()
                     _select_source_part_from_viewport(source_index)
@@ -57255,6 +58604,7 @@ def run_gui() -> int:
                         ("handle", "handle"),
                         ("guard", "guard"),
                         ("accessory/detail", "accessory/detail"),
+                        ("glow/emissive", "glow"),
                         ("cloth", "cloth"),
                         ("unknown", "unknown"),
                     )
@@ -57550,12 +58900,27 @@ def run_gui() -> int:
                 clear_all_guesses_button.clicked.connect(_clear_all_mapping_guesses)
                 apply_best_guesses_button.clicked.connect(_apply_best_mapping_guesses)
                 show_advanced_mapping_checkbox = QCheckBox("Advanced Mapping")
-                show_advanced_mapping_checkbox.setToolTip("Show the raw source-index editor column. Normal routing should use the buttons below.")
+                show_advanced_mapping_checkbox.setToolTip(
+                    "Show raw target routing, original/source reference lists, and source-index editor. "
+                    "Normal routing should use Parts Outliner."
+                )
                 show_advanced_mapping_checkbox.setChecked(False)
                 mapping_layout.addWidget(show_advanced_mapping_checkbox)
                 mapping_tree.setColumnHidden(2, True)
                 mapping_tree.setVisible(False)
                 def _set_advanced_mapping_visible(checked: bool) -> None:
+                    advanced_visible = bool(checked)
+                    original_parts_label.setVisible(advanced_visible)
+                    original_tree.setVisible(advanced_visible)
+                    original_button_panel.setVisible(advanced_visible)
+                    source_parts_group.setVisible(advanced_visible)
+                    for mapping_action_button in (
+                        clear_all_guesses_button,
+                        apply_best_guesses_button,
+                        group_materials_button,
+                        preview_target_button,
+                    ):
+                        mapping_action_button.setVisible(advanced_visible)
                     mapping_tree.setVisible(bool(checked))
                     target_slots_label.setVisible(bool(checked))
                     mapping_progress_label.setVisible(bool(checked))
@@ -57589,6 +58954,7 @@ def run_gui() -> int:
                     )
                 show_advanced_mapping_checkbox.toggled.connect(_set_advanced_mapping_visible)
                 mapping_layout.addWidget(mapping_tree, 0)
+                _set_advanced_mapping_visible(False)
                 control_tabs.currentChanged.connect(
                     lambda index: _ensure_mapping_table_building()
                     if control_tabs.widget(index) is parts_tab
@@ -58920,7 +60286,7 @@ def run_gui() -> int:
                         part_enabled_checkbox.blockSignals(True)
                         part_enabled_checkbox.setChecked(bool(adjustment.enabled))
                         part_enabled_checkbox.blockSignals(False)
-                        role_value = str(source_role_overrides.get(source_index, "") or "")
+                        role_value = _source_role_override_value(source_index)
                         part_role_combo.blockSignals(True)
                         role_index = part_role_combo.findData(role_value)
                         part_role_combo.setCurrentIndex(max(0, role_index))
@@ -59050,11 +60416,18 @@ def run_gui() -> int:
                         return
                     _push_geometry_undo_snapshot("Change source part role")
                     role_value = str(part_role_combo.currentData() or "").strip()
-                    if role_value:
-                        source_role_overrides[source_index] = role_value
-                    else:
-                        source_role_overrides.pop(source_index, None)
+                    _set_source_role_override_value(source_index, role_value)
                     _refresh_source_assignment_columns()
+                    try:
+                        _refresh_parts_outliner()
+                    except NameError:
+                        pass
+                    try:
+                        _refresh_source_material_plan(force=True)
+                    except TypeError:
+                        _refresh_source_material_plan()
+                    except NameError:
+                        pass
                     _queue_static_preview_rebuild()
 
                 def _selected_part_target_index() -> int:
@@ -59128,6 +60501,7 @@ def run_gui() -> int:
                         target_indices.insert(0, source_index)
                     for target_source_index in target_indices:
                         source_part_adjustments.pop(target_source_index, None)
+                        source_role_overrides.pop(target_source_index, None)
                         source_item = source_items_by_index.get(target_source_index)
                         if source_item is not None:
                             source_tree_item_update_guard["active"] = True
@@ -60731,8 +62105,9 @@ def run_gui() -> int:
                 mesh_edit_layout.setSpacing(4)
                 mesh_edit_title_label = QLabel("Mesh Editing")
                 mesh_edit_title_label.setObjectName("SectionLabel")
-                mesh_edit_enabled_checkbox = QCheckBox("Enable Mesh Editing")
-                mesh_edit_enabled_checkbox.setToolTip("Edit visible replacement source geometry. Remove Faces can cut triangles; other tools keep topology fixed.")
+                mesh_edit_enabled_checkbox = QCheckBox("Edit Mode")
+                mesh_edit_enabled_checkbox.setObjectName("MeshEditModeCheckbox")
+                mesh_edit_enabled_checkbox.setToolTip("Enable Blender-like Edit Mode for visible replacement source geometry. Remove Faces can cut triangles; other tools keep topology fixed.")
                 mesh_edit_scope_combo = QComboBox()
                 for label, mode in (("All editable parts", "all"), ("Selected part only", "selected")):
                     mesh_edit_scope_combo.addItem(label, mode)
@@ -60801,10 +62176,18 @@ def run_gui() -> int:
                 mesh_edit_falloff_combo = QComboBox()
                 for label, value in (("Smooth", "smooth"), ("Linear", "linear"), ("Sharp", "sharp"), ("Constant", "constant")):
                     mesh_edit_falloff_combo.addItem(label, value)
+                mesh_edit_iterations_spin = QSpinBox()
+                mesh_edit_iterations_spin.setRange(1, 12)
+                mesh_edit_iterations_spin.setValue(3)
+                mesh_edit_iterations_spin.setToolTip("Smooth/Relax passes per brush sample.")
                 mesh_edit_selection_mode_combo = QComboBox()
                 for label, value in (("Brush Select", "brush"), ("Lasso Select", "lasso"), ("Rectangle Select", "rectangle")):
                     mesh_edit_selection_mode_combo.addItem(label, value)
                 mesh_edit_selection_mode_combo.setToolTip("Selection mode for the Select Vertices tool.")
+                mesh_edit_selection_depth_combo = QComboBox()
+                for label, value in (("Visible Only", "visible"), ("X-Ray", "xray")):
+                    mesh_edit_selection_depth_combo.addItem(label, value)
+                mesh_edit_selection_depth_combo.setToolTip("Visible Only selects the front surface; X-Ray can select vertices behind it.")
                 mesh_edit_mirror_checkbox = QCheckBox("Mirror X")
                 mesh_edit_show_vertices_checkbox = QCheckBox("Vertex dots")
                 mesh_edit_show_vertices_checkbox.setChecked(True)
@@ -60812,23 +62195,28 @@ def run_gui() -> int:
                 mesh_edit_grow_selection_button = QPushButton("Grow Selection")
                 mesh_edit_shrink_selection_button = QPushButton("Shrink Selection")
                 mesh_edit_smooth_selection_button = QPushButton("Smooth / Feather Selection")
+                mesh_edit_subdivide_selection_button = QPushButton("Subdivide Selection")
+                mesh_edit_subdivide_selection_button.setToolTip("Add local triangle density around selected vertices, then keep sculpting.")
                 mesh_edit_delete_faces_button = QPushButton("Delete Selected Faces")
                 mesh_edit_delete_faces_button.setToolTip("Delete triangles touched by selected Mesh Editing vertices. Cut boundaries are left open.")
                 mesh_edit_undo_button = QPushButton("Undo")
                 mesh_edit_redo_button = QPushButton("Redo")
                 mesh_edit_reset_part_button = QPushButton("Reset Scope")
+                mesh_edit_full_reset_button = QPushButton("Full Reset Mesh")
                 for mesh_edit_button in (
                     mesh_edit_clear_selection_button,
                     mesh_edit_grow_selection_button,
                     mesh_edit_shrink_selection_button,
                     mesh_edit_smooth_selection_button,
+                    mesh_edit_subdivide_selection_button,
                     mesh_edit_delete_faces_button,
                     mesh_edit_undo_button,
                     mesh_edit_redo_button,
                     mesh_edit_reset_part_button,
+                    mesh_edit_full_reset_button,
                 ):
                     mesh_edit_button.setMinimumWidth(0)
-                mesh_edit_status_label = QLabel("Enable Mesh Editing to edit visible replacement source geometry.")
+                mesh_edit_status_label = QLabel("Enable Edit Mode to edit visible replacement source geometry.")
                 mesh_edit_status_label.setObjectName("HintLabel")
                 mesh_edit_status_label.setWordWrap(True)
                 mesh_edit_status_label.setMaximumHeight(54)
@@ -60898,7 +62286,9 @@ def run_gui() -> int:
                 _mesh_edit_field("Radius", mesh_edit_radius_spin)
                 _mesh_edit_field("Strength", mesh_edit_strength_spin)
                 _mesh_edit_field("Falloff", mesh_edit_falloff_combo)
+                _mesh_edit_field("Iterations", mesh_edit_iterations_spin)
                 _mesh_edit_field("Selection", mesh_edit_selection_mode_combo)
+                _mesh_edit_field("Depth", mesh_edit_selection_depth_combo)
                 mesh_edit_option_row = QHBoxLayout()
                 mesh_edit_option_row.setContentsMargins(0, 0, 0, 0)
                 mesh_edit_option_row.setSpacing(4)
@@ -60914,6 +62304,7 @@ def run_gui() -> int:
                 mesh_edit_selection_button_row.addWidget(mesh_edit_smooth_selection_button)
                 mesh_edit_layout.addWidget(mesh_edit_clear_selection_button)
                 mesh_edit_layout.addLayout(mesh_edit_selection_button_row)
+                mesh_edit_layout.addWidget(mesh_edit_subdivide_selection_button)
                 mesh_edit_layout.addWidget(mesh_edit_delete_faces_button)
                 mesh_edit_button_row = QHBoxLayout()
                 mesh_edit_button_row.setContentsMargins(0, 0, 0, 0)
@@ -60923,6 +62314,7 @@ def run_gui() -> int:
                 mesh_edit_button_row.addStretch(1)
                 mesh_edit_layout.addLayout(mesh_edit_button_row)
                 mesh_edit_layout.addWidget(mesh_edit_reset_part_button)
+                mesh_edit_layout.addWidget(mesh_edit_full_reset_button)
                 mesh_edit_layout.addWidget(mesh_edit_status_label)
 
                 def _mesh_edit_scope_mode() -> str:
@@ -60939,6 +62331,10 @@ def run_gui() -> int:
                 def _mesh_edit_selection_mode() -> str:
                     mode = str(mesh_edit_selection_mode_combo.currentData() or "brush").strip().lower()
                     return mode if mode in {"brush", "lasso", "rectangle"} else "brush"
+
+                def _mesh_edit_selection_depth_mode() -> str:
+                    mode = str(mesh_edit_selection_depth_combo.currentData() or "visible").strip().lower()
+                    return "xray" if mode == "xray" else "visible"
 
                 def _mesh_edit_selected_source_index() -> int:
                     try:
@@ -61021,6 +62417,16 @@ def run_gui() -> int:
                     if _mesh_edit_scope_mode() == "selected":
                         source_index = _mesh_edit_selected_scope_source_index()
                         return (source_index,) if _mesh_edit_source_index_is_editable(source_index, require_enabled=require_enabled) else ()
+                    return tuple(
+                        index
+                        for index in range(len(submeshes))
+                        if _mesh_edit_source_index_is_editable(index, require_enabled=require_enabled)
+                    )
+
+                def _mesh_edit_preview_source_indices(*, require_enabled: bool = True) -> tuple[int, ...]:
+                    if replacement_mesh_for_mapping is None:
+                        return ()
+                    submeshes = tuple(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ())
                     return tuple(
                         index
                         for index in range(len(submeshes))
@@ -61548,6 +62954,8 @@ def run_gui() -> int:
                             falloff=str(mesh_edit_falloff_combo.currentData() or "smooth"),
                             show_vertices=bool(mesh_edit_show_vertices_checkbox.isChecked()),
                             selection_mode=_mesh_edit_selection_mode(),
+                            selection_depth_mode=_mesh_edit_selection_depth_mode(),
+                            smooth_iterations=int(mesh_edit_iterations_spin.value()),
                         )
                     for preview_widget in (static_dialog_preview, overlay_dialog_preview, replacement_only_preview):
                         preview_widget.set_mesh_edit_target_mode(target_mode)
@@ -61591,8 +62999,10 @@ def run_gui() -> int:
                         mesh_edit_part_combo,
                         mesh_edit_tool_palette,
                         mesh_edit_radius_spin,
+                        mesh_edit_iterations_spin,
                         mesh_edit_falloff_combo,
                         mesh_edit_selection_mode_combo,
+                        mesh_edit_selection_depth_combo,
                         mesh_edit_mirror_checkbox,
                         mesh_edit_show_vertices_checkbox,
                     ):
@@ -61607,6 +63017,9 @@ def run_gui() -> int:
                     mesh_edit_grow_selection_button.setEnabled(selection_active)
                     mesh_edit_shrink_selection_button.setEnabled(selection_active)
                     mesh_edit_smooth_selection_button.setEnabled(selection_active)
+                    mesh_edit_subdivide_selection_button.setEnabled(
+                        selection_active and not _morph_slider_has_nonzero_values()
+                    )
                     mesh_edit_delete_faces_button.setEnabled(
                         selection_active
                     )
@@ -61621,6 +63034,7 @@ def run_gui() -> int:
                             )
                         )
                     )
+                    mesh_edit_full_reset_button.setEnabled(mesh_edit_reset_part_button.isEnabled())
                     selected_count = sum(len(vertices) for vertices in mesh_edit_selected_vertices_by_submesh.values())
                     selected_text = f" Selected vertices {selected_count:,}." if selected_count else ""
                     mesh_edit_status_label.setText(
@@ -61631,7 +63045,7 @@ def run_gui() -> int:
 
                 def _mesh_edit_push_undo_snapshot(snapshot: ParsedMesh) -> None:
                     mesh_edit_undo_stack.append(clone_mesh_for_editing(snapshot))
-                    mesh_edit_undo_adjustment_stack.append(copy.deepcopy(source_part_adjustments))
+                    mesh_edit_undo_adjustment_stack.append(_mesh_edit_part_enabled_snapshot())
                     if len(mesh_edit_undo_stack) > 30:
                         del mesh_edit_undo_stack[0]
                         if mesh_edit_undo_adjustment_stack:
@@ -61645,9 +63059,30 @@ def run_gui() -> int:
                     if mesh_edit_undo_adjustment_stack:
                         mesh_edit_undo_adjustment_stack.pop()
 
-                def _mesh_edit_restore_adjustment_snapshot(snapshot: Mapping[int, StaticSourcePartAdjustment]) -> None:
-                    source_part_adjustments.clear()
-                    source_part_adjustments.update(copy.deepcopy(dict(snapshot or {})))
+                def _mesh_edit_part_enabled_snapshot() -> Dict[int, bool]:
+                    source_count = 0
+                    if replacement_mesh_for_mapping is not None:
+                        source_count = len(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ())
+                    source_count = max(source_count, *(int(index) + 1 for index in source_part_adjustments.keys()), 0)
+                    snapshot: Dict[int, bool] = {}
+                    for source_index in range(source_count):
+                        adjustment = source_part_adjustments.get(source_index)
+                        snapshot[source_index] = True if adjustment is None else bool(adjustment.enabled)
+                    return snapshot
+
+                def _mesh_edit_restore_enabled_snapshot(snapshot: Mapping[int, bool]) -> None:
+                    for raw_source_index, enabled in dict(snapshot or {}).items():
+                        try:
+                            source_index = int(raw_source_index)
+                        except (TypeError, ValueError):
+                            continue
+                        if bool(enabled):
+                            adjustment = source_part_adjustments.get(source_index)
+                            if adjustment is not None:
+                                adjustment.enabled = True
+                        else:
+                            adjustment = _ensure_source_part_adjustment(source_index)
+                            adjustment.enabled = False
 
                 def _sync_source_tree_enabled_checks() -> None:
                     source_tree_item_update_guard["active"] = True
@@ -61681,34 +63116,37 @@ def run_gui() -> int:
                     _sync_source_tree_enabled_checks()
                     _refresh_source_assignment_columns()
                     _refresh_mesh_edit_controls()
-                    _queue_static_preview_rebuild()
+                    if _alignment_d3d11_preview_active():
+                        _mesh_edit_replace_live_triangles(_mesh_edit_preview_source_indices())
+                    else:
+                        _queue_static_preview_rebuild()
 
                 def _mesh_edit_undo() -> None:
                     if replacement_mesh_for_mapping is None or not mesh_edit_undo_stack:
                         return
                     mesh_edit_redo_stack.append(clone_mesh_for_editing(replacement_mesh_for_mapping))
-                    mesh_edit_redo_adjustment_stack.append(copy.deepcopy(source_part_adjustments))
+                    mesh_edit_redo_adjustment_stack.append(_mesh_edit_part_enabled_snapshot())
                     adjustment_snapshot = (
                         mesh_edit_undo_adjustment_stack.pop()
                         if mesh_edit_undo_adjustment_stack
-                        else copy.deepcopy(source_part_adjustments)
+                        else _mesh_edit_part_enabled_snapshot()
                     )
                     snapshot = mesh_edit_undo_stack.pop()
-                    _mesh_edit_restore_adjustment_snapshot(adjustment_snapshot)
+                    _mesh_edit_restore_enabled_snapshot(adjustment_snapshot)
                     _mesh_edit_replace_working_mesh(snapshot)
 
                 def _mesh_edit_redo() -> None:
                     if replacement_mesh_for_mapping is None or not mesh_edit_redo_stack:
                         return
                     mesh_edit_undo_stack.append(clone_mesh_for_editing(replacement_mesh_for_mapping))
-                    mesh_edit_undo_adjustment_stack.append(copy.deepcopy(source_part_adjustments))
+                    mesh_edit_undo_adjustment_stack.append(_mesh_edit_part_enabled_snapshot())
                     adjustment_snapshot = (
                         mesh_edit_redo_adjustment_stack.pop()
                         if mesh_edit_redo_adjustment_stack
-                        else copy.deepcopy(source_part_adjustments)
+                        else _mesh_edit_part_enabled_snapshot()
                     )
                     snapshot = mesh_edit_redo_stack.pop()
-                    _mesh_edit_restore_adjustment_snapshot(adjustment_snapshot)
+                    _mesh_edit_restore_enabled_snapshot(adjustment_snapshot)
                     _mesh_edit_replace_working_mesh(snapshot)
 
                 def _mesh_edit_reset_scope() -> None:
@@ -61756,7 +63194,55 @@ def run_gui() -> int:
                     _refresh_source_tree_selection_state()
                     _refresh_source_assignment_columns()
                     _refresh_mesh_edit_controls()
-                    _queue_static_preview_rebuild()
+                    if _alignment_d3d11_preview_active():
+                        _mesh_edit_replace_live_triangles(source_indices)
+                    else:
+                        _queue_static_preview_rebuild()
+
+                def _mesh_edit_full_reset_mesh() -> None:
+                    nonlocal replacement_preview_model
+                    if replacement_mesh_for_mapping is None or replacement_mesh_base_for_mapping is None:
+                        return
+                    source_indices = tuple(
+                        index
+                        for index in range(len(getattr(replacement_mesh_base_for_mapping, "submeshes", ()) or ()))
+                        if index < len(replacement_mesh_for_mapping.submeshes)
+                        and _mesh_edit_base_source_index_is_editable(index)
+                    )
+                    if not source_indices:
+                        return
+                    _mesh_edit_record_snapshot()
+                    for source_index in source_indices:
+                        working_source = replacement_mesh_for_mapping.submeshes[source_index]
+                        base_source = replacement_mesh_base_for_mapping.submeshes[source_index]
+                        restore_deleted_output = (
+                            not bool(getattr(working_source, "faces", None))
+                            and bool(getattr(base_source, "faces", None))
+                        )
+                        replacement_mesh_for_mapping.submeshes[source_index] = copy.deepcopy(
+                            base_source
+                        )
+                        if restore_deleted_output:
+                            adjustment = _ensure_source_part_adjustment(source_index)
+                            adjustment.enabled = True
+                    mesh_edit_selected_vertices_by_submesh.clear()
+                    if _morph_slider_has_loaded_deltas():
+                        _morph_slider_zero_post_edit_deltas_for_sources(source_indices)
+                        _morph_slider_refresh_topology_block_state()
+                    _mesh_edit_update_mesh_totals()
+                    replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
+                    mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1
+                    static_preview_geometry_cache.clear()
+                    static_preview_prepared_cache.clear()
+                    _sync_source_tree_enabled_checks()
+                    _refresh_source_tree_selection_state()
+                    _refresh_source_assignment_columns()
+                    _refresh_mesh_edit_controls()
+                    if _alignment_d3d11_preview_active():
+                        alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()
+                        _mesh_edit_replace_live_triangles(source_indices)
+                    else:
+                        _queue_static_preview_rebuild()
 
                 def _mesh_edit_preview_to_source_vector(vector: Sequence[object]) -> tuple[float, float, float]:
                     scale = float(getattr(original_reference_preview_model, "normalization_scale", 1.0) or 1.0)
@@ -61768,6 +63254,18 @@ def run_gui() -> int:
                     center = tuple(getattr(original_reference_preview_model, "normalization_center", (0.0, 0.0, 0.0)) or (0.0, 0.0, 0.0))
                     delta = _mesh_edit_preview_to_source_vector(point)
                     return (delta[0] + float(center[0]), delta[1] + float(center[1]), delta[2] + float(center[2]))
+
+                def _mesh_edit_source_to_preview_point(point: Sequence[object]) -> tuple[float, float, float]:
+                    normalizer = original_reference_preview_model or replacement_preview_model
+                    center = tuple(getattr(normalizer, "normalization_center", (0.0, 0.0, 0.0)) or (0.0, 0.0, 0.0))
+                    scale = float(getattr(normalizer, "normalization_scale", 1.0) or 1.0)
+                    if abs(scale) <= 1e-8:
+                        scale = 1.0
+                    return (
+                        (float(point[0]) - float(center[0])) * scale,
+                        (float(point[1]) - float(center[1])) * scale,
+                        (float(point[2]) - float(center[2])) * scale,
+                    )
 
                 def _mesh_edit_stroke_id(payload: object) -> int:
                     if not isinstance(payload, Mapping):
@@ -61784,11 +63282,280 @@ def run_gui() -> int:
                     replacement_mesh_for_mapping.total_faces = sum(len(submesh.faces) for submesh in replacement_mesh_for_mapping.submeshes)
                     replacement_mesh_for_mapping.has_uvs = any(bool(submesh.uvs) for submesh in replacement_mesh_for_mapping.submeshes)
 
-                def _mesh_edit_update_live_preview() -> None:
+                def _mesh_edit_adjusted_sources_for_live_preview(source_indices: Iterable[int]) -> Dict[int, object]:
+                    if replacement_mesh_for_mapping is None:
+                        return {}
+                    requested = {
+                        int(source_index)
+                        for source_index in tuple(source_indices or ())
+                        if 0 <= int(source_index) < len(replacement_mesh_for_mapping.submeshes)
+                    }
+                    if not requested:
+                        return {}
+                    transformed: Dict[int, object] = {}
+                    for source_index in requested:
+                        source = replacement_mesh_for_mapping.submeshes[source_index]
+                        adjustment = source_part_adjustments.get(source_index)
+                        transformed[source_index] = (
+                            source
+                            if adjustment is None or _is_default_source_part_adjustment(adjustment)
+                            else _copy_source_part_with_adjustment(source, adjustment)
+                        )
+                    return transformed
+
+                def _mesh_edit_transformed_sources_for_live_preview(source_indices: Iterable[int]) -> Dict[int, object]:
+                    if replacement_mesh_for_mapping is None:
+                        return {}
+                    requested = {
+                        int(source_index)
+                        for source_index in tuple(source_indices or ())
+                        if 0 <= int(source_index) < len(replacement_mesh_for_mapping.submeshes)
+                    }
+                    if not requested:
+                        return {}
+                    if original_mesh_for_mapping is None:
+                        return _mesh_edit_adjusted_sources_for_live_preview(requested)
+                    try:
+                        current_mappings = _current_dialog_mappings_for_preview()
+                        transformed_sources = _transformed_replacement_sources(
+                            original_mesh_for_mapping,
+                            replacement_mesh_for_mapping,
+                            _current_static_alignment_transform(),
+                            _current_source_part_adjustments(),
+                            _current_texture_uv_transforms(),
+                            global_transform_exempt_indices=set(appended_source_indices),
+                            global_transform_source_indices=_mapped_source_indices(current_mappings),
+                            max_source_faces_per_submesh=0,
+                            output_source_indices=set(requested),
+                            alignment_basis_mesh=replacement_mesh_base_for_mapping or replacement_mesh_for_mapping,
+                        )
+                    except Exception as exc:
+                        _record_runtime_event("mesh_edit_live_transform_error", message=str(exc))
+                        return _mesh_edit_adjusted_sources_for_live_preview(requested)
+                    return {
+                        source_index: transformed_sources[source_index]
+                        for source_index in requested
+                        if 0 <= source_index < len(transformed_sources)
+                    }
+
+                def _mesh_edit_submesh_for_live_preview(source_index: int):
+                    if replacement_mesh_for_mapping is None or source_index < 0 or source_index >= len(replacement_mesh_for_mapping.submeshes):
+                        return None
+                    return _mesh_edit_transformed_sources_for_live_preview((source_index,)).get(source_index)
+
+                mesh_edit_live_update_timer = QTimer(dialog)
+                mesh_edit_live_update_timer.setSingleShot(True)
+                mesh_edit_live_update_timer.setInterval(16)
+                mesh_edit_pending_live_vertices: Dict[int, set[int]] = {}
+                mesh_edit_pending_live_normals = {"include": False}
+
+                def _mesh_edit_live_vertex_update_groups(
+                    changed_vertices_by_submesh: Mapping[int, Iterable[int]] | None,
+                    *,
+                    include_normals: bool = False,
+                ) -> List[Dict[str, object]]:
+                    if replacement_mesh_for_mapping is None or not changed_vertices_by_submesh:
+                        return []
+                    groups: List[Dict[str, object]] = []
+                    transformed_sources_by_index = _mesh_edit_transformed_sources_for_live_preview(
+                        int(source_index)
+                        for source_index in dict(changed_vertices_by_submesh or {}).keys()
+                    )
+                    for raw_source_index, raw_vertices in dict(changed_vertices_by_submesh or {}).items():
+                        try:
+                            source_index = int(raw_source_index)
+                        except (TypeError, ValueError):
+                            continue
+                        if source_index < 0 or source_index >= len(replacement_mesh_for_mapping.submeshes):
+                            continue
+                        submesh = transformed_sources_by_index.get(source_index)
+                        if submesh is None:
+                            continue
+                        vertices = tuple(getattr(submesh, "vertices", ()) or ())
+                        normals = tuple(getattr(submesh, "normals", ()) or ())
+                        source_vertex_indices: List[int] = []
+                        positions: List[float] = []
+                        normal_values: List[float] = []
+                        normalized_vertices: set[int] = set()
+                        for raw_vertex_index in tuple(raw_vertices or ()):
+                            try:
+                                vertex_index = int(raw_vertex_index)
+                            except (TypeError, ValueError):
+                                continue
+                            if vertex_index >= 0:
+                                normalized_vertices.add(vertex_index)
+                        for vertex_index in sorted(normalized_vertices):
+                            if vertex_index >= len(vertices):
+                                continue
+                            preview_position = _mesh_edit_source_to_preview_point(vertices[vertex_index])
+                            source_vertex_indices.append(vertex_index)
+                            positions.extend(float(component) for component in preview_position)
+                            if include_normals and len(normals) == len(vertices):
+                                normal = tuple(normals[vertex_index])
+                                if len(normal) >= 3:
+                                    normal_values.extend(float(component) for component in normal[:3])
+                        if source_vertex_indices:
+                            group: Dict[str, object] = {
+                                "source_submesh_index": source_index,
+                                "source_vertex_indices": source_vertex_indices,
+                                "positions": positions,
+                            }
+                            if normal_values:
+                                group["normals"] = normal_values
+                            groups.append(group)
+                    return groups
+
+                def _flush_mesh_edit_live_vertex_updates() -> None:
+                    if replacement_mesh_for_mapping is None or not mesh_edit_pending_live_vertices:
+                        mesh_edit_pending_live_vertices.clear()
+                        mesh_edit_pending_live_normals["include"] = False
+                        return
+                    groups = _mesh_edit_live_vertex_update_groups(
+                        mesh_edit_pending_live_vertices,
+                        include_normals=bool(mesh_edit_pending_live_normals.get("include")),
+                    )
+                    mesh_edit_pending_live_vertices.clear()
+                    mesh_edit_pending_live_normals["include"] = False
+                    if groups and _alignment_d3d11_preview_active():
+                        alignment_d3d11_preview_host.update_mesh_edit_vertices(groups)
+
+                mesh_edit_live_update_timer.timeout.connect(_flush_mesh_edit_live_vertex_updates)
+
+                def _queue_mesh_edit_live_vertex_updates(
+                    changed_vertices_by_submesh: Mapping[int, Iterable[int]] | None,
+                    *,
+                    include_normals: bool = False,
+                    immediate: bool = False,
+                ) -> None:
+                    if not changed_vertices_by_submesh:
+                        return
+                    for raw_source_index, raw_vertices in dict(changed_vertices_by_submesh or {}).items():
+                        try:
+                            source_index = int(raw_source_index)
+                        except (TypeError, ValueError):
+                            continue
+                        pending = mesh_edit_pending_live_vertices.setdefault(source_index, set())
+                        for raw_vertex_index in tuple(raw_vertices or ()):
+                            try:
+                                vertex_index = int(raw_vertex_index)
+                            except (TypeError, ValueError):
+                                continue
+                            if vertex_index >= 0:
+                                pending.add(vertex_index)
+                    mesh_edit_pending_live_normals["include"] = bool(mesh_edit_pending_live_normals.get("include") or include_normals)
+                    if immediate:
+                        mesh_edit_live_update_timer.stop()
+                        _flush_mesh_edit_live_vertex_updates()
+                    elif not mesh_edit_live_update_timer.isActive():
+                        mesh_edit_live_update_timer.start()
+
+                def _mesh_edit_all_live_vertices_for_sources(source_indices: Iterable[int]) -> Dict[int, range]:
+                    if replacement_mesh_for_mapping is None:
+                        return {}
+                    result: Dict[int, range] = {}
+                    for raw_source_index in tuple(source_indices or ()):
+                        try:
+                            source_index = int(raw_source_index)
+                        except (TypeError, ValueError):
+                            continue
+                        if 0 <= source_index < len(replacement_mesh_for_mapping.submeshes):
+                            result[source_index] = range(
+                                len(getattr(replacement_mesh_for_mapping.submeshes[source_index], "vertices", ()) or ())
+                            )
+                    return result
+
+                def _mesh_edit_triangle_replace_groups(source_indices: Iterable[int]) -> List[Dict[str, object]]:
+                    if replacement_mesh_for_mapping is None:
+                        return []
+                    groups: List[Dict[str, object]] = []
+                    requested_source_indices = {
+                        int(source_index)
+                        for source_index in tuple(source_indices or ())
+                        if 0 <= int(source_index) < len(replacement_mesh_for_mapping.submeshes)
+                    }
+                    transformed_sources_by_index = _mesh_edit_transformed_sources_for_live_preview(requested_source_indices)
+                    for raw_source_index in tuple(requested_source_indices):
+                        try:
+                            source_index = int(raw_source_index)
+                        except (TypeError, ValueError):
+                            continue
+                        if source_index < 0 or source_index >= len(replacement_mesh_for_mapping.submeshes):
+                            continue
+                        submesh = transformed_sources_by_index.get(source_index)
+                        if submesh is None:
+                            continue
+                        vertices = tuple(getattr(submesh, "vertices", ()) or ())
+                        normals = tuple(getattr(submesh, "normals", ()) or ())
+                        positions: List[float] = []
+                        normal_values: List[float] = []
+                        source_vertex_indices: List[int] = []
+                        indices: List[int] = []
+                        for vertex_index, vertex in enumerate(vertices):
+                            preview_position = _mesh_edit_source_to_preview_point(vertex)
+                            positions.extend(float(component) for component in preview_position)
+                            source_vertex_indices.append(int(vertex_index))
+                            if len(normals) == len(vertices):
+                                normal = tuple(normals[vertex_index])
+                                if len(normal) >= 3:
+                                    normal_values.extend(float(component) for component in normal[:3])
+                        for face in tuple(getattr(submesh, "faces", ()) or ()):
+                            face_indices: List[int] = []
+                            for raw_vertex_index in tuple(face or ())[:3]:
+                                try:
+                                    vertex_index = int(raw_vertex_index)
+                                except (TypeError, ValueError):
+                                    face_indices = []
+                                    break
+                                if vertex_index < 0 or vertex_index >= len(vertices):
+                                    face_indices = []
+                                    break
+                                face_indices.append(vertex_index)
+                            if len(face_indices) == 3:
+                                indices.extend(face_indices)
+                        if not indices:
+                            positions = []
+                            normal_values = []
+                            source_vertex_indices = []
+                        group: Dict[str, object] = {
+                            "source_submesh_index": source_index,
+                            "source_vertex_indices": source_vertex_indices,
+                            "positions": positions,
+                            "indices": indices,
+                        }
+                        if normal_values:
+                            group["normals"] = normal_values
+                        groups.append(group)
+                    return groups
+
+                def _mesh_edit_replace_live_triangles(source_indices: Iterable[int]) -> bool:
+                    if replacement_mesh_for_mapping is None:
+                        return False
+                    if _alignment_d3d11_preview_active():
+                        mesh_edit_live_update_timer.stop()
+                        _flush_mesh_edit_live_vertex_updates()
+                        groups = _mesh_edit_triangle_replace_groups(source_indices)
+                        if groups:
+                            alignment_d3d11_preview_host.replace_mesh_edit_triangles(groups)
+                        return True
+                    return False
+
+                def _mesh_edit_update_live_preview(
+                    changed_vertices_by_submesh: Mapping[int, Iterable[int]] | None = None,
+                    *,
+                    include_normals: bool = False,
+                    immediate: bool = False,
+                ) -> None:
                     nonlocal replacement_preview_model
                     if replacement_mesh_for_mapping is None:
                         return
                     _mesh_edit_update_mesh_totals()
+                    if _alignment_d3d11_preview_active():
+                        _queue_mesh_edit_live_vertex_updates(
+                            changed_vertices_by_submesh,
+                            include_normals=include_normals,
+                            immediate=immediate,
+                        )
+                        return
                     replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
                     _safe_refresh_static_dialog_preview(live_mesh_edit=True)
 
@@ -61839,6 +63606,11 @@ def run_gui() -> int:
                     replacement_mesh_for_mapping = clone_mesh_for_editing(snapshot)
                     _mesh_edit_update_mesh_totals()
                     replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
+                    static_preview_geometry_cache.clear()
+                    static_preview_prepared_cache.clear()
+                    if _alignment_d3d11_preview_active():
+                        _mesh_edit_replace_live_triangles(_mesh_edit_preview_source_indices())
+                        return
                     _safe_refresh_static_dialog_preview(live_mesh_edit=True)
 
                 def _mesh_edit_payload_has_drag_motion(payload: Mapping[object, object]) -> bool:
@@ -61857,28 +63629,43 @@ def run_gui() -> int:
                         if not isinstance(group, Mapping):
                             continue
                         try:
-                            source_submesh_index = int(group.get("source_submesh_index", -1))
+                            editor_submesh_index = int(group.get("source_submesh_index", -1))
                         except (TypeError, ValueError):
                             continue
-                        if source_submesh_index not in allowed_indices:
-                            continue
-                        if source_submesh_index < 0 or source_submesh_index >= len(replacement_mesh_for_mapping.submeshes):
-                            continue
-                        vertex_count = len(getattr(replacement_mesh_for_mapping.submeshes[source_submesh_index], "vertices", ()) or ())
-                        for raw_vertex_index in tuple(group.get("source_vertex_indices") or ()):
-                            try:
-                                vertex_index = int(raw_vertex_index)
-                            except (TypeError, ValueError):
+                        source_indices = _alignment_d3d11_source_indices_for_editor_id(editor_submesh_index)
+                        for source_submesh_index in source_indices:
+                            if source_submesh_index not in allowed_indices:
                                 continue
-                            if 0 <= vertex_index < vertex_count:
-                                selected.setdefault(source_submesh_index, set()).add(vertex_index)
+                            if source_submesh_index < 0 or source_submesh_index >= len(replacement_mesh_for_mapping.submeshes):
+                                continue
+                            vertex_count = len(getattr(replacement_mesh_for_mapping.submeshes[source_submesh_index], "vertices", ()) or ())
+                            for raw_vertex_index in tuple(group.get("source_vertex_indices") or ()):
+                                try:
+                                    vertex_index = int(raw_vertex_index)
+                                except (TypeError, ValueError):
+                                    continue
+                                if 0 <= vertex_index < vertex_count:
+                                    selected.setdefault(source_submesh_index, set()).add(vertex_index)
                     return selected
 
                 def _mesh_edit_merge_vertex_groups(target: Dict[int, set[int]], source: Mapping[int, set[int]]) -> None:
                     for source_index, vertices in source.items():
                         target.setdefault(int(source_index), set()).update(int(vertex_index) for vertex_index in vertices if int(vertex_index) >= 0)
 
-                def _mesh_edit_commit_working_mesh(status_message: str = "") -> None:
+                def _mesh_edit_clear_topology_selection() -> None:
+                    mesh_edit_selected_vertices_by_submesh.clear()
+                    if _alignment_d3d11_preview_active():
+                        alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()
+                    for preview_widget in (static_dialog_preview, overlay_dialog_preview, replacement_only_preview):
+                        if hasattr(preview_widget, "clear_mesh_edit_vertex_selection"):
+                            preview_widget.clear_mesh_edit_vertex_selection()
+
+                def _mesh_edit_commit_working_mesh(
+                    status_message: str = "",
+                    *,
+                    topology_source_indices: Iterable[int] | None = None,
+                    normal_source_indices: Iterable[int] | None = None,
+                ) -> None:
                     nonlocal replacement_preview_model
                     if replacement_mesh_for_mapping is None:
                         return
@@ -61891,7 +63678,17 @@ def run_gui() -> int:
                     _refresh_source_tree_selection_state()
                     _refresh_source_assignment_columns()
                     _refresh_mesh_edit_controls()
-                    _queue_static_preview_rebuild()
+                    if _alignment_d3d11_preview_active():
+                        if topology_source_indices is not None:
+                            _mesh_edit_replace_live_triangles(tuple(topology_source_indices))
+                        else:
+                            _mesh_edit_update_live_preview(
+                                _mesh_edit_all_live_vertices_for_sources(normal_source_indices or _mesh_edit_preview_source_indices()),
+                                include_normals=True,
+                                immediate=True,
+                            )
+                    else:
+                        _queue_static_preview_rebuild()
                     if status_message:
                         self.set_status_message(status_message)
 
@@ -61936,7 +63733,10 @@ def run_gui() -> int:
                                 mesh_edit_active_stroke.get("live_removed_face_count", 0) or 0
                             ) + int(result.removed_face_count or 0)
                             mesh_edit_active_stroke["changed"] = True
-                            _mesh_edit_update_live_preview()
+                            if _alignment_d3d11_preview_active():
+                                _mesh_edit_replace_live_triangles(result.affected_submesh_indices)
+                            else:
+                                _mesh_edit_update_live_preview()
                             return
                         remove_vertices = mesh_edit_active_stroke.setdefault("remove_vertices_by_submesh", {})
                         if isinstance(remove_vertices, dict):
@@ -61956,9 +63756,14 @@ def run_gui() -> int:
                     amount = float(payload.get("amount") or 0.0) / scale
                     strength = max(0.0, min(1.0, float(payload.get("strength") or 0.0)))
                     falloff = str(payload.get("falloff") or "smooth")
+                    try:
+                        smooth_iterations = int(payload.get("smooth_iterations") or mesh_edit_iterations_spin.value())
+                    except (TypeError, ValueError):
+                        smooth_iterations = int(mesh_edit_iterations_spin.value())
                     mirror_pairs_by_submesh = mesh_edit_active_stroke.get("mirror_pairs", {})
                     adjacency_by_submesh = mesh_edit_active_stroke.get("adjacency", {})
                     changed_any = False
+                    changed_vertices_by_submesh: Dict[int, set[int]] = {}
                     for group in tuple(payload.get("groups") or ()):
                         if not isinstance(group, Mapping):
                             continue
@@ -62024,10 +63829,20 @@ def run_gui() -> int:
                                 mirror_x=bool(mesh_edit_mirror_checkbox.isChecked()),
                                 mirror_pairs=mirror_pairs if isinstance(mirror_pairs, Mapping) else None,
                                 adjacency=adjacency if isinstance(adjacency, (list, tuple)) else None,
+                                iterations=smooth_iterations,
                                 invert=bool(payload.get("invert")),
                                 recompute_normals=False,
                             )
                         changed_any = changed_any or bool(changed)
+                        if changed:
+                            changed_vertices_by_submesh.setdefault(source_submesh_index, set()).update(
+                                int(index) for index in tuple(changed or ()) if int(index) >= 0
+                            )
+                            stroke_changed_vertices = mesh_edit_active_stroke.setdefault("changed_vertices_by_submesh", {})
+                            if isinstance(stroke_changed_vertices, dict):
+                                stroke_changed_vertices.setdefault(source_submesh_index, set()).update(
+                                    int(index) for index in tuple(changed or ()) if int(index) >= 0
+                                )
                     if not changed_any:
                         return
                     try:
@@ -62041,10 +63856,11 @@ def run_gui() -> int:
                         _mesh_edit_pop_undo_snapshot()
                         _pop_geometry_undo_snapshot()
                         mesh_edit_active_stroke.clear()
+                        _refresh_mesh_edit_controls()
                         QMessageBox.warning(dialog, "Mesh Edit Blocked", str(exc))
                         return
                     mesh_edit_active_stroke["changed"] = True
-                    _mesh_edit_update_live_preview()
+                    _mesh_edit_update_live_preview(changed_vertices_by_submesh)
 
                 def _mesh_edit_finish_stroke(payload: object) -> None:
                     nonlocal replacement_preview_model
@@ -62086,11 +63902,20 @@ def run_gui() -> int:
                             )
                             _mesh_edit_disable_emptied_parts(compact_result.emptied_submesh_indices)
                             _morph_slider_mark_topology_changed("Remove Faces changed topology. Use Reset Scope to restore Morph Slider compatibility.")
-                            mesh_edit_selected_vertices_by_submesh.clear()
+                            _mesh_edit_clear_topology_selection()
                             removed_faces = int(mesh_edit_active_stroke.get("live_removed_face_count", 0) or 0)
+                            topology_sources = tuple(
+                                sorted(
+                                    {
+                                        *(int(index) for index in (live_submeshes if isinstance(live_submeshes, set) else set())),
+                                        *(int(index) for index in tuple(compact_result.affected_submesh_indices or ())),
+                                    }
+                                )
+                            )
                             mesh_edit_active_stroke.clear()
                             _mesh_edit_commit_working_mesh(
-                                f"Deleted {removed_faces:,} face(s) with Mesh Editing." if removed_faces else "Finished Mesh Editing cut."
+                                f"Deleted {removed_faces:,} face(s) with Mesh Editing." if removed_faces else "Finished Mesh Editing cut.",
+                                topology_source_indices=topology_sources,
                             )
                             return
                         remove_vertices = mesh_edit_active_stroke.get("remove_vertices_by_submesh", {})
@@ -62120,10 +63945,12 @@ def run_gui() -> int:
                             return
                         _mesh_edit_disable_emptied_parts(result.emptied_submesh_indices)
                         _morph_slider_mark_topology_changed("Remove Faces changed topology. Use Reset Scope to restore Morph Slider compatibility.")
-                        mesh_edit_selected_vertices_by_submesh.clear()
+                        _mesh_edit_clear_topology_selection()
+                        affected_sources = tuple(result.affected_submesh_indices)
                         mesh_edit_active_stroke.clear()
                         _mesh_edit_commit_working_mesh(
-                            f"Deleted {int(result.removed_face_count):,} face(s) with Mesh Editing."
+                            f"Deleted {int(result.removed_face_count):,} face(s) with Mesh Editing.",
+                            topology_source_indices=affected_sources,
                         )
                         return
                     changed = bool(mesh_edit_active_stroke.get("changed"))
@@ -62149,6 +63976,7 @@ def run_gui() -> int:
                         _mesh_edit_pop_undo_snapshot()
                         _pop_geometry_undo_snapshot()
                         mesh_edit_active_stroke.clear()
+                        _refresh_mesh_edit_controls()
                         QMessageBox.warning(dialog, "Mesh Edit Blocked", str(exc))
                         return
                     _morph_slider_capture_post_edit_deltas()
@@ -62157,9 +63985,25 @@ def run_gui() -> int:
                     mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1
                     static_preview_geometry_cache.clear()
                     static_preview_prepared_cache.clear()
+                    changed_sources_payload = mesh_edit_active_stroke.get("changed_vertices_by_submesh", {})
+                    changed_sources = tuple(
+                        int(source_index)
+                        for source_index in (
+                            changed_sources_payload.keys()
+                            if isinstance(changed_sources_payload, Mapping)
+                            else ()
+                        )
+                    )
                     mesh_edit_active_stroke.clear()
                     _refresh_mesh_edit_controls()
-                    _queue_static_preview_rebuild()
+                    if _alignment_d3d11_preview_active():
+                        _mesh_edit_update_live_preview(
+                            _mesh_edit_all_live_vertices_for_sources(changed_sources or _mesh_edit_preview_source_indices()),
+                            include_normals=True,
+                            immediate=True,
+                        )
+                    else:
+                        _queue_static_preview_rebuild()
 
                 def _mesh_edit_cancel_stroke(payload: object) -> None:
                     if not mesh_edit_active_stroke:
@@ -62212,7 +64056,7 @@ def run_gui() -> int:
                         return
                     _mesh_edit_disable_emptied_parts(result.emptied_submesh_indices)
                     _morph_slider_mark_topology_changed("Remove Faces changed topology. Use Reset Scope to restore Morph Slider compatibility.")
-                    mesh_edit_selected_vertices_by_submesh.clear()
+                    _mesh_edit_clear_topology_selection()
                     _mesh_edit_update_mesh_totals()
                     replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
                     mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1
@@ -62221,9 +64065,68 @@ def run_gui() -> int:
                     _refresh_source_tree_selection_state()
                     _refresh_source_assignment_columns()
                     _refresh_mesh_edit_controls()
-                    _queue_static_preview_rebuild()
+                    if _alignment_d3d11_preview_active():
+                        _mesh_edit_replace_live_triangles(result.affected_submesh_indices)
+                    else:
+                        _queue_static_preview_rebuild()
                     self.set_status_message(
                         f"Deleted {int(result.removed_face_count):,} face(s) from Mesh Editing selection."
+                    )
+
+                def _mesh_edit_subdivide_selection() -> None:
+                    nonlocal replacement_preview_model
+                    if replacement_mesh_for_mapping is None:
+                        return
+                    can_edit, reason = _mesh_edit_can_edit_scope()
+                    if not can_edit:
+                        QMessageBox.information(dialog, "Mesh Editing", reason)
+                        return
+                    if _morph_slider_has_nonzero_values():
+                        QMessageBox.information(dialog, "Mesh Editing", "Bake or reset Morph Sliders before subdividing mesh detail.")
+                        return
+                    allowed_indices = set(_mesh_edit_allowed_source_indices())
+                    selected_vertices = {
+                        int(source_index): sorted({int(vertex_index) for vertex_index in vertices if int(vertex_index) >= 0})
+                        for source_index, vertices in mesh_edit_selected_vertices_by_submesh.items()
+                        if int(source_index) in allowed_indices
+                        and 0 <= int(source_index) < len(replacement_mesh_for_mapping.submeshes)
+                        and vertices
+                    }
+                    if not selected_vertices:
+                        QMessageBox.information(dialog, "Mesh Editing", "Select vertices before subdividing mesh detail.")
+                        return
+                    _mesh_edit_record_snapshot()
+                    result = subdivide_faces_touching_vertices(
+                        replacement_mesh_for_mapping,
+                        selected_vertices,
+                        max_faces_per_submesh=512,
+                        recompute_normals=True,
+                    )
+                    if not result.affected_submesh_indices:
+                        _mesh_edit_pop_undo_snapshot()
+                        _pop_geometry_undo_snapshot()
+                        _refresh_mesh_edit_controls()
+                        self.set_status_message("No faces touched the selected Mesh Editing vertices.")
+                        return
+                    _morph_slider_mark_topology_changed("Subdivide Selection changed topology. Use Reset Scope to restore Morph Slider compatibility.")
+                    mesh_edit_selected_vertices_by_submesh.clear()
+                    for source_index, vertices in (result.changed_vertices_by_submesh or {}).items():
+                        mesh_edit_selected_vertices_by_submesh[int(source_index)] = {int(vertex_index) for vertex_index in vertices}
+                    _mesh_edit_update_mesh_totals()
+                    replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
+                    mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1
+                    static_preview_geometry_cache.clear()
+                    static_preview_prepared_cache.clear()
+                    _refresh_source_tree_selection_state()
+                    _refresh_source_assignment_columns()
+                    _refresh_mesh_edit_controls()
+                    if _alignment_d3d11_preview_active():
+                        alignment_d3d11_preview_host.set_mesh_edit_vertex_selection(mesh_edit_selected_vertices_by_submesh)
+                        _mesh_edit_replace_live_triangles(result.affected_submesh_indices)
+                    else:
+                        _queue_static_preview_rebuild()
+                    self.set_status_message(
+                        f"Subdivided {int(result.added_face_count):,} new face(s) for Mesh Editing detail."
                     )
 
                 def _mesh_edit_clear_vertex_selection() -> None:
@@ -62283,24 +64186,37 @@ def run_gui() -> int:
 
                 def _mesh_edit_selection_changed(payload: object) -> None:
                     mesh_edit_selected_vertices_by_submesh.clear()
+                    allowed_indices = set(_mesh_edit_allowed_source_indices())
                     if isinstance(payload, Mapping):
                         for group in tuple(payload.get("groups") or ()):
                             if not isinstance(group, Mapping):
                                 continue
                             try:
-                                source_submesh_index = int(group.get("source_submesh_index", -1))
+                                editor_submesh_index = int(group.get("source_submesh_index", -1))
                             except (TypeError, ValueError):
                                 continue
-                            if source_submesh_index < 0:
+                            if editor_submesh_index < 0:
                                 continue
-                            selected = mesh_edit_selected_vertices_by_submesh.setdefault(source_submesh_index, set())
-                            for raw_vertex_index in tuple(group.get("source_vertex_indices") or ()):
-                                try:
-                                    vertex_index = int(raw_vertex_index)
-                                except (TypeError, ValueError):
+                            for source_submesh_index in _alignment_d3d11_source_indices_for_editor_id(editor_submesh_index):
+                                if source_submesh_index not in allowed_indices:
                                     continue
-                                if vertex_index >= 0:
-                                    selected.add(vertex_index)
+                                if (
+                                    replacement_mesh_for_mapping is None
+                                    or source_submesh_index < 0
+                                    or source_submesh_index >= len(replacement_mesh_for_mapping.submeshes)
+                                ):
+                                    continue
+                                vertex_count = len(
+                                    getattr(replacement_mesh_for_mapping.submeshes[source_submesh_index], "vertices", ()) or ()
+                                )
+                                selected = mesh_edit_selected_vertices_by_submesh.setdefault(source_submesh_index, set())
+                                for raw_vertex_index in tuple(group.get("source_vertex_indices") or ()):
+                                    try:
+                                        vertex_index = int(raw_vertex_index)
+                                    except (TypeError, ValueError):
+                                        continue
+                                    if 0 <= vertex_index < vertex_count:
+                                        selected.add(vertex_index)
                     selected_count = sum(len(vertices) for vertices in mesh_edit_selected_vertices_by_submesh.values())
                     can_edit, reason = _mesh_edit_can_edit_scope()
                     if can_edit and mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active():
@@ -62321,34 +64237,38 @@ def run_gui() -> int:
                         _refresh_mesh_edit_controls()
                     _apply_alignment_dialog_responsive_layout(force_sizes=True)
 
+                mesh_edit_enabled_checkbox.toggled.connect(lambda _checked=False: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
                 for widget in (
-                    mesh_edit_enabled_checkbox,
                     mesh_edit_show_vertices_checkbox,
                     mesh_edit_mirror_checkbox,
                 ):
-                    widget.toggled.connect(lambda _checked=False: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
-                mesh_edit_scope_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
-                mesh_edit_part_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
-                mesh_edit_tool_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
-                mesh_edit_delete_mode_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
-                mesh_edit_falloff_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
-                mesh_edit_selection_mode_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
-                mesh_edit_radius_spin.valueChanged.connect(lambda _value: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
-                mesh_edit_strength_spin.valueChanged.connect(lambda _value: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))
+                    widget.toggled.connect(lambda _checked=False: _refresh_mesh_edit_controls())
+                mesh_edit_scope_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())
+                mesh_edit_part_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())
+                mesh_edit_tool_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())
+                mesh_edit_delete_mode_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())
+                mesh_edit_falloff_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())
+                mesh_edit_iterations_spin.valueChanged.connect(lambda _value: _refresh_mesh_edit_controls())
+                mesh_edit_selection_mode_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())
+                mesh_edit_selection_depth_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())
+                mesh_edit_radius_spin.valueChanged.connect(lambda _value: _refresh_mesh_edit_controls())
+                mesh_edit_strength_spin.valueChanged.connect(lambda _value: _refresh_mesh_edit_controls())
                 mesh_edit_radius_spin.editingFinished.connect(
-                    lambda: (_commit_spinbox_text(mesh_edit_radius_spin), _refresh_mesh_edit_controls(), _queue_static_preview_refresh())
+                    lambda: (_commit_spinbox_text(mesh_edit_radius_spin), _refresh_mesh_edit_controls())
                 )
                 mesh_edit_strength_spin.editingFinished.connect(
-                    lambda: (_commit_spinbox_text(mesh_edit_strength_spin), _refresh_mesh_edit_controls(), _queue_static_preview_refresh())
+                    lambda: (_commit_spinbox_text(mesh_edit_strength_spin), _refresh_mesh_edit_controls())
                 )
                 mesh_edit_clear_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_clear_vertex_selection())
                 mesh_edit_grow_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_grow_selection())
                 mesh_edit_shrink_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_shrink_selection())
                 mesh_edit_smooth_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_smooth_selection())
+                mesh_edit_subdivide_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_subdivide_selection())
                 mesh_edit_delete_faces_button.clicked.connect(lambda _checked=False: _mesh_edit_delete_selected_faces())
                 mesh_edit_undo_button.clicked.connect(lambda _checked=False: _mesh_edit_undo())
                 mesh_edit_redo_button.clicked.connect(lambda _checked=False: _mesh_edit_redo())
                 mesh_edit_reset_part_button.clicked.connect(lambda _checked=False: _mesh_edit_reset_scope())
+                mesh_edit_full_reset_button.clicked.connect(lambda _checked=False: _mesh_edit_full_reset_mesh())
                 morph_slider_create_button.clicked.connect(lambda _checked=False: _morph_slider_create_from_selection())
                 morph_slider_import_action.triggered.connect(lambda _checked=False: _morph_slider_import_pack())
                 morph_slider_add_action.triggered.connect(lambda _checked=False: _morph_slider_add_target())
@@ -63267,6 +65187,7 @@ def run_gui() -> int:
                     edge_relief_strength: float = 0.0,
                     edge_relief_source: str = "hybrid",
                     accent_glow_strength: float = 0.0,
+                    auto_brightness_balance: float = 50.0,
                     dark_detail_lift: float = 0.0,
                     tone_contrast: float = 0.0,
                     allow_unsafe_material_preflight_export: bool = False,
@@ -63306,10 +65227,11 @@ def run_gui() -> int:
                         donor_material_plans=list(placement_snapshot.get("donor_material_plans", []) or []),
                         texture_output_size_mode=str(texture_output_size_mode or "source"),
                         complete_swap_material_profile=str(complete_swap_material_profile or "material_authority_detail_mask"),
-                        global_gloss_reduction=max(0.0, min(100.0, float(global_gloss_reduction or 0.0))),
+                        global_gloss_reduction=max(-100.0, min(100.0, float(global_gloss_reduction or 0.0))),
                         edge_relief_strength=max(0.0, min(100.0, float(edge_relief_strength or 0.0))),
                         edge_relief_source=str(edge_relief_source or "hybrid"),
                         accent_glow_strength=max(0.0, min(100.0, float(accent_glow_strength or 0.0))),
+                        auto_brightness_balance=max(0.0, min(100.0, float(auto_brightness_balance or 0.0))),
                         dark_detail_lift=max(0.0, min(100.0, float(dark_detail_lift or 0.0))),
                         tone_contrast=max(-100.0, min(100.0, float(tone_contrast or 0.0))),
                         allow_unsafe_material_preflight_export=bool(allow_unsafe_material_preflight_export),
@@ -63469,6 +65391,139 @@ def run_gui() -> int:
                             source_overlay_preview_index_map[source_index] = overlay_offset + local_index
                     return _combine_preview_models(preview_model, overlay_model) or preview_model
 
+                def _source_selection_overlay_editor_id(source_index: int) -> int:
+                    return 2_000_000 + max(0, int(source_index))
+
+                def _source_selection_overlay_adjustments(source_indices: Sequence[int]) -> List[StaticSourcePartAdjustment]:
+                    selected = {int(index) for index in tuple(source_indices or ())}
+                    adjustments: List[StaticSourcePartAdjustment] = []
+                    seen: set[int] = set()
+                    for adjustment in _current_source_part_adjustments():
+                        try:
+                            source_index = int(adjustment.source_submesh_index)
+                        except (TypeError, ValueError):
+                            continue
+                        if source_index in selected and not bool(adjustment.enabled):
+                            adjustment = dataclasses.replace(adjustment, enabled=True)
+                        adjustments.append(adjustment)
+                        seen.add(source_index)
+                    for source_index in selected - seen:
+                        adjustments.append(StaticSourcePartAdjustment(source_submesh_index=source_index, enabled=True))
+                    return adjustments
+
+                def _build_selected_source_highlight_overlay_model(
+                    current_mappings: Sequence[StaticSubmeshMapping],
+                ) -> Optional[ModelPreviewData]:
+                    if original_mesh_for_mapping is None or replacement_mesh_for_mapping is None:
+                        return None
+                    requested_source_indices = tuple(
+                        sorted(
+                            {
+                                int(source_index)
+                                for source_index in tuple(selected_source_highlight_indices or ())
+                                if (
+                                    0 <= int(source_index) < len(replacement_mesh_for_mapping.submeshes)
+                                    and not _is_marker_source(replacement_mesh_for_mapping.submeshes[int(source_index)])
+                                )
+                            }
+                        )
+                    )
+                    if not requested_source_indices:
+                        return None
+                    transformed_sources = _transformed_replacement_sources(
+                        original_mesh_for_mapping,
+                        replacement_mesh_for_mapping,
+                        _current_static_alignment_transform(),
+                        _source_selection_overlay_adjustments(requested_source_indices),
+                        _current_texture_uv_transforms(),
+                        global_transform_exempt_indices=set(),
+                        global_transform_source_indices=(
+                            _mapped_source_indices(current_mappings) | set(requested_source_indices)
+                        ),
+                        max_source_faces_per_submesh=_alignment_preview_selected_source_face_limit(requested_source_indices),
+                        output_source_indices=set(requested_source_indices),
+                        alignment_basis_mesh=(
+                            replacement_mesh_base_for_mapping
+                            if mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active()
+                            else None
+                        ),
+                    )
+                    overlay_pairs = [
+                        (source_index, transformed_sources[source_index])
+                        for source_index in requested_source_indices
+                        if 0 <= source_index < len(transformed_sources)
+                    ]
+                    if not overlay_pairs:
+                        return None
+                    overlay_sources = [submesh for _source_index, submesh in overlay_pairs]
+                    vertices = [vertex for submesh in overlay_sources for vertex in (getattr(submesh, "vertices", ()) or ())]
+                    if vertices:
+                        xs, ys, zs = zip(*vertices)
+                        bbox_min = (min(xs), min(ys), min(zs))
+                        bbox_max = (max(xs), max(ys), max(zs))
+                    else:
+                        bbox_min = (0.0, 0.0, 0.0)
+                        bbox_max = (0.0, 0.0, 0.0)
+                    overlay_model = _preview_model_in_original_frame(
+                        ParsedMesh(
+                            path=str(getattr(replacement_mesh_for_mapping, "path", "") or ""),
+                            format=str(getattr(replacement_mesh_for_mapping, "format", "") or ""),
+                            bbox_min=bbox_min,
+                            bbox_max=bbox_max,
+                            submeshes=overlay_sources,
+                            total_vertices=sum(len(getattr(submesh, "vertices", ()) or ()) for submesh in overlay_sources),
+                            total_faces=sum(len(getattr(submesh, "faces", ()) or ()) for submesh in overlay_sources),
+                            has_uvs=any(bool(getattr(submesh, "uvs", ()) or ()) for submesh in overlay_sources),
+                            has_bones=False,
+                        ),
+                        source_indices=tuple(source_index for source_index, _submesh in overlay_pairs),
+                        source_index_map={},
+                    )
+                    for mesh in getattr(overlay_model, "meshes", ()) or ():
+                        try:
+                            source_index = int(getattr(mesh, "source_submesh_index", -1))
+                        except (TypeError, ValueError):
+                            source_index = -1
+                        if source_index < 0:
+                            continue
+                        _clear_preview_mesh_textures(mesh)
+                        mesh.texture_name = ""
+                        mesh.preview_texture_image = None
+                        mesh.preview_normal_texture_image = None
+                        mesh.preview_material_texture_image = None
+                        mesh.preview_height_texture_image = None
+                        mesh.preview_material_texture_inputs = ()
+                        mesh.preview_texture_tint = ()
+                        mesh.preview_color = (0.05, 0.95, 1.0)
+                        mesh.preview_double_sided = True
+                        mesh.preview_role = "replacement_source_selection_overlay"
+                        mesh.material_name = f"selected source overlay {source_index}"
+                        mesh.source_submesh_index = _source_selection_overlay_editor_id(source_index)
+                    return overlay_model
+
+                def _append_selected_source_highlight_overlay(
+                    preview_model: object,
+                    current_mappings: Sequence[StaticSubmeshMapping],
+                ) -> object:
+                    source_selection_overlay_preview_index_map.clear()
+                    source_selection_overlay_editor_id_map.clear()
+                    if not isinstance(preview_model, ModelPreviewData):
+                        return preview_model
+                    overlay_model = _build_selected_source_highlight_overlay_model(current_mappings)
+                    if overlay_model is None or not getattr(overlay_model, "meshes", None):
+                        return preview_model
+                    overlay_offset = len(getattr(preview_model, "meshes", ()) or ())
+                    for local_index, overlay_mesh in enumerate(getattr(overlay_model, "meshes", ()) or ()):
+                        try:
+                            editor_id = int(getattr(overlay_mesh, "source_submesh_index", -1))
+                        except (TypeError, ValueError):
+                            continue
+                        source_index = editor_id - 2_000_000
+                        if source_index >= 0:
+                            source_selection_overlay_preview_index_map[source_index] = overlay_offset + local_index
+                            source_selection_overlay_editor_id_map[source_index] = editor_id
+                    return _combine_preview_models(preview_model, overlay_model) or preview_model
+
                 def _build_direct_source_preview_model(
                     current_mappings: Sequence[StaticSubmeshMapping],
                     preview_source_indices: Sequence[int],
@@ -63491,6 +65546,11 @@ def run_gui() -> int:
                         global_transform_source_indices=_mapped_source_indices(current_mappings),
                         max_source_faces_per_submesh=_alignment_preview_selected_source_face_limit(requested_source_indices),
                         output_source_indices=requested_source_indices,
+                        alignment_basis_mesh=(
+                            replacement_mesh_base_for_mapping
+                            if mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active()
+                            else None
+                        ),
                     )
                     disabled_source_indices = {
                         int(adjustment.source_submesh_index)
@@ -63586,6 +65646,8 @@ def run_gui() -> int:
                     meshes = list(getattr(preview_model, "meshes", ()) or ())
                     source_to_editor: dict[int, set[int]] = {}
                     editor_to_source: dict[int, set[int]] = {}
+                    selection_overlay_to_editor: dict[int, set[int]] = {}
+                    selection_editor_to_source: dict[int, set[int]] = {}
 
                     def editor_id_for_preview_index(preview_index: int) -> int:
                         if preview_index < 0 or preview_index >= len(meshes):
@@ -63609,6 +65671,11 @@ def run_gui() -> int:
                     if mapped_preview:
                         for source_index, preview_index in source_overlay_preview_index_map.items():
                             add_mapping(int(source_index), editor_id_for_preview_index(int(preview_index)))
+                        for source_index, preview_index in source_selection_overlay_preview_index_map.items():
+                            editor_id = editor_id_for_preview_index(int(preview_index))
+                            if int(source_index) >= 0 and editor_id >= 0:
+                                selection_overlay_to_editor.setdefault(int(source_index), set()).add(editor_id)
+                                selection_editor_to_source.setdefault(editor_id, set()).add(int(source_index))
                         for mapping in current_mappings:
                             source_indices = tuple(int(index) for index in tuple(mapping.source_submesh_indices or ()))
                             if not source_indices:
@@ -63646,9 +65713,17 @@ def run_gui() -> int:
                         int(source_index): tuple(sorted(editor_ids))
                         for source_index, editor_ids in source_to_editor.items()
                     }
+                    alignment_d3d11_state["source_selection_overlay_to_d3d11_ids"] = {
+                        int(source_index): tuple(sorted(editor_ids))
+                        for source_index, editor_ids in selection_overlay_to_editor.items()
+                    }
                     alignment_d3d11_state["d3d11_id_to_source_indices"] = {
                         int(editor_id): tuple(sorted(source_indices))
                         for editor_id, source_indices in editor_to_source.items()
+                    }
+                    alignment_d3d11_state["selection_overlay_d3d11_id_to_source_indices"] = {
+                        int(editor_id): tuple(sorted(source_indices))
+                        for editor_id, source_indices in selection_editor_to_source.items()
                     }
 
                 original_preview_texture_attrs = (
@@ -63918,17 +65993,17 @@ def run_gui() -> int:
                     mapped_preview = False
                     source_preview_cache_key = ""
                     active_preview_mode = str(preview_mode_combo.currentData() or "side_by_side")
-                    if not _ensure_original_reference_texture_preview_ready(
+                    mesh_edit_direct_source_preview = bool(
+                        mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active()
+                    )
+                    if not mesh_edit_direct_source_preview and not _ensure_original_reference_texture_preview_ready(
                         active_preview_mode,
                         reason="preview_refresh",
                     ):
                         return
                     raw_direct_source_preview_indices = set(selected_source_highlight_indices)
-                    mesh_edit_direct_source_preview = bool(
-                        mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active()
-                    )
                     if mesh_edit_direct_source_preview:
-                        raw_direct_source_preview_indices.update(_mesh_edit_allowed_source_indices())
+                        raw_direct_source_preview_indices.update(_mesh_edit_preview_source_indices())
                     direct_source_preview_indices = {
                         int(source_index)
                         for source_index in raw_direct_source_preview_indices
@@ -63948,6 +66023,8 @@ def run_gui() -> int:
                     if not use_direct_source_preview:
                         direct_source_preview_index_map.clear()
                     source_overlay_preview_index_map.clear()
+                    source_selection_overlay_preview_index_map.clear()
+                    source_selection_overlay_editor_id_map.clear()
                     preview_submesh_index_map.clear()
                     if (
                         preview_controls_ready.get("ready")
@@ -63996,7 +66073,19 @@ def run_gui() -> int:
                                     preview_mesh = build_static_replacement_preview_mesh(
                                         original_mesh_for_mapping,
                                         preview_replacement_mesh,
-                                        _static_options_from_placement_snapshot(placement_snapshot),
+                                        _static_options_from_placement_snapshot(
+                                            placement_snapshot,
+                                            complete_external_swap=bool(_complete_external_swap_enabled()),
+                                            complete_external_material_reset=bool(_complete_external_swap_enabled()),
+                                            complete_swap_material_profile=str(_current_complete_swap_material_profile_token()),
+                                            global_gloss_reduction=float(global_gloss_reduction_spin.value()),
+                                            edge_relief_strength=float(edge_relief_spin.value()),
+                                            edge_relief_source=str(edge_relief_source_combo.currentData() or "hybrid"),
+                                            accent_glow_strength=float(accent_glow_spin.value()),
+                                            auto_brightness_balance=float(auto_brightness_spin.value()),
+                                            dark_detail_lift=float(source_brightness_spin.value()),
+                                            tone_contrast=float(tone_contrast_spin.value()),
+                                        ),
                                         max_source_faces_per_submesh=_alignment_preview_source_face_limit(),
                                     )
                                     geometry_elapsed_ms += (time.perf_counter() - geometry_started) * 1000.0
@@ -64030,49 +66119,12 @@ def run_gui() -> int:
                     else:
                         source_model = replacement_preview_model
                     preview_model = _clone_preview_model(source_model)
-                    _apply_original_material_preview(
-                        preview_model,
-                        mapped_preview=mapped_preview,
-                        current_mappings=current_mappings,
-                    )
-                    if highlighted_source_indices and not _preserve_modify_original_material_preview():
-                        highlighted_target_indices: set[int] = set()
-                        if mapped_preview:
-                            for source_index in highlighted_source_indices:
-                                overlay_index = source_overlay_preview_index_map.get(int(source_index))
-                                if overlay_index is not None:
-                                    highlighted_target_indices.add(overlay_index)
-                            for mapping in current_mappings:
-                                mapping_sources = {
-                                    int(source_index)
-                                    for source_index in tuple(mapping.source_submesh_indices or ())
-                                }
-                                if not mapping_sources or not (mapping_sources & highlighted_source_indices):
-                                    continue
-                                if len(mapping_sources) > 1 and not mapping_sources.issubset(highlighted_source_indices):
-                                    continue
-                                highlighted_target_indices.update(
-                                    _preview_target_mesh_indices(
-                                        preview_model,
-                                        mapping.target_submesh_name,
-                                        mapping.source_submesh_indices,
-                                        mapped_preview=mapped_preview,
-                                        current_mappings=current_mappings,
-                                    )
-                                )
-                        elif direct_source_preview_index_map:
-                            for source_index in highlighted_source_indices:
-                                mapped_index = direct_source_preview_index_map.get(int(source_index))
-                                if mapped_index is not None:
-                                    highlighted_target_indices.add(mapped_index)
-                        else:
-                            highlighted_target_indices.update(highlighted_source_indices)
-                        if highlighted_target_indices:
-                            for mesh_index, mesh in enumerate(getattr(preview_model, "meshes", ()) or ()):
-                                if mesh_index in highlighted_target_indices:
-                                    mesh.preview_color = (1.0, 0.78, 0.22)
-                                else:
-                                    mesh.preview_color = (0.18, 0.22, 0.26)
+                    if not mesh_edit_direct_source_preview:
+                        _apply_original_material_preview(
+                            preview_model,
+                            mapped_preview=mapped_preview,
+                            current_mappings=current_mappings,
+                        )
                     def _source_preview_path(source_path_text: str) -> str:
                         source = Path(source_path_text).expanduser()
                         if source.suffix.lower() != ".dds":
@@ -64178,6 +66230,15 @@ def run_gui() -> int:
                                 for token in ("metallicroughness", "metalrough", "metallicrough", "roughnessmetallic")
                             )
 
+                        def _current_material_authority_preview_slots(texture_set_obj: ReplacementTextureSet) -> Dict[str, ReplacementTextureSlot]:
+                            if not (_complete_external_swap_enabled() and _basic_controls_profile_enabled()):
+                                return material_authority_preview_texture_slots(texture_set_obj, enabled=False)
+                            profile = _current_material_authority_preview_profile()
+                            try:
+                                return material_authority_preview_texture_slots(texture_set_obj, profile, enabled=True)
+                            except Exception:
+                                return material_authority_preview_texture_slots(texture_set_obj, enabled=False)
+
                         def _add_preview_material_input(
                             *,
                             slot_kind: str,
@@ -64223,6 +66284,7 @@ def run_gui() -> int:
                             if slot_kind == "emissive" or "emissive" in str(shader_family or "").lower():
                                 mesh.preview_sidecar_shader_family = "SkinnedMeshEmissive_Ver2"
 
+                        slots = _current_material_authority_preview_slots(texture_set)
                         base_slot = slots.get("base")
                         if base_slot is not None:
                             source_path = getattr(base_slot, "source_path", None)
@@ -64310,6 +66372,8 @@ def run_gui() -> int:
                                     parameter_name="_metallicRoughnessTexture" if semantic_subtype == "metallic_roughness" else "",
                                 )
                         for source_slot_name, semantic_type, semantic_subtype, packed_channels in (
+                            ("material_mask", "material", "orm", ("ao", "roughness", "metallic")),
+                            ("detail_mask", "material", "detail_mask", ()),
                             ("roughness", "roughness", "roughness", ("roughness",)),
                             ("metallic", "metallic", "metallic", ("metallic",)),
                             ("metalness", "metallic", "metallic", ("metallic",)),
@@ -64320,6 +66384,27 @@ def run_gui() -> int:
                                 continue
                             source_path = getattr(slot, "source_path", None)
                             if not isinstance(source_path, Path):
+                                continue
+                            if source_slot_name in {"material_mask", "detail_mask"}:
+                                if not str(getattr(mesh, "preview_material_texture_path", "") or "").strip():
+                                    _set_preview_texture_slot_path(
+                                        mesh,
+                                        path_attr="preview_material_texture_path",
+                                        dds_attr="preview_material_texture_dds_path",
+                                        name_attr="preview_material_texture_name",
+                                        source_path=source_path,
+                                    )
+                                    mesh.preview_material_texture_type = semantic_type
+                                    mesh.preview_material_texture_subtype = semantic_subtype
+                                    mesh.preview_material_texture_packed_channels = tuple(packed_channels)
+                                _add_preview_material_input(
+                                    slot_kind=source_slot_name,
+                                    source_path=source_path,
+                                    semantic_type=semantic_type,
+                                    semantic_subtype=semantic_subtype,
+                                    packed_channels=packed_channels,
+                                    parameter_name="_detailMaskTexture" if source_slot_name == "detail_mask" else "_materialTexture",
+                                )
                                 continue
                             if _is_gltf_metallic_roughness(source_path):
                                 _set_preview_texture_slot_path(
@@ -64371,7 +66456,7 @@ def run_gui() -> int:
                     use_original_material_preview = bool(
                         modify_original_clone_mode and original_texture_preview_state.get("enabled")
                     )
-                    if texture_sets and not use_original_material_preview:
+                    if texture_sets and not use_original_material_preview and not mesh_edit_direct_source_preview:
                         if use_direct_source_preview and direct_source_preview_index_map:
                             for source_index, mesh_index in direct_source_preview_index_map.items():
                                 if mesh_index < 0 or mesh_index >= len(preview_model.meshes):
@@ -64431,7 +66516,9 @@ def run_gui() -> int:
                                         mapping.target_submesh_name,
                                     )
 
-                    if not use_direct_source_preview:
+                    preview_model = _append_selected_source_highlight_overlay(preview_model, current_mappings)
+
+                    if not use_direct_source_preview and not mesh_edit_direct_source_preview:
                         if texture_overrides_dirty["dirty"]:
                             contract = _refresh_alignment_virtual_sidecar_contract(current_mappings)
                             updated_specs = list(contract.get("preview_specs") or ())
@@ -64537,6 +66624,11 @@ def run_gui() -> int:
                                     mesh.preview_material_texture_type = semantic_type
                                     mesh.preview_material_texture_subtype = semantic_subtype
                                     mesh.preview_material_texture_packed_channels = tuple(packed_channels)
+                    if not _material_authority_preview_inactive_reason():
+                        try:
+                            material_authority_preview_signature_state.update(_material_authority_preview_signature())
+                        except Exception:
+                            pass
                     static_view_state = static_dialog_preview.view_state_snapshot()
                     replacement_only_view_state = replacement_only_preview.view_state_snapshot()
                     overlay_view_state = overlay_dialog_preview.view_state_snapshot()
@@ -64636,6 +66728,9 @@ def run_gui() -> int:
                                     )
                                     for target_name, slot_kind, preview_texture_path, source_name, source_indices, _source_path
                                     in tuple(texture_override_preview_specs or ())
+                                ),
+                                "material_authority_preview_signature": str(
+                                    material_authority_preview_signature_state.get("cache", "") or ""
                                 ),
                                 "summary": str(getattr(model, "summary", "") or ""),
                             }
@@ -65091,7 +67186,7 @@ def run_gui() -> int:
                     except NameError:
                         pass
                     try:
-                        texture_transform_group.setVisible(bool(material_name))
+                        texture_transform_group.setVisible(bool(material_name and advanced_materials_checkbox.isChecked()))
                     except NameError:
                         pass
                     _queue_selection_preview_refresh()
@@ -66584,7 +68679,7 @@ def run_gui() -> int:
                     texture_transform_material_combo.setCurrentIndex(max(0, target_index))
                     texture_transform_material_combo.blockSignals(False)
                     has_materials = bool(material_names)
-                    texture_transform_group.setVisible(has_materials)
+                    texture_transform_group.setVisible(bool(has_materials and advanced_materials_checkbox.isChecked()))
                     _set_texture_transform_controls_enabled(has_materials)
                     if has_materials:
                         selected_key = str(texture_transform_material_combo.currentData() or "")
@@ -69428,18 +71523,31 @@ def run_gui() -> int:
                 "Material Authority uses the proven working-mod route: source color through _overlayColorTexture, source PBR/material mask through _detailMaskTexture, and no glossy color-blend mask. Manual starts from the same route and exposes advanced overrides."
             )
             complete_swap_material_profile_combo.setEnabled(False)
+            material_route_summary_label = QLabel(
+                "Materials default to the recommended source texture route. Use Advanced Materials for manual slot mapping, "
+                "Material Authority tuning, sidecar pruning, or UV transforms."
+            )
+            material_route_summary_label.setObjectName("MeshAlignmentMaterialRouteSummary")
+            material_route_summary_label.setWordWrap(True)
+            material_route_summary_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            advanced_materials_checkbox = QCheckBox("Advanced Materials")
+            advanced_materials_checkbox.setObjectName("MeshAlignmentAdvancedMaterialsCheckbox")
+            advanced_materials_checkbox.setToolTip(
+                "Show manual material controls: sidecar pruning, Material Authority tuning, manual slot mapping, and UV transforms."
+            )
             global_gloss_reduction_slider = QSlider(Qt.Horizontal)
             global_gloss_reduction_slider.setObjectName("MeshAlignmentGlobalGlossReductionSlider")
-            global_gloss_reduction_slider.setRange(0, 100)
+            global_gloss_reduction_slider.setRange(-100, 100)
             global_gloss_reduction_slider.setSingleStep(1)
             global_gloss_reduction_slider.setPageStep(10)
             global_gloss_reduction_spin = QSpinBox()
             global_gloss_reduction_spin.setObjectName("MeshAlignmentGlobalGlossReductionSpinBox")
-            global_gloss_reduction_spin.setRange(0, 100)
+            global_gloss_reduction_spin.setRange(-100, 100)
             global_gloss_reduction_spin.setSuffix("%")
             global_gloss_reduction_tooltip = (
-                "Extra fallback matte control for generated material masks/scalar slots. "
-                "Material Authority already removes the main glossy color-blend response."
+                "Signed gloss/matte bias for generated material masks/scalar slots. "
+                "Negative makes Material Authority glossier; positive makes it more matte. "
+                "The legacy glossy color-blend route stays bypassed unless Manual mapping restores it."
             )
             global_gloss_reduction_slider.setToolTip(global_gloss_reduction_tooltip)
             global_gloss_reduction_spin.setToolTip(global_gloss_reduction_tooltip)
@@ -69447,7 +71555,7 @@ def run_gui() -> int:
                 saved_global_gloss_reduction = int(round(float(self.settings.value("settings/complete_swap_global_gloss_reduction", 0) or 0)))
             except (TypeError, ValueError, OverflowError):
                 saved_global_gloss_reduction = 0
-            saved_global_gloss_reduction = max(0, min(100, saved_global_gloss_reduction))
+            saved_global_gloss_reduction = max(-100, min(100, saved_global_gloss_reduction))
             global_gloss_reduction_slider.setValue(saved_global_gloss_reduction)
             global_gloss_reduction_spin.setValue(saved_global_gloss_reduction)
             global_gloss_reduction_hint = QLabel("0% keeps the proven Material Authority response.")
@@ -69464,7 +71572,7 @@ def run_gui() -> int:
             true_source_basic_form.setContentsMargins(5, 3, 5, 3)
             true_source_basic_form.setHorizontalSpacing(6)
             true_source_basic_form.setVerticalSpacing(2)
-            true_source_basic_form.addWidget(QLabel("Extra matte fallback"), 0, 0)
+            true_source_basic_form.addWidget(QLabel("Gloss / matte bias"), 0, 0)
             true_source_basic_form.addLayout(global_gloss_reduction_row, 0, 1)
             true_source_basic_form.addWidget(global_gloss_reduction_hint, 1, 0, 1, 2)
 
@@ -69495,6 +71603,60 @@ def run_gui() -> int:
             source_brightness_row.setSpacing(5)
             source_brightness_row.addWidget(source_brightness_slider, 1)
             source_brightness_row.addWidget(source_brightness_spin)
+
+            tone_contrast_slider = QSlider(Qt.Horizontal)
+            tone_contrast_slider.setObjectName("MeshAlignmentToneContrastSlider")
+            tone_contrast_slider.setRange(-100, 100)
+            tone_contrast_slider.setSingleStep(1)
+            tone_contrast_slider.setPageStep(10)
+            tone_contrast_spin = QSpinBox()
+            tone_contrast_spin.setObjectName("MeshAlignmentToneContrastSpinBox")
+            tone_contrast_spin.setRange(-100, 100)
+            tone_contrast_spin.setSuffix("%")
+            tone_contrast_tooltip = (
+                "Manual tone curve after auto brightness. Negative softens harsh contrast; positive increases texture contrast."
+            )
+            tone_contrast_slider.setToolTip(tone_contrast_tooltip)
+            tone_contrast_spin.setToolTip(tone_contrast_tooltip)
+            try:
+                saved_tone_contrast = int(round(float(self.settings.value("settings/complete_swap_tone_contrast", 0) or 0)))
+            except (TypeError, ValueError, OverflowError):
+                saved_tone_contrast = 0
+            saved_tone_contrast = max(-100, min(100, saved_tone_contrast))
+            tone_contrast_slider.setValue(saved_tone_contrast)
+            tone_contrast_spin.setValue(saved_tone_contrast)
+            tone_contrast_row = QHBoxLayout()
+            tone_contrast_row.setContentsMargins(0, 0, 0, 0)
+            tone_contrast_row.setSpacing(5)
+            tone_contrast_row.addWidget(tone_contrast_slider, 1)
+            tone_contrast_row.addWidget(tone_contrast_spin)
+
+            auto_brightness_slider = QSlider(Qt.Horizontal)
+            auto_brightness_slider.setObjectName("MeshAlignmentAutoBrightnessSlider")
+            auto_brightness_slider.setRange(0, 100)
+            auto_brightness_slider.setSingleStep(1)
+            auto_brightness_slider.setPageStep(10)
+            auto_brightness_spin = QSpinBox()
+            auto_brightness_spin.setObjectName("MeshAlignmentAutoBrightnessSpinBox")
+            auto_brightness_spin.setRange(0, 100)
+            auto_brightness_spin.setSuffix("%")
+            auto_brightness_tooltip = (
+                "Measures each source base texture and nudges very dark or very bright textures toward a stable in-game midrange before DDS export."
+            )
+            auto_brightness_slider.setToolTip(auto_brightness_tooltip)
+            auto_brightness_spin.setToolTip(auto_brightness_tooltip)
+            try:
+                saved_auto_brightness = int(round(float(self.settings.value("settings/complete_swap_auto_brightness", 50) or 50)))
+            except (TypeError, ValueError, OverflowError):
+                saved_auto_brightness = 50
+            saved_auto_brightness = max(0, min(100, saved_auto_brightness))
+            auto_brightness_slider.setValue(saved_auto_brightness)
+            auto_brightness_spin.setValue(saved_auto_brightness)
+            auto_brightness_row = QHBoxLayout()
+            auto_brightness_row.setContentsMargins(0, 0, 0, 0)
+            auto_brightness_row.setSpacing(5)
+            auto_brightness_row.addWidget(auto_brightness_slider, 1)
+            auto_brightness_row.addWidget(auto_brightness_spin)
 
             edge_relief_slider = QSlider(Qt.Horizontal)
             edge_relief_slider.setObjectName("MeshAlignmentEdgeReliefSlider")
@@ -69563,18 +71725,28 @@ def run_gui() -> int:
             accent_glow_row.addWidget(accent_glow_slider, 1)
             accent_glow_row.addWidget(accent_glow_spin)
 
+            true_source_basic_reset_button = QPushButton("Reset Adjustments")
+            true_source_basic_reset_button.setObjectName("MeshAlignmentMaterialAuthorityResetAdjustmentsButton")
+            true_source_basic_reset_button.setToolTip(
+                "Reset Material Authority adjustment sliders to the recommended live-preview defaults."
+            )
             true_source_basic_hint = QLabel("Defaults keep the proven route; these controls affect generated source-owned DDS/XML only.")
             true_source_basic_hint.setObjectName("HintLabel")
             true_source_basic_hint.setWordWrap(True)
-            true_source_basic_form.addWidget(QLabel("Source brightness"), 2, 0)
-            true_source_basic_form.addLayout(source_brightness_row, 2, 1)
-            true_source_basic_form.addWidget(QLabel("Edge relief"), 3, 0)
-            true_source_basic_form.addLayout(edge_relief_row, 3, 1)
-            true_source_basic_form.addWidget(QLabel("Edge relief source"), 4, 0)
-            true_source_basic_form.addWidget(edge_relief_source_combo, 4, 1)
-            true_source_basic_form.addWidget(QLabel("Accent glow"), 5, 0)
-            true_source_basic_form.addLayout(accent_glow_row, 5, 1)
-            true_source_basic_form.addWidget(true_source_basic_hint, 6, 0, 1, 2)
+            true_source_basic_form.addWidget(QLabel("Auto brightness"), 2, 0)
+            true_source_basic_form.addLayout(auto_brightness_row, 2, 1)
+            true_source_basic_form.addWidget(QLabel("Source brightness"), 3, 0)
+            true_source_basic_form.addLayout(source_brightness_row, 3, 1)
+            true_source_basic_form.addWidget(QLabel("Tone contrast"), 4, 0)
+            true_source_basic_form.addLayout(tone_contrast_row, 4, 1)
+            true_source_basic_form.addWidget(QLabel("Edge relief"), 5, 0)
+            true_source_basic_form.addLayout(edge_relief_row, 5, 1)
+            true_source_basic_form.addWidget(QLabel("Edge relief source"), 6, 0)
+            true_source_basic_form.addWidget(edge_relief_source_combo, 6, 1)
+            true_source_basic_form.addWidget(QLabel("Accent glow"), 7, 0)
+            true_source_basic_form.addLayout(accent_glow_row, 7, 1)
+            true_source_basic_form.addWidget(true_source_basic_reset_button, 8, 0, 1, 2, Qt.AlignmentFlag.AlignRight)
+            true_source_basic_form.addWidget(true_source_basic_hint, 9, 0, 1, 2)
             unsafe_material_preflight_checkbox = QCheckBox("Allow unsafe material preflight export")
             unsafe_material_preflight_checkbox.setObjectName("MeshAlignmentUnsafeMaterialPreflightExportCheckbox")
             unsafe_material_preflight_checkbox.setChecked(False)
@@ -70270,7 +72442,7 @@ def run_gui() -> int:
 
             def _refresh_manual_material_profile_panel() -> None:
                 manual_selected = str(complete_swap_material_profile_combo.currentData() or "") == "material_authority_manual"
-                manual_profile_group.setVisible(manual_selected)
+                manual_profile_group.setVisible(bool(manual_selected and advanced_materials_checkbox.isChecked()))
                 manual_profile_group.setEnabled(bool(manual_selected and _complete_external_swap_enabled()))
                 _refresh_manual_profile_control_effects()
             _refresh_manual_profile_preset_combo("")
@@ -70355,6 +72527,15 @@ def run_gui() -> int:
             custom_icon_status.setObjectName("HintLabel")
             custom_icon_status.setWordWrap(True)
             custom_icon_status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            save_generated_icon_to_library_checkbox = QCheckBox("Save generated preview icon to Icon Creator library")
+            save_generated_icon_to_library_checkbox.setObjectName("MeshAlignmentSaveGeneratedIconToLibraryCheckbox")
+            save_generated_icon_to_library_checkbox.setChecked(False)
+            save_generated_icon_to_library_checkbox.setToolTip(
+                "Optional. When Generate Icon is used, also keep the PNG in item_icon_library/edited "
+                "with Mesh Editor metadata for the target and source model."
+            )
+            if not hasattr(self, "item_icons_tab"):
+                save_generated_icon_to_library_checkbox.setEnabled(False)
             custom_icon_target_graph, _custom_icon_refs = self._archive_asset_family_graph_for_entry(entry)
             custom_icon_target_entries = self._attachment_package_item_icon_entries(entry, custom_icon_target_graph)
             for icon_entry in custom_icon_target_entries:
@@ -70365,30 +72546,36 @@ def run_gui() -> int:
                 custom_icon_status.setText("No existing target icon path was resolved for this mesh; custom icon packaging is unavailable.")
             form.addWidget(scale_to_length_checkbox, 1, 0, 1, 2)
             form.addWidget(flip_direction_checkbox, 2, 0, 1, 2)
-            form.addWidget(rebuild_sidecar_checkbox, 3, 0, 1, 2)
-            form.addWidget(prune_unmapped_original_dds_checkbox, 4, 0, 1, 2)
-            form.addWidget(inject_base_color_checkbox, 5, 0, 1, 2)
-            form.addWidget(source_color_faithful_checkbox, 6, 0, 1, 2)
-            form.addWidget(external_material_reset_checkbox, 7, 0, 1, 2)
-            form.addWidget(complete_external_swap_checkbox, 8, 0, 1, 2)
-            form.addWidget(QLabel("Runtime material profile"), 9, 0)
-            form.addWidget(complete_swap_material_profile_combo, 9, 1)
-            form.addWidget(true_source_basic_group, 10, 0, 1, 2)
-            form.addWidget(unsafe_material_preflight_checkbox, 11, 0, 1, 2)
-            form.addWidget(manual_profile_group, 12, 0, 1, 2)
-            form.addWidget(sidecar_warning_label, 13, 0, 1, 2)
-            form.addWidget(QLabel("Texture size"), 14, 0)
-            form.addWidget(texture_output_size_combo, 14, 1)
-            setup_texture_orientation_row = QHBoxLayout()
+            form.addWidget(material_route_summary_label, 3, 0, 1, 2)
+            form.addWidget(rebuild_sidecar_checkbox, 4, 0, 1, 2)
+            form.addWidget(advanced_materials_checkbox, 5, 0, 1, 2)
+            form.addWidget(prune_unmapped_original_dds_checkbox, 6, 0, 1, 2)
+            form.addWidget(inject_base_color_checkbox, 7, 0, 1, 2)
+            form.addWidget(source_color_faithful_checkbox, 8, 0, 1, 2)
+            form.addWidget(external_material_reset_checkbox, 9, 0, 1, 2)
+            form.addWidget(complete_external_swap_checkbox, 10, 0, 1, 2)
+            runtime_material_profile_label = QLabel("Runtime material profile")
+            form.addWidget(runtime_material_profile_label, 11, 0)
+            form.addWidget(complete_swap_material_profile_combo, 11, 1)
+            form.addWidget(true_source_basic_group, 12, 0, 1, 2)
+            form.addWidget(unsafe_material_preflight_checkbox, 13, 0, 1, 2)
+            form.addWidget(manual_profile_group, 14, 0, 1, 2)
+            form.addWidget(sidecar_warning_label, 15, 0, 1, 2)
+            texture_size_label = QLabel("Texture size")
+            form.addWidget(texture_size_label, 16, 0)
+            form.addWidget(texture_output_size_combo, 16, 1)
+            setup_texture_orientation_widget = QWidget()
+            setup_texture_orientation_row = QHBoxLayout(setup_texture_orientation_widget)
             setup_texture_orientation_row.setContentsMargins(0, 0, 0, 0)
             setup_texture_orientation_row.setSpacing(5)
             setup_texture_orientation_row.addWidget(setup_texture_rotate_combo, 1)
             setup_texture_orientation_row.addWidget(setup_texture_flip_u_checkbox)
             setup_texture_orientation_row.addWidget(setup_texture_flip_v_checkbox)
             setup_texture_orientation_row.addWidget(setup_texture_reset_button)
-            form.addWidget(QLabel("Texture orientation"), 15, 0)
-            form.addLayout(setup_texture_orientation_row, 15, 1)
-            form.addWidget(custom_icon_checkbox, 16, 0, 1, 2)
+            texture_orientation_label = QLabel("Texture orientation")
+            form.addWidget(texture_orientation_label, 17, 0)
+            form.addWidget(setup_texture_orientation_widget, 17, 1)
+            form.addWidget(custom_icon_checkbox, 18, 0, 1, 2)
             custom_icon_source_row = QHBoxLayout()
             custom_icon_source_row.setContentsMargins(0, 0, 0, 0)
             custom_icon_source_row.setSpacing(5)
@@ -70396,18 +72583,19 @@ def run_gui() -> int:
             custom_icon_source_row.addWidget(custom_icon_file_button)
             custom_icon_source_row.addWidget(custom_icon_folder_button)
             custom_icon_source_row.addWidget(custom_icon_library_button)
-            form.addWidget(QLabel("Item icon source"), 17, 0)
-            form.addLayout(custom_icon_source_row, 17, 1)
-            form.addWidget(QLabel("Item icon target"), 18, 0)
-            form.addWidget(custom_icon_target_combo, 18, 1)
-            form.addWidget(custom_icon_status, 19, 0, 1, 2)
+            form.addWidget(QLabel("Item icon source"), 19, 0)
+            form.addLayout(custom_icon_source_row, 19, 1)
+            form.addWidget(QLabel("Item icon target"), 20, 0)
+            form.addWidget(custom_icon_target_combo, 20, 1)
+            form.addWidget(custom_icon_status, 21, 0, 1, 2)
+            form.addWidget(save_generated_icon_to_library_checkbox, 22, 0, 1, 2)
             setup_texture_rotate_combo.currentIndexChanged.connect(_save_setup_texture_orientation)
             setup_texture_flip_u_checkbox.toggled.connect(_save_setup_texture_orientation)
             setup_texture_flip_v_checkbox.toggled.connect(_save_setup_texture_orientation)
             setup_texture_reset_button.clicked.connect(_reset_setup_texture_orientation)
 
             def _set_global_gloss_reduction(value: int, *, refresh: bool = True) -> None:
-                value = max(0, min(100, int(value)))
+                value = max(-100, min(100, int(value)))
                 if global_gloss_reduction_slider.value() != value:
                     global_gloss_reduction_slider.blockSignals(True)
                     global_gloss_reduction_slider.setValue(value)
@@ -70420,22 +72608,31 @@ def run_gui() -> int:
                 _refresh_global_gloss_reduction_hint()
                 if refresh:
                     _refresh_output_impact_review()
-                    _queue_texture_preview_refresh()
+                    _queue_material_authority_adjustment_preview_refresh()
 
             def _refresh_global_gloss_reduction_hint() -> None:
                 value = int(global_gloss_reduction_spin.value())
                 profile_name = str(complete_swap_material_profile_combo.currentData() or "")
                 if not _complete_external_swap_enabled():
-                    global_gloss_reduction_hint.setText("Enable Complete source-owned mesh/material swap to use gloss reduction.")
+                    global_gloss_reduction_hint.setText("Enable Complete source-owned mesh/material swap to use gloss/matte bias.")
                 elif profile_name == "material_authority_runtime_xml":
                     global_gloss_reduction_hint.setText(
                         "Legacy Runtime XML preserves stock material layers; this only affects generated masks or compatible scalar slots."
                     )
+                elif profile_name == "material_authority_detail_mask" and value < 0:
+                    global_gloss_reduction_hint.setText(
+                        "Material Authority gloss boost lowers generated detail-mask roughness and raises compatible shine; "
+                        "the glossy color-blend mask stays bypassed."
+                    )
+                elif profile_name == "material_authority_detail_mask" and value > 0:
+                    global_gloss_reduction_hint.setText(
+                        "Material Authority matte bias raises generated detail-mask roughness; the glossy color-blend mask stays bypassed."
+                    )
                 elif profile_name == "material_authority_pbr_source_test" and value >= 90:
                     global_gloss_reduction_hint.setText("PBR Source Test: strong gloss cut raises source material roughness while preserving source metalness.")
-                elif profile_name == "material_authority_detail_mask":
-                    global_gloss_reduction_hint.setText("Material Authority already bypasses the glossy color-blend mask; this only tunes generated source mask/scalar fallback values.")
-                elif value <= 0:
+                elif value < 0:
+                    global_gloss_reduction_hint.setText("Gloss boost: generated source-owned materials get lower roughness and stronger compatible shine.")
+                elif value == 0:
                     global_gloss_reduction_hint.setText("0% keeps the proven Material Authority response.")
                 elif value >= 90:
                     global_gloss_reduction_hint.setText("Strong matte override: CD gloss/smoothness and metal/spec response are driven low.")
@@ -70451,6 +72648,128 @@ def run_gui() -> int:
                     "material_authority_clean_source",
                     "material_authority_manual",
                 }
+
+            def _current_material_authority_preview_profile() -> object:
+                return apply_true_source_basic_controls_to_profile(
+                    get_complete_swap_material_profile(str(_current_complete_swap_material_profile_token())),
+                    gloss_reduction=float(global_gloss_reduction_spin.value()),
+                    edge_relief_strength=float(edge_relief_spin.value()),
+                    edge_relief_source=str(edge_relief_source_combo.currentData() or "hybrid"),
+                    accent_glow_strength=float(accent_glow_spin.value()),
+                    auto_brightness_balance=float(auto_brightness_spin.value()),
+                    dark_detail_lift=float(source_brightness_spin.value()),
+                    tone_contrast=float(tone_contrast_spin.value()),
+                )
+
+            def _material_authority_preview_signature() -> Dict[str, str]:
+                def _path_signature(value: object) -> tuple[str, int, int]:
+                    path_text = str(value or "").strip()
+                    if not path_text:
+                        return ("", 0, 0)
+                    try:
+                        path = Path(path_text).expanduser()
+                        stat = path.stat()
+                        return (str(path), int(stat.st_size), int(stat.st_mtime_ns))
+                    except (OSError, TypeError, ValueError):
+                        return (path_text, 0, 0)
+
+                visible_slots = (
+                    "base",
+                    "material",
+                    "material_mask",
+                    "detail_mask",
+                    "emissive",
+                    "roughness",
+                    "metallic",
+                    "metalness",
+                    "ao",
+                    "normal",
+                    "height",
+                )
+                profile = _current_material_authority_preview_profile()
+                slot_rows = []
+                for material_key, texture_set_obj in sorted(
+                    (str(key), value)
+                    for key, value in (texture_sets or {}).items()
+                ):
+                    try:
+                        slots = material_authority_preview_texture_slots(texture_set_obj, profile, enabled=True)
+                    except Exception:
+                        slots = material_authority_preview_texture_slots(texture_set_obj, enabled=False)
+                    for slot_name in visible_slots:
+                        source_slot = slots.get(slot_name)
+                        if source_slot is None:
+                            continue
+                        source_path = getattr(source_slot, "source_path", "")
+                        slot_rows.append(
+                            (
+                                material_key,
+                                slot_name,
+                                str(getattr(source_slot, "slot_kind", "") or ""),
+                                str(getattr(source_slot, "material_name", "") or ""),
+                                str(getattr(source_slot, "source_authority", "") or ""),
+                                _path_signature(source_path),
+                            )
+                        )
+                controls = (
+                    int(global_gloss_reduction_spin.value()),
+                    int(auto_brightness_spin.value()),
+                    int(source_brightness_spin.value()),
+                    int(tone_contrast_spin.value()),
+                    int(edge_relief_spin.value()),
+                    str(edge_relief_source_combo.currentData() or "hybrid"),
+                    int(accent_glow_spin.value()),
+                )
+                visible_payload = (
+                    str(getattr(profile, "name", "") or ""),
+                    tuple(slot_rows),
+                )
+                cache_payload = (visible_payload, controls)
+                return {
+                    "visible": hashlib.sha1(repr(visible_payload).encode("utf-8", errors="replace")).hexdigest(),
+                    "cache": hashlib.sha1(repr(cache_payload).encode("utf-8", errors="replace")).hexdigest(),
+                }
+
+            def _material_authority_preview_inactive_reason() -> str:
+                if not _complete_external_swap_enabled():
+                    return "Complete source-owned swap is off."
+                if not _basic_controls_profile_enabled():
+                    return "Selected material profile does not use Material Authority adjustments."
+                if not texture_sets:
+                    return "No source texture set is loaded."
+                try:
+                    if bool(modify_original_clone_mode and original_texture_preview_state.get("enabled")):
+                        return "Original-material preview is active."
+                except Exception:
+                    pass
+                try:
+                    if _mesh_edit_raw_preview_active():
+                        return "Raw mesh-edit preview is active."
+                except Exception:
+                    pass
+                return ""
+
+            def _material_authority_controls_affect_visible_preview() -> bool:
+                return not _material_authority_preview_inactive_reason()
+
+            def _queue_material_authority_adjustment_preview_refresh() -> None:
+                inactive_reason = _material_authority_preview_inactive_reason()
+                if inactive_reason:
+                    if _basic_controls_profile_enabled():
+                        true_source_basic_hint.setText(f"Settings saved. Preview unchanged: {inactive_reason}")
+                    return
+                try:
+                    signature = _material_authority_preview_signature()
+                except Exception:
+                    signature = {"visible": "", "cache": ""}
+                previous_visible_signature = str(material_authority_preview_signature_state.get("visible", "") or "")
+                if signature.get("visible"):
+                    material_authority_preview_signature_state.update(signature)
+                if previous_visible_signature and previous_visible_signature == signature.get("visible"):
+                    true_source_basic_hint.setText("Preview unchanged: adjustment produced same visible textures.")
+                    return
+                true_source_basic_hint.setText("Adjustments saved. Preview refresh queued.")
+                _queue_texture_preview_refresh()
 
             def _set_spin_slider_pair(
                 slider: QSlider,
@@ -70474,7 +72793,7 @@ def run_gui() -> int:
                 self.settings.setValue(settings_key, value)
                 if refresh:
                     _refresh_output_impact_review()
-                    _queue_texture_preview_refresh()
+                    _queue_material_authority_adjustment_preview_refresh()
 
             def _set_edge_relief(value: int, *, refresh: bool = True) -> None:
                 _set_spin_slider_pair(
@@ -70494,6 +72813,26 @@ def run_gui() -> int:
                     refresh=refresh,
                 )
 
+            def _set_tone_contrast(value: int, *, refresh: bool = True) -> None:
+                _set_spin_slider_pair(
+                    tone_contrast_slider,
+                    tone_contrast_spin,
+                    value,
+                    "settings/complete_swap_tone_contrast",
+                    minimum=-100,
+                    maximum=100,
+                    refresh=refresh,
+                )
+
+            def _set_auto_brightness(value: int, *, refresh: bool = True) -> None:
+                _set_spin_slider_pair(
+                    auto_brightness_slider,
+                    auto_brightness_spin,
+                    value,
+                    "settings/complete_swap_auto_brightness",
+                    refresh=refresh,
+                )
+
             def _set_edge_relief_source(*, refresh: bool = True) -> None:
                 self.settings.setValue(
                     "settings/complete_swap_edge_relief_source",
@@ -70501,7 +72840,7 @@ def run_gui() -> int:
                 )
                 if refresh:
                     _refresh_output_impact_review()
-                    _queue_texture_preview_refresh()
+                    _queue_material_authority_adjustment_preview_refresh()
 
             def _set_accent_glow(value: int, *, refresh: bool = True) -> None:
                 _set_spin_slider_pair(
@@ -70512,17 +72851,43 @@ def run_gui() -> int:
                     refresh=refresh,
                 )
 
+            def _set_edge_relief_source_value(value: str, *, refresh: bool = True) -> None:
+                index = edge_relief_source_combo.findData(str(value or "hybrid"))
+                if index < 0:
+                    index = 0
+                if edge_relief_source_combo.currentIndex() != index:
+                    edge_relief_source_combo.blockSignals(True)
+                    edge_relief_source_combo.setCurrentIndex(index)
+                    edge_relief_source_combo.blockSignals(False)
+                _set_edge_relief_source(refresh=refresh)
+
+            def _reset_material_authority_adjustments() -> None:
+                _set_global_gloss_reduction(0, refresh=False)
+                _set_auto_brightness(50, refresh=False)
+                _set_source_brightness(0, refresh=False)
+                _set_tone_contrast(0, refresh=False)
+                _set_edge_relief(0, refresh=False)
+                _set_edge_relief_source_value("hybrid", refresh=False)
+                _set_accent_glow(0, refresh=False)
+                _refresh_output_impact_review()
+                _refresh_global_gloss_reduction_hint()
+                _queue_material_authority_adjustment_preview_refresh()
+
             def _refresh_true_source_basic_controls_state() -> None:
                 visible = _basic_controls_profile_enabled()
                 enabled = bool(visible and _complete_external_swap_enabled())
-                true_source_basic_group.setVisible(visible)
+                true_source_basic_group.setVisible(bool(visible and advanced_materials_checkbox.isChecked()))
                 true_source_basic_group.setEnabled(enabled)
                 if not visible:
                     true_source_basic_hint.setText("Select Material Authority or Manual to use material controls.")
                 elif not enabled:
                     true_source_basic_hint.setText("Enable Complete source-owned mesh/material swap to use these controls.")
+                elif not _material_authority_controls_affect_visible_preview():
+                    true_source_basic_hint.setText(
+                        f"Settings apply on export. Preview unchanged: {_material_authority_preview_inactive_reason()}"
+                    )
                 else:
-                    true_source_basic_hint.setText("Defaults are no-op; brightness affects generated source base DDS only.")
+                    true_source_basic_hint.setText("Auto brightness normalizes source base DDS exposure; Source brightness and Tone contrast are manual overrides.")
 
             def _refresh_sidecar_option_state() -> None:
                 enabled = rebuild_sidecar_checkbox.isChecked()
@@ -70543,10 +72908,15 @@ def run_gui() -> int:
                 complete_swap_material_profile_combo.setEnabled(bool(complete_mode))
                 global_gloss_reduction_slider.setEnabled(bool(complete_mode))
                 global_gloss_reduction_spin.setEnabled(bool(complete_mode))
+                auto_brightness_slider.setEnabled(bool(complete_mode))
+                auto_brightness_spin.setEnabled(bool(complete_mode))
                 source_brightness_slider.setEnabled(bool(complete_mode))
                 source_brightness_spin.setEnabled(bool(complete_mode))
+                tone_contrast_slider.setEnabled(bool(complete_mode))
+                tone_contrast_spin.setEnabled(bool(complete_mode))
                 accent_glow_slider.setEnabled(bool(complete_mode))
                 accent_glow_spin.setEnabled(bool(complete_mode))
+                true_source_basic_reset_button.setEnabled(bool(complete_mode))
                 unsafe_material_preflight_checkbox.setEnabled(bool(complete_mode))
                 if not complete_mode and unsafe_material_preflight_checkbox.isChecked():
                     unsafe_material_preflight_checkbox.setChecked(False)
@@ -70554,6 +72924,31 @@ def run_gui() -> int:
                 _refresh_manual_material_profile_panel()
                 _refresh_true_source_basic_controls_state()
 
+            advanced_material_option_widgets = (
+                prune_unmapped_original_dds_checkbox,
+                inject_base_color_checkbox,
+                source_color_faithful_checkbox,
+                external_material_reset_checkbox,
+                complete_external_swap_checkbox,
+                runtime_material_profile_label,
+                complete_swap_material_profile_combo,
+                true_source_basic_group,
+                unsafe_material_preflight_checkbox,
+                manual_profile_group,
+                texture_size_label,
+                texture_output_size_combo,
+                texture_orientation_label,
+                setup_texture_orientation_widget,
+            )
+
+            def _set_advanced_materials_visible(checked: bool) -> None:
+                visible = bool(checked)
+                for widget in advanced_material_option_widgets:
+                    widget.setVisible(visible)
+                _refresh_manual_material_profile_panel()
+                _refresh_true_source_basic_controls_state()
+
+            advanced_materials_checkbox.toggled.connect(_set_advanced_materials_visible)
             rebuild_sidecar_checkbox.toggled.connect(
                 lambda _checked: (
                     _refresh_sidecar_option_state(),
@@ -70579,14 +72974,22 @@ def run_gui() -> int:
             unsafe_material_preflight_checkbox.toggled.connect(lambda _checked: _refresh_output_impact_review())
             global_gloss_reduction_slider.valueChanged.connect(lambda value: _set_global_gloss_reduction(int(value)))
             global_gloss_reduction_spin.valueChanged.connect(lambda value: _set_global_gloss_reduction(int(value)))
+            auto_brightness_slider.valueChanged.connect(lambda value: _set_auto_brightness(int(value)))
+            auto_brightness_spin.valueChanged.connect(lambda value: _set_auto_brightness(int(value)))
             source_brightness_slider.valueChanged.connect(lambda value: _set_source_brightness(int(value)))
             source_brightness_spin.valueChanged.connect(lambda value: _set_source_brightness(int(value)))
+            tone_contrast_slider.valueChanged.connect(lambda value: _set_tone_contrast(int(value)))
+            tone_contrast_spin.valueChanged.connect(lambda value: _set_tone_contrast(int(value)))
             edge_relief_slider.valueChanged.connect(lambda value: _set_edge_relief(int(value)))
             edge_relief_spin.valueChanged.connect(lambda value: _set_edge_relief(int(value)))
             edge_relief_source_combo.currentIndexChanged.connect(lambda _index: _set_edge_relief_source())
             accent_glow_slider.valueChanged.connect(lambda value: _set_accent_glow(int(value)))
             accent_glow_spin.valueChanged.connect(lambda value: _set_accent_glow(int(value)))
+            true_source_basic_reset_button.clicked.connect(_reset_material_authority_adjustments)
             complete_external_swap_checkbox.toggled.connect(_sync_complete_external_swap_mode)
+            if preferred_complete_source_swap:
+                _select_complete_swap_material_profile("material_authority_detail_mask", persist=False)
+                complete_external_swap_checkbox.setChecked(True)
             def _save_complete_swap_material_profile() -> None:
                 profile_name = str(complete_swap_material_profile_combo.currentData() or "material_authority_detail_mask")
                 self.settings.setValue("settings/complete_swap_material_profile", profile_name)
@@ -70615,6 +73018,7 @@ def run_gui() -> int:
             )
             texture_output_size_combo.currentIndexChanged.connect(_queue_texture_preview_refresh)
             _refresh_sidecar_option_state()
+            _set_advanced_materials_visible(advanced_materials_checkbox.isChecked())
             _refresh_output_impact_review()
 
             def _alignment_custom_icon_override_spec(*, show_messages: bool) -> Optional[ItemIconOverrideSpec]:
@@ -70715,6 +73119,17 @@ def run_gui() -> int:
                     custom_icon_source_edit.setText(str(selected))
 
             def _alignment_generated_icon_path() -> Path:
+                if save_generated_icon_to_library_checkbox.isChecked():
+                    item_icons_tab = getattr(self, "item_icons_tab", None)
+                    suggested_path = getattr(item_icons_tab, "mesh_editor_generated_icon_path", None)
+                    if callable(suggested_path):
+                        try:
+                            return suggested_path(
+                                target_model_path=str(getattr(entry, "path", "") or entry.basename),
+                                source_model_path=str(obj_path),
+                            )
+                        except Exception:
+                            pass
                 model_library = getattr(self, "model_library_tab", None)
                 try:
                     output_dir = model_library.catalogue_dir() / "generated_icons" if model_library is not None else Path.cwd() / "generated_icons"
@@ -70828,17 +73243,37 @@ def run_gui() -> int:
                 if not icon_image.save(str(output_path), "PNG"):
                     QMessageBox.warning(dialog, "Generate Icon From Preview", f"Could not write generated icon:\n{output_path}")
                     return
+                saved_to_library = False
+                if save_generated_icon_to_library_checkbox.isChecked():
+                    item_icons_tab = getattr(self, "item_icons_tab", None)
+                    register_generated_icon = getattr(item_icons_tab, "register_mesh_editor_generated_icon", None)
+                    if callable(register_generated_icon):
+                        try:
+                            target_icon_entry = custom_icon_target_combo.currentData()
+                            stored_path = register_generated_icon(
+                                output_path,
+                                target_model_path=str(getattr(entry, "path", "") or entry.basename),
+                                source_model_path=str(obj_path),
+                                target_icon_path=str(getattr(target_icon_entry, "path", "") or ""),
+                                select=False,
+                            )
+                            output_path = stored_path
+                            saved_to_library = True
+                        except Exception as exc:
+                            self.set_status_message(f"Generated icon could not be saved to Icon Creator library: {exc}", error=True)
                 custom_icon_source_edit.setText(str(output_path))
                 if custom_icon_target_entries and custom_icon_checkbox.isEnabled():
                     custom_icon_checkbox.setChecked(True)
                     if custom_icon_target_combo.currentData() is None:
                         custom_icon_target_combo.setCurrentIndex(0)
                     _refresh_alignment_custom_icon_status()
-                    custom_icon_status.setText(f"Generated from replacement preview: {output_path.name}. Final: attached to selected target icon.")
+                    library_note = " Saved to Icon Creator library." if saved_to_library else ""
+                    custom_icon_status.setText(f"Generated from replacement preview: {output_path.name}.{library_note} Final: attached to selected target icon.")
                 else:
                     _refresh_alignment_custom_icon_status()
+                    library_note = " Saved to Icon Creator library." if saved_to_library else ""
                     custom_icon_status.setText(
-                        f"Generated from replacement preview: {output_path.name}. Final: no resolved target icon path, so export attachment is unavailable."
+                        f"Generated from replacement preview: {output_path.name}.{library_note} Final: no resolved target icon path, so export attachment is unavailable."
                     )
                 self.set_status_message(f"Generated mesh replacement icon: {output_path}")
 
@@ -71855,6 +74290,13 @@ def run_gui() -> int:
                         except Exception as exc:
                             self.set_status_message(f"Mesh Replacement Alignment cancel handler failed: {exc}", error=True)
                 dialog.deleteLater()
+                if embedded_alignment_builder and hasattr(self, "mesh_editor_tab"):
+                    QTimer.singleShot(
+                        0,
+                        lambda: self.mesh_editor_tab.show_empty_state(
+                            "Mesh Replacement Builder closed. Choose a workflow to reopen the live D3D11 preview."
+                        ),
+                    )
 
             dialog.finished.connect(_modeless_alignment_dialog_finished)
             _queue_alignment_post_open_task(_set_preview_renderer)
@@ -71960,6 +74402,7 @@ def run_gui() -> int:
                     part_nudge_step_spin,
                     mesh_edit_radius_spin,
                     mesh_edit_strength_spin,
+                    mesh_edit_iterations_spin,
                     texture_transform_offset_u_spin,
                     texture_transform_offset_v_spin,
                     texture_transform_scale_u_spin,
@@ -72111,8 +74554,9 @@ def run_gui() -> int:
                     edge_relief_strength=float(edge_relief_spin.value()),
                     edge_relief_source=str(edge_relief_source_combo.currentData() or "hybrid"),
                     accent_glow_strength=float(accent_glow_spin.value()),
+                    auto_brightness_balance=float(auto_brightness_spin.value()),
                     dark_detail_lift=float(source_brightness_spin.value()),
-                    tone_contrast=0.0,
+                    tone_contrast=float(tone_contrast_spin.value()),
                     allow_unsafe_material_preflight_export=bool(unsafe_material_preflight_checkbox.isChecked()),
                     additional_supplemental_files=list(dialog_added_supplemental_files),
                     custom_item_icon_override=custom_item_icon_override,
@@ -72352,12 +74796,19 @@ def run_gui() -> int:
                 _apply_alignment_dialog_responsive_layout(force_sizes=True)
 
             _alignment_startup_step("Opening Mesh Replacement Builder...")
-            _fit_alignment_dialog_to_screen()
+            if embedded_alignment_builder and hasattr(self, "mesh_editor_tab"):
+                dialog.setWindowTitle("Mesh Replacement Builder")
+                root_layout.setContentsMargins(0, 0, 0, 0)
+                self.mesh_editor_tab.mount_embedded_builder(dialog)
+                _apply_alignment_dialog_responsive_layout(force_sizes=True)
+            else:
+                _fit_alignment_dialog_to_screen()
             _finish_alignment_startup_progress()
             QTimer.singleShot(0, _run_alignment_post_open_tasks)
             dialog.show()
-            dialog.raise_()
-            dialog.activateWindow()
+            if not embedded_alignment_builder:
+                dialog.raise_()
+                dialog.activateWindow()
             return
 
         def _start_archive_mesh_import_preview(self, entry: ArchiveEntry) -> None:
@@ -72378,6 +74829,14 @@ def run_gui() -> int:
                 return
             scene_path_obj = setup.scene_path
             import_mode = setup.import_mode
+            self._open_mesh_editor_for_entry(
+                entry,
+                mode="external_import",
+                source_path=scene_path_obj,
+                supplemental_files=setup.supplemental_files,
+                scene_import_result=setup.scene_import_result,
+                activate=True,
+            )
             if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}:
                 self.append_archive_log(f"{scene_path_obj.suffix.upper().lstrip('.')} imports use Mesh Replacement mode.")
 
@@ -72434,8 +74893,10 @@ def run_gui() -> int:
                     scene_import_result=setup.scene_import_result,
                     original_mesh=setup.original_mesh,
                     preferred_rebuild_material_sidecar=setup.preferred_rebuild_material_sidecar,
+                    preferred_complete_source_swap=bool(setup.preferred_complete_source_swap),
                     source_texture_evidence=setup.source_texture_evidence,
                     extra_supplemental_specs=setup.extra_supplemental_specs,
+                    embedded_host=self.mesh_editor_tab.builder_host() if hasattr(self, "mesh_editor_tab") else None,
                     on_accept=_start_import_preview_with_options,
                     on_cancel=lambda: self.set_status_message("Mesh import preview cancelled before alignment options were accepted."),
                 )
@@ -72447,6 +74908,12 @@ def run_gui() -> int:
             if self._same_archive_entry(target_entry, source_entry):
                 self.set_status_message("Choose a different archive mesh as the in-game swap source.", error=True)
                 return
+            self._open_mesh_editor_for_entry(
+                target_entry,
+                mode="in_game_swap",
+                source_entry=source_entry,
+                activate=True,
+            )
             swap_scope = self._prompt_archive_in_game_mesh_swap_scope(target_entry, source_entry)
             if swap_scope is None:
                 return
@@ -72507,7 +74974,8 @@ def run_gui() -> int:
             )
             if setup is None:
                 return
-            setup.preferred_rebuild_material_sidecar = bool(swap_scope.prefer_generated_sidecar)
+            setup.preferred_rebuild_material_sidecar = bool(swap_scope.prefer_generated_sidecar or swap_scope.complete_swap)
+            setup.preferred_complete_source_swap = bool(swap_scope.complete_swap)
             setup.source_texture_evidence = tuple(source_texture_evidence)
             setup.extra_supplemental_specs = self._build_in_game_mesh_swap_extra_specs(
                 target_entry,
@@ -72544,6 +75012,22 @@ def run_gui() -> int:
                 setup = preset_setup
             scene_path_obj = setup.scene_path
             import_mode = setup.import_mode
+            setup_title_key = f"{setup.placement_review_title} {setup.source_label}".casefold()
+            mesh_editor_mode = (
+                "modify_original"
+                if "modify original" in setup_title_key
+                else "in_game_swap"
+                if "swap" in setup_title_key
+                else "external_import"
+            )
+            self._open_mesh_editor_for_entry(
+                entry,
+                mode=mesh_editor_mode,
+                source_path=scene_path_obj,
+                supplemental_files=setup.supplemental_files,
+                scene_import_result=setup.scene_import_result,
+                activate=True,
+            )
             build_entry = entry
             if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}:
                 self.append_archive_log(f"{scene_path_obj.suffix.upper().lstrip('.')} imports use Mesh Replacement mode.")
@@ -73170,12 +75654,14 @@ def run_gui() -> int:
                     scene_import_result=setup.scene_import_result,
                     original_mesh=setup.original_mesh,
                     preferred_rebuild_material_sidecar=setup.preferred_rebuild_material_sidecar,
+                    preferred_complete_source_swap=bool(setup.preferred_complete_source_swap),
                     dialog_title=setup.placement_review_title or "Mesh Replacement Builder",
                     placement_context_note=setup.placement_context_note,
                     source_texture_evidence=setup.source_texture_evidence,
                     extra_supplemental_specs=setup.extra_supplemental_specs,
                     defer_original_texture_preview=bool(setup.defer_original_texture_preview),
                     runtime_export_target_entry=build_entry,
+                    embedded_host=self.mesh_editor_tab.builder_host() if hasattr(self, "mesh_editor_tab") else None,
                     continue_build_callback=_start_build_with_static_options,
                 )
                 return
@@ -73375,11 +75861,155 @@ def run_gui() -> int:
                 return
             self._start_archive_mesh_export(current_entry, export_format)
 
+        def _open_mesh_editor_for_entry(
+            self,
+            entry: ArchiveEntry,
+            *,
+            mode: str = "modify_original",
+            source_path: Optional[Path] = None,
+            source_entry: Optional[ArchiveEntry] = None,
+            supplemental_files: Sequence[Path] = (),
+            scene_import_result: Optional[SceneImportResult] = None,
+            activate: bool = True,
+        ) -> Optional[MeshEditorSessionRequest]:
+            if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
+                self.set_status_message("Select a supported archive mesh before opening Mesh Editor.", error=True)
+                return None
+            self._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)
+            request = MeshEditorSessionRequest(
+                target_entry=entry,
+                mode=str(mode or "modify_original").strip() or "modify_original",
+                source_path=source_path,
+                source_entry=source_entry,
+                supplemental_files=tuple(path for path in tuple(supplemental_files or ()) if isinstance(path, Path)),
+                scene_import_result=scene_import_result,
+            )
+            if not hasattr(self, "mesh_editor_tab"):
+                return request
+            self.mesh_editor_tab.open_session(request)
+            if activate:
+                self._activate_tool_widget(self.mesh_editor_tab)
+            return request
+
+        def _mesh_editor_entry_key(self, entry: object) -> str:
+            return str(getattr(entry, "path", "") or getattr(entry, "name", "") or "").replace("\\", "/").strip().lower()
+
+        def _mesh_editor_active_builder(self) -> Optional[QWidget]:
+            if not hasattr(self, "mesh_editor_tab"):
+                return None
+            try:
+                return self.mesh_editor_tab.active_builder()
+            except RuntimeError:
+                return None
+
+        def _mesh_editor_active_builder_entry_key(self) -> str:
+            active_builder = self._mesh_editor_active_builder()
+            if active_builder is not None:
+                for key, dialog in list(self._modeless_alignment_dialogs.items()):
+                    try:
+                        if dialog is active_builder:
+                            return str(key or "").split("|", 1)[0]
+                    except RuntimeError:
+                        self._modeless_alignment_dialogs.pop(str(key or ""), None)
+            if not hasattr(self, "mesh_editor_tab"):
+                return ""
+            active_request = getattr(self.mesh_editor_tab, "current_request", None)
+            active_entry = getattr(active_request, "target_entry", None)
+            return self._mesh_editor_entry_key(active_entry)
+
+        def _prepare_mesh_editor_archive_launch(self, entry: ArchiveEntry) -> bool:
+            if not isinstance(entry, ArchiveEntry):
+                return False
+            if not hasattr(self, "mesh_editor_tab"):
+                return True
+            active_builder = self._mesh_editor_active_builder()
+            if active_builder is None:
+                return True
+            if self._mesh_editor_active_builder_entry_key() == self._mesh_editor_entry_key(entry):
+                self._activate_tool_widget(self.mesh_editor_tab)
+                self.set_status_message("Mesh Editor is already open for this target.")
+                return False
+            result = QMessageBox.question(
+                self,
+                "Replace Mesh Editor Workflow",
+                "Mesh Editor already has an active workflow.\n\n"
+                "Close the current Mesh Editor workflow and open the selected archive mesh?\n\n"
+                "Any alignment or mesh edits that have not been built/exported will be discarded.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if result != QMessageBox.Yes:
+                self._activate_tool_widget(self.mesh_editor_tab)
+                return False
+            try:
+                if isinstance(active_builder, QDialog):
+                    active_builder.reject()
+                else:
+                    self.mesh_editor_tab.show_empty_state("Previous Mesh Editor workflow closed.")
+                QApplication.processEvents()
+            except RuntimeError:
+                pass
+            return True
+
+        def _launch_archive_mesh_editor_for_entry(self, entry: ArchiveEntry) -> None:
+            if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
+                self.set_status_message("Select a supported archive mesh before opening Mesh Editor.", error=True)
+                return
+            if not self._prepare_mesh_editor_archive_launch(entry):
+                return
+            self._mesh_editor_modify_original_requested(entry)
+
+        def _open_current_archive_mesh_editor(self) -> None:
+            current_entry = self._current_archive_mesh_entry()
+            if current_entry is None:
+                self.set_status_message("Select a supported archive mesh before opening Mesh Editor.", error=True)
+                return
+            self._launch_archive_mesh_editor_for_entry(current_entry)
+
+        def _mesh_editor_modify_original_requested(self, entry: object) -> None:
+            if not isinstance(entry, ArchiveEntry):
+                self.set_status_message("Mesh Editor has no valid target mesh.", error=True)
+                return
+            self._open_mesh_editor_for_entry(entry, mode="modify_original", activate=True)
+            _set_last_active_operation(
+                "mesh_replacement_modify_original",
+                path=getattr(entry, "path", ""),
+                package=str(getattr(entry, "pamt_path", "") or ""),
+            )
+            self._start_archive_modify_original_workspace(entry)
+
+        def _mesh_editor_import_replacement_requested(self, entry: object) -> None:
+            if not isinstance(entry, ArchiveEntry):
+                self.set_status_message("Mesh Editor has no valid target mesh.", error=True)
+                return
+            self._open_mesh_editor_for_entry(entry, mode="external_import", activate=True)
+            self._start_archive_mesh_patch(entry)
+
+        def _mesh_editor_import_preview_requested(self, entry: object) -> None:
+            if not isinstance(entry, ArchiveEntry):
+                self.set_status_message("Mesh Editor has no valid target mesh.", error=True)
+                return
+            self._open_mesh_editor_for_entry(entry, mode="external_import", activate=True)
+            self._start_archive_mesh_import_preview(entry)
+
+        def _mesh_editor_in_game_swap_requested(self, entry: object) -> None:
+            if not isinstance(entry, ArchiveEntry):
+                self.set_status_message("Mesh Editor has no valid target mesh.", error=True)
+                return
+            self._open_mesh_editor_for_entry(entry, mode="in_game_swap", activate=True)
+            self._handle_archive_in_game_mesh_swap_entry(entry)
+
+        def _mesh_editor_show_archive_target_requested(self, entry: object) -> None:
+            if not isinstance(entry, ArchiveEntry):
+                return
+            self._show_archive_browser_from_texture_editor(entry.path)
+
         def _modify_current_archive_original_mesh(self) -> None:
             current_entry = self._current_archive_mesh_entry()
             if current_entry is None:
                 self.set_status_message("Select a supported archive mesh to modify.", error=True)
                 return
+            self._open_mesh_editor_for_entry(current_entry, mode="modify_original", activate=True)
             _set_last_active_operation(
                 "mesh_replacement_modify_original",
                 path=getattr(current_entry, "path", ""),
@@ -75402,7 +78032,7 @@ def run_gui() -> int:
                 try:
                     data, _decompressed, _note = read_archive_entry_data(socket_entry)
                     document = parse_socket_bone_data_xml(
-                        data.decode("utf-8-sig", errors="ignore"),
+                        decode_xml_text_payload(data).text,
                         socket_entry.path,
                     )
                 except Exception as exc:
@@ -83016,6 +85646,13 @@ def run_gui() -> int:
                     f"{scene_path.name} could not be imported.\n\n{exc}",
                 )
                 return
+            self._open_mesh_editor_for_entry(
+                current_entry,
+                mode="external_import",
+                source_path=scene_path,
+                scene_import_result=scene_import_result,
+                activate=True,
+            )
             setup = self._prompt_archive_mesh_import_setup(
                 current_entry,
                 scene_path,
@@ -83156,6 +85793,7 @@ def run_gui() -> int:
             if current_entry is None:
                 self.set_status_message("Select a supported archive mesh before importing an OBJ preview.", error=True)
                 return
+            self._open_mesh_editor_for_entry(current_entry, mode="external_import", activate=True)
             self._start_archive_mesh_import_preview(current_entry)
 
         def _preview_current_archive_mesh_dds_import(self) -> None:
@@ -83170,6 +85808,7 @@ def run_gui() -> int:
             if current_entry is None:
                 self.set_status_message("Select a supported archive mesh before importing an OBJ.", error=True)
                 return
+            self._open_mesh_editor_for_entry(current_entry, mode="external_import", activate=True)
             self._start_archive_mesh_patch(current_entry)
 
         def _swap_current_archive_mesh_with_in_game(self) -> None:
@@ -83177,6 +85816,7 @@ def run_gui() -> int:
             if current_entry is None:
                 self.set_status_message("Select a supported archive mesh before swapping with an in-game mesh.", error=True)
                 return
+            self._open_mesh_editor_for_entry(current_entry, mode="in_game_swap", activate=True)
             self._handle_archive_in_game_mesh_swap_entry(current_entry)
 
         @staticmethod
@@ -83685,6 +86325,13 @@ def run_gui() -> int:
                 and current_entry is not None
                 and current_entry.extension == ".dds"
             )
+            if hasattr(self, "mesh_editor_tab"):
+                mesh_selection = (
+                    current_entry
+                    if current_entry is not None and current_entry.extension in ARCHIVE_MESH_EXTENSIONS
+                    else None
+                )
+                self.mesh_editor_tab.set_archive_selection(mesh_selection)
             self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
             if not self.archive_entries:
                 self.archive_stats_label.setText("No archives scanned.")
@@ -84041,15 +86688,27 @@ def run_gui() -> int:
             )
 
         def collect_config(self) -> AppConfig:
-            mod_ready_manager_profile = self._combo_value(self.mod_ready_manager_combo)
             mod_ready_manager_profiles = tuple(
                 profile
                 for profile, checkbox in self.mod_ready_profile_checkboxes.items()
                 if checkbox.isChecked()
-            ) or (mod_ready_manager_profile,)
+            )
+            mod_ready_manager_profile = (
+                mod_ready_manager_profiles[0]
+                if mod_ready_manager_profiles
+                else self._combo_value(self.mod_ready_manager_combo)
+            )
+            if not mod_ready_manager_profiles:
+                mod_ready_manager_profiles = (mod_ready_manager_profile,)
             mod_ready_uses_manager_metadata = any(
                 mod_package_profile_uses_manager_metadata(profile)
                 for profile in mod_ready_manager_profiles
+            )
+            mod_ready_auto_options = mod_package_export_options_for_profiles(
+                mod_ready_manager_profiles,
+                create_zip=self.mod_ready_zip_checkbox.isChecked(),
+                conflict_mode=self._combo_value(self.mod_ready_conflict_mode_combo) if mod_ready_uses_manager_metadata else "",
+                target_language=self.mod_ready_target_language_edit.text().strip() if mod_ready_uses_manager_metadata else "",
             )
             return AppConfig(
                 original_dds_root=self.original_dds_edit.text().strip(),
@@ -84102,12 +86761,12 @@ def run_gui() -> int:
                 mod_ready_package_nexus_url=self.mod_ready_package_nexus_url_edit.text().strip(),
                 mod_ready_manager_profile=mod_ready_manager_profile,
                 mod_ready_manager_profiles=mod_ready_manager_profiles,
-                mod_ready_package_structure=self._combo_value(self.mod_ready_structure_combo),
-                mod_ready_create_manifest_json=self.mod_ready_manifest_checkbox.isChecked(),
-                mod_ready_create_mod_json=self.mod_ready_mod_json_checkbox.isChecked(),
-                mod_ready_create_modinfo_json=self.mod_ready_modinfo_checkbox.isChecked(),
-                mod_ready_create_info_json=self.mod_ready_info_json_checkbox.isChecked(),
-                mod_ready_create_zip=self.mod_ready_zip_checkbox.isChecked(),
+                mod_ready_package_structure=mod_ready_auto_options.structure,
+                mod_ready_create_manifest_json=mod_ready_auto_options.create_manifest_json,
+                mod_ready_create_mod_json=mod_ready_auto_options.create_mod_json,
+                mod_ready_create_modinfo_json=mod_ready_auto_options.create_modinfo_json,
+                mod_ready_create_info_json=mod_ready_auto_options.create_info_json,
+                mod_ready_create_zip=mod_ready_auto_options.create_zip,
                 mod_ready_conflict_mode=self._combo_value(self.mod_ready_conflict_mode_combo) if mod_ready_uses_manager_metadata else "",
                 mod_ready_target_language=self.mod_ready_target_language_edit.text().strip() if mod_ready_uses_manager_metadata else "",
                 archive_package_root=self.archive_package_root_edit.text().strip(),
@@ -84235,9 +86894,6 @@ def run_gui() -> int:
             self.archive_browser_view_mode_combo.setEnabled(not busy)
             selected_entries = self._selected_archive_entries()
             self.archive_extract_selected_button.setEnabled(not busy and len(selected_entries) > 0)
-            self.archive_bulk_placement_swap_button.setEnabled(
-                not busy and len([entry for entry in selected_entries if self._archive_entry_supports_attachment_placement_workflow(entry)]) > 1
-            )
             self.archive_extract_filtered_button.setEnabled(not busy and bool(self.archive_filtered_entries))
             selected_has_dds = any(entry.extension == ".dds" for entry in selected_entries)
             filtered_has_dds = int(getattr(self, "archive_filtered_dds_count", 0) or 0) > 0
@@ -84664,7 +87320,10 @@ def run_gui() -> int:
             self.append_log("Stop requested by user.")
             if self._utility_updates_archive_progress:
                 self.append_archive_log("Stop requested by user.")
-                self.archive_scan_progress_label.setText("Stop requested. Waiting for the current scan to exit cleanly...")
+                self._set_archive_load_progress(
+                    "Stop requested. Waiting for the current scan to exit cleanly...",
+                    phase="Stopping",
+                )
             self.stop_button.setEnabled(False)
 
         def open_output_folder(self) -> None:
@@ -84840,10 +87499,7 @@ def run_gui() -> int:
                 self.append_log(message)
                 if self.archive_scan_worker is not None or self.archive_filter_worker is not None or self._utility_updates_archive_progress:
                     self.append_archive_log(message)
-                    self.archive_scan_progress_label.setText(message)
-                    self.archive_scan_progress_bar.setRange(0, 1)
-                    self.archive_scan_progress_bar.setValue(0)
-                    self.archive_scan_progress_bar.setFormat("%v / %m")
+                    self._set_archive_load_progress(message, phase="Stopping", percent=0, allow_decrease=True)
                     _write_heartbeat("running")
                     self._release_startup_splash()
                 return
@@ -84857,10 +87513,12 @@ def run_gui() -> int:
             self.append_log(f"ERROR: {message}")
             if self.archive_scan_worker is not None or self.archive_filter_worker is not None or self._utility_updates_archive_progress:
                 self.append_archive_log(f"ERROR: {message}")
-                self.archive_scan_progress_label.setText(f"Archive browser task failed: {message}")
-                self.archive_scan_progress_bar.setRange(0, 1)
-                self.archive_scan_progress_bar.setValue(0)
-                self.archive_scan_progress_bar.setFormat("%v / %m")
+                self._set_archive_load_progress(
+                    f"Archive browser task failed: {message}",
+                    phase="Failed",
+                    percent=0,
+                    allow_decrease=True,
+                )
                 _write_heartbeat("running")
                 self._release_startup_splash()
 
@@ -85303,9 +87961,8 @@ def run_gui() -> int:
             ):
                 QTimer.singleShot(0, self._start_archive_sidecar_index_worker)
             if utility_updates_archive_progress and self.archive_scan_worker is None and self.archive_filter_worker is None:
-                self.archive_scan_progress_bar.setRange(0, 1)
-                self.archive_scan_progress_bar.setValue(1)
-                self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
+                detail = str(getattr(self, "_archive_load_progress_detail", "") or "Archive task complete.")
+                self._set_archive_load_progress(detail, phase="Ready", percent=100)
             if rerun_archive_filter:
                 QTimer.singleShot(0, self._apply_archive_filter)
             elif refresh_archive_browser:
@@ -85314,7 +87971,7 @@ def run_gui() -> int:
                 QTimer.singleShot(0, self._maybe_release_startup_after_archive_ready)
 
         def _tracked_worker_threads(self) -> List[Tuple[str, Optional[QThread], Optional[object]]]:
-            return [
+            tracked: List[Tuple[str, Optional[QThread], Optional[object]]] = [
                 ("worker_thread", self.worker_thread, self.scan_worker or self.archive_scan_worker or self.archive_filter_worker or self.build_worker or self.dds_to_png_worker or self.utility_worker),
                 ("archive_sidecar_thread", self.archive_sidecar_thread, self.archive_sidecar_worker),
                 ("archive_basic_index_thread", self.archive_basic_index_thread, self.archive_basic_index_worker),
@@ -85327,6 +87984,24 @@ def run_gui() -> int:
                 ("archive_isolated_package_thread", self.archive_isolated_package_thread, self.archive_isolated_package_worker),
                 ("archive_native_prefetch_thread", self.archive_native_prefetch_thread, self.archive_native_prefetch_worker),
             ]
+            for tab_name in ("text_search_tab", "research_tab", "replace_assistant_tab", "texture_editor_tab", "item_icons_tab"):
+                tab = getattr(self, tab_name, None)
+                iterator = getattr(tab, "iter_shutdown_workers", None)
+                if not callable(iterator):
+                    continue
+                try:
+                    for worker_name, thread, worker in tuple(iterator()):
+                        tracked.append((f"{tab_name}.{worker_name}", thread, worker))
+                except RuntimeError:
+                    continue
+                except Exception as exc:
+                    _record_runtime_event(
+                        "close_tab_worker_discovery_failed",
+                        close_phase="discover_tab_workers",
+                        tab=tab_name,
+                        message=str(exc),
+                    )
+            return tracked
 
         def _running_worker_thread_entries(self) -> List[Tuple[str, QThread]]:
             running: List[Tuple[str, QThread]] = []
@@ -85343,7 +88018,26 @@ def run_gui() -> int:
         def _running_worker_threads(self) -> List[QThread]:
             return [thread for _name, thread in self._running_worker_thread_entries()]
 
+        def _request_tab_shutdowns(self) -> None:
+            for tab_name in ("text_search_tab", "research_tab", "replace_assistant_tab", "texture_editor_tab", "item_icons_tab"):
+                tab = getattr(self, tab_name, None)
+                request_shutdown = getattr(tab, "request_shutdown", None)
+                if not callable(request_shutdown):
+                    continue
+                try:
+                    request_shutdown()
+                except RuntimeError:
+                    continue
+                except Exception as exc:
+                    _record_runtime_event(
+                        "close_tab_shutdown_request_failed",
+                        close_phase="request_tab_shutdown",
+                        tab=tab_name,
+                        message=str(exc),
+                    )
+
         def _request_tracked_workers_to_stop(self) -> None:
+            self._request_tab_shutdowns()
             for _name, thread, worker in self._tracked_worker_threads():
                 if worker is not None:
                     stop = getattr(worker, "stop", None)
@@ -85364,7 +88058,12 @@ def run_gui() -> int:
 
         def _force_stop_close_worker_threads(self, running_entries: Sequence[Tuple[str, QThread]]) -> None:
             worker_names = [name for name, _thread in running_entries]
-            _record_runtime_event("close_force_stop_workers", workers=tuple(worker_names))
+            _record_runtime_event(
+                "close_force_stop_workers",
+                close_phase="force_stop",
+                workers=tuple(worker_names),
+                worker_count=len(worker_names),
+            )
             for _name, thread in running_entries:
                 try:
                     thread.requestInterruption()
@@ -85399,12 +88098,20 @@ def run_gui() -> int:
                     running_names += ", ..."
                 suffix = f" ({running_names})" if running_names else ""
                 self.set_status_message(f"Closing after {len(running_entries):,} background worker(s) stop{suffix}...")
+                _record_runtime_event(
+                    "close_waiting_for_workers",
+                    close_phase="waiting",
+                    worker_count=len(running_entries),
+                    workers=tuple(name for name, _thread in running_entries[:8]),
+                    elapsed_seconds=round(elapsed, 3),
+                )
                 return
             self._close_worker_wait_timer.stop()
             self._close_after_workers_requested = False
             self._close_pending_started_at = 0.0
             self._close_force_stop_requested = False
             self._close_force_accept = True
+            _record_runtime_event("close_workers_stopped", close_phase="ready_to_accept")
             QTimer.singleShot(0, self.close)
 
         def _begin_deferred_close_for_workers(self, event) -> None:
@@ -85420,11 +88127,17 @@ def run_gui() -> int:
             self._close_pending_started_at = time.monotonic()
             self._close_force_stop_requested = False
             self._shutting_down = True
+            _record_runtime_event(
+                "close_begin_deferred",
+                close_phase="begin_deferred",
+                worker_count=len(self._running_worker_thread_entries()),
+            )
             self._release_startup_splash()
             self._save_detached_tool_geometries()
             self._cancel_archive_tree_clear()
             self._cancel_archive_tree_population()
             self._settings_save_timer.stop()
+            self._external_activation_timer.stop()
             self._chainner_analysis_timer.stop()
             self._compare_preview_timer.stop()
             self.archive_preview_debounce_timer.stop()
@@ -85442,10 +88155,6 @@ def run_gui() -> int:
             self.archive_item_icon_visible_warmup_remaining = 0
             self._request_tracked_workers_to_stop()
             self.set_status_message("Closing after active background workers stop...")
-            try:
-                self.hide()
-            except Exception:
-                pass
             self._close_worker_wait_timer.start()
             for thread in self._running_worker_threads():
                 try:
@@ -85458,6 +88167,7 @@ def run_gui() -> int:
             self._finish_deferred_close_if_workers_stopped()
 
         def _finalize_close(self) -> None:
+            _record_runtime_event("close_finalize", close_phase="finalize")
             self._close_worker_wait_timer.stop()
             self._shutting_down = True
             self._release_startup_splash()
@@ -85493,6 +88203,12 @@ def run_gui() -> int:
             self.replace_assistant_tab.shutdown()
             self.texture_editor_tab.shutdown()
             self.item_icons_tab.shutdown()
+            tray_icon = getattr(self, "app_tray_icon", None)
+            if tray_icon is not None:
+                try:
+                    tray_icon.hide()
+                except Exception:
+                    pass
 
         def closeEvent(self, event) -> None:  # type: ignore[override]
             if not self._close_force_accept and self._running_worker_threads():
@@ -85586,10 +88302,6 @@ def run_gui() -> int:
         _heartbeat_stop_event.set()
         if normal_exit:
             _write_heartbeat("closed", clean_shutdown=True)
-        try:
-            if _fault_log_handle is not None:
-                _fault_log_handle.flush()
-        except Exception:
-            pass
+        _cleanup_native_fault_log_on_exit(clean_exit=bool(normal_exit))
 
 __all__ = ["run_gui"]

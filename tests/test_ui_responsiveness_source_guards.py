@@ -18,6 +18,15 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("self._record_population_timer.timeout.connect(self._flush_record_population_batch)", source)
         self.assertIn("self.records_tree.addTopLevelItems(items)", source)
         self.assertIn("self.records_tree.setSortingEnabled(False)", source)
+        self.assertIn("SELECTION_PREVIEW_DEBOUNCE_MS = 160", source)
+        self.assertIn("self._selection_preview_timer.timeout.connect(self._refresh_selected_record_previews)", source)
+        self.assertIn("def _schedule_selected_record_previews(self) -> None:", source)
+        self.assertIn("self._schedule_selected_record_previews()", source)
+        selection_start = source.index("def _handle_record_selection(")
+        selection_end = source.index("def _schedule_selected_record_previews(", selection_start)
+        selection_block = source[selection_start:selection_end]
+        self.assertNotIn("self.update_source_preview()", selection_block)
+        self.assertNotIn("self.update_final_preview()", selection_block)
         self.assertIn("self.target_filter_edit.textChanged.connect(lambda _text=\"\": self._target_filter_timer.start())", source)
         self.assertIn("self._target_refresh_timer.timeout.connect(self._flush_scheduled_target_refresh)", source)
         self.assertIn("def schedule_targets_refresh(self, *, update_preview: bool = False) -> None:", source)
@@ -79,6 +88,15 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn('if state == "thumb_pending" and not _catalog_row_prepared_icon_available(row):', source)
         self.assertIn("QTimer.singleShot(90, _queue_catalog_row_icons_for_visible_rows)", source)
         self.assertIn("QTimer.singleShot(300, _queue_catalog_row_icons_for_visible_rows)", source)
+        self.assertIn("def _forget_archive_item_icon_pixmap_cache", source)
+        self.assertIn("self._forget_archive_item_icon_pixmap_cache(prepared_key)", source)
+        self.assertIn("self._forget_archive_item_icon_pixmap_cache(cache_key)", source)
+        self.assertIn(
+            "if cached_pixmap is None or cached_pixmap.isNull():\n                    self.archive_item_icon_pixmap_cache.pop(cache_key, None)",
+            source,
+        )
+        self.assertIn("pixmap, _note = result", source)
+        self.assertNotIn("result = (None, negative_note)", source)
         catalog_callback_index = source.index("self.archive_item_icon_prepared_callbacks.append(_handle_catalog_icon_prepared)")
         catalog_populate_index = source.index("_populate_catalog()", catalog_callback_index)
         self.assertLess(catalog_callback_index, catalog_populate_index)
@@ -154,6 +172,10 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn('"view_mode": ARCHIVE_BROWSER_VIEW_MODE', scan_body)
         self.assertIn("Applying queued filters after archive list opened.", source)
         self.assertIn("Filters will apply when search is ready", source)
+        self.assertIn("def _archive_filter_state_needs_basic_lookup", source)
+        self.assertIn("self._archive_filter_state_needs_basic_lookup(saved_state)", source)
+        self.assertIn("self._current_archive_filter_needs_basic_lookup()", source)
+        self.assertIn("Filters will apply when archive lookup indexes are ready.", source)
         self.assertNotIn("request_signature or self._current_archive_filter_signature()", complete_body)
 
     def test_archive_click_lag_preload_state_guards_ready_render(self) -> None:

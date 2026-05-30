@@ -940,12 +940,12 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("mesh_edit_.show_vertices", source)
         self.assertIn("mesh_edit_source_vertex_selected", source)
         self.assertIn("batch_is_reference(batch) || !batch_visible_in_view(batch, PreviewViewRole::Replacement)", source)
-        self.assertIn("add_thick_line(p[0], p[1], 2.4f, 1.0f, 0.48f, 0.12f)", source)
+        self.assertIn("add_thick_line_depth(p[0], depth_z[0], p[1], depth_z[1], 2.4f, 1.0f, 0.48f, 0.12f)", source)
         self.assertIn("mesh_edit_.tool == \"remove\"", source)
         self.assertIn("add_ring(ScreenPoint{static_cast<float>(cursor_x_), static_cast<float>(cursor_y_)}, mesh_edit_.radius_pixels + 2.0f", source)
         self.assertIn("void draw_mesh_edit_vertex_dots_instanced(", source)
-        self.assertIn("add_instance(screen_vertex.screen_x, screen_vertex.screen_y, 4.5f, 1.0f, 0.52f, 0.12f)", source)
-        self.assertIn("add_instance(screen_vertex.screen_x, screen_vertex.screen_y, 2.8f, 0.18f, 0.82f, 1.0f)", source)
+        self.assertIn("add_instance(screen_vertex.screen_x, screen_vertex.screen_y, screen_vertex.depth_z, 4.5f, 1.0f, 0.52f, 0.12f)", source)
+        self.assertIn("add_instance(screen_vertex.screen_x, screen_vertex.screen_y, screen_vertex.depth_z, 2.8f, 0.18f, 0.82f, 1.0f)", source)
         self.assertIn("context_->DrawInstanced(6u, static_cast<UINT>(instances.size()), 0u, 0u)", source)
 
     def test_native_core_scopes_sidecar_wrappers_before_dds_extraction(self) -> None:

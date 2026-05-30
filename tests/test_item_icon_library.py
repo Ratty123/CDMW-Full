@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import os
 from pathlib import Path
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 from PIL import Image
+from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import QApplication
 
 from cdmw.core.item_icon import (
     import_edited_item_icon_source,
@@ -13,6 +18,7 @@ from cdmw.core.item_icon import (
     save_item_icon_library_index,
     update_item_icon_library_record_metadata,
 )
+from cdmw.ui.item_icons_tab import ItemIconLibraryTab
 
 
 class ItemIconLibraryTests(unittest.TestCase):
@@ -74,6 +80,44 @@ class ItemIconLibraryTests(unittest.TestCase):
             self.assertEqual(1, loaded["version"])
             self.assertEqual([], loaded["roots"])
             self.assertEqual({}, loaded["records"])
+
+    def test_mesh_editor_generated_icon_registers_reusable_library_metadata(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            settings = QSettings(str(root / "settings.ini"), QSettings.Format.IniFormat)
+            tab = ItemIconLibraryTab(
+                settings=settings,
+                base_dir=root,
+                get_archive_entries=lambda: (),
+                get_texconv_path=lambda: "",
+                resolve_target_template_path=lambda _entry: root / "template.dds",
+            )
+            try:
+                output_path = tab.mesh_editor_generated_icon_path(
+                    target_model_path="character/model/weapon/cd_target_sword.pac",
+                    source_model_path="mods/source/cd_source_sword.obj",
+                )
+                Image.new("RGBA", (32, 32), (40, 80, 120, 255)).save(output_path)
+
+                stored = tab.register_mesh_editor_generated_icon(
+                    output_path,
+                    target_model_path="character/model/weapon/cd_target_sword.pac",
+                    source_model_path="mods/source/cd_source_sword.obj",
+                    target_icon_path="ui/texture/icon/itemicon_cd_target_sword.dds",
+                )
+
+                records = scan_item_icon_library((), index_path=tab.index_path, edited_root=tab.edited_root)
+                record = next(record for record in records if record.path == stored)
+                self.assertIn("mesh-editor", record.tags)
+                self.assertIn("target:cd_target_sword", record.tags)
+                self.assertIn("source:cd_source_sword", record.tags)
+                self.assertIn("Target model: character/model/weapon/cd_target_sword.pac", record.notes)
+                self.assertIn("Source model: mods/source/cd_source_sword.obj", record.notes)
+                self.assertIn("Initial target icon: ui/texture/icon/itemicon_cd_target_sword.dds", record.notes)
+                self.assertIn("target-cd_target_sword__source-cd_source_sword", stored.stem)
+            finally:
+                tab.shutdown()
 
 
 if __name__ == "__main__":

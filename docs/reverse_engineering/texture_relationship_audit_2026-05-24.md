@@ -3,9 +3,9 @@
 Read-only audit of texture relationships, material sidecars, model sidecars, DDS formats, and family companions.
 
 ## Inputs
-- archive_root: C:\Users\Ratrider\Desktop\CTF\archive_extract (exists: yes, files: 1,014,307)
+- archive_root: <archive_extract> (exists: yes, files: 1,014,307)
 - game_root: C:\games\Steam\steamapps\common\Crimson Desert (exists: yes, files: 437)
-- family_root: C:\Users\Ratrider\Desktop\CTF\archive_extract\Family Examples (exists: yes, files: 767)
+- family_root: <archive_extract>\Family Examples (exists: yes, files: 767)
 
 ## Counts
 

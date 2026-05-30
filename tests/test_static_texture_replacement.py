@@ -41,6 +41,7 @@ from cdmw.modding.material_replacer import (
     _MANUAL_PROFILE_FIELD_NAMES,
     _attach_source_face_counts,
     _append_texture_contract_warnings,
+    _apply_source_part_role_overrides,
     _apply_source_pbr_scalar_parameters,
     _bruteforce_source_authority_texture_parameters,
     _build_source_driven_sidecar_text,
@@ -59,8 +60,10 @@ from cdmw.modding.material_replacer import (
     _profile_scalar_values,
     _source_pbr_scalar_values,
     _source_slot_png_with_base_color_factor_path,
+    _source_slot_needs_base_color_adjustment,
     _source_driven_parameter_name,
     _source_driven_slots,
+    _texture_set_is_accent_glow_candidate,
     build_texture_replacement_payloads,
     build_source_material_routing_plan,
     _build_texture_payload,
@@ -68,6 +71,7 @@ from cdmw.modding.material_replacer import (
     group_replacement_texture_sets,
     is_static_replacement_helper_material_name,
     is_shared_material_layer_texture,
+    material_authority_preview_texture_slots,
     patch_material_sidecar_text,
     read_complete_swap_calibrated_material_profile,
     serialize_complete_swap_manual_material_profile,
@@ -79,6 +83,7 @@ from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.static_mesh_replacer import (
     StaticMaterialAtlasRect,
     StaticOutputDrawSection,
+    StaticSourcePartAdjustment,
     StaticSubmeshMapping,
     StaticTextureSlotOverride,
 )
@@ -639,6 +644,20 @@ class StaticTextureReplacementTests(unittest.TestCase):
 
         self.assertIs(adjusted, profile)
 
+    def test_material_authority_zero_gloss_bias_is_exact_baseline(self) -> None:
+        profile = get_complete_swap_material_profile("material_authority")
+
+        adjusted = apply_global_gloss_reduction_to_profile(profile, 0)
+
+        self.assertIs(adjusted, profile)
+        self.assertEqual(0.0, adjusted.global_gloss_reduction)
+        self.assertEqual(profile.roughness_default, adjusted.roughness_default)
+        self.assertEqual(profile.roughness_min, adjusted.roughness_min)
+        self.assertEqual(profile.roughness_scale, adjusted.roughness_scale)
+        self.assertEqual(profile.roughness_max, adjusted.roughness_max)
+        self.assertEqual(profile.scratch_roughness, adjusted.scratch_roughness)
+        self.assertEqual(profile.shine_scalar, adjusted.shine_scalar)
+
     def test_global_gloss_reduction_profile_overlay_makes_material_more_matte(self) -> None:
         profile = get_complete_swap_material_profile("material_authority_true_source")
 
@@ -664,6 +683,19 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertEqual(0xFFFFFF, roughness_value)
         self.assertIsNone(metallic_value)
         self.assertEqual(0.0, shine_value)
+
+    def test_global_gloss_boost_profile_overlay_makes_material_glossier(self) -> None:
+        profile = get_complete_swap_material_profile("material_authority")
+
+        glossy = apply_global_gloss_reduction_to_profile(profile, -100)
+
+        self.assertLess(glossy.roughness_default, profile.roughness_default)
+        self.assertLess(glossy.roughness_min or 0, profile.roughness_min or 0)
+        self.assertLess(glossy.roughness_max or 255, profile.roughness_max or 255)
+        self.assertLess(glossy.scratch_roughness or 0, profile.scratch_roughness or 0)
+        self.assertGreater(glossy.shine_scalar or 0, profile.shine_scalar or 0)
+        self.assertFalse(glossy.force_nonmetal)
+        self.assertEqual(-100.0, glossy.global_gloss_reduction)
 
     def test_global_gloss_reduction_changes_generated_runtime_mask(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -691,6 +723,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             base_mask = _complete_swap_runtime_material_mask_png_path(texture_sets["blade"], base_profile)
             matte_mask = _complete_swap_runtime_material_mask_png_path(texture_sets["blade"], matte_profile)
 
+            self.assertNotEqual(base_mask, matte_mask)
             with Image.open(base_mask) as image:
                 base_pixel = image.convert("RGBA").getpixel((0, 0))
             with Image.open(matte_mask) as image:
@@ -698,6 +731,41 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertGreater(matte_pixel[1], base_pixel[1])
             self.assertEqual(255, matte_pixel[1])
             self.assertEqual(base_pixel[2], matte_pixel[2])
+
+    def test_global_gloss_boost_changes_generated_runtime_mask(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            pbr_png = root / "image0.png"
+            Image.new("RGBA", (2, 2), (24, 56, 235, 255)).save(pbr_png)
+            submesh = SubMesh(name="Blade", material="Blade", vertices=[(0.0, 0.0, 0.0)], faces=[(0, 0, 0)])
+            submesh.preview_material_texture_inputs = (
+                PreviewMaterialTextureInput(
+                    slot_kind="material",
+                    source_texture_path=str(pbr_png),
+                    preview_texture_path=str(pbr_png),
+                    semantic_subtype="metallic_roughness",
+                    packed_channels=("occlusion", "roughness", "metallic"),
+                    material_name="Blade",
+                    confidence="gltf",
+                ),
+            )
+            texture_sets = group_replacement_texture_sets((pbr_png,), obj_mesh=ParsedMesh(submeshes=[submesh]))
+            base_profile = get_complete_swap_material_profile("material_authority")
+            glossy_profile = apply_global_gloss_reduction_to_profile(base_profile, -100)
+
+            base_mask = _complete_swap_runtime_material_mask_png_path(texture_sets["blade"], base_profile)
+            glossy_mask = _complete_swap_runtime_material_mask_png_path(texture_sets["blade"], glossy_profile)
+
+            self.assertNotEqual(base_mask, glossy_mask)
+            with Image.open(base_mask) as image:
+                base_pixel = image.convert("RGBA").getpixel((0, 0))
+            with Image.open(glossy_mask) as image:
+                glossy_pixel = image.convert("RGBA").getpixel((0, 0))
+            self.assertLess(glossy_pixel[1], base_pixel[1])
+            self.assertEqual(24, glossy_pixel[1])
+            self.assertEqual(base_pixel[2], glossy_pixel[2])
 
     def test_pbr_source_test_profile_keeps_source_metalness_and_raises_cd_roughness(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -841,7 +909,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertTrue(default_masks)
             self.assertTrue(matte_masks)
             self.assertNotEqual(default_masks, matte_masks)
-            self.assertFalse(any("Global gloss reduction applied" in warning for warning in default_warnings))
+            self.assertFalse(any("Global gloss" in warning for warning in default_warnings))
             self.assertTrue(any("Global gloss reduction applied: 100%" in warning for warning in matte_warnings))
             self.assertTrue(any("Global gloss reduction channels" in warning for warning in matte_warnings))
 
@@ -876,6 +944,246 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertEqual(100, profile.base_color_shadow_lift)
             self.assertLess(profile.base_color_gamma, 1.0)
             self.assertGreater(lifted_pixel[0], 24)
+
+    def test_auto_brightness_balance_lifts_dark_and_tames_bright_base_color(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            dark_png = root / "dark_baseColor.png"
+            bright_png = root / "bright_baseColor.png"
+            Image.new("RGBA", (4, 4), (32, 32, 32, 255)).save(dark_png)
+            Image.new("RGBA", (4, 4), (230, 230, 230, 255)).save(bright_png)
+
+            dark_slot = ReplacementTextureSlot(
+                "Dark",
+                "base",
+                dark_png,
+                base_color_auto_balance=100,
+            )
+            bright_slot = ReplacementTextureSlot(
+                "Bright",
+                "base",
+                bright_png,
+                base_color_auto_balance=100,
+            )
+
+            with Image.open(_source_slot_png_with_base_color_factor_path(dark_slot)) as image:
+                dark_pixel = image.convert("RGB").getpixel((0, 0))
+            with Image.open(_source_slot_png_with_base_color_factor_path(bright_slot)) as image:
+                bright_pixel = image.convert("RGB").getpixel((0, 0))
+
+            self.assertGreater(dark_pixel[0], 32)
+            self.assertLess(bright_pixel[0], 230)
+
+    def test_auto_brightness_control_marks_profile_for_base_slot_processing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_png = root / "Blade_baseColor.png"
+            Image.new("RGBA", (2, 1), (230, 230, 230, 255)).save(base_png)
+            profile = apply_true_source_basic_controls_to_profile(
+                get_complete_swap_material_profile("material_authority"),
+                auto_brightness_balance=75,
+            )
+            texture_set = ReplacementTextureSet(
+                "Blade",
+                slots={"base": ReplacementTextureSlot("Blade", "base", base_png)},
+            )
+            base_slot = next(
+                slot
+                for slot in _source_driven_slots(
+                    texture_set,
+                    include_complete_support_fallbacks=True,
+                    material_profile=profile,
+                )
+                if slot.slot_kind == "base"
+            )
+
+            self.assertEqual(75, profile.base_color_auto_balance)
+            self.assertEqual(75, base_slot.base_color_auto_balance)
+            self.assertTrue(_source_slot_needs_base_color_adjustment(base_slot))
+
+    def test_tone_contrast_control_adjusts_base_color_both_directions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_png = root / "Blade_baseColor.png"
+            image = Image.new("RGBA", (2, 1))
+            image.putdata([(64, 64, 64, 255), (192, 192, 192, 255)])
+            image.save(base_png)
+
+            def adjusted_pixels(tone_contrast: int) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+                profile = apply_true_source_basic_controls_to_profile(
+                    get_complete_swap_material_profile("material_authority"),
+                    tone_contrast=tone_contrast,
+                )
+                texture_set = ReplacementTextureSet(
+                    "Blade",
+                    slots={"base": ReplacementTextureSlot("Blade", "base", base_png)},
+                )
+                base_slot = next(
+                    slot
+                    for slot in _source_driven_slots(
+                        texture_set,
+                        include_complete_support_fallbacks=True,
+                        material_profile=profile,
+                    )
+                    if slot.slot_kind == "base"
+                )
+                self.assertEqual(float(tone_contrast), profile.base_color_tone_contrast)
+                with Image.open(_source_slot_png_with_base_color_factor_path(base_slot)) as adjusted:
+                    rgb = adjusted.convert("RGB")
+                    return rgb.getpixel((0, 0)), rgb.getpixel((1, 0))
+
+            positive = adjusted_pixels(100)
+            negative = adjusted_pixels(-100)
+
+            original_gap = 192 - 64
+            positive_gap = positive[1][0] - positive[0][0]
+            negative_gap = negative[1][0] - negative[0][0]
+            self.assertGreater(positive_gap, original_gap)
+            self.assertLess(negative_gap, original_gap)
+            self.assertNotEqual(positive, negative)
+
+    def test_material_authority_brightness_repro_builds_adjusted_base_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_png = root / "Blade_baseColor.png"
+            image = Image.new("RGBA", (2, 1))
+            image.putdata([(32, 32, 32, 255), (120, 120, 120, 255)])
+            image.save(base_png)
+            profile = apply_true_source_basic_controls_to_profile(
+                get_complete_swap_material_profile("material_authority"),
+                auto_brightness_balance=30,
+                dark_detail_lift=100,
+                tone_contrast=10,
+            )
+            texture_set = ReplacementTextureSet(
+                "Blade",
+                slots={"base": ReplacementTextureSlot("Blade", "base", base_png)},
+            )
+            base_slot = next(
+                slot
+                for slot in _source_driven_slots(
+                    texture_set,
+                    include_complete_support_fallbacks=True,
+                    material_profile=profile,
+                )
+                if slot.slot_kind == "base"
+            )
+
+            self.assertEqual(30, profile.base_color_auto_balance)
+            self.assertEqual(100, profile.base_color_shadow_lift)
+            self.assertEqual(10.0, profile.base_color_tone_contrast)
+            adjusted_path = _source_slot_png_with_base_color_factor_path(base_slot)
+            self.assertNotEqual(base_png, adjusted_path)
+            with Image.open(adjusted_path) as adjusted:
+                adjusted_pixel = adjusted.convert("RGB").getpixel((0, 0))
+            self.assertGreater(adjusted_pixel[0], 32)
+
+    def test_material_authority_preview_helper_uses_adjusted_base_and_emissive_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_png = root / "Blade_baseColor.png"
+            emissive_png = root / "Blade_emissive.png"
+            Image.new("RGBA", (2, 1), (32, 32, 32, 255)).save(base_png)
+            Image.new("RGBA", (2, 1), (200, 180, 120, 255)).save(emissive_png)
+            texture_set = ReplacementTextureSet(
+                "Blade",
+                slots={
+                    "base": ReplacementTextureSlot("Blade", "base", base_png),
+                    "emissive": ReplacementTextureSlot("Blade", "emissive", emissive_png),
+                },
+            )
+            profile = apply_true_source_basic_controls_to_profile(
+                get_complete_swap_material_profile("material_authority_true_source"),
+                auto_brightness_balance=30,
+                dark_detail_lift=100,
+                tone_contrast=10,
+            )
+
+            slots = material_authority_preview_texture_slots(texture_set, profile)
+
+            self.assertNotEqual(base_png, slots["base"].source_path)
+            self.assertNotEqual(emissive_png, slots["emissive"].source_path)
+            self.assertTrue(slots["base"].source_path.is_file())
+            self.assertTrue(slots["emissive"].source_path.is_file())
+            with Image.open(slots["base"].source_path) as adjusted_base:
+                self.assertGreater(adjusted_base.convert("RGB").getpixel((0, 0))[0], 32)
+            with Image.open(slots["emissive"].source_path) as adjusted_emissive:
+                self.assertLessEqual(max(adjusted_emissive.convert("RGB").getpixel((0, 0))), 72)
+
+    def test_material_authority_preview_helper_disabled_returns_original_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_png = root / "Blade_baseColor.png"
+            Image.new("RGBA", (2, 1), (32, 32, 32, 255)).save(base_png)
+            texture_set = ReplacementTextureSet(
+                "Blade",
+                slots={"base": ReplacementTextureSlot("Blade", "base", base_png)},
+            )
+            profile = apply_true_source_basic_controls_to_profile(
+                get_complete_swap_material_profile("material_authority_true_source"),
+                dark_detail_lift=100,
+                tone_contrast=50,
+            )
+
+            slots = material_authority_preview_texture_slots(texture_set, profile, enabled=False)
+
+            self.assertEqual(base_png, slots["base"].source_path)
+            self.assertNotIn("material_mask", slots)
+
+    def test_material_authority_preview_helper_gloss_bias_changes_material_mask(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            roughness_png = root / "Blade_roughness.png"
+            Image.new("RGBA", (4, 4), (96, 96, 96, 255)).save(roughness_png)
+            texture_set = ReplacementTextureSet(
+                "Blade",
+                slots={"roughness": ReplacementTextureSlot("Blade", "roughness", roughness_png)},
+            )
+            base_profile = get_complete_swap_material_profile("material_authority_detail_mask")
+            matte_profile = apply_global_gloss_reduction_to_profile(base_profile, 100)
+
+            base_mask = material_authority_preview_texture_slots(texture_set, base_profile)["material_mask"].source_path
+            matte_mask = material_authority_preview_texture_slots(texture_set, matte_profile)["material_mask"].source_path
+
+            self.assertNotEqual(base_mask, matte_mask)
+            self.assertNotEqual(base_mask.read_bytes(), matte_mask.read_bytes())
+
+    def test_material_authority_preview_helper_returns_detail_mask_support_slot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_png = root / "Blade_baseColor.png"
+            Image.new("RGBA", (4, 4), (64, 64, 64, 255)).save(base_png)
+            texture_set = ReplacementTextureSet(
+                "Blade",
+                slots={"base": ReplacementTextureSlot("Blade", "base", base_png)},
+            )
+            profile = apply_true_source_basic_controls_to_profile(
+                get_complete_swap_material_profile("material_authority_true_source"),
+                edge_relief_strength=100,
+                edge_relief_source="generate_source",
+            )
+
+            slots = material_authority_preview_texture_slots(texture_set, profile)
+
+            self.assertIn("detail_mask", slots)
+            self.assertEqual("detail_mask", slots["detail_mask"].slot_kind)
+            self.assertTrue(slots["detail_mask"].source_path.is_file())
 
     def test_edge_relief_generate_source_adds_height_and_detail_support(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1361,6 +1669,53 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertIn("_emissiveIntensity", patched)
         self.assertIn("5.500000", patched)
         self.assertTrue(any(mapping.slot_kind == "emissive" for mapping in report.slot_mappings))
+
+    def test_accent_glow_detects_saturated_factor_shell_parts(self) -> None:
+        texture_set = ReplacementTextureSet(
+            material_name="Outside",
+            base_color_factor=(0.0, 0.05, 1.0),
+            source_face_count=1648,
+        )
+        texture_set.slots["base"] = ReplacementTextureSlot(
+            material_name="Outside",
+            slot_kind="base",
+            source_path=Path("outside_base.png"),
+            source_authority="synthetic",
+            base_color_factor=(0.0, 0.05, 1.0),
+        )
+
+        self.assertTrue(_texture_set_is_accent_glow_candidate(texture_set, "cd_phm_02_sword_handle_0015"))
+
+        texture_set.source_face_count = 12000
+        self.assertFalse(_texture_set_is_accent_glow_candidate(texture_set, "cd_phm_02_sword_handle_0015"))
+
+    def test_source_part_glow_role_forces_accent_candidate(self) -> None:
+        texture_set = ReplacementTextureSet(
+            material_name="plain_panel",
+            base_color_factor=(0.35, 0.35, 0.35),
+            source_face_count=12000,
+        )
+        texture_sets = {"plain_panel": texture_set}
+        mesh = ParsedMesh(
+            submeshes=[
+                SubMesh(
+                    name="PartA",
+                    material="plain_panel",
+                    faces=[(0, 1, 2)] * 12000,
+                )
+            ]
+        )
+
+        self.assertFalse(_texture_set_is_accent_glow_candidate(texture_set, "cd_phm_02_sword_blade_0015"))
+
+        _apply_source_part_role_overrides(
+            texture_sets,
+            mesh,
+            [StaticSourcePartAdjustment(source_submesh_index=0, material_role="glow")],
+        )
+
+        self.assertIn("glow", texture_set.source_role_tags)
+        self.assertTrue(_texture_set_is_accent_glow_candidate(texture_set, "cd_phm_02_sword_blade_0015"))
 
     def test_emissive_factor_material_uses_base_factor_not_emissive_as_base(self) -> None:
         from PIL import Image
@@ -2319,6 +2674,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             "base_color_gamma": 0.72,
             "base_color_saturation": 0.77,
             "base_color_value_max": 210,
+            "base_color_auto_balance": 65,
             "emissive_color_scale": 0.22,
             "emissive_color_saturation": 0.33,
             "emissive_color_value_max": 99,

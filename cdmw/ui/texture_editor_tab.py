@@ -3565,18 +3565,33 @@ class TextureEditorTab(QWidget):
         self._store_active_session()
         self._save_settings()
 
-    def shutdown(self) -> None:
+    def iter_shutdown_workers(self) -> tuple[tuple[str, Optional[QThread], Optional[object]], ...]:
+        return (
+            ("task_thread", self._task_thread, self._task_worker),
+            ("ui_constraint_thread", self._ui_constraint_thread, self._ui_constraint_worker),
+        )
+
+    def request_shutdown(self) -> None:
         if self._task_worker is not None:
             self._task_worker.stop()
         if self._task_thread is not None:
+            try:
+                self._task_thread.requestInterruption()
+            except Exception:
+                pass
             self._task_thread.quit()
-            self._task_thread.wait(5000)
         if self._ui_constraint_worker is not None:
             self._ui_constraint_worker.stop()
         if self._ui_constraint_thread is not None:
+            try:
+                self._ui_constraint_thread.requestInterruption()
+            except Exception:
+                pass
             self._ui_constraint_thread.quit()
-            self._ui_constraint_thread.wait(2000)
         self.flush_settings_save()
+
+    def shutdown(self) -> None:
+        self.request_shutdown()
 
     def _default_shortcuts(self) -> Dict[str, str]:
         return {

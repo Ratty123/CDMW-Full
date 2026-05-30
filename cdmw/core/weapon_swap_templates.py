@@ -34,13 +34,62 @@ class WeaponSwapTemplate:
     advanced_only: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class WeaponSwapValidatedWeapon:
+    display_name: str
+    model_stem: str
+    sheath_stem: str = ""
+    note: str = ""
+
+
 TWOHAND_HIP_TILT_ROTATION: Tuple[float, float, float, float] = (0.0, 0.382683, 0.0, 0.923880)
 TWOHAND_HIP_TILT_TRANSLATION: Tuple[float, float, float] = (0.0, 0.0, -0.150000)
+TWOHAND_HORSE_BASELINE_PACKAGE = "all2h-as-1h motion-alias-v43-horse-spinefallbackhip-darkbringer-sheath-tilt45-5700"
+TWOHAND_HORSE_RELEASE_FIX_VARIANT = "heldattack-v51A-currentvanillapaac-hipsocket"
+TWOHAND_HORSE_PAAC_PATCH_NOTE = "v51A current original mounted 2H PAAC graph plus same-length hip socket retarget"
+TWOHAND_HORSE_PAAC_PATH = "actionchart/bin__/upperaction/1_pc/1_phm/ride_weapon_twohandsword_upper.paac"
+TWOHAND_HORSE_PAAC_BACK_SOCKET = b"Spine2_B_SubWeapon_Socket"
+TWOHAND_HORSE_PAAC_HIP_SOCKET = b"Pelvis_L_SubWeapon_Socket"
+TWOHAND_HORSE_FALLBACK_SOCKET_PARENT = "B_WeaponIn_R_00"
+TWOHAND_HORSE_FALLBACK_SOCKET_ROTATION: Tuple[float, float, float, float] = (0.0, 0.216440, 0.0, 0.976296)
+TWOHAND_HORSE_FALLBACK_SOCKET_TRANSLATION: Tuple[float, float, float] = (0.0, 0.0, 0.020000)
+TWOHAND_TESTED_V43_WEAPONS: Tuple[WeaponSwapValidatedWeapon, ...] = (
+    WeaponSwapValidatedWeapon(
+        "Darkbringer",
+        "cd_phm_02_sword_0015",
+        "cd_phm_02_sword_0015_in",
+        "Needs the v43 dedicated sheath socket sidecar.",
+    ),
+    WeaponSwapValidatedWeapon(
+        "Rhett's Longsword",
+        "cd_phm_02_sword_0009",
+        "cd_phm_02_sword_0001_in",
+        "Known item-index internal name: Rayhorn_TwoHandSword.",
+    ),
+    WeaponSwapValidatedWeapon(
+        "Vessel of Dark Pursuit",
+        "cd_phm_02_sword_0014",
+        "",
+        "Known item-index internal name: DarkLeader_TwoHandSword; confirm final display-name mapping if the item index changes.",
+    ),
+    WeaponSwapValidatedWeapon(
+        "Hwando",
+        "cd_phm_02_sword_0036",
+        "cd_phm_02_sword_0036_in",
+        "Known item-index internal name: Hwando_TwoHandSword.",
+    ),
+)
 
-DUAL_BACK_RIGHT_ROTATION: Tuple[float, float, float, float] = (0.178732, -0.707245, 0.659145, -0.182721)
-DUAL_BACK_CROSSED_LEFT_ROTATION: Tuple[float, float, float, float] = (-0.198836, -0.701858, 0.662197, 0.171331)
-DUAL_BACK_RIGHT_TRANSLATION: Tuple[float, float, float] = (-0.080000, -0.285000, 0.205000)
-DUAL_BACK_LEFT_TRANSLATION: Tuple[float, float, float] = (0.050000, -0.285000, 0.205000)
+DUAL_BACK_BASELINE_PACKAGE = "dual1h-back-cross-sheath-v27A-revpitch8-yminus050-v18shielddraw"
+DUAL_BACK_SHIELD_DRAW_PAA_SOURCE_PATH = "character/motion/1_pc/1_phm/cd_phm_longsword_00_01_normal_stand_weapon_out_000.paa"
+DUAL_BACK_SHIELD_DRAW_PAA_TARGET_PATH = "character/motion/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_weapon_out_004.paa"
+DUAL_BACK_SHIELD_DRAW_META_SOURCE_PATH = "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_dualsword_00_01_nor_stand_weapon_out_00.paa_metabin"
+DUAL_BACK_SHIELD_DRAW_META_TARGET_PATH = "actionchart/bin__/animmeta/1_pc/1_phm/cd_phm_sword_00_01_normal_stand_weapon_out_004.paa_metabin"
+DUAL_BACK_RIGHT_ROTATION: Tuple[float, float, float, float] = (0.191043, -0.659543, 0.706874, -0.169808)
+DUAL_BACK_CROSSED_LEFT_ROTATION: Tuple[float, float, float, float] = (-0.210303, -0.653956, 0.709543, 0.157044)
+# Learned from dual1h v27A: v23A crossed placement plus v18 shield draw PAA to avoid the dlsd attack-stance regression.
+DUAL_BACK_RIGHT_TRANSLATION: Tuple[float, float, float] = (-0.080000, -0.050000, 0.045000)
+DUAL_BACK_LEFT_TRANSLATION: Tuple[float, float, float] = (0.050000, -0.050000, 0.035000)
 DUAL_BACK_RIGHT_CHILD_ROTATION: Tuple[float, float, float, float] = (0.0, 1.0, 0.0, 0.0)
 DUAL_BACK_LEFT_CHILD_ROTATION: Tuple[float, float, float, float] = (0.0, -1.0, 0.0, 0.0)
 DUAL_BACK_CHILD_TRANSLATION: Tuple[float, float, float] = (0.0, 0.0, -0.360000)
@@ -54,25 +103,27 @@ _TEMPLATES: Tuple[WeaponSwapTemplate, ...] = (
     WeaponSwapTemplate(
         template_id="twohand_sword_hip_tilted",
         label="2H sword on hip, tilted",
-        description="Class-wide PHM 2H sword hip placement with the learned 45 degree weapon-child tilt.",
+        description="Class-wide PHM 2H sword hip placement with the learned 45 degree weapon-child tilt and v51A mounted PAAC socket fix.",
         supported_scopes=(WEAPON_SWAP_TEMPLATE_SELECTED_SCOPE, WEAPON_SWAP_TEMPLATE_CLASS_SCOPE),
         supported_weapon_classes=("twohand_sword",),
         socket_rows=(
             WeaponSwapSocketRow("Pelvis_L_ChildSocket", "B_Weapon_0001", TWOHAND_HIP_TILT_ROTATION, TWOHAND_HIP_TILT_TRANSLATION),
             WeaponSwapSocketRow("Pelvis_L_SubWeapon_ChildSocket", "B_Weapon_0001", TWOHAND_HIP_TILT_ROTATION, TWOHAND_HIP_TILT_TRANSLATION),
         ),
+        touches_paac=True,
         includes_motion_aliases=True,
     ),
     WeaponSwapTemplate(
         template_id="twohand_sword_placement_only",
         label="2H sword placement only",
-        description="Class-wide PHM 2H sword hip placement without behavior, combat, ItemInfo, or actionchart changes.",
+        description="Class-wide PHM 2H sword hip placement without motion aliases, ItemInfo, HKX, combat, model, texture, or icon changes.",
         supported_scopes=(WEAPON_SWAP_TEMPLATE_SELECTED_SCOPE, WEAPON_SWAP_TEMPLATE_CLASS_SCOPE),
         supported_weapon_classes=("twohand_sword",),
         socket_rows=(
             WeaponSwapSocketRow("Pelvis_L_ChildSocket", "B_Weapon_0001", TWOHAND_HIP_TILT_ROTATION, TWOHAND_HIP_TILT_TRANSLATION),
             WeaponSwapSocketRow("Pelvis_L_SubWeapon_ChildSocket", "B_Weapon_0001", TWOHAND_HIP_TILT_ROTATION, TWOHAND_HIP_TILT_TRANSLATION),
         ),
+        touches_paac=True,
     ),
     WeaponSwapTemplate(
         template_id="dual_onehand_back_crossed",
@@ -202,10 +253,12 @@ def weapon_swap_template_socket_rows(
         )
         if row.name in {"Spine2_R_Socket", "Spine2_L_Socket"}:
             side = -1.0 if row.name == "Spine2_R_Socket" else 1.0
+            # Dual back tests v12/v13 showed body socket Y controls height; weapon child Z also moves vertical.
+            # Keep body distance on body socket Z so close-body tests do not disturb learned height.
             translation = (
                 translation[0] + float(dual_center_delta) + (side * float(dual_spread_delta)),
-                translation[1] + float(dual_body_distance_delta),
-                translation[2] + float(dual_height_delta),
+                translation[1] + float(dual_height_delta),
+                translation[2] + float(dual_body_distance_delta),
             )
         row_rotation_delta = rotation_delta
         if row.name == "Spine2_L_Socket":
@@ -219,6 +272,58 @@ def weapon_swap_template_socket_rows(
             )
         )
     return tuple(rows)
+
+
+def twohand_sword_v43_character_socket_rows() -> Tuple[WeaponSwapSocketRow, ...]:
+    return (
+        WeaponSwapSocketRow(
+            "Spine2_B_SubWeapon_Socket",
+            TWOHAND_HORSE_FALLBACK_SOCKET_PARENT,
+            TWOHAND_HORSE_FALLBACK_SOCKET_ROTATION,
+            TWOHAND_HORSE_FALLBACK_SOCKET_TRANSLATION,
+        ),
+    )
+
+
+def twohand_sword_v43_weapon_socket_rows() -> Tuple[WeaponSwapSocketRow, ...]:
+    return (
+        WeaponSwapSocketRow(
+            "Spine2_B_SubWeapon_ChildSocket",
+            "B_Weapon_0001",
+            TWOHAND_HIP_TILT_ROTATION,
+            TWOHAND_HIP_TILT_TRANSLATION,
+        ),
+    )
+
+
+def twohand_sword_v43_socket_sidecar_paths() -> Tuple[str, ...]:
+    base = "character/descriptors/socketbonedata/1_pc/1_phm/weapon/2_twohandweapon"
+    paths = [
+        f"{base}/cd_phm_02_sword_0001.sockets.xml",
+        f"{base}/cd_phm_02_sword_0001_in.sockets.xml",
+    ]
+    for weapon in TWOHAND_TESTED_V43_WEAPONS:
+        if weapon.sheath_stem and weapon.sheath_stem != "cd_phm_02_sword_0001_in":
+            paths.append(f"{base}/{weapon.sheath_stem}.sockets.xml")
+    return tuple(dict.fromkeys(paths))
+
+
+def twohand_sword_v43_known_weapon_summary() -> str:
+    return "; ".join(
+        f"{weapon.display_name} ({weapon.model_stem}{', sheath ' + weapon.sheath_stem if weapon.sheath_stem else ''})"
+        for weapon in TWOHAND_TESTED_V43_WEAPONS
+    )
+
+
+def patch_twohand_horse_paac_socket_bytes(data: bytes) -> Tuple[bytes, int]:
+    """Apply the v51A mounted 2H fix: keep current PAAC graph, retarget only the socket bytes."""
+    payload = bytes(data or b"")
+    if len(TWOHAND_HORSE_PAAC_BACK_SOCKET) != len(TWOHAND_HORSE_PAAC_HIP_SOCKET):
+        raise ValueError("2H horse PAAC socket replacement must be same length.")
+    count = payload.count(TWOHAND_HORSE_PAAC_BACK_SOCKET)
+    if count <= 0:
+        return payload, 0
+    return payload.replace(TWOHAND_HORSE_PAAC_BACK_SOCKET, TWOHAND_HORSE_PAAC_HIP_SOCKET), count
 
 
 def weapon_swap_template_weapon_socket_rows(template_id: object) -> Tuple[WeaponSwapSocketRow, ...]:

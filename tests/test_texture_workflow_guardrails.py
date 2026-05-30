@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 from cdmw.constants import UPSCALE_BACKEND_NONE
 from cdmw.core.common import ProcessTimeoutExpired
-from cdmw.core.pipeline import rebuild_dds_files
-from cdmw.models import AppConfig, TextureRule, TextureWorkflowProfile
+from cdmw.core.pipeline import rebuild_dds_files, write_csv_log
+from cdmw.models import AppConfig, JobResult, TextureRule, TextureWorkflowProfile
 
 
 def _write_fake_png_header(path: Path, width: int, height: int) -> None:
@@ -81,6 +81,32 @@ def _config(original_root: Path, png_root: Path, output_root: Path, texconv: Pat
 
 
 class TextureWorkflowGuardrailTests(unittest.TestCase):
+    def test_csv_log_serializes_slotted_job_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_path = Path(temp_dir) / "build_log.csv"
+
+            write_csv_log(
+                log_path,
+                [
+                    JobResult(
+                        original_dds="source.dds",
+                        png="source.png",
+                        output_dir="out",
+                        width=64,
+                        height=32,
+                        original_mips=7,
+                        used_mips=8,
+                        texconv_format="BC1_UNORM",
+                        status="converted",
+                        note="ok",
+                    )
+                ],
+            )
+
+            text = log_path.read_text(encoding="utf-8")
+            self.assertIn("original_dds,png,output_dir,width,height", text)
+            self.assertIn("source.dds,source.png,out,64,32,7,8,BC1_UNORM,converted,ok", text)
+
     def test_rebuild_logs_elapsed_time_and_validates_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

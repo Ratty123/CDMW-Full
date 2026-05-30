@@ -3,8 +3,9 @@ from __future__ import annotations
 import ctypes
 import json
 import platform
+import tempfile
 from pathlib import Path
-from typing import Mapping, Optional
+from typing import Iterable, Mapping, Optional, Sequence
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QFrame, QWidget
@@ -18,6 +19,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
     _WM_COPYDATA = 0x004A
     _WM_COPYDATA_COMMAND = 0x43444D57
     _HOST_CLASS = "CDMWNativeD3D11PreviewWindow"
+    _MESH_EDIT_TRIANGLE_FILE_THRESHOLD = 512 * 1024
 
     def _host_hwnd(self) -> int:
         try:
@@ -94,6 +96,106 @@ class NativeD3D11PreviewHostFrame(QFrame):
         if status_file is not None:
             payload["status_file"] = str(Path(status_file))
         return self._send_host_json_command(payload)
+
+    def set_mesh_edit_state(
+        self,
+        *,
+        enabled: bool,
+        scope_mode: str = "all",
+        source_submesh_indices: Sequence[int] | None = None,
+        target_mode: str = "brush",
+        tool: str = "grab",
+        delete_mode: str = "release",
+        radius_pixels: float = 24.0,
+        strength: float = 0.5,
+        falloff: str = "smooth",
+        show_vertices: bool = True,
+        selection_mode: str = "brush",
+        selection_depth_mode: str = "visible",
+        smooth_iterations: int = 3,
+    ) -> bool:
+        return self._send_host_json_command(
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": bool(enabled),
+                "scope_mode": str(scope_mode or "all"),
+                "source_submesh_indices": [int(index) for index in tuple(source_submesh_indices or ())],
+                "target_mode": str(target_mode or "brush"),
+                "tool": str(tool or "grab"),
+                "delete_mode": str(delete_mode or "release"),
+                "radius_pixels": float(radius_pixels),
+                "strength": float(strength),
+                "falloff": str(falloff or "smooth"),
+                "show_vertices": bool(show_vertices),
+                "selection_mode": str(selection_mode or "brush"),
+                "selection_depth_mode": str(selection_depth_mode or "visible"),
+                "smooth_iterations": int(smooth_iterations or 3),
+            }
+        )
+
+    def update_mesh_edit_vertices(self, groups: Sequence[Mapping[str, object]]) -> bool:
+        return self._send_host_json_command({"command": "update_mesh_edit_vertices", "groups": list(groups or ())})
+
+    def replace_mesh_edit_triangles(self, groups: Sequence[Mapping[str, object]]) -> bool:
+        payload = {"command": "replace_mesh_edit_triangles", "groups": list(groups or ())}
+        try:
+            encoded = json.dumps(payload, separators=(",", ":"))
+        except (TypeError, ValueError):
+            return False
+        if len(encoded.encode("utf-8")) <= self._MESH_EDIT_TRIANGLE_FILE_THRESHOLD:
+            return self._send_host_json_command(payload)
+        temp_path: Optional[Path] = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                suffix=".json",
+                prefix="cdmw_mesh_edit_triangles_",
+                delete=False,
+            ) as temp_file:
+                temp_file.write(encoded)
+                temp_path = Path(temp_file.name)
+            ok = self._send_host_json_command(
+                {
+                    "command": "replace_mesh_edit_triangles_file",
+                    "payload_file": str(temp_path),
+                    "delete_after": True,
+                }
+            )
+            if not ok and temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+            return ok
+        except Exception:
+            if temp_path is not None:
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            return False
+
+    def set_mesh_edit_vertex_selection(self, selected_vertices_by_submesh: Mapping[int, Iterable[int]]) -> bool:
+        groups = []
+        for raw_source_index, raw_vertices in dict(selected_vertices_by_submesh or {}).items():
+            try:
+                source_index = int(raw_source_index)
+            except (TypeError, ValueError):
+                continue
+            vertices = []
+            for raw_vertex in tuple(raw_vertices or ()):
+                try:
+                    vertex_index = int(raw_vertex)
+                except (TypeError, ValueError):
+                    continue
+                if vertex_index >= 0:
+                    vertices.append(vertex_index)
+            if vertices:
+                groups.append(
+                    {
+                        "source_submesh_index": source_index,
+                        "source_vertex_indices": sorted(set(vertices)),
+                    }
+                )
+        return self._send_host_json_command({"command": "set_mesh_edit_selection", "groups": groups})
 
     def set_render_tuning(self, settings: object) -> bool:
         return self._send_host_json_command(

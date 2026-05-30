@@ -71,6 +71,7 @@ class ModelCatalogueTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / "model.glb").write_bytes(b"glb")
+            (root / "model.dae").write_text("<COLLADA />", encoding="utf-8")
             (root / "source.fbx").write_bytes(b"fbx")
             with zipfile.ZipFile(root / "packed.zip", "w") as zip_file:
                 zip_file.writestr("scene/model.gltf", "{}")
@@ -80,9 +81,11 @@ class ModelCatalogueTests(unittest.TestCase):
 
         by_name = {row.path.name: row for row in rows}
         self.assertIn("model.glb", by_name)
+        self.assertIn("model.dae", by_name)
         self.assertIn("source.fbx", by_name)
         self.assertIn("packed.zip", by_name)
         self.assertTrue(by_name["model.glb"].import_supported)
+        self.assertTrue(by_name["model.dae"].import_supported)
         self.assertTrue(by_name["packed.zip"].import_supported)
         self.assertFalse(by_name["source.fbx"].import_supported)
 
@@ -113,14 +116,19 @@ class ModelCatalogueTests(unittest.TestCase):
                 DEFAULT_MODEL_MIRROR_URL,
             )
 
+            def write_unsupported_source_zip(_url: str, output_path: Path, *, timeout: float) -> None:
+                with zipfile.ZipFile(output_path, "w") as zip_file:
+                    zip_file.writestr("source.fbx", b"fbx")
+
             with self.assertRaisesRegex(ValueError, "importable"):
-                download_mirror_model(
-                    record,
-                    mirror_url=DEFAULT_MODEL_MIRROR_URL,
-                    output_root=Path(temp_dir),
-                    preferred_format="source",
-                    require_importable=True,
-                )
+                with mock.patch("cdmw.core.model_catalogue._download_url_to_file", side_effect=write_unsupported_source_zip):
+                    download_mirror_model(
+                        record,
+                        mirror_url=DEFAULT_MODEL_MIRROR_URL,
+                        output_root=Path(temp_dir),
+                        preferred_format="source",
+                        require_importable=True,
+                    )
 
     def test_download_mirror_model_candidate_downloads_exact_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -151,6 +159,31 @@ class ModelCatalogueTests(unittest.TestCase):
             self.assertEqual(result.archive_path.name, "dddd.source.zip")
             self.assertTrue(result.archive_path.is_file())
             self.assertIsNone(result.import_path)
+
+    def test_source_zip_download_can_resolve_importable_dae(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            record = normalize_mirror_model_record(
+                {
+                    "uid": "eeee",
+                    "name": "DAE Source",
+                    "archives": {"source": {"size": 20}},
+                },
+                DEFAULT_MODEL_MIRROR_URL,
+            )
+            candidate = mirror_download_candidates(record, DEFAULT_MODEL_MIRROR_URL, preferred_format="source")[0]
+
+            def write_archive(_url: str, output_path: Path, *, timeout: float) -> None:
+                with zipfile.ZipFile(output_path, "w") as zip_file:
+                    zip_file.writestr("scene/model.dae", "<COLLADA />")
+
+            with mock.patch("cdmw.core.model_catalogue._download_url_to_file", side_effect=write_archive):
+                result = download_mirror_model_candidate(record, candidate, output_root=Path(temp_dir))
+
+            self.assertEqual(candidate.format, "source")
+            self.assertTrue(candidate.import_supported)
+            self.assertIsNotNone(result.import_path)
+            assert result.import_path is not None
+            self.assertEqual(result.import_path.suffix.lower(), ".dae")
 
     def test_search_catalogue_records_filters_license_creator_and_format(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

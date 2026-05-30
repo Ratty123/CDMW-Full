@@ -17,6 +17,7 @@ from cdmw.core.archive import (
     build_archive_entry_basename_index,
     build_archive_entry_extension_index,
     build_archive_entry_path_index,
+    build_archive_entry_role_index,
     build_archive_name_search_index,
     load_archive_basic_index_cache,
     load_archive_derived_index_cache,
@@ -155,6 +156,7 @@ class ArchiveCacheTests(unittest.TestCase):
         self.assertIn("build_archive_entry_path_index(entries)", accelerator)
         self.assertIn("build_archive_entry_basename_index(entries)", accelerator)
         self.assertIn("build_archive_entry_extension_index(entries)", accelerator)
+        self.assertIn("build_archive_entry_role_index(entries)", accelerator)
         self.assertIn("run_derived_index_job", native)
         self.assertIn('path_rows', native)
         self.assertIn('basename_rows', native)
@@ -401,6 +403,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 path_index=build_archive_entry_path_index(entries),
                 basename_index=build_archive_entry_basename_index(entries),
                 extension_index=build_archive_entry_extension_index(entries),
+                role_index=build_archive_entry_role_index(entries),
                 entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
                 entry_metadata_sources=scan_metadata.get("entry_metadata_sources") or (),
             )
@@ -431,6 +434,14 @@ class ArchiveCacheTests(unittest.TestCase):
                 sorted(entry.path for entry in payload["extension_index"][".pac"]),
                 ["character/model/a.pac"],
             )
+            self.assertEqual(
+                [entry.path for entry in payload["role_index"]["model"]],
+                ["character/model/a.pac"],
+            )
+            self.assertEqual(
+                [entry.path for entry in payload["role_index"]["texture"]],
+                ["character/texture/a.dds"],
+            )
 
     def test_basic_index_cache_rejects_stale_metadata_and_old_format(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -448,6 +459,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 path_index=build_archive_entry_path_index(entries),
                 basename_index=build_archive_entry_basename_index(entries),
                 extension_index=build_archive_entry_extension_index(entries),
+                role_index=build_archive_entry_role_index(entries),
                 entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
                 entry_metadata_sources=scan_metadata.get("entry_metadata_sources") or (),
             )
@@ -468,7 +480,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 resolve_archive_basic_index_cache_path(root, cache_root),
                 magic=_ARCHIVE_BASIC_INDEX_CACHE_MAGIC,
                 payload={
-                    "version": 0,
+                    "version": 1,
                     "entry_count": len(entries),
                     "path_rows": [("character/model/a.pac", (0,))],
                 },
@@ -566,6 +578,62 @@ class ArchiveCacheTests(unittest.TestCase):
                 current_sources=scan_metadata.get("entry_metadata_sources") or (),
             )
             self.assertIsNotNone((loaded or {}).get("name_search_index"))
+
+    def test_derived_index_cache_loads_name_search_rows_lazily(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("object/tools/cd_t0000_lantern_ring_0001.prefab", pamt, paz, data)]
+            name_index = build_archive_name_search_index(entries)
+            save_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                archive_name_search_index=name_index,
+            )
+
+            loaded = load_archive_derived_index_cache(root, cache_root, entries)
+            loaded_index = (loaded or {}).get("name_search_index")
+
+            self.assertIsNotNone(loaded_index)
+            lazy_rows = getattr(loaded_index, "token_rows", None)
+            self.assertEqual(getattr(lazy_rows, "decoded_token_count", -1), 0)
+            self.assertEqual(loaded_index.rows_for_token("lantern"), (0,))
+            self.assertGreaterEqual(getattr(lazy_rows, "decoded_token_count", 0), 1)
+
+    def test_lazy_name_search_index_resaves_without_decoding_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            second_cache_root = root / "cache_copy"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("object/tools/cd_t0000_lantern_ring_0001.prefab", pamt, paz, data)]
+            name_index = build_archive_name_search_index(entries)
+            save_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                archive_name_search_index=name_index,
+            )
+            loaded = load_archive_derived_index_cache(root, cache_root, entries)
+            loaded_index = (loaded or {}).get("name_search_index")
+            lazy_rows = getattr(loaded_index, "token_rows", None)
+            source_name_index_path = resolve_archive_name_search_index_cache_path(root, cache_root)
+
+            self.assertEqual(getattr(lazy_rows, "decoded_token_count", -1), 0)
+            save_archive_derived_index_cache(
+                root,
+                second_cache_root,
+                entries,
+                archive_name_search_index=loaded_index,
+            )
+
+            copied_name_index_path = resolve_archive_name_search_index_cache_path(root, second_cache_root)
+            self.assertEqual(getattr(lazy_rows, "decoded_token_count", -1), 0)
+            self.assertEqual(copied_name_index_path.read_bytes(), source_name_index_path.read_bytes())
 
     def test_old_derived_index_cache_missing_compact_metadata_rebuilds_without_source_walk(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

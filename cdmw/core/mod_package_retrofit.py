@@ -50,6 +50,12 @@ _IGNORED_ROOT_FILENAMES = {
 }
 _IGNORED_SUFFIXES = {".zip", ".7z", ".rar", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 _MESH_SUFFIXES = {".pac", ".pam", ".pamlod", ".pac_xml", ".pam_xml", ".pamlod_xml", ".pami"}
+_JMM_DESCRIPTOR_ALIAS_PAIRS = (
+    (
+        "character/phm_description_player_kliff.xml",
+        "character/descriptors/characterdescription/phm_description_player_kliff.xml",
+    ),
+)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -184,6 +190,7 @@ def retrofit_mod_package(
     new_file_paths = [mapping.target_path for mapping in repair_summary.mappings if mapping.is_new]
     source_to_target = {mapping.source_path.casefold(): mapping.target_path for mapping in repair_summary.mappings}
     if normalized_profile == "jmm":
+        _add_jmm_descriptor_alias_payloads(package_root, copied_payload_paths, new_file_paths)
         mod_json_path = _write_jmm_mod_json(package_root, package, copied_payload_paths, new_file_paths)
         zip_path = _write_retrofit_package_zip(package_root)
         return ModPackageRetrofitResult(
@@ -837,6 +844,48 @@ def _copy_payloads(
             seen.add(key)
             copied.append(target_normalized)
     return copied
+
+
+def _add_jmm_descriptor_alias_payloads(
+    package_root: Path,
+    payload_paths: list[str],
+    new_file_paths: list[str],
+) -> None:
+    payload_keys = {normalize_mod_package_payload_path(path).as_posix().strip("/").casefold() for path in payload_paths}
+    new_path_keys = {
+        normalize_mod_package_payload_path(path).as_posix().strip("/").casefold()
+        for path in new_file_paths
+    }
+    for left, right in _JMM_DESCRIPTOR_ALIAS_PAIRS:
+        left_key = left.casefold()
+        right_key = right.casefold()
+        left_is_payload = left_key in payload_keys
+        right_is_payload = right_key in payload_keys
+        if left_is_payload and right_is_payload:
+            if left_key in new_path_keys and right_key not in new_path_keys:
+                new_file_paths.append(right)
+                new_path_keys.add(right_key)
+            if right_key in new_path_keys and left_key not in new_path_keys:
+                new_file_paths.append(left)
+                new_path_keys.add(left_key)
+            continue
+        if left_is_payload and not right_is_payload:
+            source_rel, target_rel, target_key = left, right, right_key
+        elif right_is_payload and not left_is_payload:
+            source_rel, target_rel, target_key = right, left, left_key
+        else:
+            continue
+        source_path = package_root.joinpath(*PurePosixPath(source_rel).parts)
+        if not source_path.is_file():
+            continue
+        target_path = package_root.joinpath(*PurePosixPath(target_rel).parts)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, target_path)
+        payload_paths.append(target_rel)
+        payload_keys.add(target_key)
+        if target_key not in new_path_keys:
+            new_file_paths.append(target_rel)
+            new_path_keys.add(target_key)
 
 
 def _copy_payloads_from_zip(

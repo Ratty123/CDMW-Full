@@ -330,7 +330,7 @@ def mirror_download_candidates(
     if "glb" in archives or not has_known_archives or record.get("glb_url"):
         add("glb", "GLB", str(record.get("glb_url") or f"{stem_url}.glb"), f"{uid}.glb", True)
     if "source" in archives or record.get("source_url"):
-        add("source", "Original source ZIP", str(record.get("source_url") or f"{stem_url}.source.zip"), f"{uid}.source.zip", False)
+        add("source", "Original source ZIP", str(record.get("source_url") or f"{stem_url}.source.zip"), f"{uid}.source.zip", True)
     if "extra" in archives or record.get("extra_url"):
         add("extra", "Extra archive", str(record.get("extra_url") or f"{stem_url}.extra.zip"), f"{uid}.extra.zip", False)
 
@@ -355,15 +355,18 @@ def download_mirror_model(
     if require_importable:
         candidate = next((item for item in candidates if item.import_supported), None)
         if candidate is None:
-            raise ValueError("Selected mirror model does not expose an importable glTF or GLB archive.")
+            raise ValueError("Selected mirror model does not expose an importable model archive.")
     else:
         candidate = candidates[0]
-    return download_mirror_model_candidate(
+    result = download_mirror_model_candidate(
         record,
         candidate,
         output_root=output_root,
         timeout=timeout,
     )
+    if require_importable and result.import_path is None:
+        raise ValueError("Downloaded archive does not contain an importable OBJ, DAE, glTF, GLB, or local mesh source.")
+    return result
 
 
 def download_mirror_model_candidate(
@@ -385,8 +388,9 @@ def download_mirror_model_candidate(
     import_path: Optional[Path] = None
     if candidate.format == "glb":
         import_path = archive_path
-    elif candidate.format == "gltf":
-        import_path = resolve_importable_model_path(archive_path, extract_root=asset_dir / "gltf")
+    elif candidate.format in {"gltf", "source"}:
+        extract_name = "gltf" if candidate.format == "gltf" else "source"
+        import_path = resolve_importable_model_path(archive_path, extract_root=asset_dir / extract_name)
     return MirrorDownloadResult(
         record=record,
         candidate=candidate,

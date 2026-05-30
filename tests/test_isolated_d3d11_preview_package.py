@@ -536,7 +536,8 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertIn("material category:metal", notes)
             self.assertIn("direct DDS slots:base", notes)
             self.assertIn("unresolved material channel maps:", notes)
-            self.assertIn("packed material map skipped", " ".join(batch["notes"]))
+            self.assertIn("direct DDS slots:base,material", notes)
+            self.assertNotIn("packed material map skipped", notes)
 
     def test_prefer_direct_dds_skips_preview_png_fallbacks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1820,6 +1821,25 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("package_load_start", source)
         self.assertIn("upload_batches", source)
         self.assertIn("first_frame", source)
+        reload_success_block = source[
+            source.index("if (reset_view_state) {")
+            : source.index('cdmw_native_diag::event(\n            "package_loaded"', source.index("if (reset_view_state) {"))
+        ]
+        self.assertIn('\\"stage\\":\\"first_frame\\"', reload_success_block)
+        self.assertIn("request_render();", reload_success_block)
+        self.assertNotIn("loaded_payload(stats_)", reload_success_block)
+        startup_success_block = source[
+            source.index("if (!renderer.initialize()) {")
+            : source.index("MSG msg{}", source.index("if (!renderer.initialize()) {"))
+        ]
+        self.assertIn('\\"stage\\":\\"first_frame\\"', startup_success_block)
+        self.assertIn("renderer.request_render();", startup_success_block)
+        self.assertNotIn("loaded_payload(stats)", startup_success_block)
+        render_block = source[
+            source.index("void render() {") : source.index("bool process_pending_commands", source.index("void render() {"))
+        ]
+        self.assertIn("swap_chain_->Present(1, 0);", render_block)
+        self.assertIn("write_status(args_.status_file, loaded_payload(stats_));", render_block)
         self.assertIn("native_unhandled_exception", Path("native/common/native_diagnostics.h").read_text(encoding="utf-8"))
         self.assertIn('if (contains_text(descriptor, "gloss") || contains_text(descriptor, "smoothness")) score -= 220;', source)
 

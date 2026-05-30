@@ -255,9 +255,24 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("Path lookup will build after the archive list opens.", run_body)
         self.assertIn("load_archive_basic_index_cache(", run_body)
         self.assertIn("save_archive_basic_index_cache(", run_body)
-        self.assertIn('"basic_index_needs_build": bool(entries and not path_index)', run_body)
+        self.assertIn('"basic_index_needs_build": bool(', run_body)
+        self.assertIn("role_index", run_body)
         self.assertIn('"enhanced_index_needs_build": enhanced_index_needs_build', run_body)
         self.assertIn("save_archive_derived_index_cache(", scan_body)
+
+    def test_filter_worker_prefilters_candidates_from_basic_indexes(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        filter_start = source.index("    class ArchiveFilterWorker")
+        filter_end = source.index("    class BuildWorker", filter_start)
+        filter_body = source[filter_start:filter_end]
+
+        self.assertIn("entries_by_role", filter_body)
+        self.assertIn("def _candidate_entries_for_filter", filter_body)
+        self.assertIn("extension:{normalized_extension}", filter_body)
+        self.assertIn("role:{normalized_role}", filter_body)
+        self.assertIn("min(candidates, key=lambda item: len(item[1]))", filter_body)
+        self.assertIn("Archive filter candidate set |", filter_body)
+        self.assertIn("fallback_reason", filter_body)
 
     def test_no_filter_flat_initial_state_reuses_raw_entries(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
@@ -350,6 +365,25 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("Archive Preview auto-refresh paused while Mesh Replacement Builder is open", source)
         self.assertNotIn("archive_model_preview_darkmode_button", source)
         self.assertNotIn("Preview Window Darkmode", source)
+
+    def test_mesh_editor_strips_duplicate_d3d11_preview_payloads(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        strip_start = source.index("        def _strip_archive_preview_heavy_payloads_for_mesh_editor")
+        strip_body = source[strip_start: source.index("        def _trim_archive_preview_cache", strip_start)]
+        memory_start = source.index("        def _archive_memory_audit_payload")
+        memory_body = source[memory_start: source.index("        def _record_archive_memory_audit", memory_start)]
+
+        self.assertIn("archive_preview_cache_prepared_bytes", memory_body)
+        self.assertIn("archive_preview_current_prepared_bytes", memory_body)
+        self.assertIn("memory_total_private_bytes", memory_body)
+        self.assertIn("self._clone_archive_preview_result_for_cache(", strip_body)
+        self.assertIn("keep_prepared_model=False", strip_body)
+        self.assertIn("same_current_entry", strip_body)
+        self.assertIn("self._same_archive_entry(current_entry, entry)", strip_body)
+        self.assertIn("self._shutdown_archive_isolated_renderer_host()", strip_body)
+        self.assertIn('"mesh_editor_archive_preview_payloads_stripped"', strip_body)
+        self.assertIn("reclaimed_prepared_bytes", strip_body)
+        self.assertIn("self._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)", source)
 
     def test_settings_expose_performance_page_and_new_fields(self) -> None:
         source = Path("cdmw/ui/settings_tab.py").read_text(encoding="utf-8")

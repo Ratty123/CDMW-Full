@@ -1027,7 +1027,7 @@ class ModelLibraryTab(QWidget):
     def _selected_preferred_formats(self, *, require_importable: bool = False, allow_empty: bool = False) -> list[str]:
         selected = self._checked_preferred_formats()
         if require_importable:
-            selected = [format_key for format_key in selected if format_key in {"gltf", "glb"}]
+            selected = [format_key for format_key in selected if format_key in {"gltf", "glb", "source"}]
         if not selected and not allow_empty:
             selected = ["gltf"]
         return selected
@@ -1784,8 +1784,8 @@ class ModelLibraryTab(QWidget):
         if not selected_formats:
             self._set_status("Select at least one preferred file type to download.", error=True)
             return
-        if require_importable and not any(format_key in {"gltf", "glb"} for format_key in selected_formats):
-            self._set_status("Select glTF ZIP or GLB under Preferred files before preview/import.", error=True)
+        if require_importable and not any(format_key in {"gltf", "glb", "source"} for format_key in selected_formats):
+            self._set_status("Select glTF ZIP, GLB, or Original source ZIP under Preferred files before preview/import.", error=True)
             return
         payloads_by_uid = {str(payload.get("uid", "") or ""): payload for payload in payloads}
         candidate_jobs: list[tuple[dict[str, object], MirrorDownloadCandidate]] = []
@@ -1800,7 +1800,7 @@ class ModelLibraryTab(QWidget):
             uid = str(payload.get("uid", "") or "")
             if not candidates:
                 if require_importable:
-                    unavailable_results.append((uid, None, "Selected model does not expose a glTF ZIP or GLB file."))
+                    unavailable_results.append((uid, None, "Selected model does not expose an importable model archive."))
                 else:
                     unavailable_results.append((uid, None, "Selected file types are not available for this model."))
                 continue
@@ -1891,11 +1891,11 @@ class ModelLibraryTab(QWidget):
                     None,
                 )
                 if importable_success is None:
-                    self._set_status("Downloaded archive does not contain an importable glTF/GLB model.", error=True)
+                    self._set_status("Downloaded archive does not contain an importable OBJ/DAE/glTF/GLB model.", error=True)
                     return
                 payload, download_result = importable_success
                 if download_result.import_path is None or not is_importable_model_path(download_result.import_path):
-                    self._set_status("Downloaded archive does not contain an importable glTF/GLB model.", error=True)
+                    self._set_status("Downloaded archive does not contain an importable OBJ/DAE/glTF/GLB model.", error=True)
                     return
                 if import_after:
                     self._set_status(f"Downloaded and extracted model; opening import setup from {download_result.import_path}.")

@@ -46,6 +46,7 @@ class ReplacementTextureSlot:
     base_color_gamma: float = 1.0
     base_color_saturation: float = 1.0
     base_color_value_max: int = 255
+    base_color_auto_balance: int = 0
     base_color_shadow_lift: int = 0
     base_color_tone_contrast: float = 0.0
 
@@ -58,6 +59,7 @@ class ReplacementTextureSet:
     roughness_factor: Optional[float] = None
     metallic_factor: Optional[float] = None
     base_color_factor: Optional[tuple[float, float, float]] = None
+    source_role_tags: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -178,6 +180,7 @@ class CDMaterialRuntimeProfile:
     base_color_gamma: Optional[float] = None
     base_color_saturation: Optional[float] = None
     base_color_value_max: Optional[int] = None
+    base_color_auto_balance: int = 0
     base_color_shadow_lift: int = 0
     base_color_tone_contrast: float = 0.0
     emissive_color_scale: Optional[float] = None
@@ -217,6 +220,7 @@ _MANUAL_PROFILE_FIELD_NAMES = (
     "base_color_gamma",
     "base_color_saturation",
     "base_color_value_max",
+    "base_color_auto_balance",
     "emissive_color_scale",
     "emissive_color_saturation",
     "emissive_color_value_max",
@@ -458,6 +462,7 @@ def _manual_material_profile_from_payload(payload: Mapping[str, object]) -> CDMa
         "alpha_default",
         "base_color_lift",
         "base_color_value_max",
+        "base_color_auto_balance",
         "base_color_shadow_lift",
         "emissive_color_value_max",
         "roughness_min",
@@ -804,11 +809,11 @@ def normalize_global_gloss_reduction(value: object) -> float:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
         return 0.0
-    if number <= 0.0:
+    if number == 0.0:
         return 0.0
-    if number <= 1.0:
+    if -1.0 <= number <= 1.0:
         number *= 100.0
-    return max(0.0, min(100.0, number))
+    return max(-100.0, min(100.0, number))
 
 
 def normalize_basic_control_percent(value: object) -> float:
@@ -925,10 +930,77 @@ def apply_global_gloss_reduction_to_profile(
     material_profile: CDMaterialRuntimeProfile,
     reduction: object,
 ) -> CDMaterialRuntimeProfile:
-    percent = normalize_global_gloss_reduction(reduction)
-    if percent <= 0.0:
+    bias = normalize_global_gloss_reduction(reduction)
+    if bias == 0.0:
         return material_profile
-    strength = percent / 100.0
+    strength = abs(bias) / 100.0
+
+    if bias < 0.0:
+        if _profile_uses_cd_smoothness_mask_response(material_profile):
+            gloss_mode = _profile_gloss_reduction_mode(material_profile)
+            if gloss_mode == "source_roughness_high":
+                scratch_roughness = float(
+                    material_profile.scratch_roughness if material_profile.scratch_roughness is not None else 1.0
+                )
+                shine_scalar = float(material_profile.shine_scalar if material_profile.shine_scalar is not None else 0.0)
+                return replace(
+                    material_profile,
+                    global_gloss_reduction=bias,
+                    roughness_default=_blend_byte_value(material_profile.roughness_default, 48, strength, 255),
+                    roughness_min=_blend_byte_value(material_profile.roughness_min, 0, strength, 240),
+                    roughness_scale=max(0.0, _blend_float_value(material_profile.roughness_scale, 0.65, strength, 1.0)),
+                    roughness_max=_blend_byte_value(material_profile.roughness_max, 128, strength, 255),
+                    scratch_roughness=max(0.0, min(1.0, _blend_float_value(scratch_roughness, 0.18, strength, 1.0))),
+                    scratch_metallic=material_profile.scratch_metallic,
+                    shine_scalar=max(0.0, min(1.0, _blend_float_value(shine_scalar, 0.55, strength, 0.0))),
+                    force_nonmetal=False,
+                )
+            if gloss_mode == "cd_smoothness_low_preserve_metal":
+                scratch_smoothness = float(
+                    material_profile.scratch_roughness if material_profile.scratch_roughness is not None else 0.125
+                )
+                shine_scalar = float(material_profile.shine_scalar if material_profile.shine_scalar is not None else 0.0)
+                return replace(
+                    material_profile,
+                    global_gloss_reduction=bias,
+                    roughness_default=_blend_byte_value(material_profile.roughness_default, 255, strength, 32),
+                    roughness_min=_blend_byte_value(material_profile.roughness_min, 224, strength, 0),
+                    roughness_scale=max(0.0, _blend_float_value(material_profile.roughness_scale, 1.0, strength, 1.0)),
+                    roughness_max=_blend_byte_value(material_profile.roughness_max, 255, strength, 32),
+                    scratch_roughness=max(0.0, min(1.0, _blend_float_value(scratch_smoothness, 0.85, strength, 0.125))),
+                    scratch_metallic=material_profile.scratch_metallic,
+                    shine_scalar=max(0.0, min(1.0, _blend_float_value(shine_scalar, 0.45, strength, 0.0))),
+                    force_nonmetal=False,
+                )
+            scratch_roughness = float(material_profile.scratch_roughness if material_profile.scratch_roughness is not None else 0.50)
+            scratch_metallic = float(material_profile.scratch_metallic if material_profile.scratch_metallic is not None else 0.0)
+            shine_scalar = float(material_profile.shine_scalar if material_profile.shine_scalar is not None else 0.0)
+            return replace(
+                material_profile,
+                global_gloss_reduction=bias,
+                roughness_default=_blend_byte_value(material_profile.roughness_default, 255, strength, 192),
+                roughness_min=_blend_byte_value(material_profile.roughness_min, 224, strength, material_profile.roughness_default),
+                roughness_scale=max(0.0, _blend_float_value(material_profile.roughness_scale, 1.0, strength, 1.0)),
+                roughness_max=_blend_byte_value(material_profile.roughness_max, 255, strength, 255),
+                scratch_roughness=max(0.0, min(1.0, _blend_float_value(scratch_roughness, 0.85, strength, 0.50))),
+                scratch_metallic=max(0.0, min(1.0, _blend_float_value(scratch_metallic, 0.35, strength, 0.0))),
+                shine_scalar=max(0.0, min(1.0, _blend_float_value(shine_scalar, 0.45, strength, 0.0))),
+                force_nonmetal=False,
+            )
+
+        scratch_roughness = float(material_profile.scratch_roughness if material_profile.scratch_roughness is not None else 1.0)
+        scratch_metallic = float(material_profile.scratch_metallic if material_profile.scratch_metallic is not None else 0.0)
+        shine_scalar = float(material_profile.shine_scalar if material_profile.shine_scalar is not None else 0.0)
+        return replace(
+            material_profile,
+            global_gloss_reduction=bias,
+            scratch_roughness=max(0.0, min(1.0, _blend_float_value(scratch_roughness, 0.20, strength, 1.0))),
+            scratch_metallic=max(0.0, min(1.0, _blend_float_value(scratch_metallic, 0.35, strength, 0.0))),
+            shine_scalar=max(0.0, min(1.0, _blend_float_value(shine_scalar, 0.45, strength, 0.0))),
+            force_nonmetal=False,
+        )
+
+    percent = bias
 
     if _profile_uses_cd_smoothness_mask_response(material_profile):
         gloss_mode = _profile_gloss_reduction_mode(material_profile)
@@ -1021,12 +1093,16 @@ def apply_true_source_basic_controls_to_profile(
     edge_relief_strength: object = 0.0,
     edge_relief_source: object = "hybrid",
     accent_glow_strength: object = 0.0,
+    auto_brightness_balance: object = 0.0,
     dark_detail_lift: object = 0.0,
     tone_contrast: object = 0.0,
 ) -> CDMaterialRuntimeProfile:
     profile = apply_global_gloss_reduction_to_profile(material_profile, gloss_reduction)
     edge_strength = normalize_basic_control_percent(edge_relief_strength)
     updates: dict[str, object] = {}
+    auto_balance_strength = normalize_basic_control_percent(auto_brightness_balance)
+    if auto_balance_strength > 0.0:
+        updates["base_color_auto_balance"] = int(round(auto_balance_strength))
     brightness_strength = normalize_basic_control_percent(dark_detail_lift)
     if brightness_strength > 0.0:
         strength = brightness_strength / 100.0
@@ -1034,6 +1110,9 @@ def apply_true_source_basic_controls_to_profile(
         current_gamma = _profile_base_color_gamma(profile)
         updates["base_color_shadow_lift"] = max(current_shadow_lift, int(round(brightness_strength)))
         updates["base_color_gamma"] = min(current_gamma, 1.0 - (0.18 * strength))
+    tone_strength = normalize_tone_contrast(tone_contrast)
+    if abs(tone_strength) > 0.0001:
+        updates["base_color_tone_contrast"] = tone_strength
     if edge_strength > 0.0:
         source_mode = normalize_edge_relief_source(edge_relief_source)
         updates["edge_relief_strength"] = edge_strength
@@ -1092,6 +1171,7 @@ def complete_swap_material_profile_to_dict(profile: CDMaterialRuntimeProfile) ->
         "base_color_gamma": profile.base_color_gamma,
         "base_color_saturation": profile.base_color_saturation,
         "base_color_value_max": profile.base_color_value_max,
+        "base_color_auto_balance": int(profile.base_color_auto_balance),
         "base_color_shadow_lift": int(profile.base_color_shadow_lift),
         "base_color_tone_contrast": float(profile.base_color_tone_contrast),
         "emissive_color_scale": profile.emissive_color_scale,
@@ -1196,6 +1276,7 @@ def complete_swap_material_probe_manifest(
             "base_color_gamma": profile.base_color_gamma,
             "base_color_saturation": profile.base_color_saturation,
             "base_color_value_max": profile.base_color_value_max,
+            "base_color_auto_balance": int(profile.base_color_auto_balance),
             "base_color_shadow_lift": int(profile.base_color_shadow_lift),
             "base_color_tone_contrast": float(profile.base_color_tone_contrast),
             "emissive_color_scale": profile.emissive_color_scale,
@@ -1641,6 +1722,7 @@ def build_texture_replacement_payloads(
     enable_missing_base_color_parameters: bool = False,
     texture_slot_overrides: Sequence[object] = (),
     source_material_texture_overrides: Sequence[object] = (),
+    source_part_adjustments: Sequence[object] = (),
     donor_material_plans: Sequence[object] = (),
     texture_output_size_mode: str = "source",
     pac_driven_sidecar: bool = False,
@@ -1651,6 +1733,7 @@ def build_texture_replacement_payloads(
     complete_swap_edge_relief_strength: float = 0.0,
     complete_swap_edge_relief_source: str = "hybrid",
     complete_swap_accent_glow_strength: float = 0.0,
+    complete_swap_auto_brightness_balance: float = 0.0,
     complete_swap_dark_detail_lift: float = 0.0,
     complete_swap_tone_contrast: float = 0.0,
     removed_target_material_names: Sequence[str] = (),
@@ -1668,6 +1751,7 @@ def build_texture_replacement_payloads(
         edge_relief_strength=complete_swap_edge_relief_strength,
         edge_relief_source=complete_swap_edge_relief_source,
         accent_glow_strength=complete_swap_accent_glow_strength,
+        auto_brightness_balance=complete_swap_auto_brightness_balance,
         dark_detail_lift=complete_swap_dark_detail_lift,
         tone_contrast=complete_swap_tone_contrast,
     )
@@ -1685,9 +1769,39 @@ def build_texture_replacement_payloads(
             report,
             f"Complete swap material profile: {material_profile.name} ({material_profile.label}).",
         )
-        if gloss_reduction > 0.0:
+        if gloss_reduction != 0.0:
+            gloss_strength = abs(gloss_reduction)
             gloss_mode = _profile_gloss_reduction_mode(material_profile)
-            if gloss_mode == "source_roughness_high":
+            if gloss_reduction < 0.0:
+                if gloss_mode == "source_roughness_high":
+                    gloss_summary = (
+                        f"Global gloss boost applied: {gloss_strength:.0f}%; generated source roughness is lowered "
+                        "and compatible shine/scalar response is increased for source-owned wrappers."
+                    )
+                    gloss_channels = (
+                        "Global gloss boost channels: generated material-mask/detail roughness is driven lower, "
+                        "source metalness is preserved, and XML _scratchRoughness/_sheen plus compatible shine/scalar slots are patched when present."
+                    )
+                elif gloss_mode == "cd_smoothness_low_preserve_metal":
+                    gloss_summary = (
+                        f"Global gloss boost applied: {gloss_strength:.0f}%; CD smoothness/gloss response is raised "
+                        "while source metalness is preserved for source-owned wrappers."
+                    )
+                    gloss_channels = (
+                        "Global gloss boost channels: _colorBlendingMaskTexture G is driven smoothness-high, "
+                        "B source metalness is preserved, and XML _scratchRoughness/_sheen plus compatible gloss/smoothness scalars are patched when present."
+                    )
+                else:
+                    gloss_summary = (
+                        f"Global gloss boost applied: {gloss_strength:.0f}%; CD gloss/smoothness mask response "
+                        "and compatible shine scalars are increased for source-owned wrappers."
+                    )
+                    gloss_channels = (
+                        "Global gloss boost channels: _colorBlendingMaskTexture G is driven gloss/high for CD gloss response, "
+                        "B/A metallic-spec response is preserved, and XML _scratchRoughness/_scratchMetallic/_sheen "
+                        "plus compatible gloss/smoothness/spec scalars are patched when present."
+                    )
+            elif gloss_mode == "source_roughness_high":
                 gloss_summary = (
                     f"Global gloss reduction applied: {gloss_reduction:.0f}%; source roughness floor raised "
                     "while source metalness is preserved for source-owned wrappers."
@@ -1726,7 +1840,7 @@ def build_texture_replacement_payloads(
             if _profile_is_runtime_xml(material_profile) or _profile_mask_binding_mode(material_profile) == "disabled":
                 _warn_once(
                     report,
-                    "Global gloss reduction had limited effect for some wrappers because Runtime XML preserves stock material layers unless compatible scalar slots are patched.",
+                    "Global gloss/matte bias had limited effect for some wrappers because Runtime XML preserves stock material layers unless compatible scalar slots are patched.",
                 )
         if normalize_basic_control_percent(complete_swap_edge_relief_strength) > 0.0:
             _warn_once(
@@ -1742,6 +1856,13 @@ def build_texture_replacement_payloads(
                 "Source brightness control applied: "
                 f"{normalize_basic_control_percent(complete_swap_dark_detail_lift):.0f}%; "
                 "source base DDS shadows and midtones will be lifted before export.",
+            )
+        if normalize_basic_control_percent(complete_swap_auto_brightness_balance) > 0.0:
+            _warn_once(
+                report,
+                "Auto brightness balance applied: "
+                f"{normalize_basic_control_percent(complete_swap_auto_brightness_balance):.0f}%; "
+                "source base DDS exposure will be nudged toward a stable midrange before export.",
             )
     texture_sets = {texture_set.material_name.lower(): texture_set for texture_set in report.texture_sets}
     _apply_source_material_texture_overrides(
@@ -1778,6 +1899,7 @@ def build_texture_replacement_payloads(
 
     if texture_sets:
         _attach_source_face_counts(texture_sets, obj_mesh)
+        _apply_source_part_role_overrides(texture_sets, obj_mesh, source_part_adjustments)
         if complete_external_material_reset and output_draw_sections:
             target_to_source_material = _choose_source_materials_for_output_draw_sections(
                 obj_mesh,
@@ -1818,6 +1940,7 @@ def build_texture_replacement_payloads(
                 complete_swap_edge_relief_strength=complete_swap_edge_relief_strength,
                 complete_swap_edge_relief_source=complete_swap_edge_relief_source,
                 complete_swap_accent_glow_strength=complete_swap_accent_glow_strength,
+                complete_swap_auto_brightness_balance=complete_swap_auto_brightness_balance,
                 complete_swap_dark_detail_lift=complete_swap_dark_detail_lift,
                 complete_swap_tone_contrast=complete_swap_tone_contrast,
                 removed_target_material_names=removed_target_material_names,
@@ -2179,6 +2302,7 @@ def _build_rebuilt_pac_driven_payloads(
     complete_swap_edge_relief_strength: float = 0.0,
     complete_swap_edge_relief_source: str = "hybrid",
     complete_swap_accent_glow_strength: float = 0.0,
+    complete_swap_auto_brightness_balance: float = 0.0,
     complete_swap_dark_detail_lift: float = 0.0,
     complete_swap_tone_contrast: float = 0.0,
     removed_target_material_names: Sequence[str] = (),
@@ -2203,6 +2327,7 @@ def _build_rebuilt_pac_driven_payloads(
         edge_relief_strength=complete_swap_edge_relief_strength,
         edge_relief_source=complete_swap_edge_relief_source,
         accent_glow_strength=complete_swap_accent_glow_strength,
+        auto_brightness_balance=complete_swap_auto_brightness_balance,
         dark_detail_lift=complete_swap_dark_detail_lift,
         tone_contrast=complete_swap_tone_contrast,
     )
@@ -2249,6 +2374,7 @@ def _build_rebuilt_pac_driven_payloads(
             complete_swap_edge_relief_strength=complete_swap_edge_relief_strength,
             complete_swap_edge_relief_source=complete_swap_edge_relief_source,
             complete_swap_accent_glow_strength=complete_swap_accent_glow_strength,
+            complete_swap_auto_brightness_balance=complete_swap_auto_brightness_balance,
             complete_swap_dark_detail_lift=complete_swap_dark_detail_lift,
             complete_swap_tone_contrast=complete_swap_tone_contrast,
             removed_target_material_names=removed_target_material_names,
@@ -2585,6 +2711,7 @@ def _build_source_driven_pac_material_payloads(
     complete_swap_edge_relief_strength: float = 0.0,
     complete_swap_edge_relief_source: str = "hybrid",
     complete_swap_accent_glow_strength: float = 0.0,
+    complete_swap_auto_brightness_balance: float = 0.0,
     complete_swap_dark_detail_lift: float = 0.0,
     complete_swap_tone_contrast: float = 0.0,
     removed_target_material_names: Sequence[str] = (),
@@ -2602,6 +2729,7 @@ def _build_source_driven_pac_material_payloads(
         edge_relief_strength=complete_swap_edge_relief_strength,
         edge_relief_source=complete_swap_edge_relief_source,
         accent_glow_strength=complete_swap_accent_glow_strength,
+        auto_brightness_balance=complete_swap_auto_brightness_balance,
         dark_detail_lift=complete_swap_dark_detail_lift,
         tone_contrast=complete_swap_tone_contrast,
     )
@@ -3712,6 +3840,7 @@ def _source_driven_slots(
         gamma = _profile_base_color_gamma(profile)
         saturation = _profile_base_color_saturation(profile)
         value_max = _profile_optional_byte(profile, "base_color_value_max")
+        auto_balance = int(max(0, min(100, int(getattr(profile, "base_color_auto_balance", 0) or 0))))
         shadow_lift = int(max(0, min(100, int(getattr(profile, "base_color_shadow_lift", 0) or 0))))
         tone_contrast = normalize_tone_contrast(getattr(profile, "base_color_tone_contrast", 0.0))
         if (
@@ -3720,6 +3849,7 @@ def _source_driven_slots(
             and abs(gamma - 1.0) <= 0.0001
             and abs(saturation - 1.0) <= 0.0001
             and value_max is None
+            and auto_balance <= 0
             and shadow_lift <= 0
             and abs(tone_contrast) <= 0.0001
         ):
@@ -3731,6 +3861,7 @@ def _source_driven_slots(
             base_color_gamma=gamma,
             base_color_saturation=saturation,
             base_color_value_max=value_max if value_max is not None else 255,
+            base_color_auto_balance=auto_balance,
             base_color_shadow_lift=shadow_lift,
             base_color_tone_contrast=tone_contrast,
         )
@@ -4471,16 +4602,24 @@ def _complete_swap_runtime_material_mask_png_path(
         maximum=_profile_optional_byte(material_profile, "metallic_max"),
     )
     gloss_reduction = _profile_global_gloss_reduction(material_profile)
-    if gloss_reduction > 0.0 and _profile_uses_cd_smoothness_mask_response(material_profile):
-        strength = gloss_reduction / 100.0
+    if gloss_reduction != 0.0 and _profile_uses_cd_smoothness_mask_response(material_profile):
+        strength = abs(gloss_reduction) / 100.0
         gloss_mode = _profile_gloss_reduction_mode(material_profile)
-        if gloss_mode == "source_roughness_high":
-            roughness = _blend_grayscale_channel_toward(roughness, 255, strength)
-        elif gloss_mode == "cd_smoothness_low_preserve_metal":
-            roughness = _blend_grayscale_channel_toward(roughness, 32, strength)
+        if gloss_reduction < 0.0:
+            if gloss_mode == "source_roughness_high":
+                roughness = _blend_grayscale_channel_toward(roughness, 24, strength)
+            elif gloss_mode == "cd_smoothness_low_preserve_metal":
+                roughness = _blend_grayscale_channel_toward(roughness, 255, strength)
+            else:
+                roughness = _blend_grayscale_channel_toward(roughness, 255, strength)
         else:
-            roughness = _blend_grayscale_channel_toward(roughness, 32, strength)
-            metallic = _blend_grayscale_channel_toward(metallic, 0, strength)
+            if gloss_mode == "source_roughness_high":
+                roughness = _blend_grayscale_channel_toward(roughness, 255, strength)
+            elif gloss_mode == "cd_smoothness_low_preserve_metal":
+                roughness = _blend_grayscale_channel_toward(roughness, 32, strength)
+            else:
+                roughness = _blend_grayscale_channel_toward(roughness, 32, strength)
+                metallic = _blend_grayscale_channel_toward(metallic, 0, strength)
     Image.merge(
         "RGBA",
         _material_mask_rgba_from_roles(
@@ -4805,6 +4944,14 @@ _ACCENT_GLOW_TOKENS = {
     "rune",
 }
 
+_ACCENT_GLOW_FACTOR_SHELL_TOKENS = {
+    "inside",
+    "inner",
+    "outside",
+    "outer",
+    "shell",
+}
+
 
 def _complete_swap_accent_emissive_slot(
     texture_set: ReplacementTextureSet,
@@ -4849,6 +4996,12 @@ def _complete_swap_accent_emissive_slot(
 
 
 def _texture_set_is_accent_glow_candidate(texture_set: ReplacementTextureSet, target_name: str) -> bool:
+    role_tags = {
+        _normalized_source_part_material_role(tag)
+        for tag in tuple(getattr(texture_set, "source_role_tags", ()) or ())
+    }
+    if role_tags & {"glow"}:
+        return True
     text_parts = [
         str(texture_set.material_name or ""),
         str(target_name or ""),
@@ -4863,7 +5016,33 @@ def _texture_set_is_accent_glow_candidate(texture_set: ReplacementTextureSet, ta
         if token
     }
     compact = _sanitize_texture_component(" ".join(text_parts))
-    return bool(tokens.intersection(_ACCENT_GLOW_TOKENS) or any(token in compact for token in _ACCENT_GLOW_TOKENS))
+    if tokens.intersection(_ACCENT_GLOW_TOKENS) or any(token in compact for token in _ACCENT_GLOW_TOKENS):
+        return True
+    return _texture_set_is_saturated_factor_shell_accent(texture_set, tokens)
+
+
+def _texture_set_is_saturated_factor_shell_accent(
+    texture_set: ReplacementTextureSet,
+    tokens: set[str],
+) -> bool:
+    if not (tokens & _ACCENT_GLOW_FACTOR_SHELL_TOKENS):
+        return False
+    face_count = int(getattr(texture_set, "source_face_count", 0) or 0)
+    if face_count <= 0 or face_count > 6000:
+        return False
+    base_slot = (getattr(texture_set, "slots", {}) or {}).get("base")
+    if base_slot is not None and _source_slot_is_real_texture(base_slot):
+        return False
+    color = tuple(getattr(texture_set, "base_color_factor", ()) or ())
+    if len(color) < 3:
+        return False
+    try:
+        rgb = tuple(max(0.0, min(1.0, float(component))) for component in color[:3])
+    except (TypeError, ValueError, OverflowError):
+        return False
+    strongest = max(rgb)
+    weakest = min(rgb)
+    return strongest >= 0.45 and (strongest - weakest) >= 0.35
 
 
 def _texture_set_accent_glow_color_hex(
@@ -7919,6 +8098,54 @@ def _attach_source_face_counts(texture_sets: Mapping[str, ReplacementTextureSet]
             texture_set.source_face_count += len(submesh.faces)
 
 
+def _normalized_source_part_material_role(raw_role: object) -> str:
+    value = str(raw_role or "").strip().lower().replace("_", " ").replace("-", " ")
+    if not value:
+        return ""
+    tokens = {token for token in re.split(r"[^a-z0-9]+", value) if token}
+    if tokens & {"glow", "emissive", "emission", "accent"}:
+        return "glow"
+    if tokens & {"blade"}:
+        return "blade"
+    if tokens & {"handle", "grip"}:
+        return "handle"
+    if tokens & {"guard", "crossguard"}:
+        return "guard"
+    if tokens & {"cloth", "fabric"}:
+        return "cloth"
+    return value.replace(" ", "/")
+
+
+def _apply_source_part_role_overrides(
+    texture_sets: Mapping[str, ReplacementTextureSet],
+    obj_mesh: ParsedMesh,
+    source_part_adjustments: Sequence[object],
+) -> None:
+    if not texture_sets or not source_part_adjustments:
+        return
+    submeshes = tuple(getattr(obj_mesh, "submeshes", ()) or ())
+    for adjustment in tuple(source_part_adjustments or ()):
+        role = _normalized_source_part_material_role(getattr(adjustment, "material_role", ""))
+        if not role:
+            continue
+        try:
+            source_index = int(getattr(adjustment, "source_submesh_index"))
+        except (TypeError, ValueError):
+            continue
+        if source_index < 0 or source_index >= len(submeshes):
+            continue
+        submesh = submeshes[source_index]
+        material_key = str(getattr(submesh, "material", "") or getattr(submesh, "name", "") or "").strip().lower()
+        texture_set = texture_sets.get(material_key)
+        if texture_set is None:
+            texture_set = _texture_set_for_source_texture_reference(submesh, texture_sets)
+        if texture_set is None:
+            continue
+        existing = tuple(str(tag or "").strip().lower() for tag in (texture_set.source_role_tags or ()) if str(tag or "").strip())
+        if role not in existing:
+            texture_set.source_role_tags = (*existing, role)
+
+
 def _choose_source_materials_for_targets(
     obj_mesh: ParsedMesh,
     texture_sets: Mapping[str, ReplacementTextureSet],
@@ -10725,6 +10952,7 @@ def _source_slot_needs_base_color_adjustment(source_slot: ReplacementTextureSlot
         gamma = max(0.1, min(4.0, float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0)))
         saturation = max(0.0, min(4.0, float(getattr(source_slot, "base_color_saturation", 1.0) or 1.0)))
         value_max = max(0, min(255, int(getattr(source_slot, "base_color_value_max", 255) or 255)))
+        auto_balance = max(0, min(100, int(getattr(source_slot, "base_color_auto_balance", 0) or 0)))
         shadow_lift = max(0, min(100, int(getattr(source_slot, "base_color_shadow_lift", 0) or 0)))
         tone_contrast = normalize_tone_contrast(getattr(source_slot, "base_color_tone_contrast", 0.0))
     except (TypeError, ValueError, OverflowError):
@@ -10735,9 +10963,41 @@ def _source_slot_needs_base_color_adjustment(source_slot: ReplacementTextureSlot
         or abs(gamma - 1.0) > 0.0001
         or abs(saturation - 1.0) > 0.0001
         or value_max < 255
+        or auto_balance > 0
         or shadow_lift > 0
         or abs(tone_contrast) > 0.0001
     )
+
+
+def _auto_balance_source_base_rgb(rgb: object, alpha: object, strength_percent: int) -> object:
+    strength = max(0.0, min(1.0, float(strength_percent or 0) / 100.0))
+    if strength <= 0.0:
+        return rgb
+    from PIL import ImageEnhance, ImageStat
+
+    sample_rgb = rgb
+    sample_alpha = alpha
+    width, height = getattr(sample_rgb, "size", (0, 0))
+    max_dimension = max(int(width or 0), int(height or 0))
+    if max_dimension > 96:
+        scale = 96.0 / float(max_dimension)
+        sample_size = (max(1, int(round(float(width) * scale))), max(1, int(round(float(height) * scale))))
+        sample_rgb = sample_rgb.resize(sample_size)
+        sample_alpha = sample_alpha.resize(sample_size)
+    luma = sample_rgb.convert("L")
+    alpha_mask = sample_alpha.point(lambda value: 255 if int(value) >= 24 else 0)
+    visible = ImageStat.Stat(luma, mask=alpha_mask).mean
+    if not visible:
+        return rgb
+    mean_luma = float(visible[0])
+    if 96.0 <= mean_luma <= 158.0:
+        return rgb
+    target_luma = 116.0 if mean_luma < 96.0 else 138.0
+    correction = (target_luma / max(1.0, mean_luma)) ** strength
+    correction = max(0.68, min(1.42, correction))
+    if abs(correction - 1.0) <= 0.015:
+        return rgb
+    return ImageEnhance.Brightness(rgb).enhance(correction)
 
 
 def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTextureSlot) -> Path:
@@ -10751,6 +11011,7 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
     gamma = max(0.1, min(4.0, float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0)))
     saturation = max(0.0, min(4.0, float(getattr(source_slot, "base_color_saturation", 1.0) or 1.0)))
     value_max = max(0, min(255, int(getattr(source_slot, "base_color_value_max", 255) or 255)))
+    auto_balance = max(0, min(100, int(getattr(source_slot, "base_color_auto_balance", 0) or 0)))
     shadow_lift = max(0, min(100, int(getattr(source_slot, "base_color_shadow_lift", 0) or 0)))
     tone_contrast = normalize_tone_contrast(getattr(source_slot, "base_color_tone_contrast", 0.0))
     source_path = source_slot.source_path
@@ -10759,12 +11020,12 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
         fingerprint = (
             f"{source_path}|{stat.st_mtime_ns}|{stat.st_size}|{factor}|"
             f"{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}|"
-            f"{shadow_lift}|{tone_contrast:.6f}"
+            f"{auto_balance}|{shadow_lift}|{tone_contrast:.6f}"
         )
     except OSError:
         fingerprint = (
             f"{source_path}|{factor}|{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}|"
-            f"{shadow_lift}|{tone_contrast:.6f}"
+            f"{auto_balance}|{shadow_lift}|{tone_contrast:.6f}"
         )
     digest = hashlib.sha1(fingerprint.encode("utf-8", errors="ignore")).hexdigest()[:12]
     root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
@@ -10793,6 +11054,9 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
         if abs(saturation - 1.0) > 0.0001:
             rgb = Image.merge("RGB", (r, g, b))
             rgb = ImageEnhance.Color(rgb).enhance(saturation)
+            r, g, b = rgb.split()
+        if auto_balance > 0:
+            rgb = _auto_balance_source_base_rgb(Image.merge("RGB", (r, g, b)), a, auto_balance)
             r, g, b = rgb.split()
         if shadow_lift > 0:
             rgb = Image.merge("RGB", (r, g, b))
@@ -10830,6 +11094,53 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
             b = b.point(lambda value: min(value_max, int(value)))
         Image.merge("RGBA", (r, g, b, a)).save(path)
     return path
+
+
+def material_authority_preview_texture_slots(
+    texture_set: ReplacementTextureSet,
+    material_profile: Optional[CDMaterialRuntimeProfile] = None,
+    *,
+    enabled: bool = True,
+) -> dict[str, ReplacementTextureSlot]:
+    preview_slots: dict[str, ReplacementTextureSlot] = {
+        str(slot_name or "").strip().lower(): slot
+        for slot_name, slot in (getattr(texture_set, "slots", {}) or {}).items()
+        if str(slot_name or "").strip()
+    }
+    if not enabled:
+        return preview_slots
+
+    profile = material_profile or get_complete_swap_material_profile()
+
+    def adjusted_slot(source_slot: ReplacementTextureSlot) -> ReplacementTextureSlot:
+        slot_kind = str(getattr(source_slot, "slot_kind", "") or "").strip().lower()
+        if slot_kind not in {"base", "emissive"}:
+            return source_slot
+        try:
+            preview_path = _source_slot_png_with_base_color_factor_path(source_slot)
+        except Exception:
+            return source_slot
+        if preview_path == source_slot.source_path:
+            return source_slot
+        return replace(source_slot, source_path=preview_path)
+
+    for source_slot in _source_driven_slots(
+        texture_set,
+        include_pbr_material_fallback=True,
+        include_complete_support_fallbacks=True,
+        material_profile=profile,
+    ):
+        slot_kind = str(getattr(source_slot, "slot_kind", "") or "").strip().lower()
+        if slot_kind:
+            preview_slots[slot_kind] = adjusted_slot(source_slot)
+
+    preview_slots["material_mask"] = ReplacementTextureSlot(
+        str(getattr(texture_set, "material_name", "") or "material"),
+        "material_mask",
+        _complete_swap_runtime_material_mask_png_path(texture_set, profile),
+        source_authority="synthetic",
+    )
+    return preview_slots
 
 
 def _dds_format_is_bc1(dds_format: str) -> bool:
