@@ -198,7 +198,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn('self._log_archive_browser_render_stage("model_reset"', source)
         self.assertIn("if self._archive_browser_render_is_ready():", refresh_body)
         self.assertIn("self.archive_browser_refresh_pending = False", refresh_body)
-        self.assertIn("skipped=population_active", refresh_body)
+        self.assertNotIn("skipped=population_active", refresh_body)
         self.assertIn("pending_refresh=start", refresh_body)
 
     def test_startup_splash_waits_for_archive_first_paint(self) -> None:
@@ -339,14 +339,14 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("preview_scheme = self._current_preview_color_scheme()", source)
         self.assertIn("self.archive_picker_preview_details_edit.set_theme(self.current_theme_key)", source)
 
-    def test_archive_browser_clear_and_expansion_are_progressive(self) -> None:
+    def test_archive_browser_uses_virtual_model_not_legacy_tree_population(self) -> None:
         source = _read("cdmw/ui/main_window.py")
-        self.assertIn("def _begin_archive_tree_clear(self, on_complete: Callable[[], None]) -> bool:", source)
-        self.assertIn("self.archive_tree_clear_timer.setInterval(12)", source)
-        self.assertIn("def _continue_archive_tree_clear(self) -> None:", source)
-        self.assertIn("self.archive_tree.takeTopLevelItem(0)", source)
-        self.assertIn("clear_children: bool = True", source)
-        self.assertIn("clear_children=False", source)
+        self.assertIn("def _populate_archive_virtual_tree(", source)
+        self.assertIn("self.archive_tree.set_archive_state(", source)
+        self.assertNotIn("def _begin_archive_tree_clear(", source)
+        self.assertNotIn("self.archive_tree_clear_timer.setInterval(12)", source)
+        self.assertNotIn("def _continue_archive_tree_clear(self) -> None:", source)
+        self.assertNotIn("self.archive_tree.takeTopLevelItem(0)", source)
 
     def test_archive_ready_avoids_ui_thread_full_archive_scans(self) -> None:
         source = _read("cdmw/ui/main_window.py")

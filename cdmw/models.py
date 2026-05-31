@@ -1708,7 +1708,6 @@ class ModelPreviewRenderSettings:
 @dataclass(slots=True)
 class ArchivePerformanceSettings:
     resource_profile: str = "balanced_60fps"
-    archive_view_backend: str = "virtual_model"
     ui_frame_budget_ms: int = 12
     archive_fetch_batch_size: int = 0
     background_worker_limit: int = 0
@@ -1736,9 +1735,6 @@ def clamp_archive_performance_settings(
     resource_profile = str(getattr(current, "resource_profile", "balanced_60fps") or "balanced_60fps")
     if resource_profile not in {"balanced_60fps", "maximum_throughput", "quiet_laptop"}:
         resource_profile = "balanced_60fps"
-    archive_view_backend = str(getattr(current, "archive_view_backend", "virtual_model") or "virtual_model")
-    if archive_view_backend not in {"virtual_model", "legacy_widget"}:
-        archive_view_backend = "virtual_model"
     native_preview_cache_mode = str(getattr(current, "native_preview_cache_mode", "balanced") or "balanced").strip().lower()
     if native_preview_cache_mode not in {"off", "balanced", "aggressive"}:
         native_preview_cache_mode = "balanced"
@@ -1756,7 +1752,6 @@ def clamp_archive_performance_settings(
         background_worker_limit = 0
     return ArchivePerformanceSettings(
         resource_profile=resource_profile,
-        archive_view_backend=archive_view_backend,
         ui_frame_budget_ms=max(4, min(16, ui_frame_budget_ms)),
         archive_fetch_batch_size=max(0, min(5000, archive_fetch_batch_size)),
         background_worker_limit=max(0, min(16, background_worker_limit)),

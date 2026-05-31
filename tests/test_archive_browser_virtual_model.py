@@ -163,7 +163,6 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         settings = clamp_archive_performance_settings(
             ArchivePerformanceSettings(
                 resource_profile="bad",
-                archive_view_backend="bad",
                 ui_frame_budget_ms=99,
                 archive_fetch_batch_size=99999,
                 background_worker_limit=999,
@@ -172,7 +171,6 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
             )
         )
         self.assertEqual(settings.resource_profile, "balanced_60fps")
-        self.assertEqual(settings.archive_view_backend, "virtual_model")
         self.assertEqual(settings.ui_frame_budget_ms, 16)
         self.assertEqual(settings.archive_fetch_batch_size, 5000)
         self.assertEqual(settings.background_worker_limit, 16)

@@ -103,14 +103,6 @@ try {
         Push-Location native\cd_hkx
         try { cargo test } finally { Pop-Location }
     }
-    Invoke-NativeStep "cd_texture cargo fmt" {
-        Push-Location native\cd_texture
-        try { cargo fmt --check } finally { Pop-Location }
-    }
-    Invoke-NativeStep "cd_texture cargo test" {
-        Push-Location native\cd_texture
-        try { cargo test } finally { Pop-Location }
-    }
     Invoke-NativeStep "PyInstaller QA build" {
         & $pythonExe -m PyInstaller --noconfirm --clean --log-level WARN --distpath build\qa-dist --workpath build\qa-work CrimsonDesertModWorkbench.spec
     }

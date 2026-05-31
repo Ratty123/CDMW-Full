@@ -884,7 +884,6 @@ class ModelPreviewSettingsDialog(QDialog):
         return clamp_archive_performance_settings(
             ArchivePerformanceSettings(
                 resource_profile=base.resource_profile,
-                archive_view_backend=base.archive_view_backend,
                 ui_frame_budget_ms=base.ui_frame_budget_ms,
                 archive_fetch_batch_size=base.archive_fetch_batch_size,
                 background_worker_limit=base.background_worker_limit,

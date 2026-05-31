@@ -77,6 +77,11 @@ class RuntimeDependencySourceGuardTests(unittest.TestCase):
         self.assertIn("BuildProfile", source)
         self.assertIn("CDMW_PYINSTALLER_MODE", source)
         self.assertIn("CDMW_PYINSTALLER_PROFILE", source)
+        self.assertIn("$nativeBuildArgs = @{ Configuration = $nativeConfig }", source)
+        self.assertIn('if ($BuildProfile -ne "fast")', source)
+        self.assertIn("$nativeBuildArgs.Clean = $true", source)
+        self.assertIn("Assert-CleanPythonSitePackages", source)
+        self.assertIn("* - Copy*", source)
         self.assertNotIn('"--collect-all", "numpy"', source)
         self.assertNotIn('$pyInstallerArgs += "cdmw_app.py"', source)
 

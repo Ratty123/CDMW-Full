@@ -4605,6 +4605,11 @@ def run_gui() -> int:
                 if durable_native is not None:
                     self._emit_preview_payload(durable_native)
                     return
+                native_attempt: Optional[NativePreviewCoreAttempt] = None
+                if self._native_preview_core_supported_for_entry():
+                    native_attempt = self._try_native_preview_core()
+                    if self._emit_native_preview_core_attempt(native_attempt, timings):
+                        return
                 cached_fast = self._cached_preview_payload(self.fast_preview_cache_key, source="preview_cache_fast")
                 if cached_fast is not None:
                     self._emit_preview_payload(cached_fast)
@@ -4628,20 +4633,9 @@ def run_gui() -> int:
                     )
                     if not self.stop_event.is_set():
                         self.completed.emit(self.request_id, fast_payload)
-                native_attempt = self._try_native_preview_core()
-                if native_attempt is not None:
-                    timings["native_preview_core_s"] = max(0.0, float(native_attempt.elapsed_ms) / 1000.0)
-                    if native_attempt.succeeded:
-                        timings["progressive_full_s"] = timings["native_preview_core_s"]
-                        payload = self._native_preview_core_result(native_attempt, timings)
-                        if not self.stop_event.is_set():
-                            self.completed.emit(self.request_id, payload)
-                        return
-                    if self.native_preview_core_enabled:
-                        timings["progressive_full_s"] = timings["native_preview_core_s"]
-                        payload = self._native_preview_core_failure_result(native_attempt, timings)
-                        if not self.stop_event.is_set():
-                            self.completed.emit(self.request_id, payload)
+                if native_attempt is None:
+                    native_attempt = self._try_native_preview_core()
+                    if self._emit_native_preview_core_attempt(native_attempt, timings):
                         return
                 payload = self._build_archive_preview_payload(quality_tier="full", render_settings=self.render_settings)
                 if native_attempt is not None:
@@ -4673,7 +4667,36 @@ def run_gui() -> int:
         def _should_emit_progressive_fast_preview(self) -> bool:
             if self.entry is None or self.include_loose_preview_assets:
                 return False
+            if self._native_preview_core_supported_for_entry():
+                return False
             return str(getattr(self.entry, "extension", "") or "").strip().lower() in {".pac", ".pam", ".pamlod"}
+
+        def _native_preview_core_supported_for_entry(self) -> bool:
+            if self.entry is None or self.include_loose_preview_assets or not self.native_preview_core_enabled:
+                return False
+            return str(getattr(self.entry, "extension", "") or "").strip().lower() in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
+
+        def _emit_native_preview_core_attempt(
+            self,
+            native_attempt: Optional[NativePreviewCoreAttempt],
+            timings: Dict[str, float],
+        ) -> bool:
+            if native_attempt is None:
+                return False
+            timings["native_preview_core_s"] = max(0.0, float(native_attempt.elapsed_ms) / 1000.0)
+            if native_attempt.succeeded:
+                timings["progressive_full_s"] = timings["native_preview_core_s"]
+                payload = self._native_preview_core_result(native_attempt, timings)
+                if not self.stop_event.is_set():
+                    self.completed.emit(self.request_id, payload)
+                return True
+            if self.native_preview_core_enabled:
+                timings["progressive_full_s"] = timings["native_preview_core_s"]
+                payload = self._native_preview_core_failure_result(native_attempt, timings)
+                if not self.stop_event.is_set():
+                    self.completed.emit(self.request_id, payload)
+                return True
+            return False
 
         def _emit_preview_payload(self, payload: _ArchivePreviewWorkerPayload) -> None:
             if self.stop_event.is_set():
@@ -5003,7 +5026,10 @@ def run_gui() -> int:
                 return None
             cache_root = self.native_preview_core_cache_root
             if cache_root is None:
-                return None
+                return NativePreviewCoreAttempt(
+                    status="error",
+                    fallback_reason="native preview-core cache root unavailable",
+                )
             cache_mode = str(self.native_preview_package_cache_mode or "off").strip().lower()
             durable_cache_enabled = (
                 cache_mode in {"balanced", "aggressive"}
@@ -6398,34 +6424,8 @@ def run_gui() -> int:
             self.archive_tree_folder_entry_indexes: Dict[Tuple[str, ...], List[int]] = {}
             self.archive_tree_folder_preview_stats: Dict[Tuple[str, ...], Tuple[int, int, int]] = {}
             self.archive_tree_category_entry_indexes: Dict[str, List[int]] = {}
-            self.archive_tree_items_by_folder_key: Dict[Tuple[str, ...], QTreeWidgetItem] = {}
             self.archive_tree_index_ready = False
-            self.archive_tree_clear_active = False
-            self.archive_tree_clear_total_items = 0
-            self.archive_tree_clear_removed_items = 0
-            self.archive_tree_clear_batch_size = 0
-            self.archive_tree_clear_time_budget_ms = 10.0
-            self.archive_tree_population_active = False
-            self.archive_tree_population_next_index = 0
-            self.archive_tree_population_preferred_path = ""
-            self.archive_tree_population_target_item: Optional[QTreeWidgetItem] = None
-            self.archive_tree_population_default_batch_size = 360
-            self.archive_tree_population_batch_size = self.archive_tree_population_default_batch_size
-            self.archive_tree_population_continue_batch_size = 160
-            self.archive_tree_population_render_total = 0
             self.archive_tree_flat_render_limit = 5_000
-            self.archive_tree_category_render_limit = 5_000
-            self.archive_tree_category_population_active = False
-            self.archive_tree_category_population_item: Optional[QTreeWidgetItem] = None
-            self.archive_tree_category_population_indexes: Tuple[int, ...] = ()
-            self.archive_tree_category_population_next_index = 0
-            self.archive_tree_category_population_render_total = 0
-            self.archive_tree_category_population_total_entries = 0
-            self.archive_tree_category_population_category = ""
-            self.archive_tree_population_time_budget_ms = 6.0
-            self.archive_tree_population_last_progress_update = 0.0
-            self._archive_tree_clear_on_complete: Optional[Callable[[], None]] = None
-            self._archive_tree_population_on_complete: Optional[Callable[[], None]] = None
             self.archive_browser_warmup_pending = False
             self.archive_browser_warmup_completion_text = ""
             self.archive_preview_loading_started_at = 0.0
@@ -6481,18 +6481,6 @@ def run_gui() -> int:
             self.archive_texture_reference_update_timer.setSingleShot(True)
             self.archive_texture_reference_update_timer.setInterval(16)
             self.archive_texture_reference_update_timer.timeout.connect(self._flush_archive_texture_reference_update)
-            self.archive_tree_population_timer = QTimer(self)
-            self.archive_tree_population_timer.setSingleShot(True)
-            self.archive_tree_population_timer.setInterval(12)
-            self.archive_tree_population_timer.timeout.connect(self._continue_archive_tree_population)
-            self.archive_tree_category_population_timer = QTimer(self)
-            self.archive_tree_category_population_timer.setSingleShot(True)
-            self.archive_tree_category_population_timer.setInterval(12)
-            self.archive_tree_category_population_timer.timeout.connect(self._continue_archive_category_population)
-            self.archive_tree_clear_timer = QTimer(self)
-            self.archive_tree_clear_timer.setSingleShot(True)
-            self.archive_tree_clear_timer.setInterval(12)
-            self.archive_tree_clear_timer.timeout.connect(self._continue_archive_tree_clear)
             self.archive_item_icon_preload_timer = QTimer(self)
             self.archive_item_icon_preload_timer.setSingleShot(True)
             self.archive_item_icon_preload_timer.setInterval(0)
@@ -9328,7 +9316,6 @@ def run_gui() -> int:
             self.archive_browser_view_mode_combo.currentIndexChanged.connect(self._handle_archive_browser_view_mode_changed)
             self.archive_tree.currentItemChanged.connect(self._handle_archive_current_item_change)
             self.archive_tree.itemSelectionChanged.connect(self._schedule_archive_selection_state_update)
-            self.archive_tree.itemExpanded.connect(self._handle_archive_item_expanded)
             self.archive_tree.customContextMenuRequested.connect(self._show_archive_tree_context_menu)
             self.archive_preview_zoom_fit_button.clicked.connect(self._set_archive_preview_fit_mode)
             self.archive_preview_zoom_100_button.clicked.connect(lambda: self._set_archive_preview_zoom_factor(1.0))
@@ -13346,8 +13333,6 @@ def run_gui() -> int:
         def _schedule_column_autofit(self) -> None:
             if self._shutting_down:
                 return
-            if self.archive_tree_population_active or self.archive_tree_category_population_active:
-                return
             self._column_autofit_timer.start()
 
         def _fit_tree_columns(
@@ -14465,7 +14450,6 @@ def run_gui() -> int:
                 if on_complete is not None:
                     QTimer.singleShot(0, on_complete)
                 return
-            self._cancel_archive_tree_population()
             self.archive_browser_preload_state = "rendering"
             self.archive_browser_render_signature = ()
             self.archive_browser_render_started_at = time.perf_counter()
@@ -14564,12 +14548,6 @@ def run_gui() -> int:
                 self.archive_browser_refresh_pending = False
                 self.append_archive_log(
                     f"Archive Browser activation timing | cause={reason} | skipped=ready",
-                    verbose=True,
-                )
-                return
-            if self.archive_tree_population_active or self.archive_tree_category_population_active:
-                self.append_archive_log(
-                    f"Archive Browser activation timing | cause={reason} | skipped=population_active",
                     verbose=True,
                 )
                 return
@@ -16728,7 +16706,6 @@ def run_gui() -> int:
                     pass
 
         def scan_archives(self, force_refresh: bool = False, *, activate_archive_tab: bool = True) -> None:
-            self._cancel_archive_tree_population()
             self._archive_scan_progress_timer.stop()
             self._archive_scan_progress_pending = None
             self._mark_archive_browser_render_stale()
@@ -17283,7 +17260,6 @@ def run_gui() -> int:
             )
             self.archive_tree_index_ready = bool(browser_state.get("tree_index_ready", True))
             self._rebuild_archive_extension_filter_choices()
-            self.archive_tree_items_by_folder_key = {}
             self.archive_filtered_dds_count = int(browser_state.get("dds_count", 0))
             self.archive_filters_dirty = False
             self._update_archive_filter_button_state()
@@ -18264,9 +18240,6 @@ def run_gui() -> int:
                 and bool(self.archive_browser_render_signature)
                 and self.archive_browser_render_signature == self._current_archive_browser_render_signature()
                 and not self.archive_filters_dirty
-                and not self.archive_tree_population_active
-                and not self.archive_tree_category_population_active
-                and not self.archive_tree_clear_active
             )
 
         def _mark_archive_browser_render_stale(self) -> None:
@@ -18425,12 +18398,7 @@ def run_gui() -> int:
                     self.append_archive_log("Filters will apply when archive lookup indexes are ready.")
                     self._set_archive_list_status("Archive list available")
                 return
-            if (
-                self.worker_thread is not None
-                or self.archive_tree_population_active
-                or self.archive_tree_category_population_active
-                or self.archive_tree_clear_active
-            ):
+            if self.worker_thread is not None:
                 QTimer.singleShot(300, self._try_apply_startup_saved_filters)
                 return
             self.archive_startup_saved_filter_apply_pending = False
@@ -18453,12 +18421,7 @@ def run_gui() -> int:
         def _apply_archive_initial_sort_after_first_paint(self) -> None:
             if self._shutting_down or not self.archive_initial_sort_apply_pending:
                 return
-            if (
-                self.worker_thread is not None
-                or self.archive_tree_population_active
-                or self.archive_tree_category_population_active
-                or self.archive_tree_clear_active
-            ):
+            if self.worker_thread is not None:
                 self._schedule_archive_initial_sort_after_first_paint(300)
                 return
             if self._archive_sort_waits_for_enhanced_index():
@@ -18509,9 +18472,6 @@ def run_gui() -> int:
                 self.archive_browser_preload_state != "ready"
                 or not self.archive_browser_first_visible_paint_done
                 or self.worker_thread is not None
-                or self.archive_tree_population_active
-                or self.archive_tree_category_population_active
-                or self.archive_tree_clear_active
                 or self.archive_enhanced_index_state == "warming"
                 or (
                     self.archive_basic_index_state == "warming"
@@ -18536,16 +18496,6 @@ def run_gui() -> int:
         def _mark_archive_filters_dirty(self) -> None:
             self.archive_filters_dirty = True
             self._mark_archive_browser_render_stale()
-            if self.archive_tree_clear_active:
-                self._cancel_archive_tree_clear()
-                pause_text = "Archive list update paused while filters are being edited. Press Apply Filters to refresh."
-                self._set_archive_load_progress(pause_text, phase="Paused", percent=0, allow_decrease=True)
-                self.set_status_message(pause_text)
-            if self.archive_tree_population_active:
-                self._cancel_archive_tree_population()
-                pause_text = "Archive list update paused while filters are being edited. Press Apply Filters to refresh."
-                self._set_archive_load_progress(pause_text, phase="Paused", percent=0, allow_decrease=True)
-                self.set_status_message(pause_text)
             if self.archive_filter_worker is not None:
                 try:
                     self.archive_filter_worker.stop()
@@ -18815,8 +18765,6 @@ def run_gui() -> int:
             return sum(len(indexes) for indexes in self.archive_tree_category_entry_indexes.values()) == len(self.archive_filtered_entries)
 
         def _handle_archive_browser_view_mode_changed(self, _index: int) -> None:
-            self._cancel_archive_tree_clear()
-            self._cancel_archive_tree_population()
             self._mark_archive_browser_render_stale()
             self.archive_tree.setRootIsDecorated(self._archive_tree_view_enabled())
             if self.worker_thread is not None:
@@ -18901,8 +18849,6 @@ def run_gui() -> int:
                     self.archive_scope_banner_label.setVisible(False)
                 self.archive_filter_edit.setPlaceholderText("Include path/item-name filter or glob, e.g. Vow of the Dead King or */texture/*")
                 self.archive_package_filter_hint_label.setText("Exclude accepts semicolon-separated substrings or globs.")
-            self._cancel_archive_tree_clear()
-            self._cancel_archive_tree_population()
             self.pending_archive_preview_request = None
             self.scheduled_archive_preview_request = None
             self.archive_preview_debounce_timer.stop()
@@ -19075,7 +19021,6 @@ def run_gui() -> int:
                 else {}
             )
             self.archive_tree_index_ready = bool(browser_state.get("tree_index_ready", True))
-            self.archive_tree_items_by_folder_key = {}
             self.archive_filtered_dds_count = int(browser_state.get("dds_count", 0))
             self.archive_filters_dirty = False
             self.archive_enhanced_filter_refresh_pending = False
@@ -19085,8 +19030,8 @@ def run_gui() -> int:
                 True,
                 "Preparing Archive Browser View",
                 (
-                    "Rendering the browser from the prepared cache. Large flat views are capped so the app stays responsive; "
-                    "use filters or Folders view for very broad result sets."
+                    "Rendering the browser from the prepared cache. Large views stream through the virtual model; "
+                    "use filters or Folders view for narrower browsing."
                 ),
                 fmt="Rendering...",
             )
@@ -21610,55 +21555,7 @@ def run_gui() -> int:
                 self.archive_filtered_entries,
                 preserve_direct_file_order=self._archive_tree_sort_active(),
             )
-            self.archive_tree_items_by_folder_key = {}
             self.archive_tree_index_ready = True
-
-        def _create_archive_folder_item(
-            self,
-            parent: QTreeWidget | QTreeWidgetItem,
-            folder_key: Tuple[str, ...],
-        ) -> QTreeWidgetItem:
-            item = QTreeWidgetItem(parent)
-            item.setText(0, folder_key[-1] if folder_key else "(root)")
-            item.setText(1, "-")
-            item.setText(2, "-")
-            item.setText(3, "Folder")
-            item.setText(7, "-")
-            item.setText(8, "/".join(folder_key))
-            item.setData(0, Qt.UserRole, "folder")
-            item.setData(0, Qt.UserRole + 1, folder_key)
-            item.setData(0, Qt.UserRole + 2, False)
-            item.setToolTip(0, "/".join(folder_key))
-            if self.archive_tree_child_folders.get(folder_key) or self.archive_tree_direct_files.get(folder_key):
-                QTreeWidgetItem(item, [""])
-            self.archive_tree_items_by_folder_key[folder_key] = item
-            return item
-
-        def _create_archive_file_item(
-            self,
-            parent: QTreeWidget | QTreeWidgetItem,
-            entry_index: int,
-            *,
-            show_full_path: bool = False,
-        ) -> QTreeWidgetItem:
-            item = QTreeWidgetItem(parent)
-            self._populate_archive_file_item(item, entry_index, show_full_path=show_full_path)
-            return item
-
-        def _create_archive_category_item(self, parent: QTreeWidget, category: str, entry_indexes: Sequence[int]) -> QTreeWidgetItem:
-            item = QTreeWidgetItem(parent)
-            item.setText(0, f"{category} ({len(entry_indexes):,})")
-            item.setText(1, "-")
-            item.setText(2, "-")
-            item.setText(3, "Category")
-            item.setText(7, "-")
-            item.setData(0, Qt.UserRole, "category")
-            item.setData(0, Qt.UserRole + 1, category)
-            item.setData(0, Qt.UserRole + 2, False)
-            item.setToolTip(0, f"{category} assets in the current filtered view")
-            if entry_indexes:
-                QTreeWidgetItem(item, [""])
-            return item
 
         def _archive_category_entry_indexes(self) -> Dict[str, List[int]]:
             return self.archive_tree_category_entry_indexes
@@ -21747,558 +21644,13 @@ def run_gui() -> int:
             )
             return self._remember_archive_browser_row_payload(cache_key, payload)
 
-        def _populate_archive_file_item(
-            self,
-            item: QTreeWidgetItem,
-            entry_index: int,
-            *,
-            show_full_path: bool = False,
-        ) -> None:
-            entry = self.archive_filtered_entries[entry_index]
-            normalized_parts = tuple(part for part in PurePosixPath(entry.path.replace("\\", "/")).parts if part)
-            size_text, size_tooltip = self._archive_entry_display_size(entry)
-            display_name = normalized_parts[-1] if normalized_parts else entry.basename
-            exact_item_name, name_match, name_match_tooltip = self._archive_entry_item_name_match(entry)
-            role_label = self._archive_entry_role_label(entry)
-            override_state, override_tooltip = self._archive_entry_override_state(entry)
-            item.setText(0, display_name)
-            item.setText(1, exact_item_name or "-")
-            item.setText(2, name_match or "-")
-            item.setText(3, self._archive_role_display_text(entry))
-            item.setText(4, size_text)
-            item.setText(5, entry.compression_label)
-            item.setText(6, entry.package_label)
-            item.setText(7, override_state or "-")
-            item.setText(8, entry.path if show_full_path else "/".join(normalized_parts[:-1]))
-            item.setData(0, Qt.UserRole, "file")
-            item.setData(0, Qt.UserRole + 1, entry_index)
-            item.setToolTip(0, entry.path)
-            if exact_item_name:
-                item.setToolTip(1, f"{exact_item_name}\nExact: iteminfo localization ID plus direct model/prefab hash.")
-            if name_match:
-                item.setToolTip(2, name_match_tooltip or name_match)
-            item.setToolTip(3, f"Role: {role_label}\nExtension: {entry.extension or '-'}")
-            self._style_archive_role_columns(item, role_label, 3)
-            item.setToolTip(4, size_tooltip)
-            item.setToolTip(6, f"Package: {entry.package_label}\nPAMT: {entry.pamt_path}")
-            item.setToolTip(7, override_tooltip or "No duplicate override state was detected for this virtual path.")
-            self._style_archive_override_state_column(item, override_state, 7)
-
-        def _cancel_archive_tree_clear(self) -> None:
-            self.archive_tree_clear_timer.stop()
-            self.archive_tree_clear_active = False
-            self.archive_tree_clear_total_items = 0
-            self.archive_tree_clear_removed_items = 0
-            self.archive_tree_clear_batch_size = 0
-            self._archive_tree_clear_on_complete = None
-            self.archive_tree.setUpdatesEnabled(True)
-            self.archive_tree.setEnabled(True)
-
-        def _cancel_archive_tree_population(self) -> None:
-            self.archive_tree_population_timer.stop()
-            self.archive_tree_category_population_timer.stop()
-            self.archive_tree_population_active = False
-            self.archive_tree_population_next_index = 0
-            self.archive_tree_population_preferred_path = ""
-            self.archive_tree_population_target_item = None
-            self.archive_tree_population_batch_size = self.archive_tree_population_default_batch_size
-            self.archive_tree_population_continue_batch_size = self.archive_tree_population_default_batch_size
-            self.archive_tree_population_render_total = 0
-            self.archive_tree_population_last_progress_update = 0.0
-            self.archive_tree_category_population_active = False
-            self.archive_tree_category_population_item = None
-            self.archive_tree_category_population_indexes = ()
-            self.archive_tree_category_population_next_index = 0
-            self.archive_tree_category_population_render_total = 0
-            self.archive_tree_category_population_total_entries = 0
-            self.archive_tree_category_population_category = ""
-            self._archive_tree_population_on_complete = None
-            self.archive_tree.blockSignals(False)
-            self.archive_tree.setEnabled(True)
-
-        def _suggest_archive_tree_clear_batch_size(self, total_items: int) -> int:
-            if total_items >= 100_000:
-                return 2400
-            if total_items >= 50_000:
-                return 1800
-            if total_items >= 20_000:
-                return 1200
-            if total_items >= 5_000:
-                return 800
-            return 400
-
-        def _begin_archive_tree_clear(self, on_complete: Callable[[], None]) -> bool:
-            total_items = self.archive_tree.topLevelItemCount()
-            if total_items < 1200:
-                return False
-            self.archive_tree_clear_timer.stop()
-            self.archive_tree_clear_active = True
-            self.archive_tree_clear_total_items = total_items
-            self.archive_tree_clear_removed_items = 0
-            self.archive_tree_clear_batch_size = self._suggest_archive_tree_clear_batch_size(total_items)
-            self._archive_tree_clear_on_complete = on_complete
-            self.archive_tree.setEnabled(False)
-            self._set_archive_load_progress(
-                f"Rendering archive browser cleanup... 0 / {total_items:,}",
-                0,
-                total_items,
-                phase="Rendering",
-            )
-            self.archive_tree_clear_timer.start()
-            return True
-
-        def _continue_archive_tree_clear(self) -> None:
-            if not self.archive_tree_clear_active:
-                return
-            started_at = time.perf_counter()
-            budget_seconds = max(0.002, float(self.archive_tree_population_time_budget_ms) / 1000.0)
-            removed_this_batch = 0
-            self.archive_tree.setUpdatesEnabled(False)
-            try:
-                while self.archive_tree.topLevelItemCount() > 0 and removed_this_batch < max(1, self.archive_tree_clear_batch_size):
-                    item = self.archive_tree.takeTopLevelItem(0)
-                    del item
-                    removed_this_batch += 1
-                    if removed_this_batch and (time.perf_counter() - started_at) >= budget_seconds:
-                        break
-            finally:
-                self.archive_tree.setUpdatesEnabled(True)
-            self.archive_tree_clear_removed_items += removed_this_batch
-            total_items = max(1, self.archive_tree_clear_total_items)
-            self._set_archive_load_progress(
-                f"Rendering archive browser cleanup... {self.archive_tree_clear_removed_items:,} / {total_items:,}",
-                self.archive_tree_clear_removed_items,
-                total_items,
-                phase="Rendering",
-            )
-            if self.archive_tree.topLevelItemCount() > 0:
-                self.archive_tree_clear_timer.start()
-                return
-            on_complete = self._archive_tree_clear_on_complete
-            self.archive_tree_clear_active = False
-            self.archive_tree_clear_total_items = 0
-            self.archive_tree_clear_removed_items = 0
-            self.archive_tree_clear_batch_size = 0
-            self._archive_tree_clear_on_complete = None
-            if on_complete is not None:
-                on_complete()
-
-        def _suggest_archive_tree_population_batch_sizes(self, total_entries: int) -> Tuple[int, int]:
-            if total_entries >= 100_000:
-                return 420, 130
-            if total_entries >= 50_000:
-                return 380, 120
-            if total_entries >= 20_000:
-                return 340, 110
-            if total_entries >= 5_000:
-                return 300, 100
-            base = max(self.archive_tree_population_default_batch_size, 240)
-            return min(base, 260), min(base, 140)
-
-        def _archive_flat_render_total(self, preferred_path: str = "") -> int:
-            total_entries = len(self.archive_filtered_entries)
-            if self._archive_tree_view_enabled() or total_entries <= 0:
-                return total_entries
-            return min(total_entries, self.archive_tree_flat_render_limit)
-
-        def _append_archive_flat_render_limit_item(self, rendered_count: int) -> None:
-            total_entries = len(self.archive_filtered_entries)
-            if self._archive_tree_view_enabled() or rendered_count >= total_entries:
-                return
-            item = QTreeWidgetItem()
-            item.setText(0, f"{total_entries - rendered_count:,} more entries hidden from the live view")
-            item.setText(1, "-")
-            item.setText(2, "-")
-            item.setText(3, "Filter")
-            item.setText(4, "-")
-            item.setText(5, "-")
-            item.setText(6, "Refine filters")
-            item.setText(7, "-")
-            item.setText(8, "Use package/path/extension filters or Folders view.")
-            item.setFlags(Qt.ItemIsEnabled)
-            item.setData(0, Qt.UserRole, "notice")
-            item.setToolTip(
-                0,
-                "The archive contains more matching rows than the live Qt view renders by default. "
-                "Use package/path/extension filters or Folders view to browse the remaining entries without freezing the UI.",
-            )
-            self.archive_tree.addTopLevelItem(item)
-
-        def _build_archive_tree_population_chunk(
-            self,
-            start_index: int,
-            max_items: int,
-            *,
-            preferred_path: str,
-            target_item: Optional[QTreeWidgetItem],
-        ) -> Tuple[List[QTreeWidgetItem], int, Optional[QTreeWidgetItem]]:
-            total_entries = self.archive_tree_population_render_total or len(self.archive_filtered_entries)
-            end_limit = min(total_entries, start_index + max(1, max_items))
-            batch_items: List[QTreeWidgetItem] = []
-            resolved_target = target_item
-            budget_seconds = max(0.002, float(self.archive_tree_population_time_budget_ms) / 1000.0)
-            started_at = time.perf_counter()
-
-            for entry_index in range(start_index, end_limit):
-                item = QTreeWidgetItem()
-                self._populate_archive_file_item(item, entry_index, show_full_path=True)
-                batch_items.append(item)
-                if (
-                    resolved_target is None
-                    and preferred_path
-                    and self.archive_filtered_entries[entry_index].path == preferred_path
-                ):
-                    resolved_target = item
-                if batch_items and (time.perf_counter() - started_at) >= budget_seconds:
-                    break
-
-            return batch_items, start_index + len(batch_items), resolved_target
-
-        def _continue_archive_tree_population(self) -> None:
-            if not self.archive_tree_population_active:
-                return
-
-            total_entries = self.archive_tree_population_render_total or len(self.archive_filtered_entries)
-            start_index = self.archive_tree_population_next_index
-            batch_items, end_index, target_item = self._build_archive_tree_population_chunk(
-                start_index,
-                self.archive_tree_population_continue_batch_size,
-                preferred_path=self.archive_tree_population_preferred_path,
-                target_item=self.archive_tree_population_target_item,
-            )
-
-            if batch_items:
-                self.archive_tree.addTopLevelItems(batch_items)
-            self.archive_tree_population_target_item = target_item
-            self.archive_tree_population_next_index = end_index
-
-            now = time.perf_counter()
-            if end_index >= total_entries or (now - self.archive_tree_population_last_progress_update) >= 0.12:
-                progress_text = (
-                    f"Rendering archive browser view in batches to keep the UI responsive... "
-                    f"{end_index:,} / {total_entries:,}"
-                )
-                self._set_archive_load_progress(progress_text, end_index, total_entries, phase="Rendering")
-                render_percent = int(getattr(self, "_archive_load_progress_percent", 0) or 0)
-                self._update_startup_splash(f"{progress_text} ({render_percent}%)", render_percent, 100)
-                self._set_archive_warmup_overlay(
-                    True,
-                    "Preparing Archive Browser View",
-                    progress_text,
-                    current=end_index,
-                    total=total_entries,
-                    fmt=f"{render_percent}%",
-                )
-                self.set_status_message(progress_text)
-                self.archive_tree_population_last_progress_update = now
-
-            if end_index < total_entries:
-                self.archive_tree_population_timer.start()
-                return
-
-            preferred_path = self.archive_tree_population_preferred_path
-            target_item = self.archive_tree_population_target_item
-            callback = self._archive_tree_population_on_complete
-
-            self.archive_tree_population_active = False
-            self.archive_tree_population_next_index = 0
-            self.archive_tree_population_preferred_path = ""
-            self.archive_tree_population_target_item = None
-            self.archive_tree_population_batch_size = self.archive_tree_population_default_batch_size
-            self.archive_tree_population_continue_batch_size = self.archive_tree_population_default_batch_size
-            self.archive_tree_population_render_total = 0
-            self.archive_tree_population_last_progress_update = 0.0
-            self._archive_tree_population_on_complete = None
-            self.archive_tree.blockSignals(False)
-            self.archive_tree.setEnabled(True)
-            self._append_archive_flat_render_limit_item(end_index)
-
-            self._finalize_archive_tree_render(preferred_path, target_item=target_item)
-            self._set_archive_warmup_overlay(False)
-            self._mark_archive_browser_render_ready(reason="population_complete", on_complete=callback)
-
-        def _append_archive_category_render_limit_item(
-            self,
-            parent: QTreeWidgetItem,
-            *,
-            rendered_count: int,
-            total_count: int,
-        ) -> None:
-            if rendered_count >= total_count:
-                return
-            item = QTreeWidgetItem()
-            item.setText(0, f"{total_count - rendered_count:,} more entries hidden from this category")
-            item.setText(1, "-")
-            item.setText(2, "-")
-            item.setText(3, "Filter")
-            item.setText(4, "-")
-            item.setText(5, "-")
-            item.setText(6, "Refine filters")
-            item.setText(7, "-")
-            item.setText(8, "Use package/path/extension filters or Categories + Folders for narrower browsing.")
-            item.setFlags(Qt.ItemIsEnabled)
-            item.setData(0, Qt.UserRole, "notice")
-            item.setToolTip(
-                0,
-                "This category has more rows than the live Qt tree renders by default. "
-                "Use package/path/extension filters to narrow the result set before expanding the category.",
-            )
-            parent.addChild(item)
-
-        def _build_archive_category_population_chunk(
-            self,
-            start_index: int,
-            max_items: int,
-        ) -> Tuple[List[QTreeWidgetItem], int]:
-            indexes = self.archive_tree_category_population_indexes
-            total_entries = self.archive_tree_category_population_render_total
-            end_limit = min(total_entries, start_index + max(1, max_items))
-            batch_items: List[QTreeWidgetItem] = []
-            budget_seconds = max(0.002, float(self.archive_tree_population_time_budget_ms) / 1000.0)
-            started_at = time.perf_counter()
-            for offset in range(start_index, end_limit):
-                entry_index = indexes[offset]
-                item = QTreeWidgetItem()
-                self._populate_archive_file_item(item, entry_index, show_full_path=True)
-                batch_items.append(item)
-                if batch_items and (time.perf_counter() - started_at) >= budget_seconds:
-                    break
-            return batch_items, start_index + len(batch_items)
-
-        def _begin_archive_category_population(
-            self,
-            item: QTreeWidgetItem,
-            category: str,
-            entry_indexes: Sequence[int],
-            *,
-            clear_children: bool = True,
-        ) -> None:
-            self.archive_tree_category_population_timer.stop()
-            if clear_children:
-                item.takeChildren()
-            total_count = len(entry_indexes)
-            render_total = min(total_count, self.archive_tree_category_render_limit)
-            self.archive_tree_category_population_active = True
-            self.archive_tree_category_population_item = item
-            self.archive_tree_category_population_indexes = tuple(entry_indexes)
-            self.archive_tree_category_population_next_index = 0
-            self.archive_tree_category_population_render_total = render_total
-            self.archive_tree_category_population_total_entries = total_count
-            self.archive_tree_category_population_category = category
-            item.setData(0, Qt.UserRole + 2, False)
-            self.archive_tree.setUpdatesEnabled(False)
-            try:
-                initial_items, end_index = self._build_archive_category_population_chunk(
-                    0,
-                    self.archive_tree_population_batch_size,
-                )
-                if initial_items:
-                    item.addChildren(initial_items)
-                self.archive_tree_category_population_next_index = end_index
-            finally:
-                self.archive_tree.setUpdatesEnabled(True)
-            item.setExpanded(True)
-            if end_index >= render_total:
-                self._finish_archive_category_population()
-                return
-            progress_text = (
-                f"Rendering {category} category in batches... "
-                f"{end_index:,} / {render_total:,}"
-            )
-            self._set_archive_load_progress(progress_text, end_index, render_total, phase="Rendering")
-            self.set_status_message(progress_text)
-            self.archive_tree_category_population_timer.start()
-
-        def _continue_archive_category_population(self) -> None:
-            if not self.archive_tree_category_population_active:
-                return
-            item = self.archive_tree_category_population_item
-            if item is None:
-                self._cancel_archive_tree_population()
-                return
-            start_index = self.archive_tree_category_population_next_index
-            render_total = self.archive_tree_category_population_render_total
-            batch_items, end_index = self._build_archive_category_population_chunk(
-                start_index,
-                self.archive_tree_population_continue_batch_size,
-            )
-            if batch_items:
-                item.addChildren(batch_items)
-            self.archive_tree_category_population_next_index = end_index
-            if end_index < render_total:
-                category = self.archive_tree_category_population_category or "category"
-                progress_text = (
-                    f"Rendering {category} category in batches... "
-                    f"{end_index:,} / {render_total:,}"
-                )
-                self._set_archive_load_progress(progress_text, end_index, render_total, phase="Rendering")
-                self.set_status_message(progress_text)
-                self.archive_tree_category_population_timer.start()
-                return
-            self._finish_archive_category_population()
-
-        def _finish_archive_category_population(self) -> None:
-            item = self.archive_tree_category_population_item
-            rendered_count = self.archive_tree_category_population_next_index
-            total_count = self.archive_tree_category_population_total_entries
-            category = self.archive_tree_category_population_category
-            if item is not None:
-                self._append_archive_category_render_limit_item(
-                    item,
-                    rendered_count=rendered_count,
-                    total_count=total_count,
-                )
-                item.setData(0, Qt.UserRole + 2, True)
-            self.archive_tree_category_population_active = False
-            self.archive_tree_category_population_item = None
-            self.archive_tree_category_population_indexes = ()
-            self.archive_tree_category_population_next_index = 0
-            self.archive_tree_category_population_render_total = 0
-            self.archive_tree_category_population_total_entries = 0
-            self.archive_tree_category_population_category = ""
-            completion = f"Rendered {min(rendered_count, total_count):,} visible row(s) for {category or 'category'}."
-            if total_count > rendered_count:
-                completion += f" {total_count - rendered_count:,} hidden; refine filters to browse the rest."
-            self._set_archive_load_progress(completion, phase="Ready", percent=100)
-            self.set_status_message(completion)
-
-        def _ensure_archive_folder_item_populated(self, item: Optional[QTreeWidgetItem]) -> None:
-            if item is None or self._archive_tree_item_kind(item) != "folder":
-                return
-            if bool(item.data(0, Qt.UserRole + 2)):
-                return
-
-            folder_key = self._archive_tree_folder_key(item)
-            item.takeChildren()
-            for _leaf, child_key in self.archive_tree_child_folders.get(folder_key, []):
-                self._create_archive_folder_item(item, child_key)
-            direct_files = self.archive_tree_direct_files.get(folder_key, [])
-            if len(direct_files) > self.archive_tree_population_batch_size:
-                self._begin_archive_category_population(
-                    item,
-                    "/".join(folder_key) or "folder",
-                    direct_files,
-                    clear_children=False,
-                )
-                return
-            for entry_index in direct_files:
-                self._create_archive_file_item(item, entry_index)
-            item.setData(0, Qt.UserRole + 2, True)
-
-        def _ensure_archive_category_item_populated(self, item: Optional[QTreeWidgetItem]) -> None:
-            if item is None or self._archive_tree_item_kind(item) != "category":
-                return
-            if bool(item.data(0, Qt.UserRole + 2)):
-                return
-            if self.archive_tree_category_population_active and self.archive_tree_category_population_item is item:
-                return
-            category = str(item.data(0, Qt.UserRole + 1) or "")
-            entry_indexes = self._archive_category_entry_indexes().get(category, [])
-            if self._archive_folder_tree_enabled() and len(entry_indexes) <= self.archive_tree_category_render_limit:
-                item.takeChildren()
-                folder_nodes: Dict[Tuple[str, ...], QTreeWidgetItem] = {(): item}
-                for entry_index in entry_indexes:
-                    entry = self.archive_filtered_entries[entry_index]
-                    parts = tuple(part for part in PurePosixPath(entry.path.replace("\\", "/")).parts if part)
-                    parent_item = item
-                    for depth, part in enumerate(parts[:-1]):
-                        folder_key = parts[: depth + 1]
-                        folder_item = folder_nodes.get(folder_key)
-                        if folder_item is None:
-                            folder_item = QTreeWidgetItem(parent_item)
-                            folder_item.setText(0, part)
-                            folder_item.setText(1, "-")
-                            folder_item.setText(2, "-")
-                            folder_item.setText(3, "Folder")
-                            folder_item.setText(7, "-")
-                            folder_item.setText(8, "/".join(folder_key))
-                            folder_item.setData(0, Qt.UserRole, "category_subfolder")
-                            folder_item.setData(0, Qt.UserRole + 1, folder_key)
-                            folder_item.setToolTip(0, "/".join(folder_key))
-                            folder_nodes[folder_key] = folder_item
-                        parent_item = folder_item
-                    self._create_archive_file_item(parent_item, entry_index)
-                item.setData(0, Qt.UserRole + 2, True)
-                return
-            self._begin_archive_category_population(item, category, entry_indexes)
-
-        def _handle_archive_item_expanded(self, item: QTreeWidgetItem) -> None:
-            self._ensure_archive_folder_item_populated(item)
-            self._ensure_archive_category_item_populated(item)
-
-        def _find_archive_file_item(
-            self,
-            parent: QTreeWidget | QTreeWidgetItem,
-            entry_index: int,
-        ) -> Optional[QTreeWidgetItem]:
-            child_count = parent.topLevelItemCount() if isinstance(parent, QTreeWidget) else parent.childCount()
-            for child_index in range(child_count):
-                child = parent.topLevelItem(child_index) if isinstance(parent, QTreeWidget) else parent.child(child_index)
-                if (
-                    child is not None
-                    and self._archive_tree_item_kind(child) == "file"
-                    and child.data(0, Qt.UserRole + 1) == entry_index
-                ):
-                    return child
-                if child is not None and child.childCount() > 0:
-                    nested = self._find_archive_file_item(child, entry_index)
-                    if nested is not None:
-                        return nested
-            return None
-
         def _select_archive_tree_entry(self, entry_index: int) -> Optional[QTreeWidgetItem]:
             if not (0 <= entry_index < len(self.archive_filtered_entries)):
                 return None
             find_virtual_item = getattr(self.archive_tree, "find_item_for_entry", None)
             if callable(find_virtual_item):
-                virtual_item = find_virtual_item(entry_index)
-                if virtual_item is not None:
-                    return virtual_item
-
-            if not self._archive_tree_view_enabled():
-                return self._find_archive_file_item(self.archive_tree, entry_index)
-
-            if self._archive_category_view_enabled():
-                entry = self.archive_filtered_entries[entry_index]
-                category = self._archive_entry_category(entry)
-                for top_level_index in range(self.archive_tree.topLevelItemCount()):
-                    category_item = self.archive_tree.topLevelItem(top_level_index)
-                    if category_item is None or self._archive_tree_item_kind(category_item) != "category":
-                        continue
-                    if str(category_item.data(0, Qt.UserRole + 1) or "") != category:
-                        continue
-                    category_item.setExpanded(True)
-                    self._ensure_archive_category_item_populated(category_item)
-                    return self._find_archive_file_item(category_item, entry_index)
-
-            entry = self.archive_filtered_entries[entry_index]
-            parts = tuple(part for part in PurePosixPath(entry.path.replace("\\", "/")).parts if part)
-            folder_key = parts[:-1]
-            parent_item: Optional[QTreeWidgetItem] = None
-            current_parent_key: Tuple[str, ...] = ()
-
-            for depth in range(len(folder_key)):
-                current_folder_key = folder_key[: depth + 1]
-                if parent_item is None:
-                    folder_item = self.archive_tree_items_by_folder_key.get(current_folder_key)
-                else:
-                    self._ensure_archive_folder_item_populated(parent_item)
-                    folder_item = self.archive_tree_items_by_folder_key.get(current_folder_key)
-                if folder_item is None:
-                    return None
-                folder_item.setExpanded(True)
-                self._ensure_archive_folder_item_populated(folder_item)
-                parent_item = folder_item
-                current_parent_key = current_folder_key
-
-            container: QTreeWidget | QTreeWidgetItem = parent_item if parent_item is not None else self.archive_tree
-            target_item = self._find_archive_file_item(container, entry_index)
-            if target_item is None and parent_item is None and current_parent_key == ():
-                for top_level_index in self.archive_tree_direct_files.get((), []):
-                    if top_level_index == entry_index:
-                        target_item = self._find_archive_file_item(self.archive_tree, entry_index)
-                        break
-            return target_item
+                return find_virtual_item(entry_index)
+            return None
 
         def _archive_virtual_tree_mode(self) -> str:
             if self._archive_category_view_enabled():
@@ -22446,8 +21798,6 @@ def run_gui() -> int:
             on_complete: Optional[Callable[[], None]] = None,
             defer_default_selection: bool = False,
         ) -> None:
-            self._cancel_archive_tree_clear()
-            self._cancel_archive_tree_population()
             if rebuild_index:
                 self.archive_tree_index_ready = False
                 if self.archive_entries and self.worker_thread is None:
@@ -22461,116 +21811,11 @@ def run_gui() -> int:
             ):
                 self._start_archive_filter_worker(preferred_path)
                 return
-            if hasattr(self.archive_tree, "set_archive_state"):
-                self._populate_archive_virtual_tree(
-                    preferred_path,
-                    on_complete=on_complete,
-                    defer_default_selection=defer_default_selection,
-                )
-                return
-            self.archive_tree.blockSignals(True)
-
-            def render_into_empty_tree() -> None:
-                self.archive_tree_items_by_folder_key = {}
-                tree_view_enabled = self._archive_tree_view_enabled()
-                self.archive_tree.setRootIsDecorated(tree_view_enabled)
-                if self._archive_category_view_enabled():
-                    grouped = self._archive_category_entry_indexes()
-                    for category, entry_indexes in sorted(grouped.items(), key=lambda item: self._archive_category_sort_key(item[0])):
-                        self._create_archive_category_item(self.archive_tree, category, entry_indexes)
-                elif tree_view_enabled:
-                    for _leaf, child_key in self.archive_tree_child_folders.get((), []):
-                        self._create_archive_folder_item(self.archive_tree, child_key)
-                    for entry_index in self.archive_tree_direct_files.get((), []):
-                        self._create_archive_file_item(self.archive_tree, entry_index)
-                else:
-                    render_total = self._archive_flat_render_total(preferred_path)
-                    if render_total > self.archive_tree_population_batch_size:
-                        total_entries = render_total
-                        self.archive_tree_population_active = True
-                        self.archive_tree_population_next_index = 0
-                        self.archive_tree_population_preferred_path = preferred_path
-                        self.archive_tree_population_target_item = None
-                        self.archive_tree_population_render_total = render_total
-                        (
-                            self.archive_tree_population_batch_size,
-                            self.archive_tree_population_continue_batch_size,
-                        ) = self._suggest_archive_tree_population_batch_sizes(
-                            total_entries
-                        )
-                        self.archive_tree_population_last_progress_update = time.perf_counter()
-                        self._archive_tree_population_on_complete = on_complete
-                        initial_items, initial_end_index, target_item = self._build_archive_tree_population_chunk(
-                            0,
-                            self.archive_tree_population_batch_size,
-                            preferred_path=preferred_path,
-                            target_item=None,
-                        )
-                        if initial_items:
-                            self.archive_tree.addTopLevelItems(initial_items)
-                        self.archive_tree_population_next_index = initial_end_index
-                        self.archive_tree_population_target_item = target_item
-                        self.archive_tree.setUpdatesEnabled(True)
-                        self.archive_tree.blockSignals(False)
-                        self.archive_tree.setEnabled(True)
-                        chunk_defer_default_selection = bool(defer_default_selection) or (
-                            initial_end_index < total_entries and target_item is None and not preferred_path
-                        )
-                        self._finalize_archive_tree_render(
-                            preferred_path,
-                            target_item=target_item,
-                            defer_default_selection=chunk_defer_default_selection,
-                        )
-                        if initial_end_index >= total_entries:
-                            self.archive_tree_population_active = False
-                            self.archive_tree_population_next_index = 0
-                            self.archive_tree_population_preferred_path = ""
-                            self.archive_tree_population_target_item = None
-                            self.archive_tree_population_batch_size = self.archive_tree_population_default_batch_size
-                            self.archive_tree_population_continue_batch_size = self.archive_tree_population_default_batch_size
-                            self.archive_tree_population_render_total = 0
-                            self._archive_tree_population_on_complete = None
-                            self._append_archive_flat_render_limit_item(initial_end_index)
-                            self._mark_archive_browser_render_ready(
-                                reason="population_initial",
-                                on_complete=on_complete,
-                            )
-                            return
-                        progress_text = (
-                            "Rendering archive browser items in batches to keep the UI responsive... "
-                            f"{initial_end_index:,} / {total_entries:,}"
-                        )
-                        self._set_archive_load_progress(progress_text, initial_end_index, total_entries, phase="Rendering")
-                        render_percent = int(getattr(self, "_archive_load_progress_percent", 0) or 0)
-                        self._update_startup_splash(f"{progress_text} ({render_percent}%)", render_percent, 100)
-                        self._set_archive_warmup_overlay(
-                            True,
-                            "Preparing Archive Browser View",
-                            progress_text,
-                            current=initial_end_index,
-                            total=total_entries,
-                            fmt=f"{render_percent}%",
-                        )
-                        self.set_status_message(progress_text)
-                        self.archive_tree_population_timer.start()
-                        return
-                    for entry_index in range(render_total):
-                        self._create_archive_file_item(self.archive_tree, entry_index, show_full_path=True)
-                    self._append_archive_flat_render_limit_item(render_total)
-                self.archive_tree.setUpdatesEnabled(True)
-                self.archive_tree.blockSignals(False)
-                self.archive_tree.setEnabled(True)
-                self._finalize_archive_tree_render(preferred_path, defer_default_selection=defer_default_selection)
-                self._set_archive_warmup_overlay(False)
-                self._mark_archive_browser_render_ready(reason="legacy_sync", on_complete=on_complete)
-
-            top_level_items = self.archive_tree.topLevelItemCount()
-            if top_level_items > 0 and self._begin_archive_tree_clear(render_into_empty_tree):
-                return
-            self.archive_tree.setEnabled(False)
-            self.archive_tree.setUpdatesEnabled(False)
-            self.archive_tree.clear()
-            render_into_empty_tree()
+            self._populate_archive_virtual_tree(
+                preferred_path,
+                on_complete=on_complete,
+                defer_default_selection=defer_default_selection,
+            )
 
         def _collect_archive_entries_from_item(
             self,
@@ -24880,7 +24125,7 @@ def run_gui() -> int:
                     (
                         f"Total original size: {format_byte_size(total_original)}"
                         if item_kind != "category"
-                        else f"Live rows render in batches and are capped at {self.archive_tree_category_render_limit:,} for responsiveness."
+                        else "Rows load on demand through the virtual archive model."
                     ),
                     (
                         f"Total stored size: {format_byte_size(total_stored)}"
@@ -25827,8 +25072,6 @@ def run_gui() -> int:
                 if bool(getattr(self, "archive_context_menu_selection_suppressed", False)):
                     self._schedule_archive_selection_state_update()
                     return
-                if self.archive_tree_population_active:
-                    self.archive_tree_population_timer.start(90)
                 if current is None:
                     self._clear_archive_preview("Select an archive file to preview it here.")
                     self._schedule_archive_selection_state_update()
@@ -45693,16 +44936,6 @@ def run_gui() -> int:
                 texconv_text = self.texconv_path_edit.text().strip()
                 texconv_path = Path(texconv_text).expanduser() if texconv_text else None
                 preview_settings = self._current_model_preview_render_settings()
-                result = build_archive_preview_result(
-                    texconv_path,
-                    resolved_entry,
-                    texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                    texture_entries_by_basename=self.archive_entries_by_basename,
-                    sidecar_entries_by_texture_path=self.archive_sidecar_entries_by_texture_path,
-                    sidecar_entries_by_texture_basename=self.archive_sidecar_entries_by_texture_basename,
-                    semantic_sidecar_texts=semantic_sidecar_texts,
-                    visible_texture_mode=preview_settings.visible_texture_mode,
-                )
                 if (
                     self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
                     and str(getattr(resolved_entry, "extension", "") or "").strip().lower() in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
@@ -45737,24 +44970,44 @@ def run_gui() -> int:
                         if notes:
                             native_detail_lines.append("Native Material Notes: " + "; ".join(notes[:8]))
                         detail_text = "\n".join(part for part in native_detail_lines if part)
-                        if result.detail_text:
-                            detail_text = f"{detail_text}\n\n{result.detail_text}"
-                        return dataclasses.replace(
-                            result,
+                        return ArchivePreviewResult(
+                            status="ok",
+                            title=resolved_entry.basename,
+                            metadata_summary=f"{build_archive_entry_metadata_summary(resolved_entry)} | native preview package",
                             detail_text=detail_text,
                             preview_model=None,
-                            prepared_preview_model=None,
+                            asset_family_graph=build_archive_asset_family_graph(resolved_entry, ()),
                             native_preview_package_path=native_attempt.package_path,
                             native_preview_diagnostics=diagnostics,
                             preferred_view="model",
                         )
-                    if native_line:
-                        detail_text = f"{(result.detail_text or '').rstrip()}\n\n{native_line}".strip()
-                        result = dataclasses.replace(
-                            result,
-                            detail_text=detail_text,
-                            native_preview_diagnostics=dict(native_attempt.diagnostics),
-                        )
+                    return ArchivePreviewResult(
+                        status="error",
+                        title=resolved_entry.basename,
+                        metadata_summary=build_archive_entry_metadata_summary(resolved_entry),
+                        detail_text="\n".join(
+                            part
+                            for part in (
+                                "Native Preview Core did not generate a D3D11 package.",
+                                "D3D11 referenced-file preview is native-only; Python mesh preparation was skipped.",
+                                native_line,
+                                f"Native failure reason: {native_attempt.fallback_reason}",
+                            )
+                            if part
+                        ),
+                        native_preview_diagnostics=dict(native_attempt.diagnostics),
+                        preferred_view="details",
+                    )
+                result = build_archive_preview_result(
+                    texconv_path,
+                    resolved_entry,
+                    texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
+                    texture_entries_by_basename=self.archive_entries_by_basename,
+                    sidecar_entries_by_texture_path=self.archive_sidecar_entries_by_texture_path,
+                    sidecar_entries_by_texture_basename=self.archive_sidecar_entries_by_texture_basename,
+                    semantic_sidecar_texts=semantic_sidecar_texts,
+                    visible_texture_mode=preview_settings.visible_texture_mode,
+                )
                 return result
 
             def _handle_complete(result: object) -> None:
@@ -88709,8 +87962,6 @@ def run_gui() -> int:
             )
             self._release_startup_splash()
             self._save_detached_tool_geometries()
-            self._cancel_archive_tree_clear()
-            self._cancel_archive_tree_population()
             self._settings_save_timer.stop()
             self._external_activation_timer.stop()
             self._chainner_analysis_timer.stop()
@@ -88751,8 +88002,6 @@ def run_gui() -> int:
             self._shutdown_archive_isolated_renderer_host()
             nonlocal _active_main_window
             _active_main_window = None
-            self._cancel_archive_tree_clear()
-            self._cancel_archive_tree_population()
             self._settings_save_timer.stop()
             self._chainner_analysis_timer.stop()
             self._compare_preview_timer.stop()

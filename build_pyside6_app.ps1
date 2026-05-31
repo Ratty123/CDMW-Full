@@ -289,6 +289,32 @@ function Test-NativeOutputsPresent {
     return $true
 }
 
+function Assert-CleanPythonSitePackages {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PythonExe
+    )
+
+    if (-not ((Split-Path -Leaf $PythonExe) -like "python*")) {
+        return
+    }
+
+    $sitePackages = Join-Path $scriptDir ".venv\Lib\site-packages"
+    if (-not (Test-Path -LiteralPath $sitePackages)) {
+        return
+    }
+
+    $copyArtifacts = @(Get-ChildItem -LiteralPath $sitePackages -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -like "* - Copy*"
+    } | Select-Object -First 8)
+    if (-not $copyArtifacts) {
+        return
+    }
+
+    $examples = ($copyArtifacts | ForEach-Object { "  $($_.FullName)" }) -join [Environment]::NewLine
+    throw "Refusing to package with copied dependency artifacts under .venv\Lib\site-packages. Remove or recreate the virtualenv before building. Examples:$([Environment]::NewLine)$examples"
+}
+
 function Write-BuildSummary {
     param(
         [Parameter(Mandatory = $true)]
@@ -354,6 +380,7 @@ $resolvedVgmstreamRuntimeDir = Ensure-VgmstreamRuntime -RuntimeDir $vgmstreamRun
 if (-not (Test-Path -LiteralPath (Join-Path $resolvedVgmstreamRuntimeDir "vgmstream-cli.exe"))) {
     throw "vgmstream runtime is incomplete: $resolvedVgmstreamRuntimeDir"
 }
+Assert-CleanPythonSitePackages -PythonExe $pythonExe
 
 if (-not $SkipNativeBuild) {
     $nativeConfig = if ($BuildProfile -eq "debug") { "Debug" } else { "Release" }
@@ -363,7 +390,11 @@ if (-not $SkipNativeBuild) {
     } else {
         Write-BuildProgress -Percent 12 -Stage "Building native helpers"
         Write-Host "Building native texture and D3D11 preview helpers ($nativeConfig)..."
-        & (Join-Path $scriptDir "build_native_windows.ps1") -Configuration $nativeConfig
+        $nativeBuildArgs = @{ Configuration = $nativeConfig }
+        if ($BuildProfile -ne "fast") {
+            $nativeBuildArgs.Clean = $true
+        }
+        & (Join-Path $scriptDir "build_native_windows.ps1") @nativeBuildArgs
         if ($LASTEXITCODE -ne 0) {
             throw "Native helper build failed with exit code $LASTEXITCODE."
         }

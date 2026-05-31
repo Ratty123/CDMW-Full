@@ -577,19 +577,6 @@ class ArchiveBrowserTreeView(QTreeView):
         index = self._archive_model.find_index_for_entry(entry_index)
         return self._archive_model.node_from_index(index) if index.isValid() else None
 
-    def clear(self) -> None:
-        self._archive_model.clear()
-
-    def addTopLevelItem(self, item) -> None:
-        del item
-
-    def addTopLevelItems(self, items) -> None:
-        del items
-
-    def takeTopLevelItem(self, row: int):
-        del row
-        return None
-
     def _index_for_node(self, item: ArchiveBrowserNode) -> QModelIndex:
         if item.kind == "file" and isinstance(item.value, int):
             index = self._archive_model.find_index_for_entry(int(item.value))

@@ -25,7 +25,6 @@ from cdmw.rendering.native_preview_package import _input_texture_kind, build_nat
 from cdmw.ui.model_preview_native import (
     ARCHIVE_MODEL_RENDERER_D3D11,
     ARCHIVE_MODEL_RENDERER_DEFAULT,
-    ExperimentalNativeD3D11PreviewPanel,
     normalize_archive_model_renderer_backend,
 )
 from cdmw.ui.widgets import NativePreviewPanel
@@ -298,8 +297,8 @@ class NativePreviewPayloadTests(unittest.TestCase):
         source = Path("cdmw/ui/model_preview_native.py").read_text(encoding="utf-8")
 
         self.assertIn("ARCHIVE_MODEL_RENDERER_D3D11", source)
-        self.assertIn("ExperimentalNativeD3D11PreviewPanel", source)
-        self.assertIn("prepare_model_preview(model)", source)
+        self.assertNotIn("ExperimentalNativeD3D11PreviewPanel", source)
+        self.assertNotIn("prepare_model_preview(model)", source)
         self.assertNotIn("Q" + "Quick", source)
         self.assertNotIn("PrincipledMaterial", source)
 
@@ -1510,7 +1509,7 @@ class NativePreviewWidgetRuntimeTests(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
 
         app = QApplication.instance() or QApplication([])
-        widget = ExperimentalNativeD3D11PreviewPanel("test", theme_key="dark")
+        widget = NativePreviewPanel("test", theme_key="dark")
         model = ModelPreviewData(
             path="test.pam",
             summary="test model",
@@ -1563,7 +1562,7 @@ class NativePreviewWidgetRuntimeTests(unittest.TestCase):
             self.assertTrue(texture_image.save(str(texture_path), "PNG"))
             normal_path = Path(temp_dir) / "normal.png"
             normal_path.write_bytes(b"existing normal")
-            widget = ExperimentalNativeD3D11PreviewPanel("test", theme_key="dark")
+            widget = NativePreviewPanel("test", theme_key="dark")
             model = ModelPreviewData(
                 path="test.pam",
                 summary="test model",
