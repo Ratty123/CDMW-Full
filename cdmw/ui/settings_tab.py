@@ -162,7 +162,7 @@ class SettingsTab(QWidget):
         self.archive_performance_page_layout = _add_settings_page(
             "performance",
             "Performance",
-            "Resource profile, archive browser rendering, cache, and worker settings.",
+            "Workload presets, archive list batching, related-file indexing, and preview cache behavior.",
         )
         self.appearance_page_layout = _add_settings_page(
             "appearance",
@@ -319,60 +319,70 @@ class SettingsTab(QWidget):
         startup_layout.addWidget(startup_hint)
         self.startup_page_layout.addWidget(startup_group)
 
-        archive_performance_group = QGroupBox("Performance")
-        archive_performance_layout = QFormLayout(archive_performance_group)
-        archive_performance_layout.setContentsMargins(12, 14, 12, 12)
-        archive_performance_layout.setHorizontalSpacing(12)
-        archive_performance_layout.setVerticalSpacing(10)
+        workload_group = QGroupBox("Workload Preset")
+        workload_layout = QFormLayout(workload_group)
+        workload_layout.setContentsMargins(12, 14, 12, 12)
+        workload_layout.setHorizontalSpacing(12)
+        workload_layout.setVerticalSpacing(10)
         self.archive_resource_profile_combo = QComboBox()
-        self.archive_resource_profile_combo.addItem("Balanced 60fps", "balanced_60fps")
-        self.archive_resource_profile_combo.addItem("Maximum Throughput", "maximum_throughput")
-        self.archive_resource_profile_combo.addItem("Quiet Laptop", "quiet_laptop")
+        self.archive_resource_profile_combo.addItem("Balanced", "balanced_60fps")
+        self.archive_resource_profile_combo.addItem("Faster background work", "maximum_throughput")
+        self.archive_resource_profile_combo.addItem("Low impact", "quiet_laptop")
         self.archive_resource_profile_combo.setToolTip(
-            "Controls archive browser batch sizes, worker pressure, and preview aggressiveness."
+            "Sets automatic defaults for archive list batches and sidecar indexing workers. Manual overrides below take precedence."
         )
-        archive_performance_layout.addRow("Resource profile", self.archive_resource_profile_combo)
-        self.archive_view_backend_combo = QComboBox()
-        self.archive_view_backend_combo.addItem("Virtual model", "virtual_model")
-        self.archive_view_backend_combo.addItem("Legacy widget (diagnostics)", "legacy_widget")
-        self.archive_view_backend_combo.setToolTip(
-            "Virtual model renders only visible archive rows and is the recommended high-performance backend."
+        workload_layout.addRow("Preset", self.archive_resource_profile_combo)
+        workload_hint = QLabel(
+            "Balanced is the default. Faster background work can fill long lists and sidecar indexes sooner, but may use more CPU and disk. Low impact keeps background work smaller."
         )
-        archive_performance_layout.addRow("Archive view backend", self.archive_view_backend_combo)
-        self.archive_ui_frame_budget_spin = QSpinBox()
-        self.archive_ui_frame_budget_spin.setRange(4, 16)
-        self.archive_ui_frame_budget_spin.setSuffix(" ms")
-        self.archive_ui_frame_budget_spin.setToolTip("Soft per-frame budget for interactive archive UI work.")
-        archive_performance_layout.addRow("UI frame budget (4-16 ms)", self.archive_ui_frame_budget_spin)
+        workload_hint.setWordWrap(True)
+        workload_hint.setObjectName("HintLabel")
+        workload_layout.addRow("", workload_hint)
+        self.archive_performance_page_layout.addWidget(workload_group)
+
+        archive_list_group = QGroupBox("Archive List")
+        archive_list_layout = QFormLayout(archive_list_group)
+        archive_list_layout.setContentsMargins(12, 14, 12, 12)
+        archive_list_layout.setHorizontalSpacing(12)
+        archive_list_layout.setVerticalSpacing(10)
+        self.archive_native_acceleration_checkbox = QCheckBox("Use native archive helper when available")
+        self.archive_native_acceleration_checkbox.setToolTip(
+            "Uses the compiled helper for expensive Archive Browser filter, sort, and index preparation. If the helper is missing or fails, the app logs the fallback and continues in Python."
+        )
+        archive_list_layout.addRow("", self.archive_native_acceleration_checkbox)
         self.archive_fetch_batch_spin = QSpinBox()
         self.archive_fetch_batch_spin.setRange(0, 5000)
         self.archive_fetch_batch_spin.setSingleStep(100)
         self.archive_fetch_batch_spin.setSpecialValueText("Auto")
-        self.archive_fetch_batch_spin.setToolTip("Rows fetched per lazy folder/category expansion batch. Auto follows the selected profile.")
-        archive_performance_layout.addRow("Archive fetch batch", self.archive_fetch_batch_spin)
-        self.archive_background_worker_limit_spin = QSpinBox()
-        self.archive_background_worker_limit_spin.setRange(0, 16)
-        self.archive_background_worker_limit_spin.setSpecialValueText("Auto")
-        self.archive_background_worker_limit_spin.setToolTip("Global background worker pressure for archive-related jobs. Auto follows the selected profile.")
-        archive_performance_layout.addRow("Background worker limit", self.archive_background_worker_limit_spin)
-        self.archive_native_acceleration_checkbox = QCheckBox("Use native archive acceleration when available")
-        self.archive_native_acceleration_checkbox.setToolTip(
-            "Uses a native helper for expensive archive filter/sort/index preparation when the helper is present; Python fallback remains automatic."
+        self.archive_fetch_batch_spin.setToolTip(
+            "Rows fetched per lazy Archive Browser expansion. Auto follows the preset. Higher values can fill large folders sooner but make each UI update chunk heavier."
         )
-        archive_performance_layout.addRow("", self.archive_native_acceleration_checkbox)
+        archive_list_layout.addRow("List fetch batch override", self.archive_fetch_batch_spin)
+        archive_list_hint = QLabel(
+            "Leave this on Auto unless folder/category expansion visibly feels too slow or too chunky."
+        )
+        archive_list_hint.setWordWrap(True)
+        archive_list_hint.setObjectName("HintLabel")
+        archive_list_layout.addRow("", archive_list_hint)
+        self.archive_performance_page_layout.addWidget(archive_list_group)
+
+        related_index_group = QGroupBox("Related-File Indexing")
+        related_index_layout = QFormLayout(related_index_group)
+        related_index_layout.setContentsMargins(12, 14, 12, 12)
+        related_index_layout.setHorizontalSpacing(12)
+        related_index_layout.setVerticalSpacing(10)
         self.archive_sidecar_indexing_checkbox = QCheckBox("Index texture sidecars for DDS related-file discovery")
         self.archive_sidecar_indexing_checkbox.setToolTip(
-            "Builds a whole-archive .pami/.pac_xml lookup used for DDS reverse references and richer related-file lists. "
-            "Selected .pam/.pac previews still parse direct sidecars when this is off."
+            "Builds a whole-archive .pami/.pac_xml lookup for DDS reverse references and richer related-file lists. Selected .pam/.pac previews still parse direct sidecars when this is off."
         )
-        archive_performance_layout.addRow("", self.archive_sidecar_indexing_checkbox)
+        related_index_layout.addRow("", self.archive_sidecar_indexing_checkbox)
         self.archive_sidecar_worker_mode_combo = QComboBox()
-        self.archive_sidecar_worker_mode_combo.addItem("Auto Balanced", 0)
+        self.archive_sidecar_worker_mode_combo.addItem("Auto from preset", 0)
         self.archive_sidecar_worker_mode_combo.addItem("Manual", 1)
         self.archive_sidecar_worker_spin = QSpinBox()
         self.archive_sidecar_worker_spin.setRange(1, 16)
         self.archive_sidecar_worker_spin.setSingleStep(1)
-        self.archive_sidecar_worker_spin.setToolTip("Manual worker count for optional global sidecar indexing.")
+        self.archive_sidecar_worker_spin.setToolTip("Manual worker count for whole-archive .pami/.pac_xml indexing only.")
         worker_row = QWidget()
         worker_layout = QHBoxLayout(worker_row)
         worker_layout.setContentsMargins(0, 0, 0, 0)
@@ -380,36 +390,52 @@ class SettingsTab(QWidget):
         worker_layout.addWidget(self.archive_sidecar_worker_mode_combo)
         worker_layout.addWidget(self.archive_sidecar_worker_spin)
         worker_layout.addStretch(1)
-        archive_performance_layout.addRow("Sidecar workers (1-16)", worker_row)
+        related_index_layout.addRow("Sidecar index workers", worker_row)
+        self.archive_maximum_indexing_priority_checkbox = QCheckBox("Prioritize indexing over UI responsiveness")
+        self.archive_maximum_indexing_priority_checkbox.setToolTip(
+            "Runs sidecar indexing at normal thread priority instead of low priority. This can finish indexing sooner but may make browsing less responsive until the next run finishes."
+        )
+        related_index_layout.addRow("", self.archive_maximum_indexing_priority_checkbox)
+        related_index_hint = QLabel(
+            "This is for cross-archive related-file discovery, not normal preview loading. Leave it off unless DDS reverse references matter for the current workflow."
+        )
+        related_index_hint.setWordWrap(True)
+        related_index_hint.setObjectName("HintLabel")
+        related_index_layout.addRow("", related_index_hint)
+        self.archive_performance_page_layout.addWidget(related_index_group)
+
+        preview_cache_group = QGroupBox("Preview Cache")
+        preview_cache_layout = QFormLayout(preview_cache_group)
+        preview_cache_layout.setContentsMargins(12, 14, 12, 12)
+        preview_cache_layout.setHorizontalSpacing(12)
+        preview_cache_layout.setVerticalSpacing(10)
         self.archive_preview_cache_limit_spin = QSpinBox()
         self.archive_preview_cache_limit_spin.setRange(12, 256)
         self.archive_preview_cache_limit_spin.setSingleStep(4)
-        self.archive_preview_cache_limit_spin.setToolTip("Number of archive preview results kept in memory while browsing.")
-        archive_performance_layout.addRow("Preview cache size (12-256)", self.archive_preview_cache_limit_spin)
+        self.archive_preview_cache_limit_spin.setToolTip(
+            "Number of Archive Browser preview results kept in memory. Higher values use more RAM and help when revisiting recently previewed files."
+        )
+        preview_cache_layout.addRow("In-memory preview results", self.archive_preview_cache_limit_spin)
         self.archive_native_preview_cache_mode_combo = QComboBox()
         self.archive_native_preview_cache_mode_combo.addItem("Off", "off")
         self.archive_native_preview_cache_mode_combo.addItem("Balanced", "balanced")
         self.archive_native_preview_cache_mode_combo.addItem("Aggressive", "aggressive")
         self.archive_native_preview_cache_mode_combo.setToolTip(
-            "Durable D3D11 .pac preview package cache. Balanced reuses exact previews. "
-            "Aggressive also prebuilds a few nearby visible models and uses more disk."
+            "Durable D3D11 .pac preview package cache. Balanced reuses exact previews. Aggressive also prebuilds a few nearby visible models and uses more disk."
         )
-        archive_performance_layout.addRow("Native preview cache", self.archive_native_preview_cache_mode_combo)
-        self.archive_quick_then_full_checkbox = QCheckBox("Show quick metadata first, then full 3D preview")
-        self.archive_maximum_indexing_priority_checkbox = QCheckBox("Prioritize indexing over UI responsiveness")
-        self.archive_maximum_indexing_priority_checkbox.setToolTip(
-            "Runs optional texture sidecar indexing at normal thread priority. Applies to the next indexing run."
+        preview_cache_layout.addRow("D3D11 package cache", self.archive_native_preview_cache_mode_combo)
+        self.archive_quick_then_full_checkbox = QCheckBox("Show metadata placeholder while 3D preview builds")
+        self.archive_quick_then_full_checkbox.setToolTip(
+            "Shows archive metadata and likely same-stem sidecars immediately, then replaces it with the full 3D preview when ready. This changes feedback, not final preview quality."
         )
-        archive_performance_layout.addRow("", self.archive_quick_then_full_checkbox)
-        archive_performance_layout.addRow("", self.archive_maximum_indexing_priority_checkbox)
-        archive_performance_hint = QLabel(
-            "Global sidecar indexing is optional. Leave it off for faster startup and browsing; enable it when you need DDS reverse references across the archive. "
-            "Preview cache keeps UI results in memory; native preview cache keeps validated D3D11 packages on disk."
+        preview_cache_layout.addRow("", self.archive_quick_then_full_checkbox)
+        preview_cache_hint = QLabel(
+            "Use cache controls when revisiting previews is slow or disk/RAM use is too high. They do not change exported files."
         )
-        archive_performance_hint.setWordWrap(True)
-        archive_performance_hint.setObjectName("HintLabel")
-        archive_performance_layout.addRow("", archive_performance_hint)
-        self.archive_performance_page_layout.addWidget(archive_performance_group)
+        preview_cache_hint.setWordWrap(True)
+        preview_cache_hint.setObjectName("HintLabel")
+        preview_cache_layout.addRow("", preview_cache_hint)
+        self.archive_performance_page_layout.addWidget(preview_cache_group)
 
         layout_group = QGroupBox("Layout")
         layout_layout = QVBoxLayout(layout_group)
@@ -816,10 +842,7 @@ class SettingsTab(QWidget):
         ):
             checkbox.toggled.connect(self.schedule_settings_save)
         self.archive_resource_profile_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
-        self.archive_view_backend_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
-        self.archive_ui_frame_budget_spin.valueChanged.connect(self._handle_archive_performance_changed)
         self.archive_fetch_batch_spin.valueChanged.connect(self._handle_archive_performance_changed)
-        self.archive_background_worker_limit_spin.valueChanged.connect(self._handle_archive_performance_changed)
         self.archive_native_acceleration_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.archive_sidecar_indexing_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.archive_sidecar_worker_mode_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
@@ -1135,10 +1158,7 @@ class SettingsTab(QWidget):
         )
         archive_performance_settings = self.current_archive_performance_settings()
         self.settings.setValue("performance/resource_profile", archive_performance_settings.resource_profile)
-        self.settings.setValue("performance/archive_view_backend", archive_performance_settings.archive_view_backend)
-        self.settings.setValue("performance/ui_frame_budget_ms", archive_performance_settings.ui_frame_budget_ms)
         self.settings.setValue("performance/archive_fetch_batch_size", archive_performance_settings.archive_fetch_batch_size)
-        self.settings.setValue("performance/background_worker_limit", archive_performance_settings.background_worker_limit)
         self.settings.setValue("performance/native_archive_acceleration", archive_performance_settings.native_archive_acceleration)
         self.settings.setValue("archive/enable_sidecar_indexing", archive_performance_settings.enable_sidecar_indexing)
         self.settings.setValue("archive/sidecar_worker_count", archive_performance_settings.sidecar_worker_count)
@@ -1268,27 +1288,24 @@ class SettingsTab(QWidget):
 
     def _read_archive_performance_settings(self) -> ArchivePerformanceSettings:
         defaults = clamp_archive_performance_settings()
+        sidecar_worker_count = self._read_int(
+            "archive/sidecar_worker_count",
+            defaults.sidecar_worker_count,
+        )
+        if not self.settings.contains("archive/sidecar_worker_count"):
+            sidecar_worker_count = self._read_int(
+                "performance/background_worker_limit",
+                defaults.sidecar_worker_count,
+            )
         return clamp_archive_performance_settings(
             ArchivePerformanceSettings(
                 resource_profile=str(
                     self.settings.value("performance/resource_profile", defaults.resource_profile)
                     or defaults.resource_profile
                 ),
-                archive_view_backend=str(
-                    self.settings.value("performance/archive_view_backend", defaults.archive_view_backend)
-                    or defaults.archive_view_backend
-                ),
-                ui_frame_budget_ms=self._read_int(
-                    "performance/ui_frame_budget_ms",
-                    defaults.ui_frame_budget_ms,
-                ),
                 archive_fetch_batch_size=self._read_int(
                     "performance/archive_fetch_batch_size",
                     defaults.archive_fetch_batch_size,
-                ),
-                background_worker_limit=self._read_int(
-                    "performance/background_worker_limit",
-                    defaults.background_worker_limit,
                 ),
                 native_archive_acceleration=self._read_bool(
                     "performance/native_archive_acceleration",
@@ -1298,10 +1315,7 @@ class SettingsTab(QWidget):
                     "archive/enable_sidecar_indexing",
                     defaults.enable_sidecar_indexing,
                 ),
-                sidecar_worker_count=self._read_int(
-                    "archive/sidecar_worker_count",
-                    defaults.sidecar_worker_count,
-                ),
+                sidecar_worker_count=sidecar_worker_count,
                 preview_cache_limit=self._read_int(
                     "archive/preview_cache_limit",
                     defaults.preview_cache_limit,
@@ -1324,10 +1338,7 @@ class SettingsTab(QWidget):
     def _archive_performance_setting_widgets(self) -> tuple[QWidget, ...]:
         return (
             self.archive_resource_profile_combo,
-            self.archive_view_backend_combo,
-            self.archive_ui_frame_budget_spin,
             self.archive_fetch_batch_spin,
-            self.archive_background_worker_limit_spin,
             self.archive_native_acceleration_checkbox,
             self.archive_sidecar_indexing_checkbox,
             self.archive_sidecar_worker_mode_combo,
@@ -1358,10 +1369,7 @@ class SettingsTab(QWidget):
             widget.blockSignals(True)
         try:
             self._set_combo_by_value(self.archive_resource_profile_combo, clamped.resource_profile)
-            self._set_combo_by_value(self.archive_view_backend_combo, clamped.archive_view_backend)
-            self.archive_ui_frame_budget_spin.setValue(clamped.ui_frame_budget_ms)
             self.archive_fetch_batch_spin.setValue(clamped.archive_fetch_batch_size)
-            self.archive_background_worker_limit_spin.setValue(clamped.background_worker_limit)
             self.archive_native_acceleration_checkbox.setChecked(clamped.native_archive_acceleration)
             self.archive_sidecar_indexing_checkbox.setChecked(clamped.enable_sidecar_indexing)
             self.archive_sidecar_worker_mode_combo.setCurrentIndex(1 if clamped.sidecar_worker_count > 0 else 0)
@@ -1386,10 +1394,7 @@ class SettingsTab(QWidget):
         return clamp_archive_performance_settings(
             ArchivePerformanceSettings(
                 resource_profile=str(self.archive_resource_profile_combo.currentData() or "balanced_60fps"),
-                archive_view_backend=str(self.archive_view_backend_combo.currentData() or "virtual_model"),
-                ui_frame_budget_ms=self.archive_ui_frame_budget_spin.value(),
                 archive_fetch_batch_size=self.archive_fetch_batch_spin.value(),
-                background_worker_limit=self.archive_background_worker_limit_spin.value(),
                 native_archive_acceleration=self.archive_native_acceleration_checkbox.isChecked(),
                 enable_sidecar_indexing=self.archive_sidecar_indexing_checkbox.isChecked(),
                 sidecar_worker_count=worker_count,

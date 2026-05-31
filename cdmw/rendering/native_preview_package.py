@@ -1722,25 +1722,40 @@ def _dds_textures_for_batch(
     batch: PreparedModelPreviewBatch,
     *,
     inspect_cache: Optional[Dict[str, Dict[str, object]]] = None,
+    include_support_slots: bool = True,
+    material_input_kinds: Optional[set[str]] = None,
 ) -> Dict[str, object]:
     slots = {
         "base": str(getattr(batch, "preview_texture_dds_path", "") or "")
         or _source_dds_for_preview_path(str(getattr(batch, "preview_texture_path", "") or "")),
-        "normal": str(getattr(batch, "preview_normal_texture_dds_path", "") or "")
-        or _source_dds_for_preview_path(str(getattr(batch, "preview_normal_texture_path", "") or "")),
-        "material": str(getattr(batch, "preview_material_texture_dds_path", "") or "")
-        or _source_dds_for_preview_path(str(getattr(batch, "preview_material_texture_path", "") or "")),
-        "height": str(getattr(batch, "preview_height_texture_dds_path", "") or "")
-        or _source_dds_for_preview_path(str(getattr(batch, "preview_height_texture_path", "") or "")),
     }
+    if include_support_slots:
+        slots.update(
+            {
+                "normal": str(getattr(batch, "preview_normal_texture_dds_path", "") or "")
+                or _source_dds_for_preview_path(str(getattr(batch, "preview_normal_texture_path", "") or "")),
+                "material": str(getattr(batch, "preview_material_texture_dds_path", "") or "")
+                or _source_dds_for_preview_path(str(getattr(batch, "preview_material_texture_path", "") or "")),
+                "height": str(getattr(batch, "preview_height_texture_dds_path", "") or "")
+                or _source_dds_for_preview_path(str(getattr(batch, "preview_height_texture_path", "") or "")),
+            }
+        )
     output: Dict[str, object] = {
         slot_name: _dds_manifest_entry(source_path, slot_name=slot_name, inspect_cache=inspect_cache)
         for slot_name, source_path in slots.items()
         if str(source_path or "").strip()
     }
     input_entries: list[Dict[str, object]] = []
+    allowed_input_kinds = (
+        None
+        if material_input_kinds is None
+        else {str(kind or "").strip().lower() for kind in set(material_input_kinds)}
+    )
     for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ()):
         if not isinstance(texture_input, PreviewMaterialTextureInput):
+            continue
+        input_kind = _input_texture_kind(texture_input)
+        if allowed_input_kinds is not None and input_kind not in allowed_input_kinds:
             continue
         source_path = str(getattr(texture_input, "source_dds_path", "") or "").strip()
         if not source_path:
@@ -2429,8 +2444,19 @@ def write_isolated_d3d11_preview_package(
             vertex_count,
         )
         tangents_usable = _tangents_usable(usable_blob, vertex_count)
+        support_dds_enabled = bool(
+            use_textures
+            and high_quality_textures
+            and not bool(getattr(batch, "preview_debug_disable_support_maps", False))
+            and not bool(getattr(settings, "disable_all_support_maps", False))
+        )
         dds_textures = _filter_dds_textures_for_preview_settings(
-            _dds_textures_for_batch(batch, inspect_cache=dds_inspect_cache),
+            _dds_textures_for_batch(
+                batch,
+                inspect_cache=dds_inspect_cache,
+                include_support_slots=support_dds_enabled,
+                material_input_kinds=None if support_dds_enabled else {"base", "emissive"},
+            ),
             batch,
             render_settings=settings,
             use_textures=bool(use_textures),

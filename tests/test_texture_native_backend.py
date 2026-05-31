@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cdmw.core import texture_native
-from cdmw.core.dds_native import dds_native_report_dict, inspect_dds_native
+from cdmw.core.dds_native import dds_native_report_dict, inspect_dds_native, inspect_dds_native_path
 from cdmw.models import RunCancelled
 
 
@@ -137,6 +137,17 @@ class NativeTextureBackendTests(unittest.TestCase):
             path = Path(temp_dir) / "rgba.dds"
             report = dds_native_report_dict(path, info)
         self.assertTrue(report["direct_upload_candidate"])
+
+    def test_dds_native_path_inspects_header_without_reading_full_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "large.dds"
+            path.write_bytes(_minimal_bc_dds(b"DXT5", width=4096, height=4096, mip_count=1) + (b"x" * 1024))
+
+            with patch.object(Path, "read_bytes", side_effect=AssertionError("full DDS read")):
+                info = inspect_dds_native_path(path)
+
+        self.assertTrue(info.supported_compressed)
+        self.assertEqual("BC3_UNORM", info.format_name)
 
     def test_directxtex_batch_preview_uses_one_helper_command(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

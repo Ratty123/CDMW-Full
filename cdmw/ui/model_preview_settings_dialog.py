@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
     QHBoxLayout,
+    QGroupBox,
     QLabel,
     QPushButton,
     QScrollArea,
@@ -177,6 +178,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self.tabs.addTab(quality_tab, "Quality / Lighting")
         self.tabs.addTab(diagnostics_tab, "Render Diagnostics")
         self.tabs.addTab(controls_tab, "Controls")
+        self.tabs.addTab(performance_tab, "Performance")
         self._archive_performance_tab = performance_tab
 
         general_form = QFormLayout()
@@ -566,22 +568,22 @@ class ModelPreviewSettingsDialog(QDialog):
         controls_layout.addWidget(controls_hint)
         controls_layout.addStretch(1)
 
-        performance_form = QFormLayout()
-        performance_form.setContentsMargins(0, 0, 0, 0)
-        performance_form.setHorizontalSpacing(12)
-        performance_form.setVerticalSpacing(10)
+        related_index_group = QGroupBox("Related-File Indexing")
+        related_index_layout = QFormLayout(related_index_group)
+        related_index_layout.setContentsMargins(12, 14, 12, 12)
+        related_index_layout.setHorizontalSpacing(12)
+        related_index_layout.setVerticalSpacing(10)
         self.sidecar_indexing_enabled_checkbox = QCheckBox("Index texture sidecars for DDS related-file discovery")
         self.sidecar_indexing_enabled_checkbox.setToolTip(
-            "Builds a whole-archive .pami/.pac_xml lookup used for DDS reverse references and richer related-file lists. "
-            "Selected .pam/.pac previews still parse their direct sidecar lazily when this is off."
+            "Builds a whole-archive .pami/.pac_xml lookup for DDS reverse references and richer related-file lists. Selected .pam/.pac previews still parse their direct sidecar lazily when this is off."
         )
         self.sidecar_worker_mode_combo = QComboBox()
-        self.sidecar_worker_mode_combo.addItem("Auto Balanced", 0)
+        self.sidecar_worker_mode_combo.addItem("Auto from preset", 0)
         self.sidecar_worker_mode_combo.addItem("Manual", 1)
         self.sidecar_worker_spin = QSpinBox()
         self.sidecar_worker_spin.setRange(1, 16)
         self.sidecar_worker_spin.setSingleStep(1)
-        self.sidecar_worker_spin.setToolTip("Manual worker count for indexing .pami and .pac_xml texture sidecars.")
+        self.sidecar_worker_spin.setToolTip("Manual worker count for whole-archive .pami/.pac_xml indexing only.")
         worker_row = QWidget()
         worker_layout = QHBoxLayout(worker_row)
         worker_layout.setContentsMargins(0, 0, 0, 0)
@@ -589,38 +591,56 @@ class ModelPreviewSettingsDialog(QDialog):
         worker_layout.addWidget(self.sidecar_worker_mode_combo)
         worker_layout.addWidget(self.sidecar_worker_spin)
         worker_layout.addStretch(1)
+        self.maximum_indexing_priority_checkbox = QCheckBox("Prioritize indexing over UI responsiveness")
+        self.maximum_indexing_priority_checkbox.setToolTip(
+            "Runs sidecar indexing at normal thread priority instead of low priority. This can finish indexing sooner but may make browsing less responsive until the next run finishes."
+        )
+        related_index_layout.addRow("", self.sidecar_indexing_enabled_checkbox)
+        related_index_layout.addRow("Sidecar index workers", worker_row)
+        related_index_layout.addRow("", self.maximum_indexing_priority_checkbox)
+        related_index_hint = QLabel(
+            "This is for cross-archive related-file discovery, not normal preview loading. Leave it off unless DDS reverse references matter for the current workflow."
+        )
+        related_index_hint.setObjectName("HintLabel")
+        related_index_hint.setWordWrap(True)
+        related_index_layout.addRow("", related_index_hint)
+        performance_layout.addWidget(related_index_group)
+
+        preview_cache_group = QGroupBox("Preview Cache")
+        preview_cache_layout = QFormLayout(preview_cache_group)
+        preview_cache_layout.setContentsMargins(12, 14, 12, 12)
+        preview_cache_layout.setHorizontalSpacing(12)
+        preview_cache_layout.setVerticalSpacing(10)
         self.preview_cache_limit_spin = QSpinBox()
         self.preview_cache_limit_spin.setRange(12, 256)
         self.preview_cache_limit_spin.setSingleStep(4)
-        self.preview_cache_limit_spin.setToolTip("Number of archive preview results kept in memory while browsing.")
+        self.preview_cache_limit_spin.setToolTip(
+            "Number of Archive Browser preview results kept in memory. Higher values use more RAM and help when revisiting recently previewed files."
+        )
         self.native_preview_cache_mode_combo = QComboBox()
         self.native_preview_cache_mode_combo.addItem("Off", "off")
         self.native_preview_cache_mode_combo.addItem("Balanced", "balanced")
         self.native_preview_cache_mode_combo.addItem("Aggressive", "aggressive")
         self.native_preview_cache_mode_combo.setToolTip(
-            "Durable native D3D11 package cache. Balanced reuses exact previews; Aggressive also prebuilds nearby visible models."
+            "Durable native D3D11 package cache. Balanced reuses exact previews; Aggressive also prebuilds nearby visible models and uses more disk."
         )
-        self.quick_then_full_checkbox = QCheckBox("Show quick metadata first, then full 3D preview")
-        self.maximum_indexing_priority_checkbox = QCheckBox("Prioritize indexing over UI responsiveness")
-        self.maximum_indexing_priority_checkbox.setToolTip(
-            "Runs texture sidecar indexing at normal thread priority instead of low priority. This applies to the next sidecar indexing run."
+        self.quick_then_full_checkbox = QCheckBox("Show metadata placeholder while 3D preview builds")
+        self.quick_then_full_checkbox.setToolTip(
+            "Shows archive metadata and likely same-stem sidecars immediately, then replaces it with the full 3D preview when ready. This changes feedback, not final preview quality."
         )
         self.clear_preview_cache_button = QPushButton("Clear Preview Cache")
         self.clear_preview_cache_button.setToolTip("Clears in-memory Archive Browser preview results, durable native preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.")
-        performance_form.addRow("", self.sidecar_indexing_enabled_checkbox)
-        performance_form.addRow("Sidecar workers (1-16)", worker_row)
-        performance_form.addRow("Preview cache size (12-256)", self.preview_cache_limit_spin)
-        performance_form.addRow("Native preview cache", self.native_preview_cache_mode_combo)
-        performance_form.addRow("", self.quick_then_full_checkbox)
-        performance_form.addRow("", self.maximum_indexing_priority_checkbox)
-        performance_form.addRow("", self.clear_preview_cache_button)
-        performance_layout.addLayout(performance_form)
-        performance_hint = QLabel(
-            "Global sidecar indexing is optional because it can be expensive on full archives. Worker count range: 1-16. Preview cache range: 12-256 entries. Auto Balanced scales by CPU count and PAZ grouping; high manual values can become disk-bound."
+        preview_cache_layout.addRow("In-memory preview results", self.preview_cache_limit_spin)
+        preview_cache_layout.addRow("D3D11 package cache", self.native_preview_cache_mode_combo)
+        preview_cache_layout.addRow("", self.quick_then_full_checkbox)
+        preview_cache_layout.addRow("", self.clear_preview_cache_button)
+        preview_cache_hint = QLabel(
+            "Use cache controls when revisiting previews is slow or disk/RAM use is too high. They do not change exported files."
         )
-        performance_hint.setObjectName("HintLabel")
-        performance_hint.setWordWrap(True)
-        performance_layout.addWidget(performance_hint)
+        preview_cache_hint.setObjectName("HintLabel")
+        preview_cache_hint.setWordWrap(True)
+        preview_cache_layout.addRow("", preview_cache_hint)
+        performance_layout.addWidget(preview_cache_group)
         performance_layout.addStretch(1)
 
         button_row = QHBoxLayout()
@@ -860,8 +880,15 @@ class ModelPreviewSettingsDialog(QDialog):
 
     def current_archive_performance_settings(self) -> ArchivePerformanceSettings:
         worker_count = self.sidecar_worker_spin.value() if int(self.sidecar_worker_mode_combo.currentData() or 0) else 0
+        base = clamp_archive_performance_settings(self._archive_performance_settings)
         return clamp_archive_performance_settings(
             ArchivePerformanceSettings(
+                resource_profile=base.resource_profile,
+                archive_view_backend=base.archive_view_backend,
+                ui_frame_budget_ms=base.ui_frame_budget_ms,
+                archive_fetch_batch_size=base.archive_fetch_batch_size,
+                background_worker_limit=base.background_worker_limit,
+                native_archive_acceleration=base.native_archive_acceleration,
                 enable_sidecar_indexing=self.sidecar_indexing_enabled_checkbox.isChecked(),
                 sidecar_worker_count=worker_count,
                 preview_cache_limit=self.preview_cache_limit_spin.value(),
@@ -1047,7 +1074,9 @@ class ModelPreviewSettingsDialog(QDialog):
         self.maximum_indexing_priority_checkbox.setEnabled(enabled)
         if self._applying_settings:
             return
-        self.archive_performance_changed.emit(self.current_archive_performance_settings())
+        updated = self.current_archive_performance_settings()
+        self._archive_performance_settings = updated
+        self.archive_performance_changed.emit(updated)
 
     def _reset_defaults(self) -> None:
         current = self.current_settings()

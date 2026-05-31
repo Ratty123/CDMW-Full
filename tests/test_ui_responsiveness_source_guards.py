@@ -247,6 +247,39 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("import_audio_action.triggered.connect(", menu_body)
         self.assertIn("Archive context menu timing | build=", menu_body)
 
+    def test_archive_model_click_preview_work_is_worker_owned(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        selection_start = source.index("        def _handle_archive_current_item_change(")
+        selection_body = source[selection_start: source.index("        def _schedule_archive_selection_state_update", selection_start)]
+        render_start = source.index("        def _render_archive_preview(")
+        render_body = source[render_start: source.index("        def _flush_scheduled_archive_preview_request", render_start)]
+        flush_start = source.index("        def _flush_scheduled_archive_preview_request(")
+        flush_body = source[flush_start: source.index("        def _archive_native_prefetch_candidate_entries", flush_start)]
+
+        self.assertIn("self._render_archive_preview(entry)", selection_body)
+        self.assertIn("self._show_archive_preview_loading_state(entry)", render_body)
+        self.assertIn("preview_cache_snapshot = {", flush_body)
+        self.assertIn("full_cache_key=cache_key", flush_body)
+        self.assertIn("fast_cache_key=fast_cache_key", flush_body)
+        self.assertIn("emit_quick_preview=(", flush_body)
+        self.assertNotIn("self._get_cached_archive_preview_result(", flush_body)
+        self.assertNotIn("self._get_durable_native_preview_package_result(", flush_body)
+        self.assertNotIn("self._quick_archive_model_preview_result(", flush_body)
+        self.assertNotIn("self._apply_archive_preview_result(", flush_body)
+
+    def test_archive_preview_reference_pane_is_deferred(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        show_start = source.index("        def _show_archive_preview_result(")
+        show_body = source[show_start: source.index("        def _toggle_archive_loose_preview", show_start)]
+        flush_start = source.index("        def _flush_archive_texture_reference_update(")
+        flush_body = source[flush_start: source.index("        def _show_archive_preview_loading_state", flush_start)]
+
+        self.assertIn("self.archive_texture_reference_update_timer.setInterval(16)", source)
+        self.assertIn("self._schedule_archive_texture_reference_update(", show_body)
+        self.assertNotIn("_populate_archive_texture_reference_list(result.model_texture_references", show_body)
+        self.assertIn("enrich=False", flush_body)
+        self.assertIn("self._clear_archive_texture_reference_views()", source)
+
     def test_archive_background_work_waits_for_browser_ready_or_first_paint(self) -> None:
         source = _read("cdmw/ui/main_window.py")
         allowed_start = source.index("        def _archive_browser_background_work_allowed(self) -> bool:")
@@ -296,6 +329,15 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("self._archive_picker_population_timer.timeout.connect(self._flush_archive_picker_population_batch)", source)
         self.assertIn("def _flush_archive_picker_population_batch(self) -> None:", source)
         self.assertIn("self._archive_picker_population_timer.start()", source)
+
+    def test_research_archive_picker_details_uses_highlighted_editor(self) -> None:
+        source = _read("cdmw/ui/research_tab.py")
+        self.assertIn("ArchiveDetailsEditor", source)
+        self.assertIn("self.archive_picker_preview_details_edit = ArchiveDetailsEditor(", source)
+        self.assertIn("color_scheme=self._current_preview_color_scheme()", source)
+        self.assertIn("def _apply_archive_picker_preview_text_style(self) -> None:", source)
+        self.assertIn("preview_scheme = self._current_preview_color_scheme()", source)
+        self.assertIn("self.archive_picker_preview_details_edit.set_theme(self.current_theme_key)", source)
 
     def test_archive_browser_clear_and_expansion_are_progressive(self) -> None:
         source = _read("cdmw/ui/main_window.py")

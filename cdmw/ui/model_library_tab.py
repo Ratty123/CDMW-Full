@@ -188,6 +188,9 @@ class ModelLibraryTab(QWidget):
         self._pending_results_visible_count = 0
         self._pending_results_selected_payload: Optional[dict[str, object]] = None
         self._populating_results = False
+        self._result_items_by_payload_id: dict[int, QTreeWidgetItem] = {}
+        self._checked_payloads_by_item: dict[int, dict[str, object]] = {}
+        self._no_texture_download_item_ids: set[int] = set()
         self._activation_preview_timer = QTimer(self)
         self._activation_preview_timer.setSingleShot(True)
         self._activation_preview_timer.setInterval(90)
@@ -594,7 +597,7 @@ class ModelLibraryTab(QWidget):
         self.results_status_label.setWordWrap(True)
         layout.addWidget(self.results_status_label)
         self.results_tree.currentItemChanged.connect(self._handle_results_current_item_changed)
-        self.results_tree.itemChanged.connect(lambda _item, _column: self._update_selection_state())
+        self.results_tree.itemChanged.connect(self._handle_result_item_changed)
         self.results_tree.itemDoubleClicked.connect(lambda _item, _column: self.import_selected_model())
         self.results_tree.customContextMenuRequested.connect(self._show_results_context_menu)
         self.results_tree.header().sectionClicked.connect(self._handle_results_header_clicked)
@@ -677,6 +680,11 @@ class ModelLibraryTab(QWidget):
         if self._populating_results:
             return
         self._schedule_auto_inline_preview()
+
+    def _handle_result_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
+        if column == 0:
+            self._sync_checked_payload_cache_for_item(item)
+        self._update_selection_state()
 
     def _handle_auto_preview_toggled(self, checked: bool) -> None:
         self.settings.setValue("model_library/auto_preview", bool(checked))
@@ -1336,14 +1344,14 @@ class ModelLibraryTab(QWidget):
         if not payload:
             self._set_inline_preview_status("Select a model first.", error=True)
             return
-        import_path = self._resolve_payload_import_path(payload)
-        if import_path is None:
+        source_path = self._inline_preview_source_path_for_payload(payload)
+        if source_path is None:
             if payload.get("kind") == "mirror":
                 self._set_inline_preview_status("Download this mirror model first, then Preview Here.", error=True)
             else:
                 self._set_inline_preview_status("This local item is not an importable model or ZIP.", error=True)
             return
-        self._load_inline_model_preview(import_path, payload)
+        self._load_inline_model_preview(source_path, payload)
 
     def _inline_preview_renderer_backend(self) -> str:
         return "native_d3d11"
@@ -1520,7 +1528,7 @@ class ModelLibraryTab(QWidget):
 
     def _load_inline_model_preview(
         self,
-        import_path: Path,
+        source_path: Path,
         payload: dict[str, object],
         *,
         reset_orientation: bool = True,
@@ -1530,7 +1538,8 @@ class ModelLibraryTab(QWidget):
             return
         self._inline_preview_request_id += 1
         request_id = self._inline_preview_request_id
-        model_name = str(payload.get("name", "") or import_path.stem or "model")
+        source_path = Path(source_path)
+        model_name = str(payload.get("name", "") or source_path.stem or "model")
         renderer_backend = self._inline_preview_renderer_backend()
         self._prepare_inline_preview_orientation_for_load(reset_orientation=reset_orientation)
         self._set_inline_preview_status(f"Preparing preview for {model_name}...")
@@ -1541,10 +1550,18 @@ class ModelLibraryTab(QWidget):
         preview_render_settings = self.inline_preview_widget.render_settings()
 
         def task(progress: Callable[[str], None]) -> object:
-            progress(f"Reading model file: {import_path}")
-            scene_result = import_scene_mesh_with_report(import_path)
+            progress(f"Resolving model preview source: {source_path}")
+            extract_root = self._inline_preview_extract_root_for_source(source_path, payload)
+            resolved_import_path = resolve_importable_model_path(source_path, extract_root=extract_root)
+            if resolved_import_path is None:
+                raise ValueError(
+                    f"{source_path.suffix or 'This file'} does not contain an importable model: "
+                    f"{', '.join(sorted(IMPORTABLE_MODEL_EXTENSIONS))}."
+                )
+            progress(f"Reading model file: {resolved_import_path}")
+            scene_result = import_scene_mesh_with_report(resolved_import_path)
             preview_model = parsed_mesh_to_preview_model(scene_result.mesh)
-            texture_count = self._attach_inline_preview_textures(preview_model, scene_result, import_path)
+            texture_count = self._attach_inline_preview_textures(preview_model, scene_result, resolved_import_path)
             prepared_model, prepared_preview = prepare_model_preview(
                 preview_model,
                 render_settings=preview_render_settings,
@@ -1574,7 +1591,8 @@ class ModelLibraryTab(QWidget):
             return {
                 "request_id": request_id,
                 "model_name": model_name,
-                "import_path": str(import_path),
+                "source_path": str(source_path),
+                "import_path": str(resolved_import_path),
                 "renderer_backend": renderer_backend,
                 "preview_model": prepared_model,
                 "prepared_preview": prepared_preview,
@@ -1617,11 +1635,18 @@ class ModelLibraryTab(QWidget):
             else:
                 self._set_inline_preview_status("Native D3D11 preview package was not built.", error=True)
                 return
-            self._inline_preview_loaded_import_path = Path(str(result.get("import_path", "") or import_path))
+            resolved_import_path = Path(str(result.get("import_path", "") or source_path))
+            self._inline_preview_loaded_import_path = resolved_import_path
             self._inline_preview_loaded_payload = dict(payload)
             self._inline_preview_loaded_renderer_backend = loaded_renderer_backend
             texture_count = int(result.get("textures", 0) or 0)
             self._inline_preview_loaded_texture_count = texture_count
+            payload["import_path"] = str(resolved_import_path)
+            payload["import_supported"] = True
+            if source_path.suffix.lower() == ".zip":
+                payload["archive_path"] = str(source_path)
+            if payload.get("kind") == "mirror":
+                payload["local_status"] = self._mirror_local_status(payload)
             payload["texture_status"] = f"Resolved ({texture_count})" if texture_count > 0 else "None resolved"
             audit_category = str(result.get("audit_category", "") or "")
             if audit_category:
@@ -1632,7 +1657,7 @@ class ModelLibraryTab(QWidget):
                 payload["audit_warnings"] = tuple(result.get("audit_warnings", ()) or ())
                 payload["audit_false_positive"] = bool(result.get("audit_false_positive", False))
                 payload["audit_mixed_model"] = bool(result.get("audit_mixed_model", False))
-            self._refresh_result_row_statuses()
+            self._refresh_result_row_status(payload)
             audit_text = ""
             if audit_category:
                 audit_text = f" | audit: {audit_category} {float(result.get('audit_confidence', 0.0) or 0.0):.0%}"
@@ -2374,6 +2399,9 @@ class ModelLibraryTab(QWidget):
         self.results_tree.setUpdatesEnabled(False)
         self.results_tree.clear()
         self._result_payloads_by_item.clear()
+        self._result_items_by_payload_id.clear()
+        self._checked_payloads_by_item.clear()
+        self._no_texture_download_item_ids.clear()
         self.results_tree.setUpdatesEnabled(True)
         self.results_tree.blockSignals(False)
         self._update_empty_results_message(len(visible_rows), total_count)
@@ -2425,6 +2453,7 @@ class ModelLibraryTab(QWidget):
         item.setData(0, Qt.ItemDataRole.UserRole, payload)
         item.setData(1, Qt.ItemDataRole.UserRole, payload)
         self._result_payloads_by_item[id(item)] = payload
+        self._result_items_by_payload_id[id(payload)] = item
         return item
 
     def _payload_population_key(self, payload: Optional[dict[str, object]]) -> tuple[str, str, str]:
@@ -2464,6 +2493,8 @@ class ModelLibraryTab(QWidget):
         batch = self._pending_results_rows[: self.RESULTS_POPULATION_BATCH_SIZE]
         del self._pending_results_rows[: self.RESULTS_POPULATION_BATCH_SIZE]
         items = [self._build_result_item(payload) for payload in batch]
+        for item in items:
+            self._sync_no_texture_download_cache_for_item(item)
         self.results_tree.setUpdatesEnabled(False)
         self.results_tree.addTopLevelItems(items)
         self.results_tree.setUpdatesEnabled(True)
@@ -2479,9 +2510,14 @@ class ModelLibraryTab(QWidget):
     def _update_selection_state(self) -> None:
         payload = self._selected_payload()
         checked_payloads = self._checked_payloads()
-        batch_payloads = self._batch_action_payloads()
-        batch_mirror_count = sum(1 for selected in batch_payloads if selected.get("kind") == "mirror")
-        delete_payloads = self._local_delete_payloads()
+        batch_mirror_count = sum(1 for selected in checked_payloads if selected.get("kind") == "mirror")
+        delete_payloads = [
+            selected
+            for selected in checked_payloads
+            if self._local_delete_target_for_payload(selected) is not None
+        ]
+        if not delete_payloads and payload is not None and self._local_delete_target_for_payload(payload) is not None:
+            delete_payloads = [payload]
         no_texture_download_count = self._visible_no_texture_download_count()
         checked_count = len(checked_payloads)
         result_count = self.results_tree.topLevelItemCount()
@@ -2615,6 +2651,49 @@ class ModelLibraryTab(QWidget):
             lines.append(f"Archive: {archive_path}")
         self.details_text.setText("\n".join(lines))
 
+    def _result_item_for_payload(self, payload: Optional[dict[str, object]]) -> Optional[QTreeWidgetItem]:
+        if not payload:
+            return None
+        item = self._result_items_by_payload_id.get(id(payload))
+        if item is not None:
+            return item
+        target_key = self._payload_population_key(payload)
+        for index in range(self.results_tree.topLevelItemCount()):
+            candidate = self.results_tree.topLevelItem(index)
+            candidate_payload = self._payload_from_item(candidate)
+            if candidate_payload is payload or self._payload_population_key(candidate_payload) == target_key:
+                self._result_items_by_payload_id[id(payload)] = candidate
+                return candidate
+        return None
+
+    def _sync_checked_payload_cache_for_item(self, item: Optional[QTreeWidgetItem]) -> None:
+        if item is None:
+            return
+        item_id = id(item)
+        payload = self._payload_from_item(item)
+        if payload is not None and item.checkState(0) == Qt.CheckState.Checked:
+            self._checked_payloads_by_item[item_id] = payload
+            return
+        self._checked_payloads_by_item.pop(item_id, None)
+
+    def _rebuild_checked_payload_cache(self) -> None:
+        self._checked_payloads_by_item.clear()
+        for index in range(self.results_tree.topLevelItemCount()):
+            self._sync_checked_payload_cache_for_item(self.results_tree.topLevelItem(index))
+
+    def _sync_no_texture_download_cache_for_item(self, item: Optional[QTreeWidgetItem]) -> None:
+        if item is None:
+            return
+        item_id = id(item)
+        self._no_texture_download_item_ids.discard(item_id)
+        if self._active_results_view != "local":
+            return
+        payload = self._payload_from_item(item)
+        if payload is None or model_library_texture_status_kind(item.text(4)) != "missing":
+            return
+        if self._downloaded_model_folder_target_for_payload(payload) is not None:
+            self._no_texture_download_item_ids.add(item_id)
+
     def _selected_payload(self) -> Optional[dict[str, object]]:
         item = self.results_tree.currentItem()
         return self._payload_from_item(item)
@@ -2649,15 +2728,7 @@ class ModelLibraryTab(QWidget):
         return None
 
     def _checked_payloads(self) -> list[dict[str, object]]:
-        payloads: list[dict[str, object]] = []
-        for index in range(self.results_tree.topLevelItemCount()):
-            item = self.results_tree.topLevelItem(index)
-            if item.checkState(0) != Qt.CheckState.Checked:
-                continue
-            payload = self._payload_from_item(item)
-            if payload is not None:
-                payloads.append(payload)
-        return payloads
+        return list(self._checked_payloads_by_item.values())
 
     def _batch_action_payloads(self) -> list[dict[str, object]]:
         return self._checked_payloads()
@@ -2670,6 +2741,7 @@ class ModelLibraryTab(QWidget):
                 self.results_tree.topLevelItem(index).setCheckState(0, state)
         finally:
             self.results_tree.blockSignals(False)
+        self._rebuild_checked_payload_cache()
         self._update_selection_state()
 
     def _local_delete_payloads(self) -> list[dict[str, object]]:
@@ -2835,7 +2907,9 @@ class ModelLibraryTab(QWidget):
         return box.clickedButton() == delete_button
 
     def _visible_no_texture_download_count(self) -> int:
-        return len(self._visible_no_texture_download_payloads())
+        if self._active_results_view != "local":
+            return 0
+        return len(self._no_texture_download_item_ids)
 
     def _clear_deleted_local_state(self, deleted_targets: list[Path]) -> None:
         def is_deleted_path(value: object) -> bool:
@@ -3035,18 +3109,48 @@ class ModelLibraryTab(QWidget):
             return False
         if payload.get("kind") == "mirror":
             return True
-        if bool(payload.get("import_supported")):
-            return True
+        if "import_supported" in payload:
+            return bool(payload.get("import_supported"))
         path = Path(str(payload.get("path", "") or ""))
         return path.suffix.lower() == ".zip" and zip_contains_importable_model(path)
 
     def _payload_can_preview_here(self, payload: Optional[dict[str, object]]) -> bool:
+        return self._inline_preview_source_path_for_payload(payload) is not None
+
+    def _inline_preview_source_path_for_payload(self, payload: Optional[dict[str, object]]) -> Optional[Path]:
         if not payload:
-            return False
-        if payload.get("kind") == "mirror":
-            self._apply_mirror_local_state(payload)
-            return self._mirror_local_status(payload) in {"Ready", "ZIP ready"}
-        return self._payload_can_import(payload)
+            return None
+        for key in ("import_path", "archive_path", "path"):
+            path_text = str(payload.get(key, "") or "").strip()
+            if not path_text:
+                continue
+            path = Path(path_text)
+            if path.is_file() and (is_importable_model_path(path) or path.suffix.lower() == ".zip"):
+                return path
+        if payload.get("kind") != "mirror":
+            return None
+        asset_dir = self._existing_mirror_asset_dir(payload)
+        if asset_dir is not None:
+            payload["asset_dir"] = str(asset_dir)
+        archive_path = self._existing_mirror_archive_path(payload, asset_dir)
+        if archive_path is not None and archive_path.is_file() and (
+            is_importable_model_path(archive_path) or archive_path.suffix.lower() == ".zip"
+        ):
+            payload["archive_path"] = str(archive_path)
+            return archive_path
+        return None
+
+    def _inline_preview_extract_root_for_source(self, source_path: Path, payload: dict[str, object]) -> Optional[Path]:
+        if source_path.suffix.lower() != ".zip":
+            return None
+        asset_dir_text = str(payload.get("asset_dir", "") or "").strip()
+        asset_dir = Path(asset_dir_text) if asset_dir_text else source_path.parent
+        if not asset_dir_text and not (asset_dir / "model_metadata.json").is_file():
+            return None
+        if not asset_dir.is_dir() or not self._path_is_under(source_path, asset_dir):
+            return None
+        extract_name = "source" if source_path.name.lower().endswith(".source.zip") else "gltf"
+        return asset_dir / extract_name
 
     def _set_inline_preview_status(self, message: str, *, error: bool = False) -> None:
         if hasattr(self, "inline_preview_status_label"):
@@ -3124,7 +3228,7 @@ class ModelLibraryTab(QWidget):
                 if resolved is not None:
                     payload["import_path"] = str(resolved)
                     payload["local_status"] = self._mirror_local_status(payload)
-                    self._refresh_result_row_statuses()
+                    self._refresh_result_row_status(payload)
                     return resolved
             return None
         import_path = Path(str(payload.get("import_path", "") or ""))
@@ -3137,7 +3241,7 @@ class ModelLibraryTab(QWidget):
         if resolved is not None:
             payload["import_path"] = str(resolved)
             payload["import_supported"] = True
-            self._refresh_result_row_statuses()
+            self._refresh_result_row_status(payload)
         return resolved
 
     def _apply_mirror_local_state(self, payload: dict[str, object]) -> None:
@@ -3345,6 +3449,18 @@ class ModelLibraryTab(QWidget):
         self._texture_status_cache[cache_key] = count
         return count
 
+    def _refresh_result_row_status(self, payload: dict[str, object]) -> None:
+        item = self._result_item_for_payload(payload)
+        if item is None:
+            return
+        if payload.get("kind") == "mirror":
+            self._apply_mirror_local_state(payload)
+            item.setText(3, self._mirror_local_status(payload))
+        else:
+            item.setText(3, self._local_payload_status(payload))
+        item.setText(4, self._texture_status_for_payload(payload))
+        self._sync_no_texture_download_cache_for_item(item)
+
     def _refresh_result_row_statuses(self) -> None:
         for index in range(self.results_tree.topLevelItemCount()):
             item = self.results_tree.topLevelItem(index)
@@ -3358,6 +3474,7 @@ class ModelLibraryTab(QWidget):
             else:
                 item.setText(3, self._local_payload_status(payload))
                 item.setText(4, self._texture_status_for_payload(payload))
+            self._sync_no_texture_download_cache_for_item(item)
 
     def _mirror_candidates_for_payload(self, payload: dict[str, object]) -> tuple[MirrorDownloadCandidate, ...]:
         payload_mirror_url = str(payload.get("mirror_url", "") or "").strip()

@@ -241,6 +241,27 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("Open Catalogue", source)
         self.assertNotIn("preferred_format_combo", source)
 
+    def test_model_library_auto_preview_resolves_zip_off_ui_thread(self) -> None:
+        source = Path("cdmw/ui/model_library_tab.py").read_text(encoding="utf-8")
+
+        preview_start = source.index("    def preview_selected_model_here")
+        preview_body = source[preview_start: source.index("    def _inline_preview_renderer_backend", preview_start)]
+        self.assertIn("_inline_preview_source_path_for_payload(payload)", preview_body)
+        self.assertNotIn("_resolve_payload_import_path", preview_body)
+        self.assertNotIn("resolve_importable_model_path", preview_body)
+
+        load_start = source.index("    def _load_inline_model_preview")
+        task_start = source.index("        def task(", load_start)
+        task_body = source[task_start: source.index("        def complete(", task_start)]
+        self.assertIn("resolved_import_path = resolve_importable_model_path(", task_body)
+        self.assertIn("import_scene_mesh_with_report(resolved_import_path)", task_body)
+
+        complete_start = source.index("        def complete(", load_start)
+        complete_body = source[complete_start: source.index("        def handle_error(", complete_start)]
+        self.assertIn("payload[\"import_path\"] = str(resolved_import_path)", complete_body)
+        self.assertIn("self._refresh_result_row_status(payload)", complete_body)
+        self.assertNotIn("self._refresh_result_row_statuses()", complete_body)
+
 
 if __name__ == "__main__":
     unittest.main()

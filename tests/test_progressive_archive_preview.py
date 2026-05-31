@@ -115,8 +115,24 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         handler = source[source.index("def _handle_archive_preview_ready"):source.index("def _handle_archive_preview_error")]
 
         self.assertIn("is_fast_result = quality_tier == \"fast\"", handler)
-        self.assertIn("if not is_fast_result:", handler)
+        self.assertIn("is_interim_result = is_fast_result or quality_tier == \"quick\" or source == \"quick_preview\"", handler)
+        self.assertIn("if not is_interim_result:", handler)
         self.assertIn("Fast preview loaded; refining full-quality preview", handler)
+
+    def test_archive_preview_worker_owns_cache_and_quick_payloads_source_guard(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        worker = source[source.index("class ArchivePreviewWorker"):source.index("class ArchiveD3D11PackageWorker")]
+
+        self.assertIn("class _ArchivePreviewWorkerPayload", source)
+        self.assertIn("preview_cache_snapshot", worker)
+        self.assertIn("def _cached_preview_payload", worker)
+        self.assertIn("def _durable_native_preview_cache_payload", worker)
+        self.assertIn("def _quick_archive_model_preview_payload", worker)
+        self.assertIn('source="preview_cache"', worker)
+        self.assertIn('source="preview_cache_fast"', worker)
+        self.assertIn('source="native_package_cache"', worker)
+        self.assertIn('source="quick_preview"', worker)
+        self.assertIn("emit_private_payloads=True", source)
 
     def test_preview_loading_watchdog_preserves_fast_result_source_guard(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")

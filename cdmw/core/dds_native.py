@@ -142,7 +142,8 @@ def _build_mip_layout(
     return tuple(levels)
 
 
-def inspect_dds_native(data: bytes) -> DdsNativeInfo:
+def inspect_dds_native(data: bytes, *, payload_size: Optional[int] = None) -> DdsNativeInfo:
+    total_size = len(data) if payload_size is None else max(0, int(payload_size))
     if len(data) < 128 or data[:4] != DDS_MAGIC:
         return DdsNativeInfo(0, 0, 0, "", reason="not a DDS file or header is truncated")
     header_size = _read_u32(data, 4)
@@ -197,7 +198,7 @@ def inspect_dds_native(data: bytes) -> DdsNativeInfo:
         mip_count=mip_count,
         data_offset=data_offset,
         bytes_per_block=bytes_per_block,
-        payload_size=len(data),
+        payload_size=total_size,
         block_width=block_width,
         block_height=block_height,
     )
@@ -239,7 +240,11 @@ def inspect_dds_native(data: bytes) -> DdsNativeInfo:
 
 
 def inspect_dds_native_path(path: Path) -> DdsNativeInfo:
-    return inspect_dds_native(Path(path).read_bytes())
+    source = Path(path)
+    payload_size = int(source.stat().st_size)
+    with source.open("rb") as handle:
+        header = handle.read(148)
+    return inspect_dds_native(header, payload_size=payload_size)
 
 
 def dds_native_report_dict(path: Path, info: DdsNativeInfo, *, backend: str = "dds_native_header") -> Dict[str, object]:

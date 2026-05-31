@@ -58,8 +58,13 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         reload_end = source.index('def _check_archive_isolated_renderer_start_timeout', reload_start)
         reload_source = source[reload_start:reload_end]
 
-        self.assertIn("_set_archive_d3d11_pending_package(package_dir, status_file", reload_source)
+        self.assertIn("self._set_archive_d3d11_pending_package(", reload_source)
         self.assertIn("loading the next package while the current preview remains visible", reload_source)
+        self.assertIn("next_model_key = self._d3d11_preview_package_model_key(package_dir)", reload_source)
+        self.assertIn("same_d3d11_model", reload_source)
+        self.assertIn("reset_view=not same_d3d11_model", reload_source)
+        self.assertIn("archive_d3d11_has_view_state = False", reload_source)
+        self.assertIn("_sanitize_d3d11_view_state_for_restore(self.archive_d3d11_view_state)", reload_source)
         self.assertNotIn("clear_preview(status_file)", reload_source)
         self.assertIn("_promote_archive_d3d11_pending_package_if_loaded(status_file)", source)
         self.assertIn("_discard_archive_d3d11_pending_package(status_file)", source)

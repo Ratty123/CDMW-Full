@@ -20,7 +20,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('("X-Ray", "xray")', source)
         self.assertIn("def _mesh_edit_preview_source_indices(", source)
         self.assertIn("raw_direct_source_preview_indices.update(_mesh_edit_preview_source_indices())", source)
-        self.assertIn(
+        self.assertIn("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:", source)
+        self.assertIn("_mesh_edit_apply_preview_mode_transition(\"mesh_edit_toggle\")", source)
+        self.assertIn("mesh_edit_enabled_checkbox.toggled.connect(_mesh_edit_enabled_toggled)", source)
+        self.assertNotIn(
             "mesh_edit_enabled_checkbox.toggled.connect(lambda _checked=False: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))",
             source,
         )
@@ -162,6 +165,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         worker_source = source[source.index("class AlignmentD3D11PackageWorker"): source.index("class DetachedToolWindow")]
 
         self.assertIn("def _mesh_edit_raw_preview_active() -> bool:", source)
+        self.assertIn("mesh_edit_raw_preview_state = {\"active\": False}", source)
+        self.assertIn("def _mesh_edit_apply_preview_mode_transition(reason: str) -> None:", source)
+        self.assertIn('"mesh_edit_preview_mode_transition"', source)
+        self.assertIn('_alignment_d3d11_invalidate_package_cache("mesh_edit_mode")', source)
+        self.assertIn("_queue_texture_preview_refresh()", source)
+        self.assertIn('_mesh_edit_apply_preview_mode_transition("left_mesh_edit_tab")', source)
         self.assertIn('return clamp_model_preview_render_settings(raw_settings), False, False, "mesh_edit_raw"', source)
         self.assertIn("mesh_edit_raw_package = _mesh_edit_raw_preview_active()", source)
         self.assertIn("use_textures=not mesh_edit_raw_package", source)

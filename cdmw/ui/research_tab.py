@@ -35,6 +35,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.constants import (
+    DEFAULT_UI_LOG_TEXT_STYLE,
+    DEFAULT_UI_PREVIEW_COLOR_SCHEME,
+    DEFAULT_UI_THEME,
+    UI_LOG_TEXT_STYLE_OPTIONS,
+    UI_TEXT_COLOR_SCHEME_OPTIONS,
+)
 from cdmw.core.archive import build_archive_preview_result, build_archive_tree_index
 from cdmw.core.classification_registry import (
     remove_registered_texture_classifications,
@@ -85,6 +92,7 @@ from cdmw.core.research import (
 from cdmw.core.pipeline import describe_processing_path_kind
 from cdmw.models import AppConfig, ArchiveEntry, ArchivePreviewResult
 from cdmw.ui.widgets import (
+    ArchiveDetailsEditor,
     EmptyStateTreeWidget,
     FlatSectionPanel,
     PreviewLabel,
@@ -502,6 +510,7 @@ class ResearchTab(QWidget):
     ) -> None:
         super().__init__(parent)
         self.settings = settings
+        self.current_theme_key = self._read_theme_key()
         self.base_dir = base_dir
         self.get_archive_entries = get_archive_entries
         self.get_filtered_archive_entries = get_filtered_archive_entries
@@ -700,8 +709,36 @@ class ResearchTab(QWidget):
         self.defer_archive_picker_refresh = False
         QTimer.singleShot(0, self._apply_responsive_splitter_defaults)
 
-    def set_theme(self, _theme_key: str) -> None:
-        return
+    def _read_theme_key(self) -> str:
+        return str(self.settings.value("appearance/theme", DEFAULT_UI_THEME) or DEFAULT_UI_THEME)
+
+    def _current_text_highlight_style(self) -> str:
+        value = str(
+            self.settings.value("appearance/log_text_style", DEFAULT_UI_LOG_TEXT_STYLE)
+            or DEFAULT_UI_LOG_TEXT_STYLE
+        ).strip().lower()
+        allowed = {key for key, _label in UI_LOG_TEXT_STYLE_OPTIONS}
+        return value if value in allowed else DEFAULT_UI_LOG_TEXT_STYLE
+
+    def _current_preview_color_scheme(self) -> str:
+        value = str(
+            self.settings.value("appearance/preview_color_scheme", DEFAULT_UI_PREVIEW_COLOR_SCHEME)
+            or DEFAULT_UI_PREVIEW_COLOR_SCHEME
+        ).strip().lower()
+        allowed = {key for key, _label in UI_TEXT_COLOR_SCHEME_OPTIONS}
+        return value if value in allowed else DEFAULT_UI_PREVIEW_COLOR_SCHEME
+
+    def _apply_archive_picker_preview_text_style(self) -> None:
+        style = self._current_text_highlight_style()
+        preview_scheme = self._current_preview_color_scheme()
+        for editor in (self.archive_picker_preview_details_edit,):
+            editor.set_highlight_style(style)
+            editor.set_color_scheme(preview_scheme)
+
+    def set_theme(self, theme_key: str) -> None:
+        self.current_theme_key = str(theme_key or DEFAULT_UI_THEME)
+        self.archive_picker_preview_details_edit.set_theme(self.current_theme_key)
+        self._apply_archive_picker_preview_text_style()
 
     def iter_shutdown_workers(self) -> tuple[tuple[str, Optional[QThread], Optional[object]], ...]:
         return (
@@ -1942,8 +1979,12 @@ class ResearchTab(QWidget):
         self.archive_picker_preview_stack.addWidget(self.archive_picker_preview_text_edit)
         self.archive_picker_preview_stack.addWidget(self.archive_picker_preview_info_edit)
 
-        self.archive_picker_preview_details_edit = QPlainTextEdit()
-        self.archive_picker_preview_details_edit.setReadOnly(True)
+        self.archive_picker_preview_details_edit = ArchiveDetailsEditor(
+            theme_key=self.current_theme_key,
+            highlight_style=self._current_text_highlight_style(),
+            color_scheme=self._current_preview_color_scheme(),
+        )
+        self.archive_picker_preview_details_edit.document().setMaximumBlockCount(2000)
         self.archive_picker_preview_tabs = QTabWidget()
         preview_tab = QWidget()
         preview_tab_layout = QVBoxLayout(preview_tab)

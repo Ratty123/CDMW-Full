@@ -5,7 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QLabel
 
-from cdmw.models import ModelPreviewRenderSettings
+from cdmw.models import ArchivePerformanceSettings, ModelPreviewRenderSettings
 from cdmw.ui.model_preview_settings_dialog import ModelPreviewSettingsDialog
 
 
@@ -71,6 +71,38 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertTrue(dialog.pause_tool_pbd_cloth_preview_checkbox.isEnabled())
         self.assertTrue(dialog.show_tool_pbd_cloth_pins_checkbox.isEnabled())
         self.assertTrue(dialog.show_tool_pbd_cloth_colliders_checkbox.isEnabled())
+
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_performance_subset_preserves_hidden_archive_settings_on_emit(self) -> None:
+        _app()
+        dialog = ModelPreviewSettingsDialog(
+            settings=ModelPreviewRenderSettings(),
+            archive_performance_settings=ArchivePerformanceSettings(
+                resource_profile="maximum_throughput",
+                archive_fetch_batch_size=1200,
+                native_archive_acceleration=False,
+                enable_sidecar_indexing=True,
+                sidecar_worker_count=3,
+                preview_cache_limit=64,
+                native_preview_cache_mode="aggressive",
+            ),
+        )
+        emitted = []
+        dialog.archive_performance_changed.connect(emitted.append)
+
+        dialog.preview_cache_limit_spin.setValue(96)
+
+        self.assertTrue(emitted)
+        current = emitted[-1]
+        self.assertEqual("maximum_throughput", current.resource_profile)
+        self.assertEqual(1200, current.archive_fetch_batch_size)
+        self.assertFalse(current.native_archive_acceleration)
+        self.assertEqual(96, current.preview_cache_limit)
+        self.assertEqual("aggressive", current.native_preview_cache_mode)
+        self.assertTrue(current.enable_sidecar_indexing)
+        self.assertEqual(3, current.sidecar_worker_count)
 
         dialog.close()
         dialog.deleteLater()
