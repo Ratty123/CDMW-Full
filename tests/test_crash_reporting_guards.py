@@ -7,6 +7,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "cdmw_app.py"
 MAIN_WINDOW = ROOT / "cdmw" / "ui" / "main_window.py"
+STARTUP_SPLASH_HOST = ROOT / "cdmw" / "ui" / "startup_splash_host.py"
+APP_ICON = ROOT / "cdmw" / "ui" / "app_icon.py"
 ARCHIVE = ROOT / "cdmw" / "core" / "archive.py"
 CONSTANTS = ROOT / "cdmw" / "constants.py"
 THEMES = ROOT / "cdmw" / "ui" / "themes.py"
@@ -37,6 +39,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("if _startup_splash_process.poll() is None:", source)
         self.assertIn("os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)", source)
         self.assertIn("_request_existing_instance_activation()", source)
+        self.assertIn('if not os.environ.get("_PYI_SPLASH_IPC"):', source)
         self.assertIn('_update_pyinstaller_boot_splash("Already running.")', source)
         self.assertIn('_update_pyinstaller_boot_splash("Loading...")', source)
         self.assertLess(
@@ -109,6 +112,31 @@ class CrashReportingGuardTests(unittest.TestCase):
             source.index("apply_windows_app_user_model_id()"),
             source.index("app = QApplication(sys.argv)"),
         )
+
+    def test_external_startup_splash_sets_taskbar_icon_before_show(self) -> None:
+        source = STARTUP_SPLASH_HOST.read_text(encoding="utf-8")
+        app_icon_source = APP_ICON.read_text(encoding="utf-8")
+        self.assertIn("def _apply_windows_app_user_model_id() -> None:", source)
+        self.assertIn("SetCurrentProcessExplicitAppUserModelID", source)
+        self.assertIn("from cdmw.ui.app_icon import resolve_app_icon_path", source)
+        self.assertIn("QIcon", source)
+        self.assertIn("app.setWindowIcon(app_icon)", source)
+        self.assertIn("dialog.setWindowIcon(app_icon)", source)
+        self.assertLess(
+            source.index("    _apply_windows_app_user_model_id()"),
+            source.index("app = QApplication(sys.argv[:1])"),
+        )
+        self.assertLess(
+            source.index("dialog.setWindowIcon(app_icon)"),
+            source.index("dialog.show()"),
+        )
+        self.assertIn('Path("_internal") / "assets" / "cdmw.ico"', app_icon_source)
+        self.assertIn("def resolve_app_icon_path() -> Optional[Path]:", app_icon_source)
+
+    def test_app_icon_resolver_finds_repo_asset(self) -> None:
+        from cdmw.ui.app_icon import resolve_app_icon_path
+
+        self.assertEqual(resolve_app_icon_path(), ROOT / "assets" / "cdmw.ico")
 
     def test_background_crash_context_does_not_read_live_qt_widgets(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -421,9 +449,12 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.setup_section.set_expanded(True)", main_source)
         self.assertIn("self.paths_page_layout.insertWidget(2, paths_section)", settings_source)
         self.assertIn("self.paths_page_layout.insertWidget(3, archive_locations_section)", settings_source)
-        self.assertIn("self.restore_archive_filters_checkbox = QCheckBox(\"Restore Archive Browser filters on startup\")", settings_source)
-        self.assertIn("\"preferences/restore_archive_filters_on_startup\"", settings_source)
-        self.assertIn("restore_archive_filters = self._preference_bool(\"restore_archive_filters_on_startup\", False)", main_source)
+        self.assertNotIn("restore_archive_filters_checkbox", settings_source)
+        self.assertNotIn("\"preferences/restore_archive_filters_on_startup\"", settings_source)
+        self.assertNotIn("restore_archive_filters = self._preference_bool(\"restore_archive_filters_on_startup\", False)", main_source)
+        self.assertIn("Archive Browser starts with neutral filters.", settings_source)
+        self.assertIn("def _neutral_archive_filter_state(self) -> Dict[str, object]:", main_source)
+        self.assertIn("self._apply_archive_filter_state(self._neutral_archive_filter_state())", main_source)
         self.assertNotIn("QTimer.singleShot(6500, window._release_startup_splash)", main_source)
         self.assertIn('_write_heartbeat("archive_autoload_queued")', main_source)
         self.assertIn('startup_splash.set_detail("Loading Archive Browser...")', main_source)
@@ -541,9 +572,8 @@ class CrashReportingGuardTests(unittest.TestCase):
         source = MAIN_WINDOW.read_text(encoding="utf-8")
         self.assertIn('ARCHIVE_BROWSER_VIEW_MODE = "flat"', constants_source)
         self.assertIn('self._add_combo_choice(self.archive_browser_view_mode_combo, "Flat", "flat")', source)
-        self.assertIn('view_mode_value = ARCHIVE_BROWSER_VIEW_MODE', source)
-        self.assertIn('view_mode_value = "folders" if self._read_bool("archive/tree_view", True) else "flat"', source)
-        self.assertIn('self._set_combo_by_value(self.archive_browser_view_mode_combo, str(view_mode_value or ARCHIVE_BROWSER_VIEW_MODE))', source)
+        self.assertIn('self._set_combo_by_value(self.archive_browser_view_mode_combo, ARCHIVE_BROWSER_VIEW_MODE)', source)
+        self.assertNotIn('view_mode_value = "folders" if self._read_bool("archive/tree_view", True) else "flat"', source)
 
     def test_archive_controls_sidebar_keeps_readable_width(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")

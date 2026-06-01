@@ -47,7 +47,17 @@ hiddenimports = []
 hiddenimports += [
     "cdmw.rendering.native_d3d11_host",
     "cdmw.rendering.native_preview_package",
+]
+
+unused_qt_modules = [
+    "PySide6.QtQml",
+    "PySide6.QtQuick",
+    "PySide6.QtQuick3D",
+    "PySide6.QtQuickControls2",
+    "PySide6.QtQuickWidgets",
+    "PySide6.QtWebChannel",
     "PySide6.QtWebEngineCore",
+    "PySide6.QtWebEngineQuick",
     "PySide6.QtWebEngineWidgets",
 ]
 
@@ -123,6 +133,7 @@ a = Analysis(
     excludes=[
         "PIL.AvifImagePlugin",
         "PIL._avif",
+        *unused_qt_modules,
         "numpy._pyinstaller",
         "numpy.conftest",
         "numpy.f2py",

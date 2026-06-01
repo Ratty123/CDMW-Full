@@ -35,7 +35,7 @@ from cdmw.rendering.model_preview_prepare import prepare_model_preview
 
 
 class ModelPreviewOverlayClipTests(unittest.TestCase):
-    def test_archive_performance_priority_requires_sidecar_indexing(self) -> None:
+    def test_archive_performance_priority_can_prewarm_without_sidecar_indexing(self) -> None:
         settings = clamp_archive_performance_settings(
             ArchivePerformanceSettings(
                 enable_sidecar_indexing=False,
@@ -43,7 +43,7 @@ class ModelPreviewOverlayClipTests(unittest.TestCase):
             )
         )
 
-        self.assertFalse(settings.maximum_indexing_priority)
+        self.assertTrue(settings.maximum_indexing_priority)
 
     def test_keeps_visible_overlay_line_unchanged(self) -> None:
         clipped = NativePreviewPanel._clip_preview_line(
@@ -124,6 +124,29 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertAlmostEqual(expected_point.x(), actual_point.x(), places=6)
         self.assertAlmostEqual(expected_point.y(), actual_point.y(), places=6)
         self.assertAlmostEqual(expected_point.z(), actual_point.z(), places=6)
+
+    def test_hkx_preview_batches_are_not_mesh_edit_editable(self) -> None:
+        mesh = ModelPreviewMesh(
+            material_name="HKX shape",
+            preview_role="hkx_collision_shape",
+            source_submesh_index=2,
+            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            indices=[0, 1, 2],
+        )
+        _model, prepared = prepare_model_preview(
+            ModelPreviewData(
+                path="body.hkx",
+                format="hkx",
+                mesh_count=1,
+                vertex_count=3,
+                face_count=1,
+                meshes=[mesh],
+            )
+        )
+
+        self.assertEqual(1, len(prepared.batches))
+        self.assertEqual("hkx_collision_shape", prepared.batches[0].editor_role)
+        self.assertFalse(prepared.batches[0].editor_editable)
 
     def test_render_settings_roundtrip_new_diagnostic_controls(self) -> None:
         for mode in MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES:

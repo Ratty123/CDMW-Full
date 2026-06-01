@@ -33,6 +33,7 @@ tmp_*/
 _ui_smoke.ini
 archive_scan_cache_probe/
 docs/screenshots/*.png
+test_artifacts/
 *.hkx-corpus.json
 *.hkx-corpus.csv
 *.sidecar-corpus.json

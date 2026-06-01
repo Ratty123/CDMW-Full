@@ -1120,6 +1120,25 @@ class StaticTextureReplacementTests(unittest.TestCase):
             with Image.open(slots["emissive"].source_path) as adjusted_emissive:
                 self.assertLessEqual(max(adjusted_emissive.convert("RGB").getpixel((0, 0))), 72)
 
+    def test_material_authority_preview_helper_synthesizes_accent_glow_emissive(self) -> None:
+        texture_set = ReplacementTextureSet(
+            "Gem_inside",
+            base_color_factor=(1.0, 0.0, 0.0),
+            source_face_count=128,
+        )
+        profile = apply_true_source_basic_controls_to_profile(
+            get_complete_swap_material_profile("material_authority_detail_mask"),
+            accent_glow_strength=100,
+        )
+
+        slots = material_authority_preview_texture_slots(texture_set, profile)
+
+        self.assertIn("emissive", slots)
+        self.assertEqual("emissive", slots["emissive"].slot_kind)
+        self.assertEqual("synthetic_accent_glow", slots["emissive"].source_authority)
+        self.assertIn("accent_emissive", slots["emissive"].source_path.name)
+        self.assertTrue(slots["emissive"].source_path.is_file())
+
     def test_material_authority_preview_helper_disabled_returns_original_slots(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             from PIL import Image

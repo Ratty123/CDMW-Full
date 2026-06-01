@@ -20,6 +20,7 @@ from cdmw.rendering.native_preview_core import (
     run_native_preview_core_preview_job,
 )
 from cdmw.rendering.native_preview_package_cache import (
+    create_native_preview_package_staging_dir,
     lookup_native_preview_package_cache,
     native_preview_package_cache_budget,
     store_native_preview_package_cache,
@@ -116,10 +117,32 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertEqual("asset", job["render_settings"]["d3d11_normal_y_mode"])
         self.assertEqual("wrap", job["render_settings"]["d3d11_texture_address_mode"])
         self.assertTrue(job["capabilities"]["direct_dds"])
+        self.assertTrue(job["capabilities"]["d3d11_package"])
         self.assertTrue(job["capabilities"]["material_graph"])
         self.assertEqual(3, job["capabilities"]["material_graph_version"])
         self.assertFalse(job["capabilities"]["python_fallback_allowed"])
         self.assertTrue(job["capabilities"]["native_material_runtime"])
+
+    def test_archive_d3d11_preview_is_native_cpp_only_when_core_is_enabled(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        worker_start = source.index("class ArchivePreviewWorker")
+        worker_end = source.index("class ArchiveNativePreviewPrefetchWorker", worker_start)
+        worker_source = source[worker_start:worker_end]
+        emit_start = worker_source.index("def _emit_native_preview_core_attempt")
+        emit_end = worker_source.index("def _emit_preview_payload", emit_start)
+        emit_source = worker_source[emit_start:emit_end]
+        fast_start = worker_source.index("def _should_emit_progressive_fast_preview")
+        fast_end = worker_source.index("def _native_preview_core_supported_for_entry", fast_start)
+        fast_source = worker_source[fast_start:fast_end]
+
+        self.assertIn("native_attempt = self._try_native_preview_core()", worker_source)
+        self.assertIn("if self._emit_native_preview_core_attempt(native_attempt, timings):", worker_source)
+        self.assertIn("return", worker_source)
+        self.assertIn("if self.native_preview_core_enabled:", emit_source)
+        self.assertIn("payload = self._native_preview_core_failure_result(native_attempt, timings)", emit_source)
+        self.assertIn("return True", emit_source)
+        self.assertIn("if self._native_preview_core_supported_for_entry():", fast_source)
+        self.assertIn("return False", fast_source)
 
     def test_missing_binary_returns_fallback_attempt(self) -> None:
         with patch.object(native_preview_core, "find_native_preview_core_binary", return_value=None):
@@ -227,6 +250,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("run_native_preview_core_preview_job", main_window_text)
         self.assertIn("native_preview_core_enabled", main_window_text)
         self.assertIn("_validate_d3d11_preview_package_paths", main_window_text)
+        self.assertIn('descriptor.get("available", True)', main_window_text)
+        self.assertIn('descriptor.get("direct_upload_candidate", True)', main_window_text)
         self.assertIn("renderer:", main_window_text)
         self.assertIn("d3d11_renderer_start_blocked_invalid_package", main_window_text)
         self.assertIn("preview-job", source_text)
@@ -469,6 +494,18 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("self._native_preview_package_cache_mode() != \"aggressive\"", source)
         self.assertIn("native_preview_package_prefetch_limit", source)
         self.assertIn("store_native_preview_package_cache", source)
+        self.assertIn("create_native_preview_package_staging_dir", source)
+        self.assertNotIn('f"_staging_{self.native_preview_package_cache_key}', source)
+        self.assertNotIn('f"_staging_prefetch_{key}', source)
+
+    def test_native_preview_package_staging_dir_uses_short_prunable_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "native_preview_core"
+            staging = create_native_preview_package_staging_dir(cache_root)
+
+            self.assertEqual(cache_root / "packages", staging.parent)
+            self.assertTrue(staging.name.startswith("_staging_"))
+            self.assertLessEqual(len(staging.name), 32)
 
     def test_native_preview_package_cache_promotes_and_validates_package(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -779,6 +816,40 @@ class NativePreviewCoreTests(unittest.TestCase):
         )
         self.assertIn("&package.rejected_texture_examples", source)
 
+    def test_native_base_selection_rejects_wrong_family_layer_albedo_before_skin_base(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        base_start = source.index("static const TextureBinding* best_base_binding_for_mode")
+        base_end = source.index("static std::string shader_rule_for_family", base_start)
+        base_selector = source[base_start:base_end]
+        fallback_start = source.index("static const TextureBinding* best_visible_layer_base_fallback")
+        fallback_end = source.index("static bool evidence_token_boundary", fallback_start)
+        fallback_selector = source[fallback_start:fallback_end]
+
+        self.assertIn("parameter_is_generic_color_texture_layer", source)
+        self.assertIn("base_binding_is_layer_albedo_candidate", source)
+        self.assertIn("base_binding_is_wrong_family_layer_or_environment", source)
+        self.assertIn("base_binding_texture_family_matches_mesh", source)
+        self.assertIn("selected_base_is_semantically_unsafe_skin_albedo", source)
+        self.assertIn("has_mesh_family_visible_base", base_selector)
+        self.assertIn("wrong_family_layer_base && has_mesh_family_visible_base", base_selector)
+        self.assertIn('append_rejected_binding_example(rejected_examples, "base", "wrong-family-layer"', base_selector)
+        self.assertIn("has_mesh_family_layer_base", fallback_selector)
+        self.assertIn("wrong_family_layer_base && has_mesh_family_layer_base", fallback_selector)
+        self.assertIn('path_text.find("texturelayer")', source)
+        for token in ('"scar"', '"soil"', '"floor"', '"ground"', '"terrain"', '"akapen"'):
+            self.assertIn(token, source)
+        self.assertIn("base_wrong_family_layer", source)
+        self.assertIn("wrong_family_layer", source)
+        self.assertIn("wrong-family layer/terrain base fallback", source)
+        self.assertLess(
+            base_selector.index("wrong_family_layer_base && has_mesh_family_visible_base"),
+            base_selector.index('int score = material_match_score(binding, mesh, "base")'),
+        )
+        self.assertLess(
+            fallback_selector.index("wrong_family_layer_base && has_mesh_family_layer_base"),
+            fallback_selector.index('int score = material_match_score(binding, mesh, "base")'),
+        )
+
     def test_native_base_selection_rejects_chain_base_for_non_chain_parts(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
         refs_start = source.index("const std::vector<SidecarTextureRef>& refs")
@@ -902,6 +973,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         parse_source = source[parse_start:parse_end]
 
         self.assertIn('batch.base_dds = dds_slot_source(object, "base");', parse_source)
+        self.assertIn('const std::string descriptor = json_object_field(object, slot);', source)
+        self.assertIn('if (!json_bool_field(descriptor, "available", true)) return L"";', source)
+        self.assertIn('if (!json_bool_field(descriptor, "direct_upload_candidate", true)) return L"";', source)
         self.assertNotIn('best_material_dds_for_role(object, "base")', parse_source)
 
     def test_d3d11_host_consumes_schema_v8_material_layer_stack(self) -> None:
@@ -1088,6 +1162,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("glass_evidence", category_source)
         self.assertIn("gem_evidence", category_source)
         self.assertIn("stone_evidence", category_source)
+        for token in ("stick", "shaft", "haft"):
+            self.assertIn(f'evidence_contains_token(evidence, "{token}")', category_source)
         self.assertIn("eye_evidence", category_source)
         self.assertIn("tooth_evidence", category_source)
         self.assertIn("strong_nonmetal_evidence", category_source)
@@ -1118,6 +1194,20 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('\\"height_scale_hint\\"', source)
         self.assertIn('\\"tint_color\\"', source)
         self.assertIn('"specular_gloss_nonmetal_capped"', source)
+
+    def test_native_core_uses_overlay_base_as_last_resort_visible_base(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("binding_is_overlay_base_fallback_candidate", source)
+        self.assertIn("best_overlay_base_fallback", source)
+        self.assertIn('parameter_key.find("overlaycolor")', source)
+        self.assertIn("low_authority_base_path(binding.archive_path)", source)
+        self.assertIn("!material_wrapper_matches_mesh_local_index(binding, mesh) && identity_score < 300", source)
+        self.assertIn("best_overlay_base_fallback(bindings, mesh, &best_score)", source)
+        self.assertIn('\\"runtime_backend\\":\\"native_cpp', source)
+        self.assertIn('\\"package_builder\\":\\"cdmw_preview_core_cpp', source)
+        self.assertIn('\\"renderer_contract\\":\\"d3d11_native_package', source)
+        self.assertIn('\\"python_fallback_allowed\\":false', source)
 
     def test_native_material_category_keeps_nude_skin_from_broad_hair_shader(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
@@ -1298,7 +1388,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('t.find("_f.dds")', role_source)
         self.assertIn('t.find("_dr.dds")', role_source)
         self.assertIn('dds_format_is_data_only_for_visible_base(binding.dds_format)', source)
-        self.assertIn('binding_layer_role == "damage"', source)
+        self.assertIn("base_binding_is_layer_albedo_candidate(binding)", source)
 
 
 if __name__ == "__main__":

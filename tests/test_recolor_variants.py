@@ -8,6 +8,8 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+from PIL import Image
+
 from cdmw.core.recolor_variants import (
     RecolorVariantOutputProfile,
     RecolorVariantRule,
@@ -17,6 +19,7 @@ from cdmw.core.recolor_variants import (
     default_recolor_variant_templates,
     export_recolor_variant_templates,
     import_recolor_variant_templates,
+    preview_recolor_variant_target_image,
     recolor_export_options_for_manager,
     save_recolor_variant_templates,
 )
@@ -78,6 +81,12 @@ def _write_mod(root: Path) -> Path:
     return mod_root
 
 
+def _fake_preview_png(path: Path, color: tuple[int, int, int, int] = (128, 128, 128, 255)) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGBA", (4, 4), color).save(path)
+    return path
+
+
 class RecolorVariantTests(unittest.TestCase):
     def test_analysis_detects_safe_basecolor_and_locks_technical_maps(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -92,6 +101,42 @@ class RecolorVariantTests(unittest.TestCase):
             self.assertFalse(by_path["character/texture/blade_ma.dds"].editable)
             self.assertEqual("BC1_UNORM", by_path["character/texture/blade_basecolor.dds"].texconv_format)
             self.assertTrue(any(target.target_kind == "material_color" and target.parameter_name == "_tintColorR" for target in analysis.targets))
+
+    def test_selected_texture_preview_renders_before_after_pngs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = _write_mod(root)
+            analysis = analyze_recolor_variant_package(source)
+            target = next(target for target in analysis.targets if target.game_path == "character/texture/blade_basecolor.dds")
+            original_source_bytes = (source / "files" / "character" / "texture" / "blade_basecolor.dds").read_bytes()
+
+            def _fake_display_preview(_texconv_path: object, _dds_path: Path, **_kwargs: object) -> Path:
+                return _fake_preview_png(root / "display_preview.png")
+
+            with mock.patch("cdmw.core.recolor_variants.ensure_dds_display_preview_png", side_effect=_fake_display_preview):
+                result = preview_recolor_variant_target_image(
+                    analysis,
+                    default_recolor_variant_templates()[0],
+                    target.target_id,
+                )
+
+            self.assertEqual(target.target_id, result.target_id)
+            self.assertTrue(result.source_png.is_file())
+            self.assertTrue(result.preview_png.is_file())
+            self.assertEqual(original_source_bytes, (source / "files" / "character" / "texture" / "blade_basecolor.dds").read_bytes())
+
+    def test_selected_texture_preview_refuses_locked_technical_map(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = _write_mod(Path(temp_dir))
+            analysis = analyze_recolor_variant_package(source)
+            target = next(target for target in analysis.targets if target.game_path == "character/texture/blade_n.dds")
+
+            with self.assertRaises(ValueError):
+                preview_recolor_variant_target_image(
+                    analysis,
+                    default_recolor_variant_templates()[0],
+                    target.target_id,
+                )
 
     def test_build_writes_multiple_outputs_and_never_overwrites_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -178,6 +223,36 @@ class RecolorVariantTests(unittest.TestCase):
             self.assertEqual(b"RECOLORED", (result.output_roots[0] / "character" / "texture" / "blade_basecolor.dds").read_bytes())
             with zipfile.ZipFile(zip_path) as archive:
                 self.assertNotEqual(b"RECOLORED", archive.read("files/character/texture/blade_basecolor.dds"))
+
+    def test_zip_source_preview_extracts_to_temp_without_mutating_zip(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = _write_mod(root)
+            zip_path = root / "source.zip"
+            with zipfile.ZipFile(zip_path, "w") as archive:
+                for path in source.rglob("*"):
+                    if path.is_file():
+                        archive.write(path, path.relative_to(source).as_posix())
+            with zipfile.ZipFile(zip_path) as archive:
+                original_zip_bytes = archive.read("files/character/texture/blade_basecolor.dds")
+
+            analysis = analyze_recolor_variant_package(zip_path)
+            target = next(target for target in analysis.targets if target.game_path == "character/texture/blade_basecolor.dds")
+
+            def _fake_display_preview(_texconv_path: object, _dds_path: Path, **_kwargs: object) -> Path:
+                return _fake_preview_png(root / "zip_display_preview.png")
+
+            with mock.patch("cdmw.core.recolor_variants.ensure_dds_display_preview_png", side_effect=_fake_display_preview):
+                result = preview_recolor_variant_target_image(
+                    analysis,
+                    default_recolor_variant_templates()[0],
+                    target.target_id,
+                )
+
+            self.assertTrue(result.source_dds_path.is_file())
+            self.assertNotEqual(zip_path, result.source_dds_path)
+            with zipfile.ZipFile(zip_path) as archive:
+                self.assertEqual(original_zip_bytes, archive.read("files/character/texture/blade_basecolor.dds"))
 
     def test_material_color_template_updates_sidecar_values(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -266,17 +341,36 @@ class RecolorVariantTests(unittest.TestCase):
     def test_recolor_variants_ui_is_registered(self) -> None:
         main_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
         tab_source = Path("cdmw/ui/recolor_variants_tab.py").read_text(encoding="utf-8")
+        editor_source = Path("cdmw/ui/texture_editor_tab.py").read_text(encoding="utf-8")
 
         self.assertIn("from cdmw.ui.recolor_variants_tab import RecolorVariantsTab", main_source)
         self.assertIn('self.texture_tabs.addTab(self.recolor_variants_tab, "Recolor Variants")', main_source)
         self.assertIn('self._register_detachable_tool("recolor_variants"', main_source)
+        self.assertIn("open_recolor_target_in_editor_requested.connect", main_source)
+        self.assertIn("def _open_recolor_variant_target_in_texture_editor", main_source)
         self.assertIn('self.targets_tree.setObjectName("RecolorVariantTargetsTree")', tab_source)
         self.assertIn('self.preview_summary_label.setObjectName("RecolorVariantPreviewSummary")', tab_source)
         self.assertIn('self.outputs_tree.setObjectName("RecolorVariantOutputsTree")', tab_source)
+        self.assertIn('self.preview_source_image_label.setObjectName("RecolorVariantBeforePreview")', tab_source)
+        self.assertIn('self.preview_result_image_label.setObjectName("RecolorVariantAfterPreview")', tab_source)
+        self.assertIn('QPushButton("Refresh Preview")', tab_source)
+        self.assertIn('QPushButton("Open In Editor")', tab_source)
+        self.assertIn("def _build_results_section", tab_source)
+        self.assertIn("self.splitter.setStretchFactor(2, 1)", tab_source)
+        self.assertIn("class _RecolorPreviewLabel", tab_source)
+        self.assertIn("QColorDialog.getColor", tab_source)
+        self.assertIn('button.setObjectName("RecolorVariantColorPickerButton")', tab_source)
+        self.assertIn("self.tolerance_slider = QSlider(Qt.Horizontal)", tab_source)
+        self.assertIn("self.strength_slider = QSlider(Qt.Horizontal)", tab_source)
+        self.assertIn('CollapsibleSection("Advanced Template Filters", expanded=False)', tab_source)
+        self.assertIn('CollapsibleSection("Manager outputs", expanded=False)', tab_source)
+        self.assertIn("preview_recolor_variant_target_image", tab_source)
+        self.assertIn("open_recolor_target_in_editor_requested", tab_source)
         self.assertIn("Source mod will not be modified in place", tab_source)
         self.assertIn('QPushButton("Import JSON")', tab_source)
         self.assertIn('QPushButton("Export JSON")', tab_source)
         self.assertIn('self.overwrite_checkbox.setObjectName("RecolorVariantNoInPlaceOverwrite")', tab_source)
+        self.assertIn("def set_recolor_tool_settings", editor_source)
 
 
 if __name__ == "__main__":

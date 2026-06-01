@@ -1010,6 +1010,19 @@ def build_app_stylesheet(
         color: {theme["text_muted"]};
         background: transparent;
     }}
+    QLabel#ArchivePreviewHealthLabel {{
+        font-size: {hint_size}px;
+        color: {theme["text_muted"]};
+        background: transparent;
+    }}
+    QLabel#ArchivePreviewHealthLabel[attention="true"] {{
+        color: {theme["warning_text"]};
+        background: {theme["warning_bg"]};
+        border: 1px solid {theme["warning_border"]};
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-weight: 600;
+    }}
     QLabel#WarningBadge {{
         color: {theme["warning_text"]};
         background: {theme["warning_bg"]};

@@ -71,6 +71,22 @@ class RuntimeDependencySourceGuardTests(unittest.TestCase):
         self.assertNotIn("C:\\Users\\Ratrider", source)
         self.assertNotIn("Desktop\\app", source)
 
+    def test_pyinstaller_spec_excludes_unused_qml_webengine_stack(self) -> None:
+        source = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
+        hiddenimports_section = source.split("unused_qt_modules", 1)[0]
+
+        self.assertNotIn("PySide6.QtWebEngineCore", hiddenimports_section)
+        self.assertNotIn("PySide6.QtWebEngineWidgets", hiddenimports_section)
+        for module_name in (
+            "PySide6.QtQml",
+            "PySide6.QtQuick",
+            "PySide6.QtQuickWidgets",
+            "PySide6.QtWebEngineCore",
+            "PySide6.QtWebEngineWidgets",
+        ):
+            self.assertIn(f'"{module_name}"', source)
+        self.assertIn("*unused_qt_modules", source)
+
     def test_windows_builder_uses_maintained_spec(self) -> None:
         source = Path("build_pyside6_app.ps1").read_text(encoding="utf-8")
         self.assertIn("CrimsonDesertModWorkbench.spec", source)

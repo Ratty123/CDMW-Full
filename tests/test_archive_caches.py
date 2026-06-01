@@ -19,6 +19,8 @@ from cdmw.core.archive import (
     build_archive_entry_path_index,
     build_archive_entry_role_index,
     build_archive_name_search_index,
+    load_or_update_archive_basic_index_shards,
+    load_or_update_archive_scan_shards,
     load_archive_basic_index_cache,
     load_archive_derived_index_cache,
     load_archive_scan_cache,
@@ -26,8 +28,11 @@ from cdmw.core.archive import (
     invalidate_archive_browser_cache,
     prune_archive_cache_root,
     resolve_archive_basic_index_cache_path,
+    resolve_archive_basic_index_shard_cache_dir,
     resolve_archive_scan_cache_path,
+    resolve_archive_scan_shard_cache_dir,
     resolve_archive_name_search_index_cache_path,
+    resolve_archive_name_search_shard_cache_dir,
     resolve_archive_derived_index_cache_path,
     resolve_archive_sidecar_cache_path,
     save_archive_basic_index_cache,
@@ -145,6 +150,177 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertIsNotNone(loaded)
             self.assertEqual(saved_metadata.get("entry_metadata_signature"), loaded_metadata.get("entry_metadata_signature"))
             self.assertEqual(saved_metadata.get("entry_metadata_sources"), loaded_metadata.get("entry_metadata_sources"))
+
+    def test_scan_shard_cache_rescans_only_changed_pamt(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt_a, paz_a = _write_entry_files(root, "0000", data)
+            pamt_b, paz_b = _write_entry_files(root, "0001", data)
+            entries_by_pamt = {
+                pamt_a: [_entry("character/model/a.pac", pamt_a, paz_a, data)],
+                pamt_b: [_entry("character/model/b.pac", pamt_b, paz_b, data)],
+            }
+
+            def shard_scan(path: Path) -> list[ArchiveEntry]:
+                return list(entries_by_pamt[path])
+
+            first_entries, _source, cache_dir = load_or_update_archive_scan_shards(
+                root,
+                cache_root,
+                shard_scan_func=shard_scan,
+            )
+            self.assertEqual([entry.path for entry in first_entries], ["character/model/a.pac", "character/model/b.pac"])
+            self.assertTrue(resolve_archive_scan_shard_cache_dir(root, cache_root).is_dir())
+            self.assertEqual(cache_dir, resolve_archive_scan_shard_cache_dir(root, cache_root))
+
+            calls: list[str] = []
+            entries_by_pamt[pamt_b] = [_entry("character/model/b_changed.pac", pamt_b, paz_b, data)]
+            pamt_b.write_bytes(b"pamt changed")
+
+            def changed_shard_scan(path: Path) -> list[ArchiveEntry]:
+                calls.append(path.relative_to(root).as_posix())
+                if path == pamt_a:
+                    raise AssertionError("unchanged shard should load from cache")
+                return list(entries_by_pamt[path])
+
+            logs: list[str] = []
+            second_entries, source, _cache_dir = load_or_update_archive_scan_shards(
+                root,
+                cache_root,
+                shard_scan_func=changed_shard_scan,
+                on_log=logs.append,
+            )
+
+            self.assertEqual(source, "cache+scan")
+            self.assertEqual(calls, ["0001/0.pamt"])
+            self.assertEqual([entry.path for entry in second_entries], ["character/model/a.pac", "character/model/b_changed.pac"])
+            self.assertTrue(any("Archive cache shard stale: 0001/0.pamt source stamps changed" in line for line in logs))
+
+    def test_scan_shard_cache_uses_full_scan_when_many_shards_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            entries_by_pamt: dict[Path, list[ArchiveEntry]] = {}
+            all_entries: list[ArchiveEntry] = []
+            for index in range(10):
+                group = f"{index:04d}"
+                data = bytes([index + 1])
+                pamt, paz = _write_entry_files(root, group, data)
+                entry = _entry(f"character/model/{group}.pac", pamt, paz, data)
+                entries_by_pamt[pamt] = [entry]
+                all_entries.append(entry)
+
+            load_or_update_archive_scan_shards(
+                root,
+                cache_root,
+                full_scan_func=lambda: list(all_entries),
+                shard_scan_func=lambda path: list(entries_by_pamt[path]),
+            )
+            for index, pamt in enumerate(sorted(entries_by_pamt, key=lambda path: str(path))[:9]):
+                pamt.write_bytes(f"changed {index}".encode("ascii"))
+            full_scan_calls = 0
+
+            def full_scan() -> list[ArchiveEntry]:
+                nonlocal full_scan_calls
+                full_scan_calls += 1
+                return list(all_entries)
+
+            logs: list[str] = []
+            entries, source, _cache_dir = load_or_update_archive_scan_shards(
+                root,
+                cache_root,
+                full_scan_func=full_scan,
+                shard_scan_func=lambda _path: (_ for _ in ()).throw(AssertionError("should use full scan")),
+                on_log=logs.append,
+            )
+
+            self.assertEqual(source, "native_scan")
+            self.assertEqual(full_scan_calls, 1)
+            self.assertEqual([entry.path for entry in entries], [entry.path for entry in all_entries])
+            self.assertTrue(any("Many archive scan shards stale" in line for line in logs))
+
+    def test_full_scan_shard_write_reports_cache_progress_after_scan_load(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            all_entries: list[ArchiveEntry] = []
+            for index in range(10):
+                group = f"{index:04d}"
+                data = bytes([index + 1])
+                pamt, paz = _write_entry_files(root, group, data)
+                all_entries.append(_entry(f"character/model/{group}.pac", pamt, paz, data))
+            progress: list[str] = []
+
+            entries, _source, _cache_dir = load_or_update_archive_scan_shards(
+                root,
+                cache_root,
+                full_scan_func=lambda: list(all_entries),
+                shard_scan_func=lambda _path: (_ for _ in ()).throw(AssertionError("cold many-shard path should use full scan")),
+                on_progress=lambda _current, _total, detail: progress.append(detail),
+            )
+
+            self.assertEqual([entry.path for entry in entries], [entry.path for entry in all_entries])
+            self.assertTrue(any("Preparing archive scan shard cache" in detail for detail in progress))
+            self.assertTrue(any("Writing archive scan shard cache" in detail for detail in progress))
+
+    def test_native_scan_loaded_progress_is_not_reported_as_complete(self) -> None:
+        accelerator = (REPO_ROOT / "cdmw" / "core" / "archive_accelerator.py").read_text(encoding="utf-8")
+
+        self.assertIn(
+            'on_progress(0, 0, f"Native archive scan loaded {len(entries):,} entries; preparing shard cache...")',
+            accelerator,
+        )
+        self.assertNotIn('on_progress(len(entries), max(len(entries), 1), f"Native archive scan loaded', accelerator)
+
+    def test_basic_index_shards_merge_local_rows_after_earlier_shard_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt_a, paz_a = _write_entry_files(root, "0000", data)
+            pamt_b, paz_b = _write_entry_files(root, "0001", data)
+            entries_v1 = [
+                _entry("character/model/a.pac", pamt_a, paz_a, data),
+                _entry("character/model/b.pac", pamt_b, paz_b, data),
+            ]
+            load_or_update_archive_basic_index_shards(root, cache_root, entries_v1)
+            entries_v2 = [
+                _entry("character/model/a.pac", pamt_a, paz_a, data),
+                _entry("character/model/a_extra.pac", pamt_a, paz_a, data),
+                _entry("character/model/b.pac", pamt_b, paz_b, data),
+            ]
+            logs: list[str] = []
+
+            payload = load_or_update_archive_basic_index_shards(root, cache_root, entries_v2, on_log=logs.append)
+
+            self.assertIsNotNone(payload)
+            self.assertIs((payload or {})["path_index"]["character/model/b.pac"][0], entries_v2[2])
+            self.assertEqual((payload or {}).get("rebuilt_shards"), 1)
+            self.assertTrue(resolve_archive_basic_index_shard_cache_dir(root, cache_root).is_dir())
+
+    def test_paz_only_change_reuses_scan_and_basic_shards(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/texture/a.dds", pamt, paz, data)]
+            load_or_update_archive_scan_shards(root, cache_root, shard_scan_func=lambda _path: entries)
+            load_or_update_archive_basic_index_shards(root, cache_root, entries)
+            paz.write_bytes(b"changed paz payload")
+
+            loaded_entries, source, _cache_dir = load_or_update_archive_scan_shards(
+                root,
+                cache_root,
+                shard_scan_func=lambda _path: (_ for _ in ()).throw(AssertionError("paz-only change should not rescan")),
+            )
+            basic_payload = load_or_update_archive_basic_index_shards(root, cache_root, loaded_entries)
+
+            self.assertEqual(source, "cache")
+            self.assertEqual([entry.path for entry in loaded_entries], ["character/texture/a.dds"])
+            self.assertTrue((basic_payload or {}).get("cache_loaded"))
 
     def test_native_derived_index_job_is_wired_as_preferred_basic_index_path(self) -> None:
         accelerator = (REPO_ROOT / "cdmw" / "core" / "archive_accelerator.py").read_text(encoding="utf-8")
@@ -533,6 +709,39 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertIsNotNone(loaded)
             self.assertEqual((loaded or {}).get("item_search_aliases"), {"a": "test item"})
 
+    def test_derived_index_cache_skips_dependency_walk_when_compact_metadata_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            scan_metadata: dict[str, object] = {}
+            save_archive_scan_cache(root, cache_root, entries, metadata_out=scan_metadata)
+            save_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                item_search_aliases={"a": "test item"},
+                entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                entry_metadata_sources=scan_metadata.get("entry_metadata_sources") or (),
+            )
+
+            with mock.patch(
+                "cdmw.core.archive.archive_item_index_dependency_signature",
+                side_effect=AssertionError("dependency signature walk should not run"),
+            ):
+                loaded = load_archive_derived_index_cache(
+                    root,
+                    cache_root,
+                    entries,
+                    entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                    current_sources=scan_metadata.get("entry_metadata_sources") or (),
+                )
+
+            self.assertIsNotNone(loaded)
+            self.assertEqual((loaded or {}).get("item_search_aliases"), {"a": "test item"})
+
     def test_derived_index_cache_can_defer_name_search_binary_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -556,6 +765,9 @@ class ArchiveCacheTests(unittest.TestCase):
             with mock.patch(
                 "cdmw.core.archive._load_native_name_search_index_binary",
                 side_effect=AssertionError("name-search binary should load later"),
+            ), mock.patch(
+                "cdmw.core.archive._archive_entry_shard_groups",
+                side_effect=AssertionError("name-search shard metadata should not be hashed for deferred load"),
             ):
                 deferred = load_archive_derived_index_cache(
                     root,
@@ -621,7 +833,7 @@ class ArchiveCacheTests(unittest.TestCase):
             loaded = load_archive_derived_index_cache(root, cache_root, entries)
             loaded_index = (loaded or {}).get("name_search_index")
             lazy_rows = getattr(loaded_index, "token_rows", None)
-            source_name_index_path = resolve_archive_name_search_index_cache_path(root, cache_root)
+            source_shard_dir = resolve_archive_name_search_shard_cache_dir(root, cache_root)
 
             self.assertEqual(getattr(lazy_rows, "decoded_token_count", -1), 0)
             save_archive_derived_index_cache(
@@ -631,9 +843,13 @@ class ArchiveCacheTests(unittest.TestCase):
                 archive_name_search_index=loaded_index,
             )
 
-            copied_name_index_path = resolve_archive_name_search_index_cache_path(root, second_cache_root)
+            copied_shard_dir = resolve_archive_name_search_shard_cache_dir(root, second_cache_root)
             self.assertEqual(getattr(lazy_rows, "decoded_token_count", -1), 0)
-            self.assertEqual(copied_name_index_path.read_bytes(), source_name_index_path.read_bytes())
+            source_bins = sorted(path.name for path in source_shard_dir.glob("*.bin"))
+            copied_bins = sorted(path.name for path in copied_shard_dir.glob("*.bin"))
+            self.assertEqual(copied_bins, source_bins)
+            for name in source_bins:
+                self.assertEqual((copied_shard_dir / name).read_bytes(), (source_shard_dir / name).read_bytes())
 
     def test_old_derived_index_cache_missing_compact_metadata_rebuilds_without_source_walk(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -873,11 +1089,23 @@ class ArchiveCacheTests(unittest.TestCase):
             cache_root.mkdir()
             name_index_path = resolve_archive_name_search_index_cache_path(root, cache_root)
             name_index_path.write_bytes(b"name-search")
+            scan_shard_dir = resolve_archive_scan_shard_cache_dir(root, cache_root)
+            basic_shard_dir = resolve_archive_basic_index_shard_cache_dir(root, cache_root)
+            name_shard_dir = resolve_archive_name_search_shard_cache_dir(root, cache_root)
+            for shard_dir in (scan_shard_dir, basic_shard_dir, name_shard_dir):
+                shard_dir.mkdir(parents=True)
+                (shard_dir / "deadbeef.bin").write_bytes(b"shard")
 
             deleted = invalidate_archive_browser_cache(root, cache_root)
 
             self.assertFalse(name_index_path.exists())
+            self.assertFalse(scan_shard_dir.exists())
+            self.assertFalse(basic_shard_dir.exists())
+            self.assertFalse(name_shard_dir.exists())
             self.assertIn(name_index_path, deleted)
+            self.assertIn(scan_shard_dir, deleted)
+            self.assertIn(basic_shard_dir, deleted)
+            self.assertIn(name_shard_dir, deleted)
 
     def test_prune_archive_cache_root_removes_oldest_top_level_cache_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -904,6 +1132,31 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertFalse(old_scan.exists())
             self.assertTrue(new_name.exists())
             self.assertTrue(foreign.exists())
+
+    def test_prune_archive_cache_root_removes_oldest_shard_dirs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            cache_root.mkdir()
+            old_shards = cache_root / "archive_scan_shards_old"
+            new_shards = cache_root / "archive_basic_index_shards_new"
+            old_shards.mkdir()
+            new_shards.mkdir()
+            (old_shards / "a.bin").write_bytes(b"a" * 700)
+            (new_shards / "b.bin").write_bytes(b"b" * 700)
+            foreign_dir = cache_root / "archive_unknown_shards"
+            foreign_dir.mkdir()
+            (foreign_dir / "keep.bin").write_bytes(b"c" * 2000)
+            import os
+
+            os.utime(old_shards / "a.bin", (100.0, 100.0))
+            os.utime(new_shards / "b.bin", (200.0, 200.0))
+
+            report = prune_archive_cache_root(cache_root, max_bytes=1000, target_bytes=700)
+
+            self.assertGreaterEqual(report["removed_files"], 1)
+            self.assertFalse(old_shards.exists())
+            self.assertTrue(new_shards.exists())
+            self.assertTrue(foreign_dir.exists())
 
 
 if __name__ == "__main__":

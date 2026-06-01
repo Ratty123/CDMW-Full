@@ -88,6 +88,10 @@ if TYPE_CHECKING:
 _PATHC_COLLECTION_CACHE: Dict[str, Tuple[str, "PathcCollection"]] = {}
 _ARCHIVE_SCAN_CACHE_MAGIC = b"CTFARCH1"
 _ARCHIVE_SCAN_CACHE_VERSION = 3
+_ARCHIVE_SCAN_SHARD_CACHE_MAGIC = b"CTFSHSC1"
+_ARCHIVE_SCAN_SHARD_CACHE_VERSION = 1
+_HKX_CONTEXT_MODEL_PREVIEW_CACHE_LIMIT = 16
+_HKX_CONTEXT_MODEL_PREVIEW_CACHE: "OrderedDict[str, ModelPreviewData]" = OrderedDict()
 _ARCHIVE_SCAN_CACHE_LEGACY_DIRNAMES: Tuple[str, ...] = ("cache", "archive_scan_cache")
 _ARCHIVE_SIDECAR_CACHE_MAGIC = b"CTFSIDE1"
 _ARCHIVE_SIDECAR_CACHE_VERSION = 9
@@ -96,6 +100,9 @@ _ARCHIVE_DERIVED_INDEX_CACHE_MAGIC = b"CTFDERI1"
 _ARCHIVE_DERIVED_INDEX_CACHE_VERSION = 10
 _ARCHIVE_BASIC_INDEX_CACHE_MAGIC = b"CTFBASI1"
 _ARCHIVE_BASIC_INDEX_CACHE_VERSION = 2
+_ARCHIVE_BASIC_INDEX_SHARD_CACHE_MAGIC = b"CTFSHBI1"
+_ARCHIVE_BASIC_INDEX_SHARD_CACHE_VERSION = 1
+_ARCHIVE_NAME_SEARCH_SHARD_META_VERSION = 1
 _ARCHIVE_ENTRY_METADATA_SIGNATURE_FORMAT = 1
 _ARCHIVE_DERIVED_INDEX_CACHE_MAX_SAFE_BYTES = 64 * 1024 * 1024
 _ARCHIVE_BASIC_INDEX_CACHE_MAX_SAFE_BYTES = 256 * 1024 * 1024
@@ -103,10 +110,13 @@ _ARCHIVE_CACHE_ROOT_MAX_BYTES = 512 * 1024 * 1024
 _ARCHIVE_CACHE_ROOT_TARGET_BYTES = 384 * 1024 * 1024
 _ARCHIVE_CACHE_ROOT_PREFIXES: Tuple[str, ...] = (
     "archive_scan_",
+    "archive_scan_shards_",
     "archive_sidecars_",
     "archive_derived_indexes_",
     "archive_basic_indexes_",
+    "archive_basic_index_shards_",
     "archive_name_search_",
+    "archive_name_search_shards_",
 )
 _INITIAL_MODEL_PREVIEW_RENDER_SETTINGS = clamp_model_preview_render_settings()
 # Keep visible base textures closer to their source resolution in the 3D preview.
@@ -718,6 +728,25 @@ class _LazyNativeNameSearchTokenRows(Mapping[str, Tuple[int, ...]]):
             self._evict_decoded_rows()
             return rows
 
+    def get(self, token: object, default: Optional[Tuple[int, ...]] = None) -> Tuple[int, ...]:
+        key = str(token or "")
+        with self._lock:
+            cached = self._decoded_rows.get(key)
+            if cached is not None:
+                self._decoded_rows.move_to_end(key)
+                return cached
+            row_span = self._row_spans.get(key)
+            if row_span is None:
+                return () if default is None else default
+            rows = self._decode_rows(row_span)
+            self._decoded_rows[key] = rows
+            self._decoded_row_count += len(rows)
+            self._evict_decoded_rows()
+            return rows
+
+    def __contains__(self, token: object) -> bool:
+        return str(token or "") in self._row_spans
+
     def __iter__(self) -> Iterator[str]:
         return iter(self._row_spans)
 
@@ -736,6 +765,108 @@ class _LazyNativeNameSearchTokenRows(Mapping[str, Tuple[int, ...]]):
         while self._decoded_row_count > self._max_cached_rows and len(self._decoded_rows) > 1:
             _token, rows = self._decoded_rows.popitem(last=False)
             self._decoded_row_count = max(0, self._decoded_row_count - len(rows))
+
+
+class _MergedArchiveNameSearchTokenRows(Mapping[str, Tuple[int, ...]]):
+    def __init__(
+        self,
+        shard_indexes: Sequence[Tuple[int, ArchiveNameSearchIndex]],
+        *,
+        source_shards: Optional[Mapping[str, Tuple[Path, Path]]] = None,
+        max_cached_rows: Optional[int] = None,
+    ) -> None:
+        self._shard_indexes = tuple((int(offset), index) for offset, index in shard_indexes)
+        self._source_shards = {
+            str(relative_path): (Path(binary_path), Path(meta_path))
+            for relative_path, (binary_path, meta_path) in (source_shards or {}).items()
+        }
+        token_set: set[str] = set()
+        for _offset, index in self._shard_indexes:
+            token_set.update(str(token) for token in index.token_rows)
+        self._tokens = tuple(sorted(token_set))
+        self._max_cached_rows = max(1, int(max_cached_rows or _native_name_search_cache_row_limit()))
+        self._decoded_rows: OrderedDict[str, Tuple[int, ...]] = OrderedDict()
+        self._decoded_row_count = 0
+        self._lock = threading.RLock()
+
+    @property
+    def decoded_token_count(self) -> int:
+        with self._lock:
+            return len(self._decoded_rows)
+
+    @property
+    def decoded_row_count(self) -> int:
+        with self._lock:
+            return self._decoded_row_count
+
+    def __getitem__(self, token: str) -> Tuple[int, ...]:
+        key = str(token or "")
+        with self._lock:
+            cached = self._decoded_rows.get(key)
+            if cached is not None:
+                self._decoded_rows.move_to_end(key)
+                return cached
+            rows: set[int] = set()
+            for offset, index in self._shard_indexes:
+                local_rows = index.token_rows.get(key, ())
+                for row in local_rows:
+                    rows.add(offset + int(row))
+            merged_rows = tuple(sorted(rows))
+            self._decoded_rows[key] = merged_rows
+            self._decoded_rows.move_to_end(key)
+            self._decoded_row_count += len(merged_rows)
+            while self._decoded_row_count > self._max_cached_rows and len(self._decoded_rows) > 1:
+                _old_token, old_rows = self._decoded_rows.popitem(last=False)
+                self._decoded_row_count = max(0, self._decoded_row_count - len(old_rows))
+            return merged_rows
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._tokens)
+
+    def __len__(self) -> int:
+        return len(self._tokens)
+
+    def copy_shards_to(
+        self,
+        cache_dir: Path,
+        groups: Sequence[_ArchiveEntryShardGroup],
+        *,
+        alias_signature: str,
+    ) -> bool:
+        if not self._source_shards:
+            return False
+        copy_plan: List[Tuple[Path, Path, Path, Path]] = []
+        for group in groups:
+            paths = self._source_shards.get(group.relative_pamt_path)
+            if paths is None:
+                return False
+            source_binary_path, source_meta_path = paths
+            if not source_binary_path.is_file() or not source_meta_path.is_file():
+                return False
+            try:
+                meta = _read_archive_name_search_shard_meta(source_meta_path)
+            except Exception:
+                return False
+            if not _archive_name_search_shard_meta_matches(meta, group, alias_signature=alias_signature):
+                return False
+            copy_plan.append(
+                (
+                    source_binary_path,
+                    source_meta_path,
+                    _archive_name_search_shard_binary_path(cache_dir, group.relative_pamt_path),
+                    _archive_name_search_shard_meta_path(cache_dir, group.relative_pamt_path),
+                )
+            )
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        for source_binary_path, source_meta_path, target_binary_path, target_meta_path in copy_plan:
+            try:
+                if source_binary_path.resolve() != target_binary_path.resolve():
+                    shutil.copy2(source_binary_path, target_binary_path)
+                if source_meta_path.resolve() != target_meta_path.resolve():
+                    shutil.copy2(source_meta_path, target_meta_path)
+            except OSError:
+                return False
+        return True
 
 
 def _build_archive_name_search_index_python(
@@ -1068,6 +1199,418 @@ def build_archive_name_search_index(
         on_progress=on_progress,
         stop_event=stop_event,
     )
+
+
+def _archive_name_search_alias_signature(item_search_aliases: Optional[Mapping[str, str]]) -> str:
+    payload = {
+        str(key).casefold(): str(value)
+        for key, value in (item_search_aliases or {}).items()
+        if str(key or "").strip() or str(value or "").strip()
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8",
+        errors="replace",
+    )
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _archive_entry_package_group(entry: ArchiveEntry) -> str:
+    try:
+        return entry.pamt_path.parent.name.lower()
+    except Exception:
+        return ""
+
+
+def archive_item_index_dependency_signature(
+    package_root: Path,
+    entries: Sequence[ArchiveEntry],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> str:
+    selected_signatures: List[Tuple[object, ...]] = []
+    base_dir = _archive_base_dir(package_root)
+    paz_stamp_cache: Dict[str, Tuple[int, int]] = {}
+
+    def entry_signature(entry: ArchiveEntry) -> Tuple[object, ...]:
+        paz_path = Path(getattr(entry, "paz_file", ""))
+        try:
+            paz_key = os.path.normcase(os.fspath(paz_path)).strip().lower()
+        except (OSError, TypeError, ValueError):
+            paz_key = str(paz_path).strip().lower()
+        paz_stamp = paz_stamp_cache.get(paz_key)
+        if paz_stamp is None:
+            try:
+                paz_stat = paz_path.stat()
+                paz_stamp = (
+                    int(paz_stat.st_size),
+                    int(getattr(paz_stat, "st_mtime_ns", int(paz_stat.st_mtime * 1_000_000_000))),
+                )
+            except OSError:
+                paz_stamp = (0, 0)
+            paz_stamp_cache[paz_key] = paz_stamp
+        return (
+            str(getattr(entry, "path", "") or "").replace("\\", "/"),
+            _archive_relative_source_path(base_dir, Path(getattr(entry, "pamt_path", ""))),
+            _archive_relative_source_path(base_dir, paz_path),
+            paz_stamp,
+            int(getattr(entry, "offset", 0)),
+            int(getattr(entry, "comp_size", 0)),
+            int(getattr(entry, "orig_size", 0)),
+            int(getattr(entry, "flags", 0)),
+            int(getattr(entry, "paz_index", 0)),
+        )
+
+    localization_table_names = (
+        "localizationstring_kor",
+        "localizationstring_eng",
+        "localizationstring_jpn",
+        "localizationstring_rus",
+        "localizationstring_tur",
+        "localizationstring_spa-es",
+        "localizationstring_spa-mx",
+        "localizationstring_fre",
+        "localizationstring_ger",
+        "localizationstring_ita",
+        "localizationstring_pol",
+        "localizationstring_por-br",
+        "localizationstring_zho-tw",
+        "localizationstring_zho-cn",
+    )
+    icon_prefixes = ("itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_")
+    for index, entry in enumerate(entries):
+        if index % 4096 == 0:
+            raise_if_cancelled(stop_event)
+        lower_path = str(getattr(entry, "path", "") or "").replace("\\", "/").lower()
+        basename = os.path.basename(lower_path)
+        stem = os.path.splitext(basename)[0]
+        group = _archive_entry_package_group(entry)
+        wants_localization = group == "0020" and any(table_name in lower_path for table_name in localization_table_names)
+        wants_iteminfo = group == "0008" and "iteminfo.pabgb" in lower_path
+        wants_stringinfo = group == "0008" and basename == "stringinfo.pabgb"
+        wants_part_prefab_dye_slot = group == "0008" and basename == "partprefabdyeslotinfo.pabgb"
+        wants_material_match = group == "0008" and basename == "materialmatchinfo.pabgb"
+        wants_model_hash = lower_path.endswith((".prefab", ".pac", ".pact"))
+        wants_item_icon = lower_path.endswith(".dds") and (
+            "itemicon" in lower_path
+            or any(stem.startswith(prefix) for prefix in icon_prefixes)
+        )
+        if (
+            wants_localization
+            or wants_iteminfo
+            or wants_stringinfo
+            or wants_part_prefab_dye_slot
+            or wants_material_match
+            or wants_model_hash
+            or wants_item_icon
+        ):
+            selected_signatures.append(entry_signature(entry))
+    payload = {
+        "format": 1,
+        "dependency_count": len(selected_signatures),
+        "dependencies": selected_signatures,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode(
+        "utf-8",
+        errors="replace",
+    )
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _archive_name_search_shard_binary_path(cache_dir: Path, relative_pamt_path: str) -> Path:
+    return cache_dir / f"{_archive_scan_shard_id(relative_pamt_path)}.bin"
+
+
+def _archive_name_search_shard_meta_path(cache_dir: Path, relative_pamt_path: str) -> Path:
+    return cache_dir / f"{_archive_scan_shard_id(relative_pamt_path)}.json"
+
+
+def _read_archive_name_search_shard_meta(meta_path: Path) -> dict:
+    payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("name-search shard metadata is invalid")
+    return payload
+
+
+def _write_archive_name_search_shard_meta(meta_path: Path, payload: Mapping[str, object]) -> None:
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = meta_path.with_suffix(meta_path.suffix + ".tmp")
+    temp_path.write_text(json.dumps(dict(payload), ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    temp_path.replace(meta_path)
+
+
+def _archive_name_search_shard_meta_matches(
+    meta: Mapping[str, object],
+    group: _ArchiveEntryShardGroup,
+    *,
+    alias_signature: str,
+) -> bool:
+    return (
+        int(meta.get("version", 0) or 0) == _ARCHIVE_NAME_SEARCH_SHARD_META_VERSION
+        and str(meta.get("relative_pamt_path") or "").replace("\\", "/") == group.relative_pamt_path.replace("\\", "/")
+        and int(meta.get("entry_count", -1) or -1) == len(group.entries)
+        and str(meta.get("entry_list_signature") or "") == group.entry_list_signature
+        and str(meta.get("alias_signature") or "") == alias_signature
+    )
+
+
+def _archive_name_search_shards_ready(
+    package_root: Path,
+    cache_root: Path,
+    entries: Sequence[ArchiveEntry],
+    item_search_aliases: Optional[Mapping[str, str]],
+) -> bool:
+    cache_dir = resolve_archive_name_search_shard_cache_dir(package_root, cache_root)
+    alias_signature = _archive_name_search_alias_signature(item_search_aliases)
+    for group in _archive_entry_shard_groups(package_root, entries):
+        meta_path = _archive_name_search_shard_meta_path(cache_dir, group.relative_pamt_path)
+        binary_path = _archive_name_search_shard_binary_path(cache_dir, group.relative_pamt_path)
+        if not meta_path.is_file() or not binary_path.is_file():
+            return False
+        try:
+            meta = _read_archive_name_search_shard_meta(meta_path)
+        except Exception:
+            return False
+        if not _archive_name_search_shard_meta_matches(meta, group, alias_signature=alias_signature):
+            return False
+    return True
+
+
+def _load_archive_name_search_shards_trusted(
+    package_root: Path,
+    cache_root: Path,
+    entries: Sequence[ArchiveEntry],
+    *,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> ArchiveNameSearchIndex:
+    groups = _archive_entry_shard_groups(
+        package_root,
+        entries,
+        include_signatures=False,
+        on_progress=on_progress,
+        stop_event=stop_event,
+        progress_label="Preparing archive name-search shard offsets",
+    )
+    cache_dir = resolve_archive_name_search_shard_cache_dir(package_root, cache_root)
+    shard_indexes: List[Tuple[int, ArchiveNameSearchIndex]] = []
+    source_shards: Dict[str, Tuple[Path, Path]] = {}
+    total_groups = len(groups)
+    for index, group in enumerate(groups, start=1):
+        raise_if_cancelled(stop_event)
+        binary_path = _archive_name_search_shard_binary_path(cache_dir, group.relative_pamt_path)
+        meta_path = _archive_name_search_shard_meta_path(cache_dir, group.relative_pamt_path)
+        if not binary_path.is_file() or not meta_path.is_file():
+            raise FileNotFoundError(f"name-search shard missing: {group.relative_pamt_path}")
+        source_shards[group.relative_pamt_path] = (binary_path, meta_path)
+        shard_indexes.append(
+            (
+                group.start_index,
+                _load_native_name_search_index_binary(
+                    binary_path,
+                    group.entries,
+                    on_progress=None,
+                ),
+            )
+        )
+        if on_progress is not None and (index == 1 or index % 20 == 0 or index == total_groups):
+            on_progress(index, max(total_groups, 1), f"Loading archive name-search shards... {index:,} / {total_groups:,}")
+    token_rows = _MergedArchiveNameSearchTokenRows(shard_indexes, source_shards=source_shards)
+    return ArchiveNameSearchIndex(
+        entries=entries,
+        token_rows=token_rows,
+        sorted_tokens=tuple(token_rows),
+        common_aliases=_ARCHIVE_NAME_SEARCH_QUERY_ALIASES,
+    )
+
+
+def _write_archive_name_search_index_shard(
+    cache_dir: Path,
+    group: _ArchiveEntryShardGroup,
+    index: ArchiveNameSearchIndex,
+    *,
+    alias_signature: str,
+) -> None:
+    binary_path = _archive_name_search_shard_binary_path(cache_dir, group.relative_pamt_path)
+    meta_path = _archive_name_search_shard_meta_path(cache_dir, group.relative_pamt_path)
+    _write_native_name_search_index_binary(binary_path, index, len(group.entries))
+    _write_archive_name_search_shard_meta(
+        meta_path,
+        {
+            "version": _ARCHIVE_NAME_SEARCH_SHARD_META_VERSION,
+            "created_at": time.time(),
+            "relative_pamt_path": group.relative_pamt_path,
+            "entry_count": len(group.entries),
+            "entry_list_signature": group.entry_list_signature,
+            "alias_signature": alias_signature,
+            "token_count": len(index.token_rows),
+        },
+    )
+
+
+def _load_or_update_archive_name_search_shards(
+    package_root: Path,
+    cache_root: Path,
+    entries: Sequence[ArchiveEntry],
+    item_search_aliases: Optional[Mapping[str, str]],
+    *,
+    load_name_search_index: bool = True,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> Optional[ArchiveNameSearchIndex]:
+    groups = _archive_entry_shard_groups(package_root, entries)
+    cache_dir = resolve_archive_name_search_shard_cache_dir(package_root, cache_root)
+    alias_signature = _archive_name_search_alias_signature(item_search_aliases)
+    stale_groups: List[_ArchiveEntryShardGroup] = []
+    loaded_meta: Dict[str, dict] = {}
+    for group in groups:
+        meta_path = _archive_name_search_shard_meta_path(cache_dir, group.relative_pamt_path)
+        binary_path = _archive_name_search_shard_binary_path(cache_dir, group.relative_pamt_path)
+        try:
+            if not meta_path.is_file() or not binary_path.is_file():
+                raise ValueError("added")
+            meta = _read_archive_name_search_shard_meta(meta_path)
+            if not _archive_name_search_shard_meta_matches(meta, group, alias_signature=alias_signature):
+                if str(meta.get("alias_signature") or "") != alias_signature:
+                    raise ValueError("item alias signature changed")
+                raise ValueError("entry list changed")
+            loaded_meta[group.relative_pamt_path] = meta
+        except Exception as exc:
+            if on_log is not None:
+                on_log(f"Archive name-search shard stale: {group.relative_pamt_path} {str(exc).strip() or 'changed'}")
+            stale_groups.append(group)
+    if stale_groups and not load_name_search_index:
+        return None
+    if stale_groups:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        total = len(stale_groups)
+        for index, group in enumerate(stale_groups, start=1):
+            raise_if_cancelled(stop_event)
+            if on_progress is not None:
+                on_progress(
+                    index - 1,
+                    max(total, 1),
+                    f"Building archive name-search shard {index:,} / {total:,}: {group.relative_pamt_path}",
+                )
+            shard_index = _build_archive_name_search_index_python(
+                group.entries,
+                item_search_aliases=item_search_aliases,
+                stop_event=stop_event,
+            )
+            _write_archive_name_search_index_shard(
+                cache_dir,
+                group,
+                shard_index,
+                alias_signature=alias_signature,
+            )
+        if on_log is not None:
+            on_log(f"Archive name-search shard cache updated: {len(stale_groups):,} shard(s) rebuilt.")
+    if not load_name_search_index:
+        return None
+    shard_indexes: List[Tuple[int, ArchiveNameSearchIndex]] = []
+    source_shards: Dict[str, Tuple[Path, Path]] = {}
+    total_groups = len(groups)
+    for index, group in enumerate(groups, start=1):
+        raise_if_cancelled(stop_event)
+        binary_path = _archive_name_search_shard_binary_path(cache_dir, group.relative_pamt_path)
+        meta_path = _archive_name_search_shard_meta_path(cache_dir, group.relative_pamt_path)
+        source_shards[group.relative_pamt_path] = (binary_path, meta_path)
+        shard_indexes.append(
+            (
+                group.start_index,
+                _load_native_name_search_index_binary(
+                    binary_path,
+                    group.entries,
+                    on_progress=None,
+                ),
+            )
+        )
+        if on_progress is not None and (index == 1 or index % 20 == 0 or index == total_groups):
+            on_progress(index, max(total_groups, 1), f"Loading archive name-search shards... {index:,} / {total_groups:,}")
+    token_rows = _MergedArchiveNameSearchTokenRows(shard_indexes, source_shards=source_shards)
+    return ArchiveNameSearchIndex(
+        entries=entries,
+        token_rows=token_rows,
+        sorted_tokens=tuple(token_rows),
+        common_aliases=_ARCHIVE_NAME_SEARCH_QUERY_ALIASES,
+    )
+
+
+def load_or_update_archive_name_search_shards(
+    package_root: Path,
+    cache_root: Path,
+    entries: Sequence[ArchiveEntry],
+    item_search_aliases: Optional[Mapping[str, str]],
+    *,
+    load_name_search_index: bool = True,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> Optional[ArchiveNameSearchIndex]:
+    return _load_or_update_archive_name_search_shards(
+        package_root,
+        cache_root,
+        entries,
+        item_search_aliases,
+        load_name_search_index=load_name_search_index,
+        on_progress=on_progress,
+        on_log=on_log,
+        stop_event=stop_event,
+    )
+
+
+def _write_archive_name_search_shard_caches(
+    package_root: Path,
+    cache_root: Path,
+    entries: Sequence[ArchiveEntry],
+    archive_name_search_index: ArchiveNameSearchIndex,
+    item_search_aliases: Optional[Mapping[str, str]],
+) -> Path:
+    groups = _archive_entry_shard_groups(package_root, entries)
+    cache_dir = resolve_archive_name_search_shard_cache_dir(package_root, cache_root)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    alias_signature = _archive_name_search_alias_signature(item_search_aliases)
+    if not groups:
+        return cache_dir
+    if isinstance(archive_name_search_index.token_rows, _MergedArchiveNameSearchTokenRows):
+        if archive_name_search_index.token_rows.copy_shards_to(
+            cache_dir,
+            groups,
+            alias_signature=alias_signature,
+        ):
+            return cache_dir
+    starts = [group.start_index for group in groups]
+    ends = [group.start_index + len(group.entries) for group in groups]
+    token_rows_by_group: List[Dict[str, List[int]]] = [defaultdict(list) for _group in groups]
+    for token in archive_name_search_index.token_rows:
+        rows = archive_name_search_index.token_rows.get(token, ())
+        for raw_row in rows:
+            row = int(raw_row)
+            group_index = bisect.bisect_right(starts, row) - 1
+            if group_index < 0 or group_index >= len(groups):
+                continue
+            if row >= ends[group_index]:
+                continue
+            token_rows_by_group[group_index][str(token)].append(row - starts[group_index])
+    for group_index, group in enumerate(groups):
+        local_rows = {
+            token: tuple(sorted(set(rows)))
+            for token, rows in token_rows_by_group[group_index].items()
+            if token and rows
+        }
+        shard_index = ArchiveNameSearchIndex(
+            entries=group.entries,
+            token_rows=local_rows,
+            sorted_tokens=tuple(sorted(local_rows)),
+            common_aliases=_ARCHIVE_NAME_SEARCH_QUERY_ALIASES,
+        )
+        _write_archive_name_search_index_shard(
+            cache_dir,
+            group,
+            shard_index,
+            alias_signature=alias_signature,
+        )
+    return cache_dir
 
 
 class LazyArchiveEntryRowIndex(Mapping[str, Sequence[ArchiveEntry]]):
@@ -1758,21 +2301,37 @@ def discover_pamt_files(package_root: Path) -> List[Path]:
 
 
 def resolve_archive_scan_cache_path(package_root: Path, cache_root: Path) -> Path:
-    try:
-        resolved_root = package_root.expanduser().resolve()
-    except OSError:
-        resolved_root = package_root.expanduser()
-    digest = hashlib.sha256(str(resolved_root).lower().encode("utf-8", errors="replace")).hexdigest()[:24]
+    digest = _archive_cache_root_digest(package_root)
     return cache_root / f"archive_scan_{digest}.bin"
 
 
-def resolve_archive_sidecar_cache_path(package_root: Path, cache_root: Path) -> Path:
+def _archive_cache_root_digest(package_root: Path) -> str:
     try:
         resolved_root = package_root.expanduser().resolve()
     except OSError:
         resolved_root = package_root.expanduser()
-    digest = hashlib.sha256(str(resolved_root).lower().encode("utf-8", errors="replace")).hexdigest()[:24]
-    return cache_root / f"archive_sidecars_{digest}.bin"
+    return hashlib.sha256(str(resolved_root).lower().encode("utf-8", errors="replace")).hexdigest()[:24]
+
+
+def resolve_archive_scan_shard_cache_dir(package_root: Path, cache_root: Path) -> Path:
+    return cache_root / f"archive_scan_shards_{_archive_cache_root_digest(package_root)}"
+
+
+def resolve_archive_basic_index_shard_cache_dir(package_root: Path, cache_root: Path) -> Path:
+    return cache_root / f"archive_basic_index_shards_{_archive_cache_root_digest(package_root)}"
+
+
+def resolve_archive_name_search_shard_cache_dir(package_root: Path, cache_root: Path) -> Path:
+    return cache_root / f"archive_name_search_shards_{_archive_cache_root_digest(package_root)}"
+
+
+def _archive_scan_shard_id(relative_pamt_path: str) -> str:
+    normalized = str(relative_pamt_path or "").replace("\\", "/").strip().lower()
+    return hashlib.sha256(normalized.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+
+def resolve_archive_sidecar_cache_path(package_root: Path, cache_root: Path) -> Path:
+    return cache_root / f"archive_sidecars_{_archive_cache_root_digest(package_root)}.bin"
 
 
 def resolve_archive_sidecar_cache_metadata_path(package_root: Path, cache_root: Path) -> Path:
@@ -1780,30 +2339,15 @@ def resolve_archive_sidecar_cache_metadata_path(package_root: Path, cache_root: 
 
 
 def resolve_archive_derived_index_cache_path(package_root: Path, cache_root: Path) -> Path:
-    try:
-        resolved_root = package_root.expanduser().resolve()
-    except OSError:
-        resolved_root = package_root.expanduser()
-    digest = hashlib.sha256(str(resolved_root).lower().encode("utf-8", errors="replace")).hexdigest()[:24]
-    return cache_root / f"archive_derived_indexes_{digest}.bin"
+    return cache_root / f"archive_derived_indexes_{_archive_cache_root_digest(package_root)}.bin"
 
 
 def resolve_archive_basic_index_cache_path(package_root: Path, cache_root: Path) -> Path:
-    try:
-        resolved_root = package_root.expanduser().resolve()
-    except OSError:
-        resolved_root = package_root.expanduser()
-    digest = hashlib.sha256(str(resolved_root).lower().encode("utf-8", errors="replace")).hexdigest()[:24]
-    return cache_root / f"archive_basic_indexes_{digest}.bin"
+    return cache_root / f"archive_basic_indexes_{_archive_cache_root_digest(package_root)}.bin"
 
 
 def resolve_archive_name_search_index_cache_path(package_root: Path, cache_root: Path) -> Path:
-    try:
-        resolved_root = package_root.expanduser().resolve()
-    except OSError:
-        resolved_root = package_root.expanduser()
-    digest = hashlib.sha256(str(resolved_root).lower().encode("utf-8", errors="replace")).hexdigest()[:24]
-    return cache_root / f"archive_name_search_{digest}.bin"
+    return cache_root / f"archive_name_search_{_archive_cache_root_digest(package_root)}.bin"
 
 
 def resolve_crimson_desert_executable(package_root: Path) -> Optional[Path]:
@@ -1858,11 +2402,14 @@ def invalidate_archive_browser_cache(
     for candidate_root in candidate_roots:
         for candidate_path in (
             resolve_archive_scan_cache_path(package_root, candidate_root),
+            resolve_archive_scan_shard_cache_dir(package_root, candidate_root),
             resolve_archive_sidecar_cache_path(package_root, candidate_root),
             resolve_archive_sidecar_cache_metadata_path(package_root, candidate_root),
             resolve_archive_derived_index_cache_path(package_root, candidate_root),
             resolve_archive_basic_index_cache_path(package_root, candidate_root),
+            resolve_archive_basic_index_shard_cache_dir(package_root, candidate_root),
             resolve_archive_name_search_index_cache_path(package_root, candidate_root),
+            resolve_archive_name_search_shard_cache_dir(package_root, candidate_root),
         ):
             normalized_path = str(candidate_path).strip().lower()
             if not normalized_path or normalized_path in seen:
@@ -1875,11 +2422,14 @@ def invalidate_archive_browser_cache(
         if not cache_path.exists():
             continue
         try:
-            cache_path.unlink()
+            if cache_path.is_dir():
+                shutil.rmtree(cache_path)
+            else:
+                cache_path.unlink()
             deleted_paths.append(cache_path)
         except OSError as exc:
             if on_log:
-                on_log(f"Warning: could not delete archive cache file {cache_path}: {exc}")
+                on_log(f"Warning: could not delete archive cache path {cache_path}: {exc}")
 
     return deleted_paths
 
@@ -1893,39 +2443,66 @@ def prune_archive_cache_root(
     root = Path(cache_root)
     if max_bytes <= 0 or target_bytes < 0 or not root.is_dir():
         return {"files": 0, "bytes": 0, "removed_files": 0, "removed_bytes": 0}
-    units: List[Tuple[float, int, Path]] = []
+    units: List[Tuple[float, int, int, Path]] = []
     total_bytes = 0
     try:
         children = tuple(root.iterdir())
     except OSError:
         return {"files": 0, "bytes": 0, "removed_files": 0, "removed_bytes": 0}
     for path in children:
-        if not path.is_file() or not any(path.name.startswith(prefix) for prefix in _ARCHIVE_CACHE_ROOT_PREFIXES):
+        if not any(path.name.startswith(prefix) for prefix in _ARCHIVE_CACHE_ROOT_PREFIXES):
             continue
-        try:
-            stat = path.stat()
-        except OSError:
+        file_count = 0
+        latest_mtime = 0.0
+        size = 0
+        if path.is_file():
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            size = max(0, int(stat.st_size))
+            latest_mtime = float(stat.st_mtime)
+            file_count = 1
+        elif path.is_dir():
+            try:
+                for child in path.rglob("*"):
+                    if not child.is_file():
+                        continue
+                    try:
+                        stat = child.stat()
+                    except OSError:
+                        continue
+                    size += max(0, int(stat.st_size))
+                    latest_mtime = max(latest_mtime, float(stat.st_mtime))
+                    file_count += 1
+                if latest_mtime <= 0.0:
+                    latest_mtime = float(path.stat().st_mtime)
+            except OSError:
+                continue
+        else:
             continue
-        size = max(0, int(stat.st_size))
         total_bytes += size
-        units.append((float(stat.st_mtime), size, path))
+        units.append((latest_mtime, size, file_count, path))
     if total_bytes <= max_bytes:
-        return {"files": len(units), "bytes": total_bytes, "removed_files": 0, "removed_bytes": 0}
+        return {"files": sum(item[2] for item in units), "bytes": total_bytes, "removed_files": 0, "removed_bytes": 0}
     current_bytes = total_bytes
     removed_files = 0
     removed_bytes = 0
-    for _mtime, size, path in sorted(units, key=lambda item: (item[0], str(item[2]).lower())):
+    for _mtime, size, file_count, path in sorted(units, key=lambda item: (item[0], str(item[3]).lower())):
         if current_bytes <= min(target_bytes, max_bytes):
             break
         try:
-            path.unlink()
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
         except OSError:
             continue
         current_bytes = max(0, current_bytes - size)
-        removed_files += 1
+        removed_files += max(1, int(file_count))
         removed_bytes += size
     return {
-        "files": max(0, len(units) - removed_files),
+        "files": max(0, sum(item[2] for item in units) - removed_files),
         "bytes": current_bytes,
         "removed_files": removed_files,
         "removed_bytes": removed_bytes,
@@ -1967,9 +2544,30 @@ def _archive_base_dir(package_root: Path) -> Path:
 
 def _archive_relative_source_path(base_dir: Path, path: Path) -> str:
     try:
-        return path.resolve().relative_to(base_dir.resolve()).as_posix()
+        resolved_base_dir = base_dir.resolve()
+    except OSError:
+        resolved_base_dir = base_dir
+    return _archive_relative_source_path_cached(base_dir, resolved_base_dir, {}, path)
+
+
+def _archive_relative_source_path_cached(
+    base_dir: Path,
+    resolved_base_dir: Path,
+    cache: Dict[Path, str],
+    path: Path,
+) -> str:
+    cached = cache.get(path)
+    if cached is not None:
+        return cached
+    try:
+        relative_path = path.resolve().relative_to(resolved_base_dir).as_posix()
     except (OSError, ValueError):
-        return path.name
+        try:
+            relative_path = path.relative_to(base_dir).as_posix()
+        except ValueError:
+            relative_path = path.name
+    cache[path] = relative_path
+    return relative_path
 
 
 def _collect_archive_scan_sources(
@@ -2275,6 +2873,22 @@ def _deserialize_archive_basic_index_cache_payload_from_path(cache_path: Path) -
     )
 
 
+def _deserialize_archive_scan_shard_cache_payload_from_path(cache_path: Path) -> dict:
+    return _deserialize_cache_payload_from_path(
+        cache_path,
+        magic=_ARCHIVE_SCAN_SHARD_CACHE_MAGIC,
+        invalid_message="Archive scan shard cache header is not recognized.",
+    )
+
+
+def _deserialize_archive_basic_index_shard_cache_payload_from_path(cache_path: Path) -> dict:
+    return _deserialize_cache_payload_from_path(
+        cache_path,
+        magic=_ARCHIVE_BASIC_INDEX_SHARD_CACHE_MAGIC,
+        invalid_message="Archive path lookup shard cache header is not recognized.",
+    )
+
+
 def _write_archive_sidecar_cache_metadata(
     metadata_path: Path,
     *,
@@ -2374,6 +2988,706 @@ def _record_timing(
     if timings is None:
         return
     timings[key] = max(0.0, float(time.perf_counter() - started_at))
+
+
+def _archive_cache_row_for_entry(
+    base_dir: Path,
+    resolved_base_dir: Path,
+    pamt_rel_cache: Dict[Path, str],
+    entry: ArchiveEntry,
+) -> Tuple[str, str, int, int, int, int, int]:
+    pamt_rel_text = pamt_rel_cache.get(entry.pamt_path)
+    if pamt_rel_text is None:
+        try:
+            pamt_rel_text = entry.pamt_path.resolve().relative_to(resolved_base_dir).as_posix()
+        except (OSError, ValueError):
+            pamt_rel_text = _archive_relative_source_path(base_dir, entry.pamt_path)
+        pamt_rel_cache[entry.pamt_path] = pamt_rel_text
+    return (
+        entry.path,
+        pamt_rel_text,
+        int(entry.offset),
+        int(entry.comp_size),
+        int(entry.orig_size),
+        int(entry.flags),
+        int(entry.paz_index),
+    )
+
+
+def _archive_scan_cache_payload_components(
+    package_root: Path,
+    entries: Sequence[ArchiveEntry],
+    *,
+    base_dir: Optional[Path] = None,
+) -> Dict[str, object]:
+    resolved_base_dir = (base_dir or _archive_base_dir(package_root))
+    try:
+        resolved_base_dir_for_rows = resolved_base_dir.resolve()
+    except OSError:
+        resolved_base_dir_for_rows = resolved_base_dir
+    pamt_rel_cache: Dict[Path, str] = {}
+    pamt_source_paths: Dict[str, Path] = {}
+    content_source_paths: Dict[str, Path] = {}
+    row_hasher = hashlib.sha256()
+    rows: List[Tuple[str, str, int, int, int, int, int]] = []
+    for entry in entries:
+        row = _archive_cache_row_for_entry(resolved_base_dir, resolved_base_dir_for_rows, pamt_rel_cache, entry)
+        rows.append(row)
+        _update_archive_entry_metadata_row_hash(row_hasher, row)
+        for source_path, target in (
+            (entry.pamt_path, pamt_source_paths),
+            (entry.pamt_path, content_source_paths),
+            (entry.paz_file, content_source_paths),
+        ):
+            try:
+                normalized_key = os.path.normcase(os.fspath(source_path)).strip().lower()
+            except (OSError, TypeError, ValueError):
+                normalized_key = str(source_path).strip().lower()
+            if normalized_key and normalized_key not in target:
+                target[normalized_key] = source_path
+    row_hash = row_hasher.hexdigest()
+    pamt_sources = _archive_source_rows_from_paths(resolved_base_dir, tuple(pamt_source_paths.values()))
+    content_sources = _archive_source_rows_from_paths(resolved_base_dir, tuple(content_source_paths.values()))
+    entry_count = len(rows)
+    entry_list_signature = _archive_entry_metadata_signature_from_components(
+        sources=pamt_sources,
+        entry_count=entry_count,
+        row_hash=row_hash,
+    )
+    content_signature = _archive_entry_metadata_signature_from_components(
+        sources=content_sources,
+        entry_count=entry_count,
+        row_hash=row_hash,
+    )
+    return {
+        "rows": rows,
+        "row_hash": row_hash,
+        "entry_count": entry_count,
+        "pamt_sources": pamt_sources,
+        "content_sources": content_sources,
+        "entry_list_signature": entry_list_signature,
+        "content_signature": content_signature,
+    }
+
+
+def _decode_archive_scan_cache_rows(
+    base_dir: Path,
+    raw_rows: object,
+    *,
+    stop_event: Optional[threading.Event] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    progress_message: str = "Loading archive cache",
+) -> List[ArchiveEntry]:
+    if not isinstance(raw_rows, list):
+        raise ValueError("Archive cache rows are invalid.")
+    total_rows = len(raw_rows)
+    update_every = 50_000 if total_rows >= 500_000 else 10_000 if total_rows >= 100_000 else 2_000
+    pamt_path_cache: Dict[str, Path] = {}
+    paz_path_cache: Dict[Tuple[str, int], Path] = {}
+    entries: List[ArchiveEntry] = []
+    for index, row in enumerate(raw_rows, start=1):
+        raise_if_cancelled(stop_event)
+        if not isinstance(row, (list, tuple)) or len(row) != 7:
+            raise ValueError("Archive cache row shape is invalid.")
+        path, pamt_rel, offset, comp_size, orig_size, flags, paz_index = row
+        pamt_rel_text = str(pamt_rel)
+        pamt_path = pamt_path_cache.get(pamt_rel_text)
+        if pamt_path is None:
+            pamt_path = base_dir / pamt_rel_text
+            pamt_path_cache[pamt_rel_text] = pamt_path
+        paz_key = (pamt_rel_text, int(paz_index))
+        paz_path = paz_path_cache.get(paz_key)
+        if paz_path is None:
+            paz_path = pamt_path.parent / f"{int(paz_index)}.paz"
+            paz_path_cache[paz_key] = paz_path
+        entries.append(
+            ArchiveEntry(
+                path=str(path),
+                pamt_path=pamt_path,
+                paz_file=paz_path,
+                offset=int(offset),
+                comp_size=int(comp_size),
+                orig_size=int(orig_size),
+                flags=int(flags),
+                paz_index=int(paz_index),
+            )
+        )
+        if on_progress and (index == 1 or index % update_every == 0 or index == total_rows):
+            on_progress(index, max(total_rows, 1), f"{progress_message}... {index:,} / {total_rows:,} entries")
+    return entries
+
+
+@dataclass(frozen=True)
+class _ArchiveEntryShardGroup:
+    relative_pamt_path: str
+    pamt_path: Path
+    shard_id: str
+    start_index: int
+    entries: Tuple[ArchiveEntry, ...]
+    entry_list_signature: str
+
+    @property
+    def entry_count(self) -> int:
+        return len(self.entries)
+
+
+def _archive_entry_shard_groups(
+    package_root: Path,
+    entries: Sequence[ArchiveEntry],
+    *,
+    include_signatures: bool = True,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+    progress_label: str = "Preparing archive shard metadata",
+) -> List[_ArchiveEntryShardGroup]:
+    base_dir = _archive_base_dir(package_root)
+    try:
+        resolved_base_dir = base_dir.resolve()
+    except OSError:
+        resolved_base_dir = base_dir
+    pamt_rel_cache: Dict[Path, str] = {}
+    groups_by_rel: OrderedDict[str, List[ArchiveEntry]] = OrderedDict()
+    pamt_paths_by_rel: Dict[str, Path] = {}
+    total_entries = len(entries)
+    update_every = 50_000 if total_entries >= 500_000 else 10_000 if total_entries >= 100_000 else 2_000
+    if on_progress is not None:
+        on_progress(0 if total_entries > 0 else 1, max(total_entries, 1), f"{progress_label}... 0 / {total_entries:,} entries")
+    for index, entry in enumerate(entries, start=1):
+        if index == 1 or index % 4096 == 0:
+            raise_if_cancelled(stop_event)
+        pamt_path = Path(getattr(entry, "pamt_path", ""))
+        relative_pamt_path = _archive_relative_source_path_cached(
+            base_dir,
+            resolved_base_dir,
+            pamt_rel_cache,
+            pamt_path,
+        )
+        if not relative_pamt_path:
+            relative_pamt_path = pamt_path.name
+        groups_by_rel.setdefault(relative_pamt_path, []).append(entry)
+        pamt_paths_by_rel.setdefault(relative_pamt_path, pamt_path)
+        if on_progress is not None and (index == 1 or index % update_every == 0 or index == total_entries):
+            on_progress(index, max(total_entries, 1), f"{progress_label}... {index:,} / {total_entries:,} entries")
+    groups: List[_ArchiveEntryShardGroup] = []
+    start_index = 0
+    total_groups = len(groups_by_rel)
+    for group_index, (relative_pamt_path, group_entries_list) in enumerate(groups_by_rel.items(), start=1):
+        raise_if_cancelled(stop_event)
+        if include_signatures and on_progress is not None and (group_index == 1 or group_index % 20 == 0 or group_index == total_groups):
+            on_progress(group_index, max(total_groups, 1), f"Hashing archive shard metadata... {group_index:,} / {total_groups:,} shards")
+        group_entries = tuple(group_entries_list)
+        entry_list_signature = ""
+        if include_signatures:
+            components = _archive_scan_cache_payload_components(package_root, group_entries, base_dir=base_dir)
+            entry_list_signature = str(components.get("entry_list_signature") or "")
+        groups.append(
+            _ArchiveEntryShardGroup(
+                relative_pamt_path=relative_pamt_path,
+                pamt_path=pamt_paths_by_rel[relative_pamt_path],
+                shard_id=_archive_scan_shard_id(relative_pamt_path),
+                start_index=start_index,
+                entries=group_entries,
+                entry_list_signature=entry_list_signature,
+            )
+        )
+        start_index += len(group_entries)
+    return groups
+
+
+def _archive_scan_shard_cache_path(cache_dir: Path, relative_pamt_path: str) -> Path:
+    return cache_dir / f"{_archive_scan_shard_id(relative_pamt_path)}.bin"
+
+
+def _write_archive_scan_shard_cache(
+    package_root: Path,
+    cache_dir: Path,
+    relative_pamt_path: str,
+    pamt_path: Path,
+    entries: Sequence[ArchiveEntry],
+) -> Path:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    components = _archive_scan_cache_payload_components(package_root, entries)
+    cache_path = _archive_scan_shard_cache_path(cache_dir, relative_pamt_path)
+    payload = {
+        "version": _ARCHIVE_SCAN_SHARD_CACHE_VERSION,
+        "created_at": time.time(),
+        "package_root": str(package_root),
+        "relative_pamt_path": str(relative_pamt_path),
+        "pamt_path": str(pamt_path),
+        "pamt_sources": components.get("pamt_sources") or [],
+        "content_sources": components.get("content_sources") or [],
+        "entry_count": int(components.get("entry_count") or 0),
+        "row_hash": str(components.get("row_hash") or ""),
+        "entry_list_signature": str(components.get("entry_list_signature") or ""),
+        "content_signature": str(components.get("content_signature") or ""),
+        "rows": components.get("rows") or [],
+    }
+    _write_raw_pickle_cache_payload_to_path(
+        cache_path,
+        magic=_ARCHIVE_SCAN_SHARD_CACHE_MAGIC,
+        payload=payload,
+    )
+    return cache_path
+
+
+def _load_archive_scan_shard_cache(
+    package_root: Path,
+    cache_path: Path,
+    *,
+    relative_pamt_path: str,
+    pamt_sources: Sequence[Tuple[str, int, int]],
+    stop_event: Optional[threading.Event] = None,
+) -> Tuple[List[ArchiveEntry], dict]:
+    data = _deserialize_archive_scan_shard_cache_payload_from_path(cache_path)
+    if int(data.get("version", 0)) != _ARCHIVE_SCAN_SHARD_CACHE_VERSION:
+        raise ValueError("format changed")
+    cached_relative_path = str(data.get("relative_pamt_path") or "").replace("\\", "/")
+    if cached_relative_path != str(relative_pamt_path).replace("\\", "/"):
+        raise ValueError("shard path changed")
+    cached_sources = _normalize_archive_source_rows(data.get("pamt_sources"))
+    if cached_sources != list(pamt_sources):
+        raise ValueError("source stamps changed")
+    rows = data.get("rows")
+    entries = _decode_archive_scan_cache_rows(
+        _archive_base_dir(package_root),
+        rows,
+        stop_event=stop_event,
+    )
+    cached_count = int(data.get("entry_count", -1))
+    if cached_count != len(entries):
+        raise ValueError("entry count changed")
+    return entries, data
+
+
+def _scan_archive_pamt_shard(
+    pamt_path: Path,
+    *,
+    shard_scan_func: Optional[Callable[[Path], Optional[Sequence[ArchiveEntry]]]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> List[ArchiveEntry]:
+    raise_if_cancelled(stop_event)
+    if shard_scan_func is not None:
+        try:
+            native_entries = shard_scan_func(pamt_path)
+            if native_entries is not None:
+                return list(native_entries)
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            if on_log is not None:
+                on_log(f"Archive shard native scan failed for {pamt_path.name}; using Python parser: {exc}")
+    entries = parse_archive_pamt(pamt_path)
+    if on_progress is not None:
+        on_progress(len(entries), max(len(entries), 1), f"Parsed archive shard {pamt_path.name}: {len(entries):,} entries")
+    return entries
+
+
+def _full_scan_archive_entries_for_shards(
+    package_root: Path,
+    *,
+    full_scan_func: Optional[Callable[[], Optional[Sequence[ArchiveEntry]]]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_breadcrumb: Optional[Callable[[Mapping[str, object]], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> Tuple[List[ArchiveEntry], str]:
+    if full_scan_func is not None:
+        try:
+            entries = full_scan_func()
+            if entries is not None:
+                return list(entries), "native_scan"
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            if on_log is not None:
+                on_log(f"Native full archive scan failed; using Python parser: {exc}")
+    entries = scan_archive_entries(
+        package_root,
+        on_log=on_log,
+        on_progress=on_progress,
+        on_breadcrumb=on_breadcrumb,
+        stop_event=stop_event,
+    )
+    return entries, "scan"
+
+
+def _partition_entries_by_pamt_relative_path(
+    package_root: Path,
+    entries: Sequence[ArchiveEntry],
+    *,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> Dict[str, List[ArchiveEntry]]:
+    base_dir = _archive_base_dir(package_root)
+    try:
+        resolved_base_dir = base_dir.resolve()
+    except OSError:
+        resolved_base_dir = base_dir
+    pamt_rel_cache: Dict[Path, str] = {}
+    groups: Dict[str, List[ArchiveEntry]] = defaultdict(list)
+    total_entries = len(entries)
+    update_every = 50_000 if total_entries >= 500_000 else 10_000 if total_entries >= 100_000 else 2_000
+    if on_progress is not None:
+        on_progress(0 if total_entries > 0 else 1, max(total_entries, 1), f"Preparing archive scan shard cache... 0 / {total_entries:,} entries")
+    for index, entry in enumerate(entries, start=1):
+        if index == 1 or index % 4096 == 0:
+            raise_if_cancelled(stop_event)
+        relative_pamt_path = _archive_relative_source_path_cached(
+            base_dir,
+            resolved_base_dir,
+            pamt_rel_cache,
+            Path(getattr(entry, "pamt_path", "")),
+        )
+        groups[relative_pamt_path].append(entry)
+        if on_progress is not None and (index == 1 or index % update_every == 0 or index == total_entries):
+            on_progress(
+                index,
+                max(total_entries, 1),
+                f"Preparing archive scan shard cache... {index:,} / {total_entries:,} entries",
+            )
+    return groups
+
+
+def _write_archive_scan_shards_from_entries(
+    package_root: Path,
+    cache_root: Path,
+    entries: Sequence[ArchiveEntry],
+    pamt_files: Optional[Sequence[Path]] = None,
+    *,
+    stop_event: Optional[threading.Event] = None,
+    on_log: Optional[Callable[[str], None]] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+) -> Path:
+    cache_dir = resolve_archive_scan_shard_cache_dir(package_root, cache_root)
+    base_dir = _archive_base_dir(package_root)
+    files = list(pamt_files) if pamt_files is not None else discover_pamt_files(package_root)
+    grouped_entries = _partition_entries_by_pamt_relative_path(
+        package_root,
+        entries,
+        on_progress=on_progress,
+        stop_event=stop_event,
+    )
+    if on_progress is not None:
+        on_progress(0, max(len(files), 1), f"Writing archive scan shard cache... 0 / {len(files):,} shards")
+    for shard_index, pamt_path in enumerate(files, start=1):
+        raise_if_cancelled(stop_event)
+        relative_pamt_path = _archive_relative_source_path(base_dir, pamt_path)
+        _write_archive_scan_shard_cache(
+            package_root,
+            cache_dir,
+            relative_pamt_path,
+            pamt_path,
+            grouped_entries.get(relative_pamt_path, ()),
+        )
+        if on_progress is not None and (shard_index == 1 or shard_index % 5 == 0 or shard_index == len(files)):
+            on_progress(
+                shard_index,
+                max(len(files), 1),
+                f"Writing archive scan shard cache... {shard_index:,} / {len(files):,} shards",
+            )
+    if on_log is not None:
+        on_log(f"Archive scan shard cache updated: {cache_dir}")
+    return cache_dir
+
+
+def load_or_update_archive_scan_shards(
+    package_root: Path,
+    cache_root: Path,
+    *,
+    force_refresh: bool = False,
+    on_log: Optional[Callable[[str], None]] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_breadcrumb: Optional[Callable[[Mapping[str, object]], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+    timings: Optional[Dict[str, float]] = None,
+    metadata_out: Optional[Dict[str, object]] = None,
+    full_scan_func: Optional[Callable[[], Optional[Sequence[ArchiveEntry]]]] = None,
+    shard_scan_func: Optional[Callable[[Path], Optional[Sequence[ArchiveEntry]]]] = None,
+    shard_scan_source: str = "scan",
+    full_scan_source: str = "",
+) -> Tuple[List[ArchiveEntry], str, Optional[Path]]:
+    check_started_at = time.perf_counter()
+    cache_root.mkdir(parents=True, exist_ok=True)
+    cache_dir = resolve_archive_scan_shard_cache_dir(package_root, cache_root)
+    base_dir, current_pamt_sources = _collect_archive_scan_sources(package_root)
+    pamt_files = discover_pamt_files(package_root)
+    if not pamt_files:
+        raise ValueError(f"No .pamt files were found under {package_root}.")
+    pamt_source_by_rel = {str(row[0]): row for row in current_pamt_sources}
+    pamt_by_rel = {_archive_relative_source_path(base_dir, pamt_path): pamt_path for pamt_path in pamt_files}
+
+    if force_refresh:
+        if on_log is not None:
+            on_log("Ignoring archive scan shard cache and performing a full rescan.")
+        if timings is not None:
+            timings["cache_check_s"] = 0.0
+            timings["cache_load_s"] = 0.0
+            timings["scan_shard_load_s"] = 0.0
+    else:
+        existing_shard_files = tuple(cache_dir.glob("*.bin")) if cache_dir.is_dir() else ()
+        if not existing_shard_files:
+            legacy_metadata: Dict[str, object] = {}
+            legacy_entries = load_archive_scan_cache(
+                package_root,
+                cache_root,
+                on_log=on_log,
+                on_progress=on_progress,
+                stop_event=stop_event,
+                metadata_out=legacy_metadata,
+            )
+            if legacy_entries is not None:
+                write_started_at = time.perf_counter()
+                _write_archive_scan_shards_from_entries(
+                    package_root,
+                    cache_root,
+                    legacy_entries,
+                    pamt_files,
+                    stop_event=stop_event,
+                    on_log=on_log,
+                    on_progress=on_progress,
+                )
+                _record_timing(timings, "scan_shard_write_s", write_started_at)
+                if metadata_out is not None:
+                    metadata_out.clear()
+                    metadata_out.update(legacy_metadata)
+                    metadata_out.update(
+                        {
+                            "scan_shard_count": len(pamt_files),
+                            "scan_shard_loaded_count": len(pamt_files),
+                            "scan_shard_rebuilt_count": 0,
+                            "scan_shard_stale_count": 0,
+                        }
+                    )
+                if timings is not None:
+                    timings["cache_check_s"] = max(0.0, float(time.perf_counter() - check_started_at))
+                    timings.setdefault("cache_load_s", 0.0)
+                    timings.setdefault("archive_scan_s", 0.0)
+                    timings.setdefault("cache_write_s", float(timings.get("scan_shard_write_s", 0.0) or 0.0))
+                    timings.setdefault("scan_shard_load_s", 0.0)
+                    timings.setdefault("scan_shard_rescan_s", 0.0)
+                return legacy_entries, "cache", cache_dir
+
+        current_shard_ids = {_archive_scan_shard_id(relative_pamt_path) for relative_pamt_path in pamt_by_rel}
+        for cache_path in existing_shard_files:
+            if cache_path.stem.lower() in current_shard_ids:
+                continue
+            removed_label = cache_path.stem
+            try:
+                data = _deserialize_archive_scan_shard_cache_payload_from_path(cache_path)
+                removed_label = str(data.get("relative_pamt_path") or removed_label)
+            except Exception:
+                pass
+            if on_log is not None:
+                on_log(f"Archive cache shard stale: {removed_label} removed")
+            try:
+                cache_path.unlink()
+            except OSError:
+                pass
+
+        loaded_entries_by_rel: Dict[str, List[ArchiveEntry]] = {}
+        stale_rels: List[str] = []
+        load_started_at = time.perf_counter()
+        if on_progress is not None:
+            on_progress(0, len(pamt_files), f"Checking archive scan shards... 0 / {len(pamt_files):,}")
+        for index, pamt_path in enumerate(pamt_files, start=1):
+            raise_if_cancelled(stop_event)
+            relative_pamt_path = _archive_relative_source_path(base_dir, pamt_path)
+            cache_path = _archive_scan_shard_cache_path(cache_dir, relative_pamt_path)
+            current_pamt_source = pamt_source_by_rel.get(relative_pamt_path)
+            if current_pamt_source is None:
+                stale_rels.append(relative_pamt_path)
+                if on_log is not None:
+                    on_log(f"Archive cache shard stale: {relative_pamt_path} source metadata missing")
+                continue
+            if not cache_path.is_file():
+                stale_rels.append(relative_pamt_path)
+                if on_log is not None:
+                    on_log(f"Archive cache shard stale: {relative_pamt_path} added")
+                continue
+            try:
+                shard_entries, _shard_data = _load_archive_scan_shard_cache(
+                    package_root,
+                    cache_path,
+                    relative_pamt_path=relative_pamt_path,
+                    pamt_sources=(current_pamt_source,),
+                    stop_event=stop_event,
+                )
+                loaded_entries_by_rel[relative_pamt_path] = shard_entries
+            except Exception as exc:
+                stale_rels.append(relative_pamt_path)
+                reason = str(exc).strip() or "changed"
+                if reason == "source stamps changed":
+                    reason = "source stamps changed"
+                if on_log is not None:
+                    on_log(f"Archive cache shard stale: {relative_pamt_path} {reason}")
+            if on_progress is not None and (index == 1 or index % 20 == 0 or index == len(pamt_files)):
+                on_progress(index, len(pamt_files), f"Checking archive scan shards... {index:,} / {len(pamt_files):,}")
+        _record_timing(timings, "scan_shard_load_s", load_started_at)
+        if timings is not None:
+            timings["cache_check_s"] = max(0.0, float(time.perf_counter() - check_started_at))
+            timings["cache_load_s"] = float(timings.get("scan_shard_load_s", 0.0) or 0.0)
+
+        stale_threshold = max(8, int(len(pamt_files) * 0.30))
+        if not stale_rels:
+            entries: List[ArchiveEntry] = []
+            for pamt_path in pamt_files:
+                relative_pamt_path = _archive_relative_source_path(base_dir, pamt_path)
+                entries.extend(loaded_entries_by_rel.get(relative_pamt_path, ()))
+            entry_metadata_signature, entry_metadata_sources = _archive_entry_metadata_from_entries(package_root, entries)
+            if metadata_out is not None:
+                metadata_out.clear()
+                metadata_out.update(
+                    {
+                        "entry_count": len(entries),
+                        "entry_metadata_signature_format": _ARCHIVE_ENTRY_METADATA_SIGNATURE_FORMAT,
+                        "entry_metadata_signature": entry_metadata_signature,
+                        "entry_metadata_sources": entry_metadata_sources,
+                        "scan_shard_count": len(pamt_files),
+                        "scan_shard_loaded_count": len(pamt_files),
+                        "scan_shard_rebuilt_count": 0,
+                        "scan_shard_stale_count": 0,
+                    }
+                )
+            if timings is not None:
+                timings.setdefault("archive_scan_s", 0.0)
+                timings.setdefault("cache_write_s", 0.0)
+                timings.setdefault("scan_shard_rescan_s", 0.0)
+                timings.setdefault("scan_shard_write_s", 0.0)
+            if on_log is not None:
+                on_log(f"Loaded {len(entries):,} archive entries from {len(pamt_files):,} scan shard cache(s).")
+            return entries, "cache", cache_dir
+
+        if len(stale_rels) <= stale_threshold:
+            rescan_started_at = time.perf_counter()
+            rebuilt_entries_by_rel: Dict[str, List[ArchiveEntry]] = {}
+            for stale_index, relative_pamt_path in enumerate(stale_rels, start=1):
+                raise_if_cancelled(stop_event)
+                pamt_path = pamt_by_rel[relative_pamt_path]
+                if on_log is not None:
+                    on_log(f"[{stale_index}/{len(stale_rels)}] Rebuilding archive cache shard {relative_pamt_path}...")
+                if on_progress is not None:
+                    on_progress(
+                        stale_index - 1,
+                        len(stale_rels),
+                        f"Rebuilding archive scan shard {stale_index:,} / {len(stale_rels):,}: {relative_pamt_path}",
+                    )
+                rebuilt_entries_by_rel[relative_pamt_path] = _scan_archive_pamt_shard(
+                    pamt_path,
+                    shard_scan_func=shard_scan_func,
+                    on_log=on_log,
+                    on_progress=None,
+                    stop_event=stop_event,
+                )
+            _record_timing(timings, "scan_shard_rescan_s", rescan_started_at)
+            if timings is not None:
+                timings["archive_scan_s"] = float(timings.get("scan_shard_rescan_s", 0.0) or 0.0)
+            write_started_at = time.perf_counter()
+            for relative_pamt_path, shard_entries in rebuilt_entries_by_rel.items():
+                _write_archive_scan_shard_cache(
+                    package_root,
+                    cache_dir,
+                    relative_pamt_path,
+                    pamt_by_rel[relative_pamt_path],
+                    shard_entries,
+                )
+            _record_timing(timings, "scan_shard_write_s", write_started_at)
+            if timings is not None:
+                timings["cache_write_s"] = float(timings.get("scan_shard_write_s", 0.0) or 0.0)
+            loaded_entries_by_rel.update(rebuilt_entries_by_rel)
+            entries = []
+            for pamt_path in pamt_files:
+                relative_pamt_path = _archive_relative_source_path(base_dir, pamt_path)
+                entries.extend(loaded_entries_by_rel.get(relative_pamt_path, ()))
+            source = "cache+native_scan" if str(shard_scan_source or "").strip() == "native_scan" else "cache+scan"
+            entry_metadata_signature, entry_metadata_sources = _archive_entry_metadata_from_entries(package_root, entries)
+            if metadata_out is not None:
+                metadata_out.clear()
+                metadata_out.update(
+                    {
+                        "entry_count": len(entries),
+                        "entry_metadata_signature_format": _ARCHIVE_ENTRY_METADATA_SIGNATURE_FORMAT,
+                        "entry_metadata_signature": entry_metadata_signature,
+                        "entry_metadata_sources": entry_metadata_sources,
+                        "scan_shard_count": len(pamt_files),
+                        "scan_shard_loaded_count": len(pamt_files) - len(stale_rels),
+                        "scan_shard_rebuilt_count": len(stale_rels),
+                        "scan_shard_stale_count": len(stale_rels),
+                    }
+                )
+            if on_log is not None:
+                on_log(
+                    "Archive scan shard cache updated: "
+                    f"{len(stale_rels):,} rebuilt, {len(pamt_files) - len(stale_rels):,} reused."
+                )
+            return entries, source, cache_dir
+
+        if on_log is not None:
+            on_log(
+                "Many archive scan shards stale; using one full scan and repartitioning cache "
+                f"({len(stale_rels):,}/{len(pamt_files):,})."
+            )
+
+    scan_started_at = time.perf_counter()
+    entries, actual_source = _full_scan_archive_entries_for_shards(
+        package_root,
+        full_scan_func=full_scan_func,
+        on_log=on_log,
+        on_progress=on_progress,
+        on_breadcrumb=on_breadcrumb,
+        stop_event=stop_event,
+    )
+    if full_scan_source:
+        actual_source = full_scan_source if actual_source == "native_scan" else actual_source
+    _record_timing(timings, "archive_scan_s", scan_started_at)
+    write_started_at = time.perf_counter()
+    try:
+        _write_archive_scan_shards_from_entries(
+            package_root,
+            cache_root,
+            entries,
+            pamt_files,
+            stop_event=stop_event,
+            on_log=on_log,
+            on_progress=on_progress,
+        )
+        _record_timing(timings, "scan_shard_write_s", write_started_at)
+        if timings is not None:
+            timings["cache_write_s"] = float(timings.get("scan_shard_write_s", 0.0) or 0.0)
+    except Exception as exc:
+        if on_log is not None:
+            on_log(f"Warning: archive scan shard cache could not be written: {exc}")
+        if timings is not None:
+            timings.setdefault("cache_write_s", 0.0)
+            timings.setdefault("scan_shard_write_s", 0.0)
+    entry_metadata_signature, entry_metadata_sources = _archive_entry_metadata_from_entries(package_root, entries)
+    if metadata_out is not None:
+        metadata_out.clear()
+        metadata_out.update(
+            {
+                "entry_count": len(entries),
+                "entry_metadata_signature_format": _ARCHIVE_ENTRY_METADATA_SIGNATURE_FORMAT,
+                "entry_metadata_signature": entry_metadata_signature,
+                "entry_metadata_sources": entry_metadata_sources,
+                "scan_shard_count": len(pamt_files),
+                "scan_shard_loaded_count": 0,
+                "scan_shard_rebuilt_count": len(pamt_files),
+                "scan_shard_stale_count": len(pamt_files),
+            }
+        )
+    if timings is not None:
+        timings.setdefault("cache_check_s", max(0.0, float(time.perf_counter() - check_started_at)))
+        timings.setdefault("cache_load_s", 0.0)
+        timings.setdefault("scan_shard_load_s", 0.0)
+        timings.setdefault("scan_shard_rescan_s", float(timings.get("archive_scan_s", 0.0) or 0.0))
+    prune_report = prune_archive_cache_root(cache_root)
+    if on_log is not None and prune_report.get("removed_files"):
+        on_log(
+            "Archive cache pruned: "
+            f"{prune_report.get('removed_files', 0)} files, {format_byte_size(int(prune_report.get('removed_bytes', 0) or 0))}."
+        )
+    return entries, actual_source, cache_dir
 
 
 def save_archive_scan_cache(
@@ -2538,7 +3852,16 @@ def load_archive_scan_cache(
             continue
 
         if cached_sources != current_sources:
-            last_failure_message = f"{cache_label.capitalize()} is out of date; archive indexes changed since the last scan."
+            reasons = _describe_archive_cache_metadata_mismatch(
+                _normalize_archive_source_rows(cached_sources),
+                current_sources,
+                int(data.get("entry_count", -1) or -1),
+                int(data.get("entry_count", -1) or -1),
+            )
+            last_failure_message = (
+                f"{cache_label.capitalize()} stale: "
+                + "; ".join(reasons or ["archive indexes changed since the last scan"])
+            )
             if on_log:
                 on_log(last_failure_message)
             continue
@@ -2710,27 +4033,33 @@ def scan_archive_entries_cached(
 ) -> Tuple[List[ArchiveEntry], str, Optional[Path], Dict[str, float]]:
     started_at = time.perf_counter()
     timings: Dict[str, float] = {}
-    cache_path = resolve_archive_scan_cache_path(package_root, cache_root)
-    if force_refresh:
-        if on_log:
-            on_log("Ignoring archive cache and performing a full rescan.")
-        timings["cache_check_s"] = 0.0
-        timings["cache_load_s"] = 0.0
-    else:
-        cached_entries = load_archive_scan_cache(
-            package_root,
-            cache_root,
-            on_log=on_log,
-            on_progress=on_progress,
-            stop_event=stop_event,
-            timings=timings,
-        )
-        if cached_entries is not None:
-            timings.setdefault("archive_scan_s", 0.0)
-            timings.setdefault("cache_write_s", 0.0)
-            timings["total_s"] = max(0.0, float(time.perf_counter() - started_at))
-            return cached_entries, "cache", cache_path, timings
+    entries, source, cache_path = load_or_update_archive_scan_shards(
+        package_root,
+        cache_root,
+        force_refresh=force_refresh,
+        on_log=on_log,
+        on_progress=on_progress,
+        on_breadcrumb=on_breadcrumb,
+        stop_event=stop_event,
+        timings=timings,
+    )
+    timings["total_s"] = max(0.0, float(time.perf_counter() - started_at))
+    return entries, source, cache_path, timings
 
+
+def _scan_archive_entries_cached_legacy(
+    package_root: Path,
+    cache_root: Path,
+    *,
+    force_refresh: bool = False,
+    on_log: Optional[Callable[[str], None]] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_breadcrumb: Optional[Callable[[Mapping[str, object]], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> Tuple[List[ArchiveEntry], str, Optional[Path], Dict[str, float]]:
+    started_at = time.perf_counter()
+    timings: Dict[str, float] = {}
+    cache_path: Optional[Path] = resolve_archive_scan_cache_path(package_root, cache_root)
     scan_started_at = time.perf_counter()
     entries = scan_archive_entries(
         package_root,
@@ -4650,6 +5979,243 @@ def _decode_archive_entry_index_rows(
     return decoded
 
 
+def _sort_archive_basename_index_values(index: Dict[str, List[ArchiveEntry]]) -> Dict[str, List[ArchiveEntry]]:
+    for basename_entries in index.values():
+        basename_entries.sort(
+            key=lambda entry: (
+                -str(entry.path or "").replace("\\", "/").strip().count("/"),
+                -len(str(entry.path or "").replace("\\", "/").strip()),
+                str(entry.path or "").replace("\\", "/").strip().lower(),
+            )
+        )
+    return index
+
+
+def _merge_archive_entry_index_rows(
+    target: Dict[str, List[ArchiveEntry]],
+    rows: object,
+    entries: Sequence[ArchiveEntry],
+) -> None:
+    decoded = _decode_archive_entry_index_rows(rows, entries)
+    for key, values in decoded.items():
+        target.setdefault(key, []).extend(values)
+
+
+def _archive_basic_index_shard_cache_path(cache_dir: Path, relative_pamt_path: str) -> Path:
+    return cache_dir / f"{_archive_scan_shard_id(relative_pamt_path)}.bin"
+
+
+def _archive_index_row_mapping_to_rows(rows: Mapping[str, Sequence[int]]) -> List[Tuple[str, Tuple[int, ...]]]:
+    encoded: List[Tuple[str, Tuple[int, ...]]] = []
+    for key, values in rows.items():
+        normalized_key = str(key or "")
+        if not normalized_key:
+            continue
+        row_indexes = tuple(int(value) for value in values)
+        if row_indexes:
+            encoded.append((normalized_key, row_indexes))
+    encoded.sort(key=lambda row: row[0])
+    return encoded
+
+
+def _build_archive_basic_index_shard_row_payload(
+    entries: Sequence[ArchiveEntry],
+    *,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+    progress_label: str = "Building path lookup shard",
+) -> Dict[str, List[Tuple[str, Tuple[int, ...]]]]:
+    path_rows: Dict[str, List[int]] = defaultdict(list)
+    basename_rows: Dict[str, List[int]] = defaultdict(list)
+    extension_rows: Dict[str, List[int]] = defaultdict(list)
+    role_rows: Dict[str, List[int]] = defaultdict(list)
+    texture_roles = {"image", "normal", "material", "impostor", "ui"}
+    total_entries = len(entries)
+    update_every = 50_000 if total_entries >= 500_000 else 10_000 if total_entries >= 100_000 else 2_000
+    for entry_index, archive_entry in enumerate(entries):
+        if entry_index == 0 or entry_index % 4096 == 0:
+            raise_if_cancelled(stop_event)
+        normalized_path = archive_entry.path.replace("\\", "/").strip()
+        normalized_path_lower = normalized_path.lower()
+        if normalized_path_lower:
+            path_rows[normalized_path_lower].append(entry_index)
+        basename = normalized_path.rsplit("/", 1)[-1].strip().lower()
+        if basename:
+            basename_rows[basename].append(entry_index)
+        extension = normalize_archive_extension_filter(archive_entry.extension)
+        if extension:
+            extension_rows[extension].append(entry_index)
+        role = archive_entry_role(archive_entry)
+        if role:
+            role_rows[role].append(entry_index)
+            if role in texture_roles:
+                role_rows["texture"].append(entry_index)
+        processed = entry_index + 1
+        if on_progress is not None and (processed == 1 or processed % update_every == 0 or processed == total_entries):
+            on_progress(processed, max(total_entries, 1), f"{progress_label}... {processed:,} / {total_entries:,} entries")
+    for row_indexes in basename_rows.values():
+        row_indexes.sort(
+            key=lambda raw_index: (
+                -str(entries[int(raw_index)].path or "").replace("\\", "/").strip().count("/"),
+                -len(str(entries[int(raw_index)].path or "").replace("\\", "/").strip()),
+                str(entries[int(raw_index)].path or "").replace("\\", "/").strip().lower(),
+            )
+        )
+    return {
+        "path_rows": _archive_index_row_mapping_to_rows(path_rows),
+        "basename_rows": _archive_index_row_mapping_to_rows(basename_rows),
+        "extension_rows": _archive_index_row_mapping_to_rows(extension_rows),
+        "role_rows": _archive_index_row_mapping_to_rows(role_rows),
+    }
+
+
+def _write_archive_basic_index_shard_cache(
+    cache_dir: Path,
+    group: _ArchiveEntryShardGroup,
+    *,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> Path:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    group_entries = group.entries
+    row_payload = _build_archive_basic_index_shard_row_payload(
+        group_entries,
+        on_progress=on_progress,
+        stop_event=stop_event,
+        progress_label=f"Building path lookup shard {group.relative_pamt_path}",
+    )
+    cache_path = _archive_basic_index_shard_cache_path(cache_dir, group.relative_pamt_path)
+    payload = {
+        "version": _ARCHIVE_BASIC_INDEX_SHARD_CACHE_VERSION,
+        "created_at": time.time(),
+        "relative_pamt_path": group.relative_pamt_path,
+        "entry_count": len(group_entries),
+        "entry_list_signature": group.entry_list_signature,
+        "path_rows": row_payload.get("path_rows") or [],
+        "basename_rows": row_payload.get("basename_rows") or [],
+        "extension_rows": row_payload.get("extension_rows") or [],
+        "role_rows": row_payload.get("role_rows") or [],
+    }
+    _write_raw_pickle_cache_payload_to_path(
+        cache_path,
+        magic=_ARCHIVE_BASIC_INDEX_SHARD_CACHE_MAGIC,
+        payload=payload,
+    )
+    return cache_path
+
+
+def _load_archive_basic_index_shard_cache(cache_path: Path, group: _ArchiveEntryShardGroup) -> dict:
+    data = _deserialize_archive_basic_index_shard_cache_payload_from_path(cache_path)
+    if int(data.get("version", 0)) != _ARCHIVE_BASIC_INDEX_SHARD_CACHE_VERSION:
+        raise ValueError("format changed")
+    if str(data.get("relative_pamt_path") or "").replace("\\", "/") != group.relative_pamt_path.replace("\\", "/"):
+        raise ValueError("shard path changed")
+    if int(data.get("entry_count", -1)) != len(group.entries):
+        raise ValueError("entry count changed")
+    if str(data.get("entry_list_signature") or "") != group.entry_list_signature:
+        raise ValueError("entry list changed")
+    return data
+
+
+def load_or_update_archive_basic_index_shards(
+    package_root: Path,
+    cache_root: Path,
+    entries: Sequence[ArchiveEntry],
+    *,
+    force_refresh: bool = False,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
+    timings: Optional[Dict[str, float]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> Optional[Dict[str, object]]:
+    check_started_at = time.perf_counter()
+    cache_dir = resolve_archive_basic_index_shard_cache_dir(package_root, cache_root)
+    if on_log is not None:
+        on_log("Preparing archive path lookup shard metadata...")
+    groups = _archive_entry_shard_groups(
+        package_root,
+        entries,
+        on_progress=on_progress,
+        stop_event=stop_event,
+        progress_label="Preparing path lookup shard metadata",
+    )
+    if timings is not None:
+        timings["basic_index_cache_check_s"] = max(0.0, float(time.perf_counter() - check_started_at))
+    path_index: Dict[str, List[ArchiveEntry]] = {}
+    basename_index: Dict[str, List[ArchiveEntry]] = {}
+    extension_index: Dict[str, List[ArchiveEntry]] = {}
+    role_index: Dict[str, List[ArchiveEntry]] = {}
+    loaded_count = 0
+    rebuilt_count = 0
+    load_started_at = time.perf_counter()
+    total_groups = len(groups)
+    if on_progress is not None:
+        on_progress(0, max(total_groups, 1), f"Loading path lookup shards... 0 / {total_groups:,}")
+    for index, group in enumerate(groups, start=1):
+        raise_if_cancelled(stop_event)
+        cache_path = _archive_basic_index_shard_cache_path(cache_dir, group.relative_pamt_path)
+        try:
+            if force_refresh:
+                raise ValueError("refresh")
+            if not cache_path.is_file():
+                raise ValueError("added")
+            data = _load_archive_basic_index_shard_cache(cache_path, group)
+            loaded_count += 1
+        except Exception as exc:
+            reason = str(exc).strip() or "changed"
+            if on_log is not None:
+                on_log(f"Archive path lookup shard stale: {group.relative_pamt_path} {reason}")
+            write_started_at = time.perf_counter()
+            data = {}
+            try:
+                _write_archive_basic_index_shard_cache(
+                    cache_dir,
+                    group,
+                    on_progress=on_progress,
+                    stop_event=stop_event,
+                )
+                data = _load_archive_basic_index_shard_cache(cache_path, group)
+                rebuilt_count += 1
+            finally:
+                if timings is not None:
+                    timings["basic_index_cache_write_s"] = (
+                        float(timings.get("basic_index_cache_write_s", 0.0) or 0.0)
+                        + max(0.0, float(time.perf_counter() - write_started_at))
+                    )
+        _merge_archive_entry_index_rows(path_index, data.get("path_rows"), group.entries)
+        _merge_archive_entry_index_rows(basename_index, data.get("basename_rows"), group.entries)
+        _merge_archive_entry_index_rows(extension_index, data.get("extension_rows"), group.entries)
+        _merge_archive_entry_index_rows(role_index, data.get("role_rows"), group.entries)
+        if on_progress is not None and (index == 1 or index % 20 == 0 or index == total_groups):
+            on_progress(index, max(total_groups, 1), f"Loading path lookup shards... {index:,} / {total_groups:,}")
+    _sort_archive_basename_index_values(basename_index)
+    _record_timing(timings, "basic_index_cache_load_s", load_started_at)
+    if on_log is not None:
+        if rebuilt_count:
+            on_log(
+                "Archive path lookup shard cache updated: "
+                f"{rebuilt_count:,} rebuilt, {loaded_count:,} reused."
+            )
+        else:
+            on_log("Loaded archive path lookup shards from cache.")
+    prune_report = prune_archive_cache_root(cache_root)
+    if on_log is not None and prune_report.get("removed_files"):
+        on_log(
+            "Archive cache pruned: "
+            f"{prune_report.get('removed_files', 0)} files, {format_byte_size(int(prune_report.get('removed_bytes', 0) or 0))}."
+        )
+    return {
+        "path_index": path_index,
+        "basename_index": basename_index,
+        "extension_index": extension_index,
+        "role_index": role_index,
+        "cache_path": str(cache_dir),
+        "cache_loaded": rebuilt_count == 0,
+        "loaded_shards": loaded_count,
+        "rebuilt_shards": rebuilt_count,
+    }
+
+
 def save_archive_basic_index_cache(
     package_root: Path,
     cache_root: Path,
@@ -4840,6 +6406,7 @@ def save_archive_derived_index_cache(
     archive_name_search_index: Optional[ArchiveNameSearchIndex] = None,
     entry_metadata_signature: Optional[str] = None,
     entry_metadata_sources: Optional[Sequence[Tuple[str, int, int]]] = None,
+    item_index_dependency_signature: Optional[str] = None,
     on_log: Optional[Callable[[str], None]] = None,
     timings: Optional[Dict[str, float]] = None,
 ) -> Path:
@@ -4854,6 +6421,9 @@ def save_archive_derived_index_cache(
     )
     if sources is None or not normalized_entry_metadata_signature:
         normalized_entry_metadata_signature, sources = _archive_entry_metadata_from_entries(package_root, entries)
+    normalized_dependency_signature = _normalize_archive_entry_metadata_signature(item_index_dependency_signature)
+    if not normalized_dependency_signature:
+        normalized_dependency_signature = archive_item_index_dependency_signature(package_root, entries)
     catalog_rows = [dict(row) for row in (item_asset_catalog or []) if isinstance(row, Mapping)]
     payload = {
         "version": _ARCHIVE_DERIVED_INDEX_CACHE_VERSION,
@@ -4862,6 +6432,7 @@ def save_archive_derived_index_cache(
         "entry_count": len(entries),
         "entry_metadata_signature_format": _ARCHIVE_ENTRY_METADATA_SIGNATURE_FORMAT,
         "entry_metadata_signature": normalized_entry_metadata_signature,
+        "item_index_dependency_signature": normalized_dependency_signature,
         "item_search_aliases": dict(item_search_aliases or {}),
         "item_display_names": dict(item_display_names or {}),
         "item_exact_display_names": dict(item_exact_display_names or {}),
@@ -4870,19 +6441,38 @@ def save_archive_derived_index_cache(
         "table_catalog": table_catalog_cache_metadata(row_counts={"item_asset_catalog": len(catalog_rows)}),
     }
     if archive_name_search_index is not None:
-        name_index_path = resolve_archive_name_search_index_cache_path(package_root, cache_root)
         try:
-            _write_native_name_search_index_binary(name_index_path, archive_name_search_index, len(entries))
+            name_shard_dir = _write_archive_name_search_shard_caches(
+                package_root,
+                cache_root,
+                entries,
+                archive_name_search_index,
+                item_search_aliases,
+            )
             payload["name_search_index"] = {
-                "format": "CDNIDX1",
+                "format": "CDNSHARDS1",
                 "version": 1,
                 "entry_count": len(entries),
                 "token_count": len(archive_name_search_index.token_rows),
-                "path": str(name_index_path),
+                "alias_signature": _archive_name_search_alias_signature(item_search_aliases),
+                "path": str(name_shard_dir),
             }
         except Exception as exc:
             if on_log is not None:
-                on_log(f"Archive name-search index cache could not be written: {exc}")
+                on_log(f"Archive name-search shard cache could not be written: {exc}")
+            name_index_path = resolve_archive_name_search_index_cache_path(package_root, cache_root)
+            try:
+                _write_native_name_search_index_binary(name_index_path, archive_name_search_index, len(entries))
+                payload["name_search_index"] = {
+                    "format": "CDNIDX1",
+                    "version": 1,
+                    "entry_count": len(entries),
+                    "token_count": len(archive_name_search_index.token_rows),
+                    "path": str(name_index_path),
+                }
+            except Exception as fallback_exc:
+                if on_log is not None:
+                    on_log(f"Archive name-search index cache could not be written: {fallback_exc}")
     _write_raw_pickle_cache_payload_to_path(
         cache_path,
         magic=_ARCHIVE_DERIVED_INDEX_CACHE_MAGIC,
@@ -4962,39 +6552,56 @@ def load_archive_derived_index_cache(
                 pass
             return None
         cached_entry_count = int(data.get("entry_count", -1))
-        if cached_entry_count != len(entries):
-            if on_log is not None:
-                on_log(
-                    "Archive derived index cache is out of date: "
-                    f"entry count changed {cached_entry_count:,}->{len(entries):,}"
-                )
-            return None
         cached_entry_metadata_signature = _normalize_archive_entry_metadata_signature(
             data.get("entry_metadata_signature")
         )
-        if normalized_entry_metadata_signature:
-            if not cached_entry_metadata_signature:
-                if on_log is not None:
-                    on_log("Archive derived index cache is missing compact entry metadata; rebuilding lightweight cache.")
-                return None
+        cached_dependency_signature = _normalize_archive_entry_metadata_signature(
+            data.get("item_index_dependency_signature")
+        )
+        metadata_verified = False
+        if normalized_entry_metadata_signature and cached_entry_metadata_signature:
             if cached_entry_metadata_signature != normalized_entry_metadata_signature:
                 if on_log is not None:
                     on_log("Archive derived index cache is out of date: compact entry metadata changed.")
                 return None
-        else:
-            cached_sources = _normalize_archive_source_rows(data.get("sources"))
-            if normalized_current_sources is None:
-                _base_dir, normalized_current_sources = _collect_archive_scan_sources_from_entries(package_root, entries)
-            if cached_sources != normalized_current_sources:
+            metadata_verified = True
+        if cached_dependency_signature and not metadata_verified:
+            current_dependency_signature = archive_item_index_dependency_signature(package_root, entries)
+            if current_dependency_signature != cached_dependency_signature:
                 if on_log is not None:
-                    reasons = _describe_archive_cache_metadata_mismatch(
-                        cached_sources,
-                        normalized_current_sources,
-                        cached_entry_count,
-                        len(entries),
-                    )
-                    on_log("Archive derived index cache is out of date: " + "; ".join(reasons or ["metadata changed"]))
+                    on_log("Archive derived index cache is out of date: item index dependency signature changed.")
                 return None
+        elif not metadata_verified:
+            if cached_entry_count != len(entries):
+                if on_log is not None:
+                    on_log(
+                        "Archive derived index cache is out of date: "
+                        f"entry count changed {cached_entry_count:,}->{len(entries):,}"
+                    )
+                return None
+            if normalized_entry_metadata_signature:
+                if not cached_entry_metadata_signature:
+                    if on_log is not None:
+                        on_log("Archive derived index cache is missing compact entry metadata; rebuilding lightweight cache.")
+                    return None
+                if cached_entry_metadata_signature != normalized_entry_metadata_signature:
+                    if on_log is not None:
+                        on_log("Archive derived index cache is out of date: compact entry metadata changed.")
+                    return None
+            else:
+                cached_sources = _normalize_archive_source_rows(data.get("sources"))
+                if normalized_current_sources is None:
+                    _base_dir, normalized_current_sources = _collect_archive_scan_sources_from_entries(package_root, entries)
+                if cached_sources != normalized_current_sources:
+                    if on_log is not None:
+                        reasons = _describe_archive_cache_metadata_mismatch(
+                            cached_sources,
+                            normalized_current_sources,
+                            cached_entry_count,
+                            len(entries),
+                        )
+                        on_log("Archive derived index cache is out of date: " + "; ".join(reasons or ["metadata changed"]))
+                    return None
         payload = {
             "item_search_aliases": {
                 str(key): str(value)
@@ -5022,27 +6629,63 @@ def load_archive_derived_index_cache(
         }
         name_index_payload = data.get("name_search_index")
         if isinstance(name_index_payload, Mapping):
-            name_index_path = Path(str(name_index_payload.get("path") or ""))
-            if not name_index_path.is_absolute():
-                name_index_path = resolve_archive_name_search_index_cache_path(package_root, cache_root)
-            name_index_cache_ready = (
-                str(name_index_payload.get("format") or "") == "CDNIDX1"
-                and int(name_index_payload.get("entry_count") or -1) == len(entries)
-                and name_index_path.is_file()
-            )
-            if name_index_cache_ready and not load_name_search_index:
-                payload["name_search_index_deferred"] = True
-                payload["name_search_index_path"] = str(name_index_path)
-            elif name_index_cache_ready:
-                try:
-                    payload["name_search_index"] = _load_native_name_search_index_binary(
-                        name_index_path,
-                        entries,
-                        on_progress=on_progress,
-                    )
-                except Exception as exc:
-                    if on_log is not None:
-                        on_log(f"Archive name-search index cache could not be used; rebuilding name search index: {exc}")
+            name_index_format = str(name_index_payload.get("format") or "")
+            if name_index_format == "CDNSHARDS1":
+                aliases_for_shards = {
+                    str(key): str(value)
+                    for key, value in (data.get("item_search_aliases", {}) or {}).items()
+                }
+                if not load_name_search_index:
+                    shard_cache_dir = resolve_archive_name_search_shard_cache_dir(package_root, cache_root)
+                    if shard_cache_dir.is_dir():
+                        payload["name_search_index_deferred"] = True
+                        payload["name_search_index_path"] = str(shard_cache_dir)
+                else:
+                    try:
+                        if metadata_verified:
+                            name_search_index = _load_archive_name_search_shards_trusted(
+                                package_root,
+                                cache_root,
+                                entries,
+                                on_progress=on_progress,
+                            )
+                        else:
+                            name_search_index = _load_or_update_archive_name_search_shards(
+                                package_root,
+                                cache_root,
+                                entries,
+                                aliases_for_shards,
+                                load_name_search_index=True,
+                                on_progress=on_progress,
+                                on_log=on_log,
+                            )
+                        if isinstance(name_search_index, ArchiveNameSearchIndex):
+                            payload["name_search_index"] = name_search_index
+                    except Exception as exc:
+                        if on_log is not None:
+                            on_log(f"Archive name-search shard cache could not be used; rebuilding name search index: {exc}")
+            else:
+                name_index_path = Path(str(name_index_payload.get("path") or ""))
+                if not name_index_path.is_absolute():
+                    name_index_path = resolve_archive_name_search_index_cache_path(package_root, cache_root)
+                name_index_cache_ready = (
+                    name_index_format == "CDNIDX1"
+                    and int(name_index_payload.get("entry_count") or -1) == len(entries)
+                    and name_index_path.is_file()
+                )
+                if name_index_cache_ready and not load_name_search_index:
+                    payload["name_search_index_deferred"] = True
+                    payload["name_search_index_path"] = str(name_index_path)
+                elif name_index_cache_ready:
+                    try:
+                        payload["name_search_index"] = _load_native_name_search_index_binary(
+                            name_index_path,
+                            entries,
+                            on_progress=on_progress,
+                        )
+                    except Exception as exc:
+                        if on_log is not None:
+                            on_log(f"Archive name-search index cache could not be used; rebuilding name search index: {exc}")
         _record_timing(timings, "derived_cache_load_s", load_started_at)
         if on_log is not None:
             on_log("Loaded archive derived indexes from cache.")
@@ -9231,6 +10874,67 @@ def _iter_model_sidecar_binding_submesh_keys(binding: _ArchiveModelSidecarTextur
     return _iter_model_submesh_reference_candidates(*values)
 
 
+def _archive_model_component_alias_stems(path: str) -> set[str]:
+    normalized = _normalize_model_texture_reference(path)
+    if not normalized:
+        return set()
+    stem = PurePosixPath(normalized).stem.strip().lower()
+    if not stem:
+        return set()
+    stems: set[str] = {stem}
+    stripped = _strip_archive_model_family_variant_suffix(stem)
+    if stripped:
+        stems.add(stripped)
+    for alias in _iter_archive_attachment_side_family_stems(stem):
+        stems.add(alias)
+    for alias in _iter_archive_prefab_equipment_family_stems(stem):
+        stems.add(alias)
+    for alias in iter_archive_equipment_model_alias_stems(stem):
+        stems.add(alias)
+    for alias in iter_archive_character_equipment_root_alias_stems(stem):
+        stems.add(alias)
+    return {value for value in stems if value}
+
+
+def _sidecar_binding_linked_model_path(binding: _ArchiveModelSidecarTextureBinding) -> str:
+    linked_mesh_path = _normalize_model_texture_reference(str(getattr(binding, "linked_mesh_path", "") or ""))
+    if linked_mesh_path:
+        return linked_mesh_path
+    sidecar_path = str(getattr(binding, "sidecar_path", "") or "").replace("\\", "/").strip()
+    if not sidecar_path:
+        return ""
+    lowered = sidecar_path.lower()
+    sidecar_kind = str(getattr(binding, "sidecar_kind", "") or "").strip().lower()
+    if (sidecar_kind == "pac_xml" or lowered.endswith(".pac_xml")) and lowered.endswith(".pac_xml"):
+        return _normalize_model_texture_reference(sidecar_path[: -len(".pac_xml")] + ".pac").replace(
+            "/modelproperty/",
+            "/model/",
+        )
+    if (sidecar_kind == "pam_xml" or lowered.endswith(".pam_xml")) and lowered.endswith(".pam_xml"):
+        return _normalize_model_texture_reference(sidecar_path[: -len(".pam_xml")] + ".pam")
+    if (sidecar_kind == "pamlod_xml" or lowered.endswith(".pamlod_xml")) and lowered.endswith(".pamlod_xml"):
+        return _normalize_model_texture_reference(sidecar_path[: -len(".pamlod_xml")] + ".pamlod")
+    return ""
+
+
+def _model_sidecar_binding_matches_source_component(
+    source_entry: ArchiveEntry,
+    binding: _ArchiveModelSidecarTextureBinding,
+) -> bool:
+    source_path = _normalize_model_texture_reference(str(getattr(source_entry, "path", "") or ""))
+    source_extension = str(getattr(source_entry, "extension", "") or PurePosixPath(source_path).suffix).strip().lower()
+    if source_extension not in {".pac", ".pam", ".pamlod"}:
+        return True
+    linked_model_path = _sidecar_binding_linked_model_path(binding)
+    if not linked_model_path or linked_model_path == source_path:
+        return True
+    source_stems = _archive_model_component_alias_stems(source_path)
+    linked_stems = _archive_model_component_alias_stems(linked_model_path)
+    if source_stems and linked_stems and source_stems.intersection(linked_stems):
+        return True
+    return False
+
+
 def _iter_model_texture_family_reference_candidates(group_key: str) -> Tuple[str, ...]:
     normalized_group_key = _normalize_model_texture_reference(group_key)
     if not normalized_group_key:
@@ -10444,6 +12148,8 @@ def _attach_model_sidecar_texture_preview_paths(
 
     for binding in sidecar_texture_bindings:
         raise_if_cancelled(stop_event)
+        if not _model_sidecar_binding_matches_source_component(source_entry, binding):
+            continue
         submesh_keys = _iter_model_sidecar_binding_submesh_keys(binding)
         color_binding_class = _classify_model_sidecar_visible_binding(binding.parameter_name, binding.texture_path)
         material_color = _model_preview_sidecar_material_color(binding)
@@ -10929,38 +12635,57 @@ def _attach_model_texture_preview_paths(
     for mesh in model_preview.meshes:
         raise_if_cancelled(stop_event)
         existing_preview_path = str(getattr(mesh, "preview_texture_path", "") or "").strip()
-        if override_existing_base and str(getattr(mesh, "preview_base_texture_source", "") or "").strip().lower() in {
-            "pami",
-            "pac_xml",
-            "sidecar",
-            "pamlod_xml",
-            "pam_xml",
-        }:
-            continue
+        texture_name = str(getattr(mesh, "texture_name", "") or "").strip()
+        material_name = str(getattr(mesh, "material_name", "") or "").strip()
+        if override_existing_base:
+            existing_source = str(getattr(mesh, "preview_base_texture_source", "") or "").strip().lower()
+            has_material_name_base_lookup = (
+                prefer_material_name_for_base
+                and bool(material_name)
+                and not material_name.lower().endswith(".dds")
+            )
+            has_embedded_base_lookup = has_material_name_base_lookup or (
+                prefer_material_name_for_base
+                and bool(texture_name)
+                and texture_name.lower().endswith(".dds")
+            )
+            if existing_source in {"pami", "pac_xml", "sidecar", "pamlod_xml", "pam_xml"} and not has_embedded_base_lookup:
+                continue
         if existing_preview_path and not override_existing_base:
             resolved_count += 1
             sidecar_bound_count += 1
             continue
-        texture_name = str(getattr(mesh, "texture_name", "") or "").strip()
-        material_name = str(getattr(mesh, "material_name", "") or "").strip()
         lookup_texture_name = texture_name
         lookup_material_name = material_name
         if override_existing_base and prefer_material_name_for_base and material_name and not material_name.lower().endswith(".dds"):
             lookup_texture_name = ""
             lookup_material_name = material_name
-        texture_label = lookup_texture_name or lookup_material_name
+        lookup_attempts = [(lookup_texture_name, lookup_material_name)]
+        if (
+            override_existing_base
+            and prefer_material_name_for_base
+            and lookup_texture_name == ""
+            and texture_name
+        ):
+            lookup_attempts.append((texture_name, material_name))
+        texture_label = lookup_texture_name or lookup_material_name or texture_name
         if not texture_label:
             continue
 
-        texture_entry, resolution_status = _resolve_model_texture_archive_entry(
-            source_entry,
-            lookup_texture_name,
-            lookup_material_name,
-            texture_entries_by_normalized_path,
-            texture_entries_by_basename,
-            sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
-            sidecar_texts_by_basename=sidecar_texts_by_basename,
-        )
+        texture_entry: Optional[ArchiveEntry] = None
+        resolution_status = "missing"
+        for attempt_texture_name, attempt_material_name in lookup_attempts:
+            texture_entry, resolution_status = _resolve_model_texture_archive_entry(
+                source_entry,
+                attempt_texture_name,
+                attempt_material_name,
+                texture_entries_by_normalized_path,
+                texture_entries_by_basename,
+                sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
+                sidecar_texts_by_basename=sidecar_texts_by_basename,
+            )
+            if texture_entry is not None:
+                break
         if texture_entry is None:
             if resolution_status == "technical_only":
                 technical_skip_count += 1
@@ -11357,6 +13082,8 @@ def _attach_model_support_texture_preview_paths(
 
     for binding in sidecar_texture_bindings:
         raise_if_cancelled(stop_event)
+        if not _model_sidecar_binding_matches_source_component(source_entry, binding):
+            continue
         parameter_name = str(binding.parameter_name or "").strip()
         slot_name = _infer_model_preview_texture_slot("", semantic_hint=parameter_name)
         preserve_visible_input = slot_name == "base" and _preserve_visible_material_input(parameter_name)
@@ -11691,6 +13418,69 @@ def _attach_model_support_texture_preview_paths(
                 "No usable high-quality support maps were resolved from exact sidecar bindings or semantic sibling fallback. The preview remains base-texture only."
             )
     return info_lines
+
+
+def _model_preview_texture_slot_label(*values: object) -> str:
+    for value in values:
+        text = str(value or "").replace("\\", "/").strip()
+        if not text:
+            continue
+        name = PurePosixPath(text).name
+        return name or text
+    return "missing"
+
+
+def _model_preview_material_decode_label(mesh: ModelPreviewMesh) -> str:
+    texture_type = str(getattr(mesh, "preview_material_texture_type", "") or "material").strip().lower() or "material"
+    subtype = str(getattr(mesh, "preview_material_texture_subtype", "") or "unknown").strip().lower() or "unknown"
+    channels = tuple(
+        str(channel or "").strip().lower()
+        for channel in tuple(getattr(mesh, "preview_material_texture_packed_channels", ()) or ())
+        if str(channel or "").strip()
+    )
+    channel_text = ",".join(channels) if channels else "no-packed-channels"
+    return f"{texture_type}/{subtype}/{channel_text}"
+
+
+def _build_model_preview_texture_slot_detail_text(
+    model_preview: Optional[ModelPreviewData],
+    *,
+    max_meshes: int = 24,
+) -> str:
+    if model_preview is None:
+        return ""
+    meshes = tuple(getattr(model_preview, "meshes", ()) or ())
+    if not meshes:
+        return ""
+    lines = ["Texture Slot Mapping"]
+    for mesh_index, mesh in enumerate(meshes[: max(0, int(max_meshes))]):
+        if not isinstance(mesh, ModelPreviewMesh):
+            continue
+        material_label = str(getattr(mesh, "material_name", "") or "").strip() or f"mesh[{mesh_index}]"
+        base_dds = _model_preview_texture_slot_label(
+            getattr(mesh, "preview_texture_dds_path", ""),
+            getattr(mesh, "texture_name", ""),
+        )
+        normal_dds = _model_preview_texture_slot_label(
+            getattr(mesh, "preview_normal_texture_dds_path", ""),
+            getattr(mesh, "preview_normal_texture_name", ""),
+        )
+        material_dds = _model_preview_texture_slot_label(
+            getattr(mesh, "preview_material_texture_dds_path", ""),
+            getattr(mesh, "preview_material_texture_name", ""),
+        )
+        height_dds = _model_preview_texture_slot_label(
+            getattr(mesh, "preview_height_texture_dds_path", ""),
+            getattr(mesh, "preview_height_texture_name", ""),
+        )
+        lines.append(
+            f"- {material_label} -> base DDS={base_dds} -> normal DDS={normal_dds} "
+            f"-> material DDS={material_dds} -> height DDS={height_dds} "
+            f"-> decoded channels={_model_preview_material_decode_label(mesh)}"
+        )
+    if len(meshes) > max_meshes:
+        lines.append(f"- ... {len(meshes) - max_meshes:,} additional mesh material slot(s) omitted.")
+    return "\n".join(lines)
 
 
 def _describe_model_texture_semantic_label(
@@ -21056,6 +22846,87 @@ def resolve_hkx_preview_context_model_entry(
     return candidates[0][2]
 
 
+def _path_mtime_fingerprint(path: object) -> Tuple[str, int, int]:
+    try:
+        resolved = Path(path)
+    except (TypeError, ValueError, OSError):
+        return (str(path or ""), 0, 0)
+    try:
+        stat = resolved.stat()
+    except OSError:
+        return (str(resolved), 0, 0)
+    return (str(resolved), int(getattr(stat, "st_mtime_ns", 0) or 0), int(getattr(stat, "st_size", 0) or 0))
+
+
+def _hkx_context_model_preview_cache_key(
+    entry: ArchiveEntry,
+    *,
+    texconv_path: Optional[Path],
+    visible_texture_mode: object,
+    support_texture_slots: Sequence[str],
+    quality_tier: str,
+) -> str:
+    payload = {
+        "path": str(getattr(entry, "path", "") or "").replace("\\", "/").casefold(),
+        "pamt": _path_mtime_fingerprint(getattr(entry, "pamt_path", "")),
+        "paz": _path_mtime_fingerprint(getattr(entry, "paz_file", "")),
+        "offset": int(getattr(entry, "offset", 0) or 0),
+        "comp_size": int(getattr(entry, "comp_size", 0) or 0),
+        "orig_size": int(getattr(entry, "orig_size", 0) or 0),
+        "flags": int(getattr(entry, "flags", 0) or 0),
+        "paz_index": int(getattr(entry, "paz_index", 0) or 0),
+        "texconv": str(texconv_path or ""),
+        "visible_texture_mode": str(visible_texture_mode or ""),
+        "support_texture_slots": tuple(sorted(str(slot or "").strip().lower() for slot in tuple(support_texture_slots or ()) if str(slot or "").strip())),
+        "quality_tier": _normalize_archive_preview_quality_tier(quality_tier),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    return hashlib.sha1(encoded).hexdigest()
+
+
+def _clone_hkx_context_model_preview(model_preview: ModelPreviewData) -> ModelPreviewData:
+    meshes: List[ModelPreviewMesh] = []
+    for mesh in tuple(getattr(model_preview, "meshes", ()) or ()):
+        if not isinstance(mesh, ModelPreviewMesh):
+            continue
+        mesh_values = {field_info.name: getattr(mesh, field_info.name) for field_info in fields(ModelPreviewMesh)}
+        mesh_values["positions"] = list(getattr(mesh, "positions", ()) or ())
+        mesh_values["texture_coordinates"] = list(getattr(mesh, "texture_coordinates", ()) or ())
+        mesh_values["normals"] = list(getattr(mesh, "normals", ()) or ())
+        mesh_values["indices"] = list(getattr(mesh, "indices", ()) or ())
+        mesh_values["source_vertex_indices"] = list(getattr(mesh, "source_vertex_indices", ()) or ())
+        meshes.append(ModelPreviewMesh(**mesh_values))
+    values = {field_info.name: getattr(model_preview, field_info.name) for field_info in fields(ModelPreviewData)}
+    values["meshes"] = meshes
+    values["physics_overlay"] = None
+    return ModelPreviewData(**values)
+
+
+def _get_hkx_context_model_preview_cache(cache_key: str) -> Optional[ModelPreviewData]:
+    key = str(cache_key or "").strip()
+    if not key:
+        return None
+    cached = _HKX_CONTEXT_MODEL_PREVIEW_CACHE.get(key)
+    if not isinstance(cached, ModelPreviewData):
+        return None
+    _HKX_CONTEXT_MODEL_PREVIEW_CACHE.move_to_end(key)
+    return _clone_hkx_context_model_preview(cached)
+
+
+def _remember_hkx_context_model_preview_cache(cache_key: str, model_preview: ModelPreviewData) -> None:
+    key = str(cache_key or "").strip()
+    if not key or not isinstance(model_preview, ModelPreviewData):
+        return
+    _HKX_CONTEXT_MODEL_PREVIEW_CACHE[key] = _clone_hkx_context_model_preview(model_preview)
+    _HKX_CONTEXT_MODEL_PREVIEW_CACHE.move_to_end(key)
+    while len(_HKX_CONTEXT_MODEL_PREVIEW_CACHE) > _HKX_CONTEXT_MODEL_PREVIEW_CACHE_LIMIT:
+        _HKX_CONTEXT_MODEL_PREVIEW_CACHE.popitem(last=False)
+
+
+def _clear_hkx_context_model_preview_cache() -> None:
+    _HKX_CONTEXT_MODEL_PREVIEW_CACHE.clear()
+
+
 def _retarget_model_preview(model_preview: ModelPreviewData, path: str) -> None:
     model_preview.path = path
     model_preview.summary = _build_model_preview_summary_text(path, model_preview)
@@ -21906,23 +23777,43 @@ def build_archive_preview_result(
                 hkx_document = build_hkx_editable_geometry_document(data, entry.path, descriptor_hints)
                 if hkx_context_model_entry is not None:
                     try:
-                        context_result = build_archive_preview_result(
-                            texconv_path,
-                            hkx_context_model_entry,
-                            (),
-                            companion_entry=None,
-                            texture_entries_by_normalized_path=texture_entries_by_normalized_path,
-                            texture_entries_by_basename=texture_entries_by_basename,
-                            sidecar_entries_by_texture_path=sidecar_entries_by_texture_path,
-                            sidecar_entries_by_texture_basename=sidecar_entries_by_texture_basename,
-                            include_loose_preview_assets=False,
-                            semantic_sidecar_texts=semantic_sidecar_texts,
-                            visible_texture_mode=visible_texture_mode,
-                            support_texture_slots=support_texture_slots,
-                            quality_tier=normalized_quality_tier,
-                            stop_event=stop_event,
-                        )
-                        context_model = getattr(context_result, "preview_model", None)
+                        context_cache_key = ""
+                        if not semantic_sidecar_texts:
+                            context_cache_key = _hkx_context_model_preview_cache_key(
+                                hkx_context_model_entry,
+                                texconv_path=texconv_path,
+                                visible_texture_mode=visible_texture_mode,
+                                support_texture_slots=support_texture_slots,
+                                quality_tier=normalized_quality_tier,
+                            )
+                        context_model = _get_hkx_context_model_preview_cache(context_cache_key)
+                        if isinstance(context_model, ModelPreviewData):
+                            hkx_visual_notes.append(f"HKX body context reused cached preview model for {hkx_context_model_entry.path}.")
+                        else:
+                            context_result = build_archive_preview_result(
+                                texconv_path,
+                                hkx_context_model_entry,
+                                (),
+                                companion_entry=None,
+                                texture_entries_by_normalized_path=texture_entries_by_normalized_path,
+                                texture_entries_by_basename=texture_entries_by_basename,
+                                sidecar_entries_by_texture_path=sidecar_entries_by_texture_path,
+                                sidecar_entries_by_texture_basename=sidecar_entries_by_texture_basename,
+                                include_loose_preview_assets=False,
+                                semantic_sidecar_texts=semantic_sidecar_texts,
+                                visible_texture_mode=visible_texture_mode,
+                                support_texture_slots=support_texture_slots,
+                                quality_tier=normalized_quality_tier,
+                                stop_event=stop_event,
+                            )
+                            raw_context_model = getattr(context_result, "preview_model", None)
+                            context_model = (
+                                _clone_hkx_context_model_preview(raw_context_model)
+                                if isinstance(raw_context_model, ModelPreviewData)
+                                else raw_context_model
+                            )
+                            if isinstance(context_model, ModelPreviewData) and context_cache_key:
+                                _remember_hkx_context_model_preview_cache(context_cache_key, context_model)
                         if isinstance(context_model, ModelPreviewData):
                             selected_overlay = build_hkx_physics_overlay_from_document(
                                 hkx_document,
@@ -22484,6 +24375,9 @@ def build_archive_preview_result(
                         )
                     )
                     add_timing("model_pbd_cloth_s", cloth_started_at)
+                texture_slot_detail = _build_model_preview_texture_slot_detail_text(model_preview)
+                if texture_slot_detail:
+                    info_extra_parts.append(texture_slot_detail)
         if extension in ARCHIVE_MODEL_EXTENSIONS and parsed_mesh_for_references is None:
             try:
                 from cdmw.modding.mesh_parser import parse_mesh

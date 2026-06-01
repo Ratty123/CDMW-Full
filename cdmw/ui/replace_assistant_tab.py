@@ -1102,11 +1102,13 @@ class ReplaceAssistantTab(QWidget):
         self.package_manager_combo.addItem("Field-JSON v3.1", "field_json")
         self.package_profile_checkboxes: Dict[str, QCheckBox] = {}
         self.package_profiles_widget = QWidget()
-        package_profiles_layout = QHBoxLayout(self.package_profiles_widget)
+        package_profiles_layout = QVBoxLayout(self.package_profiles_widget)
         package_profiles_layout.setContentsMargins(0, 0, 0, 0)
-        package_profiles_layout.setSpacing(10)
+        package_profiles_layout.setSpacing(4)
         for profile in MOD_PACKAGE_MANAGER_PROFILES:
-            checkbox = QCheckBox(MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile))
+            label = MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile)
+            checkbox = QCheckBox(label)
+            checkbox.setToolTip(label)
             checkbox.setChecked(profile == "universal")
             package_profiles_layout.addWidget(checkbox)
             self.package_profile_checkboxes[profile] = checkbox
@@ -1140,6 +1142,9 @@ class ReplaceAssistantTab(QWidget):
         package_layout.addWidget(QLabel("Description"), 3, 0)
         package_layout.addWidget(self.package_description_edit, 3, 1)
         package_layout.addWidget(QLabel("Target Mod Managers"), 4, 0)
+        target_managers_label_item = package_layout.itemAtPosition(4, 0)
+        if target_managers_label_item is not None:
+            target_managers_label_item.setAlignment(Qt.AlignTop)
         package_layout.addWidget(self.package_profiles_widget, 4, 1, 1, 2)
         package_layout.addWidget(QLabel("Package output"), 5, 0)
         package_layout.addWidget(self.package_zip_checkbox, 5, 1, 1, 2)

@@ -1002,6 +1002,8 @@ def prepare_model_preview(
         editor_role = str(getattr(mesh, "preview_role", "") or "").strip()
         editor_role_key = editor_role.lower()
         editor_editable = mesh_source_submesh_index >= 0 or ("replacement" in editor_role_key and "reference" not in editor_role_key and "original" not in editor_role_key)
+        if editor_role_key.startswith("hkx_"):
+            editor_editable = False
         prepared_batches.append(
             PreparedModelPreviewBatch(
                 material_name=str(getattr(mesh, "material_name", "") or "").strip(),
@@ -1026,6 +1028,7 @@ def prepare_model_preview(
                 preview_material_texture_subtype=batch.material_texture_subtype,
                 preview_material_texture_packed_channels=tuple(batch.material_texture_packed_channels or ()),
                 preview_material_texture_inputs=preview_material_texture_inputs_for_prepared_batch(mesh, batch),
+                preview_native_material_overrides=dict(getattr(mesh, "preview_native_material_overrides", {}) or {}),
                 preview_alpha_mode=str(getattr(mesh, "preview_alpha_mode", "") or "").strip(),
                 preview_double_sided=bool(getattr(mesh, "preview_double_sided", False)),
                 has_texture_coordinates=bool(batch.has_texture_coordinates),

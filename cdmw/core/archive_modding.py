@@ -5377,6 +5377,23 @@ def build_mesh_import_preview(
                     fallback_only=True,
                 )
             )
+            summary_lines.extend(
+                _attach_model_texture_preview_paths(
+                    texconv_path,
+                    entry,
+                    preview_model,
+                    texture_entries_by_normalized_path=(
+                        dict(texture_entries_by_normalized_path) if texture_entries_by_normalized_path is not None else None
+                    ),
+                    texture_entries_by_basename=(
+                        dict(texture_entries_by_basename) if texture_entries_by_basename is not None else None
+                    ),
+                    sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
+                    sidecar_texts_by_basename=sidecar_texts_by_basename,
+                    override_existing_base=True,
+                    prefer_material_name_for_base=True,
+                )
+            )
         summary_lines.extend(
             _attach_model_support_texture_preview_paths(
                 texconv_path,
@@ -22561,7 +22578,7 @@ def _hkx_preview_shape_meshes(
         if isinstance(first_context, Mapping):
             label = str(first_context.get("body_name") or first_context.get("socket_name") or label)
     material_name = f"HKX {shape_index}: {label}"
-    mesh_color = (0.86, 0.54, 0.23)
+    mesh_color = (0.34, 0.62, 0.72)
     meshes: List[ModelPreviewMesh] = []
     raw_vertices = shape.get("vertices")
     vertices = [
@@ -22587,7 +22604,7 @@ def _hkx_preview_shape_meshes(
                 preview_role="hkx_collision_shape",
             )
         )
-        edge_radius = max(0.0008, float(preview_extent) * 0.0035)
+        edge_radius = max(0.00035, float(preview_extent) * 0.0014)
         edge_meshes = [
             edge_mesh
             for edge_mesh in (
@@ -22596,7 +22613,7 @@ def _hkx_preview_shape_meshes(
                     vertices[end],
                     edge_radius,
                     material_name=f"{material_name} outline",
-                    preview_color=(0.16, 0.20, 0.24),
+                    preview_color=(0.08, 0.18, 0.21),
                     source_submesh_index=shape_index,
                     preview_role="hkx_collision_outline",
                     sides=6,

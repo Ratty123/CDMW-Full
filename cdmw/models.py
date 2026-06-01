@@ -1135,6 +1135,7 @@ class ModelPreviewMesh:
     preview_texture_uv_scale: Tuple[float, float] = ()
     preview_texture_approximation_note: str = ""
     preview_material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
+    preview_native_material_overrides: Dict[str, object] = field(default_factory=dict)
     preview_alpha_mode: str = ""
     preview_double_sided: bool = False
     preview_debug_flip_base_v: bool = False
@@ -1352,6 +1353,7 @@ class PreparedModelPreviewBatch:
     preview_material_texture_subtype: str = ""
     preview_material_texture_packed_channels: Tuple[str, ...] = ()
     preview_material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
+    preview_native_material_overrides: Dict[str, object] = field(default_factory=dict)
     preview_alpha_mode: str = ""
     preview_double_sided: bool = False
     has_texture_coordinates: bool = False
@@ -1761,7 +1763,7 @@ def clamp_archive_performance_settings(
         preview_cache_limit=max(12, min(256, preview_cache_limit)),
         native_preview_cache_mode=native_preview_cache_mode,
         quick_then_full_preview=bool(current.quick_then_full_preview),
-        maximum_indexing_priority=bool(current.enable_sidecar_indexing) and bool(current.maximum_indexing_priority),
+        maximum_indexing_priority=bool(current.maximum_indexing_priority),
     )
 
 

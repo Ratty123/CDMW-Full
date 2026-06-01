@@ -122,6 +122,91 @@ _SHADER_RULE_PARAMETER_NOTES = {
 
 _LAYER_CHANNEL_INDEX = {"r": 0, "g": 1, "b": 2, "a": 3}
 
+_NONMETAL_SURFACE_TOKENS = {
+    "cloth": (
+        "cloth",
+        "cloak",
+        "cape",
+        "fabric",
+        "flag",
+        "banner",
+        "mantle",
+        "robe",
+        "sash",
+        "skirt",
+        "dress",
+        "ribbon",
+        "tassel",
+        "fringe",
+        "flap",
+        "vest",
+    ),
+    "leather": (
+        "leather",
+        "hide",
+        "strap",
+        "belt",
+        "grip",
+        "wrap",
+        "handle",
+    ),
+    "wood": (
+        "wood",
+        "timber",
+        "stick",
+        "shaft",
+        "haft",
+        "plank",
+    ),
+    "skin": (
+        "skin",
+        "face",
+        "nude",
+        "body",
+        "hand",
+        "foot",
+    ),
+    "hair": (
+        "hair",
+        "fur",
+        "beard",
+        "brow",
+        "eyebrow",
+        "lash",
+        "eyelash",
+    ),
+}
+
+_METALLIC_SURFACE_TOKENS = (
+    "metal",
+    "metallic",
+    "steel",
+    "iron",
+    "silver",
+    "gold",
+    "copper",
+    "bronze",
+    "brass",
+    "chrome",
+    "blade",
+    "guard",
+    "hilt",
+    "helmet",
+    "helm",
+    "armor",
+    "armour",
+    "plate",
+    "chain",
+)
+
+_NONMETAL_RESPONSE_LIMITS = {
+    "cloth": (0.0, 0.28, 0.48),
+    "leather": (0.0, 0.36, 0.38),
+    "wood": (0.0, 0.30, 0.44),
+    "skin": (0.0, 0.34, 0.30),
+    "hair": (0.0, 0.46, 0.36),
+}
+
 
 def _finite_float(value: object, fallback: float = 0.0) -> float:
     try:
@@ -179,6 +264,97 @@ def _stem_tokens(*values: object) -> Tuple[str, ...]:
         stem = PurePosixPath(text).stem.lower()
         tokens.extend(token for token in re.split(r"[^a-z0-9]+", stem) if token)
     return tuple(tokens)
+
+
+def _descriptor_contains_token(descriptor: str, token: str) -> bool:
+    needle = str(token or "").strip().lower()
+    if not needle:
+        return False
+    start = 0
+    while True:
+        index = descriptor.find(needle, start)
+        if index < 0:
+            return False
+        end = index + len(needle)
+        left_boundary = index == 0 or not descriptor[index - 1].isalnum()
+        right_boundary = end >= len(descriptor) or not descriptor[end].isalnum()
+        if left_boundary and right_boundary:
+            return True
+        start = end
+
+
+def _material_surface_descriptor(input_item: Optional[PreviewMaterialTextureInput], payload: object = None) -> str:
+    parts: list[str] = []
+    for source in (input_item, payload):
+        if source is None:
+            continue
+        for name in (
+            "slot_kind",
+            "parameter_name",
+            "source_texture_path",
+            "source_dds_path",
+            "texture_name",
+            "semantic_type",
+            "semantic_subtype",
+            "material_name",
+            "part_name",
+            "shader_family",
+            "layer_role",
+            "layer_channel",
+        ):
+            parts.append(str(getattr(source, name, "") or ""))
+        parts.extend(str(value or "") for value in tuple(getattr(source, "packed_channels", ()) or ()))
+        parts.extend(str(value or "") for value in tuple(getattr(source, "blend_flags", ()) or ()))
+    return " ".join(part.replace("\\", "/") for part in parts if str(part or "").strip()).lower()
+
+
+def _material_surface_category(input_item: Optional[PreviewMaterialTextureInput], payload: object = None) -> str:
+    if input_item is not None:
+        shader_rule = _texture_rule_for_input(input_item)
+        if shader_rule == "skin":
+            return "skin"
+        if shader_rule == "hair":
+            return "hair"
+        if shader_rule in {"cloth", "cloth_v2"}:
+            return "cloth"
+    descriptor = _material_surface_descriptor(input_item, payload)
+    for category, tokens in _NONMETAL_SURFACE_TOKENS.items():
+        if any(_descriptor_contains_token(descriptor, token) for token in tokens):
+            return category
+    if any(_descriptor_contains_token(descriptor, token) for token in _METALLIC_SURFACE_TOKENS):
+        return "metal"
+    return "generic"
+
+
+def _strong_metallic_override(input_item: Optional[PreviewMaterialTextureInput], payload: object = None) -> bool:
+    if input_item is None:
+        return False
+    descriptor = _material_surface_descriptor(input_item, payload)
+    has_metal_token = any(_descriptor_contains_token(descriptor, token) for token in _METALLIC_SURFACE_TOKENS)
+    channel = _layer_channel(input_item)
+    metallic_hint = _material_parameter_channel_hint(input_item, channel, "metallic", "metalness", "scratchmetallic")
+    surface_category = _material_surface_category(input_item, payload)
+    if surface_category in _NONMETAL_RESPONSE_LIMITS:
+        return bool(has_metal_token and metallic_hint >= 0.68)
+    return bool(metallic_hint >= 0.82 or (has_metal_token and metallic_hint >= 0.48))
+
+
+def _nonmetal_response_limits(category: str) -> Tuple[float, float, float]:
+    return _NONMETAL_RESPONSE_LIMITS.get(str(category or "").strip().lower(), (1.0, 1.0, 0.04))
+
+
+def _apply_nonmetal_response_limits(
+    category: str,
+    metalness: float,
+    specular: float,
+    roughness: float,
+) -> Tuple[float, float, float]:
+    metal_cap, spec_cap, roughness_floor = _nonmetal_response_limits(category)
+    return (
+        min(_clamp(metalness), metal_cap),
+        min(_clamp(specular), spec_cap),
+        max(_clamp(roughness), roughness_floor),
+    )
 
 
 _MATERIAL_PART_TOKENS = {
@@ -457,6 +633,7 @@ def _apply_sidecar_material_hints(
 ) -> Tuple[float, float, float, float]:
     mode = str(decode_mode or "").strip().lower()
     shader_rule = _texture_rule_for_input(input_item)
+    surface_category = _material_surface_category(input_item)
     if shader_rule == "skin" or mode in {"skin_material", "skin_detail_mask"}:
         return ao, roughness, 0.0, min(specular, 0.42)
     if shader_rule not in {"standard_v2", "emissive_v2", "cloth_v2", "cloth", "standard", "static_multitextured", "static_standard"}:
@@ -472,6 +649,13 @@ def _apply_sidecar_material_hints(
         roughness = _clamp((roughness * 0.72) + (roughness_hint * 0.28), 0.04, 0.98)
     if specular_hint > 0.02:
         specular = max(specular, specular_hint * 0.58)
+    if surface_category in _NONMETAL_RESPONSE_LIMITS and not _strong_metallic_override(input_item):
+        metalness, specular, roughness = _apply_nonmetal_response_limits(
+            surface_category,
+            metalness,
+            specular,
+            roughness,
+        )
     return _clamp(ao, 0.45, 1.0), _clamp(roughness, 0.04, 1.0), _clamp(metalness), _clamp(specular)
 
 
@@ -1531,6 +1715,8 @@ def _generate_material_maps(
     *,
     decode_mode: str,
     input_item: Optional[PreviewMaterialTextureInput] = None,
+    surface_category: str = "",
+    force_nonmetal_surface: Optional[bool] = None,
     layer_mask: Optional[QImage] = None,
     layer_mask_channel: str = "",
     layer_weight: float = 1.0,
@@ -1586,6 +1772,22 @@ def _generate_material_maps(
     mode = str(decode_mode or "").strip().lower()
     shader_rule = _texture_rule_for_input(input_item) if input_item is not None else ""
     force_nonmetal_skin = bool(shader_rule == "skin" or mode in {"skin_material", "skin_detail_mask"})
+    resolved_surface_category = str(surface_category or "").strip().lower() or _material_surface_category(input_item)
+    resolved_force_nonmetal_surface = bool(
+        surface_category in _NONMETAL_RESPONSE_LIMITS
+        and not force_nonmetal_skin
+        and not _strong_metallic_override(input_item)
+    )
+    if force_nonmetal_surface is not None:
+        resolved_force_nonmetal_surface = bool(force_nonmetal_surface)
+    else:
+        resolved_force_nonmetal_surface = bool(
+            resolved_surface_category in _NONMETAL_RESPONSE_LIMITS
+            and not force_nonmetal_skin
+            and not _strong_metallic_override(input_item)
+        )
+    force_nonmetal_surface = resolved_force_nonmetal_surface
+    surface_category = resolved_surface_category
     apply_sidecar_hints = bool(
         input_item is not None
         and not force_nonmetal_skin
@@ -1628,6 +1830,13 @@ def _generate_material_maps(
                 roughness = _clamp(roughness, 0.04, 1.0)
                 metalness = _clamp(metalness)
                 specular = _clamp(specular)
+            if force_nonmetal_surface:
+                metalness, specular, roughness = _apply_nonmetal_response_limits(
+                    surface_category,
+                    metalness,
+                    specular,
+                    roughness,
+                )
             if mask_view is not None:
                 layer_alpha = _clamp(
                     _rgba8888_mask_alpha(mask_view, mask_stride, x, y, channel=mask_channel)
@@ -2221,6 +2430,19 @@ def combine_preview_material(
                 hint_labels.append("specular")
         if hint_labels:
             notes.append(f"sidecar material hints:{'+'.join(dict.fromkeys(hint_labels))}")
+        surface_category = _material_surface_category(item, payload)
+        force_nonmetal_material_response = bool(
+            surface_category in _NONMETAL_RESPONSE_LIMITS
+            and not _strong_metallic_override(item, payload)
+        )
+        if (
+            force_nonmetal_material_response
+            and any(_material_decode_output_flags(mode))
+        ):
+            notes.append(
+                "nonmetal material response clamp:"
+                f"{surface_category}:{_texture_label(item.source_texture_path, item.texture_name)}"
+            )
         layer_mask_image = QImage()
         layer_mask_channel = ""
         layer_weight = 1.0
@@ -2244,6 +2466,8 @@ def combine_preview_material(
             f"batch_{batch_index:03d}_{material_index:02d}_{mode}",
             decode_mode=mode,
             input_item=item,
+            surface_category=surface_category,
+            force_nonmetal_surface=force_nonmetal_material_response,
             layer_mask=layer_mask_image if not layer_mask_image.isNull() else None,
             layer_mask_channel=layer_mask_channel,
             layer_weight=layer_weight,

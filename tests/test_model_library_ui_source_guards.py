@@ -49,6 +49,16 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("supplemental_list.itemChanged.connect(lambda _item: _refresh_supplemental_warning())", source)
         self.assertIn("_refresh_supplemental_warning()", source)
 
+    def test_inline_d3d11_status_timer_ignores_deleted_qt_object(self) -> None:
+        source = Path("cdmw/ui/model_library_tab.py").read_text(encoding="utf-8")
+
+        self.assertIn("def _start_inline_d3d11_status_timer(self) -> None:", source)
+        self.assertIn("def _stop_inline_d3d11_status_timer(self) -> None:", source)
+        self.assertIn("except RuntimeError:\n            pass", source)
+        self.assertIn("self._start_inline_d3d11_status_timer()", source)
+        self.assertIn("self._stop_inline_d3d11_status_timer()", source)
+        self.assertNotIn("self._inline_d3d11_status_timer.stop()\n        if process is None:", source)
+
     def test_model_library_tab_scans_searches_and_shows_manual_file_urls(self) -> None:
         source = Path("cdmw/ui/model_library_tab.py").read_text(encoding="utf-8")
 

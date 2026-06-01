@@ -49,9 +49,9 @@ static constexpr ULONG_PTR kCdmwEventCopyData = 0x44334431u; // "D3D1"
 static constexpr size_t kSrvCacheSoftMaxEntries = 512;
 static constexpr std::uint64_t kSrvCacheSoftMaxBytes = 384ull * 1024ull * 1024ull;
 static constexpr DWORD kIdleWaitMs = 50;
-static constexpr double kParentHealthCheckMs = 500.0;
-static constexpr double kParentHangExitMs = 2500.0;
-static constexpr UINT kParentHealthTimeoutMs = 100;
+static constexpr double kParentHealthCheckMs = 1000.0;
+static constexpr double kParentHangExitMs = 30000.0;
+static constexpr UINT kParentHealthTimeoutMs = 750;
 
 struct Args {
     std::wstring backend = L"d3d11";
@@ -211,6 +211,8 @@ struct PreviewBatch {
     float emissive_intensity = 0.0f;
     float emissive_color[3] = {0.35f, 0.68f, 1.0f};
     float base_tint_strength = 0.0f;
+    float texture_brightness = 1.0f;
+    float texture_uv_scale[2] = {1.0f, 1.0f};
     float layer_weight = 0.0f;
     float layer_channel_index = 0.0f;
     float layer_roughness_hint = 0.0f;
@@ -429,6 +431,7 @@ struct ConstantBuffer {
     DirectX::XMFLOAT4 flags4;
     DirectX::XMFLOAT4 flags5;
     DirectX::XMFLOAT4 emissive_params;
+    DirectX::XMFLOAT4 material_value_params;
     DirectX::XMFLOAT4 layer_params[kMaxMaterialLayers];
     DirectX::XMFLOAT4 layer_tint[kMaxMaterialLayers];
     DirectX::XMFLOAT4 layer_hints[kMaxMaterialLayers];
@@ -770,11 +773,14 @@ static std::wstring absolute_from_manifest_path(const fs::path& package_dir, con
     return path.wstring();
 }
 
+static std::string json_object_field(const std::string& object, const std::string& name);
+
 static std::wstring dds_slot_source(const std::string& object, const std::string& slot) {
-    std::regex pattern("\"" + slot + "\"\\s*:\\s*\\{[^{}]*\"source_path\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
-    std::smatch match;
-    if (!std::regex_search(object, match, pattern)) return L"";
-    return utf8_to_wide(json_unescape(match[1].str()));
+    const std::string descriptor = json_object_field(object, slot);
+    if (descriptor.empty()) return L"";
+    if (!json_bool_field(descriptor, "available", true)) return L"";
+    if (!json_bool_field(descriptor, "direct_upload_candidate", true)) return L"";
+    return utf8_to_wide(json_string_field(descriptor, "source_path"));
 }
 
 static std::wstring texture_slot_relative(const fs::path& package_dir, const std::string& object, const std::string& slot) {
@@ -1298,6 +1304,14 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.emissive_intensity = std::clamp(json_float_field(object, "emissive_intensity", 0.0f), 0.0f, 32.0f);
         parse_float3_array_field(object, "emissive_color", batch.emissive_color);
         batch.base_tint_strength = std::clamp(json_float_field(object, "base_tint_strength", 0.0f), 0.0f, 1.0f);
+        batch.texture_brightness = std::clamp(json_float_field(object, "texture_brightness", 1.0f), 0.1f, 3.0f);
+        const std::vector<float> texture_uv_scale = json_float_array_field(object, "texture_uv_scale");
+        if (!texture_uv_scale.empty()) {
+            batch.texture_uv_scale[0] = std::clamp(texture_uv_scale[0], 0.05f, 64.0f);
+            batch.texture_uv_scale[1] = texture_uv_scale.size() > 1
+                ? std::clamp(texture_uv_scale[1], 0.05f, 64.0f)
+                : batch.texture_uv_scale[0];
+        }
         batch.material_shader_family = lower_copy(json_string_field(object, "material_shader_family"));
         if (batch.material_shader_family.empty()) {
             batch.material_shader_family = lower_copy(json_string_field(object, "shader_rule"));
@@ -1747,6 +1761,7 @@ cbuffer Constants : register(b0) {
     float4 flags4;
     float4 flags5;
     float4 emissive_params;
+    float4 material_value_params;
     float4 layer_params[4];
     float4 layer_tint[4];
     float4 layer_hints[4];
@@ -1837,6 +1852,8 @@ float4 ps_main(VSOut input) : SV_TARGET {
     if (base_color_flip.w > 0.5) {
         uv.y = 1.0 - uv.y;
     }
+    uv *= max(material_value_params.xy, float2(0.05, 0.05));
+    float preview_brightness = max(material_value_params.z, 0.1);
     float3 albedo = srgb_to_linear(max(input.color, base_color_flip.rgb));
     float base_alpha = 1.0;
     if (flags.x > 0.5) {
@@ -1850,6 +1867,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
             albedo = lerp(albedo, saturate(albedo * tint_bias), saturate(flags4.x));
         }
     }
+    albedo = saturate(albedo * preview_brightness);
     if (flags3.z > 0.5 && base_alpha < max(flags3.w, 0.001)) {
         discard;
     }
@@ -2372,7 +2390,7 @@ public:
             args_.status_file = status_file;
         }
         cdmw_native_diag::event("package_load_start", {{"package_dir", cdmw_native_diag::path_to_utf8(args_.preview_package)}, {"status_file", cdmw_native_diag::path_to_utf8(args_.status_file)}});
-        write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"manifest\",\"message\":\"Loading native D3D11 preview package...\"}");
+        write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"manifest\",\"percent\":85,\"current\":85,\"total\":100,\"message\":\"Loading native D3D11 preview package...\"}");
         auto start = std::chrono::steady_clock::now();
         std::string manifest;
         RendererStats next_stats;
@@ -2446,7 +2464,7 @@ public:
             return false;
         }
         next_stats.manifest_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-        write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
+        write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"percent\":90,\"current\":90,\"total\":100,\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
         if (!upload_batches(next_batches, next_stats)) {
             write_status(args_.status_file, error_payload("native D3D11 package reload failed", next_stats));
             cdmw_native_diag::event(
@@ -2499,7 +2517,7 @@ public:
             reset_view();
         }
         update_runtime_stats();
-        write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"first_frame\",\"message\":\"Rendering first D3D11 preview frame...\"}");
+        write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"first_frame\",\"percent\":98,\"current\":98,\"total\":100,\"message\":\"Rendering first D3D11 preview frame...\"}");
         request_render();
         cdmw_native_diag::event(
             "package_loaded",
@@ -3434,6 +3452,13 @@ private:
             mesh_edit_flat ? 0.0f : std::clamp(batch.emissive_color[1], 0.0f, 2.0f),
             mesh_edit_flat ? 0.0f : std::clamp(batch.emissive_color[2], 0.0f, 2.0f),
             emissive_encoded);
+        constants.material_value_params = mesh_edit_flat
+            ? DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f)
+            : DirectX::XMFLOAT4(
+                std::clamp(batch.texture_uv_scale[0], 0.05f, 64.0f),
+                std::clamp(batch.texture_uv_scale[1], 0.05f, 64.0f),
+                std::clamp(batch.texture_brightness, 0.1f, 3.0f),
+                0.0f);
         if (!mesh_edit_flat) {
             for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
                 const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
@@ -6568,7 +6593,7 @@ static int run_host(const Args& args) {
         cdmw_native_diag::event("startup_error", {{"reason", "preview package directory is missing"}});
         return 2;
     }
-    write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"manifest\",\"message\":\"Loading native D3D11 preview package...\"}");
+    write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"manifest\",\"percent\":85,\"current\":85,\"total\":100,\"message\":\"Loading native D3D11 preview package...\"}");
     std::string manifest = read_text(args.preview_package / L"manifest.json");
     RendererStats stats;
     std::vector<PreviewBatch> batches = parse_manifest_batches(args.preview_package, manifest, stats);
@@ -6624,7 +6649,7 @@ static int run_host(const Args& args) {
         return 3;
     }
 
-    write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
+    write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"percent\":90,\"current\":90,\"total\":100,\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
     Renderer renderer(hwnd, args, std::move(batches), std::move(cloth_colliders), stats, view_settings, render_tuning, display_mode);
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&renderer));
     if (!renderer.initialize()) {
@@ -6633,7 +6658,7 @@ static int run_host(const Args& args) {
         cdmw_native_diag::event("startup_error", {{"reason", "renderer initialization failed"}});
         return 4;
     }
-    write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"first_frame\",\"message\":\"Rendering first D3D11 preview frame...\"}");
+    write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"first_frame\",\"percent\":98,\"current\":98,\"total\":100,\"message\":\"Rendering first D3D11 preview frame...\"}");
     renderer.request_render();
     cdmw_native_diag::event("renderer_initialized", {{"batches", std::to_string(stats.batch_count)}, {"vertices", std::to_string(stats.vertex_count)}, {"display_mode", display_mode}});
 

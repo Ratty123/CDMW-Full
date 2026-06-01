@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import json
 from pathlib import Path
 import struct
 import tempfile
@@ -108,6 +109,52 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
         self.assertEqual(False, manifest["physics_overlays"]["cloth"])
         self.assertEqual("not_found", manifest["skeleton_overlay"]["status"])
         self.assertEqual([], manifest["editable_value_groups"])
+
+    def test_native_material_manifest_overrides_survive_package_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            prepared = PreparedModelPreviewData(
+                source_path="helmet.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="helmet_mask",
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        has_texture_coordinates=True,
+                        preview_native_material_overrides={
+                            "material_category": "metal",
+                            "material_category_confidence": 0.95,
+                            "roughness": 0.42,
+                            "metalness": 0.75,
+                            "material_layers": (
+                                {
+                                    "layer_role": "grime",
+                                    "mask_channel": "r",
+                                    "diffuse_source": "C:/native/layer.dds",
+                                    "mask_source": "C:/native/mask.dds",
+                                    "weight": 0.5,
+                                },
+                            ),
+                        },
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="helmet.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                use_textures=False,
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+            batch = manifest["batches"][0]
+
+        self.assertEqual("metal", batch["material_category"])
+        self.assertEqual(0.95, batch["material_category_confidence"])
+        self.assertEqual(0.42, batch["roughness"])
+        self.assertEqual(0.75, batch["metalness"])
+        self.assertEqual("grime", batch["material_layers"][0]["layer_role"])
+        self.assertIn("native material manifest overrides applied", batch["notes"])
 
     def test_writes_tool_side_pbd_cloth_runtime_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -492,6 +539,8 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertTrue((package_dir / textures["base"]).is_file())
             self.assertTrue(dds_textures["base"]["direct_upload_candidate"])
             self.assertEqual("bc1", dds_textures["base"]["compressed_family"])
+            self.assertNotIn("mip_levels", dds_textures["base"])
+            self.assertNotIn('"mip_levels"', (package_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(3, len(dds_textures["material_inputs"]))
             detail_input = next(item for item in dds_textures["material_inputs"] if item["source_path"] == str(detail_dds))
             self.assertEqual("_detailMaskTexture", detail_input["parameter_name"])
@@ -781,12 +830,11 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
             reference_batch, replacement_batch = manifest["batches"]
-            self.assertEqual("original_reference_archive_parity", reference_batch["material_combiner_policy"])
-            self.assertTrue(reference_batch["material_combiner_enabled"])
-            self.assertFalse(reference_batch["prefer_direct_dds"])
-            self.assertTrue(reference_batch["material_combiner_active"])
-            self.assertIn("standard_v2_detail", reference_batch["material_combiner_decode_modes"])
-            self.assertIn("combined", reference_batch["textures"]["base"])
+            self.assertEqual("original_reference_archive_direct", reference_batch["material_combiner_policy"])
+            self.assertFalse(reference_batch["material_combiner_enabled"])
+            self.assertTrue(reference_batch["prefer_direct_dds"])
+            self.assertFalse(reference_batch["material_combiner_active"])
+            self.assertNotIn("combined", reference_batch["textures"]["base"])
             self.assertTrue(any("original reference material policy" in note for note in reference_batch["notes"]))
 
             self.assertEqual("replacement_source_direct", replacement_batch["material_combiner_policy"])
@@ -808,9 +856,11 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             _modify_reference_batch, modify_replacement_batch = read_isolated_d3d11_preview_manifest(
                 modify_original_package_dir
             )["batches"]
-            self.assertEqual("modify_original_archive_parity", modify_replacement_batch["material_combiner_policy"])
-            self.assertTrue(modify_replacement_batch["material_combiner_enabled"])
-            self.assertFalse(modify_replacement_batch["prefer_direct_dds"])
+            self.assertEqual("modify_original_archive_direct", modify_replacement_batch["material_combiner_policy"])
+            self.assertFalse(modify_replacement_batch["material_combiner_enabled"])
+            self.assertTrue(modify_replacement_batch["prefer_direct_dds"])
+            self.assertFalse(modify_replacement_batch["material_combiner_active"])
+            self.assertNotIn("combined", modify_replacement_batch["textures"]["base"])
             self.assertTrue(
                 any("modify-original material policy" in note for note in modify_replacement_batch["notes"])
             )
@@ -835,6 +885,67 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertFalse(any("original reference material policy" in note for note in fast_reference_batch["notes"]))
             self.assertEqual("replacement_source_direct", fast_replacement_batch["material_combiner_policy"])
             self.assertFalse(fast_replacement_batch["material_combiner_enabled"])
+
+    def test_modify_original_archive_direct_keeps_only_selected_dds_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base_dds = temp_path / "body.dds"
+            height_dds = temp_path / "body_disp.dds"
+            base_dds.write_bytes(_minimal_bc_dds(b"DXT1"))
+            height_dds.write_bytes(_minimal_bc_dds(b"BC4U"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="character/model/body.pac",
+                format="pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="Body",
+                        texture_name="Body",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_dds_path=str(base_dds),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="height",
+                                parameter_name="_heightTexture",
+                                source_texture_path="character/texture/body_disp.dds",
+                                source_dds_path=str(height_dds),
+                                texture_name="body_disp.dds",
+                                semantic_type="height",
+                                semantic_subtype="height",
+                                material_name="Body",
+                                shader_family="SkinnedMeshSkin",
+                                visualized=True,
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                        editor_role="replacement_preview",
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="character/model/body.pac", format="pac"),
+                prepared,
+                output_root=temp_path / "package",
+                enable_material_combiner=True,
+                prefer_direct_dds=True,
+                editor_workspace="modify_original_alignment",
+            )
+
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+            self.assertEqual("modify_original_archive_direct", batch["material_combiner_policy"])
+            self.assertFalse(batch["material_combiner_active"])
+            self.assertIn("base", batch["dds_textures"])
+            self.assertNotIn("height", batch["dds_textures"])
+            self.assertEqual(1, len(batch["dds_textures"]["material_inputs"]))
+            self.assertEqual("height", batch["dds_textures"]["material_inputs"][0]["slot"])
 
     def test_synthesized_albedo_overrides_direct_low_authority_base_for_d3d11(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1050,6 +1161,66 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertTrue((package_dir / textures["specular"]).is_file())
             notes = " ".join(batch["notes"])
             self.assertNotIn("specular PNG fallback skipped", notes)
+
+    def test_prefer_direct_dds_drops_missing_manifest_dds_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "base.png"
+            specular = temp_path / "material_sp.png"
+            missing_base_dds = temp_path / "missing_base.dds"
+            missing_specular_dds = temp_path / "missing_sp.dds"
+            base.write_bytes(b"preview")
+            specular.write_bytes(b"preview")
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="head.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="head",
+                        texture_name="head",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_texture_dds_path=str(missing_base_dds),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                texture_name="head_sp",
+                                source_dds_path=str(missing_specular_dds),
+                                preview_texture_path=str(specular),
+                                semantic_subtype="specular",
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="head.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                enable_material_combiner=False,
+                prefer_direct_dds=True,
+            )
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+            manifest_text = json.dumps(batch, sort_keys=True)
+
+            self.assertNotIn("base", batch["dds_textures"])
+            self.assertNotIn("material_inputs", batch["dds_textures"])
+            self.assertNotIn(str(missing_base_dds), manifest_text)
+            self.assertNotIn(str(missing_specular_dds), manifest_text)
+            self.assertTrue(batch["textures"]["base"])
+            self.assertTrue((package_dir / batch["textures"]["base"]).is_file())
+            self.assertTrue(batch["textures"]["specular"])
+            self.assertTrue((package_dir / batch["textures"]["specular"]).is_file())
+            self.assertNotIn("base PNG fallback skipped", " ".join(batch["notes"]))
 
     def test_package_combiner_generates_independent_pbr_slots(self) -> None:
         from PySide6.QtGui import QColor, QImage
@@ -1304,6 +1475,14 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
                     has_texture_coordinates=True,
                 ),
                 PreparedModelPreviewBatch(
+                    material_name="CD_PHM_02_Stick_0013",
+                    texture_name="cd_phm_02_stick_0013",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
                     material_name="cd_phm_02_sword_0043",
                     texture_name="CD_R0002_00_Horse_Vest_0002",
                     vertex_blob=blob,
@@ -1344,6 +1523,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertEqual("tooth", categories_by_name["tooth"]["material_category"])
             self.assertEqual("hair", categories_by_name["eyebrow"]["material_category"])
             self.assertEqual("leather", categories_by_name["CD_PHM_02_Handle_0015"]["material_category"])
+            self.assertEqual("wood", categories_by_name["CD_PHM_02_Stick_0013"]["material_category"])
             sword_vest_batch = next(
                 batch
                 for batch in manifest_batches
@@ -1356,7 +1536,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
                 if batch["material_name"] == "cd_phm_02_sword_0043" and batch["texture_name"] == "shared_texturelayer"
             )
             self.assertEqual("generic", sword_only_batch["material_category"])
-            for material_name in ("glass_panel", "ruby_gem", "stone_rock", "eye_iris", "tooth", "eyebrow", "CD_PHM_02_Handle_0015"):
+            for material_name in ("glass_panel", "ruby_gem", "stone_rock", "eye_iris", "tooth", "eyebrow", "CD_PHM_02_Handle_0015", "CD_PHM_02_Stick_0013"):
                 self.assertIn("material_category_reason", categories_by_name[material_name])
                 self.assertEqual(
                     categories_by_name[material_name]["material_category"],
@@ -1498,6 +1678,43 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
         self.assertTrue(manifest["batches"][0]["texture_flip_vertical"])
+
+    def test_d3d11_package_writes_material_value_preview_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "base.png"
+            base.write_bytes(b"png")
+            prepared = PreparedModelPreviewData(
+                source_path="weapon.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="blade",
+                        vertex_blob=_vertex(0, 0, 0, color=(0.2, 0.4, 0.8))
+                        + _vertex(1, 0, 0, color=(0.2, 0.4, 0.8))
+                        + _vertex(0, 1, 0, color=(0.2, 0.4, 0.8)),
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_texture_brightness=1.75,
+                        preview_texture_tint=(0.2, 0.4, 0.8),
+                        preview_texture_uv_scale=(2.5, 3.5),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="weapon.pac"),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+
+        batch = manifest["batches"][0]
+        self.assertEqual([0.2, 0.4, 0.8], [round(value, 4) for value in batch["base_color"]])
+        self.assertEqual(1.75, batch["texture_brightness"])
+        self.assertEqual([2.5, 3.5], batch["texture_uv_scale"])
+        self.assertEqual([0.2, 0.4, 0.8], batch["texture_tint"])
+        self.assertEqual(0.85, batch["base_tint_strength"])
 
     def test_scene_import_package_defaults_to_unflipped_texture_v(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

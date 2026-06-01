@@ -32,6 +32,7 @@ from cdmw.core.pipeline import (
 )
 from cdmw.core.texture_editor import apply_texture_editor_recolor, save_rgba_array_png
 from cdmw.core.texture_native import encode_dds_with_directxtex
+from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
 from cdmw.core.upscale_profiles import copy_mod_ready_loose_tree, infer_texture_semantics, is_technical_texture_type
 from cdmw.modding.working_mod_recipe import analyze_working_mod_package
 from cdmw.models import ModPackageInfo, RunCancelled, TextureEditorToolSettings
@@ -156,6 +157,15 @@ class RecolorVariantPreview:
     matched_texture_paths: tuple[str, ...] = ()
     matched_material_paths: tuple[str, ...] = ()
     skipped_targets: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RecolorVariantPreviewImage:
+    target_id: str
+    source_dds_path: Path
+    source_png: Path
+    preview_png: Path
     warnings: tuple[str, ...] = ()
 
 
@@ -378,6 +388,68 @@ def preview_recolor_variant_template(
         matched_material_paths=tuple(dict.fromkeys(material_paths)),
         skipped_targets=tuple(skipped),
         warnings=tuple(warnings),
+    )
+
+
+def matching_recolor_variant_rule(
+    target: RecolorVariantTarget,
+    rules: Sequence[RecolorVariantRule],
+) -> Optional[RecolorVariantRule]:
+    return _matching_rule(target, rules)
+
+
+def texture_editor_settings_for_recolor_variant_rule(rule: RecolorVariantRule) -> TextureEditorToolSettings:
+    return _texture_editor_settings_for_recolor_rule(rule)
+
+
+def preview_recolor_variant_target_image(
+    analysis: RecolorVariantAnalysis,
+    template: RecolorVariantTemplate,
+    target_id: str,
+    *,
+    texconv_path: Optional[Path] = None,
+    max_dimension: int = 1024,
+    stop_event: Optional[threading.Event] = None,
+) -> RecolorVariantPreviewImage:
+    target = next((candidate for candidate in analysis.targets if candidate.target_id == target_id), None)
+    if target is None:
+        raise ValueError("Recolor preview target was not found in the current analysis.")
+    if target.target_kind != "texture_slot":
+        raise ValueError("Only DDS texture targets can be opened in the visual recolor preview.")
+    if not target.editable:
+        raise ValueError(target.locked_reason or "Selected target is locked for safe recolor variants.")
+    rule = _matching_rule(target, template.rules)
+    if rule is None:
+        raise ValueError("Current recolor template does not match the selected texture target.")
+
+    preview_root = app_temp_cache_path("preview_cache", "recolor_variants", uuid.uuid4().hex)
+    preview_root.mkdir(parents=True, exist_ok=True)
+    source_dds = _materialize_target_dds_for_preview(analysis, target, preview_root)
+    raise_if_cancelled(stop_event, "Recolor target preview cancelled.")
+
+    dds_info = parse_dds(source_dds)
+    source_display_png = ensure_dds_display_preview_png(
+        texconv_path if texconv_path is not None and texconv_path.is_file() else None,
+        source_dds,
+        dds_info=dds_info,
+        max_dimension=max(1, int(max_dimension)),
+        slot_kind=target.slot_kind or "base",
+        stop_event=stop_event,
+    )
+    source_png = preview_root / "source.png"
+    preview_png = preview_root / "preview.png"
+    with Image.open(source_display_png) as image:
+        rgba = image.convert("RGBA")
+        pixels = np.asarray(rgba, dtype=np.uint8).copy()
+        rgba.save(source_png)
+    edited = apply_texture_editor_recolor(pixels, _texture_editor_settings_for_recolor_rule(rule))
+    save_rgba_array_png(edited, preview_png)
+    request_app_temp_cache_prune()
+    return RecolorVariantPreviewImage(
+        target_id=target.target_id,
+        source_dds_path=source_dds,
+        source_png=source_png,
+        preview_png=preview_png,
     )
 
 
@@ -859,6 +931,42 @@ def _copy_source_payloads_to_stage(
                     on_log(f"COPY {normalized}")
 
 
+def _materialize_target_dds_for_preview(
+    analysis: RecolorVariantAnalysis,
+    target: RecolorVariantTarget,
+    preview_root: Path,
+) -> Path:
+    source_package = Path(analysis.package_path).expanduser()
+    normalized = normalize_mod_package_payload_path(target.game_path).as_posix().strip("/")
+    member_path = target.member_path or target.game_path
+    if source_package.is_dir():
+        source = _source_path_for_payload(source_package, member_path, normalized)
+        if source is None:
+            raise FileNotFoundError(f"Recolor preview source texture was not found: {target.game_path}")
+        return source
+    if source_package.suffix.lower() == ".zip":
+        with zipfile.ZipFile(source_package) as archive:
+            payload = _read_zip_member_bytes(archive, member_path, normalized)
+        if not payload:
+            raise FileNotFoundError(f"Recolor preview source texture was not found in zip: {target.game_path}")
+        extracted = preview_root / "source.dds"
+        extracted.write_bytes(payload)
+        return extracted
+    raise ValueError(f"Unsupported recolor preview source package: {source_package}")
+
+
+def _texture_editor_settings_for_recolor_rule(rule: RecolorVariantRule) -> TextureEditorToolSettings:
+    return TextureEditorToolSettings(
+        tool="recolor",
+        recolor_mode="replace_color" if rule.operation == "replace_color" else "tint",
+        recolor_source_hex=rule.source_color,
+        recolor_target_hex=rule.target_color,
+        recolor_tolerance=max(0, min(255, int(rule.tolerance))),
+        recolor_strength=max(1, min(100, int(rule.strength))),
+        recolor_preserve_luminance=bool(rule.preserve_luminance),
+    )
+
+
 def _apply_texture_rule_to_dds(
     dds_path: Path,
     rule: RecolorVariantRule,
@@ -882,16 +990,7 @@ def _apply_texture_rule_to_dds(
     with Image.open(source_png) as image:
         rgba = image.convert("RGBA")
         pixels = np.asarray(rgba, dtype=np.uint8).copy()
-    settings = TextureEditorToolSettings(
-        tool="recolor",
-        recolor_mode="replace_color" if rule.operation == "replace_color" else "tint",
-        recolor_source_hex=rule.source_color,
-        recolor_target_hex=rule.target_color,
-        recolor_tolerance=max(0, min(255, int(rule.tolerance))),
-        recolor_strength=max(1, min(100, int(rule.strength))),
-        recolor_preserve_luminance=bool(rule.preserve_luminance),
-    )
-    edited = apply_texture_editor_recolor(pixels, settings)
+    edited = apply_texture_editor_recolor(pixels, _texture_editor_settings_for_recolor_rule(rule))
     edited_png = scratch_root / f"{dds_path.stem}_recolor.png"
     save_rgba_array_png(edited, edited_png)
     output_width, output_height = read_png_dimensions(edited_png)

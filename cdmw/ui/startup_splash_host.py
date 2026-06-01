@@ -53,13 +53,31 @@ def _pid_is_alive(pid: int) -> bool:
         return True
 
 
+def _apply_windows_app_user_model_id() -> None:
+    if os.name != "nt":
+        return
+    try:
+        from cdmw.constants import APP_NAME, APP_ORGANIZATION
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(f"{APP_ORGANIZATION}.{APP_NAME}")
+    except Exception:
+        pass
+
+
 def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
     try:
         from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
-        from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QPolygonF
+        from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPen, QPolygonF
         from PySide6.QtWidgets import QApplication, QDialog, QLabel, QSizePolicy, QVBoxLayout
     except ImportError:
         return 1
+    try:
+        from cdmw.constants import APP_NAME, APP_ORGANIZATION
+        from cdmw.ui.app_icon import resolve_app_icon_path
+    except Exception:
+        APP_NAME = "CrimsonDesertModWorkbench"
+        APP_ORGANIZATION = "Ratrider"
+        resolve_app_icon_path = None  # type: ignore[assignment]
 
     class StartupSplashHost(QDialog):
         def __init__(self) -> None:
@@ -356,8 +374,23 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                 sweep_left = rail.left() + ((rail.width() + sweep_width) * self._phase) - sweep_width
                 painter.drawRoundedRect(QRectF(sweep_left, rail.top(), sweep_width, rail.height()).intersected(rail), 1.5, 1.5)
 
+    _apply_windows_app_user_model_id()
     app = QApplication(sys.argv[:1])
+    app.setOrganizationName(APP_ORGANIZATION)
+    app.setApplicationName(APP_NAME)
+    app_icon = QIcon()
+    if resolve_app_icon_path is not None:
+        try:
+            icon_path = resolve_app_icon_path()
+            if icon_path is not None:
+                app_icon = QIcon(str(icon_path))
+                if not app_icon.isNull():
+                    app.setWindowIcon(app_icon)
+        except Exception:
+            app_icon = QIcon()
     dialog = StartupSplashHost()
+    if not app_icon.isNull():
+        dialog.setWindowIcon(app_icon)
     dialog.center_on_screen()
     dialog.show()
     try:

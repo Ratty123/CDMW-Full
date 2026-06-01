@@ -3854,6 +3854,28 @@ class TextureEditorTab(QWidget):
         self._refresh_tool_visibility()
         self._set_status(self._tool_status_text(tool_key), False)
 
+    def set_recolor_tool_settings(
+        self,
+        *,
+        mode: str = "tint",
+        source_color: str = "#808080",
+        target_color: str = "#C85A30",
+        tolerance: int = 48,
+        strength: int = 100,
+        preserve_luminance: bool = True,
+    ) -> None:
+        index = self.recolor_mode_combo.findData(str(mode or "tint"))
+        if index >= 0:
+            self.recolor_mode_combo.setCurrentIndex(index)
+        self.recolor_source_edit.setText(str(source_color or "#808080"))
+        self.recolor_target_edit.setText(str(target_color or "#C85A30"))
+        self.recolor_tolerance_slider.setValue(max(0, min(255, int(tolerance))))
+        self.recolor_strength_slider.setValue(max(1, min(100, int(strength))))
+        self.recolor_preserve_luma_checkbox.setChecked(bool(preserve_luminance))
+        self._handle_tool_settings_changed()
+        self._set_active_tool("recolor")
+        self._set_status("Recolor settings loaded. Use Apply Recolor To Active Layer to commit.", False)
+
     def _tool_status_text(self, tool_key: str) -> str:
         if tool_key in {"clone", "heal"}:
             return "Ctrl+right-click sets the clone/heal source point. Use aligned sampling for classic retouching, or turn it off to stamp from a fixed source."

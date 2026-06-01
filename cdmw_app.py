@@ -353,6 +353,8 @@ def _release_single_instance_guard() -> None:
 
 
 def _update_pyinstaller_boot_splash(text: str) -> None:
+    if not os.environ.get("_PYI_SPLASH_IPC"):
+        return
     try:
         import pyi_splash  # type: ignore[import-not-found]
 
@@ -482,6 +484,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         parser.error("Choose only one of --cli or --gui.")
     if args.isolated_renderer_host and (args.cli or args.gui):
         parser.error("Choose isolated renderer host without --cli or --gui.")
+    if args.isolated_renderer_host:
+        parser.error(
+            "Legacy QtQuick3D isolated renderer host was removed; use the native D3D11 "
+            "cdmw-d3d11-preview.exe host instead."
+        )
 
     run_gui_mode = not args.cli and not args.isolated_renderer_host
     if run_gui_mode:
@@ -497,22 +504,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _run_startup_maintenance()
 
     try:
-        if args.isolated_renderer_host:
-            from cdmw.rendering.qtquick3d_isolated_host import run_isolated_renderer_host
-
-            host_args = ["--backend", args.backend]
-            if args.preview_package:
-                host_args.extend(["--preview-package", args.preview_package])
-            if args.status_file:
-                host_args.extend(["--status-file", args.status_file])
-            if args.theme_background:
-                host_args.extend(["--theme-background", args.theme_background])
-            if args.theme_text:
-                host_args.extend(["--theme-text", args.theme_text])
-            if args.self_test:
-                host_args.append("--self-test")
-            runner = lambda: run_isolated_renderer_host(host_args)
-        elif args.cli:
+        if args.cli:
             from cdmw.core.pipeline import run_cli
 
             runner: Callable[[], int] = run_cli

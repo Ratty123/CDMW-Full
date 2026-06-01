@@ -44,7 +44,7 @@ The app still keeps archive mutation explicit and separate from normal browsing.
 - `Assets > Archive Browser`: scan archives, switch between flat or tree view, preview supported assets, extract files, inspect referenced mesh textures, export/import supported meshes, and run supported archive patch/restore flows
 - `Assets > Model Library`: scan local/importable models, use mirror catalogue metadata, preview supported models, and route model imports into Archive Browser workflows
 - `Assets > Icon Creator`: manage icon source images and generate compatible item-icon packages from archive targets
-- `Research > Research`: group related textures, resolve references, inspect DDS QA results, preview archive files, export analysis reports, and store notes
+- `Research > Texture Research`: group related textures, resolve references, inspect DDS QA results, preview archive files, export analysis reports, and store notes
 - `Research > Text Search`: search archive or loose text-like files, preview results with syntax colors, and export matched files
 - `Settings`: persistent theme, language, font, density, startup, performance, layout, 3D preview, log/code, and safety preferences
 

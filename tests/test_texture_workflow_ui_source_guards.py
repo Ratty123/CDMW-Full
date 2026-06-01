@@ -36,18 +36,24 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         editor_source = TEXTURE_EDITOR_TAB.read_text(encoding="utf-8")
         readme = README.read_text(encoding="utf-8")
 
-        self.assertIn('self.main_tabs.addTab(self.dashboard_tab, "Dashboard")', main_source)
-        self.assertIn('self.main_tabs.addTab(self.texture_tabs, "Textures")', main_source)
-        self.assertIn('self.main_tabs.addTab(self.assets_tabs, "Assets")', main_source)
-        self.assertIn('self.main_tabs.addTab(self.research_tabs, "Research")', main_source)
+        dashboard_nav = 'self.main_tabs.addTab(self.dashboard_tab, "Dashboard")'
+        assets_nav = 'self.main_tabs.addTab(self.assets_tabs, "Assets")'
+        textures_nav = 'self.main_tabs.addTab(self.texture_tabs, "Textures")'
+        research_nav = 'self.main_tabs.addTab(self.research_tabs, "Research")'
+        for nav_label in (dashboard_nav, assets_nav, textures_nav, research_nav):
+            self.assertIn(nav_label, main_source)
+        self.assertLess(main_source.index(dashboard_nav), main_source.index(assets_nav))
+        self.assertLess(main_source.index(assets_nav), main_source.index(textures_nav))
+        self.assertLess(main_source.index(textures_nav), main_source.index(research_nav))
         self.assertIn('self.texture_tabs.addTab(self.workflow_tab, "Workflow")', main_source)
         self.assertIn('self.texture_tabs.addTab(self.replace_assistant_tab, "Replacer")', main_source)
         self.assertIn('self.texture_tabs.addTab(self.texture_editor_tab, "Editor")', main_source)
         self.assertIn('self.assets_tabs.addTab(self.archive_browser_tab, "Archive Browser")', main_source)
         self.assertIn('self.assets_tabs.addTab(self.model_library_tab, "Model Library")', main_source)
         self.assertIn('self.assets_tabs.addTab(self.item_icons_tab, "Icon Creator")', main_source)
-        self.assertIn('self.research_tabs.addTab(self.research_tab, "Research")', main_source)
+        self.assertIn('self.research_tabs.addTab(self.research_tab, "Texture Research")', main_source)
         self.assertIn('self.research_tabs.addTab(self.text_search_tab, "Text Search")', main_source)
+        self.assertIn('self._register_detachable_tool("research", self.research_tab, "Texture Research")', main_source)
         self.assertIn('self._register_detachable_tool("replace_assistant", self.replace_assistant_tab, "Texture Replacer")', main_source)
         self.assertIn('self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")', main_source)
         self.assertIn("self.item_icons_tab.open_target_in_archive_requested.connect(", main_source)

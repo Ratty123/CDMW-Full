@@ -190,6 +190,53 @@ class ArchiveNameSearchIndexTests(unittest.TestCase):
         self.assertIsInstance(loaded, dict)
         self.assertIsInstance(loaded.get("name_search_index"), archive_core.ArchiveNameSearchIndex)
 
+    def test_name_search_shards_match_global_index_results(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            entries: list[ArchiveEntry] = []
+            for package, path, offset in (
+                ("0008", "character/model/weapon/cd_phw_01_sword_0027.pac", 1),
+                ("0009", "object/tools/cd_t0000_lantern_ring_0001.prefab", 2),
+                ("0010", "object/interior/cd_in_dff_chair_10.prefab", 3),
+            ):
+                pamt_path = root / package / "0.pamt"
+                paz_path = root / package / "0.paz"
+                pamt_path.parent.mkdir(parents=True, exist_ok=True)
+                pamt_path.write_bytes(b"pamt")
+                paz_path.write_bytes(b"payload")
+                entries.append(
+                    ArchiveEntry(
+                        path=path,
+                        pamt_path=pamt_path,
+                        paz_file=paz_path,
+                        offset=offset,
+                        comp_size=7,
+                        orig_size=7,
+                        flags=0,
+                        paz_index=0,
+                    )
+                )
+            aliases = {"cd_phw_01_sword_0027": "Bright Steel Blade"}
+            global_index = archive_core.build_archive_name_search_index(entries, item_search_aliases=aliases)
+            archive_core.save_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                item_search_aliases=aliases,
+                archive_name_search_index=global_index,
+            )
+
+            loaded = archive_core.load_archive_derived_index_cache(root, cache_root, entries)
+            shard_index = (loaded or {}).get("name_search_index")
+
+            self.assertIsInstance(shard_index, archive_core.ArchiveNameSearchIndex)
+            for query in ("lantern", "sword", "Bright Steel Blade", "chair OR lantern"):
+                self.assertEqual(
+                    _filter(entries, query, index=global_index, aliases=aliases),
+                    _filter(entries, query, index=shard_index, aliases=aliases),
+                )
+
     def test_native_name_search_path_is_guarded_for_large_indexes(self) -> None:
         source_text = Path("cdmw/core/archive.py").read_text(encoding="utf-8")
         native_text = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")

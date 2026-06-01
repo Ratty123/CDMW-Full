@@ -235,6 +235,32 @@ class NativeD3D11PreviewHostFrame(QFrame):
             }
         )
 
+    def set_view(
+        self,
+        *,
+        yaw: float,
+        pitch: float,
+        zoom_factor: float = 1.0,
+        fit_to_view: bool = True,
+        pan_x: float = 0.0,
+        pan_y: float = 0.0,
+        pan_z: float = 0.0,
+        role: str = "replacement",
+    ) -> bool:
+        return self._send_host_json_command(
+            {
+                "command": "set_view",
+                "role": str(role or "replacement"),
+                "yaw": float(yaw),
+                "pitch": float(pitch),
+                "zoom_factor": float(zoom_factor),
+                "fit_to_view": bool(fit_to_view),
+                "pan_x": float(pan_x),
+                "pan_y": float(pan_y),
+                "pan_z": float(pan_z),
+            }
+        )
+
     def capture_replacement_icon(self, output_path: Path) -> bool:
         screen = self.screen() or QApplication.primaryScreen()
         if screen is None:

@@ -11,6 +11,7 @@ from cdmw.core.archive import (
     _attach_model_sidecar_texture_preview_paths,
     _attach_model_texture_preview_paths,
     _attach_model_support_texture_preview_paths,
+    _build_model_preview_texture_slot_detail_text,
     _iter_model_sidecar_binding_submesh_keys,
     normalize_texture_reference_for_sidecar_lookup,
 )
@@ -42,6 +43,32 @@ def _texture_maps(*paths: str):
 
 
 class ArchivePreviewTextureBindingTests(unittest.TestCase):
+    def test_texture_slot_detail_text_lists_part_to_dds_mapping(self) -> None:
+        model = ModelPreviewData(
+            path="character/model/cloth.pac",
+            meshes=[
+                ModelPreviewMesh(
+                    material_name="CD_PHM_00_Cloak_0054",
+                    texture_name="cd_phm_00_cloak_0054.dds",
+                    preview_normal_texture_name="cd_phm_00_cloak_0054_n.dds",
+                    preview_material_texture_name="cd_phm_00_cloak_0054_sp.dds",
+                    preview_material_texture_type="mask",
+                    preview_material_texture_subtype="specular",
+                    preview_material_texture_packed_channels=("specular",),
+                    preview_height_texture_name="cd_phm_00_cloak_0054_disp.dds",
+                )
+            ],
+        )
+
+        text = _build_model_preview_texture_slot_detail_text(model)
+
+        self.assertIn("Texture Slot Mapping", text)
+        self.assertIn("CD_PHM_00_Cloak_0054 -> base DDS=cd_phm_00_cloak_0054.dds", text)
+        self.assertIn("normal DDS=cd_phm_00_cloak_0054_n.dds", text)
+        self.assertIn("material DDS=cd_phm_00_cloak_0054_sp.dds", text)
+        self.assertIn("height DDS=cd_phm_00_cloak_0054_disp.dds", text)
+        self.assertIn("decoded channels=mask/specular/specular", text)
+
     def test_sidecar_binding_resolves_common_texture_folder_variant(self) -> None:
         source_entry = _entry("character/model/body_a.pac")
         by_normalized, by_basename = _texture_maps("character/body_a.dds")
@@ -74,6 +101,48 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         self.assertEqual("character/body_a.dds", model.meshes[0].texture_name)
         self.assertEqual("preview://character/body_a.dds", model.meshes[0].preview_texture_path)
+
+    def test_cross_component_sidecar_binding_does_not_replace_current_pac_mesh(self) -> None:
+        source_entry = _entry("character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac")
+        by_normalized, by_basename = _texture_maps("character/texture/cd_texturelayer_001_0101.dds")
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[
+                ModelPreviewMesh(
+                    material_name="CD_PHM_00_Head_0001_01",
+                    texture_name="character/texture/cd_phm_00_head_00_0001_01.dds",
+                )
+            ],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path="character/texture/cd_texturelayer_001_0101.dds",
+                parameter_name="_detailDiffuseMaskR",
+                submesh_name="CD_PHM_00_UW_00_0001",
+                sidecar_kind="pac_xml",
+                sidecar_path="character/modelproperty/1_pc/1_phm/armor/38_underwear/cd_phm_00_uw_00_0001.pac_xml",
+                linked_mesh_path="character/model/1_pc/1_phm/armor/38_underwear/cd_phm_00_uw_00_0001.pac",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            lines = _attach_model_sidecar_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                visible_texture_mode="layer_aware_visible",
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual("character/texture/cd_phm_00_head_00_0001_01.dds", model.meshes[0].texture_name)
+        self.assertEqual("", model.meshes[0].preview_texture_path)
+        self.assertEqual([], lines)
 
     def test_pac_xml_parser_uses_first_model_property_material_group(self) -> None:
         sidecar_text = (
@@ -696,6 +765,41 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         self.assertEqual("character/texture/part_a_d.dds", model.meshes[0].texture_name)
         self.assertEqual("preview://character/texture/part_a_d.dds", model.meshes[0].preview_texture_path)
+
+    def test_material_name_base_correction_can_replace_sidecar_layer_fallback(self) -> None:
+        source_entry = _entry("character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac")
+        head_texture = "character/texture/cd_phm_00_head_00_0001_01.dds"
+        layer_texture = "character/texture/cd_texturelayer_001_0101.dds"
+        by_normalized, by_basename = _texture_maps(head_texture, layer_texture)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[
+                ModelPreviewMesh(
+                    material_name="CD_PHM_00_Head_0001_01",
+                    texture_name=head_texture,
+                    preview_texture_path=f"preview://{layer_texture}",
+                    preview_base_texture_source="pac_xml",
+                )
+            ],
+        )
+
+        with patch(
+            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            lines = _attach_model_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+                override_existing_base=True,
+                prefer_material_name_for_base=True,
+            )
+
+        self.assertEqual(head_texture, model.meshes[0].texture_name)
+        self.assertEqual(f"preview://{head_texture}", model.meshes[0].preview_texture_path)
+        self.assertIn("Corrected 1 mesh base texture preview", "\n".join(lines))
 
     def test_technical_sibling_dds_is_not_promoted_to_visible_base(self) -> None:
         source_entry = _entry("character/model/cd_test_model.pac")

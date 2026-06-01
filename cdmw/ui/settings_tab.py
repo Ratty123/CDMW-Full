@@ -305,14 +305,8 @@ class SettingsTab(QWidget):
         startup_layout.addWidget(self.auto_load_archive_checkbox)
         startup_layout.addWidget(self.prefer_cache_checkbox)
         startup_layout.addWidget(self.restore_last_tab_checkbox)
-        self.restore_archive_filters_checkbox = QCheckBox("Restore Archive Browser filters on startup")
-        self.restore_archive_filters_checkbox.setToolTip(
-            "When enabled, saved Archive Browser search, extension, role, folder, package, and size filters are restored "
-            "when the app opens. Disable this to start with All files and avoid re-applying a saved search during startup."
-        )
-        startup_layout.addWidget(self.restore_archive_filters_checkbox)
         startup_hint = QLabel(
-            "Disabling filter restore keeps startup lighter. You can still search or apply filters manually after the archive is loaded."
+            "Archive Browser starts with neutral filters. Search by path/item name or choose an extension after the archive is ready."
         )
         startup_hint.setWordWrap(True)
         startup_hint.setObjectName("HintLabel")
@@ -393,7 +387,7 @@ class SettingsTab(QWidget):
         related_index_layout.addRow("Sidecar index workers", worker_row)
         self.archive_maximum_indexing_priority_checkbox = QCheckBox("Prioritize indexing over UI responsiveness")
         self.archive_maximum_indexing_priority_checkbox.setToolTip(
-            "Runs sidecar indexing at normal thread priority instead of low priority. This can finish indexing sooner but may make browsing less responsive until the next run finishes."
+            "Prewarms archive lookup and item-name search caches and runs indexing at normal priority. This can finish indexing sooner but may make browsing less responsive until it finishes."
         )
         related_index_layout.addRow("", self.archive_maximum_indexing_priority_checkbox)
         related_index_hint = QLabel(
@@ -833,7 +827,6 @@ class SettingsTab(QWidget):
             self.auto_load_archive_checkbox,
             self.prefer_cache_checkbox,
             self.restore_last_tab_checkbox,
-            self.restore_archive_filters_checkbox,
             self.remember_splitters_checkbox,
             self.confirm_workflow_cleanup_checkbox,
             self.confirm_archive_cleanup_checkbox,
@@ -1088,9 +1081,6 @@ class SettingsTab(QWidget):
         self.restore_last_tab_checkbox.setChecked(
             self._read_bool("preferences/restore_last_active_tab", True)
         )
-        self.restore_archive_filters_checkbox.setChecked(
-            self._read_bool("preferences/restore_archive_filters_on_startup", False)
-        )
         self.remember_splitters_checkbox.setChecked(
             self._read_bool("preferences/remember_splitter_sizes", True)
         )
@@ -1132,10 +1122,6 @@ class SettingsTab(QWidget):
         self.settings.setValue(
             "preferences/restore_last_active_tab",
             self.restore_last_tab_checkbox.isChecked(),
-        )
-        self.settings.setValue(
-            "preferences/restore_archive_filters_on_startup",
-            self.restore_archive_filters_checkbox.isChecked(),
         )
         self.settings.setValue(
             "preferences/remember_splitter_sizes",
@@ -1352,13 +1338,9 @@ class SettingsTab(QWidget):
     def _apply_archive_performance_control_states(self) -> None:
         enabled = self.archive_sidecar_indexing_checkbox.isChecked()
         manual = int(self.archive_sidecar_worker_mode_combo.currentData() or 0) == 1
-        if not enabled and self.archive_maximum_indexing_priority_checkbox.isChecked():
-            self.archive_maximum_indexing_priority_checkbox.blockSignals(True)
-            self.archive_maximum_indexing_priority_checkbox.setChecked(False)
-            self.archive_maximum_indexing_priority_checkbox.blockSignals(False)
         self.archive_sidecar_worker_mode_combo.setEnabled(enabled)
         self.archive_sidecar_worker_spin.setEnabled(enabled and manual)
-        self.archive_maximum_indexing_priority_checkbox.setEnabled(enabled)
+        self.archive_maximum_indexing_priority_checkbox.setEnabled(True)
 
     def sync_archive_performance_controls(
         self,
@@ -1377,9 +1359,7 @@ class SettingsTab(QWidget):
             self.archive_preview_cache_limit_spin.setValue(clamped.preview_cache_limit)
             self._set_combo_by_value(self.archive_native_preview_cache_mode_combo, clamped.native_preview_cache_mode)
             self.archive_quick_then_full_checkbox.setChecked(clamped.quick_then_full_preview)
-            self.archive_maximum_indexing_priority_checkbox.setChecked(
-                clamped.enable_sidecar_indexing and clamped.maximum_indexing_priority
-            )
+            self.archive_maximum_indexing_priority_checkbox.setChecked(clamped.maximum_indexing_priority)
         finally:
             for widget in self._archive_performance_setting_widgets():
                 widget.blockSignals(False)
@@ -1401,10 +1381,7 @@ class SettingsTab(QWidget):
                 preview_cache_limit=self.archive_preview_cache_limit_spin.value(),
                 native_preview_cache_mode=str(self.archive_native_preview_cache_mode_combo.currentData() or "balanced"),
                 quick_then_full_preview=self.archive_quick_then_full_checkbox.isChecked(),
-                maximum_indexing_priority=(
-                    self.archive_sidecar_indexing_checkbox.isChecked()
-                    and self.archive_maximum_indexing_priority_checkbox.isChecked()
-                ),
+                maximum_indexing_priority=self.archive_maximum_indexing_priority_checkbox.isChecked(),
             )
         )
 

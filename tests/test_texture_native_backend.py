@@ -77,6 +77,20 @@ class NativeTextureBackendTests(unittest.TestCase):
 
         self.assertNotEqual(base_key, normal_key)
 
+    def test_directxtex_preview_defer_env_skips_helper_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dds_path = Path(temp_dir) / "sample.dds"
+            dds_path.write_bytes(_minimal_bc_dds())
+            with (
+                patch.dict(texture_native.os.environ, {"CDMW_DEFER_TEXTURE_PREVIEW": "1"}),
+                patch.object(texture_native, "find_directxtex_texture_binary", side_effect=AssertionError("helper should not be queried")),
+            ):
+                result = texture_native.ensure_directxtex_dds_preview_pngs(
+                    [{"dds_path": str(dds_path), "slot_kind": "base"}]
+                )
+
+        self.assertEqual({}, result)
+
     def test_dds_native_parser_reads_legacy_bc_mips(self) -> None:
         info = inspect_dds_native(_minimal_bc_dds(b"DXT5", width=8, height=4, mip_count=1))
 

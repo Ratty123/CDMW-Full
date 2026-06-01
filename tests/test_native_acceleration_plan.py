@@ -88,6 +88,30 @@ class NativeAccelerationPlanTests(unittest.TestCase):
         self.assertEqual("python_fallback", state["archive_accelerator"]["backend"])
         self.assertEqual("item_name_search_python_path", state["archive_accelerator"]["fallback_reason"])
 
+    def test_small_text_filter_uses_python_path_without_native_probe(self) -> None:
+        entries = [_entry(f"character/model/sword_{index}.pac", index) for index in range(8)]
+        with mock.patch.object(
+            archive_accelerator,
+            "find_native_archive_accelerator",
+            side_effect=AssertionError("native path should not be queried"),
+        ):
+            state = prepare_archive_browser_state_accelerated(
+                entries,
+                filter_text="sword",
+                exclude_filter_text="",
+                extension_filter=".pac",
+                package_filter_text="",
+                structure_filter="",
+                role_filter="all",
+                exclude_common_technical_suffixes=False,
+                min_size_kb=0,
+                previewable_only=False,
+                native_enabled=True,
+            )
+
+        self.assertEqual("python_fallback", state["archive_accelerator"]["backend"])
+        self.assertEqual("small_text_filter_python_path", state["archive_accelerator"]["fallback_reason"])
+
     def test_archive_accelerator_discovery_uses_pyinstaller_runtime_native_dir(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             frozen_root = Path(temp_dir)

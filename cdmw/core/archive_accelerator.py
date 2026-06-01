@@ -15,10 +15,8 @@ from cdmw.core.archive import (
     build_archive_entry_extension_index,
     build_archive_entry_path_index,
     build_archive_entry_role_index,
-    load_archive_scan_cache,
+    load_or_update_archive_scan_shards,
     prepare_archive_browser_state,
-    resolve_archive_scan_cache_path,
-    save_archive_scan_cache,
 )
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
 from cdmw.models import ArchiveEntry
@@ -96,12 +94,31 @@ def _native_archive_accelerator_ready(binary: Optional[Path]) -> bool:
     return protocol == ARCHIVE_ACCELERATOR_PROTOCOL
 
 
-def _entry_from_native_row(row: Mapping[str, object]) -> Optional[ArchiveEntry]:
+def _entry_from_native_row(
+    row: Mapping[str, object],
+    *,
+    pamt_path_cache: Optional[dict[str, Path]] = None,
+    paz_path_cache: Optional[dict[str, Path]] = None,
+) -> Optional[ArchiveEntry]:
     try:
+        pamt_text = str(row.get("pamt_path") or "")
+        paz_text = str(row.get("paz_file") or "")
+        pamt_path: Path
+        paz_path: Path
+        if pamt_path_cache is not None:
+            pamt_path = pamt_path_cache.get(pamt_text) or Path(pamt_text)
+            pamt_path_cache[pamt_text] = pamt_path
+        else:
+            pamt_path = Path(pamt_text)
+        if paz_path_cache is not None:
+            paz_path = paz_path_cache.get(paz_text) or Path(paz_text)
+            paz_path_cache[paz_text] = paz_path
+        else:
+            paz_path = Path(paz_text)
         return ArchiveEntry(
             path=str(row.get("path") or ""),
-            pamt_path=Path(str(row.get("pamt_path") or "")),
-            paz_file=Path(str(row.get("paz_file") or "")),
+            pamt_path=pamt_path,
+            paz_file=paz_path,
             offset=int(row.get("offset") or 0),
             comp_size=int(row.get("comp_size") or 0),
             orig_size=int(row.get("orig_size") or 0),
@@ -179,15 +196,21 @@ def scan_archive_entries_native(
     if not isinstance(rows, list):
         return None
     entries: list[ArchiveEntry] = []
+    pamt_path_cache: dict[str, Path] = {}
+    paz_path_cache: dict[str, Path] = {}
     for row in rows:
         if not isinstance(row, Mapping):
             return None
-        entry = _entry_from_native_row(row)
+        entry = _entry_from_native_row(
+            row,
+            pamt_path_cache=pamt_path_cache,
+            paz_path_cache=paz_path_cache,
+        )
         if entry is None or not entry.path:
             return None
         entries.append(entry)
     if on_progress:
-        on_progress(len(entries), max(len(entries), 1), f"Native archive scan loaded {len(entries):,} entries")
+        on_progress(0, 0, f"Native archive scan loaded {len(entries):,} entries; preparing shard cache...")
     if on_log:
         elapsed = time.perf_counter() - started_at
         on_log(f"Native archive accelerator scanned {len(entries):,} entries in {elapsed:.1f}s.")
@@ -204,66 +227,36 @@ def scan_archive_entries_cached_accelerated(
     on_breadcrumb: Optional[Callable[[Mapping[str, object]], None]] = None,
     stop_event: object = None,
 ) -> tuple[list[ArchiveEntry], str, Optional[Path], dict[str, float], dict[str, object]]:
-    from cdmw.core.archive import scan_archive_entries_cached
-
     started_at = time.perf_counter()
     timings: dict[str, float] = {}
     scan_metadata: dict[str, object] = {}
-    cache_path = resolve_archive_scan_cache_path(package_root, cache_root)
-    if not force_refresh:
-        cache_started_at = time.perf_counter()
-        cached_entries = load_archive_scan_cache(
-            package_root,
-            cache_root,
-            on_log=on_log,
-            on_progress=on_progress,
-            stop_event=stop_event,
-            timings=timings,
-            metadata_out=scan_metadata,
-        )
-        timings.setdefault("cache_check_s", max(0.0, float(time.perf_counter() - cache_started_at)))
-        if cached_entries is not None:
-            timings.setdefault("archive_scan_s", 0.0)
-            timings.setdefault("cache_write_s", 0.0)
-            timings["total_s"] = max(0.0, float(time.perf_counter() - started_at))
-            return cached_entries, "cache", cache_path, timings, scan_metadata
-    native_started_at = time.perf_counter()
-    entries = scan_archive_entries_native(
+    entries, source, cache_path = load_or_update_archive_scan_shards(
         package_root,
+        cache_root,
+        force_refresh=force_refresh,
         on_log=on_log,
         on_progress=on_progress,
+        on_breadcrumb=on_breadcrumb,
         stop_event=stop_event,
+        timings=timings,
+        metadata_out=scan_metadata,
+        full_scan_func=lambda: scan_archive_entries_native(
+            package_root,
+            on_log=on_log,
+            on_progress=on_progress,
+            stop_event=stop_event,
+        ),
+        shard_scan_func=lambda pamt_path: scan_archive_entries_native(
+            pamt_path,
+            on_log=on_log,
+            on_progress=on_progress,
+            stop_event=stop_event,
+        ),
+        shard_scan_source="native_scan",
+        full_scan_source="native_scan",
     )
-    if entries is None:
-        fallback_entries, fallback_source, fallback_cache_path, fallback_timings = scan_archive_entries_cached(
-            package_root,
-            cache_root,
-            force_refresh=True,
-            on_log=on_log,
-            on_progress=on_progress,
-            on_breadcrumb=on_breadcrumb,
-            stop_event=stop_event,
-        )
-        return fallback_entries, fallback_source, fallback_cache_path, fallback_timings, {}
-    timings["archive_scan_s"] = max(0.0, float(time.perf_counter() - native_started_at))
-    try:
-        cache_path = save_archive_scan_cache(
-            package_root,
-            cache_root,
-            entries,
-            on_log=on_log,
-            on_progress=on_progress,
-            stop_event=stop_event,
-            timings=timings,
-            metadata_out=scan_metadata,
-        )
-    except Exception as exc:
-        if on_log:
-            on_log(f"Warning: archive cache could not be written after native scan: {exc}")
-        cache_path = None
-        timings.setdefault("cache_write_s", 0.0)
     timings["total_s"] = max(0.0, float(time.perf_counter() - started_at))
-    return entries, "native_scan", cache_path, timings, scan_metadata
+    return entries, source, cache_path, timings, scan_metadata
 
 
 def read_archive_entry_data_native(
@@ -358,6 +351,8 @@ def _native_browser_state_block_reason(
         return "item_name_search_python_path"
     if item_search_aliases and str(filter_text or "").strip():
         return "item_name_search_python_path"
+    if str(filter_text or "").strip() and len(entries) <= 250_000:
+        return "small_text_filter_python_path"
     if archive_browser_sort_is_active(sort_column):
         return "sort_python_path"
     for text in (filter_text, exclude_filter_text):

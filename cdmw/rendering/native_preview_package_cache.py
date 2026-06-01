@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +50,12 @@ def native_preview_package_cache_packages_root(cache_root: Path) -> Path:
 
 def native_preview_package_cache_entry_dir(cache_root: Path, cache_key: str) -> Path:
     return native_preview_package_cache_packages_root(cache_root) / str(cache_key)
+
+
+def create_native_preview_package_staging_dir(cache_root: Path) -> Path:
+    packages_root = native_preview_package_cache_packages_root(cache_root)
+    packages_root.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix="_staging_", dir=str(packages_root)))
 
 
 def is_temp_native_preview_package_path(path_value: object) -> bool:

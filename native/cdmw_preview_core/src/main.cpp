@@ -5103,6 +5103,102 @@ static bool texture_family_clearly_matches_mesh(const std::string& texture_famil
         || material_keys_match_for_identity(texture_family_key, mesh_name_key);
 }
 
+static bool native_base_text_has_any(const std::string& text, std::initializer_list<const char*> tokens) {
+    for (const char* token : tokens) {
+        if (text.find(token) != std::string::npos) return true;
+    }
+    return false;
+}
+
+static bool parameter_is_generic_color_texture_layer(const std::string& parameter_name) {
+    const std::string key = normalized_key(parameter_name);
+    if (key.find("colortexture") == std::string::npos) return false;
+    if (
+        key == "basecolortexture"
+        || key == "diffusetexture"
+        || key == "albedotexture"
+        || key == "overlaycolortexture"
+        || key.find("basecolor") != std::string::npos
+        || key.find("diffuse") != std::string::npos
+        || key.find("albedo") != std::string::npos
+    ) {
+        return false;
+    }
+    return true;
+}
+
+static bool base_binding_is_layer_albedo_candidate(const TextureBinding& binding) {
+    const std::string role = lower_copy(binding.layer_role);
+    const std::string parameter = normalized_key(binding.parameter_name);
+    const std::string path_text = lower_copy(binding.archive_path + " " + binding.texture_name);
+    if (role == "detail" || role == "grime" || role == "damage" || role == "layer") return true;
+    if (binding.visible_class == "layer_visible") return true;
+    if (parameter_is_generic_color_texture_layer(binding.parameter_name)) return true;
+    if (native_base_text_has_any(parameter, {"grime", "detail", "damage", "dye", "layer", "blend", "decal"})) return true;
+    if (path_text.find("texturelayer") != std::string::npos) return true;
+    return false;
+}
+
+static bool base_binding_looks_like_layer_or_environment_albedo(const TextureBinding& binding) {
+    const std::string text = lower_copy(
+        binding.archive_path + " " + binding.texture_name + " " + binding.parameter_name + " " +
+        binding.layer_role + " " + binding.visible_class
+    );
+    return native_base_text_has_any(text, {
+        "texturelayer",
+        "grime",
+        "damage",
+        "damaged",
+        "scar",
+        "wound",
+        "blood",
+        "detail",
+        "floor",
+        "soil",
+        "ground",
+        "terrain",
+        "stone",
+        "rock",
+        "dirt",
+        "mud",
+        "sand",
+        "grass",
+        "akapen"
+    });
+}
+
+static bool base_binding_texture_family_matches_mesh(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    const std::string texture_family_key = normalized_texture_family_key(
+        binding.texture_name.empty() ? binding.archive_path : binding.texture_name
+    );
+    return texture_family_clearly_matches_mesh(texture_family_key, mesh);
+}
+
+static bool base_binding_is_wrong_family_layer_or_environment(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    return base_binding_looks_like_layer_or_environment_albedo(binding)
+        && !base_binding_texture_family_matches_mesh(binding, mesh);
+}
+
+static bool mesh_looks_like_skin_surface(const NativeSubmesh& mesh) {
+    const std::string text = lower_copy(mesh.material + " " + mesh.name + " " + mesh.source_component_label);
+    return native_base_text_has_any(text, {
+        "nude",
+        "skin",
+        "body",
+        "head",
+        "hand",
+        "face",
+        "arm",
+        "leg",
+        "foot"
+    });
+}
+
+static bool selected_base_is_semantically_unsafe_skin_albedo(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    return mesh_looks_like_skin_surface(mesh)
+        && base_binding_is_wrong_family_layer_or_environment(binding, mesh);
+}
+
 static bool base_binding_has_unsafe_cross_part_texture_family(const TextureBinding& binding, const NativeSubmesh& mesh) {
     if (material_wrapper_matches_mesh_local_index(binding, mesh)) return false;
     const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
@@ -5113,6 +5209,53 @@ static bool base_binding_has_unsafe_cross_part_texture_family(const TextureBindi
         return false;
     }
     return !texture_family_clearly_matches_mesh(texture_family_key, mesh);
+}
+
+static bool binding_is_overlay_base_fallback_candidate(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    if (binding.source_path.empty() || binding.role != "base") return false;
+    if (placeholder_visible_base_path(binding.archive_path) || placeholder_visible_base_path(binding.texture_name)) return false;
+    if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)) return false;
+    if (dds_format_is_data_only_for_visible_base(binding.dds_format)) return false;
+    const std::string parameter_key = normalized_key(binding.parameter_name);
+    const bool overlay_hint =
+        parameter_key.find("overlaycolor") != std::string::npos
+        || low_authority_base_path(binding.archive_path)
+        || low_authority_base_path(binding.texture_name);
+    if (!overlay_hint) return false;
+    if (!material_binding_matches_mesh_source(binding, mesh)) return false;
+    const int identity_score = material_identity_match_score(binding, mesh);
+    if (!material_wrapper_matches_mesh_local_index(binding, mesh) && identity_score < 300) return false;
+    if (base_binding_has_unsafe_cross_part_texture_family(binding, mesh)) return false;
+    return true;
+}
+
+static const TextureBinding* best_overlay_base_fallback(
+    const std::vector<TextureBinding>& bindings,
+    const NativeSubmesh& mesh,
+    int* selected_score = nullptr
+) {
+    const TextureBinding* best = nullptr;
+    int best_score = -100000;
+    for (const TextureBinding& binding : bindings) {
+        if (!binding_is_overlay_base_fallback_candidate(binding, mesh)) continue;
+        const int identity_score = material_identity_match_score(binding, mesh);
+        int score = material_match_score(binding, mesh, "base") + identity_score / 2;
+        score += visible_class_priority(binding.visible_class) * 18;
+        if (material_wrapper_matches_mesh_local_index(binding, mesh)) score += 280;
+        if (binding.source_authority == "exact_sidecar") score += 160;
+        if (binding.source_authority == "embedded_mesh") score += 120;
+        if (normalized_key(binding.parameter_name).find("overlaycolor") != std::string::npos) score += 80;
+        if (base_binding_texture_family_matches_mesh(binding, mesh)) score += 90;
+        const int largest_dimension = std::max(binding.dds_width, binding.dds_height);
+        if (largest_dimension >= 1024) score += 42;
+        else if (largest_dimension >= 512) score += 20;
+        if (score > best_score) {
+            best_score = score;
+            best = &binding;
+        }
+    }
+    if (selected_score != nullptr) *selected_score = best == nullptr ? 0 : best_score;
+    return best;
 }
 
 static void append_rejected_binding_example(
@@ -5257,6 +5400,7 @@ static const TextureBinding* best_base_binding_for_mode(
     const std::string mode = normalize_visible_texture_mode(job.visible_texture_mode);
     bool has_authoritative_sidecar_base_for_mesh = false;
     bool has_non_low_authority_visible_base = false;
+    bool has_mesh_family_visible_base = false;
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty() || binding.role != "base") continue;
         if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)
@@ -5279,13 +5423,19 @@ static const TextureBinding* best_base_binding_for_mode(
             || binding.visible_class == "primary_visible";
         const bool authoritative_wrapper_visible_base = authoritative_wrapper_visible_base_for_mesh(binding, mesh);
         const bool low_authority = base_binding_is_low_authority_overlay(&binding);
+        const bool mesh_family_visible_base = base_binding_texture_family_matches_mesh(binding, mesh);
+        const bool wrong_family_layer_base = base_binding_is_wrong_family_layer_or_environment(binding, mesh);
+        if (mesh_family_visible_base && !low_authority && !wrong_family_layer_base) {
+            has_mesh_family_visible_base = true;
+        }
         if (!authoritative_wrapper_visible_base && low_authority && !(authoritative_visible_base && identity_score >= 120)) continue;
         if (
-            authoritative_wrapper_visible_base
+            (authoritative_wrapper_visible_base && !wrong_family_layer_base)
             || (
                 binding.source_authority == "exact_sidecar"
                 && identity_score >= 300
                 && authoritative_visible_base
+                && !wrong_family_layer_base
             )
         ) {
             has_authoritative_sidecar_base_for_mesh = true;
@@ -5297,7 +5447,7 @@ static const TextureBinding* best_base_binding_for_mode(
                 authoritative_visible_base
                 && !base_binding_is_low_authority_overlay(&binding)
             );
-        if (identity_score >= 120 && (stable_visible_base || binding.visible_class == "layer_visible")) {
+        if (identity_score >= 120 && !wrong_family_layer_base && (stable_visible_base || binding.visible_class == "layer_visible" || mesh_family_visible_base)) {
             has_non_low_authority_visible_base = true;
             break;
         }
@@ -5335,17 +5485,13 @@ static const TextureBinding* best_base_binding_for_mode(
         if (binding.material_wrapper_order_authoritative && identity_score < 120) {
             continue;
         }
-        const std::string binding_layer_role = lower_copy(binding.layer_role);
         const bool authoritative_visible_base = parameter_is_authoritative_visible_base(binding.parameter_name);
         const bool layer_diffuse_candidate =
             !authoritative_visible_base
-            && (
-                binding_layer_role == "detail"
-                || binding_layer_role == "grime"
-                || binding_layer_role == "damage"
-                || binding_layer_role == "layer"
-            );
+            && base_binding_is_layer_albedo_candidate(binding);
         const bool low_authority = base_binding_is_low_authority_overlay(&binding);
+        const bool mesh_family_visible_base = base_binding_texture_family_matches_mesh(binding, mesh);
+        const bool wrong_family_layer_base = base_binding_is_wrong_family_layer_or_environment(binding, mesh);
         if (!embedded && !normalized_material_key(binding.material_name).empty() && identity_score <= 0) {
             continue;
         }
@@ -5359,7 +5505,11 @@ static const TextureBinding* best_base_binding_for_mode(
         ) {
             continue;
         }
-        if (mode == "mesh_base_first" && layer_diffuse_candidate && (has_non_low_authority_visible_base || has_authoritative_sidecar_base_for_mesh) && !embedded) {
+        if (mode == "mesh_base_first" && wrong_family_layer_base && has_mesh_family_visible_base && !embedded) {
+            append_rejected_binding_example(rejected_examples, "base", "wrong-family-layer", binding, mesh, identity_score);
+            continue;
+        }
+        if (mode == "mesh_base_first" && layer_diffuse_candidate && !mesh_family_visible_base && (has_non_low_authority_visible_base || has_authoritative_sidecar_base_for_mesh) && !embedded) {
             continue;
         }
         if (!embedded && !visible_class_allowed_for_mode(mode, binding.visible_class)) {
@@ -5374,6 +5524,8 @@ static const TextureBinding* best_base_binding_for_mode(
         const std::string parameter_key = normalized_key(binding.parameter_name);
         int score = material_match_score(binding, mesh, "base");
         score += visible_class_priority(binding.visible_class) * 18;
+        if (mesh_family_visible_base) score += 190;
+        if (wrong_family_layer_base) score -= 320;
         if (authoritative_visible_base && identity_score >= 120) score += 155;
         if (authoritative_wrapper_match) score += 210;
         if (binding.source_authority == "exact_sidecar" && binding.material_wrapper_order_authoritative && identity_score >= 300) score += 260;
@@ -5403,6 +5555,11 @@ static const TextureBinding* best_base_binding_for_mode(
         if (score > best_score) {
             best_score = score;
             best = &binding;
+        }
+    }
+    if (best == nullptr) {
+        if (const TextureBinding* overlay_base = best_overlay_base_fallback(bindings, mesh, &best_score)) {
+            best = overlay_base;
         }
     }
     if (selected_score != nullptr) *selected_score = best == nullptr ? 0 : best_score;
@@ -7403,6 +7560,17 @@ static const TextureBinding* best_visible_layer_base_fallback(
     int* selected_score = nullptr,
     std::vector<std::string>* rejected_examples = nullptr
 ) {
+    bool has_mesh_family_layer_base = false;
+    for (const TextureBinding& binding : bindings) {
+        if (binding.source_path.empty()) continue;
+        if (!binding_is_layer_diffuse(binding, selected_base)) continue;
+        if (base_binding_is_low_authority_overlay(&binding)) continue;
+        if (!material_binding_matches_mesh_source(binding, mesh)) continue;
+        if (base_binding_texture_family_matches_mesh(binding, mesh)) {
+            has_mesh_family_layer_base = true;
+            break;
+        }
+    }
     const TextureBinding* best = nullptr;
     int best_score = 86;
     for (const TextureBinding& binding : bindings) {
@@ -7424,8 +7592,16 @@ static const TextureBinding* best_visible_layer_base_fallback(
             append_rejected_binding_example(rejected_examples, "base", "cross-part", binding, mesh, identity_score);
             continue;
         }
+        const bool mesh_family_layer_base = base_binding_texture_family_matches_mesh(binding, mesh);
+        const bool wrong_family_layer_base = base_binding_is_wrong_family_layer_or_environment(binding, mesh);
+        if (wrong_family_layer_base && has_mesh_family_layer_base) {
+            append_rejected_binding_example(rejected_examples, "base", "wrong-family-layer", binding, mesh, identity_score);
+            continue;
+        }
         int score = material_match_score(binding, mesh, "base") + visible_class_priority(binding.visible_class) * 22;
         const std::string parameter_key = normalized_key(binding.parameter_name);
+        if (mesh_family_layer_base) score += 190;
+        if (wrong_family_layer_base) score -= 260;
         if (binding.visible_class == "layer_visible") score += 72;
         if (parameter_key.find("detaildiffuse") != std::string::npos || parameter_key.find("detailcol") != std::string::npos) score += 50;
         if (parameter_key.find("grimediffuse") != std::string::npos) score += 34;
@@ -7510,7 +7686,11 @@ static std::string material_category_for_bindings(
         || leather_part_evidence;
     const bool wood_evidence =
         evidence_contains_token(evidence, "wood")
-        || evidence_contains_token(evidence, "plank");
+        || evidence_contains_token(evidence, "timber")
+        || evidence_contains_token(evidence, "plank")
+        || evidence_contains_token(evidence, "stick")
+        || evidence_contains_token(evidence, "shaft")
+        || evidence_contains_token(evidence, "haft");
     const bool glass_evidence =
         evidence_contains_token(evidence, "glass")
         || evidence_contains_token(evidence, "crystal");
@@ -8203,6 +8383,7 @@ static NativePackage write_d3d11_package(
                 technical_for_visible_base(base->parameter_name, base->archive_path, base->role)
                 || dds_format_is_data_only_for_visible_base(base->dds_format)
             );
+        const bool base_semantically_unsafe_skin_albedo = base != nullptr && selected_base_is_semantically_unsafe_skin_albedo(*base, mesh);
         const bool base_authoritative_wrapper_visible = base != nullptr && authoritative_wrapper_visible_base_for_mesh(*base, mesh);
         const bool base_low_authority = base != nullptr
             && !base_authoritative_wrapper_visible
@@ -8223,6 +8404,10 @@ static NativePackage write_d3d11_package(
             ++package.base_technical_count;
             package.material_quality_safe = false;
             package.base_quality_notes.push_back("batch " + std::to_string(batch_index) + " " + mesh.material + ": technical base rejected " + base->texture_name);
+        } else if (job.use_textures && base_semantically_unsafe_skin_albedo) {
+            ++package.base_low_confidence_count;
+            package.material_quality_safe = false;
+            package.base_quality_notes.push_back("batch " + std::to_string(batch_index) + " " + mesh.material + ": wrong-family layer/terrain base fallback " + base->texture_name);
         } else if (job.use_textures && base_low_res) {
             ++package.base_low_res_count;
             package.material_quality_safe = false;
@@ -8362,6 +8547,7 @@ static NativePackage write_d3d11_package(
                 + (visible_layer_albedo_used ? ", visible_layer_albedo=used" : "")
                 + (visible_layer_tint_applied ? ", visible_layer_tint=applied" : "")
                 + (base_low_authority_overlay_selected ? ", base_low_authority_overlay=true" : "")
+                + (base_semantically_unsafe_skin_albedo ? ", base_wrong_family_layer=true" : "")
                 + ", material_category=" + material_category
                 + ", material_category_reason=" + material_category_reason
                 + ", material_response=" + material_response
@@ -8401,6 +8587,7 @@ static NativePackage write_d3d11_package(
             << "\"base_low_res\":" << (base_low_res ? "true" : "false") << ","
             << "\"base_low_confidence\":" << (base_low_confidence ? "true" : "false") << ","
             << "\"base_low_authority_overlay\":" << (base_low_authority_overlay_selected ? "true" : "false") << ","
+            << "\"base_wrong_family_layer\":" << (base_semantically_unsafe_skin_albedo ? "true" : "false") << ","
             << "\"visible_layer_albedo_used\":" << (visible_layer_albedo_used ? "true" : "false") << ","
             << "\"visible_layer_albedo_score\":" << visible_layer_albedo_score << ","
             << "\"visible_layer_tint_applied\":" << (visible_layer_tint_applied ? "true" : "false") << ","
@@ -8611,12 +8798,13 @@ static NativePackage write_d3d11_package(
             }
         }
         batches_json << "],"
-            << "\"native_base_quality\":{\"safe\":" << ((!job.use_textures || (base != nullptr && !base_technical && !base_low_res && !base_low_confidence && !base_low_authority)) ? "true" : "false")
+            << "\"native_base_quality\":{\"safe\":" << ((!job.use_textures || (base != nullptr && !base_technical && !base_semantically_unsafe_skin_albedo && !base_low_res && !base_low_confidence && !base_low_authority)) ? "true" : "false")
             << ",\"score\":" << base_score
             << ",\"identity_score\":" << base_identity_score
             << ",\"low_res\":" << (base_low_res ? "true" : "false")
             << ",\"low_authority\":" << (base_low_authority ? "true" : "false")
             << ",\"low_authority_overlay\":" << (base_low_authority_overlay_selected ? "true" : "false")
+            << ",\"wrong_family_layer\":" << (base_semantically_unsafe_skin_albedo ? "true" : "false")
             << ",\"visible_layer_albedo_used\":" << (visible_layer_albedo_used ? "true" : "false")
             << ",\"visible_layer_tint_applied\":" << (visible_layer_tint_applied ? "true" : "false")
             << ",\"visible_layer_tint_color\":[" << visible_layer_tint_color[0] << "," << visible_layer_tint_color[1] << "," << visible_layer_tint_color[2] << "," << visible_layer_tint_color[3] << "]"
@@ -8785,7 +8973,7 @@ static NativePackage write_d3d11_package(
         << "\"shininess_max\":" << job.shininess_max << ","
         << "\"use_textures\":" << (job.use_textures ? "true" : "false") << ","
         << "\"high_quality_textures\":" << (job.high_quality_textures ? "true" : "false") << ","
-        << "\"native_preview_core\":{\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"material_graph_status\":\"" << json_escape(package.material_graph_status) << "\",\"material_graph_version\":" << kNativeMaterialGraphVersion << ",\"material_graph_cache_hit\":" << (package.material_graph_cache_hit ? "true" : "false") << ",\"material_graph_cache_path\":\"" << json_escape(package.material_graph_cache_path) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"material_semantics_version\":" << kNativeMaterialSemanticsVersion << ",\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << package.base_missing_count << ",\"base_low_res_count\":" << package.base_low_res_count << ",\"base_low_confidence_count\":" << package.base_low_confidence_count << ",\"base_technical_count\":" << package.base_technical_count << ",\"asset_family_reference_count\":" << package.asset_family_reference_count << ",\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\",\"lod_count\":" << package.lod_count << "},"
+        << "\"native_preview_core\":{\"runtime_backend\":\"native_cpp\",\"package_builder\":\"cdmw_preview_core_cpp\",\"renderer_contract\":\"d3d11_native_package\",\"python_fallback_allowed\":false,\"mesh_parse\":\"" << json_escape(package.mesh_parse) << "\",\"material_index\":\"" << json_escape(package.material_index) << "\",\"material_graph_status\":\"" << json_escape(package.material_graph_status) << "\",\"material_graph_version\":" << kNativeMaterialGraphVersion << ",\"material_graph_cache_hit\":" << (package.material_graph_cache_hit ? "true" : "false") << ",\"material_graph_cache_path\":\"" << json_escape(package.material_graph_cache_path) << "\",\"texture_resolution\":\"" << json_escape(package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(package.material_output_quality) << "\",\"material_semantics_version\":" << kNativeMaterialSemanticsVersion << ",\"material_quality_safe\":" << (package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << package.base_missing_count << ",\"base_low_res_count\":" << package.base_low_res_count << ",\"base_low_confidence_count\":" << package.base_low_confidence_count << ",\"base_technical_count\":" << package.base_technical_count << ",\"asset_family_reference_count\":" << package.asset_family_reference_count << ",\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\",\"lod_count\":" << package.lod_count << "},"
         << native_asset_family_json(package, job) << ","
         << "\"material_slots\":[" << material_slots_json.str() << "],"
         << "\"selection_decisions\":[" << selection_decisions_json.str() << "],"
@@ -8982,6 +9170,10 @@ std::string preview_report_for_job(const fs::path& job_path) {
     out << "{"
         << "\"status\":\"" << json_escape(status) << "\","
         << "\"backend\":\"cdmw_preview_core_0.1\","
+        << "\"runtime_backend\":\"native_cpp\","
+        << "\"package_builder\":\"cdmw_preview_core_cpp\","
+        << "\"renderer_contract\":\"d3d11_native_package\","
+        << "\"python_fallback_allowed\":false,"
         << "\"native_archive_io\":\"" << (raw_read_ok ? "ok" : "failed") << "\","
         << "\"native_mesh_parser\":\"" << json_escape(package.mesh_parse.empty() ? "pending" : package.mesh_parse) << "\","
         << "\"native_material_index\":\"" << json_escape(package.material_index.empty() ? "pending" : package.material_index) << "\","

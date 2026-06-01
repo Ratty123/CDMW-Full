@@ -11134,6 +11134,15 @@ def material_authority_preview_texture_slots(
         if slot_kind:
             preview_slots[slot_kind] = adjusted_slot(source_slot)
 
+    if "emissive" not in preview_slots:
+        accent_slot = _complete_swap_accent_emissive_slot(
+            texture_set,
+            str(getattr(texture_set, "material_name", "") or ""),
+            profile,
+        )
+        if accent_slot is not None:
+            preview_slots["emissive"] = adjusted_slot(accent_slot)
+
     preview_slots["material_mask"] = ReplacementTextureSlot(
         str(getattr(texture_set, "material_name", "") or "material"),
         "material_mask",

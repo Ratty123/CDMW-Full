@@ -9,7 +9,7 @@ import struct
 import tempfile
 import time
 from types import SimpleNamespace
-from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple
 from urllib.parse import unquote, urlparse
 
 from PySide6.QtCore import Qt
@@ -1464,6 +1464,9 @@ def _resolved_batch_material_category(
         "wrap",
         "handle",
         "wood",
+        "stick",
+        "shaft",
+        "haft",
         "glass",
         "gem",
         "jewel",
@@ -1494,7 +1497,7 @@ def _resolved_batch_material_category(
     }
     if any(_descriptor_contains_token(descriptor, token) for token in ("leather", "hide", "strap", "belt", "grip", "wrap", "handle")):
         return "leather", 0.72
-    if any(_descriptor_contains_token(descriptor, token) for token in ("wood", "timber")):
+    if any(_descriptor_contains_token(descriptor, token) for token in ("wood", "timber", "stick", "shaft", "haft")):
         return "wood", 0.72
     if any(_descriptor_contains_token(descriptor, token) for token in ("glass", "crystal")):
         return "glass", 0.72
@@ -1587,6 +1590,56 @@ def _resolved_batch_material_category_reason(
     return "generic:no_strong_material_token"
 
 
+def _nonmetal_material_scalar_limits(category: str) -> Tuple[float, float, float]:
+    normalized = str(category or "").strip().lower()
+    limits = {
+        "cloth": (0.0, 0.28, 0.48),
+        "leather": (0.0, 0.36, 0.38),
+        "wood": (0.0, 0.30, 0.44),
+        "skin": (0.0, 0.34, 0.30),
+        "hair": (0.0, 0.46, 0.36),
+        "stone": (0.0, 0.24, 0.58),
+        "tooth": (0.0, 0.26, 0.42),
+    }
+    return limits.get(normalized, (1.0, 1.0, 0.04))
+
+
+def _apply_nonmetal_material_scalar_limits(
+    material_hints: Dict[str, object],
+    material_contract: Mapping[str, object],
+    category: str,
+) -> bool:
+    if str(category or "").strip().lower() not in {"cloth", "leather", "wood", "skin", "hair", "stone", "tooth"}:
+        return False
+    metal_cap, spec_cap, roughness_floor = _nonmetal_material_scalar_limits(category)
+    old_metalness = _safe_float(material_hints.get("metalness"), 0.0)
+    old_specular = _safe_float(material_hints.get("specular"), 0.08)
+    old_roughness = _safe_float(material_hints.get("roughness"), 0.55)
+    new_metalness = min(old_metalness, metal_cap)
+    new_specular = min(old_specular, spec_cap)
+    new_roughness = max(old_roughness, roughness_floor)
+    material_hints["metalness"] = round(float(new_metalness), 4)
+    material_hints["specular"] = round(float(new_specular), 4)
+    material_hints["roughness"] = round(float(new_roughness), 4)
+    pbr_hints = material_contract.get("pbr_scalar_hints") if isinstance(material_contract, Mapping) else None
+    if isinstance(pbr_hints, dict):
+        pbr_hints["metalness"] = material_hints["metalness"]
+        pbr_hints["specular"] = material_hints["specular"]
+        pbr_hints["roughness"] = material_hints["roughness"]
+    decode_profile = material_contract.get("decode_profile") if isinstance(material_contract, Mapping) else None
+    if isinstance(decode_profile, dict):
+        profile_hints = decode_profile.get("pbr_scalar_hints")
+        if isinstance(profile_hints, dict):
+            profile_hints["metalness"] = material_hints["metalness"]
+            profile_hints["specular"] = material_hints["specular"]
+            profile_hints["roughness"] = material_hints["roughness"]
+    return bool(
+        new_metalness != old_metalness
+        or new_specular != old_specular
+        or new_roughness != old_roughness
+    )
+
+
 def _effective_emissive_intensity(
     material_hints: Mapping[str, object],
     *,
@@ -1619,6 +1672,55 @@ def _material_input_to_dict(texture_input: PreviewMaterialTextureInput) -> Dict[
     return {
         field_info.name: to_jsonable(getattr(texture_input, field_info.name))
         for field_info in dataclasses.fields(PreviewMaterialTextureInput)
+    }
+
+
+_NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
+    {
+        "base_tint_strength",
+        "height_amount",
+        "height_scale",
+        "material_analysis",
+        "material_category",
+        "material_category_confidence",
+        "material_category_reason",
+        "material_layers",
+        "material_response_disposition",
+        "material_response_promoted",
+        "material_shader_family",
+        "metalness",
+        "native_base_quality",
+        "native_material_hints",
+        "normal_strength",
+        "primary_material_layer",
+        "roughness",
+        "specular",
+    }
+)
+
+
+def _jsonable_native_material_override(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _jsonable_native_material_override(item)
+            for key, item in value.items()
+            if isinstance(key, (str, int, float, bool))
+        }
+    if isinstance(value, (tuple, list)):
+        return [_jsonable_native_material_override(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _native_material_overrides_for_batch(batch: PreparedModelPreviewBatch) -> Dict[str, object]:
+    raw_overrides = getattr(batch, "preview_native_material_overrides", None)
+    if not isinstance(raw_overrides, Mapping):
+        return {}
+    return {
+        str(key): _jsonable_native_material_override(value)
+        for key, value in raw_overrides.items()
+        if str(key) in _NATIVE_MATERIAL_OVERRIDE_KEYS
     }
 
 
@@ -1715,7 +1817,28 @@ def _dds_manifest_entry(
     )
     if reason:
         report["reason"] = reason
-    return report
+    compact = {
+        key: value
+        for key, value in report.items()
+        if key not in {"mip_levels"}
+    }
+    return compact
+
+
+def _dds_manifest_entry_is_native_usable(entry: object) -> bool:
+    if not isinstance(entry, Mapping):
+        return False
+    if not bool(entry.get("available", False)):
+        return False
+    if not bool(entry.get("direct_upload_candidate", False)):
+        return False
+    source_path = str(entry.get("source_path", "") or "").strip()
+    if not source_path:
+        return False
+    try:
+        return Path(source_path).expanduser().is_file()
+    except OSError:
+        return False
 
 
 def _dds_textures_for_batch(
@@ -1793,6 +1916,7 @@ def _filter_dds_textures_for_preview_settings(
     render_settings: ModelPreviewRenderSettings,
     use_textures: bool,
     high_quality_textures: bool,
+    promote_material_inputs: bool = True,
 ) -> Dict[str, object]:
     if not use_textures or not bool(getattr(batch, "has_texture_coordinates", False)):
         return {}
@@ -1803,7 +1927,7 @@ def _filter_dds_textures_for_preview_settings(
     )
     output: Dict[str, object] = {}
     base_entry = dds_textures.get("base")
-    if isinstance(base_entry, Mapping):
+    if _dds_manifest_entry_is_native_usable(base_entry):
         output["base"] = dict(base_entry)
     if support_enabled:
         for slot_name, disabled_attr in (
@@ -1814,7 +1938,7 @@ def _filter_dds_textures_for_preview_settings(
             if bool(getattr(render_settings, disabled_attr, False)):
                 continue
             entry = dds_textures.get(slot_name)
-            if isinstance(entry, Mapping):
+            if _dds_manifest_entry_is_native_usable(entry):
                 output[slot_name] = dict(entry)
 
     def input_role(entry: Mapping[str, object]) -> str:
@@ -1850,6 +1974,8 @@ def _filter_dds_textures_for_preview_settings(
         for raw_entry in input_entries:
             if not isinstance(raw_entry, Mapping):
                 continue
+            if not _dds_manifest_entry_is_native_usable(raw_entry):
+                continue
             role = input_role(raw_entry)
             if role in {"base", "emissive"}:
                 filtered_inputs.append(dict(raw_entry))
@@ -1869,6 +1995,8 @@ def _filter_dds_textures_for_preview_settings(
                 ("material", "material"),
                 ("emissive", "emissive"),
             ):
+                if not promote_material_inputs:
+                    break
                 if manifest_slot in output:
                     continue
                 if promoted_role not in {"base", "emissive"} and not support_enabled:
@@ -2356,10 +2484,10 @@ def _d3d11_material_policy_for_batch(
     role = str(getattr(batch, "editor_role", "") or "").strip().lower()
     workspace = str(editor_workspace or "").strip().lower()
     if role == "original_reference" and original_reference_material_parity:
-        return True, False, "original_reference_archive_parity"
+        return False, True, "original_reference_archive_direct"
     if role == "replacement_preview":
         if workspace == "modify_original_alignment" and original_reference_material_parity:
-            return True, False, "modify_original_archive_parity"
+            return False, True, "modify_original_archive_direct"
         return False, bool(prefer_direct_dds), "replacement_source_direct"
     return bool(enable_material_combiner), bool(prefer_direct_dds), "global"
 
@@ -2379,6 +2507,7 @@ def write_isolated_d3d11_preview_package(
     display_mode: str = "replacement_only",
     editor_workspace: str = "",
     stop_event: object = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> Path:
     if not isinstance(prepared_preview, PreparedModelPreviewData):
         raise TypeError("prepared_preview must be PreparedModelPreviewData")
@@ -2399,6 +2528,17 @@ def write_isolated_d3d11_preview_package(
     batches: list[Dict[str, object]] = []
     total_vertices = 0
     prepared_batches = tuple(getattr(prepared_preview, "batches", ()) or ())
+    progress_total = max(1, len(prepared_batches))
+
+    def _emit_progress(current: int, total: int, message: str) -> None:
+        if on_progress is None:
+            return
+        try:
+            on_progress(max(0, int(current)), max(1, int(total)), str(message or "Writing D3D11 preview package..."))
+        except Exception:
+            pass
+
+    _emit_progress(0, progress_total, "Writing D3D11 preview package...")
     has_cloth_batches = any(
         isinstance(getattr(batch, "cloth_preview", None), ClothPreviewBatch)
         for batch in prepared_batches
@@ -2450,6 +2590,17 @@ def write_isolated_d3d11_preview_package(
             and not bool(getattr(batch, "preview_debug_disable_support_maps", False))
             and not bool(getattr(settings, "disable_all_support_maps", False))
         )
+        batch_enable_combiner, batch_prefer_direct_dds, material_policy = _d3d11_material_policy_for_batch(
+            batch,
+            enable_material_combiner=bool(enable_material_combiner),
+            prefer_direct_dds=bool(prefer_direct_dds),
+            original_reference_material_parity=bool(original_reference_material_parity),
+            editor_workspace=editor_workspace,
+        )
+        archive_direct_material_policy = material_policy in {
+            "original_reference_archive_direct",
+            "modify_original_archive_direct",
+        }
         dds_textures = _filter_dds_textures_for_preview_settings(
             _dds_textures_for_batch(
                 batch,
@@ -2461,13 +2612,7 @@ def write_isolated_d3d11_preview_package(
             render_settings=settings,
             use_textures=bool(use_textures),
             high_quality_textures=bool(high_quality_textures),
-        )
-        batch_enable_combiner, batch_prefer_direct_dds, material_policy = _d3d11_material_policy_for_batch(
-            batch,
-            enable_material_combiner=bool(enable_material_combiner),
-            prefer_direct_dds=bool(prefer_direct_dds),
-            original_reference_material_parity=bool(original_reference_material_parity),
-            editor_workspace=editor_workspace,
+            promote_material_inputs=not archive_direct_material_policy,
         )
         textures, notes, combiner_metadata = _texture_sources_for_batch(
             batch,
@@ -2486,13 +2631,13 @@ def write_isolated_d3d11_preview_package(
             direct_dds_slots=dds_textures,
             legacy_pbr_cache=legacy_pbr_cache,
         )
-        if material_policy == "original_reference_archive_parity":
+        if material_policy == "original_reference_archive_direct":
             notes = tuple(notes) + (
-                "original reference material policy: material combiner enabled; direct DDS base fallback disabled",
+                "original reference material policy: direct archive DDS upload; synthesized material combiner disabled",
             )
-        elif material_policy == "modify_original_archive_parity":
+        elif material_policy == "modify_original_archive_direct":
             notes = tuple(notes) + (
-                "modify-original material policy: material combiner enabled; direct DDS base fallback disabled",
+                "modify-original material policy: direct archive DDS upload; synthesized material combiner disabled",
             )
         elif material_policy == "replacement_source_direct":
             notes = tuple(notes) + (
@@ -2565,6 +2710,10 @@ def write_isolated_d3d11_preview_package(
             material_hints=material_hints,
             material_contract=material_contract,
         )
+        if _apply_nonmetal_material_scalar_limits(material_hints, material_contract, material_category):
+            notes = tuple(notes) + (
+                f"nonmetal scalar clamp:{material_category}",
+            )
         emissive_color = _material_hex_color_rgb(material_hints.get("emissive_color", ""))
         if not emissive_color:
             emissive_color = (0.35, 0.68, 1.0)
@@ -2576,6 +2725,19 @@ def write_isolated_d3d11_preview_package(
         )
         raw_alpha_mode = str(getattr(batch, "preview_alpha_mode", "") or "").strip()
         native_alpha_mode = "alpha_cutout" if raw_alpha_mode.lower() == "mask" else raw_alpha_mode
+        texture_brightness = max(0.1, min(3.0, _safe_float(getattr(batch, "preview_texture_brightness", 1.0), 1.0)))
+        texture_uv_scale_values = tuple(getattr(batch, "preview_texture_uv_scale", ()) or ())[:2]
+        texture_uv_scale = tuple(
+            max(0.05, min(64.0, _safe_float(value, 1.0)))
+            for value in texture_uv_scale_values
+        )
+        while len(texture_uv_scale) < 2:
+            texture_uv_scale = (*texture_uv_scale, 1.0)
+        texture_tint = tuple(
+            max(0.0, min(2.0, _safe_float(value, 1.0)))
+            for value in tuple(getattr(batch, "preview_texture_tint", ()) or ())[:3]
+        )
+        tint_active = len(texture_tint) >= 3 and any(abs(float(value) - 1.0) > 1e-4 for value in texture_tint)
         batch_payload = {
                 "index": batch_index,
                 "material_name": str(getattr(batch, "material_name", "") or ""),
@@ -2587,6 +2749,10 @@ def write_isolated_d3d11_preview_package(
                 "textures": textures,
                 "dds_textures": dds_textures,
                 "texture_flip_vertical": texture_flip_vertical,
+                "texture_brightness": texture_brightness,
+                "texture_uv_scale": list(texture_uv_scale),
+                "texture_tint": list(texture_tint),
+                "base_tint_strength": 0.85 if tint_active else 0.0,
                 "alpha_mode": native_alpha_mode,
                 "source_alpha_mode": raw_alpha_mode,
                 "double_sided": bool(getattr(batch, "preview_double_sided", False)),
@@ -2637,12 +2803,18 @@ def write_isolated_d3d11_preview_package(
                     if isinstance(texture_input, PreviewMaterialTextureInput)
                 ],
             }
+        native_material_overrides = _native_material_overrides_for_batch(batch)
+        if native_material_overrides:
+            batch_payload.update(native_material_overrides)
+            note_values = list(str(note) for note in tuple(batch_payload.get("notes", ()) or ()) if str(note))
+            note_values.append("native material manifest overrides applied")
+            batch_payload["notes"] = list(dict.fromkeys(note_values))
         material_channel_contract = resolve_preview_batch_material_channels(batch_payload, package_dir=package_dir).diagnostics()
         batch_payload["material_channel_contract"] = material_channel_contract
         batch_payload["material_channel_diagnostics"] = list(material_channel_contract.get("channels", ())) + list(
             material_channel_contract.get("unresolved", ())
         )
-        note_values = list(str(note) for note in tuple(notes or ()) if str(note))
+        note_values = list(str(note) for note in tuple(batch_payload.get("notes", ()) or ()) if str(note))
         quality_values = sorted(
             {
                 str(item.get("material_output_quality", "") or "").strip()
@@ -2691,6 +2863,11 @@ def write_isolated_d3d11_preview_package(
                 cloth_payload["cloth_collision_enabled"] = False
             batch_payload.update(cloth_payload)
         batches.append(batch_payload)
+        _emit_progress(
+            min(batch_index + 1, progress_total),
+            progress_total,
+            f"Writing D3D11 preview package... {min(batch_index + 1, progress_total)} / {progress_total} batches",
+        )
 
     normalized_display_mode = str(display_mode or "replacement_only").strip().lower()
     if normalized_display_mode not in {"side_by_side", "overlay", "replacement_only"}:
@@ -2798,6 +2975,7 @@ def write_isolated_d3d11_preview_package(
         "batches": batches,
     }
     (package_dir / "manifest.json").write_text(json.dumps(manifest, separators=(",", ":")), encoding="utf-8")
+    _emit_progress(progress_total, progress_total, "D3D11 preview package manifest written.")
     return package_dir
 
 

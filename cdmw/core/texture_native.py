@@ -239,6 +239,8 @@ def ensure_directxtex_dds_preview_pngs(
     stop_event: Optional[threading.Event] = None,
 ) -> Dict[str, Path]:
     raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
+    if os.environ.get("CDMW_DEFER_TEXTURE_PREVIEW", "").strip():
+        return {}
     binary = find_directxtex_texture_binary()
     if binary is None:
         return {}

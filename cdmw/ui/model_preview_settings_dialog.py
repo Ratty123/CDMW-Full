@@ -593,7 +593,7 @@ class ModelPreviewSettingsDialog(QDialog):
         worker_layout.addStretch(1)
         self.maximum_indexing_priority_checkbox = QCheckBox("Prioritize indexing over UI responsiveness")
         self.maximum_indexing_priority_checkbox.setToolTip(
-            "Runs sidecar indexing at normal thread priority instead of low priority. This can finish indexing sooner but may make browsing less responsive until the next run finishes."
+            "Prewarms archive lookup and item-name search caches and runs indexing at normal priority. This can finish indexing sooner but may make browsing less responsive until it finishes."
         )
         related_index_layout.addRow("", self.sidecar_indexing_enabled_checkbox)
         related_index_layout.addRow("Sidecar index workers", worker_row)
@@ -966,14 +966,12 @@ class ModelPreviewSettingsDialog(QDialog):
             worker_controls_enabled = clamped.enable_sidecar_indexing
             self.sidecar_worker_mode_combo.setEnabled(worker_controls_enabled)
             self.sidecar_worker_spin.setEnabled(worker_controls_enabled and clamped.sidecar_worker_count > 0)
-            self.maximum_indexing_priority_checkbox.setEnabled(worker_controls_enabled)
+            self.maximum_indexing_priority_checkbox.setEnabled(True)
             self.preview_cache_limit_spin.setValue(clamped.preview_cache_limit)
             native_cache_index = self.native_preview_cache_mode_combo.findData(clamped.native_preview_cache_mode)
             self.native_preview_cache_mode_combo.setCurrentIndex(max(0, native_cache_index))
             self.quick_then_full_checkbox.setChecked(clamped.quick_then_full_preview)
-            self.maximum_indexing_priority_checkbox.setChecked(
-                clamped.enable_sidecar_indexing and clamped.maximum_indexing_priority
-            )
+            self.maximum_indexing_priority_checkbox.setChecked(clamped.maximum_indexing_priority)
         finally:
             self._applying_settings = False
 
@@ -1064,13 +1062,9 @@ class ModelPreviewSettingsDialog(QDialog):
     def _handle_archive_performance_changed(self, *_args) -> None:
         manual = int(self.sidecar_worker_mode_combo.currentData() or 0) == 1
         enabled = self.sidecar_indexing_enabled_checkbox.isChecked()
-        if not enabled and self.maximum_indexing_priority_checkbox.isChecked():
-            self.maximum_indexing_priority_checkbox.blockSignals(True)
-            self.maximum_indexing_priority_checkbox.setChecked(False)
-            self.maximum_indexing_priority_checkbox.blockSignals(False)
         self.sidecar_worker_mode_combo.setEnabled(enabled)
         self.sidecar_worker_spin.setEnabled(enabled and manual)
-        self.maximum_indexing_priority_checkbox.setEnabled(enabled)
+        self.maximum_indexing_priority_checkbox.setEnabled(True)
         if self._applying_settings:
             return
         updated = self.current_archive_performance_settings()

@@ -1224,6 +1224,113 @@ class NativePreviewPayloadTests(unittest.TestCase):
             self.assertFalse(specular_image.isNull())
             self.assertLess(specular_image.pixelColor(0, 0).red(), 120)
 
+    def test_material_combiner_caps_nonmetal_surface_material_response(self) -> None:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QColor, QImage
+
+        cases = (
+            ("CD_PHM_00_Cloak_0054", "cloth"),
+            ("CD_PHM_02_Handle_0015", "leather"),
+            ("CD_PHM_01_Stick_0001", "wood"),
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            for index, (material_name, category) in enumerate(cases):
+                material_path = temp / f"{category}_ma.png"
+                material_image = QImage(4, 4, QImage.Format_RGBA8888)
+                material_image.fill(QColor(32, 20, 255, 255))
+                self.assertTrue(material_image.save(str(material_path), "PNG"))
+                prepared = PreparedModelPreviewData(
+                    batches=(
+                        PreparedModelPreviewBatch(
+                            material_name=material_name,
+                            texture_name=material_name,
+                            vertex_blob=b"".join((_vertex(0, 0, 0), _vertex(1, 0, 0), _vertex(0, 1, 0))),
+                            index_count=3,
+                            preview_material_texture_inputs=(
+                                PreviewMaterialTextureInput(
+                                    slot_kind="material",
+                                    parameter_name="_materialTexture",
+                                    texture_name=f"{material_name.lower()}_ma.dds",
+                                    source_texture_path=f"{material_name.lower()}_ma.dds",
+                                    preview_texture_path=str(material_path),
+                                    semantic_type="mask",
+                                    semantic_subtype="material_mask",
+                                    material_name=material_name,
+                                    shader_family="SkinnedMeshStandardVer2",
+                                    visualized=True,
+                                ),
+                            ),
+                            has_texture_coordinates=True,
+                        ),
+                    )
+                )
+                payload = build_native_preview_payloads(prepared)[0]
+                combined = combine_preview_material(
+                    payload,
+                    temp / f"out_{index}",
+                    0,
+                    settings=MaterialPreviewCombinerSettings(),
+                )
+
+                self.assertIn("standard_v2_material", combined.decode_modes)
+                self.assertEqual("", combined.metalness_source)
+                self.assertIn("roughness", combined.material_slots)
+                self.assertIn("specular", combined.material_slots)
+                self.assertIn(f"nonmetal material response clamp:{category}", "; ".join(combined.notes))
+                specular_image = QImage(QUrl(combined.specular_source).toLocalFile())
+                self.assertFalse(specular_image.isNull())
+                self.assertLessEqual(specular_image.pixelColor(0, 0).red(), 118)
+
+    def test_material_combiner_keeps_metallic_response_for_blade(self) -> None:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QColor, QImage
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            material_path = temp / "blade_ma.png"
+            material_image = QImage(4, 4, QImage.Format_RGBA8888)
+            material_image.fill(QColor(32, 20, 255, 255))
+            self.assertTrue(material_image.save(str(material_path), "PNG"))
+            prepared = PreparedModelPreviewData(
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="CD_PHM_02_Blade_0015",
+                        texture_name="CD_PHM_02_Blade_0015",
+                        vertex_blob=b"".join((_vertex(0, 0, 0), _vertex(1, 0, 0), _vertex(0, 1, 0))),
+                        index_count=3,
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_materialTexture",
+                                texture_name="cd_phm_02_blade_0015_ma.dds",
+                                source_texture_path="cd_phm_02_blade_0015_ma.dds",
+                                preview_texture_path=str(material_path),
+                                semantic_type="mask",
+                                semantic_subtype="material_mask",
+                                material_name="CD_PHM_02_Blade_0015",
+                                shader_family="SkinnedMeshStandardVer2",
+                                visualized=True,
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                )
+            )
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
+                payload,
+                temp / "out",
+                0,
+                settings=MaterialPreviewCombinerSettings(),
+            )
+
+            self.assertIn("metalness", combined.material_slots)
+            metalness_image = QImage(QUrl(combined.metalness_source).toLocalFile())
+            self.assertFalse(metalness_image.isNull())
+            self.assertGreater(metalness_image.pixelColor(0, 0).red(), 90)
+            self.assertNotIn("nonmetal material response clamp", "; ".join(combined.notes))
+
     def test_material_combiner_combines_mask_and_specular_by_slot(self) -> None:
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QColor, QImage

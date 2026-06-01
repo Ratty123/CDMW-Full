@@ -1370,6 +1370,18 @@ class ModelLibraryTab(QWidget):
         except RuntimeError:
             return False
 
+    def _start_inline_d3d11_status_timer(self) -> None:
+        try:
+            self._inline_d3d11_status_timer.start()
+        except RuntimeError:
+            pass
+
+    def _stop_inline_d3d11_status_timer(self) -> None:
+        try:
+            self._inline_d3d11_status_timer.stop()
+        except RuntimeError:
+            pass
+
     def _start_inline_d3d11_process(self, package_dir: Path, *, render_settings: object) -> bool:
         package_dir = Path(package_dir)
         status_file = package_dir / "host_status.json"
@@ -1385,7 +1397,7 @@ class ModelLibraryTab(QWidget):
             self.inline_d3d11_preview_host.clear_preview(status_file)
             if self.inline_d3d11_preview_host.load_package(package_dir, status_file, reset_view=True):
                 self.inline_d3d11_preview_host.set_render_tuning(render_settings)
-                self._inline_d3d11_status_timer.start()
+                self._start_inline_d3d11_status_timer()
                 return True
             self._stop_inline_d3d11_process()
         try:
@@ -1411,7 +1423,7 @@ class ModelLibraryTab(QWidget):
         process.errorOccurred.connect(lambda error, process=process: self._handle_inline_d3d11_error(process, error))
         self._inline_d3d11_process = process
         self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
-        self._inline_d3d11_status_timer.start()
+        self._start_inline_d3d11_status_timer()
         process.start()
         return True
 
@@ -1432,7 +1444,7 @@ class ModelLibraryTab(QWidget):
     def _handle_inline_d3d11_finished(self, process: QProcess) -> None:
         if process is self._inline_d3d11_process:
             self._inline_d3d11_process = None
-            self._inline_d3d11_status_timer.stop()
+            self._stop_inline_d3d11_status_timer()
 
     def _poll_inline_d3d11_status(self) -> None:
         status_file = self._inline_d3d11_status_file
@@ -1463,7 +1475,7 @@ class ModelLibraryTab(QWidget):
     def _stop_inline_d3d11_process(self) -> None:
         process = self._inline_d3d11_process
         self._inline_d3d11_process = None
-        self._inline_d3d11_status_timer.stop()
+        self._stop_inline_d3d11_status_timer()
         if process is None:
             return
         try:

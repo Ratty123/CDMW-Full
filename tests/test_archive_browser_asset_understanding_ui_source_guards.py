@@ -47,13 +47,12 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("Single-file scoped Archive Browser to:", source)
         self.assertIn("no full archive scan", source)
         self.assertIn('self.archive_texture_smart_actions_button = QPushButton("Family Actions")', source)
-        self.assertIn('self.archive_open_mesh_editor_button = QPushButton("Open in Mesh Editor...")', source)
-        self.assertIn('self.archive_open_mesh_editor_button.setObjectName("ArchiveOpenMeshEditorButton")', source)
-        self.assertIn("self.archive_open_mesh_editor_button.clicked.connect(self._open_current_archive_mesh_editor)", source)
+        self.assertNotIn('self.archive_open_mesh_editor_button = QPushButton("Open in Mesh Editor...")', source)
+        self.assertNotIn('self.archive_open_mesh_editor_button.setObjectName("ArchiveOpenMeshEditorButton")', source)
+        self.assertNotIn("self.archive_open_mesh_editor_button.clicked.connect", source)
+        self.assertNotIn("self._set_action_button_state(\n                self.archive_open_mesh_editor_button", source)
         self.assertIn("def _prepare_mesh_editor_archive_launch(self, entry: ArchiveEntry) -> bool:", source)
         self.assertIn("def _launch_archive_mesh_editor_for_entry(self, entry: ArchiveEntry) -> None:", source)
-        self.assertIn("self._launch_archive_mesh_editor_for_entry(current_entry)", source)
-        self.assertIn("self._set_action_button_state(\n                self.archive_open_mesh_editor_button", source)
         self.assertIn('self.archive_texture_scope_all_button = QPushButton("Filter to Family")', source)
         self.assertIn('self.archive_texture_export_asset_set_button = QPushButton("Export Family...")', source)
         self.assertIn("def _set_action_button_state(", source)
@@ -73,7 +72,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn('export_file_action = menu.addAction(menu_icons["file"], "Export File...")', source)
         self.assertIn('extract_file_action = menu.addAction(menu_icons["file"], "Extract File...")', source)
         self.assertIn('family_action = menu.addAction(menu_icons["family"], "Asset Family...")', source)
-        self.assertIn('weapon_placement_studio_action = menu.addAction(menu_icons["workflow"], "Weapon Placement Studio...")', source)
+        self.assertIn('weapon_placement_studio_action = menu.addAction(menu_icons["workflow"], "Weapon Placement Studio (Disabled - WIP)")', source)
+        self.assertIn("weapon_placement_studio_action.setEnabled(False)", source)
         self.assertNotIn('placement_action = menu.addAction(menu_icons["family"], "Weapon Placement Studio...")', source)
         self.assertNotIn('placement_action = menu.addAction(menu_icons["family"], "Open Placement Workspace...")', source)
         self.assertIn('hkx_placement_action = menu.addAction(menu_icons["family"], "Edit HKX...")', source)
@@ -81,14 +81,100 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("self._archive_hkx_placement_candidates_for_entry(entry)", source)
         self.assertIn("self._open_archive_hkx_placement_for_entry(current_entry)", source)
         self.assertIn('import_loose_mod_action = menu.addAction(menu_icons["workflow"], "Import Loose Mod Folder...")', source)
-        self.assertIn('open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor...")', source)
-        self.assertIn("self._launch_archive_mesh_editor_for_entry(current_entry)", source)
+        self.assertNotIn('open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor...")', source)
+        self.assertNotIn('open_mesh_editor_action = menu.addAction("Open in Mesh Editor...")', source)
         self.assertIn('modify_original_action = menu.addAction(menu_icons["mesh"], "Modify Original...")', source)
         self.assertIn("self._mesh_editor_modify_original_requested(current_entry)", source)
         self.assertIn('texture_editor_action = menu.addAction(menu_icons["texture"], "Open In Texture Editor...")', source)
         self.assertIn('edit_hkx_action = menu.addAction(menu_icons["physics"], "Edit HKX...")', source)
         self.assertIn('inspect_sidecar_action = menu.addAction(menu_icons["data"], "Inspect Structured Data...")', source)
         self.assertIn('edit_material_action = menu.addAction(menu_icons["texture"], "Edit Material Values...")', source)
+        self.assertIn("material_sidecar_entry = self._related_material_sidecar_entry_for_archive_entry(entry)", source)
+        self.assertIn("if material_sidecar_entry is not None:", source)
+        self.assertIn("current_material_entry=material_sidecar_entry", source)
+        self.assertIn("self._open_material_sidecar_editor(current_material_entry)", source)
+        self.assertIn("candidate_path = (source_virtual_path.parent / basename).as_posix()", source)
+        self.assertIn("candidate = self._find_archive_entry_by_virtual_path(candidate_path)", source)
+
+    def test_archive_action_dropdowns_mirror_pac_context_actions(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+
+        for token in (
+            'self.archive_action_preview_button = QPushButton("Preview")',
+            'self.archive_action_open_preview_window_button = QPushButton("Open Preview Window...")',
+            'self.archive_action_copy_filename_button = QPushButton("Copy Filename")',
+            'self.archive_action_export_file_button = QPushButton("Export File...")',
+            'self.archive_action_extract_file_button = QPushButton("Extract File...")',
+            'self.archive_action_show_only_file_button = QPushButton("Show Only This File")',
+            'self.archive_action_asset_family_button = QPushButton("Asset Family...")',
+            'self.archive_action_filter_to_family_button = QPushButton("Filter to Family")',
+            'self.archive_action_export_family_button = QPushButton("Export Family...")',
+            'self.archive_action_source_mix_button = QPushButton("Build Loose Package From Sources...")',
+            'self.archive_action_character_dependency_button = QPushButton("Export Character Dependency Package...")',
+            'self.archive_weapon_placement_studio_button = QPushButton("Weapon Placement Studio")',
+        ):
+            self.assertIn(token, source)
+
+        for token in (
+            '("Export File", self.archive_action_export_file_button)',
+            '("Extract File", self.archive_action_extract_file_button)',
+            '("Export Family", self.archive_action_export_family_button)',
+            '("Export Character Dependency Package", self.archive_action_character_dependency_button)',
+            '("Import Loose Mod Folder", self.archive_import_loose_mod_button)',
+            '("Preview", self.archive_action_preview_button)',
+            '("Open Preview Window", self.archive_action_open_preview_window_button)',
+            '("Copy Filename", self.archive_action_copy_filename_button)',
+            '("Show Only This File", self.archive_action_show_only_file_button)',
+            '("Asset Family", self.archive_action_asset_family_button)',
+            '("Filter to Family", self.archive_action_filter_to_family_button)',
+            '("Build Loose Package From Sources", self.archive_action_source_mix_button)',
+            '(None, self.archive_weapon_placement_studio_button)',
+            '("Edit Material Values", self.archive_material_values_button)',
+        ):
+            self.assertIn(token, source)
+
+    def test_material_values_preview_uses_embedded_d3d11_renderer(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+
+        self.assertIn('material_preview_host = NativeD3D11PreviewHostFrame(dialog)', source)
+        self.assertIn('material_preview_host.setObjectName("MaterialValuesNativeD3D11PreviewHost")', source)
+        self.assertIn("preview_accuracy_warning = QLabel", source)
+        self.assertIn("Material Values uses an approximate CDMW preview shader", source)
+        self.assertIn("test the exported mod in game", source.lower())
+        self.assertIn("write_isolated_d3d11_preview_package(", source)
+        self.assertIn("material_preview_host.load_package(package_dir, status_file", source)
+        self.assertIn("material_preview_base_result_state", source)
+        self.assertIn("reused active Archive Preview D3D11 package; no material values changed.", source)
+        self.assertIn("cleanup_owned_package=False", source)
+        self.assertIn("def _current_archive_material_preview_result()", source)
+        self.assertIn("def _active_archive_material_preview_package(model_entry: ArchiveEntry)", source)
+        self.assertIn("archive_isolated_renderer_active_package", source)
+        self.assertIn("_material_preview_package_matches_entry", source)
+        self.assertIn("def _fast_material_preview_package_from_manifest(", source)
+        self.assertIn("manifest-only material update", source)
+        self.assertIn("manifest updated in", source)
+        self.assertIn("create_native_preview_package_staging_dir(self._native_preview_package_cache_root())", source)
+        self.assertIn("texture_edits_active = bool(_edited_values({\"texture\"}))", source)
+        self.assertIn("edited material colors shown as solid preview overlay", source)
+        self.assertIn("selected_value_edit.textChanged.connect(_sync_tree_from_selected_value)", source)
+        self.assertNotIn("selected_value_edit.textEdited.connect(_sync_tree_from_selected_value)", source)
+        self.assertIn("selected_value_sync_timer = QTimer(dialog)", source)
+        self.assertIn("_poll_selected_value_edit", source)
+        self.assertIn("selected_value_pending_edits", source)
+        self.assertIn("def _material_editor_color_from_value", source)
+        self.assertIn("def _material_value_swatch_icon", source)
+        self.assertIn("blocker = QSignalBlocker(tree)", source)
+        self.assertIn("item.setIcon(3, _material_value_swatch_icon(color))", source)
+        self.assertIn('selected_value_swatch.setObjectName("SelectedMaterialValueColorSwatch")', source)
+        self.assertIn("def _update_selected_value_swatch", source)
+        self.assertIn("selected_value_live_refresh_timer = QTimer(dialog)", source)
+        self.assertIn("def _selected_value_ready_for_live_refresh", source)
+        self.assertIn("_start_material_preview_refresh(include_texture_edits=False, live=True)", source)
+        self.assertIn("selected_value_edit.textChanged.connect(_queue_selected_value_live_refresh)", source)
+        self.assertIn("Live material preview refresh scheduled...", source)
+        self.assertIn("QTimer.singleShot(\n                        750", source)
+        self.assertIn("current_item_for_sync = _current_item()", source)
+        self.assertNotIn('NativePreviewPanel("Click Show Preview to build an approximate model preview."', source)
 
     def test_composite_appearance_preview_action_is_present(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -300,22 +386,26 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
     def test_archive_startup_defers_enhanced_and_basic_indexes_until_after_ready(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
         self.assertIn(
-            "Item-name search cache is missing or stale; archive list will open while search builds in the background.",
+            "Item-name search cache is missing or stale; archive list will open and search will build on demand.",
             source,
         )
         self.assertIn("class ArchiveBasicIndexWorker", source)
         self.assertIn("class ArchiveEnhancedIndexWorker", source)
         self.assertIn('"enhanced_index_needs_build"', source)
         self.assertIn('"basic_index_needs_build"', source)
-        self.assertIn('self.archive_enhanced_index_state = "warming"', source)
-        self.assertIn('self.archive_basic_index_state = "warming"', source)
-        self.assertIn("self.archive_deferred_basic_index_start_pending = bool(", source)
-        self.assertIn("self.archive_deferred_enhanced_index_start_pending = bool(enhanced_index_needs_build)", source)
+        self.assertIn("prewarm_basic_index = bool(", source)
+        self.assertIn("prewarm_enhanced_index = bool(", source)
+        self.assertIn("self.archive_deferred_basic_index_start_pending = bool(prewarm_basic_index)", source)
+        self.assertIn("self.archive_deferred_enhanced_index_start_pending = bool(prewarm_enhanced_index)", source)
+        self.assertIn("Path lookup cache deferred; it will build when filters", source)
+        self.assertIn("Item-name search cache will warm after the archive list opens", source)
+        self.assertIn("archive_enhanced_index_auto_prewarm_pending", source)
+        self.assertIn("def _schedule_archive_enhanced_index_auto_prewarm", source)
         self.assertIn("self._start_archive_basic_index_worker()", source)
         self.assertIn("self._start_archive_enhanced_index_worker()", source)
         self.assertIn("self._schedule_archive_post_ready_background_work()", source)
         self.assertIn("Checking archive path lookup cache in background...", source)
-        self.assertIn('"cache_loaded": True', source)
+        self.assertIn('"cache_loaded": bool(basic_cache.get("cache_loaded", True))', source)
         scan_start = source.index("class ArchiveScanWorker")
         scan_end = source.index("class ArchiveDerivedIndexCacheWriteWorker", scan_start)
         scan_body = source[scan_start:scan_end]
@@ -324,15 +414,23 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("enhanced_index_needs_build = bool(entries and name_search_index is None)", run_body)
         self.assertIn("enhanced_index_needs_build = bool(entries)", run_body)
         self.assertIn("load_name_search_index=False", run_body)
-        self.assertIn("Item-name search cache will load after the archive list opens.", run_body)
+        self.assertIn("Item-name search cache will load on demand after the archive list opens.", run_body)
         self.assertNotIn("self._build_enhanced_archive_indexes_inline(entries)", run_body)
         self.assertIn("basic_indexes_needed_before_ready", run_body)
-        self.assertIn("Path lookup will build after the archive list opens.", run_body)
-        self.assertIn("load_archive_basic_index_cache(", run_body)
+        self.assertIn("Path lookup cache is deferred until filters", run_body)
+        self.assertIn("load_or_update_archive_basic_index_shards(", run_body)
         self.assertIn("save_archive_basic_index_cache(", run_body)
         self.assertIn('"enhanced_index_needs_build": enhanced_index_needs_build', run_body)
         self.assertIn('"basic_index_needs_build": bool(', run_body)
         self.assertIn("role_index", run_body)
+        enhanced_start = source.index("class ArchiveEnhancedIndexWorker")
+        enhanced_end = source.index("class ArchiveFilterWorker", enhanced_start)
+        enhanced_body = source[enhanced_start:enhanced_end]
+        self.assertIn("Building path/name search shard cache in background...", enhanced_body)
+        self.assertIn("load_or_update_archive_name_search_shards(", enhanced_body)
+        archive_source = Path("cdmw/core/archive.py").read_text(encoding="utf-8")
+        self.assertIn("def load_or_update_archive_name_search_shards", archive_source)
+        self.assertIn("Building archive name-search shard", archive_source)
 
     def test_placement_workspace_and_loose_overlay_review_are_present(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -392,10 +490,37 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("Patch target .pac_xml slot metadata", source)
         self.assertIn("Target prefab placement + role metadata", source)
 
+    def test_hkx_editor_placement_workflow_is_disabled_wip(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        start = source.index("            placement_page = QWidget()")
+        end = source.index("            hkx_preview_panel = QWidget()", start)
+        placement_source = source[start:end]
+
+        self.assertIn('"Disabled - WIP. Prefab/socket placement workflow is paused here', placement_source)
+        self.assertIn('placement_swap_title = QLabel("Placement Swap (Disabled - WIP)")', placement_source)
+        self.assertIn('placement_swap_copy_button = QPushButton("Choose Placement Source (Disabled - WIP)")', placement_source)
+        self.assertIn("placement_swap_copy_button.setEnabled(False)", placement_source)
+        self.assertIn('placement_tab_index = tab_widget.addTab(placement_page, "Placement (Disabled - WIP)")', placement_source)
+        self.assertIn("tab_widget.setTabEnabled(placement_tab_index, False)", placement_source)
+        self.assertIn("placement_page.setEnabled(False)", placement_source)
+        self.assertIn("Choose Placement Source is disabled - WIP.", placement_source)
+        self.assertNotIn("placement_swap_copy_button.clicked.connect", placement_source)
+
+        nav_start = source.index("            for section_index in range(tab_widget.count()):")
+        nav_end = source.index("            syncing_tree = {\"active\": False}", nav_start)
+        nav_source = source[nav_start:nav_end]
+        self.assertIn("section_index == placement_tab_index", nav_source)
+        self.assertIn("combo_item.setEnabled(False)", nav_source)
+        self.assertIn("~Qt.ItemFlag.ItemIsEnabled", nav_source)
+        self.assertIn("Placement view is disabled - WIP.", source)
+
     def test_weapon_placement_studio_ui_and_guardrails_are_present(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
-        self.assertIn('weapon_placement_studio_action = menu.addAction(menu_icons["workflow"], "Weapon Placement Studio...")', source)
-        self.assertIn("self._open_archive_weapon_placement_studio_dialog(current_entry)", source)
+        self.assertIn('weapon_placement_studio_action = menu.addAction(menu_icons["workflow"], "Weapon Placement Studio (Disabled - WIP)")', source)
+        self.assertIn('placement_button = QPushButton("Weapon Placement Studio (Disabled - WIP)")', source)
+        self.assertIn("placement_button.setEnabled(False)", source)
+        self.assertIn("weapon_placement_studio_action.setEnabled(False)", source)
+        self.assertNotIn("weapon_placement_studio_action.triggered.connect", source)
         self.assertNotIn('"Weapon Swap Studio..."', source)
         self.assertNotIn('"Open Placement Workspace..."', source)
         self.assertIn("from cdmw.core.weapon_swap_templates import (", source)
@@ -404,7 +529,9 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         end = source.index("        @staticmethod", start)
         studio_source = source[start:end]
 
+        self.assertIn("Weapon Placement Studio is disabled - WIP.", studio_source)
         self.assertIn('dialog.setWindowTitle("Weapon Placement Studio")', studio_source)
+        self.assertIn("self._deactivate_archive_model_renderers_for_non_model_preview()", studio_source)
         self.assertIn("dialog.setMinimumSize(QSize(760, 520))", studio_source)
         self.assertIn('simple_group = QGroupBox("Simple Template")', studio_source)
         self.assertIn("template_combo = QComboBox()", studio_source)
@@ -438,6 +565,10 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("Preflight blocked: no weapon PAC candidate", studio_source)
         self.assertIn("studio_d3d11_load_timeout_timer", studio_source)
         self.assertIn("Native D3D11 load timed out after 15s", studio_source)
+        self.assertIn("def _studio_d3d11_schedule_status_polls", studio_source)
+        self.assertIn("QTimer.singleShot(delay_ms, _studio_d3d11_poll_status)", studio_source)
+        self.assertIn("show_shield_checkbox.setChecked(False)", studio_source)
+        self.assertIn("self._show_shield = False", studio_source)
         self.assertIn('"cd_phm_02_sword_0009.pac"', studio_source)
         self.assertIn('"cd_phm_01_sword_0001.pac"', studio_source)
         self.assertIn("texture_entries_by_normalized_path_snapshot", studio_source)
@@ -445,6 +576,14 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn('quality_tier="fast"', studio_source)
         self.assertIn("fallback blob renderer is disabled", studio_source)
         self.assertIn("preview_busy_bar = QProgressBar(d3d11_page)", studio_source)
+        self.assertIn("def _studio_d3d11_hide_stale_host", studio_source)
+        self.assertIn("native_preview_widget.setVisible(False)", studio_source)
+        self.assertIn("Native D3D11 closed before stable placement preview", studio_source)
+        self.assertIn('elif event == "closed"', studio_source)
+        self.assertIn("native_preview_widget.set_view(", studio_source)
+        self.assertIn("Human skeleton schematic: bones and sockets, not a blob/body proxy.", studio_source)
+        self.assertIn("draw_socket_anchor(\"Spine2\"", studio_source)
+        self.assertIn("draw_label(\"human skeleton back\"", studio_source)
         self.assertNotIn("def _weapon_swap_studio_body_proxy_meshes", studio_source)
         self.assertNotIn("skeleton/mannequin proxy", studio_source)
         self.assertNotIn("decoded PAC body geometry is intentionally skipped", studio_source)
@@ -457,6 +596,9 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("def _request_weapon_swap_studio_preview_refresh", studio_source)
         self.assertIn("studio_preview_state[\"preview_enabled\"] = True", studio_source)
         self.assertIn("preview_refresh_button.clicked.connect(lambda _checked=False: _request_weapon_swap_studio_preview_refresh())", studio_source)
+        self.assertIn("def _handle_weapon_swap_studio_slider_changed", studio_source)
+        self.assertIn("placement map updated instantly; debouncing native PAC preview refresh", studio_source)
+        self.assertIn("spin.valueChanged.connect(_handle_weapon_swap_studio_slider_changed)", studio_source)
         self.assertNotIn("QTimer.singleShot(450, _enable_weapon_swap_studio_preview)", studio_source)
         self.assertIn("map_summary = _update_weapon_swap_studio_placement_map", studio_source)
         self.assertNotIn("rows = _current_socket_rows()\n                _queue_weapon_swap_studio_preview_refresh()", studio_source)
@@ -471,6 +613,15 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertNotIn("2D estimate", studio_source)
         self.assertNotIn("2D fallback", studio_source)
         self.assertIn("Native PAC preview unavailable", studio_source)
+        self.assertIn("CDMW_ENABLE_WEAPON_STUDIO_NATIVE_D3D11", studio_source)
+        self.assertIn("Native PAC view is disabled by default for Weapon Placement Studio", studio_source)
+        self.assertIn("Use the CTF smoke decode report for real body + weapon geometry proof", studio_source)
+        self.assertLess(
+            studio_source.index("Native PAC view is disabled by default for Weapon Placement Studio"),
+            studio_source.index('studio_preview_state["active"] = True'),
+        )
+        self.assertIn("Embedded D3D11 view is disabled for Weapon Placement Studio", studio_source)
+        self.assertIn("no fallback blob renderer is shown", studio_source)
         self.assertIn("return None", studio_source)
         self.assertNotIn("WeaponSwapStudioSchematicPreview", studio_source)
         self.assertNotIn("Schematic Placement Preview", studio_source)
@@ -505,6 +656,14 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("Target prefab placement metadata", source)
         self.assertIn("Target-only prefab profile patch", source)
         self.assertIn("Experimental: allow length-changing prefab role/socket patch", source)
+
+    def test_weapon_placement_ctf_smoke_script_is_present(self) -> None:
+        source = Path("tools/weapon_placement_studio_ctf_smoke.py").read_text(encoding="utf-8")
+        self.assertIn("cd_phm_02_sword_0015.pac", source)
+        self.assertIn("C:\\Users\\Ratrider\\Desktop\\CTF", source)
+        self.assertIn("build_archive_preview_result", source)
+        self.assertIn("ballish_bounds", source)
+        self.assertIn("decode timing threshold", source)
 
     def test_mod_generation_ui_uses_target_manager_checklists(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")

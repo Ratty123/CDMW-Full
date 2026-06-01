@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 from unittest import mock
 
 from cdmw.core.archive import (
+    _clear_hkx_context_model_preview_cache,
     build_archive_entry_basename_index,
     build_archive_entry_path_index,
     build_archive_preview_result,
@@ -1351,6 +1352,50 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertEqual((hkx_entry.path,), result.preview_model.physics_overlay.source_paths)
         self.assertEqual(1, len(result.preview_model.physics_overlay.shapes))
         self.assertFalse(any(mesh.preview_role == "hkx_collision_shape" for mesh in result.preview_model.meshes))
+
+    def test_hkx_archive_preview_reuses_body_context_for_related_hkx_selection(self) -> None:
+        _clear_hkx_context_model_preview_cache()
+        self.addCleanup(_clear_hkx_context_model_preview_cache)
+        hkx_data = self._modern_hkx_bytes()
+        entries = self._archive_entries(
+            (
+                ("character/bin__/meshphysics/a/body.hkx", hkx_data),
+                ("character/bin__/meshphysics/b/body.hkx", hkx_data),
+                ("character/model/body.pac", b"PAR "),
+            )
+        )
+        path_index = build_archive_entry_path_index(entries)
+        basename_index = build_archive_entry_basename_index(entries)
+        preview_calls: list[str] = []
+
+        def _preview_stub(data: bytes, path: str):
+            del data
+            preview_calls.append(path)
+            return self._body_preview_stub(path), ParsedMesh(path=path, format="pac")
+
+        with mock.patch("cdmw.core.archive.build_mesh_preview_from_bytes", side_effect=_preview_stub):
+            first = build_archive_preview_result(
+                None,
+                entries[0],
+                texture_entries_by_normalized_path=path_index,
+                texture_entries_by_basename=basename_index,
+            )
+            second = build_archive_preview_result(
+                None,
+                entries[1],
+                texture_entries_by_normalized_path=path_index,
+                texture_entries_by_basename=basename_index,
+            )
+
+        self.assertIn("Body + Physics", first.metadata_summary)
+        self.assertIn("Body + Physics", second.metadata_summary)
+        self.assertEqual(["character/model/body.pac"], preview_calls)
+        self.assertIn("HKX body context reused cached preview model", second.detail_text)
+        self.assertIsInstance(second.preview_model, ModelPreviewData)
+        assert second.preview_model is not None
+        self.assertIsNotNone(second.preview_model.physics_overlay)
+        assert second.preview_model.physics_overlay is not None
+        self.assertEqual((entries[1].path,), second.preview_model.physics_overlay.source_paths)
 
     def test_hkx_archive_preview_without_body_context_keeps_collision_preview(self) -> None:
         hkx_data = self._modern_hkx_bytes()

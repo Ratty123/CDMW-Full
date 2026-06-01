@@ -39,7 +39,12 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
                 tooltips=(entries[index].path,) * 9,
             )
         )
-        model.set_archive_state(entries, mode="flat")
+        model.set_archive_state(entries, mode="flat", fetch_batch_size=500)
+        self.assertEqual(model.rowCount(), 500)
+        self.assertTrue(model.canFetchMore(model.index(-1, -1)))
+        self.assertFalse(model.find_index_for_entry(9876).isValid())
+        while model.canFetchMore(model.index(-1, -1)):
+            model.fetchMore(model.index(-1, -1))
         self.assertEqual(model.rowCount(), 10_000)
         index = model.find_index_for_entry(9876)
         self.assertTrue(index.isValid())
@@ -216,6 +221,8 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("def _schedule_archive_files_pane_fit_to_columns", source)
         self.assertIn("prepare_archive_browser_state_accelerated", source)
         model_source = Path("cdmw/ui/archive_browser_model.py").read_text(encoding="utf-8")
+        self.assertIn("self._flat_loaded_count", model_source)
+        self.assertIn('if self._mode == "flat" and node is self._root:', model_source)
         self.assertIn("def compact_hidden_columns", model_source)
         self.assertIn("def invalidate_archive_rows", model_source)
         self.assertIn("def invalidate_rows", model_source)
@@ -227,7 +234,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_initial_sort_apply_pending = initial_sort_deferred", source)
         self.assertIn("sort_column=initial_worker_sort_column", source)
         self.assertIn("def _apply_archive_initial_sort_after_first_paint", source)
-        self.assertIn("column in {1, 2} and self.archive_enhanced_index_state != \"ready\"", source)
+        self.assertIn("column in {1, 2} and self._archive_enhanced_index_missing_for_search()", source)
 
     def test_enhanced_index_completion_invalidates_name_columns_without_post_ready_filter_refresh(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
@@ -248,10 +255,10 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         scan_body = source[scan_start:scan_end]
         run_start = scan_body.index("        @Slot()\n        def run")
         run_body = scan_body[run_start:]
-        self.assertIn("Item-name search cache is missing or stale; archive list will open while search builds in the background.", run_body)
+        self.assertIn("Item-name search cache is missing or stale; archive list will open and search will build on demand.", run_body)
         self.assertNotIn("self._build_enhanced_archive_indexes_inline(entries)", run_body)
-        self.assertIn("Path lookup will build after the archive list opens.", run_body)
-        self.assertIn("load_archive_basic_index_cache(", run_body)
+        self.assertIn("Path lookup cache is deferred until filters", run_body)
+        self.assertIn("load_or_update_archive_basic_index_shards(", run_body)
         self.assertIn("save_archive_basic_index_cache(", run_body)
         self.assertIn('"basic_index_needs_build": bool(', run_body)
         self.assertIn("role_index", run_body)
@@ -350,6 +357,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
 
     def test_archive_preview_refresh_replaces_dark_toolbar_and_bypasses_builder_pause(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        theme_source = Path("cdmw/ui/themes.py").read_text(encoding="utf-8")
         self.assertIn('self.archive_model_preview_refresh_button = QPushButton("Refresh")', source)
         self.assertIn(
             'self.archive_model_preview_refresh_button.clicked.connect(self._force_refresh_current_model_preview_assets)',
@@ -361,6 +369,14 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("def _force_refresh_current_model_preview_assets(self) -> None:", source)
         self.assertIn("self._refresh_current_model_preview_assets(force=True)", source)
         self.assertIn("Archive Preview auto-refresh paused while Mesh Replacement Builder is open", source)
+        self.assertIn('self.archive_preview_health_label.setObjectName("ArchivePreviewHealthLabel")', source)
+        self.assertIn("def _set_archive_preview_health_message(", source)
+        self.assertIn('label.setProperty("attention", bool(attention))', source)
+        self.assertIn("label.style().unpolish(label)", source)
+        self.assertIn("label.style().polish(label)", source)
+        self.assertIn("self._set_archive_preview_health_message(message, visible=bool(entry), attention=True)", source)
+        self.assertIn("QLabel#ArchivePreviewHealthLabel {", theme_source)
+        self.assertIn('QLabel#ArchivePreviewHealthLabel[attention="true"]', theme_source)
         self.assertNotIn("archive_model_preview_darkmode_button", source)
         self.assertNotIn("Preview Window Darkmode", source)
 
