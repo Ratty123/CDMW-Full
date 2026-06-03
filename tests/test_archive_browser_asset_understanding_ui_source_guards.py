@@ -7,6 +7,44 @@ MAIN_WINDOW = REPO_ROOT / "cdmw" / "ui" / "main_window.py"
 
 
 class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
+    def test_item_finder_uses_persistent_icon_cache_and_preopen_warmup(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+
+        self.assertIn("load_archive_item_icon_thumbnail_cache(", source)
+        self.assertIn("save_archive_item_icon_thumbnail_cache(", source)
+        self.assertIn("ensure_directxtex_dds_preview_pngs(", source)
+        self.assertIn("def _warm_item_finder_icon_rows_before_exec(", source)
+        self.assertIn("timeout_ms: int = 0", source)
+        self.assertIn("cache_prime_budget_ms: int = 120", source)
+        self.assertIn("deadline = time.monotonic() + min(0.5", source)
+        self.assertIn("QTimer.singleShot(\n                    180,", source)
+        self.assertIn("batch = self.archive_item_icon_priority_queue[:16]", source)
+        self.assertIn("QTimer.singleShot(140, _queue_catalog_row_icons_for_visible_rows)", source)
+        self.assertIn("def _first_catalog_icon_rows(", source)
+        self.assertIn(
+            "self._warm_item_finder_icon_rows_before_exec(\n"
+            "                _first_catalog_icon_rows(),",
+            source,
+        )
+        self.assertIn("allow_sync_prepare=False", source)
+
+    def test_item_icon_worker_prefers_persistent_and_batch_conversion(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        worker_start = source.index("class ArchiveItemIconWarmupWorker")
+        worker_end = source.index("class ArchiveSidecarIndexWorker", worker_start)
+        worker_source = source[worker_start:worker_end]
+        cache_hit = worker_source.index("cached = load_archive_item_icon_thumbnail_cache(")
+        extract = worker_source.index("source_path, _note = ensure_archive_preview_source(")
+        batch_convert = worker_source.index("batch_results = ensure_directxtex_dds_preview_pngs(")
+        fallback_convert = worker_source.index("preview_path = ensure_dds_display_preview_png(")
+
+        self.assertLess(cache_hit, extract)
+        self.assertLess(batch_convert, fallback_convert)
+        self.assertIn("pending_dds_keys.add(prepared_key)", worker_source)
+        self.assertIn("failed_dds_notes.setdefault(", worker_source)
+        self.assertIn("save_archive_item_icon_thumbnail_cache(", worker_source)
+        self.assertIn("emit_prepared(prepared_key, cached_path, note)", worker_source)
+
     def test_asset_map_tabs_and_preview_health_are_present(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
 
@@ -413,7 +451,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         run_body = scan_body[run_start:]
         self.assertIn("enhanced_index_needs_build = bool(entries and name_search_index is None)", run_body)
         self.assertIn("enhanced_index_needs_build = bool(entries)", run_body)
-        self.assertIn("load_name_search_index=False", run_body)
+        self.assertIn("load_name_search_index_cache: bool = False", scan_body)
+        self.assertIn("load_name_search_index=self.load_name_search_index_cache", run_body)
         self.assertIn("Item-name search cache will load on demand after the archive list opens.", run_body)
         self.assertNotIn("self._build_enhanced_archive_indexes_inline(entries)", run_body)
         self.assertIn("basic_indexes_needed_before_ready", run_body)
@@ -660,7 +699,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
     def test_weapon_placement_ctf_smoke_script_is_present(self) -> None:
         source = Path("tools/weapon_placement_studio_ctf_smoke.py").read_text(encoding="utf-8")
         self.assertIn("cd_phm_02_sword_0015.pac", source)
-        self.assertIn("C:\\Users\\Ratrider\\Desktop\\CTF", source)
+        self.assertIn("CDMW_CTF_ROOT", source)
+        self.assertIn('Path.home() / "Desktop" / "CTF"', source)
         self.assertIn("build_archive_preview_result", source)
         self.assertIn("ballish_bounds", source)
         self.assertIn("decode timing threshold", source)

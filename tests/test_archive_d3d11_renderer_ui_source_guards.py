@@ -74,6 +74,51 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("SendMessageTimeoutW", source)
         self.assertIn("_kill_archive_isolated_renderer_process_if_running(process)", source)
 
+    def test_model_preview_palette_is_theme_independent(self) -> None:
+        constants_source = Path("cdmw/constants.py").read_text(encoding="utf-8")
+        main_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        model_library_source = Path("cdmw/ui/model_library_tab.py").read_text(encoding="utf-8")
+        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn('MODEL_PREVIEW_BACKGROUND_COLOR = "#15191d"', constants_source)
+        self.assertIn('MODEL_PREVIEW_TEXT_COLOR = "#c8d3df"', constants_source)
+        self.assertIn('MODEL_PREVIEW_GRID_COLOR = "#2f3740"', constants_source)
+
+        for function_name in (
+            "_archive_isolated_renderer_theme_payload",
+            "_placement_d3d11_theme_payload",
+            "_studio_d3d11_theme_payload",
+            "_alignment_d3d11_theme_payload",
+        ):
+            start = main_source.index(f"def {function_name}")
+            body = main_source[start: main_source.index("\n\n", start)]
+            self.assertIn('"background": MODEL_PREVIEW_BACKGROUND_COLOR', body)
+            self.assertIn('"text": MODEL_PREVIEW_TEXT_COLOR', body)
+            self.assertNotIn('theme["preview_bg"]', body)
+            self.assertNotIn("get_theme(", body)
+
+        inline_start = model_library_source.index("def _inline_d3d11_theme_payload")
+        inline_body = model_library_source[inline_start: model_library_source.index("\n\n", inline_start)]
+        self.assertIn('"background": MODEL_PREVIEW_BACKGROUND_COLOR', inline_body)
+        self.assertIn('"text": MODEL_PREVIEW_TEXT_COLOR', inline_body)
+        self.assertNotIn("get_theme(", inline_body)
+
+        self.assertIn("kFixedPreviewClearColor", native_source)
+        self.assertIn("clear_color_ = kFixedPreviewClearColor;", native_source)
+        pipeline_start = native_source.index("bool create_pipeline()")
+        pipeline_body = native_source[pipeline_start: native_source.index("std::string shader_error;", pipeline_start)]
+        self.assertNotIn("args_.theme_background", pipeline_body)
+        self.assertIn('if (axis == "x") return DirectX::XMFLOAT3(1.0f, 0.05f, 0.03f);', native_source)
+        self.assertIn('if (axis == "y") return DirectX::XMFLOAT3(0.0f, 1.0f, 0.24f);', native_source)
+        self.assertIn("return DirectX::XMFLOAT3(0.0f, 0.50f, 1.0f);", native_source)
+        self.assertIn("add_thick_line(segment.first, segment.second, active ? 11.0f : 9.2f, 0.92f, 0.96f, 1.0f)", native_source)
+        self.assertIn("add_thick_line(segment.first, segment.second, active ? 6.4f : 5.4f, color.x, color.y, color.z)", native_source)
+        self.assertIn("add_disc(segment.second, active ? 10.8f : 9.6f, color.x, color.y, color.z)", native_source)
+        self.assertIn("add_ring(origin, rotate_active ? 50.0f : 48.0f, rotate_active ? 8.6f : 7.0f, 0.92f, 0.96f, 1.0f)", native_source)
+        self.assertIn("add_ring(origin, rotate_active ? 50.0f : 48.0f, rotate_active ? 5.2f : 4.2f, 1.0f, 0.72f, 0.05f)", native_source)
+        self.assertIn("add_ring(origin, roll_active ? 76.0f : 74.0f, roll_active ? 5.2f : 4.2f, 1.0f, 0.18f, 1.0f)", native_source)
+        self.assertIn("draw_colored_triangles(vertices, identity, true);", native_source)
+
     def test_native_d3d11_texture_integrity_and_diagnostics_are_reported(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
         native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")

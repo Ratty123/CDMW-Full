@@ -1,5 +1,7 @@
 import copy
+import tempfile
 import unittest
+from pathlib import Path
 
 from cdmw.modding.mesh_deformer import (
     apply_brush_deformation,
@@ -12,6 +14,8 @@ from cdmw.modding.mesh_deformer import (
     mesh_topology_signature,
     recompute_submesh_normals,
 )
+from cdmw.modding.mesh_exporter import export_obj
+from cdmw.modding.mesh_importer import import_obj
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 
 
@@ -267,6 +271,38 @@ class MeshDeformerTests(unittest.TestCase):
         self.assertEqual(second.faces, mesh.submeshes[1].faces)
         self.assertEqual(7, mesh.total_vertices)
         self.assertEqual(3, mesh.total_faces)
+
+    def test_delete_faces_exports_roundtrip_valid_obj(self) -> None:
+        sm = _submesh()
+        sm.texture = "textures/cloth.png"
+        sm.uvs = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]
+        mesh = ParsedMesh(path="character/model/cloak.pac", format="pac", submeshes=[sm], total_vertices=4, total_faces=2, has_uvs=True)
+
+        result = delete_faces_touching_vertices(mesh, {0: [0]})
+
+        self.assertEqual(1, result.removed_face_count)
+        self.assertEqual(3, mesh.total_vertices)
+        self.assertEqual(1, mesh.total_faces)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            exported_paths = export_obj(mesh, temp_dir, "cloak_trimmed")
+            obj_path = Path(exported_paths[0])
+            mtl_path = Path(exported_paths[1])
+
+            self.assertTrue(obj_path.is_file())
+            self.assertTrue(mtl_path.is_file())
+            self.assertIn("map_Kd textures/cloth.png", mtl_path.read_text(encoding="utf-8"))
+
+            imported = import_obj(str(obj_path))
+
+        self.assertEqual("character/model/cloak.pac", imported.path)
+        self.assertEqual("pac", imported.format)
+        self.assertEqual(1, len(imported.submeshes))
+        self.assertEqual(3, imported.total_vertices)
+        self.assertEqual(1, imported.total_faces)
+        self.assertEqual("textures/cloth.png", imported.submeshes[0].texture)
+        for face in imported.submeshes[0].faces:
+            self.assertTrue(all(0 <= index < len(imported.submeshes[0].vertices) for index in face))
 
     def test_live_delete_can_defer_orphan_compaction(self) -> None:
         sm = _submesh()

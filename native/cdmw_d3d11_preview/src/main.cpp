@@ -40,6 +40,7 @@ static constexpr float kVerticalFovDegrees = 45.0f;
 static constexpr float kAlignmentAxisExtent = 0.95f;
 static constexpr float kAlignmentAxisMarkerSize = 0.055f;
 static constexpr float kAlignmentAxisLabelSize = 0.075f;
+static const DirectX::XMFLOAT4 kFixedPreviewClearColor = DirectX::XMFLOAT4(0.082f, 0.098f, 0.114f, 1.0f);
 static constexpr float kZoomSteps[] = {0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f, 12.0f, 16.0f};
 static constexpr UINT kCdmwSetZoomMessage = WM_APP + 0x431u;
 static constexpr UINT kCdmwSetFitMessage = WM_APP + 0x432u;
@@ -499,6 +500,8 @@ struct RendererStats {
     std::uint64_t render_suppressed_count = 0;
     std::uint64_t parent_unresponsive_count = 0;
     std::string parent_health = "ok";
+    std::string render_suppressed_reason = "";
+    bool parent_renderable = true;
     int sampler_max_anisotropy = 1;
     float sampler_mip_lod_bias = 0.0f;
     int sampler_recreate_count = 0;
@@ -1585,10 +1588,10 @@ static std::string float3_delta_json(const DirectX::XMFLOAT3& value) {
     return float3_json(value);
 }
 
-static std::string loaded_payload(const RendererStats& stats) {
+static std::string loaded_payload_for_event(const RendererStats& stats, const std::string& event_name) {
     std::ostringstream loaded;
     loaded << "{"
-           << "\"event\":\"loaded\","
+           << "\"event\":\"" << json_escape(event_name.empty() ? "loaded" : event_name) << "\","
            << "\"backend\":\"D3D11\","
            << "\"batch_count\":" << stats.batch_count << ","
            << "\"vertex_count\":" << stats.vertex_count << ","
@@ -1648,6 +1651,8 @@ static std::string loaded_payload(const RendererStats& stats) {
            << "\"frame_count\":" << stats.frame_count << ","
            << "\"render_request_count\":" << stats.render_request_count << ","
            << "\"render_suppressed_count\":" << stats.render_suppressed_count << ","
+           << "\"render_suppressed_reason\":\"" << json_escape(stats.render_suppressed_reason) << "\","
+           << "\"parent_renderable\":" << (stats.parent_renderable ? "true" : "false") << ","
            << "\"parent_unresponsive_count\":" << stats.parent_unresponsive_count << ","
            << "\"parent_health\":\"" << json_escape(stats.parent_health) << "\","
            << "\"sampler_max_anisotropy\":" << stats.sampler_max_anisotropy << ","
@@ -1657,6 +1662,14 @@ static std::string loaded_payload(const RendererStats& stats) {
            << "\"skipped\":" << skipped_json(stats.skipped)
            << "}";
     return loaded.str();
+}
+
+static std::string loaded_payload(const RendererStats& stats) {
+    return loaded_payload_for_event(stats, "loaded");
+}
+
+static std::string resources_loaded_payload(const RendererStats& stats) {
+    return loaded_payload_for_event(stats, "resources_loaded");
 }
 
 static std::string error_payload(const std::string& message, const RendererStats& stats) {
@@ -2282,6 +2295,8 @@ public:
         stats_.render_suppressed_count = render_suppressed_count_;
         if (reason && reason[0]) {
             stats_.parent_health = reason;
+            stats_.render_suppressed_reason = reason;
+            stats_.parent_renderable = std::string(reason) != "parent_not_renderable";
         }
         if (render_suppressed_count_ == 1 || render_suppressed_count_ % 120 == 0) {
             cdmw_native_diag::event(
@@ -2517,7 +2532,7 @@ public:
             reset_view();
         }
         update_runtime_stats();
-        write_status(args_.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"first_frame\",\"percent\":98,\"current\":98,\"total\":100,\"message\":\"Rendering first D3D11 preview frame...\"}");
+        write_status(args_.status_file, resources_loaded_payload(stats_));
         request_render();
         cdmw_native_diag::event(
             "package_loaded",
@@ -2816,9 +2831,13 @@ private:
         return viewport_rect(0.0f, 0.0f, static_cast<float>(std::max<LONG>(1, width_)), static_cast<float>(std::max<LONG>(1, height_)));
     }
 
+    float side_by_side_reference_width() const {
+        return std::floor(static_cast<float>(width_) * 0.56f);
+    }
+
     D3D11_VIEWPORT replacement_editor_viewport() const {
         if (display_mode_ == "side_by_side" && has_reference_batches() && width_ > 4) {
-            const float left_width = std::floor(static_cast<float>(width_) * 0.5f);
+            const float left_width = side_by_side_reference_width();
             return viewport_rect(left_width + 1.0f, 0.0f, static_cast<float>(width_) - left_width - 1.0f, static_cast<float>(height_));
         }
         return full_viewport();
@@ -2828,7 +2847,7 @@ private:
         std::vector<PreviewRenderView> views;
         const bool has_reference = has_reference_batches();
         if (display_mode_ == "side_by_side" && has_reference && width_ > 4) {
-            const float left_width = std::floor(static_cast<float>(width_) * 0.5f);
+            const float left_width = side_by_side_reference_width();
             PreviewRenderView left;
             left.viewport = viewport_rect(0.0f, 0.0f, left_width, static_cast<float>(height_));
             left.role = PreviewViewRole::Reference;
@@ -2876,7 +2895,7 @@ private:
 
     PreviewViewRole input_view_role_at(int x, int /*y*/) const {
         if (!side_by_side_workspace_active()) return PreviewViewRole::All;
-        const float left_width = std::floor(static_cast<float>(width_) * 0.5f);
+        const float left_width = side_by_side_reference_width();
         return static_cast<float>(x) <= left_width ? PreviewViewRole::Reference : PreviewViewRole::Replacement;
     }
 
@@ -3219,32 +3238,39 @@ private:
             }
         };
         auto axis_color = [](const std::string& axis) -> DirectX::XMFLOAT3 {
-            if (axis == "x") return DirectX::XMFLOAT3(1.0f, 0.20f, 0.20f);
-            if (axis == "y") return DirectX::XMFLOAT3(0.30f, 0.62f, 1.0f);
-            return DirectX::XMFLOAT3(0.08f, 0.92f, 0.40f);
+            if (axis == "x") return DirectX::XMFLOAT3(1.0f, 0.05f, 0.03f);
+            if (axis == "y") return DirectX::XMFLOAT3(0.0f, 1.0f, 0.24f);
+            return DirectX::XMFLOAT3(0.0f, 0.50f, 1.0f);
         };
 
         ScreenPoint origin = axis_points.begin()->second.first;
         for (const auto& [axis, segment] : axis_points) {
             const bool active = alignment_.drag_axis == axis || alignment_.hover_axis == axis;
             DirectX::XMFLOAT3 color = axis_color(axis);
-            add_thick_line(segment.first, segment.second, active ? 9.0f : 7.0f, 0.0f, 0.0f, 0.0f);
-            add_thick_line(segment.first, segment.second, active ? 6.0f : 5.0f, color.x, color.y, color.z);
-            add_disc(segment.second, active ? 14.0f : 12.0f, 0.0f, 0.0f, 0.0f);
-            add_disc(segment.second, active ? 11.0f : 9.5f, color.x, color.y, color.z);
+            add_thick_line(segment.first, segment.second, active ? 11.0f : 9.2f, 0.92f, 0.96f, 1.0f);
+            add_thick_line(segment.first, segment.second, active ? 8.4f : 7.0f, 0.0f, 0.0f, 0.0f);
+            add_thick_line(segment.first, segment.second, active ? 6.4f : 5.4f, color.x, color.y, color.z);
+            add_disc(segment.second, active ? 16.0f : 14.5f, 0.92f, 0.96f, 1.0f);
+            add_disc(segment.second, active ? 13.0f : 11.7f, 0.0f, 0.0f, 0.0f);
+            add_disc(segment.second, active ? 10.8f : 9.6f, color.x, color.y, color.z);
         }
 
         const bool screen_active = alignment_.drag_axis == "screen" || alignment_.hover_axis == "screen";
-        add_disc(origin, screen_active ? 13.0f : 11.0f, 0.0f, 0.0f, 0.0f);
-        add_disc(origin, screen_active ? 10.0f : 8.5f, 1.0f, 0.86f, 0.36f);
+        add_disc(origin, screen_active ? 16.0f : 14.0f, 0.92f, 0.96f, 1.0f);
+        add_disc(origin, screen_active ? 13.0f : 11.2f, 0.0f, 0.0f, 0.0f);
+        add_disc(origin, screen_active ? 10.6f : 9.0f, 1.0f, 0.72f, 0.05f);
         const bool rotate_active = (alignment_.rotation_drag_active && !alignment_.rotation_drag_roll) || alignment_.hover_axis == "rotate";
         const bool roll_active = (alignment_.rotation_drag_active && alignment_.rotation_drag_roll) || alignment_.hover_axis == "roll";
-        add_ring(origin, rotate_active ? 50.0f : 48.0f, rotate_active ? 7.0f : 5.5f, 0.0f, 0.0f, 0.0f);
-        add_ring(origin, rotate_active ? 50.0f : 48.0f, rotate_active ? 4.5f : 3.5f, 1.0f, 0.86f, 0.36f);
-        add_ring(origin, roll_active ? 76.0f : 74.0f, roll_active ? 7.0f : 5.5f, 0.0f, 0.0f, 0.0f);
-        add_ring(origin, roll_active ? 76.0f : 74.0f, roll_active ? 4.5f : 3.5f, 0.84f, 0.52f, 1.0f);
-        add_disc(ScreenPoint{origin.x + 48.0f, origin.y}, rotate_active ? 8.0f : 6.5f, 1.0f, 0.86f, 0.36f);
-        add_disc(ScreenPoint{origin.x + 74.0f, origin.y}, roll_active ? 8.0f : 6.5f, 0.84f, 0.52f, 1.0f);
+        add_ring(origin, rotate_active ? 50.0f : 48.0f, rotate_active ? 8.6f : 7.0f, 0.92f, 0.96f, 1.0f);
+        add_ring(origin, rotate_active ? 50.0f : 48.0f, rotate_active ? 6.6f : 5.4f, 0.0f, 0.0f, 0.0f);
+        add_ring(origin, rotate_active ? 50.0f : 48.0f, rotate_active ? 5.2f : 4.2f, 1.0f, 0.72f, 0.05f);
+        add_ring(origin, roll_active ? 76.0f : 74.0f, roll_active ? 8.6f : 7.0f, 0.92f, 0.96f, 1.0f);
+        add_ring(origin, roll_active ? 76.0f : 74.0f, roll_active ? 6.6f : 5.4f, 0.0f, 0.0f, 0.0f);
+        add_ring(origin, roll_active ? 76.0f : 74.0f, roll_active ? 5.2f : 4.2f, 1.0f, 0.18f, 1.0f);
+        add_disc(ScreenPoint{origin.x + 48.0f, origin.y}, rotate_active ? 10.4f : 9.0f, 0.0f, 0.0f, 0.0f);
+        add_disc(ScreenPoint{origin.x + 48.0f, origin.y}, rotate_active ? 8.0f : 6.8f, 1.0f, 0.72f, 0.05f);
+        add_disc(ScreenPoint{origin.x + 74.0f, origin.y}, roll_active ? 10.4f : 9.0f, 0.0f, 0.0f, 0.0f);
+        add_disc(ScreenPoint{origin.x + 74.0f, origin.y}, roll_active ? 8.0f : 6.8f, 1.0f, 0.18f, 1.0f);
         draw_colored_triangles(vertices, identity, true);
     }
 
@@ -5784,7 +5810,7 @@ private:
     }
 
     bool create_pipeline() {
-        clear_color_ = parse_hex_color(args_.theme_background, DirectX::XMFLOAT4(0.03f, 0.04f, 0.05f, 1.0f));
+        clear_color_ = kFixedPreviewClearColor;
         std::string shader_error;
         ComPtr<ID3DBlob> vs_blob;
         ComPtr<ID3DBlob> ps_blob;
@@ -6658,7 +6684,7 @@ static int run_host(const Args& args) {
         cdmw_native_diag::event("startup_error", {{"reason", "renderer initialization failed"}});
         return 4;
     }
-    write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"first_frame\",\"percent\":98,\"current\":98,\"total\":100,\"message\":\"Rendering first D3D11 preview frame...\"}");
+    write_status(args.status_file, resources_loaded_payload(stats));
     renderer.request_render();
     cdmw_native_diag::event("renderer_initialized", {{"batches", std::to_string(stats.batch_count)}, {"vertices", std::to_string(stats.vertex_count)}, {"display_mode", display_mode}});
 

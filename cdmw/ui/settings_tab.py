@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Dict, Optional
 
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFrame,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -73,6 +74,8 @@ from cdmw.ui.themes import UI_THEME_SCHEMES
 
 class SettingsTab(QWidget):
     theme_changed = Signal(str)
+    appearance_change_started = Signal(object)
+    appearance_changed = Signal(object)
     crash_capture_changed = Signal(bool)
     model_preview_settings_changed = Signal(object)
     archive_performance_settings_changed = Signal(object)
@@ -92,6 +95,7 @@ class SettingsTab(QWidget):
         self._appearance_apply_timer.setSingleShot(True)
         self._appearance_apply_timer.setInterval(140)
         self._appearance_apply_timer.timeout.connect(self._apply_pending_appearance_change)
+        self._last_applied_appearance_state: Dict[str, object] = {}
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
@@ -162,7 +166,7 @@ class SettingsTab(QWidget):
         self.archive_performance_page_layout = _add_settings_page(
             "performance",
             "Performance",
-            "Workload presets, archive list batching, related-file indexing, and preview cache behavior.",
+            "Controls startup/cache work, archive list responsiveness, optional related-file indexing, and preview cache memory/disk use.",
         )
         self.appearance_page_layout = _add_settings_page(
             "appearance",
@@ -313,123 +317,285 @@ class SettingsTab(QWidget):
         startup_layout.addWidget(startup_hint)
         self.startup_page_layout.addWidget(startup_group)
 
-        workload_group = QGroupBox("Workload Preset")
-        workload_layout = QFormLayout(workload_group)
-        workload_layout.setContentsMargins(12, 14, 12, 12)
-        workload_layout.setHorizontalSpacing(12)
-        workload_layout.setVerticalSpacing(10)
+        def _performance_note(text: str) -> QLabel:
+            note = QLabel(text)
+            note.setWordWrap(True)
+            note.setObjectName("SettingsPerformanceNote")
+            note.setMinimumWidth(260)
+            note.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            return note
+
+        def _performance_group(title: str) -> tuple[QGroupBox, QGridLayout]:
+            group = QGroupBox(title)
+            group.setMinimumWidth(520)
+            group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+            grid = QGridLayout(group)
+            grid.setContentsMargins(12, 12, 12, 10)
+            grid.setHorizontalSpacing(12)
+            grid.setVerticalSpacing(6)
+            grid.setColumnMinimumWidth(0, 128)
+            grid.setColumnStretch(0, 0)
+            grid.setColumnStretch(1, 1)
+            return group, grid
+
+        def _add_performance_row(
+            grid: QGridLayout,
+            row: int,
+            label: str,
+            control: QWidget,
+            note: str,
+            *,
+            max_control_width: int = 340,
+        ) -> int:
+            label_widget = QLabel(label)
+            label_widget.setObjectName("SettingsPerformanceField")
+            label_widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Maximum)
+            grid.addWidget(label_widget, row, 0, alignment=Qt.AlignLeft | Qt.AlignTop)
+            if max_control_width > 0:
+                control.setMaximumWidth(max_control_width)
+                control.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+            if isinstance(control, QComboBox):
+                control.setMinimumContentsLength(18)
+                control.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            note_widget = _performance_note(note)
+            field_body = QWidget()
+            field_body.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            field_layout = QVBoxLayout(field_body)
+            field_layout.setContentsMargins(0, 0, 0, 0)
+            field_layout.setSpacing(4)
+            field_layout.addWidget(control, alignment=Qt.AlignLeft | Qt.AlignTop)
+            field_layout.addWidget(note_widget)
+            grid.addWidget(field_body, row, 1)
+            grid.setRowMinimumHeight(row, 72)
+            return row + 1
+
+        performance_overview = QLabel(
+            "Recommended start: Balanced preset, native helper on, sidecar index off. "
+            "Use Low impact on weak CPUs, laptops, or HDDs."
+        )
+        performance_overview.setWordWrap(True)
+        performance_overview.setObjectName("SettingsPerformanceOverview")
+        performance_overview.setMinimumWidth(720)
+        performance_overview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.archive_performance_page_layout.addWidget(performance_overview)
+
+        performance_grid_widget = QWidget()
+        performance_grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        performance_columns = QHBoxLayout(performance_grid_widget)
+        performance_columns.setContentsMargins(0, 0, 0, 0)
+        performance_columns.setSpacing(12)
+        left_performance_column = QVBoxLayout()
+        left_performance_column.setContentsMargins(0, 0, 0, 0)
+        left_performance_column.setSpacing(6)
+        left_performance_column.setAlignment(Qt.AlignTop)
+        right_performance_column = QVBoxLayout()
+        right_performance_column.setContentsMargins(0, 0, 0, 0)
+        right_performance_column.setSpacing(6)
+        right_performance_column.setAlignment(Qt.AlignTop)
+        performance_columns.addLayout(left_performance_column, 1)
+        performance_columns.addLayout(right_performance_column, 1)
+
+        workload_group, workload_layout = _performance_group("Overall Workload")
         self.archive_resource_profile_combo = QComboBox()
-        self.archive_resource_profile_combo.addItem("Balanced", "balanced_60fps")
-        self.archive_resource_profile_combo.addItem("Faster background work", "maximum_throughput")
-        self.archive_resource_profile_combo.addItem("Low impact", "quiet_laptop")
+        self.archive_resource_profile_combo.addItem("Balanced (recommended)", "balanced_60fps")
+        self.archive_resource_profile_combo.addItem("Faster indexing (more CPU / possible lag)", "maximum_throughput")
+        self.archive_resource_profile_combo.addItem("Low impact (slower / smoother)", "quiet_laptop")
+        self.archive_resource_profile_combo.setMinimumContentsLength(22)
+        self.archive_resource_profile_combo.setMinimumWidth(300)
+        self.archive_resource_profile_combo.setMaximumWidth(420)
         self.archive_resource_profile_combo.setToolTip(
-            "Sets automatic defaults for archive list batches and sidecar indexing workers. Manual overrides below take precedence."
+            "Sets automatic defaults for archive list batches and background worker counts. Manual overrides below take precedence."
         )
-        workload_layout.addRow("Preset", self.archive_resource_profile_combo)
-        workload_hint = QLabel(
-            "Balanced is the default. Faster background work can fill long lists and sidecar indexes sooner, but may use more CPU and disk. Low impact keeps background work smaller."
+        _add_performance_row(
+            workload_layout,
+            0,
+            "Preset",
+            self.archive_resource_profile_combo,
+            "Impact: Balanced is safest. Faster uses more CPU/disk. Low impact is smoother on weak PCs or HDDs.",
+            max_control_width=420,
         )
-        workload_hint.setWordWrap(True)
-        workload_hint.setObjectName("HintLabel")
-        workload_layout.addRow("", workload_hint)
-        self.archive_performance_page_layout.addWidget(workload_group)
+        left_performance_column.addWidget(workload_group)
 
-        archive_list_group = QGroupBox("Archive List")
-        archive_list_layout = QFormLayout(archive_list_group)
-        archive_list_layout.setContentsMargins(12, 14, 12, 12)
-        archive_list_layout.setHorizontalSpacing(12)
-        archive_list_layout.setVerticalSpacing(10)
-        self.archive_native_acceleration_checkbox = QCheckBox("Use native archive helper when available")
+        archive_list_group, archive_list_layout = _performance_group("Archive List Loading")
+        archive_list_row = 0
+        self.archive_native_acceleration_checkbox = QCheckBox("Enabled (recommended)")
         self.archive_native_acceleration_checkbox.setToolTip(
-            "Uses the compiled helper for expensive Archive Browser filter, sort, and index preparation. If the helper is missing or fails, the app logs the fallback and continues in Python."
+            "Recommended when the bundled helper is available. It moves expensive archive scan, filter, sort, and index preparation into compiled code. If it fails, the app logs the fallback and continues in Python."
         )
-        archive_list_layout.addRow("", self.archive_native_acceleration_checkbox)
+        archive_list_row = _add_performance_row(
+            archive_list_layout,
+            archive_list_row,
+            "Native helper",
+            self.archive_native_acceleration_checkbox,
+            "Impact: faster scan/filter/index. Turn off only when troubleshooting helper crashes or bad results.",
+            max_control_width=360,
+        )
+        self.archive_fetch_batch_mode_combo = QComboBox()
+        self.archive_fetch_batch_mode_combo.addItem("Auto (preset)", 0)
+        self.archive_fetch_batch_mode_combo.addItem("100 rows (smooth)", 100)
+        self.archive_fetch_batch_mode_combo.addItem("300 rows (balanced)", 300)
+        self.archive_fetch_batch_mode_combo.addItem("600 rows (faster)", 600)
+        self.archive_fetch_batch_mode_combo.addItem("1000 rows (heavy)", 1000)
+        self.archive_fetch_batch_mode_combo.addItem("Custom...", -1)
+        self.archive_fetch_batch_mode_combo.setMinimumContentsLength(22)
+        self.archive_fetch_batch_mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.archive_fetch_batch_mode_combo.setToolTip(
+            "Rows fetched per lazy Archive Browser list/folder expansion. Auto follows the preset. Higher values fill large folders sooner but make each UI update chunk heavier."
+        )
         self.archive_fetch_batch_spin = QSpinBox()
-        self.archive_fetch_batch_spin.setRange(0, 5000)
+        self.archive_fetch_batch_spin.setRange(1, 5000)
         self.archive_fetch_batch_spin.setSingleStep(100)
-        self.archive_fetch_batch_spin.setSpecialValueText("Auto")
+        self.archive_fetch_batch_spin.setValue(300)
         self.archive_fetch_batch_spin.setToolTip(
-            "Rows fetched per lazy Archive Browser expansion. Auto follows the preset. Higher values can fill large folders sooner but make each UI update chunk heavier."
+            "Custom row count. Raise it only if expansion feels too incremental; lower it if each update visibly pauses."
         )
-        archive_list_layout.addRow("List fetch batch override", self.archive_fetch_batch_spin)
-        archive_list_hint = QLabel(
-            "Leave this on Auto unless folder/category expansion visibly feels too slow or too chunky."
+        fetch_batch_row = QWidget()
+        fetch_batch_layout = QHBoxLayout(fetch_batch_row)
+        fetch_batch_layout.setContentsMargins(0, 0, 0, 0)
+        fetch_batch_layout.setSpacing(8)
+        fetch_batch_layout.addWidget(self.archive_fetch_batch_mode_combo)
+        fetch_batch_layout.addWidget(self.archive_fetch_batch_spin)
+        fetch_batch_layout.addStretch(1)
+        self.archive_fetch_batch_mode_combo.setMinimumWidth(220)
+        self.archive_fetch_batch_mode_combo.setMaximumWidth(280)
+        self.archive_fetch_batch_spin.setMaximumWidth(100)
+        archive_list_row = _add_performance_row(
+            archive_list_layout,
+            archive_list_row,
+            "Rows per update",
+            fetch_batch_row,
+            "Impact: lower = smoother UI. Higher = faster folder fill, but larger pauses.",
+            max_control_width=400,
         )
-        archive_list_hint.setWordWrap(True)
-        archive_list_hint.setObjectName("HintLabel")
-        archive_list_layout.addRow("", archive_list_hint)
-        self.archive_performance_page_layout.addWidget(archive_list_group)
+        right_performance_column.addWidget(archive_list_group)
 
-        related_index_group = QGroupBox("Related-File Indexing")
-        related_index_layout = QFormLayout(related_index_group)
-        related_index_layout.setContentsMargins(12, 14, 12, 12)
-        related_index_layout.setHorizontalSpacing(12)
-        related_index_layout.setVerticalSpacing(10)
-        self.archive_sidecar_indexing_checkbox = QCheckBox("Index texture sidecars for DDS related-file discovery")
+        related_index_group, related_index_layout = _performance_group("Related-File Indexing")
+        related_index_row = 0
+        self.archive_sidecar_indexing_checkbox = QCheckBox("Enabled")
         self.archive_sidecar_indexing_checkbox.setToolTip(
-            "Builds a whole-archive .pami/.pac_xml lookup for DDS reverse references and richer related-file lists. Selected .pam/.pac previews still parse direct sidecars when this is off."
+            "Optional. Builds a whole-archive .pami/.pac_xml lookup for DDS reverse references and richer related-file lists. Selected .pam/.pac previews still parse direct sidecars when this is off."
         )
-        related_index_layout.addRow("", self.archive_sidecar_indexing_checkbox)
+        related_index_row = _add_performance_row(
+            related_index_layout,
+            related_index_row,
+            "Sidecar index",
+            self.archive_sidecar_indexing_checkbox,
+            "Impact: optional long first build. Needed for whole-archive DDS reverse-reference searches.",
+            max_control_width=220,
+        )
         self.archive_sidecar_worker_mode_combo = QComboBox()
-        self.archive_sidecar_worker_mode_combo.addItem("Auto from preset", 0)
-        self.archive_sidecar_worker_mode_combo.addItem("Manual", 1)
+        self.archive_sidecar_worker_mode_combo.addItem("Auto from preset (recommended)", 0)
+        self.archive_sidecar_worker_mode_combo.addItem("Manual worker count", 1)
         self.archive_sidecar_worker_spin = QSpinBox()
         self.archive_sidecar_worker_spin.setRange(1, 16)
         self.archive_sidecar_worker_spin.setSingleStep(1)
-        self.archive_sidecar_worker_spin.setToolTip("Manual worker count for whole-archive .pami/.pac_xml indexing only.")
+        self.archive_sidecar_worker_spin.setToolTip(
+            "Manual worker count for whole-archive .pami/.pac_xml indexing only. More workers can finish sooner, but can saturate CPU and storage."
+        )
         worker_row = QWidget()
         worker_layout = QHBoxLayout(worker_row)
         worker_layout.setContentsMargins(0, 0, 0, 0)
         worker_layout.setSpacing(8)
-        worker_layout.addWidget(self.archive_sidecar_worker_mode_combo)
+        worker_layout.addWidget(self.archive_sidecar_worker_mode_combo, stretch=1)
         worker_layout.addWidget(self.archive_sidecar_worker_spin)
         worker_layout.addStretch(1)
-        related_index_layout.addRow("Sidecar index workers", worker_row)
-        self.archive_maximum_indexing_priority_checkbox = QCheckBox("Prioritize indexing over UI responsiveness")
+        self.archive_sidecar_worker_mode_combo.setMinimumContentsLength(28)
+        self.archive_sidecar_worker_mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.archive_sidecar_worker_mode_combo.setMinimumWidth(360)
+        self.archive_sidecar_worker_mode_combo.setMaximumWidth(420)
+        self.archive_sidecar_worker_spin.setMaximumWidth(64)
+        related_index_row = _add_performance_row(
+            related_index_layout,
+            related_index_row,
+            "Workers",
+            worker_row,
+            "Impact: Auto is safest. Too many manual workers can saturate CPU/storage.",
+            max_control_width=492,
+        )
+        self.archive_maximum_indexing_priority_checkbox = QCheckBox("Enabled")
         self.archive_maximum_indexing_priority_checkbox.setToolTip(
-            "Prewarms archive lookup and item-name search caches and runs indexing at normal priority. This can finish indexing sooner but may make browsing less responsive until it finishes."
+            "Prewarms path lookup and item-name search caches and runs indexing at normal priority. This can finish cache work sooner but may make browsing less responsive until it finishes."
         )
-        related_index_layout.addRow("", self.archive_maximum_indexing_priority_checkbox)
-        related_index_hint = QLabel(
-            "This is for cross-archive related-file discovery, not normal preview loading. Leave it off unless DDS reverse references matter for the current workflow."
+        related_index_row = _add_performance_row(
+            related_index_layout,
+            related_index_row,
+            "Cache warmup",
+            self.archive_maximum_indexing_priority_checkbox,
+            "Impact: searches get ready sooner, but UI can lag while caches warm.",
+            max_control_width=220,
         )
-        related_index_hint.setWordWrap(True)
-        related_index_hint.setObjectName("HintLabel")
-        related_index_layout.addRow("", related_index_hint)
-        self.archive_performance_page_layout.addWidget(related_index_group)
+        left_performance_column.addWidget(related_index_group)
 
-        preview_cache_group = QGroupBox("Preview Cache")
-        preview_cache_layout = QFormLayout(preview_cache_group)
-        preview_cache_layout.setContentsMargins(12, 14, 12, 12)
-        preview_cache_layout.setHorizontalSpacing(12)
-        preview_cache_layout.setVerticalSpacing(10)
+        preview_cache_group, preview_cache_layout = _performance_group("Preview Caches")
+        preview_cache_row = 0
+        self.archive_preview_cache_limit_mode_combo = QComboBox()
+        self.archive_preview_cache_limit_mode_combo.addItem("Low 24 (less RAM)", 24)
+        self.archive_preview_cache_limit_mode_combo.addItem("Balanced 64 (recommended)", 64)
+        self.archive_preview_cache_limit_mode_combo.addItem("High 128 (faster)", 128)
+        self.archive_preview_cache_limit_mode_combo.addItem("Max 256 (more RAM)", 256)
+        self.archive_preview_cache_limit_mode_combo.addItem("Custom...", -1)
+        self.archive_preview_cache_limit_mode_combo.setMinimumContentsLength(24)
+        self.archive_preview_cache_limit_mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.archive_preview_cache_limit_mode_combo.setToolTip(
+            "Number of Archive Browser preview results kept in RAM. Higher values make back-and-forth previewing faster, but increase memory use."
+        )
         self.archive_preview_cache_limit_spin = QSpinBox()
         self.archive_preview_cache_limit_spin.setRange(12, 256)
         self.archive_preview_cache_limit_spin.setSingleStep(4)
+        self.archive_preview_cache_limit_spin.setValue(64)
         self.archive_preview_cache_limit_spin.setToolTip(
-            "Number of Archive Browser preview results kept in memory. Higher values use more RAM and help when revisiting recently previewed files."
+            "Custom RAM preview cache size. More entries make repeated previewing faster but keep more preview payloads in memory."
         )
-        preview_cache_layout.addRow("In-memory preview results", self.archive_preview_cache_limit_spin)
+        preview_cache_limit_row = QWidget()
+        preview_cache_limit_layout = QHBoxLayout(preview_cache_limit_row)
+        preview_cache_limit_layout.setContentsMargins(0, 0, 0, 0)
+        preview_cache_limit_layout.setSpacing(8)
+        preview_cache_limit_layout.addWidget(self.archive_preview_cache_limit_mode_combo)
+        preview_cache_limit_layout.addWidget(self.archive_preview_cache_limit_spin)
+        preview_cache_limit_layout.addStretch(1)
+        self.archive_preview_cache_limit_mode_combo.setMinimumWidth(260)
+        self.archive_preview_cache_limit_mode_combo.setMaximumWidth(320)
+        self.archive_preview_cache_limit_spin.setMaximumWidth(90)
+        preview_cache_row = _add_performance_row(
+            preview_cache_layout,
+            preview_cache_row,
+            "RAM cache",
+            preview_cache_limit_row,
+            "Impact: higher = faster back-and-forth previewing, but more RAM.",
+            max_control_width=430,
+        )
         self.archive_native_preview_cache_mode_combo = QComboBox()
-        self.archive_native_preview_cache_mode_combo.addItem("Off", "off")
-        self.archive_native_preview_cache_mode_combo.addItem("Balanced", "balanced")
-        self.archive_native_preview_cache_mode_combo.addItem("Aggressive", "aggressive")
+        self.archive_native_preview_cache_mode_combo.addItem("Off (least disk use)", "off")
+        self.archive_native_preview_cache_mode_combo.addItem("Balanced (reuse exact previews)", "balanced")
+        self.archive_native_preview_cache_mode_combo.addItem("Aggressive (more disk / nearby prebuilds)", "aggressive")
+        self.archive_native_preview_cache_mode_combo.setMinimumContentsLength(36)
+        self.archive_native_preview_cache_mode_combo.setMinimumWidth(360)
+        self.archive_native_preview_cache_mode_combo.setMaximumWidth(460)
         self.archive_native_preview_cache_mode_combo.setToolTip(
-            "Durable D3D11 .pac preview package cache. Balanced reuses exact previews. Aggressive also prebuilds a few nearby visible models and uses more disk."
+            "Durable D3D11 .pac preview package cache on disk. Balanced reuses exact previews. Aggressive also prebuilds a few nearby visible models and uses more disk."
         )
-        preview_cache_layout.addRow("D3D11 package cache", self.archive_native_preview_cache_mode_combo)
-        self.archive_quick_then_full_checkbox = QCheckBox("Show metadata placeholder while 3D preview builds")
+        preview_cache_row = _add_performance_row(
+            preview_cache_layout,
+            preview_cache_row,
+            "D3D11 disk cache",
+            self.archive_native_preview_cache_mode_combo,
+            "Impact: Balanced reuses exact previews. Aggressive uses more disk to prebuild nearby models.",
+            max_control_width=460,
+        )
+        self.archive_quick_then_full_checkbox = QCheckBox("Show metadata first")
         self.archive_quick_then_full_checkbox.setToolTip(
-            "Shows archive metadata and likely same-stem sidecars immediately, then replaces it with the full 3D preview when ready. This changes feedback, not final preview quality."
+            "Shows archive metadata and likely same-stem sidecars immediately, then replaces it with the full 3D preview when ready. This reduces the feeling of a blank/frozen preview pane; final preview quality is unchanged."
         )
-        preview_cache_layout.addRow("", self.archive_quick_then_full_checkbox)
-        preview_cache_hint = QLabel(
-            "Use cache controls when revisiting previews is slow or disk/RAM use is too high. They do not change exported files."
+        preview_cache_row = _add_performance_row(
+            preview_cache_layout,
+            preview_cache_row,
+            "Preview feedback",
+            self.archive_quick_then_full_checkbox,
+            "Impact: less blank preview time. Final preview quality and exports unchanged.",
+            max_control_width=260,
         )
-        preview_cache_hint.setWordWrap(True)
-        preview_cache_hint.setObjectName("HintLabel")
-        preview_cache_layout.addRow("", preview_cache_hint)
-        self.archive_performance_page_layout.addWidget(preview_cache_group)
+        right_performance_column.addWidget(preview_cache_group)
+        self.archive_performance_page_layout.addWidget(performance_grid_widget)
 
         layout_group = QGroupBox("Layout")
         layout_layout = QVBoxLayout(layout_group)
@@ -835,11 +1001,13 @@ class SettingsTab(QWidget):
         ):
             checkbox.toggled.connect(self.schedule_settings_save)
         self.archive_resource_profile_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
+        self.archive_fetch_batch_mode_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
         self.archive_fetch_batch_spin.valueChanged.connect(self._handle_archive_performance_changed)
         self.archive_native_acceleration_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.archive_sidecar_indexing_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.archive_sidecar_worker_mode_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
         self.archive_sidecar_worker_spin.valueChanged.connect(self._handle_archive_performance_changed)
+        self.archive_preview_cache_limit_mode_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
         self.archive_preview_cache_limit_spin.valueChanged.connect(self._handle_archive_performance_changed)
         self.archive_native_preview_cache_mode_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
         self.archive_quick_then_full_checkbox.toggled.connect(self._handle_archive_performance_changed)
@@ -1099,6 +1267,76 @@ class SettingsTab(QWidget):
         self.sync_model_preview_controls()
         self._apply_checkbox_states()
 
+    def _appearance_state(self) -> Dict[str, object]:
+        return {
+            "theme": self.current_theme_key(),
+            "ui_font_family": self.current_ui_font_family(),
+            "ui_density": self.current_density_key(),
+            "ui_font_size": self.current_ui_font_size(),
+            "data_font_size": self.current_data_font_size(),
+            "log_font_family": self.current_log_font_family(),
+            "log_font_size": self.current_log_font_size(),
+            "log_font_bold": self.current_log_font_bold(),
+            "log_text_style": self.current_log_text_style(),
+            "log_color_scheme": self.current_log_color_scheme(),
+            "preview_color_scheme": self.current_preview_color_scheme(),
+        }
+
+    def _appearance_change_payload(
+        self,
+        previous: Dict[str, object],
+        current: Dict[str, object],
+    ) -> Dict[str, object]:
+        changed = tuple(key for key, value in current.items() if previous.get(key) != value)
+        full_theme_keys = {
+            "theme",
+            "ui_font_family",
+            "ui_density",
+            "ui_font_size",
+            "data_font_size",
+        }
+        data_font_keys = {"log_font_family", "log_font_size", "log_font_bold"}
+        text_color_keys = {"log_text_style", "log_color_scheme", "preview_color_scheme"}
+        requires_theme_apply = any(key in full_theme_keys for key in changed)
+        requires_data_fonts = any(key in data_font_keys for key in changed)
+        requires_text_colors = any(key in text_color_keys for key in changed)
+        theme_key = str(current.get("theme") or DEFAULT_UI_THEME)
+        theme = UI_THEME_SCHEMES.get(theme_key, UI_THEME_SCHEMES[DEFAULT_UI_THEME])
+        if requires_theme_apply:
+            title = f"Applying {theme.get('label', 'Theme')} theme"
+            detail = "Updating app colors, fonts, and panes..."
+        elif requires_data_fonts:
+            title = "Applying text appearance"
+            detail = "Updating logs and preview text..."
+        else:
+            title = "Applying text colors"
+            detail = "Updating logs and preview text..."
+        return {
+            "theme_key": theme_key,
+            "changed": changed,
+            "requires_theme_apply": requires_theme_apply,
+            "requires_data_fonts": requires_data_fonts,
+            "requires_text_colors": requires_text_colors,
+            "title": title,
+            "detail": detail,
+        }
+
+    def _save_appearance_settings(self, *, sync: bool = True) -> None:
+        self.settings.setValue("appearance/theme", self.current_theme_key())
+        self.settings.setValue("appearance/language", self.current_language_code())
+        self.settings.setValue("appearance/ui_font_family", self.current_ui_font_family())
+        self.settings.setValue("appearance/ui_density", self.current_density_key())
+        self.settings.setValue("appearance/ui_font_size", self.current_ui_font_size())
+        self.settings.setValue("appearance/data_font_size", self.current_data_font_size())
+        self.settings.setValue("appearance/log_font_family", self.current_log_font_family())
+        self.settings.setValue("appearance/log_font_size", self.current_log_font_size())
+        self.settings.setValue("appearance/log_font_bold", self.current_log_font_bold())
+        self.settings.setValue("appearance/log_text_style", self.current_log_text_style())
+        self.settings.setValue("appearance/log_color_scheme", self.current_log_color_scheme())
+        self.settings.setValue("appearance/preview_color_scheme", self.current_preview_color_scheme())
+        if sync:
+            self.settings.sync()
+
     def _save_settings(self) -> None:
         if not self._settings_ready:
             return
@@ -1235,6 +1473,9 @@ class SettingsTab(QWidget):
     def _handle_appearance_changed(self) -> None:
         if not self._settings_ready:
             return
+        current = self._appearance_state()
+        previous = self._last_applied_appearance_state or {}
+        self.appearance_change_started.emit(self._appearance_change_payload(previous, current))
         self._appearance_apply_timer.start()
 
     def _handle_language_changed(self) -> None:
@@ -1247,9 +1488,16 @@ class SettingsTab(QWidget):
     def _apply_pending_appearance_change(self) -> None:
         if not self._settings_ready:
             return
-        self._save_settings()
+        previous = self._last_applied_appearance_state or {}
+        current = self._appearance_state()
+        payload = self._appearance_change_payload(previous, current)
+        self._save_appearance_settings()
         self._apply_section_nav_style()
-        self.theme_changed.emit(self.current_theme_key())
+        self._last_applied_appearance_state = dict(current)
+        if payload["changed"]:
+            self.appearance_changed.emit(payload)
+            if payload["requires_theme_apply"]:
+                self.theme_changed.emit(self.current_theme_key())
 
     def _handle_model_preview_changed(self, *_args) -> None:
         if not self._settings_ready:
@@ -1324,22 +1572,55 @@ class SettingsTab(QWidget):
     def _archive_performance_setting_widgets(self) -> tuple[QWidget, ...]:
         return (
             self.archive_resource_profile_combo,
+            self.archive_fetch_batch_mode_combo,
             self.archive_fetch_batch_spin,
             self.archive_native_acceleration_checkbox,
             self.archive_sidecar_indexing_checkbox,
             self.archive_sidecar_worker_mode_combo,
             self.archive_sidecar_worker_spin,
+            self.archive_preview_cache_limit_mode_combo,
             self.archive_preview_cache_limit_spin,
             self.archive_native_preview_cache_mode_combo,
             self.archive_quick_then_full_checkbox,
             self.archive_maximum_indexing_priority_checkbox,
         )
 
+    @staticmethod
+    def _combo_int_data(combo: QComboBox, fallback: int = 0) -> int:
+        try:
+            return int(combo.currentData())
+        except (TypeError, ValueError):
+            return fallback
+
+    def _set_numeric_preset_controls(self, combo: QComboBox, spin: QSpinBox, value: int) -> None:
+        preset_index = combo.findData(value)
+        if preset_index >= 0:
+            combo.setCurrentIndex(preset_index)
+            if value >= spin.minimum():
+                spin.setValue(value)
+            return
+        custom_index = combo.findData(-1)
+        combo.setCurrentIndex(custom_index if custom_index >= 0 else 0)
+        spin.setValue(max(spin.minimum(), min(spin.maximum(), value)))
+
+    def _numeric_preset_value(self, combo: QComboBox, spin: QSpinBox) -> int:
+        preset_value = self._combo_int_data(combo)
+        return spin.value() if preset_value == -1 else preset_value
+
     def _apply_archive_performance_control_states(self) -> None:
         enabled = self.archive_sidecar_indexing_checkbox.isChecked()
         manual = int(self.archive_sidecar_worker_mode_combo.currentData() or 0) == 1
+        self.archive_fetch_batch_spin.setVisible(self._combo_int_data(self.archive_fetch_batch_mode_combo) == -1)
+        self.archive_fetch_batch_spin.setEnabled(self._combo_int_data(self.archive_fetch_batch_mode_combo) == -1)
         self.archive_sidecar_worker_mode_combo.setEnabled(enabled)
+        self.archive_sidecar_worker_spin.setVisible(manual)
         self.archive_sidecar_worker_spin.setEnabled(enabled and manual)
+        self.archive_preview_cache_limit_spin.setVisible(
+            self._combo_int_data(self.archive_preview_cache_limit_mode_combo) == -1
+        )
+        self.archive_preview_cache_limit_spin.setEnabled(
+            self._combo_int_data(self.archive_preview_cache_limit_mode_combo) == -1
+        )
         self.archive_maximum_indexing_priority_checkbox.setEnabled(True)
 
     def sync_archive_performance_controls(
@@ -1351,12 +1632,20 @@ class SettingsTab(QWidget):
             widget.blockSignals(True)
         try:
             self._set_combo_by_value(self.archive_resource_profile_combo, clamped.resource_profile)
-            self.archive_fetch_batch_spin.setValue(clamped.archive_fetch_batch_size)
+            self._set_numeric_preset_controls(
+                self.archive_fetch_batch_mode_combo,
+                self.archive_fetch_batch_spin,
+                clamped.archive_fetch_batch_size,
+            )
             self.archive_native_acceleration_checkbox.setChecked(clamped.native_archive_acceleration)
             self.archive_sidecar_indexing_checkbox.setChecked(clamped.enable_sidecar_indexing)
             self.archive_sidecar_worker_mode_combo.setCurrentIndex(1 if clamped.sidecar_worker_count > 0 else 0)
             self.archive_sidecar_worker_spin.setValue(max(1, clamped.sidecar_worker_count or 4))
-            self.archive_preview_cache_limit_spin.setValue(clamped.preview_cache_limit)
+            self._set_numeric_preset_controls(
+                self.archive_preview_cache_limit_mode_combo,
+                self.archive_preview_cache_limit_spin,
+                clamped.preview_cache_limit,
+            )
             self._set_combo_by_value(self.archive_native_preview_cache_mode_combo, clamped.native_preview_cache_mode)
             self.archive_quick_then_full_checkbox.setChecked(clamped.quick_then_full_preview)
             self.archive_maximum_indexing_priority_checkbox.setChecked(clamped.maximum_indexing_priority)
@@ -1374,11 +1663,17 @@ class SettingsTab(QWidget):
         return clamp_archive_performance_settings(
             ArchivePerformanceSettings(
                 resource_profile=str(self.archive_resource_profile_combo.currentData() or "balanced_60fps"),
-                archive_fetch_batch_size=self.archive_fetch_batch_spin.value(),
+                archive_fetch_batch_size=self._numeric_preset_value(
+                    self.archive_fetch_batch_mode_combo,
+                    self.archive_fetch_batch_spin,
+                ),
                 native_archive_acceleration=self.archive_native_acceleration_checkbox.isChecked(),
                 enable_sidecar_indexing=self.archive_sidecar_indexing_checkbox.isChecked(),
                 sidecar_worker_count=worker_count,
-                preview_cache_limit=self.archive_preview_cache_limit_spin.value(),
+                preview_cache_limit=self._numeric_preset_value(
+                    self.archive_preview_cache_limit_mode_combo,
+                    self.archive_preview_cache_limit_spin,
+                ),
                 native_preview_cache_mode=str(self.archive_native_preview_cache_mode_combo.currentData() or "balanced"),
                 quick_then_full_preview=self.archive_quick_then_full_checkbox.isChecked(),
                 maximum_indexing_priority=self.archive_maximum_indexing_priority_checkbox.isChecked(),
@@ -1468,6 +1763,7 @@ class SettingsTab(QWidget):
         self.preview_color_scheme_combo.setCurrentIndex(max(0, preview_scheme_index))
         self.preview_color_scheme_combo.blockSignals(False)
         self._apply_section_nav_style()
+        self._last_applied_appearance_state = self._appearance_state()
 
     def set_language_selection(self, language_code: str) -> None:
         code = str(language_code or "en").strip() or "en"

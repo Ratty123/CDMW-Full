@@ -5,7 +5,14 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 
-def iter_app_icon_candidate_paths() -> Tuple[Path, ...]:
+def _theme_icon_stem(theme_key: Optional[str]) -> str:
+    text = str(theme_key or "").strip().lower()
+    if not text:
+        return ""
+    return "".join(character if character.isalnum() or character in {"_", "-"} else "_" for character in text)
+
+
+def iter_app_icon_candidate_paths(theme_key: Optional[str] = None) -> Tuple[Path, ...]:
     search_roots: List[Path] = []
 
     def add_root(root: Optional[Path]) -> None:
@@ -28,7 +35,16 @@ def iter_app_icon_candidate_paths() -> Tuple[Path, ...]:
     add_root(Path(__file__).resolve().parents[2])
     add_root(Path.cwd())
 
-    relative_candidates = (
+    theme_stem = _theme_icon_stem(theme_key)
+    theme_candidates: Tuple[Path, ...] = ()
+    if theme_stem:
+        theme_candidates = (
+            Path("assets") / "theme_icons" / f"cdmw_{theme_stem}.ico",
+            Path("assets") / "theme_icons" / f"cdmw_{theme_stem}.png",
+            Path("_internal") / "assets" / "theme_icons" / f"cdmw_{theme_stem}.ico",
+            Path("_internal") / "assets" / "theme_icons" / f"cdmw_{theme_stem}.png",
+        )
+    relative_candidates = theme_candidates + (
         Path("assets") / "cdmw.ico",
         Path("assets") / "cdmw.png",
         Path("_internal") / "assets" / "cdmw.ico",
@@ -49,8 +65,8 @@ def iter_app_icon_candidate_paths() -> Tuple[Path, ...]:
     return tuple(candidates)
 
 
-def resolve_app_icon_path() -> Optional[Path]:
-    for candidate in iter_app_icon_candidate_paths():
+def resolve_app_icon_path(theme_key: Optional[str] = None) -> Optional[Path]:
+    for candidate in iter_app_icon_candidate_paths(theme_key):
         if candidate.is_file():
             return candidate
     return None

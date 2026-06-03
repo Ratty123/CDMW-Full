@@ -811,8 +811,9 @@ def run_gui() -> int:
         return text
 
     class ExternalStartupSplashAdapter:
-        def __init__(self, command_file: Path) -> None:
+        def __init__(self, command_file: Path, *, theme_key: str = DEFAULT_UI_THEME) -> None:
             self.command_file = Path(command_file)
+            self.theme_key = _splash_resolved_theme_key(theme_key)
             self._shown_at = time.monotonic()
             self._closed = False
 
@@ -826,6 +827,7 @@ def run_gui() -> int:
                     "current": max(0, int(current or 0)),
                     "total": max(0, int(total or 0)),
                     "closed": False,
+                    "theme_key": self.theme_key,
                     "updated_at": time.time(),
                 }
                 temp_path = self.command_file.with_suffix(self.command_file.suffix + ".tmp")
@@ -851,6 +853,7 @@ def run_gui() -> int:
                     "current": 1,
                     "total": 1,
                     "closed": True,
+                    "theme_key": self.theme_key,
                     "updated_at": time.time(),
                 }
                 temp_path = self.command_file.with_suffix(self.command_file.suffix + ".tmp")
@@ -2443,7 +2446,13 @@ def run_gui() -> int:
         settings.setFallbacksEnabled(False)
         return settings
 
-    def iter_app_icon_candidate_paths() -> Tuple[Path, ...]:
+    def _theme_icon_stem(theme_key: Optional[str]) -> str:
+        text = str(theme_key or "").strip().lower()
+        if not text:
+            return ""
+        return "".join(character if character.isalnum() or character in {"_", "-"} else "_" for character in text)
+
+    def iter_app_icon_candidate_paths(theme_key: Optional[str] = None) -> Tuple[Path, ...]:
         search_roots: List[Path] = []
 
         def add_root(root: Optional[Path]) -> None:
@@ -2466,7 +2475,16 @@ def run_gui() -> int:
         add_root(Path(__file__).resolve().parents[2])
         add_root(Path.cwd())
 
-        relative_candidates = (
+        theme_stem = _theme_icon_stem(theme_key)
+        theme_candidates: Tuple[Path, ...] = ()
+        if theme_stem:
+            theme_candidates = (
+                Path("assets") / "theme_icons" / f"cdmw_{theme_stem}.ico",
+                Path("assets") / "theme_icons" / f"cdmw_{theme_stem}.png",
+                Path("_internal") / "assets" / "theme_icons" / f"cdmw_{theme_stem}.ico",
+                Path("_internal") / "assets" / "theme_icons" / f"cdmw_{theme_stem}.png",
+            )
+        relative_candidates = theme_candidates + (
             Path("assets") / "cdmw.ico",
             Path("assets") / "cdmw.png",
             Path("_internal") / "assets" / "cdmw.ico",
@@ -2486,14 +2504,14 @@ def run_gui() -> int:
                 candidates.append(candidate)
         return tuple(candidates)
 
-    def resolve_app_icon_path() -> Optional[Path]:
-        for candidate in iter_app_icon_candidate_paths():
+    def resolve_app_icon_path(theme_key: Optional[str] = None) -> Optional[Path]:
+        for candidate in iter_app_icon_candidate_paths(theme_key):
             if candidate.is_file():
                 return candidate
         return None
 
-    def load_app_icon() -> Tuple[QIcon, Optional[Path]]:
-        for candidate in iter_app_icon_candidate_paths():
+    def load_app_icon(theme_key: Optional[str] = None) -> Tuple[QIcon, Optional[Path]]:
+        for candidate in iter_app_icon_candidate_paths(theme_key):
             if not candidate.is_file():
                 continue
             icon = QIcon(str(candidate))
@@ -2587,6 +2605,9 @@ def run_gui() -> int:
     class AppWindowIconEventFilter(QObject):
         def __init__(self, app_icon: QIcon, parent: Optional[QObject] = None) -> None:
             super().__init__(parent)
+            self._app_icon = QIcon(app_icon)
+
+        def set_app_icon(self, app_icon: QIcon) -> None:
             self._app_icon = QIcon(app_icon)
 
         def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # type: ignore[override]
@@ -2753,6 +2774,9 @@ def run_gui() -> int:
                 editor.set_highlight_style(style)
             if hasattr(editor, "set_color_scheme"):
                 editor.set_color_scheme(preview_scheme)
+        research_tab = getattr(window, "research_tab", None)
+        if research_tab is not None and hasattr(research_tab, "_apply_archive_picker_preview_text_style"):
+            research_tab._apply_archive_picker_preview_text_style()
 
     def apply_window_data_fonts(window: "MainWindow") -> None:
         log_font = build_monospace_font(window.settings)
@@ -2832,6 +2856,7 @@ def run_gui() -> int:
             sort_order: str = "asc",
             result_filter_signature: Tuple[object, ...] = (),
             load_basic_index_cache: bool = False,
+            load_name_search_index_cache: bool = False,
             native_archive_acceleration: bool = True,
             resource_profile: str = "balanced_60fps",
             game_executable_fingerprints: Optional[Mapping[str, Mapping[str, object]]] = None,
@@ -2858,6 +2883,7 @@ def run_gui() -> int:
             self.sort_order = normalize_archive_browser_sort_order(sort_order)
             self.result_filter_signature = tuple(result_filter_signature or ())
             self.load_basic_index_cache = bool(load_basic_index_cache)
+            self.load_name_search_index_cache = bool(load_name_search_index_cache)
             self.native_archive_acceleration = bool(native_archive_acceleration)
             self.resource_profile = str(resource_profile or "balanced_60fps")
             self.crash_reports_dir = crash_reports_dir
@@ -3070,7 +3096,7 @@ def run_gui() -> int:
                         entries,
                         entry_metadata_signature=entry_metadata_signature or None,
                         current_sources=entry_metadata_sources or None,
-                        load_name_search_index=False,
+                        load_name_search_index=self.load_name_search_index_cache,
                         on_log=self.log_message.emit,
                         timings=timings,
                     )
@@ -3727,8 +3753,11 @@ def run_gui() -> int:
             rows: Sequence[Mapping[str, object]],
             entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]],
             entries_by_basename: Mapping[str, Sequence[ArchiveEntry]],
+            package_root: Path,
+            cache_root: Path,
             *,
             texconv_key: str = "",
+            thumbnail_converter_key: str = "",
             texconv_path: Optional[Path] = None,
             max_dimension: int = 120,
         ) -> None:
@@ -3737,7 +3766,10 @@ def run_gui() -> int:
             self.rows = [dict(row) for row in rows if isinstance(row, Mapping)]
             self.entries_by_normalized_path = entries_by_normalized_path
             self.entries_by_basename = entries_by_basename
+            self.package_root = package_root
+            self.cache_root = cache_root
             self.texconv_key = str(texconv_key or "")
+            self.thumbnail_converter_key = str(thumbnail_converter_key or texconv_key or "")
             self.texconv_path = texconv_path
             self.max_dimension = max(32, int(max_dimension or 120))
             self.stop_event = threading.Event()
@@ -3786,6 +3818,31 @@ def run_gui() -> int:
         @Slot()
         def run(self) -> None:
             try:
+                try:
+                    from cdmw.core.texture_native import ensure_directxtex_dds_preview_pngs
+                except Exception:
+                    ensure_directxtex_dds_preview_pngs = None
+
+                pending_dds: List[Tuple[Tuple[Tuple[str, ...], str], ArchiveEntry, Path]] = []
+                pending_dds_keys: set[Tuple[Tuple[str, ...], str]] = set()
+                emitted_keys: set[Tuple[Tuple[str, ...], str]] = set()
+
+                def emit_prepared(
+                    prepared_key: Tuple[Tuple[str, ...], str],
+                    preview_path: Path,
+                    note: str,
+                ) -> None:
+                    if prepared_key in emitted_keys:
+                        return
+                    emitted_keys.add(prepared_key)
+                    self.icon_prepared.emit(self.generation, prepared_key, str(preview_path), note)
+
+                def emit_missing(prepared_key: Tuple[Tuple[str, ...], str], note: str) -> None:
+                    if prepared_key in emitted_keys:
+                        return
+                    emitted_keys.add(prepared_key)
+                    self.icon_prepared.emit(self.generation, prepared_key, "", note)
+
                 for row in self.rows:
                     if self.stop_event.is_set():
                         break
@@ -3793,13 +3850,24 @@ def run_gui() -> int:
                     if not icon_paths:
                         continue
                     prepared_key = (icon_paths, self.texconv_key)
-                    prepared_path = ""
                     prepared_note = ""
                     for icon_path in icon_paths:
                         if self.stop_event.is_set():
                             break
                         for entry in self._path_candidates(icon_path)[:4]:
                             if self.stop_event.is_set():
+                                break
+                            cached = load_archive_item_icon_thumbnail_cache(
+                                self.package_root,
+                                self.cache_root,
+                                icon_paths,
+                                entry,
+                                size=self.max_dimension,
+                                converter_key=self.thumbnail_converter_key,
+                            )
+                            if cached is not None:
+                                cached_path, cached_note = cached
+                                emit_prepared(prepared_key, cached_path, cached_note)
                                 break
                             try:
                                 source_path, _note = ensure_archive_preview_source(entry, stop_event=self.stop_event)
@@ -3810,35 +3878,117 @@ def run_gui() -> int:
                                 continue
                             preview_path = source_path
                             if entry.extension == ".dds":
-                                try:
-                                    preview_path = ensure_dds_display_preview_png(
-                                        self.texconv_path,
-                                        source_path,
-                                        max_dimension=self.max_dimension,
-                                        slot_kind="base",
-                                    )
-                                except Exception as exc:
-                                    if self.stop_event.is_set():
-                                        break
-                                    prepared_note = f"Recovered icon DDS found, but thumbnail conversion failed: {exc}"
-                                    continue
-                            if preview_path.exists():
-                                prepared_path = str(preview_path)
-                                prepared_note = f"Recovered inventory icon: {entry.path}"
+                                pending_dds.append((prepared_key, entry, source_path))
+                                pending_dds_keys.add(prepared_key)
                                 break
-                        if prepared_path:
+                            if preview_path.exists():
+                                prepared_note = f"Recovered inventory icon: {entry.path}"
+                                try:
+                                    preview_path = save_archive_item_icon_thumbnail_cache(
+                                        self.package_root,
+                                        self.cache_root,
+                                        icon_paths,
+                                        entry,
+                                        preview_path,
+                                        size=self.max_dimension,
+                                        converter_key=self.thumbnail_converter_key,
+                                        note=prepared_note,
+                                    )
+                                except Exception:
+                                    pass
+                                emit_prepared(prepared_key, preview_path, prepared_note)
+                                break
+                        if prepared_key in emitted_keys:
                             break
                     if self.stop_event.is_set():
                         break
-                    if prepared_path:
-                        self.icon_prepared.emit(self.generation, prepared_key, prepared_path, prepared_note)
-                    else:
-                        self.icon_prepared.emit(
-                            self.generation,
+                    if prepared_key not in emitted_keys and prepared_key not in pending_dds_keys:
+                        emit_missing(
                             prepared_key,
-                            "",
                             prepared_note or "Recovered icon path could not be resolved in the loaded archive index.",
                         )
+
+                if self.stop_event.is_set() or not pending_dds:
+                    return
+
+                dds_jobs = [
+                    {
+                        "dds_path": str(source_path),
+                        "max_dimension": self.max_dimension,
+                        "slot_kind": "base",
+                    }
+                    for _prepared_key, _entry, source_path in pending_dds
+                ]
+                batch_results: Dict[str, Path] = {}
+                if ensure_directxtex_dds_preview_pngs is not None:
+                    try:
+                        batch_results = ensure_directxtex_dds_preview_pngs(
+                            dds_jobs,
+                            timeout_seconds=45.0,
+                            stop_event=self.stop_event,
+                        )
+                    except Exception:
+                        batch_results = {}
+
+                failed_dds_notes: Dict[Tuple[Tuple[str, ...], str], str] = {}
+                for prepared_key, entry, source_path in pending_dds:
+                    if self.stop_event.is_set():
+                        break
+                    if prepared_key in emitted_keys:
+                        continue
+                    try:
+                        batch_key = str(source_path.expanduser().resolve())
+                    except OSError:
+                        batch_key = str(source_path)
+                    preview_path = batch_results.get(batch_key)
+                    if preview_path is None:
+                        try:
+                            preview_path = ensure_dds_display_preview_png(
+                                self.texconv_path,
+                                source_path,
+                                max_dimension=self.max_dimension,
+                                slot_kind="base",
+                                stop_event=self.stop_event,
+                            )
+                        except Exception as exc:
+                            if self.stop_event.is_set():
+                                break
+                            failed_dds_notes.setdefault(
+                                prepared_key,
+                                f"Recovered icon DDS found, but thumbnail conversion failed: {exc}",
+                            )
+                            continue
+                    if not preview_path.exists():
+                        failed_dds_notes.setdefault(
+                            prepared_key,
+                            "Recovered icon DDS found, but thumbnail conversion did not produce a preview.",
+                        )
+                        continue
+                    note = f"Recovered inventory icon: {entry.path}"
+                    try:
+                        cached_path = save_archive_item_icon_thumbnail_cache(
+                            self.package_root,
+                            self.cache_root,
+                            prepared_key[0],
+                            entry,
+                            preview_path,
+                            size=self.max_dimension,
+                            converter_key=self.thumbnail_converter_key,
+                            note=note,
+                        )
+                    except Exception:
+                        cached_path = preview_path
+                    emit_prepared(prepared_key, cached_path, note)
+                if not self.stop_event.is_set():
+                    for prepared_key, _entry, _source_path in pending_dds:
+                        if prepared_key not in emitted_keys:
+                            emit_missing(
+                                prepared_key,
+                                failed_dds_notes.get(
+                                    prepared_key,
+                                    "Recovered icon path could not be resolved in the loaded archive index.",
+                                ),
+                            )
             finally:
                 self.finished.emit(self.generation)
 
@@ -3905,6 +4055,8 @@ def run_gui() -> int:
                     on_progress=_emit_throttled_progress,
                 )
                 if cached is not None:
+                    if self.stop_event.is_set():
+                        return
                     path_rows, basename_rows = cached
                     lazy_index_started_at = time.perf_counter()
                     self.progress_changed.emit(
@@ -3921,6 +4073,8 @@ def run_gui() -> int:
                         basename_rows,
                         self.entries,
                     )
+                    if self.stop_event.is_set():
+                        return
                     timings["lazy_index_s"] = max(0.0, float(time.perf_counter() - lazy_index_started_at))
                     timings.setdefault("path_row_build_s", 0.0)
                     timings.setdefault("basename_row_build_s", 0.0)
@@ -3945,19 +4099,20 @@ def run_gui() -> int:
                             ("total_s", "total"),
                         ),
                     )
-                    self.completed.emit(
-                        self.request_id,
-                        {
-                            "sidecar_entries_by_texture_path": sidecar_entries_by_texture_path,
-                            "sidecar_entries_by_texture_basename": sidecar_entries_by_texture_basename,
-                            "sidecar_path_rows": path_rows,
-                            "sidecar_basename_rows": basename_rows,
-                            "source": "cache",
-                            "cache_path": str(resolve_archive_sidecar_cache_path(self.package_root, self.cache_root)),
-                            "timings": timings,
-                            "timing_summary": timing_summary,
-                        },
-                    )
+                    if not self.stop_event.is_set():
+                        self.completed.emit(
+                            self.request_id,
+                            {
+                                "sidecar_entries_by_texture_path": sidecar_entries_by_texture_path,
+                                "sidecar_entries_by_texture_basename": sidecar_entries_by_texture_basename,
+                                "sidecar_path_rows": path_rows,
+                                "sidecar_basename_rows": basename_rows,
+                                "source": "cache",
+                                "cache_path": str(resolve_archive_sidecar_cache_path(self.package_root, self.cache_root)),
+                                "timings": timings,
+                                "timing_summary": timing_summary,
+                            },
+                        )
                     return
 
                 self.log_message.emit("Indexing texture sidecar bindings for related-file discovery...")
@@ -4030,6 +4185,8 @@ def run_gui() -> int:
                     if not self.stop_event.is_set():
                         self.log_message.emit(f"Warning: texture sidecar cache could not be written: {exc}")
                     timings.setdefault("cache_write_s", 0.0)
+                if self.stop_event.is_set():
+                    return
                 self.progress_changed.emit(self.request_id, 1, 1, "Texture sidecar cache is ready.")
                 timings["total_s"] = max(0.0, float(time.perf_counter() - started_at))
                 timing_summary = _format_timing_summary(
@@ -5649,6 +5806,9 @@ def run_gui() -> int:
         progress_changed = Signal(int, int, int, str)
         error = Signal(int, str)
         finished = Signal()
+        _prepared_geometry_cache_lock = threading.Lock()
+        _prepared_geometry_cache: "OrderedDict[str, tuple[object, PreparedModelPreviewData]]" = OrderedDict()
+        _prepared_geometry_cache_limit = 8
 
         def __init__(
             self,
@@ -5662,6 +5822,11 @@ def run_gui() -> int:
             original_reference_material_parity: bool = True,
             display_mode: str = "side_by_side",
             editor_workspace: str = "mesh_alignment",
+            package_quality: str = "archive_parity",
+            geometry_signature: str = "",
+            reuse_prepared_geometry: bool = False,
+            geometry_cache_dir: Optional[Path] = None,
+            texture_cache_dir: Optional[Path] = None,
         ) -> None:
             super().__init__()
             self.request_id = int(request_id)
@@ -5673,10 +5838,134 @@ def run_gui() -> int:
             self.original_reference_material_parity = bool(original_reference_material_parity)
             self.display_mode = str(display_mode or "side_by_side").strip().lower()
             self.editor_workspace = str(editor_workspace or "mesh_alignment").strip()
+            self.package_quality = str(package_quality or "archive_parity").strip().lower()
+            self.geometry_signature = str(geometry_signature or "").strip()
+            self.reuse_prepared_geometry = bool(reuse_prepared_geometry)
+            self.geometry_cache_dir = Path(geometry_cache_dir).expanduser() if geometry_cache_dir else None
+            self.texture_cache_dir = Path(texture_cache_dir).expanduser() if texture_cache_dir else None
             self.stop_event = threading.Event()
 
         def stop(self) -> None:
             self.stop_event.set()
+
+        @classmethod
+        def _prepared_geometry_cache_get(cls, key: str) -> Optional[tuple[object, PreparedModelPreviewData]]:
+            key = str(key or "").strip()
+            if not key:
+                return None
+            with cls._prepared_geometry_cache_lock:
+                cached = cls._prepared_geometry_cache.get(key)
+                if cached is None:
+                    return None
+                cls._prepared_geometry_cache.move_to_end(key)
+                return cached
+
+        @classmethod
+        def _prepared_geometry_cache_put(cls, key: str, prepared_model: object, prepared_preview: object) -> None:
+            key = str(key or "").strip()
+            if not key or not isinstance(prepared_preview, PreparedModelPreviewData):
+                return
+            with cls._prepared_geometry_cache_lock:
+                cls._prepared_geometry_cache[key] = (prepared_model, prepared_preview)
+                cls._prepared_geometry_cache.move_to_end(key)
+                while len(cls._prepared_geometry_cache) > max(1, int(cls._prepared_geometry_cache_limit)):
+                    cls._prepared_geometry_cache.popitem(last=False)
+
+        @staticmethod
+        def _preview_role_key(value: object) -> str:
+            return str(value or "").strip().lower()
+
+        @classmethod
+        def _mesh_by_source_identity(cls, model: object) -> Dict[tuple[str, int], object]:
+            by_source: Dict[tuple[str, int], object] = {}
+            for mesh in tuple(getattr(model, "meshes", ()) or ()):
+                try:
+                    source_index = int(getattr(mesh, "source_submesh_index", -1) or -1)
+                except (TypeError, ValueError, OverflowError):
+                    source_index = -1
+                role_key = cls._preview_role_key(getattr(mesh, "preview_role", ""))
+                if source_index >= 0 and (role_key, source_index) not in by_source:
+                    by_source[(role_key, source_index)] = mesh
+            return by_source
+
+        @staticmethod
+        def _preview_roles_compatible(batch_role: str, mesh_role: str) -> bool:
+            batch_role = AlignmentD3D11PackageWorker._preview_role_key(batch_role)
+            mesh_role = AlignmentD3D11PackageWorker._preview_role_key(mesh_role)
+            return batch_role == mesh_role or (not batch_role and not mesh_role)
+
+        @staticmethod
+        def _prepared_preview_with_current_materials(
+            prepared_preview: PreparedModelPreviewData,
+            model: object,
+        ) -> PreparedModelPreviewData:
+            meshes = tuple(getattr(model, "meshes", ()) or ())
+            by_source = AlignmentD3D11PackageWorker._mesh_by_source_identity(model)
+            updated_batches: list[PreparedModelPreviewBatch] = []
+            for index, batch in enumerate(tuple(getattr(prepared_preview, "batches", ()) or ())):
+                if not isinstance(batch, PreparedModelPreviewBatch):
+                    continue
+                batch_role = str(getattr(batch, "editor_role", "") or "")
+                source_submesh_index = int(getattr(batch, "source_submesh_index", -1) or -1)
+                mesh = by_source.get((
+                    AlignmentD3D11PackageWorker._preview_role_key(batch_role),
+                    source_submesh_index,
+                ))
+                if mesh is None and 0 <= index < len(meshes):
+                    candidate = meshes[index]
+                    if AlignmentD3D11PackageWorker._preview_roles_compatible(
+                        batch_role,
+                        getattr(candidate, "preview_role", ""),
+                    ):
+                        mesh = candidate
+                if mesh is None:
+                    updated_batches.append(batch)
+                    continue
+                editor_role = str(getattr(mesh, "preview_role", getattr(batch, "editor_role", "")) or "").strip()
+                editor_role_key = editor_role.lower()
+                editor_editable = source_submesh_index >= 0 or (
+                    "replacement" in editor_role_key
+                    and "reference" not in editor_role_key
+                    and "original" not in editor_role_key
+                )
+                if editor_role_key.startswith("hkx_"):
+                    editor_editable = False
+                updated_batches.append(
+                    dataclasses.replace(
+                        batch,
+                        material_name=str(getattr(mesh, "material_name", getattr(batch, "material_name", "")) or "").strip(),
+                        texture_name=str(getattr(mesh, "texture_name", getattr(batch, "texture_name", "")) or "").strip(),
+                        preview_texture_path=str(getattr(mesh, "preview_texture_path", getattr(batch, "preview_texture_path", "")) or ""),
+                        preview_texture_dds_path=str(getattr(mesh, "preview_texture_dds_path", getattr(batch, "preview_texture_dds_path", "")) or ""),
+                        preview_normal_texture_path=str(getattr(mesh, "preview_normal_texture_path", getattr(batch, "preview_normal_texture_path", "")) or ""),
+                        preview_normal_texture_dds_path=str(getattr(mesh, "preview_normal_texture_dds_path", getattr(batch, "preview_normal_texture_dds_path", "")) or ""),
+                        preview_material_texture_path=str(getattr(mesh, "preview_material_texture_path", getattr(batch, "preview_material_texture_path", "")) or ""),
+                        preview_material_texture_dds_path=str(getattr(mesh, "preview_material_texture_dds_path", getattr(batch, "preview_material_texture_dds_path", "")) or ""),
+                        preview_height_texture_path=str(getattr(mesh, "preview_height_texture_path", getattr(batch, "preview_height_texture_path", "")) or ""),
+                        preview_height_texture_dds_path=str(getattr(mesh, "preview_height_texture_dds_path", getattr(batch, "preview_height_texture_dds_path", "")) or ""),
+                        preview_texture_flip_vertical=getattr(mesh, "preview_texture_flip_vertical", getattr(batch, "preview_texture_flip_vertical", None)),
+                        preview_texture_brightness=float(getattr(mesh, "preview_texture_brightness", getattr(batch, "preview_texture_brightness", 1.0)) or 1.0),
+                        preview_texture_tint=tuple(getattr(mesh, "preview_texture_tint", getattr(batch, "preview_texture_tint", ())) or ()),
+                        preview_texture_uv_scale=tuple(getattr(mesh, "preview_texture_uv_scale", getattr(batch, "preview_texture_uv_scale", ())) or ()),
+                        preview_normal_texture_strength=float(getattr(mesh, "preview_normal_texture_strength", getattr(batch, "preview_normal_texture_strength", 0.0)) or 0.0),
+                        preview_material_texture_type=str(getattr(mesh, "preview_material_texture_type", getattr(batch, "preview_material_texture_type", "")) or ""),
+                        preview_material_texture_subtype=str(getattr(mesh, "preview_material_texture_subtype", getattr(batch, "preview_material_texture_subtype", "")) or ""),
+                        preview_material_texture_packed_channels=tuple(getattr(mesh, "preview_material_texture_packed_channels", getattr(batch, "preview_material_texture_packed_channels", ())) or ()),
+                        preview_material_texture_inputs=tuple(getattr(mesh, "preview_material_texture_inputs", getattr(batch, "preview_material_texture_inputs", ())) or ()),
+                        preview_native_material_overrides=dict(getattr(mesh, "preview_native_material_overrides", getattr(batch, "preview_native_material_overrides", {})) or {}),
+                        preview_alpha_mode=str(getattr(mesh, "preview_alpha_mode", getattr(batch, "preview_alpha_mode", "")) or "").strip(),
+                        preview_double_sided=bool(getattr(mesh, "preview_double_sided", getattr(batch, "preview_double_sided", False))),
+                        editor_role=editor_role,
+                        editor_part_name=str(
+                            getattr(mesh, "material_name", "")
+                            or getattr(mesh, "texture_name", "")
+                            or getattr(batch, "editor_part_name", "")
+                            or source_submesh_index
+                        ).strip(),
+                        editor_editable=editor_editable,
+                    )
+                )
+            return dataclasses.replace(prepared_preview, batches=tuple(updated_batches))
 
         @Slot()
         def run(self) -> None:
@@ -5699,15 +5988,30 @@ def run_gui() -> int:
             try:
                 if self.stop_event.is_set():
                     return
-                _emit_progress(0, 100, "Preparing preview - cloning model.")
-                prepare_started = time.perf_counter()
-                prepared_model, prepared_preview = prepare_model_preview(
-                    self.preview_model,
-                    render_settings=self.render_settings,
-                    stop_event=self.stop_event,
-                    enable_material_combiner=bool(self.enable_material_combiner and self.use_textures),
+                prepared_model: object
+                prepared_preview: object
+                cached_prepared = (
+                    self._prepared_geometry_cache_get(self.geometry_signature)
+                    if self.reuse_prepared_geometry
+                    else None
                 )
-                prepare_ms = max(0.0, (time.perf_counter() - prepare_started) * 1000.0)
+                if cached_prepared is not None:
+                    prepared_model, cached_preview = cached_prepared
+                    prepared_preview = self._prepared_preview_with_current_materials(cached_preview, self.preview_model)
+                    prepare_ms = 0.0
+                    _emit_progress(35, 100, "Preparing preview - reused geometry buffers.")
+                else:
+                    _emit_progress(0, 100, "Preparing preview - cloning model.")
+                    prepare_started = time.perf_counter()
+                    prepared_model, prepared_preview = prepare_model_preview(
+                        self.preview_model,
+                        render_settings=self.render_settings,
+                        stop_event=self.stop_event,
+                        enable_material_combiner=bool(self.enable_material_combiner and self.use_textures),
+                    )
+                    prepare_ms = max(0.0, (time.perf_counter() - prepare_started) * 1000.0)
+                    if isinstance(prepared_preview, PreparedModelPreviewData):
+                        self._prepared_geometry_cache_put(self.geometry_signature, prepared_model, prepared_preview)
                 if self.stop_event.is_set():
                     return
                 _emit_progress(40, 100, "Preparing preview - model buffers ready.")
@@ -5724,6 +6028,9 @@ def run_gui() -> int:
                     original_reference_material_parity=self.original_reference_material_parity,
                     display_mode=self.display_mode,
                     editor_workspace=self.editor_workspace,
+                    geometry_cache_dir=self.geometry_cache_dir,
+                    texture_cache_dir=self.texture_cache_dir,
+                    geometry_cache_key=self.geometry_signature,
                     stop_event=self.stop_event,
                     on_progress=_emit_package_progress,
                 )
@@ -5736,6 +6043,42 @@ def run_gui() -> int:
                         shutil.rmtree(package_dir, ignore_errors=True)
                     except OSError:
                         pass
+            except RunCancelled:
+                pass
+            except Exception as exc:
+                if not self.stop_event.is_set():
+                    self.error.emit(self.request_id, str(exc))
+            finally:
+                self.finished.emit()
+
+    class AlignmentOriginalTexturePreviewWorker(QObject):
+        completed = Signal(int, object, int, float)
+        error = Signal(int, str)
+        finished = Signal()
+
+        def __init__(self, request_id: int, resolver: Callable[[threading.Event], tuple[object, int]]) -> None:
+            super().__init__()
+            self.request_id = int(request_id)
+            self.resolver = resolver
+            self.stop_event = threading.Event()
+
+        def stop(self) -> None:
+            self.stop_event.set()
+
+        @Slot()
+        def run(self) -> None:
+            started = time.perf_counter()
+            try:
+                if self.stop_event.is_set():
+                    return
+                preview_model, native_material_batches = self.resolver(self.stop_event)
+                if not self.stop_event.is_set():
+                    self.completed.emit(
+                        self.request_id,
+                        preview_model,
+                        int(native_material_batches or 0),
+                        max(0.0, (time.perf_counter() - started) * 1000.0),
+                    )
             except RunCancelled:
                 pass
             except Exception as exc:
@@ -5759,12 +6102,42 @@ def run_gui() -> int:
             event.ignore()
             self.owner._attach_detached_tool(self.tool_key, select_after=False)
 
+    def _splash_resolved_theme_key(theme_key: object) -> str:
+        key = str(theme_key or "").strip()
+        return key if key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
+
+    def _splash_theme_value(theme_key: object, role: str, fallback: str) -> str:
+        theme = get_theme(_splash_resolved_theme_key(theme_key))
+        return str(theme.get(role, fallback) or fallback)
+
+    def _splash_theme_color(theme_key: object, role: str, fallback: str) -> QColor:
+        color = QColor(_splash_theme_value(theme_key, role, fallback))
+        return color if color.isValid() else QColor(fallback)
+
+    def _splash_color_with_alpha(color: QColor, alpha: int) -> QColor:
+        result = QColor(color)
+        result.setAlpha(max(0, min(255, int(alpha))))
+        return result
+
+    def _splash_accent_block_colors(theme_key: object, alpha: int) -> Tuple[QColor, QColor, QColor, QColor, QColor, QColor]:
+        accent = _splash_theme_color(theme_key, "accent", "#c56d43")
+        colors = (
+            accent.lighter(135),
+            accent.darker(112),
+            accent.lighter(165),
+            accent.lighter(108),
+            accent.darker(150),
+            accent.darker(230),
+        )
+        return tuple(_splash_color_with_alpha(color, alpha) for color in colors)  # type: ignore[return-value]
+
     class StartupSignalMark(QFrame):
-        def __init__(self, parent: Optional[QWidget] = None) -> None:
+        def __init__(self, parent: Optional[QWidget] = None, *, theme_key: str = DEFAULT_UI_THEME) -> None:
             super().__init__(parent)
             self.setObjectName("StartupSignalMark")
             self.setMinimumHeight(72)
             self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self._theme_key = _splash_resolved_theme_key(theme_key)
             self._phase = 0.0
             self._started_at = time.monotonic()
             self._timer = QTimer(self)
@@ -5772,6 +6145,10 @@ def run_gui() -> int:
             self._timer.setInterval(16)
             self._timer.timeout.connect(self._advance_phase)
             self._timer.start()
+
+        def set_theme(self, theme_key: str) -> None:
+            self._theme_key = _splash_resolved_theme_key(theme_key)
+            self.update()
 
         def stop(self) -> None:
             self._timer.stop()
@@ -5824,14 +6201,7 @@ def run_gui() -> int:
                     QPointF(center_x + half_width, top_y + block_height),
                 ]
             )
-            top_a = QColor("#d57d4f")
-            top_b = QColor("#a95032")
-            left_a = QColor("#f0b083")
-            left_b = QColor("#9b5a39")
-            right_a = QColor("#6d3024")
-            right_b = QColor("#2b1512")
-            for color in (top_a, top_b, left_a, left_b, right_a, right_b):
-                color.setAlpha(alpha)
+            top_a, top_b, left_a, left_b, right_a, right_b = _splash_accent_block_colors(self._theme_key, alpha)
 
             painter.setPen(Qt.NoPen)
             painter.setBrush(self._face_gradient(left, left_a, left_b))
@@ -5841,7 +6211,7 @@ def run_gui() -> int:
             painter.setBrush(self._face_gradient(top, top_a, top_b))
             painter.drawPolygon(top)
 
-            edge = QColor(197, 109, 67, int(46 * opacity))
+            edge = _splash_color_with_alpha(_splash_theme_color(self._theme_key, "accent", "#c56d43"), int(46 * opacity))
             painter.setPen(QPen(edge, 0.7))
             painter.setBrush(Qt.NoBrush)
             painter.drawPolyline(top)
@@ -5902,11 +6272,12 @@ def run_gui() -> int:
             self._draw_cdmw_block_wave(painter, inner, width, height)
 
     class StartupProgressCard(QFrame):
-        def __init__(self, parent: Optional[QWidget] = None) -> None:
+        def __init__(self, parent: Optional[QWidget] = None, *, theme_key: str = DEFAULT_UI_THEME) -> None:
             super().__init__(parent)
             self.setObjectName("StartupSplashCard")
             self.setAttribute(Qt.WA_StyledBackground, False)
             self.setAutoFillBackground(False)
+            self._theme_key = _splash_resolved_theme_key(theme_key)
             self._current = 0
             self._total = 0
             self._phase = 0.0
@@ -5930,6 +6301,10 @@ def run_gui() -> int:
             self._timer.setInterval(16)
             self._timer.timeout.connect(self._advance_progress_phase)
             self._timer.start()
+
+        def set_theme(self, theme_key: str) -> None:
+            self._theme_key = _splash_resolved_theme_key(theme_key)
+            self.update()
 
         def set_progress(self, current: int = 0, total: int = 0) -> None:
             previous_raw_progress = self._raw_progress
@@ -5994,7 +6369,7 @@ def run_gui() -> int:
                 travel = height + 28.0
                 y = rect.top() - 18.0 + (((elapsed * speed) + seed) % 1.0) * travel
                 alpha = int(38 * alpha_factor)
-                painter.setBrush(QColor(197, 109, 67, alpha))
+                painter.setBrush(_splash_color_with_alpha(_splash_theme_color(self._theme_key, "accent", "#c56d43"), alpha))
                 painter.drawRect(QRectF(x, y, size, size))
             painter.restore()
 
@@ -6039,19 +6414,19 @@ def run_gui() -> int:
             painter = QPainter(self)
             painter.setRenderHint(QPainter.Antialiasing, True)
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor("#11100f"))
+            painter.setBrush(_splash_theme_color(self._theme_key, "surface", "#252526"))
             painter.drawRoundedRect(card_rect, 10, 10)
 
             rect = card_rect.adjusted(1, 1, -1, -1)
             self._draw_falling_blocks(painter, rect.adjusted(16, 10, -16, -32))
             painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(QColor(62, 52, 47, 190), 1.0))
+            painter.setPen(QPen(_splash_color_with_alpha(_splash_theme_color(self._theme_key, "border_strong", "#3c3c3c"), 190), 1.0))
             painter.drawRoundedRect(rect, 10, 10)
 
             rail = QRectF(rect.left() + 24, rect.bottom() - 18, rect.width() - 48, 3)
-            accent = QColor("#c56d43")
+            accent = _splash_theme_color(self._theme_key, "accent", "#c56d43")
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(197, 109, 67, 42))
+            painter.setBrush(_splash_color_with_alpha(accent, 42))
             painter.drawRoundedRect(rail, 1.5, 1.5)
             if self._has_determinate_progress:
                 progress = min(max(self._display_progress, 0.0), 1.0)
@@ -6067,8 +6442,9 @@ def run_gui() -> int:
                 painter.drawRoundedRect(sweep.intersected(rail), 1.5, 1.5)
 
     class StartupSplashDialog(QDialog):
-        def __init__(self):
+        def __init__(self, *, theme_key: str = DEFAULT_UI_THEME):
             super().__init__(None)
+            self._theme_key = _splash_resolved_theme_key(theme_key)
             self.setWindowTitle("CDMW")
             self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
             self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -6083,20 +6459,20 @@ def run_gui() -> int:
             root_layout.setContentsMargins(0, 0, 0, 0)
             root_layout.setSpacing(0)
 
-            self.progress_card = StartupProgressCard(self)
+            self.progress_card = StartupProgressCard(self, theme_key=self._theme_key)
             root_layout.addWidget(self.progress_card)
 
             card_layout = QVBoxLayout(self.progress_card)
             card_layout.setContentsMargins(30, 24, 30, 24)
             card_layout.setSpacing(10)
 
-            self.signal_mark = StartupSignalMark(self.progress_card)
+            self.signal_mark = StartupSignalMark(self.progress_card, theme_key=self._theme_key)
             card_layout.addWidget(self.signal_mark)
 
-            title_label = QLabel("Crimson Desert Mod Workbench")
-            title_label.setObjectName("StartupSplashTitle")
-            title_label.setAlignment(Qt.AlignCenter)
-            card_layout.addWidget(title_label)
+            self.title_label = QLabel("Crimson Desert Mod Workbench")
+            self.title_label.setObjectName("StartupSplashTitle")
+            self.title_label.setAlignment(Qt.AlignCenter)
+            card_layout.addWidget(self.title_label)
 
             self.detail_label = QLabel("Starting application...")
             self.detail_label.setObjectName("StartupSplashDetail")
@@ -6106,29 +6482,39 @@ def run_gui() -> int:
             self.detail_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             card_layout.addWidget(self.detail_label)
 
+            self._apply_theme_styles()
+
+        def _apply_theme_styles(self) -> None:
             self.setStyleSheet(
-                """
-                QDialog#StartupSplash {
+                f"""
+                QDialog#StartupSplash {{
                     background: transparent;
-                }
-                QFrame#StartupSplashCard {
+                }}
+                QFrame#StartupSplashCard {{
                     background: transparent;
-                }
-                QFrame#StartupSignalMark {
+                }}
+                QFrame#StartupSignalMark {{
                     background: transparent;
-                }
-                QLabel#StartupSplashTitle {
-                    color: #f1e8de;
+                }}
+                QLabel#StartupSplashTitle {{
+                    color: {_splash_theme_value(self._theme_key, "text_strong", "#f1e8de")};
                     font-size: 14px;
                     font-weight: 500;
-                }
-                QLabel#StartupSplashDetail {
-                    color: #9f938c;
+                }}
+                QLabel#StartupSplashDetail {{
+                    color: {_splash_theme_value(self._theme_key, "text_muted", "#9f938c")};
                     font-size: 10px;
                     line-height: 13px;
-                }
+                }}
                 """
             )
+
+        def set_theme(self, theme_key: str) -> None:
+            self._theme_key = _splash_resolved_theme_key(theme_key)
+            self.progress_card.set_theme(self._theme_key)
+            self.signal_mark.set_theme(self._theme_key)
+            self._apply_theme_styles()
+            self.update()
 
         def center_on_screen(self) -> None:
             screen = QApplication.primaryScreen()
@@ -6182,9 +6568,412 @@ def run_gui() -> int:
             self.hide()
             self.deleteLater()
 
+    class StartupArchivePathDialog(QDialog):
+        def __init__(
+            self,
+            *,
+            theme_key: str = DEFAULT_UI_THEME,
+            initial_path: str = "",
+            startup_splash: Optional[object] = None,
+        ) -> None:
+            super().__init__(None)
+            self._theme_key = _splash_resolved_theme_key(theme_key)
+            self._startup_splash = startup_splash
+            self._selected_path = ""
+            self._autodetect_started = False
+            self._autodetect_busy = False
+            self.setWindowTitle("Set Crimson Desert Path")
+            self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
+            self.setWindowModality(Qt.ApplicationModal)
+            self.setObjectName("StartupArchivePathDialog")
+            self.setMinimumWidth(560)
+            self.setMinimumHeight(360)
+
+            root_layout = QVBoxLayout(self)
+            root_layout.setContentsMargins(18, 18, 18, 18)
+            root_layout.setSpacing(12)
+
+            self.title_label = QLabel("Set Crimson Desert game path")
+            self.title_label.setObjectName("StartupArchivePathTitle")
+            title_font = QFont()
+            title_font.setPointSize(13)
+            title_font.setWeight(QFont.Medium)
+            self.title_label.setFont(title_font)
+            root_layout.addWidget(self.title_label)
+
+            self.detail_label = QLabel(
+                "Choose the Crimson Desert folder or package root that contains game_files or .pamt archives."
+            )
+            self.detail_label.setObjectName("StartupArchivePathDetail")
+            self.detail_label.setWordWrap(True)
+            root_layout.addWidget(self.detail_label)
+
+            cache_note = QLabel(
+                "After you continue, CDMW will build the archive cache. The first load can take a while; let it finish so future launches are fast."
+            )
+            cache_note.setObjectName("StartupArchivePathNote")
+            cache_note.setWordWrap(True)
+            root_layout.addWidget(cache_note)
+
+            path_panel = QFrame(self)
+            path_panel.setObjectName("StartupArchivePathPanel")
+            path_layout = QGridLayout(path_panel)
+            path_layout.setContentsMargins(12, 12, 12, 12)
+            path_layout.setHorizontalSpacing(8)
+            path_layout.setVerticalSpacing(8)
+
+            path_label = QLabel("Path")
+            path_label.setObjectName("StartupArchivePathFieldLabel")
+            self.path_edit = QLineEdit(str(initial_path or ""))
+            self.path_edit.setPlaceholderText("Crimson Desert install folder or package root")
+            self.browse_button = QPushButton("Browse...")
+            self.browse_button.setMinimumWidth(92)
+            self.autodetect_button = QPushButton("Auto-detect")
+            self.autodetect_button.setMinimumWidth(104)
+            self.candidates_combo = QComboBox()
+            self.candidates_combo.setVisible(False)
+            self.candidates_combo.setMinimumWidth(0)
+            self.candidates_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            path_layout.addWidget(path_label, 0, 0)
+            path_layout.addWidget(self.path_edit, 0, 1)
+            path_layout.addWidget(self.browse_button, 0, 2)
+            path_layout.addWidget(self.autodetect_button, 1, 2)
+            path_layout.addWidget(self.candidates_combo, 1, 1)
+            path_layout.setColumnStretch(1, 1)
+            root_layout.addWidget(path_panel)
+
+            self.status_label = QLabel("Checking known install locations...")
+            self.status_label.setObjectName("StartupArchivePathStatus")
+            self.status_label.setWordWrap(True)
+            root_layout.addWidget(self.status_label)
+
+            button_row = QHBoxLayout()
+            button_row.setSpacing(8)
+            button_row.addStretch(1)
+            self.skip_button = QPushButton("Skip")
+            self.continue_button = QPushButton("Continue")
+            self.continue_button.setDefault(True)
+            self.continue_button.setMinimumWidth(100)
+            button_row.addWidget(self.skip_button)
+            button_row.addWidget(self.continue_button)
+            root_layout.addLayout(button_row)
+
+            self.browse_button.clicked.connect(self._browse_path)
+            self.autodetect_button.clicked.connect(self._run_autodetect)
+            self.continue_button.clicked.connect(self._accept_if_valid)
+            self.skip_button.clicked.connect(self.reject)
+            self.path_edit.textChanged.connect(self._validate_path_text)
+            self.candidates_combo.currentTextChanged.connect(self._candidate_changed)
+            self._apply_theme_styles()
+            self._validate_path_text(self.path_edit.text())
+            QTimer.singleShot(80, self._run_initial_autodetect)
+
+        def _apply_theme_styles(self) -> None:
+            self.setStyleSheet(
+                f"""
+                QDialog#StartupArchivePathDialog {{
+                    background: {_splash_theme_value(self._theme_key, "window", "#1e1e1e")};
+                }}
+                QLabel#StartupArchivePathTitle {{
+                    color: {_splash_theme_value(self._theme_key, "text_strong", "#f1e8de")};
+                }}
+                QLabel#StartupArchivePathDetail,
+                QLabel#StartupArchivePathStatus {{
+                    color: {_splash_theme_value(self._theme_key, "text_muted", "#9f938c")};
+                }}
+                QLabel#StartupArchivePathNote {{
+                    color: {_splash_theme_value(self._theme_key, "text_strong", "#f1e8de")};
+                    background: {_splash_theme_value(self._theme_key, "surface_alt", "#2a2d2e")};
+                    border: 1px solid {_splash_theme_value(self._theme_key, "border", "#2a2d2e")};
+                    border-radius: 6px;
+                    padding: 8px;
+                }}
+                QLabel#StartupArchivePathFieldLabel {{
+                    color: {_splash_theme_value(self._theme_key, "text_muted", "#9f938c")};
+                }}
+                QFrame#StartupArchivePathPanel {{
+                    background: {_splash_theme_value(self._theme_key, "surface", "#252526")};
+                    border: 1px solid {_splash_theme_value(self._theme_key, "border_strong", "#3c3c3c")};
+                    border-radius: 8px;
+                }}
+                QLineEdit,
+                QComboBox {{
+                    color: {_splash_theme_value(self._theme_key, "text_strong", "#f1e8de")};
+                    background: {_splash_theme_value(self._theme_key, "input_bg", "#1e1e1e")};
+                    border: 1px solid {_splash_theme_value(self._theme_key, "border", "#2a2d2e")};
+                    border-radius: 4px;
+                    padding: 5px;
+                }}
+                QPushButton {{
+                    color: {_splash_theme_value(self._theme_key, "text_strong", "#f1e8de")};
+                    background: {_splash_theme_value(self._theme_key, "button_bg", "#2f3437")};
+                    border: 1px solid {_splash_theme_value(self._theme_key, "border_strong", "#3c3c3c")};
+                    border-radius: 4px;
+                    padding: 5px 10px;
+                }}
+                QPushButton:default {{
+                    background: {_splash_theme_value(self._theme_key, "accent", "#c56d43")};
+                    color: {_splash_theme_value(self._theme_key, "accent_text", "#ffffff")};
+                }}
+                QPushButton:disabled {{
+                    color: {_splash_theme_value(self._theme_key, "text_disabled", "#6c6c6c")};
+                    background: {_splash_theme_value(self._theme_key, "surface_alt", "#2a2d2e")};
+                }}
+                """
+            )
+
+        def center_on_screen(self) -> None:
+            screen = QApplication.primaryScreen()
+            if screen is None:
+                return
+            frame = self.frameGeometry()
+            frame.moveCenter(screen.availableGeometry().center())
+            self.move(frame.topLeft())
+
+        def selected_path(self) -> str:
+            return self._selected_path
+
+        def _set_status(self, text: str, *, error: bool = False) -> None:
+            self.status_label.setText(str(text or ""))
+            self.status_label.setProperty("error", bool(error))
+            if error:
+                self.status_label.setStyleSheet("color: #ffb4a8;")
+            else:
+                self.status_label.setStyleSheet("")
+
+        def _set_busy(self, busy: bool) -> None:
+            self._autodetect_busy = bool(busy)
+            self.autodetect_button.setEnabled(not busy)
+            self.browse_button.setEnabled(not busy)
+            self.path_edit.setEnabled(not busy)
+            self.candidates_combo.setEnabled(not busy)
+            self.continue_button.setEnabled(not busy and self._path_is_valid(self.path_edit.text()))
+
+        def _path_is_valid(self, text: str) -> bool:
+            path_text = str(text or "").strip()
+            if not path_text:
+                return False
+            return looks_like_archive_package_root(Path(path_text).expanduser())
+
+        def _validate_path_text(self, text: str) -> None:
+            if self._autodetect_busy:
+                return
+            path_text = str(text or "").strip()
+            if not path_text:
+                self.continue_button.setEnabled(False)
+                return
+            valid = self._path_is_valid(path_text)
+            self.continue_button.setEnabled(valid)
+            if valid:
+                self._set_status("Ready to build the archive cache for this path.")
+            else:
+                self._set_status("Waiting for a valid Crimson Desert folder or package root.")
+
+        def _candidate_changed(self, text: str) -> None:
+            candidate = str(text or "").strip()
+            if candidate:
+                self.path_edit.setText(candidate)
+
+        def _browse_path(self) -> None:
+            current_text = self.path_edit.text().strip()
+            start_dir = str(Path(current_text).expanduser()) if current_text else str(Path.home())
+            selected = QFileDialog.getExistingDirectory(self, "Select Crimson Desert Folder", start_dir)
+            if selected:
+                self.path_edit.setText(selected)
+                if self._path_is_valid(selected):
+                    self._set_status("Ready to build the archive cache for this path.")
+                else:
+                    self._set_status(
+                        "That folder does not look like a Crimson Desert package root. Choose the install folder or the folder containing .pamt archives.",
+                        error=True,
+                    )
+
+        def _run_initial_autodetect(self) -> None:
+            if self._autodetect_started or self.path_edit.text().strip():
+                return
+            self._run_autodetect()
+
+        def _run_autodetect(self) -> None:
+            if self._autodetect_busy:
+                return
+            self._autodetect_started = True
+            self._set_busy(True)
+            self._set_status("Checking Steam libraries and common custom install locations...")
+            if self._startup_splash is not None:
+                try:
+                    self._startup_splash.set_detail("Auto-detecting Crimson Desert path...")
+                except Exception:
+                    pass
+            app = QApplication.instance()
+            if app is not None:
+                app.processEvents()
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            logs: List[str] = []
+            candidates: List[str] = []
+            error_text = ""
+            try:
+                candidates = [str(path) for path in autodetect_archive_package_roots(on_log=logs.append)]
+            except Exception as exc:
+                error_text = str(exc)
+            finally:
+                QApplication.restoreOverrideCursor()
+                self._set_busy(False)
+            self.candidates_combo.blockSignals(True)
+            try:
+                self.candidates_combo.clear()
+                self.candidates_combo.addItems(candidates)
+                self.candidates_combo.setVisible(len(candidates) > 1)
+            finally:
+                self.candidates_combo.blockSignals(False)
+            if candidates:
+                self.path_edit.setText(candidates[0])
+                if len(candidates) == 1:
+                    self._set_status("Auto-detected a Crimson Desert package root. Continue to build the cache.")
+                else:
+                    self._set_status("Auto-detected multiple package roots. Pick one, then continue to build the cache.")
+                return
+            if error_text:
+                self._set_status(f"Auto-detect failed: {error_text}. Use Browse to select the folder manually.", error=True)
+                return
+            detail = logs[-1] if logs else "No valid Crimson Desert package root was auto-detected."
+            self._set_status(f"{detail} Use Browse to select the folder manually.", error=True)
+
+        def _accept_if_valid(self) -> None:
+            path_text = self.path_edit.text().strip()
+            if not path_text:
+                self._set_status("Choose the Crimson Desert folder before continuing.", error=True)
+                return
+            package_root = Path(path_text).expanduser()
+            if not looks_like_archive_package_root(package_root):
+                self._set_status(
+                    "That folder does not look like a Crimson Desert package root. Choose the install folder or the folder containing .pamt archives.",
+                    error=True,
+                )
+                return
+            try:
+                package_root = package_root.resolve()
+            except OSError:
+                pass
+            self._selected_path = str(package_root)
+            self.accept()
+
+    class ThemeChangeBusyOverlay(QFrame):
+        def __init__(self, parent: Optional[QWidget] = None) -> None:
+            super().__init__(parent)
+            self.setObjectName("ThemeChangeBusyOverlay")
+            self.setAttribute(Qt.WA_StyledBackground, False)
+            self.setAutoFillBackground(False)
+            self.hide()
+            self._theme_key = DEFAULT_UI_THEME
+            self._theme_label = UI_THEME_SCHEMES[DEFAULT_UI_THEME]["label"]
+            self._overlay_title = f"Applying {self._theme_label} theme"
+            self._overlay_detail = "Updating app colors and preview panes..."
+            self._spinner_degrees = 0
+            self._spinner_timer = QTimer(self)
+            self._spinner_timer.setInterval(50)
+            self._spinner_timer.timeout.connect(self._advance_spinner)
+            self._hide_timer = QTimer(self)
+            self._hide_timer.setSingleShot(True)
+            self._hide_timer.timeout.connect(self._hide_now)
+
+        def show_theme_change(self, theme_key: str) -> None:
+            resolved_theme_key = theme_key if theme_key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
+            theme_label = str(UI_THEME_SCHEMES[resolved_theme_key].get("label", "Theme"))
+            self.show_appearance_change(
+                resolved_theme_key,
+                title=f"Applying {theme_label} theme",
+                detail="Updating app colors and preview panes...",
+            )
+
+        def show_appearance_change(self, theme_key: str, *, title: str, detail: str) -> None:
+            resolved_theme_key = theme_key if theme_key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
+            self._theme_key = resolved_theme_key
+            self._theme_label = str(UI_THEME_SCHEMES[resolved_theme_key].get("label", "Theme"))
+            self._overlay_title = str(title or f"Applying {self._theme_label} theme")
+            self._overlay_detail = str(detail or "Updating app colors and preview panes...")
+            parent = self.parentWidget()
+            if parent is not None:
+                self.setGeometry(parent.rect())
+            self._hide_timer.stop()
+            self.show()
+            self.raise_()
+            if not self._spinner_timer.isActive():
+                self._spinner_timer.start()
+            self.update()
+
+        def finish(self, delay_ms: int = 140) -> None:
+            if self.isVisible():
+                self._hide_timer.start(max(0, int(delay_ms)))
+            else:
+                self._hide_now()
+
+        def _hide_now(self) -> None:
+            self._hide_timer.stop()
+            self._spinner_timer.stop()
+            self.hide()
+
+        def _advance_spinner(self) -> None:
+            self._spinner_degrees = (self._spinner_degrees + 34) % 360
+            self.update()
+
+        def paintEvent(self, event) -> None:  # type: ignore[override]
+            rect = QRectF(self.rect())
+            if rect.width() <= 2 or rect.height() <= 2:
+                return
+            theme = get_theme(self._theme_key)
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing, True)
+
+            scrim = QColor(str(theme.get("window", "#111111")))
+            scrim.setAlpha(196)
+            painter.fillRect(rect, scrim)
+
+            panel_width = min(380.0, max(280.0, rect.width() * 0.34))
+            panel_height = 122.0
+            panel = QRectF(
+                rect.center().x() - panel_width / 2.0,
+                rect.center().y() - panel_height / 2.0,
+                panel_width,
+                panel_height,
+            )
+            surface = QColor(str(theme.get("surface", "#252526")))
+            border = QColor(str(theme.get("border_strong", "#3c3c3c")))
+            painter.setPen(QPen(border, 1.0))
+            painter.setBrush(surface)
+            painter.drawRoundedRect(panel, 8.0, 8.0)
+
+            spinner_rect = QRectF(panel.left() + 26.0, panel.top() + 40.0, 36.0, 36.0)
+            track = QColor(str(theme.get("border", "#2a2d2e")))
+            track.setAlpha(150)
+            painter.setPen(QPen(track, 3.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.drawArc(spinner_rect, 0, 360 * 16)
+            accent = QColor(str(theme.get("accent", "#007acc")))
+            painter.setPen(QPen(accent, 3.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.drawArc(spinner_rect, -self._spinner_degrees * 16, 245 * 16)
+
+            title_font = QFont(self.font())
+            title_font.setBold(True)
+            title_font.setPointSize(max(10, title_font.pointSize() + 1))
+            painter.setFont(title_font)
+            painter.setPen(QColor(str(theme.get("text_strong", "#f3f3f3"))))
+            text_left = spinner_rect.right() + 18.0
+            text_rect = QRectF(text_left, panel.top() + 30.0, panel.right() - text_left - 22.0, 28.0)
+            painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, self._overlay_title)
+
+            body_font = QFont(self.font())
+            body_font.setPointSize(max(9, body_font.pointSize()))
+            painter.setFont(body_font)
+            painter.setPen(QColor(str(theme.get("text_muted", "#9da0a6"))))
+            body_rect = QRectF(text_left, panel.top() + 60.0, panel.right() - text_left - 22.0, 34.0)
+            painter.drawText(body_rect, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, self._overlay_detail)
+
     class MainWindow(QMainWindow):
         def resizeEvent(self, event: object) -> None:
             super().resizeEvent(event)  # type: ignore[arg-type]
+            theme_overlay = getattr(self, "theme_change_overlay", None)
+            central_widget = self.centralWidget()
+            if theme_overlay is not None and central_widget is not None:
+                theme_overlay.setGeometry(central_widget.rect())
             if (
                 hasattr(self, "_responsive_resize_timer")
                 and not self._shutting_down
@@ -6255,6 +7044,8 @@ def run_gui() -> int:
             self._startup_splash_release_pending = False
             self._startup_splash_finish_pending = False
             self._startup_splash_finish_after_paint_deadline = 0.0
+            self._startup_archive_path_prompt_handled = False
+            self._startup_archive_path_prompt_accepted = False
             self.app_tray_icon: Optional[QSystemTrayIcon] = None
             self.app_tray_menu: Optional[QMenu] = None
             self._external_activation_last_seen = 0.0
@@ -6350,6 +7141,19 @@ def run_gui() -> int:
             self._responsive_resize_timer.setSingleShot(True)
             self._responsive_resize_timer.setInterval(180)
             self._responsive_resize_timer.timeout.connect(self._apply_responsive_resize_adjustments)
+            self._pending_theme_key: Optional[str] = None
+            self._pending_appearance_change: Optional[Dict[str, object]] = None
+            self._appearance_apply_steps: deque[Tuple[str, Callable[[], None]]] = deque()
+            self._appearance_apply_app: Optional[QApplication] = None
+            self._theme_change_in_progress = False
+            self._theme_change_apply_timer = QTimer(self)
+            self._theme_change_apply_timer.setSingleShot(True)
+            self._theme_change_apply_timer.setInterval(40)
+            self._theme_change_apply_timer.timeout.connect(self._apply_pending_theme_change)
+            self._appearance_apply_step_timer = QTimer(self)
+            self._appearance_apply_step_timer.setSingleShot(True)
+            self._appearance_apply_step_timer.setInterval(35)
+            self._appearance_apply_step_timer.timeout.connect(self._run_next_appearance_apply_step)
             self._chainner_analysis_timer = QTimer(self)
             self._chainner_analysis_timer.setSingleShot(True)
             self._chainner_analysis_timer.setInterval(250)
@@ -6502,6 +7306,7 @@ def run_gui() -> int:
             self.archive_startup_saved_filter_state: Dict[str, object] = {}
             self.archive_startup_saved_filter_wait_logged = False
             self.archive_startup_hold_until_ready = False
+            self.archive_startup_index_warmup_required = False
             self.archive_browser_preload_state = "idle"
             self.archive_browser_render_signature: Tuple[object, ...] = ()
             self.archive_browser_first_visible_paint_done = False
@@ -6598,7 +7403,7 @@ def run_gui() -> int:
             self._dashboard_last_result_text = "No workflow results yet."
             pump_startup_splash("Preparing workspace...")
 
-            app_icon, _icon_path = load_app_icon()
+            app_icon, _icon_path = load_app_icon(self.current_theme_key)
             if not app_icon.isNull():
                 self.setWindowIcon(app_icon)
             self._configure_system_tray_icon(app_icon)
@@ -9309,7 +10114,8 @@ def run_gui() -> int:
             )
             self.settings_tab.add_setup_paths_sections(self.setup_section, self.paths_section)
             self.settings_tab.add_archive_locations_section(self.archive_locations_section)
-            self.settings_tab.theme_changed.connect(self._handle_theme_changed)
+            self.settings_tab.appearance_change_started.connect(self._handle_appearance_change_started)
+            self.settings_tab.appearance_changed.connect(self._handle_appearance_changed)
             self.settings_tab.language_changed.connect(self._handle_language_changed)
             self.settings_tab.export_language_requested.connect(self._export_language_file)
             self.settings_tab.import_language_requested.connect(self._import_language_file)
@@ -9410,6 +10216,8 @@ def run_gui() -> int:
             self._register_detachable_tool("settings", self.settings_tab, "Settings")
             self._build_window_tool_menu_actions()
             self.setCentralWidget(central)
+            self.theme_change_overlay = ThemeChangeBusyOverlay(central)
+            self.theme_change_overlay.setGeometry(central.rect())
             pump_startup_splash("Restoring saved workspace...")
 
             self.export_profile_action.triggered.connect(self.export_profile)
@@ -10255,6 +11063,77 @@ def run_gui() -> int:
                 return
             QDesktopServices.openUrl(url)
 
+        def _build_about_overview_html(self) -> str:
+            return self._build_about_intro_html() + """
+                <h3>Application Areas</h3>
+                <ul>
+                  <li><b>Texture Workflow</b>: batch processing, review, DDS rebuild, and mod-ready export.</li>
+                  <li><b>Archive Browser</b>: game-file search, preview, extraction, references, mesh tools, and supported patch workflows.</li>
+                  <li><b>Model Library and Icon Creator</b>: local/importable model routing and item-icon package helpers.</li>
+                  <li><b>Texture Editor</b>: visible texture edits with handoff back to workflow/replacement tools.</li>
+                  <li><b>Texture Replacer</b>: guided one-off replacement packaging.</li>
+                  <li><b>Research and Text Search</b>: inspect file families, references, strings, and notes.</li>
+                  <li><b>Profile, Settings, and Window</b>: portable app profiles, language/theme/performance preferences, and detachable work tabs.</li>
+                </ul>
+                <p>Use the top <b>Documentation</b> menu for the full searchable guide.</p>
+                """
+
+        def _build_about_overview_html_es(self) -> str:
+            return f"""
+                <p><b>{APP_TITLE} v{APP_VERSION}</b> es una herramienta de escritorio de Windows para explorar archivos de Crimson Desert, previsualizar recursos, aplicar parches compatibles, reconstruir DDS, editar texturas visibles, preparar reemplazos, investigar y buscar texto.</p>
+                <p>Usa la busqueda y la lista de temas de la izquierda, o abre directamente:
+                <a href="topic:quick_start">Inicio rapido</a>,
+                <a href="topic:first_run_checklist">Lista de primera ejecucion</a>,
+                <a href="topic:workflow_overview">Flujo de texturas</a>,
+                <a href="topic:archive_browser">Explorador de archivos</a>,
+                <a href="topic:mesh_media_guides">Importacion e intercambio de mallas</a>,
+                <a href="topic:texture_editor">Editor de texturas</a>,
+                <a href="topic:replace_assistant">Asistente de reemplazo</a>,
+                <a href="topic:mod_packaging">Empaquetado mod-ready</a>,
+                <a href="topic:faq">FAQ</a>,
+                <a href="topic:troubleshooting">Solucion de problemas</a>.
+                </p>
+                <h3>Areas de la aplicacion</h3>
+                <ul>
+                  <li><b>Flujo de texturas</b>: proceso por lotes, revision, reconstruccion DDS y exportacion mod-ready.</li>
+                  <li><b>Explorador de archivos</b>: busqueda de archivos del juego, vista previa, extraccion, referencias, herramientas de malla y parches compatibles.</li>
+                  <li><b>Biblioteca de modelos y creador de iconos</b>: enrutamiento de modelos locales/importables y paquetes de iconos de items.</li>
+                  <li><b>Editor de texturas</b>: ediciones de texturas visibles con envio a flujo o reemplazo.</li>
+                  <li><b>Asistente de reemplazo</b>: empaquetado guiado para reemplazos individuales.</li>
+                  <li><b>Investigacion y busqueda de texto</b>: inspeccion de familias de archivos, referencias, cadenas y notas.</li>
+                  <li><b>Perfil, configuracion y ventana</b>: perfiles portables, idioma, tema, rendimiento y pestanas separables.</li>
+                </ul>
+                <p>Usa el menu superior <b>Documentacion</b> para abrir la guia completa con busqueda.</p>
+                """
+
+        def _build_about_overview_html_de(self) -> str:
+            return f"""
+                <p><b>{APP_TITLE} v{APP_VERSION}</b> ist ein Windows-Desktopwerkzeug fuer Crimson-Desert-Archive: Browsing, Vorschau, kompatibles Patchen, DDS-Neuaufbau, sichtbare Texturbearbeitung, Ersatzpakete, Recherche und Textsuche.</p>
+                <p>Nutze Suche und Themenliste links, oder springe direkt zu:
+                <a href="topic:quick_start">Schnellstart</a>,
+                <a href="topic:first_run_checklist">Erster-Lauf-Checkliste</a>,
+                <a href="topic:workflow_overview">Textur-Workflow</a>,
+                <a href="topic:archive_browser">Archiv-Browser</a>,
+                <a href="topic:mesh_media_guides">Mesh-Import und Swap</a>,
+                <a href="topic:texture_editor">Textur-Editor</a>,
+                <a href="topic:replace_assistant">Ersetzungsassistent</a>,
+                <a href="topic:mod_packaging">Mod-fertige Pakete</a>,
+                <a href="topic:faq">FAQ</a>,
+                <a href="topic:troubleshooting">Fehlerbehebung</a>.
+                </p>
+                <h3>Anwendungsbereiche</h3>
+                <ul>
+                  <li><b>Textur-Workflow</b>: Stapelverarbeitung, Pruefung, DDS-Neuaufbau und mod-fertiger Export.</li>
+                  <li><b>Archiv-Browser</b>: Suche in Spieldateien, Vorschau, Extraktion, Referenzen, Mesh-Werkzeuge und kompatible Patch-Workflows.</li>
+                  <li><b>Modellbibliothek und Icon Creator</b>: Routing lokaler/importierbarer Modelle und Item-Icon-Pakete.</li>
+                  <li><b>Textur-Editor</b>: sichtbare Texturbearbeitung mit Uebergabe an Workflow oder Ersetzung.</li>
+                  <li><b>Ersetzungsassistent</b>: gefuehrte Einzelersatz-Paketierung.</li>
+                  <li><b>Recherche und Textsuche</b>: Dateifamilien, Referenzen, Strings und Notizen pruefen.</li>
+                  <li><b>Profil, Einstellungen und Fenster</b>: portable Profile, Sprache, Theme, Leistung und abtrennbare Arbeitstabs.</li>
+                </ul>
+                <p>Nutze das obere Menue <b>Dokumentation</b> fuer die vollstaendige durchsuchbare Anleitung.</p>
+                """
+
         def _build_about_page(self) -> QWidget:
             page = QWidget()
             layout = QVBoxLayout(page)
@@ -10289,22 +11168,11 @@ def run_gui() -> int:
             overview_browser = QTextBrowser()
             overview_browser.setOpenLinks(False)
             overview_browser.anchorClicked.connect(self._handle_about_page_link)
-            overview_browser.setHtml(
-                self._build_about_intro_html()
-                + """
-                <h3>Application Areas</h3>
-                <ul>
-                  <li><b>Texture Workflow</b>: batch processing, review, DDS rebuild, and mod-ready export.</li>
-                  <li><b>Archive Browser</b>: game-file search, preview, extraction, references, mesh tools, and supported patch workflows.</li>
-                  <li><b>Model Library and Icon Creator</b>: local/importable model routing and item-icon package helpers.</li>
-                  <li><b>Texture Editor</b>: visible texture edits with handoff back to workflow/replacement tools.</li>
-                  <li><b>Texture Replacer</b>: guided one-off replacement packaging.</li>
-                  <li><b>Research and Text Search</b>: inspect file families, references, strings, and notes.</li>
-                  <li><b>Profile, Settings, and Window</b>: portable app profiles, language/theme/performance preferences, and detachable work tabs.</li>
-                </ul>
-                <p>Use the top <b>Documentation</b> menu for the full searchable guide.</p>
-                """
-            )
+            overview_html = self._build_about_overview_html()
+            overview_browser.setProperty("_i18n_source_html", overview_html)
+            overview_browser.setProperty("_i18n_html_es", self._build_about_overview_html_es())
+            overview_browser.setProperty("_i18n_html_de", self._build_about_overview_html_de())
+            overview_browser.setHtml(overview_html)
             overview_layout.addWidget(overview_browser)
             about_tabs.addTab(overview_page, "Overview")
 
@@ -10995,19 +11863,27 @@ def run_gui() -> int:
                 intro_html = f"""
                 <p><b>{APP_TITLE} v{APP_VERSION}</b> es una herramienta de escritorio para explorar archivos de Crimson Desert, previsualizar recursos, reconstruir DDS, editar texturas visibles, preparar reemplazos, investigar familias de archivos y buscar texto.</p>
                 <p>Usa la busqueda y la lista de temas de la izquierda, o abre directamente:
+                <a href="topic:quick_start">Inicio rapido</a>,
+                <a href="topic:first_run_checklist">Lista de primera ejecucion</a>,
                 <a href="topic:workflow_overview">Flujo de texturas</a>,
                 <a href="topic:workflow_profiles">Perfiles de flujo</a>,
                 <a href="topic:workflow_rules">Reglas ordenadas</a>,
                 <a href="topic:workflow_planner_profiles">Perfiles del planificador</a>,
                 <a href="topic:workflow_planner_paths">Rutas del planificador</a>,
+                <a href="topic:texture_workflow_guides">Guias del flujo de texturas</a>,
+                <a href="topic:compare_review">Comparar y revisar</a>,
                 <a href="topic:archive_browser">Explorador de archivos</a>,
                 <a href="topic:mesh_media_guides">Importacion e intercambio de mallas</a>,
                 <a href="topic:texture_editor">Editor de texturas</a>,
                 <a href="topic:replace_assistant">Asistente de reemplazo</a>,
                 <a href="topic:research">Investigacion</a>,
                 <a href="topic:text_search">Busqueda de texto</a>,
+                <a href="topic:mod_packaging">Empaquetado mod-ready</a>,
                 <a href="topic:profile_settings">Perfil y configuracion</a>,
-                <a href="topic:window_layout">Ventana y layout</a>.
+                <a href="topic:window_layout">Ventana y layout</a>,
+                <a href="topic:safety">Seguridad</a>,
+                <a href="topic:faq">FAQ</a>,
+                <a href="topic:troubleshooting">Solucion de problemas</a>.
                 </p>
                 """
                 settings_text = escape(str(self.settings_file_path))
@@ -11032,6 +11908,26 @@ def run_gui() -> int:
                           <li><b>Busqueda de texto</b>: busqueda en archivos de texto de archivo o sueltos.</li>
                           <li><b>Perfil, configuracion y ventana</b>: exportacion/importacion completa de preferencias, idioma, rendimiento, vista 3D y pestanas separables.</li>
                         </ul>
+                        """,
+                    },
+                    {
+                        "id": "first_run_checklist",
+                        "title": "Lista de primera ejecucion",
+                        "summary": "Checklist de rutas, herramientas, politica y primera salida de prueba.",
+                        "keywords": "primera ejecucion checklist setup rutas texconv workspace ncnn chainner politica vista comparar",
+                        "html": """
+                        <ol>
+                          <li>Abre <b>Configuracion</b> y ejecuta <b>Inicializar espacio</b> si quieres que la app cree las carpetas normales de trabajo.</li>
+                          <li><b>Ruta de texconv.exe</b> es solo fallback legacy opcional. Vista DDS, conversion DDS-a-PNG, Comparar y reconstruccion DDS usan primero DirectXTex/native.</li>
+                          <li>Define <b>Raiz DDS original</b>, <b>Raiz PNG</b> y <b>Raiz de salida</b>. Empieza con una carpeta de prueba pequena.</li>
+                          <li>Elige backend de escalado: <b>Desactivado</b> para probar reconstruccion, <b>Real-ESRGAN NCNN</b> directo para escalado dentro de la app o <b>chaiNNer</b> para una cadena ya probada.</li>
+                          <li>Manten un preajuste seguro de <b>Politica de texturas</b> y deja activas las reglas automaticas.</li>
+                          <li>Revisa <b>Perfiles de flujo</b>, <b>Reglas ordenadas</b> y <b>Archivos coincidentes</b> si necesitas anulaciones por archivo.</li>
+                          <li>Usa <b>Vista de politica</b> antes de <b>Iniciar</b> para confirmar que hara el planificador.</li>
+                          <li>Ejecuta <b>Escanear</b>, procesa un lote pequeno y revisa en <b>Comparar</b>.</li>
+                          <li>Amplia el filtro o la raiz de origen solo despues de que el lote pequeno se vea correcto.</li>
+                        </ol>
+                        <p>Si algo falla, abre <a href="topic:troubleshooting">Solucion de problemas y limites</a> y revisa el registro en vivo antes de cambiar muchas opciones a la vez.</p>
                         """,
                     },
                     {
@@ -11154,6 +12050,35 @@ def run_gui() -> int:
                           <li><b>chaiNNer</b>: flujo externo donde la cadena decide el procesamiento real.</li>
                         </ul>
                         <p>Las reglas automaticas siguen aplicandose aunque el backend de escalado este activo.</p>
+                        """,
+                    },
+                    {
+                        "id": "texture_workflow_guides",
+                        "title": "Guias del flujo de texturas",
+                        "summary": "Recetas para reconstruccion DDS, escalado y perfiles.",
+                        "keywords": "flujo texturas guias receta reconstruir escalar ncnn chainner dds staging perfil regla ruta exacta",
+                        "html": """
+                        <h4>Reconstruir DDS sin escalado</h4>
+                        <ol>
+                          <li>Define <b>Raiz DDS original</b>, <b>Raiz PNG</b> y <b>Raiz de salida</b>. La ruta de <b>texconv.exe</b> es fallback opcional.</li>
+                          <li>Configura backend como <b>Desactivado</b>.</li>
+                          <li>Coloca los PNG editados bajo <b>Raiz PNG</b> con rutas relativas coincidentes.</li>
+                          <li>Usa <b>Escanear</b>, despues <b>Vista de politica</b> y finalmente <b>Iniciar</b>.</li>
+                        </ol>
+                        <h4>Prueba de escalado NCNN directo</h4>
+                        <ol>
+                          <li>Configura el ejecutable NCNN y la carpeta de modelos.</li>
+                          <li>Empieza solo con contenido de color/UI/emisivo, o crea reglas de ruta exacta para los archivos que quieres probar.</li>
+                          <li>Usa un tile moderado si la VRAM es limitada. Si el backend falla, baja el tile antes de cambiar modelos.</li>
+                          <li>Revisa en Comparar y solo despues amplia el filtro.</li>
+                        </ol>
+                        <h4>Usar perfiles en una carpeta mixta</h4>
+                        <ol>
+                          <li>Crea o duplica perfiles para color visible, mapas tecnicos de solo preservacion y necesidades especiales de salida DDS.</li>
+                          <li>Agrega reglas glob amplias para familias de sufijos comunes cerca de la parte superior.</li>
+                          <li>Usa <b>Archivos coincidentes</b> para crear reglas de ruta exacta para excepciones cerca de la parte inferior.</li>
+                          <li>Abre <b>Vista de politica</b> y confirma la columna de accion final antes de ejecutar.</li>
+                        </ol>
                         """,
                     },
                     {
@@ -11448,19 +12373,27 @@ def run_gui() -> int:
                 intro_html = f"""
                 <p><b>{APP_TITLE} v{APP_VERSION}</b> ist ein Windows-Desktopwerkzeug fuer Archivsuche, Asset-Vorschau, DDS-Neuaufbau, sichtbare Texturbearbeitung, Ersatzpakete, Recherche und Textsuche in Crimson Desert.</p>
                 <p>Nutze Suche und Themenliste links, oder springe direkt zu:
+                <a href="topic:quick_start">Schnellstart</a>,
+                <a href="topic:first_run_checklist">Erster-Lauf-Checkliste</a>,
                 <a href="topic:workflow_overview">Textur-Workflow</a>,
                 <a href="topic:workflow_profiles">Workflow-Profile</a>,
                 <a href="topic:workflow_rules">Geordnete Regeln</a>,
                 <a href="topic:workflow_planner_profiles">Planerprofile</a>,
                 <a href="topic:workflow_planner_paths">Planerpfade</a>,
+                <a href="topic:texture_workflow_guides">Textur-Workflow-Anleitungen</a>,
+                <a href="topic:compare_review">Vergleichen und pruefen</a>,
                 <a href="topic:archive_browser">Archiv-Browser</a>,
                 <a href="topic:mesh_media_guides">Mesh-Import und Swap</a>,
                 <a href="topic:texture_editor">Textur-Editor</a>,
                 <a href="topic:replace_assistant">Ersetzungsassistent</a>,
                 <a href="topic:research">Recherche</a>,
                 <a href="topic:text_search">Textsuche</a>,
+                <a href="topic:mod_packaging">Mod-fertige Pakete</a>,
                 <a href="topic:profile_settings">Profil und Einstellungen</a>,
-                <a href="topic:window_layout">Fenster und Layout</a>.
+                <a href="topic:window_layout">Fenster und Layout</a>,
+                <a href="topic:safety">Sicherheit</a>,
+                <a href="topic:faq">FAQ</a>,
+                <a href="topic:troubleshooting">Fehlerbehebung</a>.
                 </p>
                 """
                 settings_text = escape(str(self.settings_file_path))
@@ -11485,6 +12418,26 @@ def run_gui() -> int:
                           <li><b>Textsuche</b>: Suche in Textdateien aus Archiven oder losen Ordnern.</li>
                           <li><b>Profil, Einstellungen und Fenster</b>: vollstaendiger Praeferenzexport/-import, Sprache, Leistung, 3D-Vorschau und abtrennbare Arbeitstabs.</li>
                         </ul>
+                        """,
+                    },
+                    {
+                        "id": "first_run_checklist",
+                        "title": "Erster-Lauf-Checkliste",
+                        "summary": "Checkliste fuer Pfade, Werkzeuge, Richtlinie und erste Testausgabe.",
+                        "keywords": "erster lauf checkliste setup pfade texconv workspace ncnn chainner richtlinie vorschau vergleichen",
+                        "html": """
+                        <ol>
+                          <li>Oeffne <b>Einstellungen</b> und fuehre <b>Arbeitsbereich einrichten</b> aus, wenn die App die ueblichen Arbeitsordner erstellen soll.</li>
+                          <li><b>texconv.exe-Pfad</b> ist nur optionaler Legacy-Fallback. Normale DDS-Vorschau, DDS-zu-PNG, Vergleich und DDS-Neuaufbau nutzen zuerst DirectXTex/native.</li>
+                          <li>Setze <b>Original-DDS-Stamm</b>, <b>PNG-Stamm</b> und <b>Ausgabe-Stamm</b>. Starte mit einem kleinen Testordner.</li>
+                          <li>Waehle ein Upscaling-Backend: <b>Deaktiviert</b> fuer Neuaufbau-Tests, direktes <b>Real-ESRGAN NCNN</b> fuer In-App-Upscaling oder <b>chaiNNer</b> fuer eine bereits getestete Kette.</li>
+                          <li>Behalte zuerst eine sichere <b>Textur-Richtlinie</b> und aktive automatische Regeln.</li>
+                          <li>Pruefe <b>Workflow-Profile</b>, <b>Geordnete Regeln</b> und <b>Passende Dateien</b>, wenn du Datei-Overrides brauchst.</li>
+                          <li>Nutze <b>Richtlinienvorschau</b> vor <b>Start</b>, um die Planeraktion zu bestaetigen.</li>
+                          <li>Fuehre <b>Scannen</b> aus, verarbeite einen kleinen Stapel und pruefe ihn in <b>Vergleichen</b>.</li>
+                          <li>Erweitere Filter oder Quellstamm erst, wenn der kleine Stapel korrekt aussieht.</li>
+                        </ol>
+                        <p>Wenn etwas fehlschlaegt, oeffne <a href="topic:troubleshooting">Fehlerbehebung und Grenzen</a> und pruefe den Live-Log, bevor du viele Einstellungen gleichzeitig aenderst.</p>
                         """,
                     },
                     {
@@ -11607,6 +12560,35 @@ def run_gui() -> int:
                           <li><b>chaiNNer</b>: externer Workflow, dessen Kette die echte Verarbeitung bestimmt.</li>
                         </ul>
                         <p>Automatische Texturregeln gelten weiterhin, auch wenn ein Upscaling-Backend aktiv ist.</p>
+                        """,
+                    },
+                    {
+                        "id": "texture_workflow_guides",
+                        "title": "Textur-Workflow-Anleitungen",
+                        "summary": "Rezepte fuer DDS-Neuaufbau, Upscaling und Profile.",
+                        "keywords": "textur workflow anleitungen rezept neuaufbau upscale ncnn chainner dds staging profil exakter pfad regeln",
+                        "html": """
+                        <h4>DDS ohne Upscaling neu aufbauen</h4>
+                        <ol>
+                          <li>Setze <b>Original-DDS-Stamm</b>, <b>PNG-Stamm</b> und <b>Ausgabe-Stamm</b>. Der <b>texconv.exe</b>-Pfad ist optionaler Fallback.</li>
+                          <li>Setze das Backend auf <b>Deaktiviert</b>.</li>
+                          <li>Lege bearbeitete PNG-Dateien unter <b>PNG-Stamm</b> mit passenden relativen Pfaden ab.</li>
+                          <li>Nutze <b>Scannen</b>, dann <b>Richtlinienvorschau</b> und danach <b>Start</b>.</li>
+                        </ol>
+                        <h4>Direkten NCNN-Upscale testen</h4>
+                        <ol>
+                          <li>Konfiguriere NCNN-Programm und Modellordner.</li>
+                          <li>Starte nur mit Farbe/UI/Emissiv-Inhalten oder lege exakte Pfadregeln fuer Testdateien an.</li>
+                          <li>Nutze einen moderaten Tile-Wert, wenn VRAM knapp ist. Wenn das Backend fehlschlaegt, zuerst Tile senken und erst danach Modelle wechseln.</li>
+                          <li>In Vergleichen pruefen und erst danach den Filter erweitern.</li>
+                        </ol>
+                        <h4>Profile fuer einen gemischten Ordner nutzen</h4>
+                        <ol>
+                          <li>Erstelle oder dupliziere Profile fuer sichtbare Farbe, technische Maps mit Nur-Erhalt und besondere DDS-Ausgabeanforderungen.</li>
+                          <li>Fuege breite Glob-Regeln fuer haeufige Suffixfamilien weiter oben ein.</li>
+                          <li>Nutze <b>Passende Dateien</b>, um exakte Pfadregeln fuer Ausnahmen weiter unten zu erstellen.</li>
+                          <li>Oeffne <b>Richtlinienvorschau</b> und bestaetige die finale Aktionsspalte vor dem Lauf.</li>
+                        </ol>
                         """,
                     },
                     {
@@ -12410,11 +13392,70 @@ def run_gui() -> int:
         def _show_first_run_guide_if_needed(self) -> None:
             if not self.show_quick_start_on_launch:
                 return
+            if bool(getattr(self, "_startup_archive_path_prompt_handled", False)):
+                return
+            if not self.archive_package_root_edit.text().strip():
+                if not self._prompt_for_archive_package_root_if_missing(
+                    reason="startup",
+                    after_autodetect=self._show_first_run_guide_if_needed,
+                ):
+                    return
             self.show_quick_start_on_launch = False
             self.settings.setValue("ui/startup_setup_shown", True)
             self.settings.sync()
             self.focus_archive_locations()
             self.show_quick_start_dialog()
+
+        def _startup_archive_path_prompt_needed(self) -> bool:
+            if self._startup_benchmark_enabled() or os.environ.get("CDMW_GUI_STARTUP_SMOKE") == "1":
+                return False
+            if not self.show_quick_start_on_launch:
+                return False
+            return not bool(self.archive_package_root_edit.text().strip())
+
+        def _show_startup_archive_path_prompt_if_needed(self, startup_splash: Optional[object] = None) -> bool:
+            if not self._startup_archive_path_prompt_needed():
+                return False
+            self._startup_archive_path_prompt_handled = True
+            self._update_startup_splash("Choose Crimson Desert path...")
+            dialog = StartupArchivePathDialog(
+                theme_key=self.current_theme_key,
+                initial_path=self.archive_package_root_edit.text().strip(),
+                startup_splash=startup_splash,
+            )
+            if not self.windowIcon().isNull():
+                dialog.setWindowIcon(self.windowIcon())
+            dialog.center_on_screen()
+            accepted = dialog.exec() == QDialog.Accepted
+            selected_path = dialog.selected_path().strip() if accepted else ""
+            dialog.deleteLater()
+            if not selected_path:
+                self._startup_archive_path_prompt_accepted = False
+                self.set_status_message("Crimson Desert path setup skipped; archive cache build was not started.")
+                _record_runtime_event("startup_path_prompt_skipped")
+                return False
+
+            self.archive_package_root_edit.setText(selected_path)
+            self.show_quick_start_on_launch = False
+            self._startup_archive_path_prompt_accepted = True
+            self.settings.setValue("ui/startup_setup_shown", True)
+            self.settings.setValue("archive/package_root", selected_path)
+            self.flush_settings_save()
+            self.settings.sync()
+            self.set_status_message(f"Crimson Desert path set: {selected_path}")
+            self.append_log(f"Startup setup selected Crimson Desert package root: {selected_path}")
+            self.append_archive_log(
+                "Startup setup selected a Crimson Desert path. First archive cache build can take a while; let it finish before closing the app."
+            )
+            self._startup_texture_preview_defer_env = True
+            os.environ["CDMW_DEFER_TEXTURE_PREVIEW"] = "1"
+            self._update_startup_splash(
+                "Building archive cache. First load can take a while; let it finish.",
+                1,
+                100,
+            )
+            _record_runtime_event("startup_path_prompt_accepted", package_root=selected_path)
+            return True
 
         def _add_path_row(
             self,
@@ -12437,9 +13478,195 @@ def run_gui() -> int:
 
         def _handle_theme_changed(self, theme_key: Optional[str] = None) -> None:
             resolved_theme_key = theme_key if theme_key in UI_THEME_SCHEMES else self.current_theme_key
+            self._pending_theme_key = resolved_theme_key
+            self._pending_appearance_change = {
+                "theme_key": resolved_theme_key,
+                "changed": ("theme",),
+                "requires_theme_apply": True,
+                "requires_data_fonts": True,
+                "requires_text_colors": True,
+                "title": f"Applying {UI_THEME_SCHEMES.get(resolved_theme_key, UI_THEME_SCHEMES[DEFAULT_UI_THEME]).get('label', 'Theme')} theme",
+                "detail": "Updating app colors and preview panes...",
+            }
+            if hasattr(self, "theme_change_overlay"):
+                self.theme_change_overlay.show_theme_change(resolved_theme_key)
+            self._theme_change_apply_timer.start()
+
+        def _normalize_appearance_change_payload(self, payload: object) -> Dict[str, object]:
+            data = dict(payload) if isinstance(payload, dict) else {}
+            theme_key = str(data.get("theme_key") or self.current_theme_key or DEFAULT_UI_THEME)
+            if theme_key not in UI_THEME_SCHEMES:
+                theme_key = DEFAULT_UI_THEME
+            changed = data.get("changed", ())
+            if isinstance(changed, str):
+                changed = (changed,)
+            elif not isinstance(changed, tuple):
+                try:
+                    changed = tuple(changed)  # type: ignore[arg-type]
+                except Exception:
+                    changed = ()
+            data["theme_key"] = theme_key
+            data["changed"] = changed
+            data["requires_theme_apply"] = bool(data.get("requires_theme_apply", False))
+            data["requires_data_fonts"] = bool(data.get("requires_data_fonts", False))
+            data["requires_text_colors"] = bool(data.get("requires_text_colors", False))
+            if not str(data.get("title") or "").strip():
+                theme_label = UI_THEME_SCHEMES.get(theme_key, UI_THEME_SCHEMES[DEFAULT_UI_THEME]).get("label", "Theme")
+                data["title"] = f"Applying {theme_label} theme" if data["requires_theme_apply"] else "Applying text colors"
+            if not str(data.get("detail") or "").strip():
+                data["detail"] = (
+                    "Updating app colors and preview panes..."
+                    if data["requires_theme_apply"]
+                    else "Updating logs and preview text..."
+                )
+            return data
+
+        def _show_appearance_change_overlay(self, payload: object) -> None:
+            data = self._normalize_appearance_change_payload(payload)
+            if hasattr(self, "theme_change_overlay"):
+                self.theme_change_overlay.show_appearance_change(
+                    str(data["theme_key"]),
+                    title=str(data["title"]),
+                    detail=str(data["detail"]),
+                )
+
+        def _handle_appearance_change_started(self, payload: object) -> None:
+            data = self._normalize_appearance_change_payload(payload)
+            if data.get("changed"):
+                self._show_appearance_change_overlay(data)
+
+        def _handle_appearance_changed(self, payload: object) -> None:
+            data = self._normalize_appearance_change_payload(payload)
+            if not data.get("changed"):
+                if hasattr(self, "theme_change_overlay"):
+                    self.theme_change_overlay.finish(0)
+                return
+            self._pending_appearance_change = data
+            self._pending_theme_key = str(data["theme_key"])
+            self._show_appearance_change_overlay(data)
+            self._theme_change_apply_timer.start()
+
+        def _apply_pending_theme_change(self) -> None:
+            if self._theme_change_in_progress:
+                self._theme_change_apply_timer.start()
+                return
+            payload = self._pending_appearance_change
+            if payload is None:
+                resolved_theme_key = self._pending_theme_key or self.current_theme_key
+                payload = self._normalize_appearance_change_payload(
+                    {
+                        "theme_key": resolved_theme_key,
+                        "changed": ("theme",),
+                        "requires_theme_apply": True,
+                        "requires_data_fonts": True,
+                        "requires_text_colors": True,
+                    }
+                )
+            else:
+                payload = self._normalize_appearance_change_payload(payload)
+                resolved_theme_key = str(payload["theme_key"])
+            self._pending_theme_key = None
+            self._pending_appearance_change = None
             app = QApplication.instance()
             if app is None:
+                if hasattr(self, "theme_change_overlay"):
+                    self.theme_change_overlay.finish(0)
                 return
+            self._theme_change_in_progress = True
+            if hasattr(self, "theme_change_overlay"):
+                self._show_appearance_change_overlay(payload)
+                self.theme_change_overlay.repaint()
+            app.processEvents()
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            self._prepare_appearance_apply_steps(payload, app)
+            self._appearance_apply_step_timer.start()
+
+        def _finish_appearance_apply_steps(self, *, delay_ms: int = 140) -> None:
+            self._appearance_apply_step_timer.stop()
+            self._appearance_apply_steps.clear()
+            self._appearance_apply_app = None
+            try:
+                QApplication.restoreOverrideCursor()
+            except Exception:
+                pass
+            self._theme_change_in_progress = False
+            if self._pending_appearance_change is not None:
+                self._show_appearance_change_overlay(self._pending_appearance_change)
+                self._theme_change_apply_timer.start()
+            elif self._pending_theme_key is not None:
+                self._handle_theme_changed(self._pending_theme_key)
+                self._theme_change_apply_timer.start()
+            elif hasattr(self, "theme_change_overlay"):
+                self.theme_change_overlay.finish(delay_ms)
+
+        def _queue_appearance_apply_step(self, label: str, callback: Callable[[], None]) -> None:
+            self._appearance_apply_steps.append((str(label or "Applying appearance"), callback))
+
+        def _prepare_appearance_apply_steps(self, payload: Dict[str, object], app: QApplication) -> None:
+            data = self._normalize_appearance_change_payload(payload)
+            self._appearance_apply_steps.clear()
+            self._appearance_apply_app = app
+            resolved_theme_key = str(data["theme_key"])
+            if data["requires_theme_apply"]:
+                self._queue_appearance_apply_step(
+                    "Applying app stylesheet",
+                    lambda resolved_theme_key=resolved_theme_key, app=app: self._apply_theme_application_style(
+                        resolved_theme_key,
+                        app,
+                    ),
+                )
+                self._queue_data_font_apply_steps(schedule_column_autofit=False)
+                self._queue_text_highlight_apply_steps()
+                self._queue_appearance_apply_step("Updating log themes", lambda: self.log_highlighter.set_theme(self.current_theme_key))
+                self._queue_appearance_apply_step("Updating archive log theme", lambda: self.archive_log_highlighter.set_theme(self.current_theme_key))
+                self._queue_appearance_apply_step("Updating model preview theme", lambda: self.archive_model_preview.set_theme(self.current_theme_key))
+                self._queue_appearance_apply_step("Updating media preview theme", lambda: self.archive_media_preview.set_theme(self.current_theme_key))
+                self._queue_appearance_apply_step("Updating archive text preview", lambda: self.archive_preview_text_edit.set_theme(self.current_theme_key))
+                self._queue_appearance_apply_step("Updating archive info preview", lambda: self.archive_preview_info_edit.set_theme(self.current_theme_key))
+                self._queue_appearance_apply_step("Updating archive details preview", lambda: self.archive_preview_details_edit.set_theme(self.current_theme_key))
+                self._queue_appearance_apply_step("Updating text search theme", lambda: self.text_search_tab.set_theme(self.current_theme_key))
+                self._queue_appearance_apply_step("Updating research theme", lambda: self.research_tab.set_theme(self.current_theme_key))
+                self._queue_appearance_apply_step("Updating texture editor font", lambda app=app: self.texture_editor_tab.sync_ui_font(app.font()))
+                self._queue_appearance_apply_step("Syncing settings controls", lambda: self.settings_tab.sync_appearance_controls(self.current_theme_key))
+                self._queue_appearance_apply_step("Updating responsive controls", self._apply_responsive_control_minimums)
+                self._queue_appearance_apply_step("Scheduling column sizing", self._schedule_column_autofit)
+                self._queue_appearance_apply_step("Saving theme setting", self.schedule_settings_save)
+                return
+            if data["requires_data_fonts"]:
+                self._queue_data_font_apply_steps(schedule_column_autofit=True)
+                self._queue_text_highlight_apply_steps()
+            elif data["requires_text_colors"]:
+                self._queue_text_highlight_apply_steps()
+            self._queue_appearance_apply_step("Syncing settings controls", lambda: self.settings_tab.sync_appearance_controls(self.current_theme_key))
+
+        def _run_next_appearance_apply_step(self) -> None:
+            app = self._appearance_apply_app or QApplication.instance()
+            if app is None:
+                self._finish_appearance_apply_steps(delay_ms=0)
+                return
+            if hasattr(self, "theme_change_overlay"):
+                self.theme_change_overlay.raise_()
+                self.theme_change_overlay.repaint()
+            app.processEvents()
+            if not self._appearance_apply_steps:
+                self._finish_appearance_apply_steps()
+                return
+            _label, callback = self._appearance_apply_steps.popleft()
+            try:
+                callback()
+            except Exception:
+                self._finish_appearance_apply_steps(delay_ms=0)
+                raise
+            if hasattr(self, "theme_change_overlay"):
+                self.theme_change_overlay.raise_()
+                self.theme_change_overlay.repaint()
+            app.processEvents()
+            if self._appearance_apply_steps:
+                self._appearance_apply_step_timer.start()
+            else:
+                self._finish_appearance_apply_steps()
+
+        def _apply_theme_application_style(self, resolved_theme_key: str, app: QApplication) -> None:
             screen_width, screen_height = available_layout_size_for(self)
             self._current_responsive_control_scale = 0.0
             self.current_theme_key = apply_app_theme(
@@ -12449,21 +13676,133 @@ def run_gui() -> int:
                 screen_width=screen_width,
                 screen_height=screen_height,
             )
-            apply_window_data_fonts(self)
-            self.log_highlighter.set_theme(self.current_theme_key)
-            self.archive_log_highlighter.set_theme(self.current_theme_key)
-            self.archive_model_preview.set_theme(self.current_theme_key)
-            self.archive_media_preview.set_theme(self.current_theme_key)
-            self.archive_preview_text_edit.set_theme(self.current_theme_key)
-            self.archive_preview_info_edit.set_theme(self.current_theme_key)
-            self.archive_preview_details_edit.set_theme(self.current_theme_key)
-            self.text_search_tab.set_theme(self.current_theme_key)
-            self.research_tab.set_theme(self.current_theme_key)
-            self.texture_editor_tab.sync_ui_font(app.font())
-            self.settings_tab.sync_appearance_controls(self.current_theme_key)
-            self._apply_responsive_control_minimums()
-            self._schedule_column_autofit()
-            self.schedule_settings_save()
+            self._apply_theme_window_icon(self.current_theme_key)
+
+        def _apply_theme_window_icon(self, theme_key: str) -> None:
+            app_icon, _icon_path = load_app_icon(theme_key)
+            if app_icon.isNull():
+                return
+            app = QApplication.instance()
+            if app is not None:
+                app.setWindowIcon(app_icon)
+                icon_filter = globals().get("_cdmw_app_window_icon_filter_ref")
+                if hasattr(icon_filter, "set_app_icon"):
+                    icon_filter.set_app_icon(app_icon)
+                for widget in app.topLevelWidgets():
+                    if not isinstance(widget, QWidget) or not widget.isWindow():
+                        continue
+                    try:
+                        widget.setWindowIcon(app_icon)
+                    except RuntimeError:
+                        pass
+            else:
+                self.setWindowIcon(app_icon)
+            tray_icon = getattr(self, "app_tray_icon", None)
+            if tray_icon is not None:
+                try:
+                    tray_icon.setIcon(app_icon)
+                except RuntimeError:
+                    pass
+
+        def _queue_data_font_apply_steps(self, *, schedule_column_autofit: bool) -> None:
+            log_font = build_monospace_font(self.settings)
+            targets = (
+                ("main log font", self.log_view),
+                ("archive log font", self.archive_log_view),
+                ("archive preview text font", self.archive_preview_text_edit),
+                ("archive preview info font", self.archive_preview_info_edit),
+                ("archive preview details font", self.archive_preview_details_edit),
+                ("text search log font", self.text_search_tab.log_view),
+                ("text search preview font", self.text_search_tab.preview_text_edit),
+                ("replace assistant log font", self.replace_assistant_tab.log_view),
+                ("replace assistant preview font", self.replace_assistant_tab.preview_details_edit),
+            )
+            for label, widget in targets:
+                self._queue_appearance_apply_step(
+                    f"Updating {label}",
+                    lambda widget=widget, log_font=log_font: self._apply_single_text_widget_font(widget, log_font),
+                )
+            bold_enabled = _read_bool_setting(self.settings, "appearance/log_font_bold", DEFAULT_UI_LOG_FONT_BOLD)
+            for label, highlighter in (
+                ("main log highlighter bold", self.log_highlighter),
+                ("archive log highlighter bold", self.archive_log_highlighter),
+                ("text search log highlighter bold", self.text_search_tab.log_highlighter),
+            ):
+                self._queue_appearance_apply_step(
+                    f"Updating {label}",
+                    lambda highlighter=highlighter, bold_enabled=bold_enabled: highlighter.set_bold_enabled(bold_enabled),
+                )
+            if schedule_column_autofit:
+                self._queue_appearance_apply_step("Scheduling column sizing", self._schedule_column_autofit)
+
+        def _apply_single_text_widget_font(self, widget: QWidget, font: QFont) -> None:
+            if hasattr(widget, "apply_font_preferences"):
+                widget.apply_font_preferences(font, preserve_size=False)  # type: ignore[attr-defined]
+                return
+            widget.setFont(font)
+            document_getter = getattr(widget, "document", None)
+            if callable(document_getter):
+                document = document_getter()
+                if document is not None and hasattr(document, "setDefaultFont"):
+                    document.setDefaultFont(font)
+
+        def _queue_text_highlight_apply_steps(self) -> None:
+            style = read_log_text_style(self.settings)
+            log_scheme = read_text_color_scheme(
+                self.settings,
+                "appearance/log_color_scheme",
+                DEFAULT_UI_LOG_COLOR_SCHEME,
+            )
+            preview_scheme = read_text_color_scheme(
+                self.settings,
+                "appearance/preview_color_scheme",
+                DEFAULT_UI_PREVIEW_COLOR_SCHEME,
+            )
+            for label, highlighter in (
+                ("main log colors", self.log_highlighter),
+                ("archive log colors", self.archive_log_highlighter),
+                ("text search log colors", self.text_search_tab.log_highlighter),
+            ):
+                self._queue_appearance_apply_step(
+                    f"Updating {label}",
+                    lambda highlighter=highlighter, style=style, log_scheme=log_scheme: self._apply_single_highlighter_style(
+                        highlighter,
+                        style,
+                        log_scheme,
+                    ),
+                )
+            for label, editor in (
+                ("archive text preview colors", self.archive_preview_text_edit),
+                ("archive info preview colors", self.archive_preview_info_edit),
+                ("archive details preview colors", self.archive_preview_details_edit),
+                ("text search preview colors", self.text_search_tab.preview_text_edit),
+            ):
+                self._queue_appearance_apply_step(
+                    f"Updating {label}",
+                    lambda editor=editor, style=style, preview_scheme=preview_scheme: self._apply_single_editor_text_style(
+                        editor,
+                        style,
+                        preview_scheme,
+                    ),
+                )
+            research_tab = getattr(self, "research_tab", None)
+            if research_tab is not None and hasattr(research_tab, "_apply_archive_picker_preview_text_style"):
+                self._queue_appearance_apply_step(
+                    "Updating research preview colors",
+                    lambda research_tab=research_tab: research_tab._apply_archive_picker_preview_text_style(),
+                )
+
+        def _apply_single_highlighter_style(self, highlighter: object, style: str, color_scheme: str) -> None:
+            if hasattr(highlighter, "set_highlight_style"):
+                highlighter.set_highlight_style(style)
+            if hasattr(highlighter, "set_color_scheme"):
+                highlighter.set_color_scheme(color_scheme)
+
+        def _apply_single_editor_text_style(self, editor: object, style: str, color_scheme: str) -> None:
+            if hasattr(editor, "set_highlight_style"):
+                editor.set_highlight_style(style)
+            if hasattr(editor, "set_color_scheme"):
+                editor.set_color_scheme(color_scheme)
 
         def _apply_ui_language(self) -> None:
             self.settings_tab.set_language_options(
@@ -13423,6 +14762,7 @@ def run_gui() -> int:
                 self._startup_texture_preview_defer_env = False
             self._startup_splash_released = True
             self._startup_splash_release_pending = False
+            self.archive_startup_index_warmup_required = False
             _record_runtime_event("splash_released")
             if (
                 getattr(self, "_startup_splash_holds_main_window", False)
@@ -13469,9 +14809,20 @@ def run_gui() -> int:
                 return
 
             self.append_archive_log("Startup Archive Browser preload is enabled.")
-            self._update_startup_splash("Loading Archive Browser...")
+            if bool(getattr(self, "_startup_archive_path_prompt_accepted", False)):
+                self.append_archive_log(
+                    "Building the first archive cache now. Keep CDMW open until the startup splash finishes."
+                )
+                self._update_startup_splash(
+                    "Building archive cache. First load can take a while; let it finish.",
+                    1,
+                    100,
+                )
+            else:
+                self._update_startup_splash("Loading Archive Browser...")
             self.archive_startup_autoload_defer_preview = True
             self.archive_startup_hold_until_ready = True
+            self.archive_startup_index_warmup_required = True
             self.archive_startup_saved_filter_state = {}
             self.archive_startup_saved_filter_apply_pending = False
             self.archive_startup_saved_filter_wait_logged = False
@@ -16527,7 +17878,63 @@ def run_gui() -> int:
         def _browse_archive_extract_root(self) -> None:
             self._browse_directory(self.archive_extract_root_edit, "Select Archive Extract Root")
 
-        def autodetect_archive_package_root(self) -> None:
+        def _prompt_for_archive_package_root_if_missing(
+            self,
+            *,
+            reason: str,
+            after_autodetect: Optional[Callable[[], None]] = None,
+        ) -> bool:
+            if self.archive_package_root_edit.text().strip():
+                return True
+
+            self.focus_archive_locations()
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Warning)
+            box.setWindowTitle("Crimson Desert Path Required")
+            box.setText("Crimson Desert game/package path is not set.")
+            action_text = "scan archives" if reason in {"scan", "refresh"} else "use archive workflows"
+            box.setInformativeText(
+                f"Set the Game / Package path before you {action_text}. "
+                "Choose Auto-detect to search common install locations, or Browse to select the folder manually."
+            )
+            autodetect_button = box.addButton("Auto-detect", QMessageBox.AcceptRole)
+            browse_button = box.addButton("Browse...", QMessageBox.ActionRole)
+            settings_button = box.addButton("Open Archive Locations", QMessageBox.ActionRole)
+            cancel_button = box.addButton(QMessageBox.Cancel)
+            box.setDefaultButton(autodetect_button)
+            box.exec()
+
+            clicked = box.clickedButton()
+            if clicked is autodetect_button:
+                self.autodetect_archive_package_root(after_success=after_autodetect)
+                return False
+            if clicked is browse_button:
+                selected = QFileDialog.getExistingDirectory(
+                    self,
+                    "Select Archive Package Root",
+                    self._pick_existing_directory(self.archive_package_root_edit.text()),
+                )
+                if selected:
+                    self.archive_package_root_edit.setText(selected)
+                    self.flush_settings_save()
+                    self.set_status_message(f"Archive package root set: {selected}")
+                    return True
+                self.set_status_message("Archive package root selection cancelled.", error=True)
+                return False
+            if clicked is settings_button:
+                self.focus_archive_locations()
+                self.set_status_message("Set the Crimson Desert game/package path before scanning.", error=True)
+                return False
+            if clicked is cancel_button:
+                self.set_status_message("Archive package root is required before scanning.", error=True)
+            return False
+
+        def autodetect_archive_package_root(
+            self,
+            _checked: bool = False,
+            *,
+            after_success: Optional[Callable[[], None]] = None,
+        ) -> None:
             if self._background_task_active():
                 return
 
@@ -16560,9 +17967,12 @@ def run_gui() -> int:
                         return
 
                 self.archive_package_root_edit.setText(selected_path)
+                self.flush_settings_save()
                 self._activate_tool_widget(self.archive_browser_tab)
                 self.set_status_message(f"Auto-detected archive package root: {selected_path}")
                 self.append_log(f"Using detected archive package root: {selected_path}")
+                if after_success is not None:
+                    self._run_when_background_idle(after_success, label="continuing archive package setup")
 
             self._run_utility_task(
                 status_message="Auto-detecting archive package root...",
@@ -16627,6 +18037,28 @@ def run_gui() -> int:
             self._utility_error_handler = on_error
             self.set_busy(True, build_mode=task_accepts_cancel)
             thread.start()
+
+        def _run_when_background_idle(
+            self,
+            callback: Callable[[], None],
+            *,
+            label: str,
+            attempt: int = 0,
+        ) -> None:
+            if self.worker_thread is None:
+                callback()
+                return
+            if attempt == 0:
+                self.append_log(f"Waiting for the current background task to finish before {label}.")
+            if attempt >= 100:
+                message = f"Could not continue {label} because the previous task did not finish cleanly."
+                self.set_status_message(message, error=True)
+                self.append_log(f"ERROR: {message}")
+                return
+            QTimer.singleShot(
+                50,
+                lambda: self._run_when_background_idle(callback, label=label, attempt=attempt + 1),
+            )
 
         def _run_utility_task_when_idle(
             self,
@@ -17046,16 +18478,27 @@ def run_gui() -> int:
             self.archive_result_filter_signature = ()
             self.archive_structure_filter_state = "idle"
             self.archive_structure_filter_children = {}
+            if not bool(getattr(self, "archive_startup_hold_until_ready", False)):
+                self.archive_startup_index_warmup_required = False
             if self._background_task_active():
                 return
+            package_root_text = self.archive_package_root_edit.text().strip()
+            if not package_root_text:
+                if not self._prompt_for_archive_package_root_if_missing(
+                    reason="refresh" if force_refresh else "scan",
+                    after_autodetect=lambda: self.scan_archives(
+                        force_refresh=force_refresh,
+                        activate_archive_tab=activate_archive_tab,
+                    ),
+                ):
+                    return
+                package_root_text = self.archive_package_root_edit.text().strip()
+                if not package_root_text:
+                    return
             self._stop_archive_sidecar_worker()
             self._stop_archive_derived_cache_worker()
             self.archive_sidecar_request_id += 1
             self.archive_sidecar_pending_start = False
-            package_root_text = self.archive_package_root_edit.text().strip()
-            if not package_root_text:
-                self.set_status_message("Set an archive package root first.", error=True)
-                return
 
             package_root = Path(package_root_text).expanduser()
             self._activate_archive_browser_on_scan_complete = activate_archive_tab
@@ -17189,6 +18632,10 @@ def run_gui() -> int:
                     verbose=True,
                 )
             performance_settings = self._current_archive_performance_settings()
+            startup_index_warmup = bool(
+                getattr(self, "archive_startup_hold_until_ready", False)
+                and getattr(self, "archive_startup_index_warmup_required", False)
+            )
             worker = ArchiveScanWorker(
                 package_root,
                 self.archive_cache_root,
@@ -17209,11 +18656,14 @@ def run_gui() -> int:
                 sort_order=self.archive_tree_sort_order,
                 result_filter_signature=result_filter_signature,
                 load_basic_index_cache=bool(
+                    startup_index_warmup
+                    or
                     self.archive_startup_saved_filter_apply_pending
                     and self._archive_filter_state_needs_basic_lookup(
                         getattr(self, "archive_startup_saved_filter_state", {}) or {}
                     )
                 ),
+                load_name_search_index_cache=startup_index_warmup,
                 native_archive_acceleration=performance_settings.native_archive_acceleration,
                 resource_profile=performance_settings.resource_profile,
                 game_executable_fingerprints=self._load_game_executable_fingerprints(),
@@ -17502,6 +18952,10 @@ def run_gui() -> int:
                 performance_settings.maximum_indexing_priority
                 or performance_settings.resource_profile == "maximum_throughput"
             )
+            startup_index_warmup = bool(
+                getattr(self, "archive_startup_hold_until_ready", False)
+                and getattr(self, "archive_startup_index_warmup_required", False)
+            )
             basic_indexes_ready = bool(
                 self.archive_entries_by_normalized_path
                 and self.archive_entries_by_basename
@@ -17512,6 +18966,8 @@ def run_gui() -> int:
             prewarm_basic_index = bool(
                 basic_index_needs_build
                 and (
+                    startup_index_warmup
+                    or
                     priority_prewarm_indexes
                     or saved_filter_needs_basic
                     or current_filter_needs_basic
@@ -17571,6 +19027,8 @@ def run_gui() -> int:
             prewarm_enhanced_index = bool(
                 enhanced_index_needs_build
                 and (
+                    startup_index_warmup
+                    or
                     priority_prewarm_indexes
                     or saved_filter_needs_item_search
                     or current_filter_needs_item_search
@@ -18721,6 +20179,7 @@ def run_gui() -> int:
             return (
                 str(getattr(self, "archive_basic_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
                 and str(getattr(self, "archive_enhanced_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
+                and self._startup_archive_browser_render_ready()
                 and self.archive_basic_index_thread is None
                 and self.archive_enhanced_index_thread is None
                 and self.archive_derived_cache_thread is None
@@ -18729,6 +20188,13 @@ def run_gui() -> int:
                 and self.worker_thread is None
                 and not self.archive_scan_finalize_pending
             )
+
+        def _startup_archive_browser_render_ready(self) -> bool:
+            if not self.archive_entries:
+                return True
+            if not self._is_tool_visible_or_current(self.archive_browser_tab):
+                return True
+            return bool(self._archive_browser_render_is_ready())
 
         def _maybe_release_startup_after_archive_ready(self) -> None:
             if not bool(getattr(self, "archive_startup_hold_until_ready", False)):
@@ -18754,10 +20220,14 @@ def run_gui() -> int:
                     return
             if not self._startup_archive_core_ready():
                 if not self._archive_startup_progress_work_active():
-                    self._update_startup_splash(self._archive_status_text("Archive list available"), 0, 0)
+                    if not self._startup_archive_browser_render_ready():
+                        self._update_startup_splash("Rendering archive browser view...", 90, 100)
+                    else:
+                        self._update_startup_splash(self._archive_status_text("Archive list available"), 0, 0)
                 QTimer.singleShot(1000, self._maybe_release_startup_after_archive_ready)
                 return
             self.archive_startup_hold_until_ready = False
+            self.archive_startup_index_warmup_required = False
             self._update_startup_splash("Archive ready.", 1, 1)
             _write_heartbeat("running")
             self._release_startup_splash()
@@ -20097,6 +21567,77 @@ def run_gui() -> int:
             texconv_key = self.texconv_path_edit.text().strip()
             return icon_paths, texconv_key
 
+        def _current_archive_package_root(self) -> Path:
+            text = str(self.archive_package_root_edit.text() or "").strip()
+            return Path(text).expanduser() if text else Path.cwd()
+
+        def _archive_item_icon_converter_cache_key(self) -> str:
+            texconv_text = self.texconv_path_edit.text().strip()
+            parts = [f"texconv={texconv_text}"]
+            try:
+                from cdmw.core.texture_native import find_directxtex_texture_binary
+
+                binary = find_directxtex_texture_binary()
+            except Exception:
+                binary = None
+            if binary is None:
+                parts.append("directxtex=missing")
+            else:
+                try:
+                    stat = binary.stat()
+                    parts.append(f"directxtex={binary.resolve()}:{stat.st_size}:{stat.st_mtime_ns}")
+                except OSError:
+                    parts.append(f"directxtex={binary}:missing")
+            return "|".join(parts)
+
+        def _prime_archive_asset_catalog_icon_prepared_cache_from_persistent(
+            self,
+            row: Mapping[str, object],
+            *,
+            size: int = 120,
+        ) -> bool:
+            prepared_key = self._archive_asset_catalog_prepared_icon_cache_key(row)
+            icon_paths, _texconv_key = prepared_key
+            if not icon_paths:
+                return False
+            prepared = self.archive_item_icon_prepared_path_cache.get(prepared_key)
+            if prepared is not None:
+                preview_path_text, _prepared_note = prepared
+                try:
+                    if Path(preview_path_text).is_file() and Path(preview_path_text).stat().st_size > 0:
+                        return True
+                except OSError:
+                    pass
+                self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)
+            if self._archive_item_icon_lookup_index_missing():
+                return False
+            package_root = self._current_archive_package_root()
+            converter_key = self._archive_item_icon_converter_cache_key()
+            for icon_path in icon_paths:
+                entries = self._resolve_archive_asset_catalog_path_candidates(
+                    icon_path,
+                    fallback_extensions=(".dds", ".png"),
+                )
+                for entry in entries[:4]:
+                    cached = load_archive_item_icon_thumbnail_cache(
+                        package_root,
+                        self.archive_cache_root,
+                        icon_paths,
+                        entry,
+                        size=size,
+                        converter_key=converter_key,
+                    )
+                    if cached is None:
+                        continue
+                    preview_path, note = cached
+                    self.archive_item_icon_prepared_path_cache[prepared_key] = (str(preview_path), str(note or "Recovered inventory icon"))
+                    self.archive_item_icon_prepared_path_cache.move_to_end(prepared_key)
+                    while len(self.archive_item_icon_prepared_path_cache) > self.archive_item_icon_prepared_cache_limit:
+                        self.archive_item_icon_prepared_path_cache.popitem(last=False)
+                    self.archive_item_icon_negative_cache.pop(prepared_key, None)
+                    return True
+            return False
+
         def _archive_item_icon_negative_note(
             self,
             prepared_key: Tuple[Tuple[str, ...], str],
@@ -20220,6 +21761,12 @@ def run_gui() -> int:
                 while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit:
                     self.archive_item_icon_pixmap_cache.popitem(last=False)
                 return scaled_value
+            if self._prime_archive_asset_catalog_icon_prepared_cache_from_persistent(row, size=120):
+                return self._cached_archive_asset_catalog_inventory_icon_pixmap(
+                    row,
+                    requested_size,
+                    allow_sync_prepare=allow_sync_prepare,
+                )
             negative_note = self._archive_item_icon_negative_note(prepared_key)
             if negative_note:
                 return None, negative_note
@@ -20435,6 +21982,97 @@ def run_gui() -> int:
                 self.archive_item_icon_priority_queue.extend(priority_rows)
             self._start_archive_item_icon_priority_warmup()
 
+        def _warm_item_finder_icon_rows_before_exec(
+            self,
+            rows: Sequence[Mapping[str, object]],
+            *,
+            apply_ready: Callable[[], int],
+            ready_count: Callable[[], int],
+            status_label: Optional[QLabel] = None,
+            label: str = "Item Finder",
+            min_ready: int = 24,
+            max_rows: int = 96,
+            timeout_ms: int = 0,
+            cache_prime_budget_ms: int = 120,
+        ) -> None:
+            if not rows:
+                return
+            selected_rows: List[Mapping[str, object]] = []
+            seen_keys: set[Tuple[Tuple[str, ...], str]] = set()
+            for row in rows:
+                if not isinstance(row, Mapping):
+                    continue
+                prepared_key = self._archive_asset_catalog_prepared_icon_cache_key(row)
+                icon_paths, _texconv_key = prepared_key
+                if not icon_paths or prepared_key in seen_keys:
+                    continue
+                seen_keys.add(prepared_key)
+                selected_rows.append(row)
+                if len(selected_rows) >= max(1, int(max_rows or 96)):
+                    break
+            if not selected_rows:
+                return
+
+            target_ready = min(max(1, int(min_ready or 24)), len(selected_rows))
+            prime_deadline = time.monotonic() + max(0.01, float(cache_prime_budget_ms or 120) / 1000.0)
+            for row in selected_rows:
+                self._prime_archive_asset_catalog_icon_prepared_cache_from_persistent(row, size=120)
+                if time.monotonic() >= prime_deadline:
+                    break
+            if apply_ready() >= target_ready or ready_count() >= target_ready:
+                return
+
+            if int(timeout_ms or 0) <= 0:
+                if status_label is not None:
+                    status_label.setText(f"{label}: icons are warming in the background.")
+                queued_rows = tuple(dict(row) for row in selected_rows)
+                QTimer.singleShot(
+                    180,
+                    lambda rows=queued_rows: self._queue_archive_asset_catalog_icon_warmup_rows(
+                        rows,
+                        front=True,
+                        user_visible=True,
+                        delay_ms=0,
+                    ),
+                )
+                return
+
+            if status_label is not None:
+                status_label.setText(f"{label}: preparing first inventory icons...")
+            self._queue_archive_asset_catalog_icon_warmup_rows(
+                selected_rows,
+                front=True,
+                user_visible=True,
+                delay_ms=0,
+            )
+
+            app = QApplication.instance()
+            deadline = time.monotonic() + min(0.5, max(0.05, float(timeout_ms or 0) / 1000.0))
+            last_status_at = 0.0
+            while time.monotonic() < deadline:
+                if app is not None:
+                    app.processEvents()
+                ready = max(apply_ready(), ready_count())
+                if ready >= target_ready:
+                    break
+                active = bool(
+                    self.archive_item_icon_priority_thread is not None
+                    or self.archive_item_icon_priority_queue
+                    or self.archive_item_icon_warmup_thread is not None
+                    or self.archive_basic_index_thread is not None
+                    or str(getattr(self, "archive_basic_index_state", "") or "") == "warming"
+                )
+                if not active:
+                    break
+                now = time.monotonic()
+                if status_label is not None and now - last_status_at >= 0.25:
+                    last_status_at = now
+                    status_label.setText(f"{label}: preparing first inventory icons... {ready:,} / {target_ready:,}")
+                QThread.msleep(25)
+            apply_ready()
+            if status_label is not None and ready_count() < target_ready:
+                status_label.setText(f"{label}: icons are still warming; visible rows will fill in as cache finishes.")
+
         def _start_archive_item_icon_priority_warmup(self) -> None:
             if self._shutting_down or not self.archive_item_icon_priority_queue:
                 return
@@ -20444,19 +22082,24 @@ def run_gui() -> int:
                 return
             if self.archive_item_icon_priority_thread is not None:
                 return
-            batch = self.archive_item_icon_priority_queue[:48]
-            del self.archive_item_icon_priority_queue[:48]
+            batch = self.archive_item_icon_priority_queue[:16]
+            del self.archive_item_icon_priority_queue[:16]
             texconv_text = self.texconv_path_edit.text().strip()
             texconv_path = Path(texconv_text).expanduser() if texconv_text else None
             if texconv_path is not None and not texconv_path.exists():
                 texconv_path = None
+            package_root = self._current_archive_package_root()
+            converter_key = self._archive_item_icon_converter_cache_key()
             generation = self.archive_item_icon_warmup_generation
             worker = ArchiveItemIconWarmupWorker(
                 generation,
                 batch,
                 self.archive_entries_by_normalized_path,
                 self.archive_entries_by_basename,
+                package_root,
+                self.archive_cache_root,
                 texconv_key=texconv_text,
+                thumbnail_converter_key=converter_key,
                 texconv_path=texconv_path,
                 max_dimension=120,
             )
@@ -20492,7 +22135,7 @@ def run_gui() -> int:
                 return
             if self.archive_item_icon_warmup_thread is not None:
                 return
-            batch_size = 24 if visible_remaining > 0 else 12
+            batch_size = 12 if visible_remaining > 0 else 8
             batch = self.archive_item_icon_preload_queue[:batch_size]
             del self.archive_item_icon_preload_queue[:batch_size]
             self.archive_item_icon_preload_next_index += len(batch)
@@ -20502,6 +22145,8 @@ def run_gui() -> int:
             texconv_path = Path(texconv_text).expanduser() if texconv_text else None
             if texconv_path is not None and not texconv_path.exists():
                 texconv_path = None
+            package_root = self._current_archive_package_root()
+            converter_key = self._archive_item_icon_converter_cache_key()
             generation = self.archive_item_icon_warmup_generation
             self.archive_item_icon_warmup_user_visible = visible_remaining > 0
             worker = ArchiveItemIconWarmupWorker(
@@ -20509,7 +22154,10 @@ def run_gui() -> int:
                 batch,
                 self.archive_entries_by_normalized_path,
                 self.archive_entries_by_basename,
+                package_root,
+                self.archive_cache_root,
                 texconv_key=texconv_text,
+                thumbnail_converter_key=converter_key,
                 texconv_path=texconv_path,
                 max_dimension=120,
             )
@@ -21349,6 +22997,47 @@ def run_gui() -> int:
                     icon_preview_timer.start(0)
                 return True, note
 
+            def _first_catalog_icon_rows(limit: int = 96) -> Tuple[Mapping[str, object], ...]:
+                rows: List[Mapping[str, object]] = []
+                for row_index in range(item_grid.count()):
+                    item = item_grid.item(row_index)
+                    if item is None:
+                        continue
+                    row = item.data(Qt.UserRole)
+                    if not isinstance(row, Mapping):
+                        continue
+                    if not self._archive_asset_catalog_row_values(row, "icon_paths"):
+                        continue
+                    rows.append(row)
+                    if len(rows) >= max(1, int(limit or 96)):
+                        break
+                return tuple(rows)
+
+            def _apply_ready_catalog_icons(limit: int = 96) -> int:
+                loaded = 0
+                for row_index in range(min(item_grid.count(), max(1, int(limit or 96)))):
+                    item = item_grid.item(row_index)
+                    if item is None:
+                        continue
+                    row = item.data(Qt.UserRole)
+                    if not isinstance(row, Mapping):
+                        continue
+                    if item.data(Qt.UserRole + 1) == "thumb_loaded":
+                        loaded += 1
+                        continue
+                    ready, _note = _apply_catalog_item_cached_icon(item, row)
+                    if ready:
+                        loaded += 1
+                return loaded
+
+            def _ready_catalog_icon_count(limit: int = 96) -> int:
+                count = 0
+                for row_index in range(min(item_grid.count(), max(1, int(limit or 96)))):
+                    item = item_grid.item(row_index)
+                    if item is not None and item.data(Qt.UserRole + 1) == "thumb_loaded":
+                        count += 1
+                return count
+
             def _queue_catalog_row_icons_for_visible_rows() -> None:
                 if not dialog.isVisible():
                     remaining = int(icon_visible_retry_budget.get("remaining", 0) or 0)
@@ -21571,9 +23260,9 @@ def run_gui() -> int:
                     pending_restore["scroll_value"] = 0
                 else:
                     _update_selected_catalog_detail()
-                QTimer.singleShot(0, _queue_catalog_row_icons_for_visible_rows)
-                QTimer.singleShot(90, _queue_catalog_row_icons_for_visible_rows)
-                QTimer.singleShot(300, _queue_catalog_row_icons_for_visible_rows)
+                QTimer.singleShot(140, _queue_catalog_row_icons_for_visible_rows)
+                QTimer.singleShot(360, _queue_catalog_row_icons_for_visible_rows)
+                QTimer.singleShot(900, _queue_catalog_row_icons_for_visible_rows)
 
             def _selected_catalog_row() -> Optional[Dict[str, object]]:
                 item = item_grid.currentItem()
@@ -21824,6 +23513,13 @@ def run_gui() -> int:
                 search_edit.setText(restored_search_text)
             category_tree.itemSelectionChanged.connect(lambda: catalog_filter_timer.start())
             _populate_catalog()
+            self._warm_item_finder_icon_rows_before_exec(
+                _first_catalog_icon_rows(),
+                apply_ready=_apply_ready_catalog_icons,
+                ready_count=_ready_catalog_icon_count,
+                status_label=status_label,
+                label="Item Finder",
+            )
             try:
                 dialog.exec()
             finally:
@@ -26964,15 +28660,9 @@ def run_gui() -> int:
             )
 
         def _archive_isolated_renderer_theme_payload(self) -> Dict[str, str]:
-            theme = get_theme(self.current_theme_key)
-            background = (
-                str(theme["preview_bg"])
-                if bool(getattr(self, "archive_model_preview_dark_background_enabled", True))
-                else "#f4f6f8"
-            )
             return {
-                "background": background,
-                "text": str(theme["text_muted"]),
+                "background": MODEL_PREVIEW_BACKGROUND_COLOR,
+                "text": MODEL_PREVIEW_TEXT_COLOR,
             }
 
         def _archive_material_channel_debug_from_package(self, package_dir: object) -> str:
@@ -29030,6 +30720,12 @@ def run_gui() -> int:
             previous_cache_limit = int(self.archive_preview_cache_limit)
             previous_settings = self._current_archive_performance_settings()
             previous_sidecar_indexing_enabled = previous_settings.enable_sidecar_indexing
+            sidecar_indexing_work_active = bool(
+                self.archive_sidecar_worker is not None
+                or self.archive_sidecar_thread is not None
+                or self.archive_sidecar_pending_start
+                or self.archive_browser_warmup_pending
+            )
             previous_native_cache_mode = str(getattr(previous_settings, "native_preview_cache_mode", "balanced") or "balanced")
             self._archive_performance_settings = performance_settings
             self.archive_preview_cache_limit = performance_settings.preview_cache_limit
@@ -29049,7 +30745,11 @@ def run_gui() -> int:
                 self.append_archive_log(
                     f"Native preview package cache mode set to {performance_settings.native_preview_cache_mode}."
                 )
-            if previous_sidecar_indexing_enabled and not performance_settings.enable_sidecar_indexing:
+            if (
+                not performance_settings.enable_sidecar_indexing
+                and (previous_sidecar_indexing_enabled or sidecar_indexing_work_active)
+            ):
+                self.archive_sidecar_request_id += 1
                 self.archive_sidecar_pending_start = False
                 self.archive_browser_warmup_pending = False
                 self.archive_tree.setEnabled(True)
@@ -29059,6 +30759,7 @@ def run_gui() -> int:
                     except Exception:
                         pass
                     self.append_archive_log("Texture sidecar indexing disabled; stopping the current sidecar index run.")
+                self._finish_archive_sidecar_status("Texture sidecar indexing stopped.", success=False)
                 self._set_archive_warmup_overlay(False)
                 if self.archive_entries:
                     self._refresh_or_defer_archive_browser_view(
@@ -34658,10 +36359,9 @@ def run_gui() -> int:
                 return str(value or "")
 
             def _placement_d3d11_theme_payload() -> Dict[str, str]:
-                theme = get_theme(self.current_theme_key)
                 return {
-                    "background": str(theme["preview_bg"]),
-                    "text": str(theme["text_muted"]),
+                    "background": MODEL_PREVIEW_BACKGROUND_COLOR,
+                    "text": MODEL_PREVIEW_TEXT_COLOR,
                 }
 
             def _placement_d3d11_cleanup_package(package_dir: object, *, delay_ms: int = 0) -> None:
@@ -37138,10 +38838,9 @@ def run_gui() -> int:
                     QTimer.singleShot(delay_ms, _studio_d3d11_poll_status)
 
             def _studio_d3d11_theme_payload() -> Dict[str, str]:
-                theme = get_theme(self.current_theme_key)
                 return {
-                    "background": str(theme["preview_bg"]),
-                    "text": str(theme["text_muted"]),
+                    "background": MODEL_PREVIEW_BACKGROUND_COLOR,
+                    "text": MODEL_PREVIEW_TEXT_COLOR,
                 }
 
             def _studio_d3d11_cleanup_package(package_dir: object, *, delay_ms: int = 0) -> None:
@@ -38896,14 +40595,13 @@ def run_gui() -> int:
                         p2 = to_screen(mesh_points[i2])
                         triangles.append(((p0[2] + p1[2] + p2[2]) / 3.0, mesh_index, (p0, p1, p2)))
 
-                theme = get_theme(self.current_theme_key)
                 pixmap = QPixmap(width, height)
-                pixmap.fill(QColor(theme["preview_bg"]))
+                pixmap.fill(QColor(MODEL_PREVIEW_BACKGROUND_COLOR))
                 painter = QPainter(pixmap)
                 try:
                     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-                    painter.fillRect(0, 0, width, height, QColor(theme["preview_bg"]))
-                    grid_pen = QPen(QColor(theme["border"]), 1)
+                    painter.fillRect(0, 0, width, height, QColor(MODEL_PREVIEW_BACKGROUND_COLOR))
+                    grid_pen = QPen(QColor(MODEL_PREVIEW_GRID_COLOR), 1)
                     painter.setPen(grid_pen)
                     grid_y = int(height * 0.82)
                     painter.drawLine(18, grid_y, width - 18, grid_y)
@@ -39813,6 +41511,58 @@ def run_gui() -> int:
                     if finder_icon_queue:
                         finder_icon_timer.start(3)
 
+                def _first_item_finder_donor_icon_rows(limit: int = 96) -> Tuple[Mapping[str, object], ...]:
+                    rows: List[Mapping[str, object]] = []
+                    for row_index in range(item_grid.count()):
+                        item = item_grid.item(row_index)
+                        if item is None:
+                            continue
+                        row = item.data(Qt.UserRole)
+                        if not isinstance(row, Mapping):
+                            continue
+                        if not self._archive_asset_catalog_row_values(row, "icon_paths"):
+                            continue
+                        rows.append(row)
+                        if len(rows) >= max(1, int(limit or 96)):
+                            break
+                    return tuple(rows)
+
+                def _apply_ready_item_finder_donor_icons(limit: int = 96) -> int:
+                    loaded = 0
+                    for row_index in range(min(item_grid.count(), max(1, int(limit or 96)))):
+                        item = item_grid.item(row_index)
+                        if item is None:
+                            continue
+                        row = item.data(Qt.UserRole)
+                        if not isinstance(row, Mapping):
+                            continue
+                        if item.data(Qt.UserRole + 1) == "thumb_loaded":
+                            loaded += 1
+                            continue
+                        pixmap, note = self._cached_archive_asset_catalog_inventory_icon_pixmap(
+                            row,
+                            78,
+                            allow_sync_prepare=False,
+                        )
+                        if pixmap is None or pixmap.isNull():
+                            continue
+                        item.setIcon(QIcon(pixmap))
+                        if note:
+                            tooltip = item.toolTip()
+                            if note not in tooltip:
+                                item.setToolTip(f"{tooltip}\n{note}" if tooltip else note)
+                        item.setData(Qt.UserRole + 1, "thumb_loaded")
+                        loaded += 1
+                    return loaded
+
+                def _ready_item_finder_donor_icon_count(limit: int = 96) -> int:
+                    count = 0
+                    for row_index in range(min(item_grid.count(), max(1, int(limit or 96)))):
+                        item = item_grid.item(row_index)
+                        if item is not None and item.data(Qt.UserRole + 1) == "thumb_loaded":
+                            count += 1
+                    return count
+
                 def _handle_item_finder_donor_icon_prepared(prepared_key: Tuple[Tuple[str, ...], str]) -> None:
                     if not finder.isVisible():
                         return
@@ -39924,7 +41674,7 @@ def run_gui() -> int:
                             "matched": matched,
                         }
                     )
-                    QTimer.singleShot(0, _queue_item_finder_donor_icons_for_visible_rows)
+                    QTimer.singleShot(140, _queue_item_finder_donor_icons_for_visible_rows)
 
                 def _refresh_item_finder_candidates() -> None:
                     row = _selected_item_finder_row()
@@ -40035,8 +41785,15 @@ def run_gui() -> int:
                 use_recommended_button.clicked.connect(lambda _checked=False: _choose_item_finder_candidate(recommended=True))
                 use_candidate_button.clicked.connect(lambda _checked=False: _choose_item_finder_candidate(recommended=False))
                 finder_cancel_button.clicked.connect(finder.reject)
-                _populate_item_finder_grid()
                 self.archive_item_icon_prepared_callbacks.append(_handle_item_finder_donor_icon_prepared)
+                _populate_item_finder_grid()
+                self._warm_item_finder_icon_rows_before_exec(
+                    _first_item_finder_donor_icon_rows(),
+                    apply_ready=_apply_ready_item_finder_donor_icons,
+                    ready_count=_ready_item_finder_donor_icon_count,
+                    status_label=finder_status,
+                    label="Placement Item Finder",
+                )
                 try:
                     if finder.exec() == QDialog.Accepted:
                         donor = finder_result.get("donor")
@@ -50028,14 +51785,13 @@ def run_gui() -> int:
                         p2 = to_screen(mesh_points[i2])
                         triangles.append(((p0[2] + p1[2] + p2[2]) / 3.0, mesh_index, (p0, p1, p2)))
 
-                theme = get_theme(self.current_theme_key)
                 pixmap = QPixmap(width, height)
-                pixmap.fill(QColor(theme["preview_bg"]))
+                pixmap.fill(QColor(MODEL_PREVIEW_BACKGROUND_COLOR))
                 painter = QPainter(pixmap)
                 try:
                     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-                    painter.fillRect(0, 0, width, height, QColor(theme["preview_bg"]))
-                    grid_pen = QPen(QColor(theme["border"]), 1)
+                    painter.fillRect(0, 0, width, height, QColor(MODEL_PREVIEW_BACKGROUND_COLOR))
+                    grid_pen = QPen(QColor(MODEL_PREVIEW_GRID_COLOR), 1)
                     painter.setPen(grid_pen)
                     grid_y = int(height * 0.82)
                     painter.drawLine(18, grid_y, width - 18, grid_y)
@@ -53547,6 +55303,9 @@ def run_gui() -> int:
             if self._activate_modeless_alignment_dialog(alignment_dialog_key):
                 self.set_status_message("Mesh Replacement Builder is already open for this target/source pair.")
                 return
+            alignment_dialog_key_hash = hashlib.sha1(
+                str(alignment_dialog_key).encode("utf-8", errors="replace")
+            ).hexdigest()[:16]
             alignment_d3d11_view_state_reset_generation = int(
                 getattr(self, "mesh_editor_d3d11_view_state_reset_generation", 0) or 0
             )
@@ -54229,9 +55988,9 @@ def run_gui() -> int:
             preview_splitter.setChildrenCollapsible(False)
             preview_splitter.setCollapsible(0, False)
             preview_splitter.setCollapsible(1, False)
-            preview_splitter.setStretchFactor(0, 1)
-            preview_splitter.setStretchFactor(1, 2)
-            preview_splitter.setSizes([420, 620])
+            preview_splitter.setStretchFactor(0, 5)
+            preview_splitter.setStretchFactor(1, 4)
+            preview_splitter.setSizes([560, 520])
             overlay_dialog_preview = NativePreviewPanel("Overlay preview.", theme_key=self.current_theme_key)
             overlay_dialog_preview.setMinimumSize(300, 280)
             overlay_dialog_preview.set_render_settings(preview_render_settings)
@@ -54296,6 +56055,31 @@ def run_gui() -> int:
             alignment_d3d11_reload_timer = QTimer(dialog)
             alignment_d3d11_reload_timer.setSingleShot(True)
             alignment_d3d11_reload_timer.setInterval(alignment_d3d11_fast_reload_interval_ms)
+
+            def _safe_stop_alignment_timer(timer: object) -> None:
+                if not _qt_object_is_valid(timer):
+                    return
+                try:
+                    timer.stop()  # type: ignore[attr-defined]
+                except RuntimeError:
+                    return
+
+            def _safe_start_alignment_timer(timer: object) -> None:
+                if not _qt_object_is_valid(timer):
+                    return
+                try:
+                    timer.start()  # type: ignore[attr-defined]
+                except RuntimeError:
+                    return
+
+            def _safe_alignment_timer_active(timer: object) -> bool:
+                if not _qt_object_is_valid(timer):
+                    return False
+                try:
+                    return bool(timer.isActive())  # type: ignore[attr-defined]
+                except RuntimeError:
+                    return False
+
             alignment_d3d11_state: Dict[str, object] = {
                 "request_id": 0,
                 "thread": None,
@@ -54339,6 +56123,16 @@ def run_gui() -> int:
                 "next_rebuild_reason": "",
                 "pending_fast_transform": None,
                 "preview_loaded": False,
+                "preview_pipeline_stage": "idle",
+                "fast_geometry_loaded": False,
+                "archive_parity_ready": False,
+                "archive_parity_upgrade_queued": False,
+                "resources_loaded": False,
+                "original_texture_worker_request_id": 0,
+                "original_texture_thread": None,
+                "original_texture_worker": None,
+                "pending_process_package": None,
+                "pending_process_retry_count": 0,
                 "loading_started_at": 0.0,
                 "loading_percent": 0,
                 "loading_stage": "",
@@ -54354,6 +56148,8 @@ def run_gui() -> int:
             alignment_preview_view_sync = {"active": False}
 
             def _tick_alignment_d3d11_loading_spinner() -> None:
+                if not _alignment_dialog_widgets_live() or not _qt_object_is_valid(alignment_d3d11_loading_spinner_label):
+                    return
                 frames = ("&#9679;", "&#9683;", "&#9681;", "&#9682;")
                 frame_index = (int(alignment_d3d11_loading_state.get("frame", 0) or 0) + 1) % len(frames)
                 alignment_d3d11_loading_state["frame"] = frame_index
@@ -54375,9 +56171,10 @@ def run_gui() -> int:
                     alignment_d3d11_loading_state["active"] = False
                     alignment_d3d11_state["loading_started_at"] = 0.0
                     try:
-                        alignment_d3d11_loading_timer.stop()
-                        alignment_d3d11_loading_spinner_label.setVisible(False)
-                        alignment_d3d11_loading_spinner_label.setText("")
+                        _safe_stop_alignment_timer(alignment_d3d11_loading_timer)
+                        if _qt_object_is_valid(alignment_d3d11_loading_spinner_label):
+                            alignment_d3d11_loading_spinner_label.setVisible(False)
+                            alignment_d3d11_loading_spinner_label.setText("")
                     except RuntimeError:
                         pass
                     return
@@ -54391,12 +56188,12 @@ def run_gui() -> int:
                     if float(alignment_d3d11_state.get("loading_started_at", 0.0) or 0.0) <= 0.0:
                         alignment_d3d11_state["loading_started_at"] = time.perf_counter()
                     alignment_d3d11_loading_spinner_label.setVisible(True)
-                    if not alignment_d3d11_loading_timer.isActive():
+                    if not _safe_alignment_timer_active(alignment_d3d11_loading_timer):
                         _tick_alignment_d3d11_loading_spinner()
-                        alignment_d3d11_loading_timer.start()
+                        _safe_start_alignment_timer(alignment_d3d11_loading_timer)
                 else:
                     alignment_d3d11_state["loading_started_at"] = 0.0
-                    alignment_d3d11_loading_timer.stop()
+                    _safe_stop_alignment_timer(alignment_d3d11_loading_timer)
                     alignment_d3d11_loading_spinner_label.setVisible(False)
                     alignment_d3d11_loading_spinner_label.setText("")
 
@@ -54430,6 +56227,18 @@ def run_gui() -> int:
                     message_text,
                     detail="\n".join(tooltip_parts),
                 )
+
+            def _set_alignment_d3d11_pipeline_stage(stage: str, detail: str = "") -> None:
+                normalized = str(stage or "idle").strip().lower() or "idle"
+                alignment_d3d11_state["preview_pipeline_stage"] = normalized
+                if detail:
+                    _record_runtime_event(
+                        "alignment_d3d11_preview_pipeline_stage",
+                        path=getattr(entry, "path", ""),
+                        dialog_title=dialog_title,
+                        stage=normalized,
+                        detail=str(detail or ""),
+                    )
 
             alignment_d3d11_loading_timer.timeout.connect(_tick_alignment_d3d11_loading_spinner)
 
@@ -54527,10 +56336,7 @@ def run_gui() -> int:
                     alignment_d3d11_state["preview_loaded"] = False
                     alignment_d3d11_loading_state["active"] = False
                     alignment_d3d11_state["loading_started_at"] = 0.0
-                    try:
-                        alignment_d3d11_loading_timer.stop()
-                    except RuntimeError:
-                        pass
+                    _safe_stop_alignment_timer(alignment_d3d11_loading_timer)
                     return
                 process = alignment_d3d11_state.get("process")
                 active_package = alignment_d3d11_state.get("active_package")
@@ -54567,6 +56373,32 @@ def run_gui() -> int:
                 elapsed_s = max(0.0, time.perf_counter() - started_at) if started_at > 0.0 else 0.0
                 last_percent = int(alignment_d3d11_state.get("loading_percent", 0) or 0)
                 last_stage = str(alignment_d3d11_state.get("loading_stage", "") or "unknown")
+                if bool(alignment_d3d11_state.get("resources_loaded")) and (not host_ready or not child_ready):
+                    _set_alignment_d3d11_loading(
+                        False,
+                        "Preview resources loaded; waiting for visible preview panel.",
+                        detail=(
+                            f"Native D3D11 uploaded package resources but the preview panel is not renderable yet.\n"
+                            f"elapsed={elapsed_s:.1f}s\n"
+                            f"last_progress={last_percent}%\n"
+                            f"last_stage={last_stage}\n"
+                            f"reason={reason}\n"
+                            f"host={host_detail}\n"
+                            f"child={child_detail}\n"
+                            f"active_package={active_package}"
+                        ),
+                    )
+                    _set_preview_performance_status(
+                        "D3D11 resources loaded; waiting for visible preview panel.",
+                        details=(
+                            f"reason={reason}\n"
+                            f"elapsed={elapsed_s:.1f}s\n"
+                            f"host={host_detail}\n"
+                            f"child={child_detail}\n"
+                            f"active_package={active_package}"
+                        ),
+                    )
+                    return
                 _set_alignment_d3d11_loading(
                     False,
                     "Preview stale/no fresh frame.",
@@ -54896,6 +56728,8 @@ def run_gui() -> int:
             alignment_dialog_layout_state = {"mode": ""}
 
             def _apply_alignment_dialog_responsive_layout(*, force_sizes: bool = False) -> None:
+                if not _alignment_dialog_widgets_live() or not _qt_object_is_valid(main_splitter):
+                    return
                 width = max(1, int(dialog.width()))
                 height = max(1, int(dialog.height()))
                 if embedded_alignment_builder:
@@ -54919,7 +56753,7 @@ def run_gui() -> int:
                     if force_sizes or alignment_dialog_layout_state.get("mode") != "embedded":
                         control_width = max(320, min(520, int(width * 0.34)))
                         main_splitter.setSizes([control_width, max(220, width - control_width)])
-                        preview_splitter.setSizes([max(180, int((width - control_width) * 0.38)), max(220, int((width - control_width) * 0.58))])
+                        preview_splitter.setSizes([max(220, int((width - control_width) * 0.52)), max(220, int((width - control_width) * 0.44))])
                     alignment_dialog_layout_state["mode"] = "embedded"
                     return
                 compact = width < 1680
@@ -54944,7 +56778,7 @@ def run_gui() -> int:
                         preview_splitter.setOrientation(Qt.Horizontal)
                     if force_sizes or mode_changed:
                         main_splitter.setSizes([max(360, int(height * 0.56)), max(280, int(height * 0.36))])
-                        preview_splitter.setSizes([max(220, int(width * 0.42)), max(260, int(width * 0.52))])
+                        preview_splitter.setSizes([max(260, int(width * 0.52)), max(260, int(width * 0.42))])
                 else:
                     if main_splitter.orientation() != Qt.Horizontal:
                         main_splitter.setOrientation(Qt.Horizontal)
@@ -54966,11 +56800,13 @@ def run_gui() -> int:
                         else:
                             control_width = max(620, min(1040, int(width * 0.42)))
                         main_splitter.setSizes([control_width, max(760, width - control_width)])
-                        preview_splitter.setSizes([max(280, int((width - control_width) * 0.38)), max(360, int((width - control_width) * 0.58))])
+                        preview_splitter.setSizes([max(360, int((width - control_width) * 0.52)), max(360, int((width - control_width) * 0.44))])
 
             previous_dialog_resize_event = dialog.resizeEvent
 
             def _responsive_dialog_resize_event(event: object) -> None:
+                if not _alignment_dialog_widgets_live():
+                    return
                 previous_dialog_resize_event(event)
                 QTimer.singleShot(0, _apply_alignment_dialog_responsive_layout)
 
@@ -55436,6 +57272,9 @@ def run_gui() -> int:
             static_preview_settle_timer = QTimer(dialog)
             static_preview_settle_timer.setSingleShot(True)
             static_preview_settle_timer.setInterval(850)
+            material_edit_refresh_timer = QTimer(dialog)
+            material_edit_refresh_timer.setSingleShot(True)
+            material_edit_refresh_timer.setInterval(520)
             mapping_edit_refresh_timer = QTimer(dialog)
             mapping_edit_refresh_timer.setSingleShot(True)
             mapping_edit_refresh_timer.setInterval(260)
@@ -55445,6 +57284,12 @@ def run_gui() -> int:
                 "rebuild": False,
                 "texture": False,
                 "texture_uv": False,
+            }
+            material_edit_refresh_state = {
+                "refresh_plan": False,
+                "force_plan": False,
+                "refresh_preview": False,
+                "reason": "",
             }
             alignment_post_open_tasks: List[Callable[[], None]] = []
             alignment_post_open_state = {"started": False}
@@ -55507,8 +57352,8 @@ def run_gui() -> int:
                 alignment_post_open_state["started"] = True
                 pending_tasks = list(alignment_post_open_tasks)
                 alignment_post_open_tasks.clear()
-                for callback in pending_tasks:
-                    QTimer.singleShot(0, callback)
+                for task_index, callback in enumerate(pending_tasks):
+                    QTimer.singleShot(int(task_index) * 45, callback)
 
             def _load_original_reference_texture_preview() -> None:
                 return
@@ -55542,7 +57387,7 @@ def run_gui() -> int:
                     int(alignment_transform_generation.get("committed", 0) or 0),
                     generation,
                 )
-                alignment_d3d11_reload_timer.stop()
+                _safe_stop_alignment_timer(alignment_d3d11_reload_timer)
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                 alignment_d3d11_state["queued_model"] = None
                 alignment_d3d11_state["queued_label"] = ""
@@ -56149,11 +57994,11 @@ def run_gui() -> int:
 
             def _queue_selection_preview_refresh(*_args: object) -> None:
                 if _alignment_d3d11_preview_active():
-                    _mark_alignment_d3d11_rebuild_reason("geometry")
-                    if int(static_preview_batch_state.get("depth", 0) or 0) > 0:
-                        static_preview_batch_state["refresh"] = True
-                        return
-                    static_preview_refresh_timer.start()
+                    _sync_highlight_sets()
+                    _set_preview_performance_status(
+                        "Selection highlight updated.",
+                        details="Selection changes use live D3D11 highlight commands and do not rebuild the preview package.",
+                    )
                     return
                 _queue_static_preview_refresh()
 
@@ -56185,6 +58030,90 @@ def run_gui() -> int:
                 _alignment_d3d11_invalidate_package_cache("texture_uv")
                 texture_overrides_dirty["dirty"] = True
                 static_preview_refresh_timer.start()
+
+            def _queue_material_edit_refresh(
+                *,
+                refresh_plan: bool = False,
+                force_plan: bool = False,
+                refresh_preview: bool = True,
+                reason: str = "material edit",
+            ) -> None:
+                if not _alignment_dialog_widgets_live():
+                    return
+                material_edit_refresh_state["refresh_plan"] = bool(
+                    material_edit_refresh_state.get("refresh_plan")
+                ) or bool(refresh_plan)
+                material_edit_refresh_state["force_plan"] = bool(
+                    material_edit_refresh_state.get("force_plan")
+                ) or bool(force_plan)
+                material_edit_refresh_state["refresh_preview"] = bool(
+                    material_edit_refresh_state.get("refresh_preview")
+                ) or bool(refresh_preview)
+                material_edit_refresh_state["reason"] = str(reason or "material edit").strip() or "material edit"
+                texture_overrides_dirty["dirty"] = True
+                _set_preview_performance_status(
+                    f"Preview update queued: {material_edit_refresh_state['reason']}.",
+                    details="Material edits are debounced so role and slider changes do not rebuild preview per click.",
+                )
+                try:
+                    _set_alignment_d3d11_progress(
+                        5,
+                        f"Preview update queued - {material_edit_refresh_state['reason']}.",
+                        stage="material_edit_queued",
+                        active=False,
+                    )
+                except RuntimeError:
+                    pass
+                material_edit_refresh_timer.start()
+
+            def _run_material_edit_refresh() -> None:
+                if not _alignment_dialog_widgets_live():
+                    return
+                refresh_plan = bool(material_edit_refresh_state.get("refresh_plan"))
+                force_plan = bool(material_edit_refresh_state.get("force_plan"))
+                refresh_preview = bool(material_edit_refresh_state.get("refresh_preview"))
+                reason = str(material_edit_refresh_state.get("reason") or "material edit").strip() or "material edit"
+                material_edit_refresh_state["refresh_plan"] = False
+                material_edit_refresh_state["force_plan"] = False
+                material_edit_refresh_state["refresh_preview"] = False
+                material_edit_refresh_state["reason"] = ""
+                started_at = time.perf_counter()
+                _set_preview_performance_status(
+                    f"Refreshing material preview: {reason}.",
+                    details="Queued material edit is being applied after input settled.",
+                )
+                try:
+                    _set_alignment_d3d11_progress(
+                        20,
+                        f"Refreshing material preview - {reason}.",
+                        stage="material_edit_refresh",
+                        active=False,
+                    )
+                except RuntimeError:
+                    pass
+                if refresh_plan:
+                    try:
+                        _refresh_source_material_plan(force=force_plan)
+                    except TypeError:
+                        _refresh_source_material_plan()
+                    except NameError:
+                        pass
+                if refresh_preview:
+                    _queue_texture_preview_refresh()
+                _record_runtime_event(
+                    "mesh_alignment_material_edit_refresh",
+                    path=getattr(entry, "path", ""),
+                    dialog_title=dialog_title,
+                    reason=reason,
+                    refresh_plan=refresh_plan,
+                    force_plan=force_plan,
+                    refresh_preview=refresh_preview,
+                    elapsed_ms=int((time.perf_counter() - started_at) * 1000),
+                    modify_original_clone=modify_original_clone_mode,
+                    defer_original_texture_preview=defer_original_texture_preview,
+                )
+
+            material_edit_refresh_timer.timeout.connect(_run_material_edit_refresh)
 
             def _mesh_edit_apply_preview_mode_transition(reason: str) -> None:
                 if not _alignment_dialog_widgets_live():
@@ -56608,10 +58537,9 @@ def run_gui() -> int:
                 return _alignment_d3d11_editor_ids_for_source_indices(replacement_source_indices)
 
             def _alignment_d3d11_theme_payload() -> Dict[str, str]:
-                theme = get_theme(self.current_theme_key)
                 return {
-                    "background": str(theme["preview_bg"]),
-                    "text": str(theme["text_muted"]),
+                    "background": MODEL_PREVIEW_BACKGROUND_COLOR,
+                    "text": MODEL_PREVIEW_TEXT_COLOR,
                 }
 
             def _alignment_d3d11_cache_display_class(display_mode: str) -> str:
@@ -56775,6 +58703,51 @@ def run_gui() -> int:
                 encoded = repr(signature).encode("utf-8", errors="replace")
                 return hashlib.sha1(encoded).hexdigest()
 
+            def _alignment_d3d11_geometry_cache_key(
+                model: ModelPreviewData,
+                settings: ModelPreviewRenderSettings,
+                *,
+                display_mode: str,
+            ) -> str:
+                def _sample_sequence(values: object, *, limit: int = 4) -> tuple:
+                    seq = tuple(values or ())
+                    if len(seq) <= limit * 2:
+                        return seq
+                    return seq[:limit] + seq[-limit:]
+
+                mesh_signatures = []
+                for mesh in getattr(model, "meshes", ()) or ():
+                    mesh_signatures.append(
+                        (
+                            int(getattr(mesh, "source_submesh_index", -1) or -1),
+                            len(getattr(mesh, "positions", ()) or ()),
+                            len(getattr(mesh, "normals", ()) or ()),
+                            len(getattr(mesh, "texture_coordinates", ()) or ()),
+                            len(getattr(mesh, "indices", ()) or ()),
+                            _sample_sequence(getattr(mesh, "positions", ()) or ()),
+                            _sample_sequence(getattr(mesh, "normals", ()) or ()),
+                            _sample_sequence(getattr(mesh, "texture_coordinates", ()) or ()),
+                            _sample_sequence(getattr(mesh, "indices", ()) or ()),
+                            bool(getattr(mesh, "preview_double_sided", False)),
+                        )
+                    )
+                signature = (
+                    "alignment_d3d11_geometry_v1",
+                    str(getattr(model, "path", "") or ""),
+                    str(getattr(model, "format", "") or ""),
+                    int(getattr(model, "mesh_count", 0) or 0),
+                    int(getattr(model, "vertex_count", 0) or 0),
+                    int(getattr(model, "face_count", 0) or 0),
+                    tuple(getattr(model, "normalization_center", ()) or ()),
+                    float(getattr(model, "normalization_scale", 1.0) or 1.0),
+                    _alignment_d3d11_cache_display_class(display_mode),
+                    bool(modify_original_clone_mode),
+                    bool(getattr(settings, "flip_texture_v", False)),
+                    tuple(mesh_signatures),
+                )
+                encoded = repr(signature).encode("utf-8", errors="replace")
+                return hashlib.sha1(encoded).hexdigest()
+
             def _alignment_d3d11_preview_cache_key(
                 model: ModelPreviewData,
                 settings: ModelPreviewRenderSettings,
@@ -56908,7 +58881,7 @@ def run_gui() -> int:
                 alignment_d3d11_state["status_file"] = None
                 alignment_d3d11_state["status_signature"] = (0, 0)
                 alignment_d3d11_state["status_payload_text"] = ""
-                alignment_d3d11_status_timer.stop()
+                _safe_stop_alignment_timer(alignment_d3d11_status_timer)
                 if not isinstance(process, QProcess):
                     _cleanup_alignment_d3d11_package(package_dir)
                     return
@@ -56933,8 +58906,13 @@ def run_gui() -> int:
                     worker.stop()
 
             def _shutdown_alignment_d3d11_preview() -> None:
-                alignment_d3d11_reload_timer.stop()
-                alignment_d3d11_status_timer.stop()
+                _safe_stop_alignment_timer(alignment_d3d11_reload_timer)
+                _safe_stop_alignment_timer(alignment_d3d11_status_timer)
+                _safe_stop_alignment_timer(alignment_d3d11_loading_timer)
+                try:
+                    _safe_stop_alignment_timer(alignment_d3d11_drag_ui_timer)
+                except NameError:
+                    pass
                 alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                 alignment_d3d11_state["queued_model"] = None
                 alignment_d3d11_state["queued_label"] = ""
@@ -56959,6 +58937,10 @@ def run_gui() -> int:
                 alignment_d3d11_state["source_to_d3d11_ids"] = {}
                 alignment_d3d11_state["d3d11_id_to_source_indices"] = {}
                 _alignment_d3d11_stop_worker()
+                try:
+                    _stop_original_reference_texture_worker()
+                except NameError:
+                    pass
                 _alignment_d3d11_invalidate_package_cache("shutdown")
                 _alignment_d3d11_stop_process()
                 pending_package = alignment_d3d11_state.get("active_package")
@@ -57072,8 +59054,13 @@ def run_gui() -> int:
                 rebuild_reason = str(reason or alignment_d3d11_state.get("next_rebuild_reason", "") or "geometry").strip().lower()
                 if rebuild_reason not in {"geometry", "texture_uv", "material", "mode_missing_original"}:
                     rebuild_reason = "geometry"
+                if rebuild_reason != "material":
+                    alignment_d3d11_state["fast_geometry_loaded"] = False
+                    alignment_d3d11_state["archive_parity_ready"] = False
+                    alignment_d3d11_state["archive_parity_upgrade_queued"] = False
+                    _set_alignment_d3d11_pipeline_stage("material_loading", f"queued {rebuild_reason} rebuild")
                 _queued_settings, _queued_high_quality_textures, _queued_combiner, queued_package_quality = (
-                    _alignment_d3d11_package_quality(label, model)
+                    _alignment_d3d11_package_quality(label, model, reason=rebuild_reason)
                 )
                 alignment_d3d11_state["next_rebuild_reason"] = ""
                 alignment_d3d11_state["queued_model"] = _clone_preview_model(model)
@@ -57090,20 +59077,59 @@ def run_gui() -> int:
                     detail=f"Queued preview reload. reason={rebuild_reason}",
                 )
                 alignment_d3d11_reload_timer.setInterval(alignment_d3d11_package_reload_interval_ms)
-                alignment_d3d11_reload_timer.start()
+                _safe_start_alignment_timer(alignment_d3d11_reload_timer)
 
-            def _alignment_d3d11_package_quality(label: str, model: object = None) -> tuple[ModelPreviewRenderSettings, bool, bool, str]:
+            def _alignment_d3d11_package_quality(
+                label: str,
+                model: object = None,
+                *,
+                reason: str = "",
+            ) -> tuple[ModelPreviewRenderSettings, bool, bool, str]:
                 settings = _current_alignment_preview_render_settings()
+                normalized_reason = str(reason or alignment_d3d11_state.get("next_rebuild_reason", "") or "").strip().lower()
                 if _mesh_edit_raw_preview_active():
-                    raw_settings = dataclasses.replace(settings)
-                    raw_settings.disable_all_support_maps = True
-                    raw_settings.disable_normal_map = True
-                    raw_settings.disable_material_map = True
-                    raw_settings.disable_height_map = True
-                    return clamp_model_preview_render_settings(raw_settings), False, False, "mesh_edit_raw"
-                # Mesh Editor must match Archive Preview material output. Keep the
-                # package full-quality unless the user explicitly enters raw mesh-edit mode.
+                    # Live mesh editing still needs uncached geometry packages,
+                    # but it must render the same material contract as Archive
+                    # Preview so imported source textures remain visible.
+                    return clamp_model_preview_render_settings(settings), True, True, "mesh_edit_raw"
+                if (
+                    bool(alignment_d3d11_state.get("archive_parity_ready"))
+                    and normalized_reason == "material"
+                ):
+                    return clamp_model_preview_render_settings(settings), True, True, "material_refresh"
                 return clamp_model_preview_render_settings(settings), True, True, "archive_parity"
+
+            def _queue_alignment_archive_parity_upgrade(reason: str = "fast preview ready") -> None:
+                if not _alignment_dialog_widgets_live() or not _alignment_d3d11_preview_active():
+                    return
+                if bool(alignment_d3d11_state.get("archive_parity_ready")):
+                    return
+                if bool(alignment_d3d11_state.get("archive_parity_upgrade_queued")):
+                    return
+                alignment_d3d11_state["archive_parity_upgrade_queued"] = True
+                _set_alignment_d3d11_pipeline_stage("material_loading", reason)
+                _set_alignment_d3d11_progress(
+                    100,
+                    "Fast preview ready; loading full materials in background.",
+                    stage="material_loading",
+                    active=False,
+                )
+
+                def _upgrade() -> None:
+                    if not _alignment_dialog_widgets_live() or not _alignment_d3d11_preview_active():
+                        alignment_d3d11_state["archive_parity_upgrade_queued"] = False
+                        return
+                    if _original_reference_texture_preview_required(str(preview_mode_combo.currentData() or "side_by_side")) and not (
+                        bool(original_reference_texture_preview_state.get("loaded"))
+                        or bool(original_reference_texture_preview_state.get("failed"))
+                    ):
+                        _load_original_reference_texture_preview()
+                        return
+                    alignment_d3d11_state["archive_parity_upgrade_queued"] = False
+                    _mark_alignment_d3d11_rebuild_reason("material")
+                    _queue_static_preview_refresh()
+
+                QTimer.singleShot(120, _upgrade)
 
             def _alignment_d3d11_drag_reload_stale(request_id: int = 0) -> bool:
                 if bool(alignment_d3d11_drag_transaction.get("active")):
@@ -57206,12 +59232,21 @@ def run_gui() -> int:
                 rebuild_reason = str(reason or "geometry").strip().lower()
                 if rebuild_reason not in {"geometry", "texture_uv", "material", "mode_missing_original"}:
                     rebuild_reason = "geometry"
+                if rebuild_reason != "material":
+                    alignment_d3d11_state["fast_geometry_loaded"] = False
+                    alignment_d3d11_state["archive_parity_ready"] = False
+                    alignment_d3d11_state["archive_parity_upgrade_queued"] = False
+                    _set_alignment_d3d11_pipeline_stage("material_loading", f"starting {rebuild_reason} rebuild")
                 request_transform_generation = (
                     int(transform_generation)
                     if transform_generation is not None
                     else _current_alignment_transform_generation()
                 )
-                settings, high_quality_textures, enable_material_combiner, package_quality = _alignment_d3d11_package_quality(label, model)
+                settings, high_quality_textures, enable_material_combiner, package_quality = _alignment_d3d11_package_quality(
+                    label,
+                    model,
+                    reason=rebuild_reason,
+                )
                 if isinstance(alignment_d3d11_state.get("thread"), QThread):
                     alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                     alignment_d3d11_state["pending_model"] = model
@@ -57309,6 +59344,16 @@ def run_gui() -> int:
                             _sync_highlight_sets()
                             _replay_alignment_d3d11_fast_transform()
                             alignment_d3d11_state["preview_loaded"] = True
+                            cached_quality = str(package_quality or "").strip().lower()
+                            if cached_quality == "fast_geometry":
+                                alignment_d3d11_state["fast_geometry_loaded"] = True
+                                alignment_d3d11_state["archive_parity_ready"] = False
+                                _set_alignment_d3d11_pipeline_stage("fast_geometry", "active cached fast package reused")
+                            elif cached_quality == "archive_parity":
+                                alignment_d3d11_state["fast_geometry_loaded"] = True
+                                alignment_d3d11_state["archive_parity_ready"] = True
+                                alignment_d3d11_state["archive_parity_upgrade_queued"] = False
+                                _set_alignment_d3d11_pipeline_stage("archive_parity_ready", "active cached archive package reused")
                             _set_alignment_d3d11_progress(
                                 100,
                                 "Preview ready.",
@@ -57326,6 +59371,8 @@ def run_gui() -> int:
                                     "native load/upload 0.0 ms (active package reused)"
                                 ),
                             )
+                            if cached_quality == "fast_geometry":
+                                _queue_alignment_archive_parity_upgrade("active cached fast package reused")
                             return
                         _set_alignment_d3d11_progress(
                             82,
@@ -57342,16 +59389,32 @@ def run_gui() -> int:
                         return
                 alignment_d3d11_state["last_cache_event"] = "bypass" if not cache_key else "miss"
                 mesh_edit_raw_package = _mesh_edit_raw_preview_active()
+                package_quality_key = str(package_quality).strip().lower()
+                worker_use_textures = True
+                worker_high_quality_textures = bool(high_quality_textures)
+                worker_enable_material_combiner = bool(enable_material_combiner)
+                worker_original_reference_material_parity = bool(worker_use_textures)
+                geometry_signature = _alignment_d3d11_geometry_cache_key(
+                    model,
+                    settings,
+                    display_mode=requested_display_mode,
+                )
+                preview_cache_root = self.archive_cache_root / "d3d11_preview_cache" / alignment_dialog_key_hash
                 worker = AlignmentD3D11PackageWorker(
                     request_id,
                     model,
                     settings,
-                    use_textures=not mesh_edit_raw_package,
-                    high_quality_textures=high_quality_textures,
-                    enable_material_combiner=enable_material_combiner,
-                    original_reference_material_parity=not mesh_edit_raw_package,
+                    use_textures=worker_use_textures,
+                    high_quality_textures=worker_high_quality_textures,
+                    enable_material_combiner=worker_enable_material_combiner,
+                    original_reference_material_parity=worker_original_reference_material_parity,
                     display_mode=requested_display_mode,
                     editor_workspace="modify_original_alignment" if modify_original_clone_mode else "mesh_replacement_alignment",
+                    package_quality=package_quality,
+                    geometry_signature=geometry_signature,
+                    reuse_prepared_geometry=package_quality_key == "material_refresh",
+                    geometry_cache_dir=preview_cache_root / "geometry",
+                    texture_cache_dir=preview_cache_root / "textures",
                 )
                 thread = QThread(dialog)
                 worker.moveToThread(thread)
@@ -57374,8 +59437,12 @@ def run_gui() -> int:
                 thread.finished.connect(_cleanup_alignment_d3d11_package_worker_refs)
                 alignment_d3d11_state["worker"] = worker
                 alignment_d3d11_state["thread"] = thread
-                if mesh_edit_raw_package:
-                    loading_detail = "building raw edit mesh"
+                if package_quality_key == "fast_geometry":
+                    loading_detail = "building fast geometry"
+                elif package_quality_key == "material_refresh":
+                    loading_detail = "refreshing materials with cached geometry"
+                elif mesh_edit_raw_package:
+                    loading_detail = "building editable mesh materials"
                 else:
                     loading_detail = "resolving textures" if high_quality_textures else "building mesh and low-res textures"
                 _set_alignment_d3d11_progress(
@@ -57552,6 +59619,7 @@ def run_gui() -> int:
                     alignment_d3d11_state["status_signature"] = (0, 0)
                     alignment_d3d11_state["status_payload_text"] = ""
                     alignment_d3d11_state["preview_loaded"] = False
+                    alignment_d3d11_state["resources_loaded"] = False
                     if alignment_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
                         alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
                         alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
@@ -57581,7 +59649,7 @@ def run_gui() -> int:
                             f"{channel_debug or timing_summary}"
                         )
                         _set_preview_performance_status(timing_summary, details=details)
-                        alignment_d3d11_status_timer.start()
+                        _safe_start_alignment_timer(alignment_d3d11_status_timer)
                         return
                     alignment_d3d11_state["active_package"] = previous_package
                     alignment_d3d11_state["active_package_request_id"] = previous_request_id
@@ -57603,13 +59671,38 @@ def run_gui() -> int:
                 alignment_d3d11_state["status_signature"] = (0, 0)
                 alignment_d3d11_state["status_payload_text"] = ""
                 alignment_d3d11_state["preview_loaded"] = False
+                alignment_d3d11_state["resources_loaded"] = False
                 preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                 new_host_ready, new_host_detail = _alignment_d3d11_host_ready(require_child=False)
                 if not new_host_ready:
+                    retry_count = int(alignment_d3d11_state.get("pending_process_retry_count", 0) or 0) + 1
+                    alignment_d3d11_state["pending_process_retry_count"] = retry_count
+                    alignment_d3d11_state["pending_process_package"] = package_dir
+                    _set_alignment_d3d11_progress(
+                        82,
+                        "Waiting for preview panel layout.",
+                        request_id=int(request_id or 0),
+                        stage="waiting_for_visible_preview",
+                        detail=f"reason={rebuild_reason}\nhost={new_host_detail}\nretry={retry_count}",
+                        active=False,
+                    )
                     _set_preview_performance_status(
                         "D3D11 preview host pending layout before renderer start.",
                         details=f"reason={rebuild_reason}\nhost={new_host_detail}",
                     )
+                    if retry_count <= 80:
+                        QTimer.singleShot(
+                            75,
+                            lambda package=package_dir, expected_request=int(request_id or 0): _start_alignment_d3d11_process(
+                                package,
+                                request_id=expected_request,
+                            ),
+                        )
+                    else:
+                        _set_alignment_d3d11_loading(False, "Preview panel is not renderable yet.")
+                    return
+                alignment_d3d11_state["pending_process_retry_count"] = 0
+                alignment_d3d11_state["pending_process_package"] = None
                 process = QProcess(dialog)
                 try:
                     program, arguments = self._native_d3d11_renderer_command(
@@ -57664,7 +59757,7 @@ def run_gui() -> int:
                         f"reason={rebuild_reason}"
                     ),
                 )
-                alignment_d3d11_status_timer.start()
+                _safe_start_alignment_timer(alignment_d3d11_status_timer)
                 process.start()
                 QTimer.singleShot(10000, lambda expected_status=status_file: _check_alignment_d3d11_start_timeout(expected_status))
 
@@ -57715,9 +59808,10 @@ def run_gui() -> int:
                 if process is not alignment_d3d11_state.get("process"):
                     return
                 widgets_live = _alignment_dialog_widgets_live()
-                _poll_alignment_d3d11_status()
+                if widgets_live:
+                    _poll_alignment_d3d11_status()
                 alignment_d3d11_state["process"] = None
-                alignment_d3d11_status_timer.stop()
+                _safe_stop_alignment_timer(alignment_d3d11_status_timer)
                 package_dir = alignment_d3d11_state.get("active_package")
                 alignment_d3d11_state["active_package"] = None
                 alignment_d3d11_state["active_package_request_id"] = 0
@@ -57770,6 +59864,25 @@ def run_gui() -> int:
                 event = str(payload.get("event", "") or "").strip().lower()
                 if event == "loaded":
                     alignment_d3d11_state["preview_loaded"] = True
+                    alignment_d3d11_state["resources_loaded"] = True
+                    loaded_quality = str(
+                        alignment_d3d11_state.get("active_package_quality", "")
+                        or alignment_d3d11_state.get("package_quality", "normal")
+                        or "normal"
+                    ).strip().lower()
+                    if loaded_quality == "fast_geometry":
+                        alignment_d3d11_state["fast_geometry_loaded"] = True
+                        alignment_d3d11_state["archive_parity_ready"] = False
+                        _set_alignment_d3d11_pipeline_stage("fast_geometry", "first visible D3D11 geometry ready")
+                    elif loaded_quality == "archive_parity":
+                        alignment_d3d11_state["fast_geometry_loaded"] = True
+                        alignment_d3d11_state["archive_parity_ready"] = True
+                        alignment_d3d11_state["archive_parity_upgrade_queued"] = False
+                        _set_alignment_d3d11_pipeline_stage("archive_parity_ready", "full material preview ready")
+                    elif loaded_quality == "material_refresh":
+                        alignment_d3d11_state["fast_geometry_loaded"] = True
+                        alignment_d3d11_state["archive_parity_ready"] = True
+                        _set_alignment_d3d11_pipeline_stage("material_loading", "material refresh package ready")
                     try:
                         _sync_mesh_edit_preview_settings()
                     except NameError:
@@ -57825,6 +59938,7 @@ def run_gui() -> int:
                     timing_details = (
                         f"cache={cache_event}\n"
                         f"reason {rebuild_reason}\n"
+                        f"pipeline {str(alignment_d3d11_state.get('preview_pipeline_stage', '') or '')}\n"
                         f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.1f} ms\n"
                         f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.1f} ms\n"
                         f"manifest {float(payload.get('manifest_read_ms', 0.0) or 0.0):.1f} ms\n"
@@ -57838,6 +59952,37 @@ def run_gui() -> int:
                         f"{channel_debug}"
                     )
                     _set_preview_performance_status(timing_summary, details=timing_details)
+                    if loaded_quality == "fast_geometry":
+                        _queue_alignment_archive_parity_upgrade("fast geometry loaded")
+                elif event == "resources_loaded":
+                    alignment_d3d11_state["resources_loaded"] = True
+                    reason_text = str(
+                        payload.get("render_suppressed_reason", "")
+                        or payload.get("parent_health", "")
+                        or ""
+                    ).strip().lower()
+                    parent_renderable = bool(payload.get("parent_renderable", True))
+                    if (not parent_renderable) or reason_text in {"parent_not_renderable", "window_not_visible"}:
+                        _set_alignment_d3d11_progress(
+                            98,
+                            "Preview resources loaded; waiting for visible preview panel.",
+                            stage="resources_loaded",
+                            detail=(
+                                f"render_suppressed_reason={reason_text or 'none'}\n"
+                                f"parent_renderable={parent_renderable}"
+                            ),
+                            active=False,
+                        )
+                        return
+                    _set_alignment_d3d11_progress(
+                        98,
+                        "Preview resources loaded; waiting for first frame.",
+                        stage="resources_loaded",
+                        detail=(
+                            f"geometry_upload_ms={float(payload.get('geometry_upload_ms', 0.0) or 0.0):.1f}\n"
+                            f"texture_bind_ms={float(payload.get('texture_bind_ms', 0.0) or 0.0):.1f}"
+                        ),
+                    )
                 elif event == "loading":
                     message = str(payload.get("message", "") or "Loading native D3D11 alignment preview...")
                     try:
@@ -58087,6 +60232,17 @@ def run_gui() -> int:
                 )
                 return bool(adjustment.enabled)
 
+            def _enabled_renderable_source_indices(source_indices: Sequence[int]) -> tuple[int, ...]:
+                enabled_indices: List[int] = []
+                for raw_source_index in tuple(source_indices or ()):
+                    try:
+                        source_index = int(raw_source_index)
+                    except (TypeError, ValueError):
+                        continue
+                    if _source_index_is_enabled_renderable(source_index):
+                        enabled_indices.append(source_index)
+                return tuple(enabled_indices)
+
             def _mapping_role_hint(label: str) -> str:
                 return infer_static_replacement_part_role(label)
 
@@ -58245,6 +60401,9 @@ def run_gui() -> int:
                     return "Removed", "#fb923c"
                 if any(source_index < 0 or replacement_mesh_for_mapping is None or source_index >= len(replacement_mesh_for_mapping.submeshes) for source_index in source_indices):
                     return "Invalid", "#f85149"
+                enabled_source_indices = _enabled_renderable_source_indices(source_indices)
+                if not enabled_source_indices:
+                    return "Removed", "#fb923c"
                 physics = "-"
                 if original_mesh_for_mapping is not None and 0 <= target_index < len(original_mesh_for_mapping.submeshes):
                     target = original_mesh_for_mapping.submeshes[target_index]
@@ -58254,7 +60413,7 @@ def run_gui() -> int:
                 )
                 if physics == "Review":
                     return "Physics", "#f2cc60"
-                if len(source_indices) > 1:
+                if len(enabled_source_indices) > 1:
                     return "Merged", "#d29922"
                 return "Mapped", "#3fb950"
 
@@ -58378,14 +60537,21 @@ def run_gui() -> int:
                     f" +{len(target_indices) - 4}" if len(target_indices) > 4 else ""
                 )
 
-            def _output_impact_counts() -> tuple[int, int, int, str]:
+            def _output_impact_counts() -> tuple[int, int, int, int, str]:
                 removed_count = 0
                 used_sources: set[int] = set()
+                disabled_mapped_sources: set[int] = set()
                 for target_index, edit in mapping_edits:
                     source_indices = _parse_mapping_edit(edit)
-                    if not source_indices:
+                    enabled_source_indices = _enabled_renderable_source_indices(source_indices)
+                    if not enabled_source_indices:
                         removed_count += 1
-                    used_sources.update(int(index) for index in source_indices)
+                    used_sources.update(int(index) for index in enabled_source_indices)
+                    disabled_mapped_sources.update(
+                        int(index)
+                        for index in source_indices
+                        if int(index) not in enabled_source_indices
+                    )
                 generated_dds_count = len(
                     [
                         row
@@ -58401,7 +60567,7 @@ def run_gui() -> int:
                     sidecar_enabled = False
                     prune_unmapped_enabled = False
                 sidecar_status = "visible only" if sidecar_enabled and prune_unmapped_enabled else "prune removed" if removed_count and sidecar_enabled else "keep" if removed_count else "-"
-                return removed_count, len(used_sources), generated_dds_count, sidecar_status
+                return removed_count, len(used_sources), len(disabled_mapped_sources), generated_dds_count, sidecar_status
 
             def _refresh_mesh_replacement_properties_inspector() -> None:
                 if not _alignment_dialog_widgets_live():
@@ -58426,7 +60592,7 @@ def run_gui() -> int:
                 texture_role = str(mesh_replacement_selection_view_model.get("texture_role") or "")
                 texture_path = str(mesh_replacement_selection_view_model.get("texture_path") or "")
                 warning = str(mesh_replacement_selection_view_model.get("warning") or "")
-                removed_count, used_source_count, generated_dds_count, sidecar_status = _output_impact_counts()
+                removed_count, used_source_count, disabled_source_count, generated_dds_count, sidecar_status = _output_impact_counts()
                 dds_text = "DDS | -"
                 if kind == "target":
                     target_index = target_indices[0] if target_indices else -1
@@ -58474,7 +60640,7 @@ def run_gui() -> int:
                 else:
                     identity = "Selection | none"
                     assignment = "Target/source/material row not selected."
-                output = f"Output | remove {removed_count:,} | source {used_source_count:,} | DDS {generated_dds_count:,} | sidecar {sidecar_status}"
+                output = f"Output | remove {removed_count:,} | source {used_source_count:,} | disabled {disabled_source_count:,} | DDS {generated_dds_count:,} | sidecar {sidecar_status}"
                 identity_label.setText(f"<b>Identity</b><br>{escape(identity)}")
                 assignment_label.setText(f"<b>Assignment</b><br>{escape(assignment)}")
                 dds_label.setText(f"<b>DDS / Sidecar</b><br>{escape(dds_text)}")
@@ -59753,13 +61919,12 @@ def run_gui() -> int:
                         _load_selected_part_controls()
                     except NameError:
                         pass
-                    try:
-                        _refresh_source_material_plan(force=True)
-                    except TypeError:
-                        _refresh_source_material_plan()
-                    except NameError:
-                        pass
-                    _queue_static_preview_rebuild()
+                    _queue_material_edit_refresh(
+                        refresh_plan=True,
+                        force_plan=True,
+                        refresh_preview=True,
+                        reason="source role change",
+                    )
 
                 def _open_source_tree_role_dropdown(item: QTreeWidgetItem, column: int) -> None:
                     source_index = _selected_source_index()
@@ -60431,18 +62596,17 @@ def run_gui() -> int:
                     if source_index < 0:
                         return
                     _push_geometry_undo_snapshot("Change source role")
-                    normalized_role = _set_source_role_override_value(source_index, role_value)
+                    _set_source_role_override_value(source_index, role_value)
                     _refresh_source_assignment_columns()
                     _refresh_parts_outliner()
                     _select_source_part_from_viewport(source_index)
-                    try:
-                        _refresh_source_material_plan(force=True)
-                    except TypeError:
-                        _refresh_source_material_plan()
-                    except NameError:
-                        pass
+                    _queue_material_edit_refresh(
+                        refresh_plan=True,
+                        force_plan=True,
+                        refresh_preview=True,
+                        reason="source role change",
+                    )
                     _update_mapping_status()
-                    _queue_static_preview_rebuild()
 
                 def _open_parts_outliner_target_dropdown(item: QTreeWidgetItem, column: int) -> None:
                     source_index = _outliner_source_index_from_item(item)
@@ -60777,7 +62941,8 @@ def run_gui() -> int:
                     "Show raw target routing, original/source reference lists, and source-index editor. "
                     "Normal routing should use Parts Outliner."
                 )
-                show_advanced_mapping_checkbox.setChecked(False)
+                show_advanced_mapping_checkbox.setProperty("cdmw_default_on_for_all_users", True)
+                show_advanced_mapping_checkbox.setChecked(True)
                 mapping_layout.addWidget(show_advanced_mapping_checkbox)
                 mapping_tree.setColumnHidden(2, True)
                 mapping_tree.setVisible(False)
@@ -60827,7 +62992,7 @@ def run_gui() -> int:
                     )
                 show_advanced_mapping_checkbox.toggled.connect(_set_advanced_mapping_visible)
                 mapping_layout.addWidget(mapping_tree, 0)
-                _set_advanced_mapping_visible(False)
+                _set_advanced_mapping_visible(show_advanced_mapping_checkbox.isChecked())
                 control_tabs.currentChanged.connect(
                     lambda index: _ensure_mapping_table_building()
                     if control_tabs.widget(index) is parts_tab
@@ -62037,11 +64202,11 @@ def run_gui() -> int:
                     1,
                 )
                 reset_part_button = QPushButton("Reset Part")
-                remove_part_button = QPushButton("Remove Part")
+                remove_part_button = QPushButton("Disable Part Output")
                 fit_part_button = QPushButton("Fit Size")
                 undo_geometry_button = QPushButton("Undo Geometry")
                 reset_geometry_button = QPushButton("Reset Geometry")
-                remove_part_button.setToolTip("Disable this replacement part for output. The source file is not deleted.")
+                remove_part_button.setToolTip("Exclude this replacement source from final output. This is not a preview-only hide; mapped targets with no enabled source export as removed placeholders.")
                 reset_part_button.setToolTip("Reset the selected source part transform and include state.")
                 fit_part_button.setToolTip("Match selected part size to the selected target slot. Use Translate for exact placement.")
                 undo_geometry_button.setToolTip(
@@ -62349,13 +64514,12 @@ def run_gui() -> int:
                         _refresh_parts_outliner()
                     except NameError:
                         pass
-                    try:
-                        _refresh_source_material_plan(force=True)
-                    except TypeError:
-                        _refresh_source_material_plan()
-                    except NameError:
-                        pass
-                    _queue_static_preview_rebuild()
+                    _queue_material_edit_refresh(
+                        refresh_plan=True,
+                        force_plan=True,
+                        refresh_preview=True,
+                        reason="source role change",
+                    )
 
                 def _selected_part_target_index() -> int:
                     try:
@@ -63726,9 +65890,6 @@ def run_gui() -> int:
                                 mapped_targets.append(int(target_index))
                     selected_target_original_highlight_indices.clear()
                     selected_target_source_highlight_indices.clear()
-                    if current_index >= 0:
-                        selected_target_source_highlight_indices.add(current_index)
-                        selected_target_original_highlight_indices.update(mapped_targets)
                     _sync_highlight_sets()
                     _load_selected_part_controls()
                     _update_mapping_status()
@@ -63803,10 +65964,8 @@ def run_gui() -> int:
                         if any(int(mapped_source_index) == source_index for mapped_source_index in _parse_mapping_edit(edit)):
                             mapped_targets.append(int(target_index))
                     selected_target_original_highlight_indices.clear()
-                    selected_target_original_highlight_indices.update(mapped_targets)
                     selected_target_source_highlight_indices.clear()
-                    selected_target_source_highlight_indices.add(source_index)
-                    selected_target_slot["index"] = mapped_targets[0] if mapped_targets else -1
+                    selected_target_slot["index"] = -1
                     _set_mesh_replacement_selection_view(
                         kind="source",
                         source_indices=(source_index,),
@@ -63927,9 +66086,7 @@ def run_gui() -> int:
                                     mapping_tree.blockSignals(False)
                             selected_target_slot["index"] = target_index
                             selected_target_original_highlight_indices.clear()
-                            selected_target_original_highlight_indices.add(target_index)
                             selected_target_source_highlight_indices.clear()
-                            selected_target_source_highlight_indices.update(source_indices[:1])
                             _sync_highlight_sets()
                             _refresh_original_reference_preview()
                         return
@@ -64083,9 +66240,9 @@ def run_gui() -> int:
                     mesh_edit_tool_buttons[tool] = button
                     mesh_edit_tool_palette_layout.addWidget(button)
                 mesh_edit_delete_mode_combo = QComboBox()
-                for label, mode in (("On release", "release"), ("During drag", "live"), ("Selection only", "selection")):
+                for label, mode in (("On release", "release"), ("During drag", "live")):
                     mesh_edit_delete_mode_combo.addItem(label, mode)
-                mesh_edit_delete_mode_combo.setToolTip("Remove Faces behavior. On release makes one cut at mouse-up; During drag cuts while dragging; Selection only paints vertices first.")
+                mesh_edit_delete_mode_combo.setToolTip("Remove Faces behavior. On release makes one cut at mouse-up; During drag cuts continuously.")
                 mesh_edit_radius_spin = QDoubleSpinBox()
                 mesh_edit_radius_spin.setRange(2.0, 256.0)
                 mesh_edit_radius_spin.setDecimals(0)
@@ -64119,10 +66276,14 @@ def run_gui() -> int:
                 mesh_edit_show_vertices_checkbox = QCheckBox("Vertex dots")
                 mesh_edit_show_vertices_checkbox.setChecked(True)
                 mesh_edit_clear_selection_button = QPushButton("Clear Selection")
+                mesh_edit_select_part_button = QPushButton("Select Whole Part")
+                mesh_edit_invert_selection_button = QPushButton("Invert Selection")
                 mesh_edit_grow_selection_button = QPushButton("Grow Selection")
                 mesh_edit_shrink_selection_button = QPushButton("Shrink Selection")
                 mesh_edit_smooth_selection_button = QPushButton("Smooth / Feather Selection")
                 mesh_edit_subdivide_selection_button = QPushButton("Subdivide Selection")
+                mesh_edit_select_part_button.setToolTip("Select every vertex in the current editable Mesh Editing scope.")
+                mesh_edit_invert_selection_button.setToolTip("Invert the selected vertices inside the current editable Mesh Editing scope.")
                 mesh_edit_subdivide_selection_button.setToolTip("Add local triangle density around selected vertices, then keep sculpting.")
                 mesh_edit_delete_faces_button = QPushButton("Delete Selected Faces")
                 mesh_edit_delete_faces_button.setToolTip("Delete triangles touched by selected Mesh Editing vertices. Cut boundaries are left open.")
@@ -64132,6 +66293,8 @@ def run_gui() -> int:
                 mesh_edit_full_reset_button = QPushButton("Full Reset Mesh")
                 for mesh_edit_button in (
                     mesh_edit_clear_selection_button,
+                    mesh_edit_select_part_button,
+                    mesh_edit_invert_selection_button,
                     mesh_edit_grow_selection_button,
                     mesh_edit_shrink_selection_button,
                     mesh_edit_smooth_selection_button,
@@ -64194,43 +66357,50 @@ def run_gui() -> int:
                 morph_slider_layout.addLayout(morph_slider_button_row)
                 morph_slider_layout.addLayout(morph_slider_reset_bake_row)
 
-                def _mesh_edit_field(label_text: str, widget: QWidget) -> None:
+                mesh_edit_field_rows: Dict[str, Tuple[QLabel, QWidget]] = {}
+
+                def _mesh_edit_field(row_key: str, label_text: str, widget: QWidget) -> None:
                     label = QLabel(label_text)
                     label.setObjectName("HintLabel")
                     mesh_edit_layout.addWidget(label)
                     mesh_edit_layout.addWidget(widget)
+                    mesh_edit_field_rows[str(row_key)] = (label, widget)
 
                 mesh_edit_layout.addWidget(mesh_edit_title_label)
                 mesh_edit_layout.addWidget(mesh_edit_enabled_checkbox)
-                _mesh_edit_field("Scope", mesh_edit_scope_combo)
-                _mesh_edit_field("Part", mesh_edit_part_combo)
+                _mesh_edit_field("scope", "Scope", mesh_edit_scope_combo)
+                _mesh_edit_field("part", "Part", mesh_edit_part_combo)
                 mesh_edit_layout.addWidget(QLabel("Tool"))
                 mesh_edit_layout.addWidget(mesh_edit_tool_palette)
                 mesh_edit_remove_mode_label = QLabel("Remove Mode")
                 mesh_edit_remove_mode_label.setObjectName("HintLabel")
                 mesh_edit_layout.addWidget(mesh_edit_remove_mode_label)
                 mesh_edit_layout.addWidget(mesh_edit_delete_mode_combo)
-                _mesh_edit_field("Radius", mesh_edit_radius_spin)
-                _mesh_edit_field("Strength", mesh_edit_strength_spin)
-                _mesh_edit_field("Falloff", mesh_edit_falloff_combo)
-                _mesh_edit_field("Iterations", mesh_edit_iterations_spin)
-                _mesh_edit_field("Selection", mesh_edit_selection_mode_combo)
-                _mesh_edit_field("Depth", mesh_edit_selection_depth_combo)
-                mesh_edit_option_row = QHBoxLayout()
+                _mesh_edit_field("radius", "Radius", mesh_edit_radius_spin)
+                _mesh_edit_field("strength", "Strength", mesh_edit_strength_spin)
+                _mesh_edit_field("falloff", "Falloff", mesh_edit_falloff_combo)
+                _mesh_edit_field("iterations", "Iterations", mesh_edit_iterations_spin)
+                _mesh_edit_field("selection", "Selection", mesh_edit_selection_mode_combo)
+                _mesh_edit_field("depth", "Depth", mesh_edit_selection_depth_combo)
+                mesh_edit_option_widget = QWidget(mesh_edit_group)
+                mesh_edit_option_row = QHBoxLayout(mesh_edit_option_widget)
                 mesh_edit_option_row.setContentsMargins(0, 0, 0, 0)
                 mesh_edit_option_row.setSpacing(4)
                 mesh_edit_option_row.addWidget(mesh_edit_mirror_checkbox)
                 mesh_edit_option_row.addWidget(mesh_edit_show_vertices_checkbox)
                 mesh_edit_option_row.addStretch(1)
-                mesh_edit_layout.addLayout(mesh_edit_option_row)
-                mesh_edit_selection_button_row = QHBoxLayout()
+                mesh_edit_layout.addWidget(mesh_edit_option_widget)
+                mesh_edit_selection_actions_widget = QWidget(mesh_edit_group)
+                mesh_edit_selection_button_row = QHBoxLayout(mesh_edit_selection_actions_widget)
                 mesh_edit_selection_button_row.setContentsMargins(0, 0, 0, 0)
                 mesh_edit_selection_button_row.setSpacing(3)
                 mesh_edit_selection_button_row.addWidget(mesh_edit_grow_selection_button)
                 mesh_edit_selection_button_row.addWidget(mesh_edit_shrink_selection_button)
                 mesh_edit_selection_button_row.addWidget(mesh_edit_smooth_selection_button)
                 mesh_edit_layout.addWidget(mesh_edit_clear_selection_button)
-                mesh_edit_layout.addLayout(mesh_edit_selection_button_row)
+                mesh_edit_layout.addWidget(mesh_edit_select_part_button)
+                mesh_edit_layout.addWidget(mesh_edit_invert_selection_button)
+                mesh_edit_layout.addWidget(mesh_edit_selection_actions_widget)
                 mesh_edit_layout.addWidget(mesh_edit_subdivide_selection_button)
                 mesh_edit_layout.addWidget(mesh_edit_delete_faces_button)
                 mesh_edit_button_row = QHBoxLayout()
@@ -64918,37 +67088,70 @@ def run_gui() -> int:
                         and _alignment_mesh_edit_tab_active()
                     )
                     editing_active = editing_requested and can_edit
-                    remove_tool = _mesh_edit_current_tool() == "remove"
+                    current_tool = _mesh_edit_current_tool()
+                    sculpt_tool = current_tool in {"grab", "smooth", "inflate", "pinch"}
+                    remove_tool = current_tool == "remove"
+                    select_tool = current_tool == "vertex"
+                    brush_selection_tool = select_tool and _mesh_edit_selection_mode() == "brush"
+                    selected_count = sum(len(vertices) for vertices in mesh_edit_selected_vertices_by_submesh.values())
+                    selection_active = editing_active and selected_count > 0
+                    selection_actions_visible = select_tool or selected_count > 0
+
+                    def _set_mesh_edit_row_visible(row_key: str, visible: bool) -> None:
+                        row = mesh_edit_field_rows.get(str(row_key))
+                        if row is None:
+                            return
+                        label, widget = row
+                        label.setVisible(bool(visible))
+                        widget.setVisible(bool(visible))
+
                     for tool, button in mesh_edit_tool_buttons.items():
-                        button.setChecked(tool == _mesh_edit_current_tool())
+                        button.setChecked(tool == current_tool)
                     for widget in (
                         mesh_edit_scope_combo,
                         mesh_edit_part_combo,
                         mesh_edit_tool_palette,
-                        mesh_edit_radius_spin,
-                        mesh_edit_iterations_spin,
-                        mesh_edit_falloff_combo,
-                        mesh_edit_selection_mode_combo,
-                        mesh_edit_selection_depth_combo,
-                        mesh_edit_mirror_checkbox,
                         mesh_edit_show_vertices_checkbox,
                     ):
                         widget.setEnabled(editing_requested)
                     mesh_edit_part_combo.setEnabled(editing_requested and _mesh_edit_scope_mode() == "selected")
+                    _set_mesh_edit_row_visible("scope", True)
+                    _set_mesh_edit_row_visible("part", True)
+                    _set_mesh_edit_row_visible("radius", sculpt_tool or remove_tool or brush_selection_tool)
+                    _set_mesh_edit_row_visible("strength", sculpt_tool)
+                    _set_mesh_edit_row_visible("falloff", sculpt_tool)
+                    _set_mesh_edit_row_visible("iterations", current_tool == "smooth")
+                    _set_mesh_edit_row_visible("selection", select_tool)
+                    _set_mesh_edit_row_visible("depth", select_tool)
                     mesh_edit_delete_mode_combo.setEnabled(editing_requested and remove_tool)
                     mesh_edit_remove_mode_label.setVisible(remove_tool)
                     mesh_edit_delete_mode_combo.setVisible(remove_tool)
-                    mesh_edit_strength_spin.setEnabled(editing_requested and not remove_tool)
-                    mesh_edit_clear_selection_button.setEnabled(editing_active)
-                    selection_active = editing_active and any(bool(vertices) for vertices in mesh_edit_selected_vertices_by_submesh.values())
+                    mesh_edit_radius_spin.setEnabled(editing_requested and (sculpt_tool or remove_tool or brush_selection_tool))
+                    mesh_edit_strength_spin.setEnabled(editing_requested and sculpt_tool)
+                    mesh_edit_falloff_combo.setEnabled(editing_requested and sculpt_tool)
+                    mesh_edit_iterations_spin.setEnabled(editing_requested and current_tool == "smooth")
+                    mesh_edit_selection_mode_combo.setEnabled(editing_requested and select_tool)
+                    mesh_edit_selection_depth_combo.setEnabled(editing_requested and select_tool)
+                    mesh_edit_mirror_checkbox.setVisible(sculpt_tool)
+                    mesh_edit_mirror_checkbox.setEnabled(editing_requested and sculpt_tool)
+                    mesh_edit_option_widget.setVisible(True)
+                    mesh_edit_clear_selection_button.setVisible(selection_actions_visible)
+                    mesh_edit_select_part_button.setVisible(select_tool)
+                    mesh_edit_invert_selection_button.setVisible(select_tool)
+                    mesh_edit_selection_actions_widget.setVisible(selection_actions_visible)
+                    mesh_edit_subdivide_selection_button.setVisible(select_tool)
+                    mesh_edit_delete_faces_button.setVisible(select_tool)
+                    mesh_edit_clear_selection_button.setEnabled(selection_active)
+                    mesh_edit_select_part_button.setEnabled(editing_active and select_tool and bool(allowed_indices))
+                    mesh_edit_invert_selection_button.setEnabled(editing_active and select_tool and bool(allowed_indices))
                     mesh_edit_grow_selection_button.setEnabled(selection_active)
                     mesh_edit_shrink_selection_button.setEnabled(selection_active)
                     mesh_edit_smooth_selection_button.setEnabled(selection_active)
                     mesh_edit_subdivide_selection_button.setEnabled(
-                        selection_active and not _morph_slider_has_nonzero_values()
+                        select_tool and selection_active and not _morph_slider_has_nonzero_values()
                     )
                     mesh_edit_delete_faces_button.setEnabled(
-                        selection_active
+                        select_tool and selection_active
                     )
                     mesh_edit_undo_button.setEnabled(bool(mesh_edit_undo_stack))
                     mesh_edit_redo_button.setEnabled(bool(mesh_edit_redo_stack))
@@ -64962,7 +67165,6 @@ def run_gui() -> int:
                         )
                     )
                     mesh_edit_full_reset_button.setEnabled(mesh_edit_reset_part_button.isEnabled())
-                    selected_count = sum(len(vertices) for vertices in mesh_edit_selected_vertices_by_submesh.values())
                     selected_text = f" Selected vertices {selected_count:,}." if selected_count else ""
                     mesh_edit_status_label.setText(
                         reason if not editing_active else f"{reason}{selected_text} Edited revision {int(mesh_edit_revision.get('value', 0) or 0)}."
@@ -65668,7 +67870,6 @@ def run_gui() -> int:
                         remove_vertices = mesh_edit_active_stroke.setdefault("remove_vertices_by_submesh", {})
                         if isinstance(remove_vertices, dict):
                             _mesh_edit_merge_vertex_groups(remove_vertices, vertices_by_submesh)  # type: ignore[arg-type]
-                        _mesh_edit_merge_vertex_groups(mesh_edit_selected_vertices_by_submesh, vertices_by_submesh)
                         _refresh_mesh_edit_controls()
                         return
                     if tool in {"grab", "vertex"} and not _mesh_edit_payload_has_drag_motion(payload):
@@ -65691,85 +67892,94 @@ def run_gui() -> int:
                     adjacency_by_submesh = mesh_edit_active_stroke.get("adjacency", {})
                     changed_any = False
                     changed_vertices_by_submesh: Dict[int, set[int]] = {}
+                    allowed_indices = set(_mesh_edit_allowed_source_indices())
                     for group in tuple(payload.get("groups") or ()):
                         if not isinstance(group, Mapping):
                             continue
                         try:
-                            source_submesh_index = int(group.get("source_submesh_index", -1))
+                            editor_submesh_index = int(group.get("source_submesh_index", -1))
                         except (TypeError, ValueError):
                             continue
-                        if source_submesh_index < 0 or source_submesh_index >= len(replacement_mesh_for_mapping.submeshes):
+                        source_indices = _alignment_d3d11_source_indices_for_editor_id(editor_submesh_index)
+                        if not source_indices and editor_submesh_index >= 0:
+                            source_indices = (editor_submesh_index,)
+                        if not source_indices:
                             continue
-                        raw_indices = group.get("source_vertex_indices") or ()
-                        vertex_indices: List[int] = []
-                        for raw_index in raw_indices:
-                            try:
-                                vertex_index = int(raw_index)
-                            except (TypeError, ValueError):
+                        for source_submesh_index in source_indices:
+                            if source_submesh_index not in allowed_indices:
                                 continue
-                            if 0 <= vertex_index < len(replacement_mesh_for_mapping.submeshes[source_submesh_index].vertices):
-                                vertex_indices.append(vertex_index)
-                        if not vertex_indices:
-                            continue
-                        vertex_weights: Dict[int, float] = {}
-                        for raw_weight_entry in tuple(group.get("source_vertex_weights") or ()):
-                            try:
-                                raw_weight_index, raw_weight_value = raw_weight_entry  # type: ignore[misc]
-                                weight_index = int(raw_weight_index)
-                                weight_value = max(0.0, min(1.0, float(raw_weight_value)))
-                            except (TypeError, ValueError, OverflowError):
+                            if source_submesh_index < 0 or source_submesh_index >= len(replacement_mesh_for_mapping.submeshes):
                                 continue
-                            if weight_index in vertex_indices and weight_value > 0.0:
-                                vertex_weights[weight_index] = max(vertex_weights.get(weight_index, 0.0), weight_value)
-                        submesh = replacement_mesh_for_mapping.submeshes[source_submesh_index]
-                        mirror_pairs = (
-                            mirror_pairs_by_submesh.get(source_submesh_index)
-                            if isinstance(mirror_pairs_by_submesh, Mapping)
-                            else None
-                        )
-                        adjacency = (
-                            adjacency_by_submesh.get(source_submesh_index)
-                            if isinstance(adjacency_by_submesh, Mapping)
-                            else None
-                        )
-                        if tool == "vertex":
-                            changed = apply_vertex_delta(
-                                submesh,
-                                vertex_indices,
-                                delta,
-                                mirror_x=bool(mesh_edit_mirror_checkbox.isChecked()),
-                                mirror_pairs=mirror_pairs if isinstance(mirror_pairs, Mapping) else None,
-                                recompute_normals=False,
+                            raw_indices = group.get("source_vertex_indices") or ()
+                            vertex_indices: List[int] = []
+                            for raw_index in raw_indices:
+                                try:
+                                    vertex_index = int(raw_index)
+                                except (TypeError, ValueError):
+                                    continue
+                                if 0 <= vertex_index < len(replacement_mesh_for_mapping.submeshes[source_submesh_index].vertices):
+                                    vertex_indices.append(vertex_index)
+                            if not vertex_indices:
+                                continue
+                            vertex_weights: Dict[int, float] = {}
+                            for raw_weight_entry in tuple(group.get("source_vertex_weights") or ()):
+                                try:
+                                    raw_weight_index, raw_weight_value = raw_weight_entry  # type: ignore[misc]
+                                    weight_index = int(raw_weight_index)
+                                    weight_value = max(0.0, min(1.0, float(raw_weight_value)))
+                                except (TypeError, ValueError, OverflowError):
+                                    continue
+                                if weight_index in vertex_indices and weight_value > 0.0:
+                                    vertex_weights[weight_index] = max(vertex_weights.get(weight_index, 0.0), weight_value)
+                            submesh = replacement_mesh_for_mapping.submeshes[source_submesh_index]
+                            mirror_pairs = (
+                                mirror_pairs_by_submesh.get(source_submesh_index)
+                                if isinstance(mirror_pairs_by_submesh, Mapping)
+                                else None
                             )
-                        else:
-                            changed = apply_brush_deformation(
-                                submesh,
-                                tool=tool,
-                                center=center,
-                                radius=radius,
-                                strength=strength,
-                                drag_delta=delta if tool in {"grab"} else step_delta,
-                                amount=amount,
-                                falloff=falloff,
-                                vertex_indices=vertex_indices,
-                                vertex_weights=vertex_weights or None,
-                                mirror_x=bool(mesh_edit_mirror_checkbox.isChecked()),
-                                mirror_pairs=mirror_pairs if isinstance(mirror_pairs, Mapping) else None,
-                                adjacency=adjacency if isinstance(adjacency, (list, tuple)) else None,
-                                iterations=smooth_iterations,
-                                invert=bool(payload.get("invert")),
-                                recompute_normals=False,
+                            adjacency = (
+                                adjacency_by_submesh.get(source_submesh_index)
+                                if isinstance(adjacency_by_submesh, Mapping)
+                                else None
                             )
-                        changed_any = changed_any or bool(changed)
-                        if changed:
-                            changed_vertices_by_submesh.setdefault(source_submesh_index, set()).update(
-                                int(index) for index in tuple(changed or ()) if int(index) >= 0
-                            )
-                            stroke_changed_vertices = mesh_edit_active_stroke.setdefault("changed_vertices_by_submesh", {})
-                            if isinstance(stroke_changed_vertices, dict):
-                                stroke_changed_vertices.setdefault(source_submesh_index, set()).update(
+                            if tool == "vertex":
+                                changed = apply_vertex_delta(
+                                    submesh,
+                                    vertex_indices,
+                                    delta,
+                                    mirror_x=bool(mesh_edit_mirror_checkbox.isChecked()),
+                                    mirror_pairs=mirror_pairs if isinstance(mirror_pairs, Mapping) else None,
+                                    recompute_normals=False,
+                                )
+                            else:
+                                changed = apply_brush_deformation(
+                                    submesh,
+                                    tool=tool,
+                                    center=center,
+                                    radius=radius,
+                                    strength=strength,
+                                    drag_delta=delta if tool in {"grab"} else step_delta,
+                                    amount=amount,
+                                    falloff=falloff,
+                                    vertex_indices=vertex_indices,
+                                    vertex_weights=vertex_weights or None,
+                                    mirror_x=bool(mesh_edit_mirror_checkbox.isChecked()),
+                                    mirror_pairs=mirror_pairs if isinstance(mirror_pairs, Mapping) else None,
+                                    adjacency=adjacency if isinstance(adjacency, (list, tuple)) else None,
+                                    iterations=smooth_iterations,
+                                    invert=bool(payload.get("invert")),
+                                    recompute_normals=False,
+                                )
+                            changed_any = changed_any or bool(changed)
+                            if changed:
+                                changed_vertices_by_submesh.setdefault(source_submesh_index, set()).update(
                                     int(index) for index in tuple(changed or ()) if int(index) >= 0
                                 )
+                                stroke_changed_vertices = mesh_edit_active_stroke.setdefault("changed_vertices_by_submesh", {})
+                                if isinstance(stroke_changed_vertices, dict):
+                                    stroke_changed_vertices.setdefault(source_submesh_index, set()).update(
+                                        int(index) for index in tuple(changed or ()) if int(index) >= 0
+                                    )
                     if not changed_any:
                         return
                     try:
@@ -66090,6 +68300,37 @@ def run_gui() -> int:
                             preview_widget.set_mesh_edit_vertex_selection(mesh_edit_selected_vertices_by_submesh)
                     _refresh_mesh_edit_controls()
 
+                def _mesh_edit_all_vertices_in_scope() -> Dict[int, set[int]]:
+                    if replacement_mesh_for_mapping is None:
+                        return {}
+                    selection: Dict[int, set[int]] = {}
+                    for source_index in _mesh_edit_allowed_source_indices():
+                        if source_index < 0 or source_index >= len(replacement_mesh_for_mapping.submeshes):
+                            continue
+                        vertex_count = len(getattr(replacement_mesh_for_mapping.submeshes[source_index], "vertices", ()) or ())
+                        if vertex_count > 0:
+                            selection[int(source_index)] = set(range(vertex_count))
+                    return selection
+
+                def _mesh_edit_select_whole_part() -> None:
+                    selection = _mesh_edit_all_vertices_in_scope()
+                    if not selection:
+                        return
+                    _mesh_edit_set_vertex_selection(selection)
+
+                def _mesh_edit_invert_selection() -> None:
+                    inverted: Dict[int, set[int]] = {}
+                    all_vertices = _mesh_edit_all_vertices_in_scope()
+                    for source_index, vertices in all_vertices.items():
+                        selected = {
+                            int(vertex_index)
+                            for vertex_index in mesh_edit_selected_vertices_by_submesh.get(int(source_index), set())
+                        }
+                        inverted_vertices = set(vertices) - selected
+                        if inverted_vertices:
+                            inverted[int(source_index)] = inverted_vertices
+                    _mesh_edit_set_vertex_selection(inverted)
+
                 def _mesh_edit_grow_selection() -> None:
                     if replacement_mesh_for_mapping is None:
                         return
@@ -66192,6 +68433,8 @@ def run_gui() -> int:
                     lambda: (_commit_spinbox_text(mesh_edit_strength_spin), _refresh_mesh_edit_controls())
                 )
                 mesh_edit_clear_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_clear_vertex_selection())
+                mesh_edit_select_part_button.clicked.connect(lambda _checked=False: _mesh_edit_select_whole_part())
+                mesh_edit_invert_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_invert_selection())
                 mesh_edit_grow_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_grow_selection())
                 mesh_edit_shrink_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_shrink_selection())
                 mesh_edit_smooth_selection_button.clicked.connect(lambda _checked=False: _mesh_edit_smooth_selection())
@@ -66233,7 +68476,7 @@ def run_gui() -> int:
                 active_target_count = sum(
                     1
                     for _target_index, edit in mapping_edits
-                    if _parse_mapping_edit(edit)
+                    if _enabled_renderable_source_indices(_parse_mapping_edit(edit))
                 )
                 empty_target_count = max(0, len(mapping_edits) - active_target_count)
                 geometry_summary = QLabel(
@@ -66297,11 +68540,18 @@ def run_gui() -> int:
                         return
                     removed_targets: List[str] = []
                     used_sources: set[int] = set()
+                    disabled_mapped_sources: set[int] = set()
                     for target_index, edit in mapping_edits:
                         source_indices = _parse_mapping_edit(edit)
-                        if not source_indices:
+                        enabled_source_indices = _enabled_renderable_source_indices(source_indices)
+                        if not enabled_source_indices:
                             removed_targets.append(_target_display_name(target_index))
-                        used_sources.update(int(index) for index in source_indices)
+                        used_sources.update(int(index) for index in enabled_source_indices)
+                        disabled_mapped_sources.update(
+                            int(index)
+                            for index in source_indices
+                            if int(index) not in enabled_source_indices
+                        )
                     generated_dds_count = len(
                         [
                             row
@@ -66329,6 +68579,7 @@ def run_gui() -> int:
                         "Removed targets: "
                         + (", ".join(removed_targets) if removed_targets else "none")
                         + f"\nReplacement sources used: {len(used_sources):,}"
+                        + f"\nDisabled mapped sources ignored by final geometry: {len(disabled_mapped_sources):,}"
                         + f"\nPreview-only parts excluded: {len(preview_only_source_indices):,}"
                         + f"\nDDS override rows ready: {generated_dds_count:,}"
                         + (
@@ -66349,6 +68600,7 @@ def run_gui() -> int:
                         "<span style='color:#f2cc60; font-weight:700;'>Output</span>"
                         f"<span style='color:#c9d1d9;'> | remove {len(removed_targets):,}"
                         f" | source {len(used_sources):,}"
+                        f" | disabled {len(disabled_mapped_sources):,}"
                         f" | preview-only {len(preview_only_source_indices):,}"
                         f" | DDS {generated_dds_count:,}"
                         f" | sidecar {escape(sidecar_status)}</span>"
@@ -66370,7 +68622,7 @@ def run_gui() -> int:
                     active_target_count = sum(
                         1
                         for _target_index, edit in mapping_edits
-                        if _parse_mapping_edit(edit)
+                        if _enabled_renderable_source_indices(_parse_mapping_edit(edit))
                     )
                     empty_target_count = max(0, len(mapping_edits) - active_target_count)
                     appended_count = int(source_geometry_revision.get("value", 0) or 0)
@@ -67703,6 +69955,7 @@ def run_gui() -> int:
                     "preview_texture_uv_scale",
                     "preview_texture_approximation_note",
                     "preview_material_texture_inputs",
+                    "preview_native_material_overrides",
                     "preview_debug_flip_base_v",
                     "preview_debug_disable_support_maps",
                 )
@@ -67908,9 +70161,9 @@ def run_gui() -> int:
                     original_dialog_preview.clear_model(message)
                     _set_preview_performance_status(message, details=f"reason={reason}")
                     if bool(original_reference_texture_preview_state.get("loading")):
-                        return True
+                        return False
                     _load_original_reference_texture_preview()
-                    return True
+                    return False
 
                 def _refresh_alignment_virtual_sidecar_contract(
                     parsed_mappings: Sequence[StaticSubmeshMapping],
@@ -68974,13 +71227,15 @@ def run_gui() -> int:
                         applied += 1
                     return applied
 
-                def _load_native_preview_core_material_manifest_for_alignment() -> int:
+                def _load_native_preview_core_material_manifest_for_alignment(
+                    target_preview_model: object,
+                    package_root_text: str = "",
+                ) -> int:
                     if not _alignment_d3d11_preview_active():
                         return 0
                     if str(getattr(entry, "extension", "") or "").strip().lower() not in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS:
                         return 0
                     try:
-                        package_root_text = self.archive_package_root_edit.text().strip()
                         native_attempt = run_native_preview_core_preview_job(
                             entry,
                             cache_root=self.archive_cache_root / "native_preview_core",
@@ -69006,7 +71261,7 @@ def run_gui() -> int:
                             reason=native_attempt.fallback_reason,
                         )
                         return 0
-                    applied = _apply_native_preview_core_material_manifest(original_reference_preview_model, native_attempt.package_path)
+                    applied = _apply_native_preview_core_material_manifest(target_preview_model, native_attempt.package_path)
                     if applied:
                         _record_runtime_event(
                             "mesh_alignment_native_material_manifest_applied",
@@ -69016,6 +71271,119 @@ def run_gui() -> int:
                             package_path=native_attempt.package_path,
                         )
                     return applied
+
+                def _stop_original_reference_texture_worker() -> None:
+                    worker = alignment_d3d11_state.get("original_texture_worker")
+                    if isinstance(worker, AlignmentOriginalTexturePreviewWorker):
+                        worker.stop()
+                    thread = alignment_d3d11_state.get("original_texture_thread")
+                    if isinstance(thread, QThread) and thread.isRunning():
+                        thread.quit()
+                        thread.wait(150)
+                    alignment_d3d11_state["original_texture_worker"] = None
+                    alignment_d3d11_state["original_texture_thread"] = None
+
+                def _cleanup_original_reference_texture_worker_refs() -> None:
+                    alignment_d3d11_state["original_texture_worker"] = None
+                    alignment_d3d11_state["original_texture_thread"] = None
+
+                def _handle_original_reference_texture_preview_ready(
+                    request_id: int,
+                    preview_model_object: object,
+                    native_material_batches: int,
+                    elapsed_ms: float,
+                ) -> None:
+                    nonlocal original_reference_preview_model
+                    if int(request_id or 0) != int(alignment_d3d11_state.get("original_texture_worker_request_id", 0) or 0):
+                        return
+                    if not _alignment_dialog_widgets_live():
+                        return
+                    original_reference_preview_model = preview_model_object if isinstance(preview_model_object, ModelPreviewData) else original_reference_preview_model
+                    if native_material_batches:
+                        _set_preview_performance_status(
+                            f"Original native material manifest applied: {int(native_material_batches):,} batch(es)."
+                        )
+                    original_reference_texture_preview_state["loaded"] = True
+                    original_reference_texture_preview_state["loading"] = False
+                    original_reference_texture_preview_state["failed"] = False
+                    original_reference_texture_preview_state["error"] = ""
+                    static_preview_geometry_cache.clear()
+                    static_preview_prepared_cache.clear()
+                    alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
+                    alignment_d3d11_state["queued_model"] = None
+                    alignment_d3d11_state["queued_label"] = ""
+                    alignment_d3d11_state["queued_display_mode"] = ""
+                    alignment_d3d11_state["queued_reason"] = ""
+                    alignment_d3d11_state["queued_transform_generation"] = 0
+                    alignment_d3d11_state["queued_package_quality"] = ""
+                    alignment_d3d11_state["pending_model"] = None
+                    alignment_d3d11_state["pending_label"] = ""
+                    alignment_d3d11_state["pending_display_mode"] = ""
+                    alignment_d3d11_state["pending_reason"] = ""
+                    alignment_d3d11_state["pending_transform_generation"] = 0
+                    alignment_d3d11_state["pending_package_quality"] = ""
+                    alignment_d3d11_state["request_display_modes"] = {}
+                    alignment_d3d11_state["request_package_qualities"] = {}
+                    alignment_d3d11_state["request_reasons"] = {}
+                    alignment_d3d11_state["request_cache_keys"] = {}
+                    _alignment_d3d11_stop_worker()
+                    _alignment_d3d11_invalidate_package_cache("material")
+                    if _alignment_d3d11_preview_active():
+                        _set_alignment_d3d11_progress(
+                            15,
+                            "Preparing preview - original textures loaded.",
+                            stage="source_textures",
+                            detail="Original textures loaded; refreshing preview.",
+                        )
+                    else:
+                        original_dialog_preview.set_model(original_reference_preview_model)
+                        original_dialog_preview.set_use_textures(True)
+                        original_dialog_preview.set_high_quality_textures(True)
+                    alignment_d3d11_state["archive_parity_upgrade_queued"] = False
+                    _set_preview_performance_status(
+                        "Original textures loaded; refreshing preview.",
+                        details=f"worker_elapsed_ms={float(elapsed_ms):.1f}",
+                    )
+                    _mark_alignment_d3d11_rebuild_reason("material")
+                    _queue_static_preview_refresh()
+
+                def _handle_original_reference_texture_preview_error(request_id: int, message: str) -> None:
+                    if int(request_id or 0) != int(alignment_d3d11_state.get("original_texture_worker_request_id", 0) or 0):
+                        return
+                    original_reference_texture_preview_state["loaded"] = False
+                    original_reference_texture_preview_state["loading"] = False
+                    original_reference_texture_preview_state["failed"] = True
+                    original_reference_texture_preview_state["error"] = str(message)
+                    _record_runtime_event(
+                        "mesh_alignment_original_texture_preview_failed",
+                        path=getattr(entry, "path", ""),
+                        dialog_title=dialog_title,
+                        message=str(message),
+                        modify_original_clone=modify_original_clone_mode,
+                    )
+                    error_message = f"Original texture preview failed; continuing untextured: {message}"
+                    original_dialog_preview.clear_model(error_message)
+                    _set_alignment_d3d11_loading(False, error_message)
+                    _set_preview_performance_status("Original texture resolve failed.", details=str(message))
+                    alignment_d3d11_state["archive_parity_upgrade_queued"] = False
+                    _mark_alignment_d3d11_rebuild_reason("material")
+                    _queue_static_preview_refresh()
+
+                class _OriginalTexturePreviewWorkerReceiver(QObject):
+                    @Slot(int, object, int, float)
+                    def handle_completed(self, request_id: int, preview_model: object, native_material_batches: int, elapsed_ms: float) -> None:
+                        _handle_original_reference_texture_preview_ready(
+                            request_id,
+                            preview_model,
+                            native_material_batches,
+                            elapsed_ms,
+                        )
+
+                    @Slot(int, str)
+                    def handle_error(self, request_id: int, message: str) -> None:
+                        _handle_original_reference_texture_preview_error(request_id, message)
+
+                original_texture_worker_receiver = _OriginalTexturePreviewWorkerReceiver(dialog)
 
                 def _load_original_reference_texture_preview() -> None:
                     if bool(original_reference_texture_preview_state.get("loaded")):
@@ -69039,125 +71407,122 @@ def run_gui() -> int:
                     try:
                         texconv_text = self.texconv_path_edit.text().strip()
                         texconv_path = Path(texconv_text).expanduser() if texconv_text else None
+                        package_root_text = self.archive_package_root_edit.text().strip()
                         normalized_visible_texture_mode = _normalize_model_visible_texture_mode(
                             str(preview_render_settings.visible_texture_mode)
                         )
-                        (
-                            texture_entries_by_normalized_path_for_alignment,
-                            texture_entries_by_basename_for_alignment,
-                        ) = _alignment_texture_lookup_indexes()
-                        if normalized_visible_texture_mode == "mesh_base_first":
-                            _attach_model_texture_preview_paths(
-                                texconv_path,
-                                entry,
-                                original_reference_preview_model,
-                                texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment,
-                                texture_entries_by_basename=texture_entries_by_basename_for_alignment,
-                                sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
-                                sidecar_texts_by_basename=sidecar_texts_by_basename,
-                            )
-                        _attach_model_sidecar_texture_preview_paths(
-                            texconv_path,
-                            entry,
-                            original_reference_preview_model,
-                            parsed_mesh=original_mesh_for_mapping,
-                            sidecar_texture_bindings=sidecar_bindings,
-                            visible_texture_mode=normalized_visible_texture_mode,
-                            texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment,
-                            texture_entries_by_basename=texture_entries_by_basename_for_alignment,
-                            sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
-                            sidecar_texts_by_basename=sidecar_texts_by_basename,
-                        )
-                        if normalized_visible_texture_mode != "mesh_base_first":
-                            _attach_model_texture_preview_paths(
-                                texconv_path,
-                                entry,
-                                original_reference_preview_model,
-                                texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment,
-                                texture_entries_by_basename=texture_entries_by_basename_for_alignment,
-                                sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
-                                sidecar_texts_by_basename=sidecar_texts_by_basename,
-                            )
-                        if sidecar_bindings and normalized_visible_texture_mode == "mesh_base_first":
+
+                        def _resolve_original_textures(stop_event: threading.Event) -> tuple[object, int]:
+                            if stop_event.is_set():
+                                raise RunCancelled("Original texture preview cancelled.")
+                            preview_model = _clone_preview_model(original_reference_preview_model)
+                            (
+                                texture_entries_by_normalized_path_for_alignment,
+                                texture_entries_by_basename_for_alignment,
+                            ) = _alignment_texture_lookup_indexes()
+                            if stop_event.is_set():
+                                raise RunCancelled("Original texture preview cancelled.")
+                            if normalized_visible_texture_mode == "mesh_base_first":
+                                _attach_model_texture_preview_paths(
+                                    texconv_path,
+                                    entry,
+                                    preview_model,
+                                    texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment,
+                                    texture_entries_by_basename=texture_entries_by_basename_for_alignment,
+                                    sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
+                                    sidecar_texts_by_basename=sidecar_texts_by_basename,
+                                )
                             _attach_model_sidecar_texture_preview_paths(
                                 texconv_path,
                                 entry,
-                                original_reference_preview_model,
+                                preview_model,
                                 parsed_mesh=original_mesh_for_mapping,
                                 sidecar_texture_bindings=sidecar_bindings,
-                                visible_texture_mode="layer_aware_visible",
+                                visible_texture_mode=normalized_visible_texture_mode,
                                 texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment,
                                 texture_entries_by_basename=texture_entries_by_basename_for_alignment,
                                 sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
                                 sidecar_texts_by_basename=sidecar_texts_by_basename,
-                                fallback_only=True,
                             )
-                            _attach_model_texture_preview_paths(
+                            if normalized_visible_texture_mode != "mesh_base_first":
+                                _attach_model_texture_preview_paths(
+                                    texconv_path,
+                                    entry,
+                                    preview_model,
+                                    texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment,
+                                    texture_entries_by_basename=texture_entries_by_basename_for_alignment,
+                                    sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
+                                    sidecar_texts_by_basename=sidecar_texts_by_basename,
+                                )
+                            if sidecar_bindings and normalized_visible_texture_mode == "mesh_base_first":
+                                _attach_model_sidecar_texture_preview_paths(
+                                    texconv_path,
+                                    entry,
+                                    preview_model,
+                                    parsed_mesh=original_mesh_for_mapping,
+                                    sidecar_texture_bindings=sidecar_bindings,
+                                    visible_texture_mode="layer_aware_visible",
+                                    texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment,
+                                    texture_entries_by_basename=texture_entries_by_basename_for_alignment,
+                                    sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
+                                    sidecar_texts_by_basename=sidecar_texts_by_basename,
+                                    fallback_only=True,
+                                )
+                                _attach_model_texture_preview_paths(
+                                    texconv_path,
+                                    entry,
+                                    preview_model,
+                                    texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment,
+                                    texture_entries_by_basename=texture_entries_by_basename_for_alignment,
+                                    sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
+                                    sidecar_texts_by_basename=sidecar_texts_by_basename,
+                                    override_existing_base=True,
+                                    prefer_material_name_for_base=True,
+                                )
+                            if stop_event.is_set():
+                                raise RunCancelled("Original texture preview cancelled.")
+                            _attach_model_support_texture_preview_paths(
                                 texconv_path,
                                 entry,
-                                original_reference_preview_model,
+                                preview_model,
+                                parsed_mesh=original_mesh_for_mapping,
+                                sidecar_texture_bindings=sidecar_bindings,
                                 texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment,
                                 texture_entries_by_basename=texture_entries_by_basename_for_alignment,
                                 sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
                                 sidecar_texts_by_basename=sidecar_texts_by_basename,
-                                override_existing_base=True,
-                                prefer_material_name_for_base=True,
                             )
-                        _attach_model_support_texture_preview_paths(
-                            texconv_path,
-                            entry,
-                            original_reference_preview_model,
-                            parsed_mesh=original_mesh_for_mapping,
-                            sidecar_texture_bindings=sidecar_bindings,
-                            texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment,
-                            texture_entries_by_basename=texture_entries_by_basename_for_alignment,
-                            sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
-                            sidecar_texts_by_basename=sidecar_texts_by_basename,
+                            self._attach_archive_model_preview_images(preview_model)
+                            native_material_batches = _load_native_preview_core_material_manifest_for_alignment(
+                                preview_model,
+                                package_root_text,
+                            )
+                            return preview_model, native_material_batches
+
+                        _stop_original_reference_texture_worker()
+                        alignment_d3d11_state["original_texture_worker_request_id"] = (
+                            int(alignment_d3d11_state.get("original_texture_worker_request_id", 0) or 0) + 1
                         )
-                        self._attach_archive_model_preview_images(original_reference_preview_model)
-                        native_material_batches = _load_native_preview_core_material_manifest_for_alignment()
-                        if native_material_batches:
-                            _set_preview_performance_status(
-                                f"Original native material manifest applied: {native_material_batches:,} batch(es)."
-                            )
-                        original_reference_texture_preview_state["loaded"] = True
-                        original_reference_texture_preview_state["failed"] = False
-                        original_reference_texture_preview_state["error"] = ""
-                        static_preview_geometry_cache.clear()
-                        static_preview_prepared_cache.clear()
-                        alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
-                        alignment_d3d11_state["queued_model"] = None
-                        alignment_d3d11_state["queued_label"] = ""
-                        alignment_d3d11_state["queued_display_mode"] = ""
-                        alignment_d3d11_state["queued_reason"] = ""
-                        alignment_d3d11_state["queued_transform_generation"] = 0
-                        alignment_d3d11_state["queued_package_quality"] = ""
-                        alignment_d3d11_state["pending_model"] = None
-                        alignment_d3d11_state["pending_label"] = ""
-                        alignment_d3d11_state["pending_display_mode"] = ""
-                        alignment_d3d11_state["pending_reason"] = ""
-                        alignment_d3d11_state["pending_transform_generation"] = 0
-                        alignment_d3d11_state["pending_package_quality"] = ""
-                        alignment_d3d11_state["request_display_modes"] = {}
-                        alignment_d3d11_state["request_package_qualities"] = {}
-                        alignment_d3d11_state["request_reasons"] = {}
-                        alignment_d3d11_state["request_cache_keys"] = {}
-                        _alignment_d3d11_stop_worker()
-                        _alignment_d3d11_invalidate_package_cache("material")
-                        if _alignment_d3d11_preview_active():
-                            original_dialog_preview.clear_model("Original textures loaded in native D3D11 preview.")
-                            _set_alignment_d3d11_progress(
-                                15,
-                                "Preparing preview - original textures loaded.",
-                                stage="source_textures",
-                                detail="Original textures loaded; refreshing preview.",
-                            )
-                        else:
-                            original_dialog_preview.set_model(original_reference_preview_model)
-                            original_dialog_preview.set_use_textures(True)
-                            original_dialog_preview.set_high_quality_textures(True)
-                        _set_preview_performance_status("Original textures loaded; refreshing preview.")
-                        _queue_static_preview_refresh()
+                        worker_request_id = int(alignment_d3d11_state["original_texture_worker_request_id"])
+                        worker = AlignmentOriginalTexturePreviewWorker(worker_request_id, _resolve_original_textures)
+                        thread = QThread(dialog)
+                        worker.moveToThread(thread)
+                        thread.started.connect(worker.run)
+                        worker.completed.connect(
+                            original_texture_worker_receiver.handle_completed,
+                            Qt.QueuedConnection,
+                        )
+                        worker.error.connect(
+                            original_texture_worker_receiver.handle_error,
+                            Qt.QueuedConnection,
+                        )
+                        worker.finished.connect(thread.quit)
+                        worker.finished.connect(worker.deleteLater)
+                        thread.finished.connect(thread.deleteLater)
+                        thread.finished.connect(_cleanup_original_reference_texture_worker_refs)
+                        alignment_d3d11_state["original_texture_worker"] = worker
+                        alignment_d3d11_state["original_texture_thread"] = thread
+                        thread.start()
                     except Exception as exc:
                         original_reference_texture_preview_state["loaded"] = False
                         original_reference_texture_preview_state["failed"] = True
@@ -69174,7 +71539,6 @@ def run_gui() -> int:
                         _set_alignment_d3d11_loading(False, message)
                         _set_preview_performance_status("Original texture resolve failed.", details=str(exc))
                         _queue_static_preview_refresh()
-                    finally:
                         original_reference_texture_preview_state["loading"] = False
 
                 texture_sets = group_replacement_texture_sets(texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
@@ -69354,7 +71718,7 @@ def run_gui() -> int:
                     except NameError:
                         pass
                     try:
-                        texture_transform_group.setVisible(bool(material_name and advanced_materials_checkbox.isChecked()))
+                        texture_transform_group.setVisible(bool(material_name))
                     except NameError:
                         pass
                     _queue_selection_preview_refresh()
@@ -70847,7 +73211,7 @@ def run_gui() -> int:
                     texture_transform_material_combo.setCurrentIndex(max(0, target_index))
                     texture_transform_material_combo.blockSignals(False)
                     has_materials = bool(material_names)
-                    texture_transform_group.setVisible(bool(has_materials and advanced_materials_checkbox.isChecked()))
+                    texture_transform_group.setVisible(bool(has_materials))
                     _set_texture_transform_controls_enabled(has_materials)
                     if has_materials:
                         selected_key = str(texture_transform_material_combo.currentData() or "")
@@ -73692,17 +76056,12 @@ def run_gui() -> int:
             )
             complete_swap_material_profile_combo.setEnabled(False)
             material_route_summary_label = QLabel(
-                "Materials default to the recommended source texture route. Use Advanced Materials for manual slot mapping, "
-                "Material Authority tuning, sidecar pruning, or UV transforms."
+                "Materials default to the recommended source texture route. Material Authority tuning, sidecar pruning, "
+                "manual slot mapping, and UV transforms are shown directly."
             )
             material_route_summary_label.setObjectName("MeshAlignmentMaterialRouteSummary")
             material_route_summary_label.setWordWrap(True)
             material_route_summary_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            advanced_materials_checkbox = QCheckBox("Advanced Materials")
-            advanced_materials_checkbox.setObjectName("MeshAlignmentAdvancedMaterialsCheckbox")
-            advanced_materials_checkbox.setToolTip(
-                "Show manual material controls: sidecar pruning, Material Authority tuning, manual slot mapping, and UV transforms."
-            )
             global_gloss_reduction_slider = QSlider(Qt.Horizontal)
             global_gloss_reduction_slider.setObjectName("MeshAlignmentGlobalGlossReductionSlider")
             global_gloss_reduction_slider.setRange(-100, 100)
@@ -74610,7 +76969,7 @@ def run_gui() -> int:
 
             def _refresh_manual_material_profile_panel() -> None:
                 manual_selected = str(complete_swap_material_profile_combo.currentData() or "") == "material_authority_manual"
-                manual_profile_group.setVisible(bool(manual_selected and advanced_materials_checkbox.isChecked()))
+                manual_profile_group.setVisible(bool(manual_selected))
                 manual_profile_group.setEnabled(bool(manual_selected and _complete_external_swap_enabled()))
                 _refresh_manual_profile_control_effects()
             _refresh_manual_profile_preset_combo("")
@@ -74716,22 +77075,21 @@ def run_gui() -> int:
             form.addWidget(flip_direction_checkbox, 2, 0, 1, 2)
             form.addWidget(material_route_summary_label, 3, 0, 1, 2)
             form.addWidget(rebuild_sidecar_checkbox, 4, 0, 1, 2)
-            form.addWidget(advanced_materials_checkbox, 5, 0, 1, 2)
-            form.addWidget(prune_unmapped_original_dds_checkbox, 6, 0, 1, 2)
-            form.addWidget(inject_base_color_checkbox, 7, 0, 1, 2)
-            form.addWidget(source_color_faithful_checkbox, 8, 0, 1, 2)
-            form.addWidget(external_material_reset_checkbox, 9, 0, 1, 2)
-            form.addWidget(complete_external_swap_checkbox, 10, 0, 1, 2)
+            form.addWidget(prune_unmapped_original_dds_checkbox, 5, 0, 1, 2)
+            form.addWidget(inject_base_color_checkbox, 6, 0, 1, 2)
+            form.addWidget(source_color_faithful_checkbox, 7, 0, 1, 2)
+            form.addWidget(external_material_reset_checkbox, 8, 0, 1, 2)
+            form.addWidget(complete_external_swap_checkbox, 9, 0, 1, 2)
             runtime_material_profile_label = QLabel("Runtime material profile")
-            form.addWidget(runtime_material_profile_label, 11, 0)
-            form.addWidget(complete_swap_material_profile_combo, 11, 1)
-            form.addWidget(true_source_basic_group, 12, 0, 1, 2)
-            form.addWidget(unsafe_material_preflight_checkbox, 13, 0, 1, 2)
-            form.addWidget(manual_profile_group, 14, 0, 1, 2)
-            form.addWidget(sidecar_warning_label, 15, 0, 1, 2)
+            form.addWidget(runtime_material_profile_label, 10, 0)
+            form.addWidget(complete_swap_material_profile_combo, 10, 1)
+            form.addWidget(true_source_basic_group, 11, 0, 1, 2)
+            form.addWidget(unsafe_material_preflight_checkbox, 12, 0, 1, 2)
+            form.addWidget(manual_profile_group, 13, 0, 1, 2)
+            form.addWidget(sidecar_warning_label, 14, 0, 1, 2)
             texture_size_label = QLabel("Texture size")
-            form.addWidget(texture_size_label, 16, 0)
-            form.addWidget(texture_output_size_combo, 16, 1)
+            form.addWidget(texture_size_label, 15, 0)
+            form.addWidget(texture_output_size_combo, 15, 1)
             setup_texture_orientation_widget = QWidget()
             setup_texture_orientation_row = QHBoxLayout(setup_texture_orientation_widget)
             setup_texture_orientation_row.setContentsMargins(0, 0, 0, 0)
@@ -74741,9 +77099,9 @@ def run_gui() -> int:
             setup_texture_orientation_row.addWidget(setup_texture_flip_v_checkbox)
             setup_texture_orientation_row.addWidget(setup_texture_reset_button)
             texture_orientation_label = QLabel("Texture orientation")
-            form.addWidget(texture_orientation_label, 17, 0)
-            form.addWidget(setup_texture_orientation_widget, 17, 1)
-            form.addWidget(custom_icon_checkbox, 18, 0, 1, 2)
+            form.addWidget(texture_orientation_label, 16, 0)
+            form.addWidget(setup_texture_orientation_widget, 16, 1)
+            form.addWidget(custom_icon_checkbox, 17, 0, 1, 2)
             custom_icon_source_row = QHBoxLayout()
             custom_icon_source_row.setContentsMargins(0, 0, 0, 0)
             custom_icon_source_row.setSpacing(5)
@@ -74751,12 +77109,12 @@ def run_gui() -> int:
             custom_icon_source_row.addWidget(custom_icon_file_button)
             custom_icon_source_row.addWidget(custom_icon_folder_button)
             custom_icon_source_row.addWidget(custom_icon_library_button)
-            form.addWidget(QLabel("Item icon source"), 19, 0)
-            form.addLayout(custom_icon_source_row, 19, 1)
-            form.addWidget(QLabel("Item icon target"), 20, 0)
-            form.addWidget(custom_icon_target_combo, 20, 1)
-            form.addWidget(custom_icon_status, 21, 0, 1, 2)
-            form.addWidget(save_generated_icon_to_library_checkbox, 22, 0, 1, 2)
+            form.addWidget(QLabel("Item icon source"), 18, 0)
+            form.addLayout(custom_icon_source_row, 18, 1)
+            form.addWidget(QLabel("Item icon target"), 19, 0)
+            form.addWidget(custom_icon_target_combo, 19, 1)
+            form.addWidget(custom_icon_status, 20, 0, 1, 2)
+            form.addWidget(save_generated_icon_to_library_checkbox, 21, 0, 1, 2)
             setup_texture_rotate_combo.currentIndexChanged.connect(_save_setup_texture_orientation)
             setup_texture_flip_u_checkbox.toggled.connect(_save_setup_texture_orientation)
             setup_texture_flip_v_checkbox.toggled.connect(_save_setup_texture_orientation)
@@ -74910,11 +77268,6 @@ def run_gui() -> int:
                         return "Original-material preview is active."
                 except Exception:
                     pass
-                try:
-                    if _mesh_edit_raw_preview_active():
-                        return "Raw mesh-edit preview is active."
-                except Exception:
-                    pass
                 return ""
 
             def _material_authority_controls_affect_visible_preview() -> bool:
@@ -74926,18 +77279,12 @@ def run_gui() -> int:
                     if _basic_controls_profile_enabled():
                         true_source_basic_hint.setText(f"Settings saved. Preview unchanged: {inactive_reason}")
                     return
-                try:
-                    signature = _material_authority_preview_signature()
-                except Exception:
-                    signature = {"visible": "", "cache": ""}
-                previous_cache_signature = str(material_authority_preview_signature_state.get("cache", "") or "")
-                if signature.get("cache"):
-                    material_authority_preview_signature_state.update(signature)
-                if previous_cache_signature and previous_cache_signature == signature.get("cache"):
-                    true_source_basic_hint.setText("Preview unchanged: adjustment produced same visible material inputs.")
-                    return
                 true_source_basic_hint.setText("Adjustments saved. Preview refresh queued.")
-                _queue_texture_preview_refresh()
+                _queue_material_edit_refresh(
+                    refresh_plan=False,
+                    refresh_preview=True,
+                    reason="material authority adjustment",
+                )
 
             def _set_spin_slider_pair(
                 slider: QSlider,
@@ -75044,7 +77391,7 @@ def run_gui() -> int:
             def _refresh_true_source_basic_controls_state() -> None:
                 visible = _basic_controls_profile_enabled()
                 enabled = bool(visible and _complete_external_swap_enabled())
-                true_source_basic_group.setVisible(bool(visible and advanced_materials_checkbox.isChecked()))
+                true_source_basic_group.setVisible(bool(visible))
                 true_source_basic_group.setEnabled(enabled)
                 if not visible:
                     true_source_basic_hint.setText("Select Material Authority or Manual to use material controls.")
@@ -75092,31 +77439,6 @@ def run_gui() -> int:
                 _refresh_manual_material_profile_panel()
                 _refresh_true_source_basic_controls_state()
 
-            advanced_material_option_widgets = (
-                prune_unmapped_original_dds_checkbox,
-                inject_base_color_checkbox,
-                source_color_faithful_checkbox,
-                external_material_reset_checkbox,
-                complete_external_swap_checkbox,
-                runtime_material_profile_label,
-                complete_swap_material_profile_combo,
-                true_source_basic_group,
-                unsafe_material_preflight_checkbox,
-                manual_profile_group,
-                texture_size_label,
-                texture_output_size_combo,
-                texture_orientation_label,
-                setup_texture_orientation_widget,
-            )
-
-            def _set_advanced_materials_visible(checked: bool) -> None:
-                visible = bool(checked)
-                for widget in advanced_material_option_widgets:
-                    widget.setVisible(visible)
-                _refresh_manual_material_profile_panel()
-                _refresh_true_source_basic_controls_state()
-
-            advanced_materials_checkbox.toggled.connect(_set_advanced_materials_visible)
             rebuild_sidecar_checkbox.toggled.connect(
                 lambda _checked: (
                     _refresh_sidecar_option_state(),
@@ -75186,7 +77508,6 @@ def run_gui() -> int:
             )
             texture_output_size_combo.currentIndexChanged.connect(_queue_texture_preview_refresh)
             _refresh_sidecar_option_state()
-            _set_advanced_materials_visible(advanced_materials_checkbox.isChecked())
             _refresh_output_impact_review()
 
             def _alignment_custom_icon_override_spec(*, show_messages: bool) -> Optional[ItemIconOverrideSpec]:
@@ -76140,16 +78461,18 @@ def run_gui() -> int:
                 preview_widget.set_alignment_rotation_origin_override(_current_global_rotation_origin_for_preview())
 
             def _prepare_alignment_preview_drag(preview_widget: NativePreviewPanel) -> None:
-                static_preview_refresh_timer.stop()
-                static_preview_settle_timer.stop()
+                _safe_stop_alignment_timer(material_edit_refresh_timer)
+                _safe_stop_alignment_timer(static_preview_refresh_timer)
+                _safe_stop_alignment_timer(static_preview_settle_timer)
                 if _alignment_part_source_indices_for_commit():
                     _push_geometry_undo_snapshot("Preview part drag")
                 _sync_alignment_preview_rotation_context(preview_widget)
 
             def _prepare_alignment_d3d11_preview_drag() -> None:
-                static_preview_refresh_timer.stop()
-                static_preview_settle_timer.stop()
-                alignment_d3d11_drag_ui_timer.stop()
+                _safe_stop_alignment_timer(material_edit_refresh_timer)
+                _safe_stop_alignment_timer(static_preview_refresh_timer)
+                _safe_stop_alignment_timer(static_preview_settle_timer)
+                _safe_stop_alignment_timer(alignment_d3d11_drag_ui_timer)
                 _flush_alignment_d3d11_drag_ui()
                 part_source_indices = tuple(_alignment_part_source_indices_for_commit())
                 if part_source_indices:
@@ -76204,8 +78527,8 @@ def run_gui() -> int:
                     alignment_d3d11_drag_ui_state["global_offset"] = tuple(float(value) for value in tuple(offset)[:3])
                 if rotation is not None:
                     alignment_d3d11_drag_ui_state["global_rotation"] = tuple(float(value) for value in tuple(rotation)[:3])
-                if not alignment_d3d11_drag_ui_timer.isActive():
-                    alignment_d3d11_drag_ui_timer.start()
+                if not _safe_alignment_timer_active(alignment_d3d11_drag_ui_timer):
+                    _safe_start_alignment_timer(alignment_d3d11_drag_ui_timer)
 
             def _set_selected_part_controls_for_d3d11_drag(
                 source_index: int,
@@ -76244,8 +78567,8 @@ def run_gui() -> int:
                 if rotation is not None:
                     current["rotation"] = tuple(float(value) for value in tuple(rotation)[:3])
                 controls[int(source_index)] = current
-                if not alignment_d3d11_drag_ui_timer.isActive():
-                    alignment_d3d11_drag_ui_timer.start()
+                if not _safe_alignment_timer_active(alignment_d3d11_drag_ui_timer):
+                    _safe_start_alignment_timer(alignment_d3d11_drag_ui_timer)
 
             def _flush_alignment_d3d11_drag_ui() -> None:
                 global_offset = alignment_d3d11_drag_ui_state.get("global_offset")
@@ -76355,7 +78678,7 @@ def run_gui() -> int:
 
             def _finish_alignment_d3d11_translation(dx: float, dy: float, dz: float) -> None:
                 _apply_alignment_d3d11_translation_total(dx, dy, dz)
-                alignment_d3d11_drag_ui_timer.stop()
+                _safe_stop_alignment_timer(alignment_d3d11_drag_ui_timer)
                 _flush_alignment_d3d11_drag_ui()
                 part_source_indices = tuple(
                     int(index)
@@ -76372,7 +78695,7 @@ def run_gui() -> int:
 
             def _finish_alignment_d3d11_rotation(dx: float, dy: float, dz: float) -> None:
                 _apply_alignment_d3d11_rotation_total(dx, dy, dz)
-                alignment_d3d11_drag_ui_timer.stop()
+                _safe_stop_alignment_timer(alignment_d3d11_drag_ui_timer)
                 _flush_alignment_d3d11_drag_ui()
                 part_source_indices = tuple(
                     int(index)
@@ -76460,6 +78783,7 @@ def run_gui() -> int:
 
             def _modeless_alignment_dialog_finished(result: int = 0) -> None:
                 alignment_dialog_closing["closing"] = True
+                _safe_stop_alignment_timer(material_edit_refresh_timer)
                 _safe_shutdown_alignment_d3d11_preview()
                 _finish_alignment_startup_progress()
                 self._unregister_modeless_alignment_dialog(alignment_dialog_key, dialog)
@@ -76481,8 +78805,8 @@ def run_gui() -> int:
             dialog.finished.connect(_modeless_alignment_dialog_finished)
             _queue_alignment_post_open_task(_set_preview_renderer)
             _queue_alignment_post_open_task(_capture_initial_geometry_snapshot)
-            _queue_alignment_post_open_task(_load_original_reference_texture_preview)
             _queue_alignment_post_open_task(_queue_static_preview_refresh)
+            _queue_alignment_post_open_task(_load_original_reference_texture_preview)
             _queue_alignment_post_open_task(_clear_all_part_selections)
 
             buttons = QHBoxLayout()
@@ -76518,6 +78842,7 @@ def run_gui() -> int:
             build_status_row.addWidget(build_status_label, 1)
             root_layout.addLayout(build_status_row)
             cancel_button.clicked.connect(dialog.reject)
+            build_accept_state = {"running": False}
 
             def _set_alignment_build_status(message: str) -> None:
                 text = str(message or "").strip()
@@ -76525,12 +78850,12 @@ def run_gui() -> int:
                     build_status_label.setText(text)
                     build_status_label.setVisible(bool(text))
                     build_status_bar.setVisible(True)
-                    QApplication.processEvents()
                 except RuntimeError:
                     self.set_status_message(text)
 
             def _finish_alignment_build_state(message: str, success: bool) -> None:
                 text = str(message or "").strip()
+                build_accept_state["running"] = False
                 try:
                     build_status_label.setText(text)
                     build_status_label.setVisible(bool(text))
@@ -76541,7 +78866,6 @@ def run_gui() -> int:
                     pass
                 if text:
                     self.set_status_message(text, error=not bool(success))
-                QApplication.processEvents()
 
             def _dispatch_alignment_accept(options: StaticMeshReplacementOptions) -> None:
                 if on_accept is None:
@@ -76586,7 +78910,11 @@ def run_gui() -> int:
                 _update_selected_part_adjustment()
                 _save_texture_transform_controls()
 
-            def _build_static_options_from_dialog(*, show_messages: bool = True) -> Optional[StaticMeshReplacementOptions]:
+            def _build_static_options_from_dialog(
+                *,
+                show_messages: bool = True,
+                include_edited_source_mesh: bool = True,
+            ) -> Optional[StaticMeshReplacementOptions]:
                 _commit_alignment_numeric_edits()
                 parsed_mappings = list(suggested_mappings or [])
                 explicit_mapping_validation = False
@@ -76716,7 +79044,7 @@ def run_gui() -> int:
                 return _static_options_from_placement_snapshot(
                     placement_snapshot,
                     texture_slot_overrides=texture_slot_overrides,
-                    include_edited_source_mesh=True,
+                    include_edited_source_mesh=bool(include_edited_source_mesh),
                     rebuild_material_sidecar=bool(rebuild_sidecar_checkbox.isChecked() or _complete_external_swap_enabled()),
                     complete_external_swap=bool(_complete_external_swap_enabled()),
                     neutralize_inherited_material_layers=bool(source_color_faithful_checkbox.isChecked() or _complete_external_swap_enabled()),
@@ -76772,13 +79100,32 @@ def run_gui() -> int:
                 return tuple(paths)
 
             def _accept_static_options() -> None:
-                static_options = _build_static_options_from_dialog(show_messages=True)
+                if continue_build_callback is not None:
+                    if build_accept_state.get("running"):
+                        return
+                    build_accept_state["running"] = True
+                    import_button.setEnabled(False)
+                    _set_alignment_build_status("Preparing mesh replacement build options...")
+                    QTimer.singleShot(25, _accept_static_options_after_status_paint)
+                    return
+                _accept_static_options_after_status_paint()
+
+            def _accept_static_options_after_status_paint() -> None:
+                static_options = _build_static_options_from_dialog(
+                    show_messages=True,
+                    include_edited_source_mesh=True,
+                )
                 if static_options is None:
+                    build_accept_state["running"] = False
+                    if continue_build_callback is not None:
+                        if replacement_export_allowed["allowed"]:
+                            import_button.setEnabled(True)
+                        build_status_bar.setVisible(False)
+                        build_status_label.setVisible(False)
                     return
                 dialog._static_mappings = list(static_options.submesh_mappings or [])  # type: ignore[attr-defined]
                 dialog._static_options = static_options  # type: ignore[attr-defined]
                 if continue_build_callback is not None:
-                    import_button.setEnabled(False)
                     _set_alignment_build_status("Collecting mesh replacement mod build settings...")
                     try:
                         started = bool(
@@ -76799,9 +79146,11 @@ def run_gui() -> int:
                         _finish_alignment_build_state(f"Mesh replacement build failed: {exc}", False)
                         started = False
                     if not started:
+                        build_accept_state["running"] = False
                         if replacement_export_allowed["allowed"]:
                             import_button.setEnabled(True)
                         build_status_bar.setVisible(False)
+                        build_status_label.setVisible(False)
                     if started:
                         self.set_status_message("Started mesh replacement build. Builder window remains open for more edits.")
                     return
@@ -90368,7 +92717,12 @@ def run_gui() -> int:
         app.setApplicationName(APP_NAME)
         app.setStyle("Fusion")
         ensure_app_wheel_guard(app)
-        app_icon, _icon_path = load_app_icon()
+        _write_heartbeat("settings")
+        startup_settings = create_settings()
+        startup_theme = str(startup_settings.value("appearance/theme", DEFAULT_UI_THEME))
+        if startup_theme not in UI_THEME_SCHEMES:
+            startup_theme = DEFAULT_UI_THEME
+        app_icon, _icon_path = load_app_icon(startup_theme)
         if not app_icon.isNull():
             app.setWindowIcon(app_icon)
             app_window_icon_filter = AppWindowIconEventFilter(app_icon, app)
@@ -90377,20 +92731,17 @@ def run_gui() -> int:
         tree_column_width_filter = AutoTreeColumnWidthEventFilter(app)
         app.installEventFilter(tree_column_width_filter)
         globals()["_cdmw_tree_column_width_filter_ref"] = tree_column_width_filter
-        _write_heartbeat("settings")
-        startup_settings = create_settings()
-        startup_theme = str(startup_settings.value("appearance/theme", DEFAULT_UI_THEME))
         apply_app_theme(app, startup_settings, startup_theme)
 
         _write_heartbeat("startup_splash")
         external_splash_path = os.environ.get("CDMW_STARTUP_SPLASH_COMMAND_FILE", "").strip()
         external_splash_file = Path(external_splash_path) if external_splash_path else None
         if external_splash_file is not None and external_splash_file.is_file():
-            startup_splash = ExternalStartupSplashAdapter(external_splash_file)
+            startup_splash = ExternalStartupSplashAdapter(external_splash_file, theme_key=startup_theme)
             startup_splash.set_detail("Preparing application...")
             close_pyinstaller_boot_splash()
         else:
-            startup_splash = StartupSplashDialog()
+            startup_splash = StartupSplashDialog(theme_key=startup_theme)
             if not app.windowIcon().isNull():
                 startup_splash.setWindowIcon(app.windowIcon())
             startup_splash.center_on_screen()
@@ -90412,8 +92763,16 @@ def run_gui() -> int:
             normal_exit = True
             exit_code = 0
             return 0
+        window._show_startup_archive_path_prompt_if_needed(startup_splash)
         if window._startup_archive_autoload_expected():
-            startup_splash.set_detail("Loading Archive Browser...")
+            if bool(getattr(window, "_startup_archive_path_prompt_accepted", False)):
+                startup_splash.set_detail(
+                    "Building archive cache. First load can take a while; let it finish.",
+                    1,
+                    100,
+                )
+            else:
+                startup_splash.set_detail("Loading Archive Browser...")
             _write_heartbeat("archive_autoload_queued")
         else:
             _write_heartbeat("running")

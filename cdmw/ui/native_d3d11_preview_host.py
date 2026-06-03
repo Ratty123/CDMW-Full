@@ -10,6 +10,7 @@ from typing import Iterable, Mapping, Optional, Sequence
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QFrame, QWidget
 
+from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_COLOR
 from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
 
 
@@ -293,9 +294,9 @@ def native_d3d11_renderer_command(
         "--status-file",
         str(status_file),
         "--theme-background",
-        str(theme_payload.get("background", "#0d0f11")),
+        str(theme_payload.get("background", MODEL_PREVIEW_BACKGROUND_COLOR)),
         "--theme-text",
-        str(theme_payload.get("text", "#c8d3df")),
+        str(theme_payload.get("text", MODEL_PREVIEW_TEXT_COLOR)),
     ]
     if crash_dir is not None:
         arguments.extend(["--crash-dir", str(crash_dir)])

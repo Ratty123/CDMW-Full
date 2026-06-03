@@ -3125,8 +3125,8 @@ class QuickStartDialog(QDialog):
     def _open_docs(self) -> None:
         parent_window = self.parent_window
         self.accept()
-        if parent_window is not None and hasattr(parent_window, "show_about_dialog"):
-            QTimer.singleShot(0, lambda: parent_window.show_about_dialog(topic_id="overview"))
+        if parent_window is not None and hasattr(parent_window, "show_documentation_dialog"):
+            QTimer.singleShot(0, lambda: parent_window.show_documentation_dialog(topic_id="overview"))
 
 
 class AboutDialog(QDialog):

@@ -1,7 +1,10 @@
+import json
+import tempfile
 import unittest
 from pathlib import Path
+from types import MethodType, SimpleNamespace
 
-from cdmw.ui.model_library_tab import model_library_texture_status_kind
+from cdmw.ui.model_library_tab import ModelLibraryTab, model_library_texture_status_kind
 
 
 class ModelLibraryUiSourceGuardTests(unittest.TestCase):
@@ -13,6 +16,70 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
 
         for status in ("Unknown", "Download to check", "Embedded/Unknown", "In ZIP", ""):
             self.assertEqual(model_library_texture_status_kind(status), "unknown")
+
+    def test_local_download_rows_group_by_metadata_even_when_catalogue_root_differs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            asset_dir = root / "ExternalCatalogue" / "downloads" / "Escanor-Axe-Rhitta-1234567890abcdef1234567890abcdef"
+            scene_dir = asset_dir / "gltf"
+            scene_dir.mkdir(parents=True)
+            (asset_dir / "model_metadata.json").write_text(json.dumps({"name": "Escanor Axe Rhitta"}), encoding="utf-8")
+            archive_path = asset_dir / "1234567890abcdef1234567890abcdef.zip"
+            archive_path.write_bytes(b"zip")
+            scene_path = scene_dir / "scene.gltf"
+            scene_path.write_text("{}", encoding="utf-8")
+
+            tab = SimpleNamespace(_texture_status_cache={})
+            tab.catalogue_dir = lambda: root / "ConfiguredElsewhere"
+            tab._texture_status_for_payload = lambda _payload: ""
+            for method_name in (
+                "_download_output_root",
+                "_normalize_local_model_rows",
+                "_metadata_path_for_local_row",
+                "_download_metadata_path_for_local_path",
+                "_nearest_local_model_metadata_path",
+                "_read_download_metadata",
+                "_metadata_path_from_group",
+                "_display_root_for_metadata_group",
+                "_download_group_local_row",
+                "_find_importable_file_under",
+                "_preferred_download_archive_path",
+            ):
+                setattr(tab, method_name, MethodType(getattr(ModelLibraryTab, method_name), tab))
+            rows = [
+                {
+                    "kind": "local",
+                    "name": "Escanor Axe Rhitta",
+                    "path": str(archive_path),
+                    "root": str(root),
+                    "relative_path": str(archive_path.relative_to(root)),
+                    "extension": ".zip",
+                    "size": archive_path.stat().st_size,
+                    "modified_at": archive_path.stat().st_mtime,
+                    "import_supported": True,
+                    "source": "Local model library",
+                },
+                {
+                    "kind": "local",
+                    "name": "Escanor Axe Rhitta",
+                    "path": str(scene_path),
+                    "root": str(root),
+                    "relative_path": str(scene_path.relative_to(root)),
+                    "extension": ".gltf",
+                    "size": scene_path.stat().st_size,
+                    "modified_at": scene_path.stat().st_mtime,
+                    "import_supported": True,
+                    "source": "Local model library",
+                },
+            ]
+
+            normalized = tab._normalize_local_model_rows(rows)
+
+        self.assertEqual(len(normalized), 1)
+        self.assertEqual(normalized[0]["name"], "Escanor Axe Rhitta")
+        self.assertEqual(normalized[0]["source"], "Downloaded")
+        self.assertEqual(normalized[0]["archive_path"], str(archive_path))
+        self.assertEqual(normalized[0]["import_path"], str(scene_path))
 
     def test_main_window_registers_model_library_import_signal(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")

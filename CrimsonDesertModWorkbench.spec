@@ -21,6 +21,18 @@ def _add_data_if_exists(items, source, destination):
         items.append((str(path), destination))
 
 
+def _add_data_tree_if_exists(items, source, destination, *, suffixes=None):
+    root = ROOT / source
+    if not root.exists():
+        return
+    allowed_suffixes = {suffix.lower() for suffix in suffixes} if suffixes is not None else None
+    for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
+        if allowed_suffixes is not None and path.suffix.lower() not in allowed_suffixes:
+            continue
+        relative_parent = Path(destination) / path.relative_to(root).parent
+        items.append((str(path), str(relative_parent)))
+
+
 def _should_collect_numpy_submodule(name):
     parts = name.split(".")
     leaf = parts[-1] if parts else name
@@ -63,6 +75,7 @@ unused_qt_modules = [
 
 _add_data_if_exists(datas, "assets/cdmw.ico", "assets")
 _add_data_if_exists(datas, "assets/cdmw.png", "assets")
+_add_data_tree_if_exists(datas, "assets/theme_icons", "assets/theme_icons", suffixes={".ico", ".png", ".svg"})
 _add_data_if_exists(datas, "THIRD_PARTY_NOTICES.md", ".")
 _add_data_if_exists(datas, "LICENSE", ".")
 _add_data_if_exists(datas, "cdmw/modding/VendoredMeshTools_MIT_LICENSE.txt", "third_party")

@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="720" viewBox="0 0 1400 720">
+  <defs>
+    <linearGradient id="hex" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#05101e"/>
+      <stop offset=".58" stop-color="#111d31"/>
+      <stop offset="1" stop-color="#344c6b"/>
+    </linearGradient>
+    <linearGradient id="leftFace" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#091523"/>
+      <stop offset="1" stop-color="#020711"/>
+    </linearGradient>
+    <linearGradient id="rightFace" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2b4565"/>
+      <stop offset="1" stop-color="#1a2b44"/>
+    </linearGradient>
+    <linearGradient id="topFace" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6686aa"/>
+      <stop offset="1" stop-color="#365676"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd785"/>
+      <stop offset=".45" stop-color="#ffb647"/>
+      <stop offset="1" stop-color="#ff8d17"/>
+    </linearGradient>
+    <linearGradient id="cool" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8cefff"/>
+      <stop offset="1" stop-color="#2398b1"/>
+    </linearGradient>
+    <pattern id="fine" width="18" height="18" patternUnits="userSpaceOnUse">
+      <path d="M3 6h4M10 11h5M6 16h3" fill="none" stroke="#d0deef" stroke-width="1" opacity=".1"/>
+    </pattern>
+    <style>
+      .page { fill: #f3f0e8; }
+      .hexL { fill: #06111f; }
+      .hexR { fill: #2a415f; }
+      .hexB { fill: #101d31; }
+      .left { fill: url(#leftFace); }
+      .right { fill: url(#rightFace); }
+      .top { fill: url(#topFace); }
+      .dark { fill: #020711; }
+      .mid { fill: #223753; }
+      .edge { fill: #7fa0c5; }
+      .amber { fill: url(#amber); }
+      .cool { fill: url(#cool); }
+      .shadow { fill: #000000; opacity: .28; }
+      .soft { opacity: .28; }
+      .line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect class="page" width="1400" height="720"/>
+
+  <!-- 1: cleaner selected shape -->
+  <g transform="translate(70 50)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hex)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="left" d="M44 96 100 64v84l-56-32z"/>
+    <path class="right" d="M100 64 156 96v84l-56-32z"/>
+    <path class="top" d="M44 96 100 64l56 32-56 32z"/>
+    <path class="dark" d="M73 96 100 81l27 15-27 15z"/>
+    <path class="amber" d="M156 96v84l-14 9v-84z"/>
+  </g>
+
+  <!-- 2: thinner amber blade -->
+  <g transform="translate(330 50)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hex)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="left" d="M42 97 100 63v86l-58-33z"/>
+    <path class="right" d="M100 63 158 97v86l-58-34z"/>
+    <path class="top" d="M42 97 100 63l58 34-58 33z"/>
+    <path class="dark" d="M72 97 100 80l28 17-28 16z"/>
+    <path class="amber" d="M158 97v86l-9 6v-86z"/>
+    <path class="edge" d="M100 130 158 97v10l-58 33z" opacity=".45"/>
+  </g>
+
+  <!-- 3: glowing core, no outer blade -->
+  <g transform="translate(590 50)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hex)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="left" d="M44 96 100 64v84l-56-32z"/>
+    <path class="right" d="M100 64 156 96v84l-56-32z"/>
+    <path class="top" d="M44 96 100 64l56 32-56 32z"/>
+    <path class="dark" d="M70 96 100 79l30 17-30 18z"/>
+    <path class="amber" d="M94 96 100 92l6 4-6 4z"/>
+    <path class="soft" d="M85 96 100 87l15 9-15 9z" fill="#ffb647"/>
+  </g>
+
+  <!-- 4: offset aperture -->
+  <g transform="translate(850 50)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hex)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="left" d="M43 98 99 66v84l-56-32z"/>
+    <path class="right" d="M99 66 159 100v84l-60-34z"/>
+    <path class="top" d="M43 98 99 66l60 34-56 32z"/>
+    <path class="dark" d="M83 95 109 80l30 17-27 15z"/>
+    <path class="amber" d="M159 100v84l-17 10v-84z"/>
+  </g>
+
+  <!-- 5: amber inlay under lid -->
+  <g transform="translate(1110 50)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hex)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="left" d="M44 97 100 65v83l-56-32z"/>
+    <path class="right" d="M100 65 156 97v83l-56-32z"/>
+    <path class="amber" d="M44 97 100 65l56 32-56 31z"/>
+    <path class="top" d="M54 96 100 70l46 26-46 26z"/>
+    <path class="dark" d="M78 96 100 83l22 13-22 13z"/>
+  </g>
+
+  <!-- 6: engraved rim -->
+  <g transform="translate(70 395)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hex)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="left" d="M44 96 100 64v84l-56-32z"/>
+    <path class="right" d="M100 64 156 96v84l-56-32z"/>
+    <path class="top" d="M44 96 100 64l56 32-56 32z"/>
+    <path class="line" d="M61 96 100 73l39 23-39 23z" stroke="#a6bfdc" stroke-width="7" opacity=".45"/>
+    <path class="dark" d="M78 96 100 84l22 12-22 13z"/>
+    <path class="amber" d="M156 96v84l-12 8v-84z"/>
+  </g>
+
+  <!-- 7: cool secondary facet -->
+  <g transform="translate(330 395)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hex)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="left" d="M44 96 100 64v84l-56-32z"/>
+    <path class="right" d="M100 64 156 96v84l-56-32z"/>
+    <path class="top" d="M44 96 100 64l56 32-56 32z"/>
+    <path class="cool" d="M100 64 156 96l-22 13-56-32z" opacity=".85"/>
+    <path class="dark" d="M73 96 100 81l27 15-27 15z"/>
+    <path class="amber" d="M156 96v84l-12 8v-84z"/>
+  </g>
+
+  <!-- 8: textured top plate -->
+  <g transform="translate(590 395)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hex)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="left" d="M44 96 100 64v84l-56-32z"/>
+    <path class="right" d="M100 64 156 96v84l-56-32z"/>
+    <path class="top" d="M44 96 100 64l56 32-56 32z"/>
+    <path d="M44 96 100 64l56 32-56 32z" fill="url(#fine)"/>
+    <path class="dark" d="M74 96 100 81l26 15-26 15z"/>
+    <path class="amber" d="M156 96v84l-13 8v-84z"/>
+  </g>
+
+  <!-- 9: deep side slot -->
+  <g transform="translate(850 395)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hex)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="left" d="M44 96 100 64v84l-56-32z"/>
+    <path class="right" d="M100 64 156 96v84l-56-32z"/>
+    <path class="top" d="M44 96 100 64l56 32-56 32z"/>
+    <path class="dark" d="M73 96 100 81l27 15-27 15z"/>
+    <path class="dark" d="M129 111h18v54l-18 11z" opacity=".7"/>
+    <path class="amber" d="M156 96v84l-18 12v-84z"/>
+  </g>
+
+  <!-- 10: tiny workbench notch -->
+  <g transform="translate(1110 395)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hex)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="left" d="M44 96 100 64v84l-56-32z"/>
+    <path class="right" d="M100 64 156 96v84l-56-32z"/>
+    <path class="top" d="M44 96 100 64l56 32-56 32z"/>
+    <path class="dark" d="M73 96 100 81l27 15-27 15z"/>
+    <path class="amber" d="M94 96 100 92l6 4v46h-12z"/>
+    <path class="edge" d="M44 96 100 128l56-32v8l-56 32-56-32z" opacity=".35"/>
+  </g>
+</svg>

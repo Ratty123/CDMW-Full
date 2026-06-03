@@ -1,0 +1,192 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="720" viewBox="0 0 1400 720">
+  <defs>
+    <linearGradient id="hexCold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#05101e"/>
+      <stop offset=".55" stop-color="#101d31"/>
+      <stop offset="1" stop-color="#344d6d"/>
+    </linearGradient>
+    <linearGradient id="hexGreen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07131f"/>
+      <stop offset=".56" stop-color="#14273a"/>
+      <stop offset="1" stop-color="#385d57"/>
+    </linearGradient>
+    <linearGradient id="hexViolet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#080f1f"/>
+      <stop offset=".55" stop-color="#151b34"/>
+      <stop offset="1" stop-color="#4c426f"/>
+    </linearGradient>
+    <linearGradient id="slabDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111d31"/>
+      <stop offset="1" stop-color="#020711"/>
+    </linearGradient>
+    <linearGradient id="steelTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6f8cad"/>
+      <stop offset="1" stop-color="#345371"/>
+    </linearGradient>
+    <linearGradient id="cyanTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7deaff"/>
+      <stop offset="1" stop-color="#238aa2"/>
+    </linearGradient>
+    <linearGradient id="amberTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd98a"/>
+      <stop offset="1" stop-color="#f28b18"/>
+    </linearGradient>
+    <linearGradient id="mintTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c0e9ca"/>
+      <stop offset="1" stop-color="#4e9e73"/>
+    </linearGradient>
+    <linearGradient id="roseTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eda1c2"/>
+      <stop offset="1" stop-color="#8c5274"/>
+    </linearGradient>
+    <linearGradient id="violetTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9697db"/>
+      <stop offset="1" stop-color="#565aa2"/>
+    </linearGradient>
+    <pattern id="grain" width="18" height="18" patternUnits="userSpaceOnUse">
+      <path d="M3 6h4M10 11h5M6 16h3" fill="none" stroke="#d0deef" stroke-width="1" opacity=".09"/>
+    </pattern>
+    <style>
+      .page { fill: #f3f0e8; }
+      .hexR { fill: #2a415f; }
+      .hexB { fill: #101d31; }
+      .hexDark { fill: #06111f; }
+      .front { fill: #020711; }
+      .side { fill: #203653; }
+      .side2 { fill: #263f5e; }
+      .shadow { fill: #000000; opacity: .25; }
+      .steel { fill: url(#steelTop); }
+      .cyan { fill: url(#cyanTop); }
+      .amber { fill: url(#amberTop); }
+      .mint { fill: url(#mintTop); }
+      .rose { fill: url(#roseTop); }
+      .violet { fill: url(#violetTop); }
+      .line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect class="page" width="1400" height="720"/>
+
+  <!-- 1: short violet tab -->
+  <g transform="translate(70 50)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hexCold)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path d="M43 99 100 67l58 33-58 32-57-33z" fill="url(#slabDark)"/>
+    <path class="steel" d="M100 132 158 100 100 67z"/>
+    <path class="front" d="M43 99v30l57 32v-29z"/>
+    <path class="side" d="M100 132h49v52l-49-23z"/>
+    <path class="violet" d="M149 132h22v48l-22 14z"/>
+  </g>
+
+  <!-- 2: cyan edge, no hanging tab -->
+  <g transform="translate(330 50)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hexCold)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path d="M42 100 100 66l61 35-61 34-58-35z" fill="url(#slabDark)"/>
+    <path class="steel" d="M100 135 161 101 100 66z"/>
+    <path class="front" d="M42 100v29l58 32v-26z"/>
+    <path class="side" d="M100 135h54v51l-54-25z"/>
+    <path class="cyan" d="M154 135h9v50l-9 6z"/>
+  </g>
+
+  <!-- 3: amber underside -->
+  <g transform="translate(590 50)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hexCold)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path d="M44 97 100 65l59 34-59 33-56-35z" fill="url(#slabDark)"/>
+    <path class="steel" d="M100 132 159 99 100 65z"/>
+    <path class="front" d="M44 97v30l56 33v-28z"/>
+    <path class="amber" d="M100 132h48v12l-48 28z"/>
+    <path class="side" d="M100 144h48v48l-48-20z"/>
+  </g>
+
+  <!-- 4: mint tab, shorter and wider -->
+  <g transform="translate(850 50)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hexGreen)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z" opacity=".85"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path d="M43 99 100 67l58 33-58 32-57-33z" fill="url(#slabDark)"/>
+    <path class="mint" d="M100 132 158 100 100 67z"/>
+    <path class="front" d="M43 99v30l57 32v-29z"/>
+    <path class="side" d="M100 132h46v51l-46-22z"/>
+    <path class="mint" d="M146 132h25v40l-25 15z"/>
+  </g>
+
+  <!-- 5: rose accent, inset side -->
+  <g transform="translate(1110 50)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hexViolet)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z" opacity=".9"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path d="M43 99 100 67l58 33-58 32-57-33z" fill="url(#slabDark)"/>
+    <path class="steel" d="M100 132 158 100 100 67z"/>
+    <path class="front" d="M43 99v30l57 32v-29z"/>
+    <path class="side" d="M100 132h55v53l-55-24z"/>
+    <path class="rose" d="M128 132h27v53l-27-12z"/>
+  </g>
+
+  <!-- 6: split top two colors -->
+  <g transform="translate(70 395)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hexCold)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path d="M43 99 100 67l58 33-58 32-57-33z" fill="url(#slabDark)"/>
+    <path class="cyan" d="M100 132 158 100 100 67z"/>
+    <path class="violet" d="M43 99 100 67v65z" opacity=".65"/>
+    <path class="front" d="M43 99v30l57 32v-29z"/>
+    <path class="side" d="M100 132h49v52l-49-23z"/>
+    <path class="violet" d="M149 132h18v45l-18 11z"/>
+  </g>
+
+  <!-- 7: thin light rim -->
+  <g transform="translate(330 395)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hexCold)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path d="M43 99 100 67l58 33-58 32-57-33z" fill="url(#slabDark)"/>
+    <path class="steel" d="M55 99 100 74l46 26-46 25z"/>
+    <path d="M64 99 100 79l37 21-37 20z" fill="url(#slabDark)"/>
+    <path class="front" d="M43 99v30l57 32v-29z"/>
+    <path class="side" d="M100 132h49v52l-49-23z"/>
+    <path class="violet" d="M149 132h18v44l-18 12z"/>
+  </g>
+
+  <!-- 8: hidden notch in slab -->
+  <g transform="translate(590 395)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hexCold)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path d="M43 99 100 67l58 33-58 32-57-33z" fill="url(#slabDark)"/>
+    <path class="steel" d="M100 132 158 100 100 67z"/>
+    <path class="front" d="M43 99v30l57 32v-29z"/>
+    <path class="side" d="M100 132h49v52l-49-23z"/>
+    <path d="M116 132h28v18l-28 16z" fill="#030914" opacity=".72"/>
+    <path class="amber" d="M149 132h18v45l-18 11z"/>
+  </g>
+
+  <!-- 9: textured slab, steel only -->
+  <g transform="translate(850 395)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hexCold)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path d="M43 99 100 67l58 33-58 32-57-33z" fill="url(#slabDark)"/>
+    <path d="M43 99 100 67l58 33-58 32-57-33z" fill="url(#grain)"/>
+    <path class="steel" d="M100 132 158 100 100 67z" opacity=".85"/>
+    <path class="front" d="M43 99v30l57 32v-29z"/>
+    <path class="side2" d="M100 132h57v48l-57-19z"/>
+  </g>
+
+  <!-- 10: small colored foot, not vertical -->
+  <g transform="translate(1110 395)">
+    <path d="M100 5 184 52v96l-84 48-84-48V52z" fill="url(#hexViolet)"/>
+    <path class="hexR" d="M100 5 184 52v96l-84-48z" opacity=".9"/>
+    <path class="hexB" d="M16 148 100 100l84 48-84 48z"/>
+    <path d="M43 99 100 67l58 33-58 32-57-33z" fill="url(#slabDark)"/>
+    <path class="steel" d="M100 132 158 100 100 67z"/>
+    <path class="front" d="M43 99v30l57 32v-29z"/>
+    <path class="side" d="M100 132h48v52l-48-23z"/>
+    <path class="rose" d="M117 160h31v19l-31 14z"/>
+  </g>
+</svg>

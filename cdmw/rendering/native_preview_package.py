@@ -1,8 +1,10 @@
 ﻿from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import shutil
 import struct
@@ -475,6 +477,12 @@ def _contains_token(name: str, *tokens: str) -> bool:
 def _technical_texture_kind(name: str) -> str:
     tokens = _suffix_tokens(name)
     lower = str(name or "").lower()
+    if (
+        any(token in tokens for token in ("specularglossiness", "specgloss", "speculargloss"))
+        or "specular_glossiness" in lower
+        or ("specular" in lower and "glossiness" in lower)
+    ):
+        return "specular_glossiness"
     if any(token in tokens for token in ("emi", "emissive", "glow", "illum", "emit")) or "emissive" in lower:
         return "emissive"
     if any(token in tokens for token in ("n", "normal")) or lower.endswith("_n.dds"):
@@ -483,8 +491,12 @@ def _technical_texture_kind(name: str) -> str:
         return "height"
     if any(token in tokens for token in ("sp", "spec", "specular")):
         return "specular"
+    if any(token in tokens for token in ("gloss", "glossiness", "smooth", "smoothness")):
+        return "glossiness"
     if any(token in tokens for token in ("rough", "roughness")):
         return "roughness"
+    if any(token in tokens for token in ("ao", "occlusion", "ambientocclusion")):
+        return "occlusion"
     if any(token in tokens for token in ("metal", "metallic", "metalness")):
         return "metalness"
     if any(token in tokens for token in ("ma", "orm", "rma", "mra", "arm")):
@@ -514,20 +526,30 @@ def _input_texture_kind(texture_input: PreviewMaterialTextureInput) -> str:
     )
     if slot_kind == "base" or semantic_type in {"base", "base_color", "diffuse", "albedo", "color"}:
         technical = _technical_texture_kind(names)
-        return "" if technical in {"normal", "height", "packed_material", "detail_mask", "opacity", "specular", "emissive"} else "base"
+        return "" if technical in {"normal", "height", "packed_material", "detail_mask", "opacity", "specular", "specular_glossiness", "emissive"} else "base"
     if slot_kind == "emissive" or semantic_type == "emissive" or semantic_subtype.startswith("emissive") or _contains_token(names, "emissive", "glow", "illum"):
         return "emissive"
     if slot_kind == "normal" or semantic_type == "normal" or _contains_token(names, "normal"):
         return "normal"
     if slot_kind == "height" or semantic_type in {"height", "displacement"} or _contains_token(names, "disp", "height"):
         return "height"
+    if slot_kind in {"ao", "occlusion"} or semantic_type in {"ao", "occlusion"} or semantic_subtype in {"ao", "occlusion"} or _contains_token(names, "ao", "occlusion"):
+        return "occlusion"
     packed_channels = tuple(
         str(channel or "").strip().lower()
         for channel in getattr(texture_input, "packed_channels", ())
         if str(channel or "").strip()
     )
+    if (
+        semantic_subtype in {"specular_glossiness", "specularglossiness", "gltf_specular_glossiness"}
+        or packed_channels[:2] == ("specular", "glossiness")
+        or "specularglossiness" in parameter_name.replace("_", "")
+    ):
+        return "specular_glossiness"
     if semantic_subtype in {"metallic_roughness", "gltf_metallic_roughness"} or packed_channels[:2] == ("roughness", "metallic"):
         return "packed_material"
+    if semantic_subtype in {"glossiness", "gloss", "smoothness", "smooth"} or _contains_token(names, "glossiness", "gloss", "smoothness"):
+        return "glossiness"
     if semantic_subtype in {"roughness", "rough"} or _contains_token(names, "roughness"):
         return "roughness"
     if semantic_subtype in {"metal", "metallic", "metalness"} or _contains_token(names, "metallic", "metalness"):
@@ -535,7 +557,7 @@ def _input_texture_kind(texture_input: PreviewMaterialTextureInput) -> str:
     if semantic_subtype in {"specular", "spec"} or _contains_token(names, "specular"):
         return "specular"
     technical = _technical_texture_kind(names)
-    if technical in {"specular", "roughness", "metalness", "height", "normal", "opacity", "packed_material", "detail_mask", "emissive"}:
+    if technical in {"specular", "specular_glossiness", "roughness", "glossiness", "metalness", "height", "normal", "opacity", "packed_material", "detail_mask", "emissive", "occlusion"}:
         return technical
     return ""
 
@@ -550,12 +572,18 @@ def _payload_material_slots(batch: PreparedModelPreviewBatch) -> Tuple[str, ...]
     descriptor = " ".join((subtype, " ".join(channels))).lower()
     if "opacity" in descriptor or channels == ("alpha",):
         return ()
+    if "specular_glossiness" in descriptor or channels[:2] == ("specular", "glossiness"):
+        return ("roughness", "specular")
     if subtype in {"orm", "rma", "mra"} or channels[:3] == ("ao", "roughness", "metallic"):
         return ("occlusion", "roughness", "metalness")
     if "material_mask" in descriptor or "mask" in descriptor:
         return ("roughness", "specular")
     if "roughness" in descriptor and ("metallic" in descriptor or "metalness" in descriptor):
         return ("roughness", "metalness")
+    if "occlusion" in descriptor or "ao" in descriptor:
+        return ("occlusion",)
+    if "glossiness" in descriptor or "gloss" in descriptor:
+        return ("roughness",)
     if "specular" in descriptor:
         return ("specular",)
     return ()
@@ -661,6 +689,16 @@ def build_native_preview_payloads(
     return tuple(payloads)
 
 
+def _link_or_copy_file(source: Path, target: Path) -> None:
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            target.unlink()
+        os.link(source, target)
+    except OSError:
+        shutil.copy2(source, target)
+
+
 def _copy_texture(
     source_path: str,
     *,
@@ -671,6 +709,7 @@ def _copy_texture(
     copy_cache: Dict[str, str],
     notes: list[str],
     max_dimension: int = 0,
+    persistent_cache_dir: Optional[Path] = None,
 ) -> str:
     raw = str(source_path or "").strip()
     if not raw:
@@ -690,7 +729,8 @@ def _copy_texture(
         return ""
     normalized_cap = max(0, int(max_dimension or 0))
     try:
-        key = f"{source.resolve()}|cap:{normalized_cap}".casefold()
+        stat = source.stat()
+        key = f"{source.resolve()}|size:{int(stat.st_size)}|mtime:{int(stat.st_mtime_ns)}|cap:{normalized_cap}".casefold()
     except OSError:
         key = f"{source}|cap:{normalized_cap}".casefold()
     cached = copy_cache.get(key)
@@ -700,11 +740,27 @@ def _copy_texture(
     resize_supported = source.suffix.lower() not in {".dds"} and normalized_cap > 0
     target_suffix = ".png" if resize_supported else suffix
     target = textures_dir / f"batch_{batch_index:03d}_{slot_name}_{len(copy_cache):03d}{target_suffix}"
+    write_target = target
+    cache_target: Optional[Path] = None
+    if persistent_cache_dir is not None:
+        try:
+            persistent_cache_dir.mkdir(parents=True, exist_ok=True)
+            key_hash = hashlib.sha1(key.encode("utf-8", errors="replace")).hexdigest()
+            cache_target = persistent_cache_dir / f"{key_hash}{target_suffix}"
+            if cache_target.is_file():
+                _link_or_copy_file(cache_target, target)
+                relative = target.relative_to(package_dir).as_posix()
+                copy_cache[key] = relative
+                return relative
+            write_target = cache_target
+        except OSError:
+            cache_target = None
+            write_target = target
     try:
         if resize_supported:
             image = QImage(str(source))
             if image.isNull():
-                shutil.copy2(source, target)
+                shutil.copy2(source, write_target)
             else:
                 capped = max(int(image.width()), int(image.height())) > normalized_cap
                 if capped:
@@ -714,13 +770,15 @@ def _copy_texture(
                         Qt.AspectRatioMode.KeepAspectRatio,
                         Qt.TransformationMode.FastTransformation,
                     )
-                if image.save(str(target), "PNG"):
+                if image.save(str(write_target), "PNG"):
                     if capped:
                         notes.append(f"{slot_name} preview texture capped:{normalized_cap}px")
                 else:
-                    shutil.copy2(source, target)
+                    shutil.copy2(source, write_target)
         else:
-            shutil.copy2(source, target)
+            shutil.copy2(source, write_target)
+        if cache_target is not None:
+            _link_or_copy_file(cache_target, target)
     except OSError as exc:
         notes.append(f"{slot_name} copy failed:{exc}")
         return ""
@@ -1068,6 +1126,205 @@ def _texture_slot_state(slot_name: str, textures: Mapping[str, str], dds_texture
     return state
 
 
+def _material_input_contract_slots(texture_input: PreviewMaterialTextureInput) -> Tuple[str, ...]:
+    slot_kind = str(getattr(texture_input, "slot_kind", "") or "").strip().lower()
+    semantic_type = str(getattr(texture_input, "semantic_type", "") or "").strip().lower()
+    semantic_subtype = str(getattr(texture_input, "semantic_subtype", "") or "").strip().lower()
+    parameter_name = str(getattr(texture_input, "parameter_name", "") or "").strip().lower()
+    packed_channels = tuple(
+        str(channel or "").strip().lower()
+        for channel in tuple(getattr(texture_input, "packed_channels", ()) or ())
+        if str(channel or "").strip()
+    )
+    descriptor = " ".join(
+        (
+            slot_kind,
+            semantic_type,
+            semantic_subtype,
+            parameter_name,
+            " ".join(packed_channels),
+            str(getattr(texture_input, "texture_name", "") or ""),
+            str(getattr(texture_input, "source_texture_path", "") or ""),
+            str(getattr(texture_input, "preview_texture_path", "") or ""),
+        )
+    ).lower()
+    compact_descriptor = descriptor.replace("_", "").replace("-", "").replace(" ", "")
+    slots: list[str] = []
+
+    def add(slot_name: str) -> None:
+        normalized = str(slot_name or "").strip().lower()
+        if normalized == "ao":
+            normalized = "occlusion"
+        elif normalized in {"metallic", "metal"}:
+            normalized = "metalness"
+        elif normalized in {"gloss", "smooth", "smoothness"}:
+            normalized = "glossiness"
+        if normalized in _NORMALIZED_MATERIAL_CONTRACT_SLOTS and normalized not in slots:
+            slots.append(normalized)
+
+    if "specularglossiness" in compact_descriptor or packed_channels[:2] == ("specular", "glossiness"):
+        add("specular_glossiness")
+        add("specular")
+        add("glossiness")
+    if semantic_subtype in {"metallic_roughness", "gltf_metallic_roughness"} or {"roughness", "metallic"} <= set(packed_channels):
+        if any(channel in {"ao", "occlusion", "ambientocclusion"} for channel in packed_channels):
+            add("occlusion")
+        add("roughness")
+        add("metalness")
+    if slot_kind in _NORMALIZED_MATERIAL_CONTRACT_SLOTS:
+        add(slot_kind)
+    if slot_kind in {"ao", "metallic"}:
+        add(slot_kind)
+    if semantic_type in {"base", "base_color", "diffuse", "albedo", "color", "normal", "height", "emissive", "opacity"}:
+        add("base" if semantic_type in {"base_color", "diffuse", "albedo", "color"} else semantic_type)
+    if semantic_type in {"ao", "occlusion", "metallic", "metalness", "roughness", "specular"}:
+        add(semantic_type)
+    if semantic_subtype in {"ao", "occlusion", "metallic", "metalness", "roughness", "specular", "glossiness", "opacity", "height", "emissive"}:
+        add(semantic_subtype)
+    if "clearcoat" in compact_descriptor:
+        add("clearcoat")
+    if "sheen" in compact_descriptor:
+        add("sheen")
+    if any(marker in compact_descriptor for marker in ("transmission", "volume", "thickness", "ior", "glass")):
+        add("transmission")
+    if any(marker in compact_descriptor for marker in ("opacity", "alpha", "transparent")):
+        add("opacity")
+    if "unlit" in compact_descriptor:
+        add("unlit")
+
+    technical = _input_texture_kind(texture_input)
+    if technical == "packed_material":
+        for channel in packed_channels:
+            add(channel)
+        if not packed_channels:
+            add("roughness")
+            add("metalness")
+    elif technical == "specular_glossiness":
+        add("specular_glossiness")
+        add("specular")
+        add("glossiness")
+    elif technical:
+        add(technical)
+    return tuple(slots)
+
+
+def _material_input_slot_state(slot_name: str, texture_input: PreviewMaterialTextureInput) -> Dict[str, object]:
+    preview_path = str(getattr(texture_input, "preview_texture_path", "") or "")
+    source_path = str(getattr(texture_input, "source_texture_path", "") or "")
+    source_dds_path = str(getattr(texture_input, "source_dds_path", "") or "")
+    confidence = str(getattr(texture_input, "confidence", "") or "").strip().lower() or "medium"
+    note_by_slot = {
+        "clearcoat": "source clearcoat recorded; native preview approximates it through specular response",
+        "sheen": "source sheen recorded; native preview approximates it through soft specular response",
+        "transmission": "source transmission/volume recorded; native preview does not render true glass",
+        "opacity": "source opacity recorded; not used as material mask to avoid opaque preview blackout",
+        "specular_glossiness": "source specular-glossiness recorded; preview generation decodes RGB specular and alpha glossiness",
+        "glossiness": "source glossiness recorded; preview generation inverts it to roughness where supported",
+        "unlit": "source unlit material recorded; native preview uses flat non-PBR material hints",
+    }
+    return {
+        "slot": slot_name,
+        "preview_path": preview_path,
+        "source_dds_path": source_dds_path,
+        "source_texture_path": source_path,
+        "source_width": 0,
+        "source_height": 0,
+        "direct_dds": False,
+        "status": "input_only" if (preview_path or source_path or source_dds_path) else "recorded",
+        "confidence": confidence,
+        "source_kind": "material_input",
+        "parameter_name": str(getattr(texture_input, "parameter_name", "") or ""),
+        "semantic_type": str(getattr(texture_input, "semantic_type", "") or ""),
+        "semantic_subtype": str(getattr(texture_input, "semantic_subtype", "") or ""),
+        "shader_family": str(getattr(texture_input, "shader_family", "") or ""),
+        "packed_channels": list(tuple(getattr(texture_input, "packed_channels", ()) or ())),
+        "diagnostic": note_by_slot.get(slot_name, "source material input recorded"),
+    }
+
+
+def _batch_has_unlit_material_hint(batch: PreparedModelPreviewBatch) -> bool:
+    overrides = getattr(batch, "preview_native_material_overrides", {}) or {}
+    if isinstance(overrides, Mapping) and str(overrides.get("material_shader_family", "") or "").strip().lower() == "gltf_unlit":
+        return True
+    for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ()):
+        if not isinstance(texture_input, PreviewMaterialTextureInput):
+            continue
+        for parameter in tuple(getattr(texture_input, "material_parameters", ()) or ()):
+            parameter_name = str(getattr(parameter, "parameter_name", "") or "").strip().lower()
+            if parameter_name == "_gltfunlit" or "gltfunlit" in parameter_name.replace("_", ""):
+                return True
+    return False
+
+
+def _normalized_material_texture_slot_states(
+    batch: PreparedModelPreviewBatch,
+    *,
+    textures: Mapping[str, str],
+    dds_textures: Mapping[str, object],
+) -> Dict[str, Dict[str, object]]:
+    states: Dict[str, Dict[str, object]] = {
+        slot_name: {
+            "slot": slot_name,
+            "preview_path": "",
+            "source_dds_path": "",
+            "source_width": 0,
+            "source_height": 0,
+            "direct_dds": False,
+            "status": "missing",
+            "confidence": "missing",
+            "source_kind": "missing",
+            "diagnostic": "texture slot unresolved",
+        }
+        for slot_name in _NORMALIZED_MATERIAL_CONTRACT_SLOTS
+    }
+
+    def assign(slot_name: str, state: Mapping[str, object], *, replace: bool = False) -> None:
+        current = states.get(slot_name)
+        if current is None:
+            return
+        if not replace and str(current.get("status", "") or "") != "missing":
+            return
+        updated = dict(state)
+        updated["slot"] = slot_name
+        states[slot_name] = updated
+
+    for slot_name in ("base", "normal", "occlusion", "roughness", "metalness", "specular", "height", "emissive"):
+        state = _texture_slot_state(slot_name, textures, dds_textures)
+        if str(state.get("status", "") or "") != "missing":
+            assign(slot_name, state, replace=True)
+
+    packed_state = _texture_slot_state("material", textures, dds_textures)
+    if str(packed_state.get("status", "") or "") != "missing":
+        for slot_name in ("occlusion", "roughness", "metalness"):
+            if str(states[slot_name].get("status", "") or "") != "missing":
+                continue
+            state = dict(packed_state)
+            state["source_kind"] = "packed_material"
+            state["diagnostic"] = f"packed material texture supplies {slot_name}"
+            assign(slot_name, state, replace=True)
+
+    for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ()):
+        if not isinstance(texture_input, PreviewMaterialTextureInput):
+            continue
+        for slot_name in _material_input_contract_slots(texture_input):
+            assign(slot_name, _material_input_slot_state(slot_name, texture_input))
+
+    if _batch_has_unlit_material_hint(batch):
+        states["unlit"] = {
+            "slot": "unlit",
+            "preview_path": "",
+            "source_dds_path": "",
+            "source_width": 0,
+            "source_height": 0,
+            "direct_dds": False,
+            "status": "recorded",
+            "confidence": "high",
+            "source_kind": "material_parameter",
+            "diagnostic": "source unlit material recorded; native preview uses flat non-PBR material hints",
+        }
+    return states
+
+
 def _material_sidecar_paths(batch: PreparedModelPreviewBatch) -> list[str]:
     paths: list[str] = []
     seen: set[str] = set()
@@ -1118,11 +1375,31 @@ def _material_decode_profile(
 
 
 _MATERIAL_CONTRACT_SLOTS = ("base", "normal", "material", "occlusion", "roughness", "metalness", "specular", "height", "emissive")
+_NORMALIZED_MATERIAL_CONTRACT_SLOTS = (
+    "base",
+    "normal",
+    "occlusion",
+    "roughness",
+    "metalness",
+    "specular",
+    "glossiness",
+    "specular_glossiness",
+    "emissive",
+    "opacity",
+    "height",
+    "clearcoat",
+    "sheen",
+    "transmission",
+    "unlit",
+)
 
 
-def _material_slot_diagnostics(slot_states: Mapping[str, Mapping[str, object]]) -> list[Dict[str, object]]:
+def _material_slot_diagnostics(
+    slot_states: Mapping[str, Mapping[str, object]],
+    slot_order: Sequence[str] = _MATERIAL_CONTRACT_SLOTS,
+) -> list[Dict[str, object]]:
     diagnostics: list[Dict[str, object]] = []
-    for slot_name in _MATERIAL_CONTRACT_SLOTS:
+    for slot_name in tuple(slot_order or ()):
         slot = slot_states.get(slot_name, {})
         diagnostics.append(
             {
@@ -1153,6 +1430,11 @@ def _material_contract_for_batch(
         slot_name: _texture_slot_state(slot_name, textures, dds_textures)
         for slot_name in _MATERIAL_CONTRACT_SLOTS
     }
+    normalized_slot_states = _normalized_material_texture_slot_states(
+        batch,
+        textures=textures,
+        dds_textures=dds_textures,
+    )
     packed_channels = list(tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ()))
     normalized_channels = [str(channel or "").strip().lower() for channel in packed_channels]
     divergence_reasons: list[str] = []
@@ -1166,7 +1448,15 @@ def _material_contract_for_batch(
         divergence_reasons.append("missing source roughness uses factor/profile fallback")
     if not any(slot_states.get(slot, {}).get("status") != "missing" for slot in ("metalness", "material")):
         divergence_reasons.append("missing source metallic uses factor/profile fallback")
+    if str(normalized_slot_states.get("opacity", {}).get("status", "") or "") != "missing":
+        divergence_reasons.append("opacity texture recorded but not used as material response map")
+    if str(normalized_slot_states.get("transmission", {}).get("status", "") or "") != "missing":
+        divergence_reasons.append("transmission/volume recorded but native preview does not render true glass")
     slot_diagnostics = _material_slot_diagnostics(slot_states)
+    normalized_slot_diagnostics = _material_slot_diagnostics(
+        normalized_slot_states,
+        _NORMALIZED_MATERIAL_CONTRACT_SLOTS,
+    )
     present_slots = sum(1 for slot in slot_states.values() if str(slot.get("status", "")) != "missing")
     return {
         "schema_version": MATERIAL_CONTRACT_SCHEMA_VERSION,
@@ -1183,7 +1473,9 @@ def _material_contract_for_batch(
         "material_hints": hints,
         "texture_slots": slot_states,
         "resolved_texture_slots": slot_states,
+        "normalized_texture_slots": normalized_slot_states,
         "slot_diagnostics": slot_diagnostics,
+        "normalized_slot_diagnostics": normalized_slot_diagnostics,
         "source_sidecar_paths": _material_sidecar_paths(batch),
         "packed_channels": packed_channels,
         "preview_modes": {
@@ -1346,7 +1638,7 @@ def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[s
     specular_hint = max(specular_values) if specular_values else 0.0
     if metalness_hint > 0.02:
         specular_hint = max(specular_hint, 0.14 + (metalness_hint * 0.32))
-    return {
+    hints: Dict[str, object] = {
         "shader_families": list(shader_families[:4]),
         "roughness": round(float(max(0.0, min(1.0, roughness_hint))), 4),
         "metalness": round(float(max(0.0, min(1.0, metalness_hint * 0.42))), 4),
@@ -1357,6 +1649,24 @@ def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[s
         "emissive_active": bool(emissive_values and max(emissive_values) > 0.0),
         "source": "sidecar_parameters" if any((roughness_values, metalness_values, specular_values, height_values, emissive_values)) else "",
     }
+    overrides = getattr(batch, "preview_native_material_overrides", None)
+    if isinstance(overrides, Mapping):
+        override_hints = overrides.get("native_material_hints")
+        if isinstance(override_hints, Mapping):
+            for key in ("roughness", "metalness", "specular", "height_scale", "emissive_intensity"):
+                if key in override_hints:
+                    hints[key] = round(float(max(0.0, min(32.0 if key == "emissive_intensity" else 1.0, _safe_float(override_hints.get(key), _safe_float(hints.get(key), 0.0))))), 4)
+            if str(override_hints.get("emissive_color", "") or "").strip():
+                hints["emissive_color"] = str(override_hints.get("emissive_color", "") or "").strip()
+        for key in ("roughness", "metalness", "specular", "height_scale", "emissive_intensity"):
+            if key in overrides:
+                hints[key] = round(float(max(0.0, min(32.0 if key == "emissive_intensity" else 1.0, _safe_float(overrides.get(key), _safe_float(hints.get(key), 0.0))))), 4)
+        if str(overrides.get("emissive_color", "") or "").strip():
+            hints["emissive_color"] = str(overrides.get("emissive_color", "") or "").strip()
+        if any(key in overrides for key in ("roughness", "metalness", "specular", "height_scale", "emissive_intensity", "emissive_color")) or isinstance(override_hints, Mapping):
+            hints["source"] = "native_material_overrides"
+            hints["emissive_active"] = bool(_safe_float(hints.get("emissive_intensity"), 0.0) > 0.0)
+    return hints
 
 
 def _slot_has_resolved_texture(
@@ -1675,8 +1985,29 @@ def _material_input_to_dict(texture_input: PreviewMaterialTextureInput) -> Dict[
     }
 
 
+def _manifest_material_diagnostics(material_contract: Mapping[str, object]) -> list[Dict[str, object]]:
+    diagnostics: list[Dict[str, object]] = [
+        dict(item)
+        for item in tuple(material_contract.get("slot_diagnostics", ()) or ())
+        if isinstance(item, Mapping)
+    ]
+    native_slots = set(_MATERIAL_CONTRACT_SLOTS)
+    for item in tuple(material_contract.get("normalized_slot_diagnostics", ()) or ()):
+        if not isinstance(item, Mapping):
+            continue
+        slot_name = str(item.get("slot", "") or "")
+        status = str(item.get("status", "") or "")
+        if status == "missing":
+            continue
+        if slot_name in native_slots and status in {"direct_dds", "preview_png"}:
+            continue
+        diagnostics.append(dict(item))
+    return diagnostics
+
+
 _NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
     {
+        "alpha_threshold",
         "base_tint_strength",
         "height_amount",
         "height_scale",
@@ -1960,7 +2291,7 @@ def _filter_dds_textures_for_preview_settings(
             return "normal"
         if technical == "height" or "displacement" in descriptor:
             return "height"
-        if technical in {"packed_material", "detail_mask", "specular", "roughness", "metalness"}:
+        if technical in {"packed_material", "detail_mask", "specular", "roughness", "glossiness", "metalness", "occlusion"}:
             return "material"
         if any(token in descriptor for token in ("roughness", "metallic", "metalness", "occlusion", "materialmask")):
             return "material"
@@ -2036,6 +2367,7 @@ def _texture_sources_for_batch(
     prefer_direct_dds: bool = False,
     direct_dds_slots: Optional[Mapping[str, object]] = None,
     legacy_pbr_cache: Optional[Dict[Tuple[str, int], Dict[str, str]]] = None,
+    persistent_texture_cache_dir: Optional[Path] = None,
 ) -> Tuple[Dict[str, str], Tuple[str, ...], Dict[str, object]]:
     notes: list[str] = []
     textures: Dict[str, str] = {
@@ -2153,6 +2485,7 @@ def _texture_sources_for_batch(
                 return True
             elif normalized_kind in {"material", "packed_material", "occlusion"} and (
                 technical == "packed_material"
+                or technical == "occlusion"
                 or "material_mask" in descriptor
                 or "packed_mask" in descriptor
                 or "_ma" in descriptor
@@ -2221,6 +2554,7 @@ def _texture_sources_for_batch(
                 copy_cache=copy_cache,
                 notes=notes,
                 max_dimension=base_copy_cap if slot_name == "base" else support_copy_cap,
+                persistent_cache_dir=persistent_texture_cache_dir,
             )
 
     base_path = str(getattr(batch, "preview_texture_path", "") or "")
@@ -2237,6 +2571,7 @@ def _texture_sources_for_batch(
                 copy_cache=copy_cache,
                 notes=notes,
                 max_dimension=base_copy_cap,
+                persistent_cache_dir=persistent_texture_cache_dir,
             )
     else:
         notes.append("no reliable base DDS")
@@ -2254,6 +2589,7 @@ def _texture_sources_for_batch(
                 copy_cache=copy_cache,
                 notes=notes,
                 max_dimension=support_copy_cap,
+                persistent_cache_dir=persistent_texture_cache_dir,
             )
     if support_enabled and not bool(getattr(render_settings, "disable_height_map", False)):
         if has_direct_dds("height"):
@@ -2268,6 +2604,7 @@ def _texture_sources_for_batch(
                 copy_cache=copy_cache,
                 notes=notes,
                 max_dimension=support_copy_cap,
+                persistent_cache_dir=persistent_texture_cache_dir,
             )
 
     material_path = str(getattr(batch, "preview_material_texture_path", "") or "")
@@ -2371,16 +2708,22 @@ def _texture_sources_for_batch(
         except Exception as exc:
             notes.append(f"material combiner failed:{exc}")
 
-    def assign_kind(kind: str, source_path: str, label: str) -> None:
+    def assign_kind(
+        kind: str,
+        texture_source_path: str,
+        label: str,
+        texture_input: Optional[PreviewMaterialTextureInput] = None,
+    ) -> None:
+        nonlocal combiner_metadata
         combiner_decoded = bool(tuple(combiner_metadata.get("decode_modes", ()) or ()) or tuple(combiner_metadata.get("outputs", ()) or ()))
         if kind in {"base", "normal", "height"}:
             if textures.get(kind):
                 return
-            if prefer_direct_dds and _preview_source_has_direct_dds_upload(source_path):
+            if prefer_direct_dds and _preview_source_has_direct_dds_upload(texture_source_path):
                 notes.append(f"{kind} PNG fallback skipped; direct DDS material input available")
                 return
             textures[kind] = _copy_texture(
-                source_path,
+                texture_source_path,
                 package_dir=package_dir,
                 textures_dir=textures_dir,
                 batch_index=batch_index,
@@ -2388,16 +2731,17 @@ def _texture_sources_for_batch(
                 copy_cache=copy_cache,
                 notes=notes,
                 max_dimension=base_copy_cap if kind == "base" else support_copy_cap,
+                persistent_cache_dir=persistent_texture_cache_dir,
             )
             return
         if kind == "emissive":
             if textures.get(kind):
                 return
-            if prefer_direct_dds and _preview_source_has_direct_dds_upload(source_path):
+            if prefer_direct_dds and _preview_source_has_direct_dds_upload(texture_source_path):
                 notes.append("emissive PNG fallback skipped; direct DDS material input available")
                 return
             textures[kind] = _copy_texture(
-                source_path,
+                texture_source_path,
                 package_dir=package_dir,
                 textures_dir=textures_dir,
                 batch_index=batch_index,
@@ -2405,6 +2749,183 @@ def _texture_sources_for_batch(
                 copy_cache=copy_cache,
                 notes=notes,
                 max_dimension=support_copy_cap,
+                persistent_cache_dir=persistent_texture_cache_dir,
+            )
+            return
+        if kind == "specular_glossiness":
+            if not support_enabled or bool(getattr(render_settings, "disable_material_map", False)):
+                return
+            if textures.get("roughness") and textures.get("specular"):
+                return
+            try:
+                from cdmw.ui.model_preview_material_combiner import (
+                    MaterialPreviewCombinerSettings,
+                    combine_preview_material,
+                )
+
+                spec_gloss_input = texture_input
+                if spec_gloss_input is None:
+                    spec_gloss_input = PreviewMaterialTextureInput(
+                        slot_kind="material",
+                        parameter_name="_specularGlossinessTexture",
+                        source_texture_path=texture_source_path,
+                        texture_name=label,
+                        preview_texture_path=texture_source_path,
+                        semantic_type="specular",
+                        semantic_subtype="specular_glossiness",
+                        packed_channels=("specular", "glossiness"),
+                    )
+                combiner_payload = SimpleNamespace(
+                    material_name=str(getattr(batch, "material_name", "") or ""),
+                    texture_name=str(getattr(batch, "texture_name", "") or ""),
+                    texture_flip_vertical=resolve_preview_texture_flip_vertical(
+                        getattr(batch, "preview_texture_flip_vertical", None),
+                        source_format=source_format,
+                        source_path=source_path,
+                    ),
+                    material_texture_inputs=(spec_gloss_input,),
+                    tangents_usable=bool(tangents_usable),
+                    normal_texture_strength=max(
+                        0.0,
+                        _safe_float(getattr(batch, "preview_normal_texture_strength", 0.0), 0.0),
+                    ),
+                )
+                combiner_settings = MaterialPreviewCombinerSettings(
+                    normal_strength_floor=max(0.0, _safe_float(getattr(render_settings, "normal_strength_floor", 0.5), 0.5)),
+                    normal_strength_cap=max(0.0, _safe_float(getattr(render_settings, "normal_strength_cap", 1.0), 1.0)),
+                    height_amount=max(0.0, min(0.12, _safe_float(getattr(render_settings, "height_effect_max", 0.35), 0.35) * 0.08)),
+                    support_map_max_dimension=min(192, int(getattr(render_settings, "low_quality_texture_max_dimension", 192) or 192)),
+                )
+                combined = combine_preview_material(
+                    combiner_payload,
+                    textures_dir / "combined",
+                    batch_index,
+                    settings=combiner_settings,
+                )
+                notes.extend(str(note) for note in tuple(combined.notes or ()) if str(note))
+                if combined.roughness_source and not textures.get("roughness"):
+                    textures["roughness"] = package_relative(combined.roughness_source, "roughness")
+                if combined.specular_source and not textures.get("specular"):
+                    textures["specular"] = package_relative(combined.specular_source, "specular")
+                if combined.active:
+                    combiner_metadata = {
+                        "active": True,
+                        "outputs": tuple(
+                            dict.fromkeys(tuple(combiner_metadata.get("outputs", ()) or ()) + tuple(combined.outputs or ()))
+                        ),
+                        "decode_modes": tuple(
+                            dict.fromkeys(tuple(combiner_metadata.get("decode_modes", ()) or ()) + tuple(combined.decode_modes or ()))
+                        ),
+                        "notes": tuple(
+                            dict.fromkeys(tuple(combiner_metadata.get("notes", ()) or ()) + tuple(combined.notes or ()))
+                        ),
+                        "texture_flip_vertical": bool(combined.texture_flip_vertical),
+                    }
+                if textures.get("roughness") or textures.get("specular"):
+                    return
+            except Exception as exc:
+                notes.append(f"specular-glossiness split failed:{exc}")
+            if not textures.get("specular"):
+                textures["specular"] = _copy_texture(
+                    texture_source_path,
+                    package_dir=package_dir,
+                    textures_dir=textures_dir,
+                    batch_index=batch_index,
+                    slot_name="specular",
+                    copy_cache=copy_cache,
+                    notes=notes,
+                    max_dimension=support_copy_cap,
+                    persistent_cache_dir=persistent_texture_cache_dir,
+                )
+            notes.append(f"specular-glossiness roughness unavailable:{label}")
+            return
+        if kind == "glossiness":
+            if not support_enabled or bool(getattr(render_settings, "disable_material_map", False)):
+                return
+            if textures.get("roughness"):
+                return
+            try:
+                from cdmw.ui.model_preview_material_combiner import (
+                    MaterialPreviewCombinerSettings,
+                    combine_preview_material,
+                )
+
+                gloss_input = texture_input
+                if gloss_input is None:
+                    gloss_input = PreviewMaterialTextureInput(
+                        slot_kind="glossiness",
+                        parameter_name="_glossinessTexture",
+                        source_texture_path=texture_source_path,
+                        texture_name=label,
+                        preview_texture_path=texture_source_path,
+                        semantic_type="roughness",
+                        semantic_subtype="glossiness",
+                        packed_channels=("glossiness",),
+                    )
+                combiner_payload = SimpleNamespace(
+                    material_name=str(getattr(batch, "material_name", "") or ""),
+                    texture_name=str(getattr(batch, "texture_name", "") or ""),
+                    texture_flip_vertical=resolve_preview_texture_flip_vertical(
+                        getattr(batch, "preview_texture_flip_vertical", None),
+                        source_format=source_format,
+                        source_path=source_path,
+                    ),
+                    material_texture_inputs=(gloss_input,),
+                    tangents_usable=bool(tangents_usable),
+                    normal_texture_strength=max(
+                        0.0,
+                        _safe_float(getattr(batch, "preview_normal_texture_strength", 0.0), 0.0),
+                    ),
+                )
+                combined = combine_preview_material(
+                    combiner_payload,
+                    textures_dir / "combined",
+                    batch_index,
+                    settings=MaterialPreviewCombinerSettings(
+                        support_map_max_dimension=min(192, int(getattr(render_settings, "low_quality_texture_max_dimension", 192) or 192)),
+                    ),
+                )
+                notes.extend(str(note) for note in tuple(combined.notes or ()) if str(note))
+                if combined.roughness_source and not textures.get("roughness"):
+                    textures["roughness"] = package_relative(combined.roughness_source, "roughness")
+                if combined.active:
+                    combiner_metadata = {
+                        "active": True,
+                        "outputs": tuple(
+                            dict.fromkeys(tuple(combiner_metadata.get("outputs", ()) or ()) + tuple(combined.outputs or ()))
+                        ),
+                        "decode_modes": tuple(
+                            dict.fromkeys(tuple(combiner_metadata.get("decode_modes", ()) or ()) + tuple(combined.decode_modes or ()))
+                        ),
+                        "notes": tuple(
+                            dict.fromkeys(tuple(combiner_metadata.get("notes", ()) or ()) + tuple(combined.notes or ()))
+                        ),
+                        "texture_flip_vertical": bool(combined.texture_flip_vertical),
+                    }
+                if textures.get("roughness"):
+                    return
+            except Exception as exc:
+                notes.append(f"glossiness split failed:{exc}")
+            notes.append(f"glossiness roughness unavailable:{label}")
+            return
+        if kind == "occlusion":
+            if not support_enabled or bool(getattr(render_settings, "disable_material_map", False)):
+                return
+            if textures.get("occlusion"):
+                return
+            if prefer_direct_dds and _preview_source_has_direct_dds_upload(texture_source_path):
+                notes.append("occlusion PNG fallback skipped; direct DDS material input available")
+                return
+            textures["occlusion"] = _copy_texture(
+                texture_source_path,
+                package_dir=package_dir,
+                textures_dir=textures_dir,
+                batch_index=batch_index,
+                slot_name="occlusion",
+                copy_cache=copy_cache,
+                notes=notes,
+                max_dimension=support_copy_cap,
+                persistent_cache_dir=persistent_texture_cache_dir,
             )
             return
         if kind in {"roughness", "metalness", "specular"}:
@@ -2412,11 +2933,11 @@ def _texture_sources_for_batch(
                 return
             if textures.get(kind):
                 return
-            if prefer_direct_dds and _preview_source_has_direct_dds_upload(source_path):
+            if prefer_direct_dds and _preview_source_has_direct_dds_upload(texture_source_path):
                 notes.append(f"{kind} PNG fallback skipped; direct DDS material input available")
                 return
             textures[kind] = _copy_texture(
-                source_path,
+                texture_source_path,
                 package_dir=package_dir,
                 textures_dir=textures_dir,
                 batch_index=batch_index,
@@ -2424,6 +2945,7 @@ def _texture_sources_for_batch(
                 copy_cache=copy_cache,
                 notes=notes,
                 max_dimension=support_copy_cap,
+                persistent_cache_dir=persistent_texture_cache_dir,
             )
             return
         if kind in {"packed_material", "detail_mask"}:
@@ -2431,11 +2953,11 @@ def _texture_sources_for_batch(
                 return
             if textures.get("material"):
                 return
-            if prefer_direct_dds and _preview_source_has_direct_dds_upload(source_path):
+            if prefer_direct_dds and _preview_source_has_direct_dds_upload(texture_source_path):
                 notes.append(f"{kind} PNG fallback skipped; direct DDS material input available")
                 return
             textures["material"] = _copy_texture(
-                source_path,
+                texture_source_path,
                 package_dir=package_dir,
                 textures_dir=textures_dir,
                 batch_index=batch_index,
@@ -2443,6 +2965,7 @@ def _texture_sources_for_batch(
                 copy_cache=copy_cache,
                 notes=notes,
                 max_dimension=support_copy_cap,
+                persistent_cache_dir=persistent_texture_cache_dir,
             )
             return
         elif kind == "opacity":
@@ -2468,7 +2991,7 @@ def _texture_sources_for_batch(
         if kind and prefer_direct_dds and _direct_material_input_available_for(kind, texture_input):
             notes.append(f"{kind} PNG fallback skipped; direct DDS material input available")
             continue
-        assign_kind(kind, source, label)
+        assign_kind(kind, source, label, texture_input)
 
     return textures, tuple(dict.fromkeys(note for note in notes if note)), combiner_metadata
 
@@ -2506,6 +3029,9 @@ def write_isolated_d3d11_preview_package(
     original_reference_material_parity: bool = True,
     display_mode: str = "replacement_only",
     editor_workspace: str = "",
+    geometry_cache_dir: Optional[Path] = None,
+    texture_cache_dir: Optional[Path] = None,
+    geometry_cache_key: str = "",
     stop_event: object = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> Path:
@@ -2573,7 +3099,26 @@ def write_isolated_d3d11_preview_package(
             continue
         usable_blob = blob[: vertex_count * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES]
         geometry_path = geometry_dir / f"batch_{batch_index:03d}.bin"
-        geometry_path.write_bytes(usable_blob)
+        cached_geometry_path: Optional[Path] = None
+        if geometry_cache_dir is not None and str(geometry_cache_key or "").strip():
+            try:
+                geometry_cache_dir.mkdir(parents=True, exist_ok=True)
+                geometry_digest = hashlib.sha1(usable_blob).hexdigest()
+                safe_geometry_key = hashlib.sha1(
+                    str(geometry_cache_key or "").encode("utf-8", errors="replace")
+                ).hexdigest()
+                cached_geometry_path = geometry_cache_dir / (
+                    f"{safe_geometry_key}_batch_{batch_index:03d}_{vertex_count}_{geometry_digest}.bin"
+                )
+                if cached_geometry_path.is_file():
+                    _link_or_copy_file(cached_geometry_path, geometry_path)
+                else:
+                    cached_geometry_path.write_bytes(usable_blob)
+                    _link_or_copy_file(cached_geometry_path, geometry_path)
+            except OSError:
+                cached_geometry_path = None
+        if cached_geometry_path is None:
+            geometry_path.write_bytes(usable_blob)
         if stop_event is not None and getattr(stop_event, "is_set", lambda: False)():
             raise RunCancelled("D3D11 package write cancelled.")
         editor_identity = _write_editor_identity_blob(
@@ -2630,6 +3175,7 @@ def write_isolated_d3d11_preview_package(
             prefer_direct_dds=batch_prefer_direct_dds,
             direct_dds_slots=dds_textures,
             legacy_pbr_cache=legacy_pbr_cache,
+            persistent_texture_cache_dir=Path(texture_cache_dir).expanduser() if texture_cache_dir else None,
         )
         if material_policy == "original_reference_archive_direct":
             notes = tuple(notes) + (
@@ -2786,7 +3332,7 @@ def write_isolated_d3d11_preview_package(
                     "specular_hint": _safe_float(material_hints.get("specular"), 0.08),
                     "emissive_intensity": _safe_float(material_hints.get("emissive_intensity"), 0.0),
                 },
-                "material_diagnostics": list(tuple(material_contract.get("slot_diagnostics", ()) or ())),
+                "material_diagnostics": _manifest_material_diagnostics(material_contract),
                 "prefer_generated_base_texture": prefer_generated_base_texture,
                 "texture_quality": texture_quality,
                 "notes": list(notes),

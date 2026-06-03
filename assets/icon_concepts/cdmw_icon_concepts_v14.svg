@@ -1,0 +1,239 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1440" viewBox="0 0 1800 1440">
+  <defs>
+    <linearGradient id="navy" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#050d18"/>
+      <stop offset=".55" stop-color="#111c2f"/>
+      <stop offset="1" stop-color="#344e70"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#86a3c1"/>
+      <stop offset="1" stop-color="#334e6e"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#76efff"/>
+      <stop offset="1" stop-color="#168aa3"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd98a"/>
+      <stop offset="1" stop-color="#f28b18"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9b92e5"/>
+      <stop offset="1" stop-color="#514c96"/>
+    </linearGradient>
+    <linearGradient id="mint" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#bfe8c7"/>
+      <stop offset="1" stop-color="#478d67"/>
+    </linearGradient>
+    <linearGradient id="rose" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#efa3c2"/>
+      <stop offset="1" stop-color="#8a4d70"/>
+    </linearGradient>
+    <pattern id="grain" width="18" height="18" patternUnits="userSpaceOnUse">
+      <path d="M3 6h4M10 11h5M6 16h3" fill="none" stroke="#d0deef" stroke-width="1" opacity=".1"/>
+    </pattern>
+    <style>
+      .page { fill: #f3f0e8; }
+      .ink { fill: #07111f; }
+      .ink2 { fill: #101d31; }
+      .ink3 { fill: #263d5c; }
+      .black { fill: #020711; }
+      .navy { fill: url(#navy); }
+      .steel { fill: url(#steel); }
+      .cyan { fill: url(#cyan); }
+      .amber { fill: url(#amber); }
+      .violet { fill: url(#violet); }
+      .mint { fill: url(#mint); }
+      .rose { fill: url(#rose); }
+      .bone { fill: #f1eadb; }
+      .white { fill: #ffffff; }
+      .shadow { fill: #000000; opacity: .23; }
+      .line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect class="page" width="1800" height="1440"/>
+
+  <!-- 1 -->
+  <g transform="translate(80 60)">
+    <path class="navy" d="M100 5 184 52v96l-84 48-84-48V52z"/>
+    <path class="ink3" d="M100 5 184 52v96l-84-48z"/>
+    <path class="ink2" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="black" d="M45 98 100 67l58 33-58 32-55-34z"/>
+    <path class="steel" d="M100 132 158 100 100 67z"/>
+    <path class="violet" d="M148 132h18v44l-18 12z"/>
+  </g>
+
+  <!-- 2 -->
+  <g transform="translate(420 60)">
+    <circle class="navy" cx="100" cy="100" r="92"/>
+    <path class="cyan" d="M100 8a92 92 0 0 1 81 136L100 100z"/>
+    <path class="ink" d="M50 98c30-50 78-67 139-56-17 52-57 88-120 107z"/>
+    <path class="bone" d="M64 99 105 54h39l-39 45 39 45h-40z"/>
+  </g>
+
+  <!-- 3 -->
+  <g transform="translate(760 60)">
+    <path class="navy" d="M22 56c16-36 56-54 98-46 47 9 77 46 74 93-3 54-49 92-104 86-45-5-78-36-82-79z"/>
+    <path class="violet" d="M114 13c45 10 76 47 73 94-3 53-48 91-102 86l36-93z" opacity=".75"/>
+    <path class="cyan" d="M53 117c39-14 73-43 102-87-3 72-39 119-108 142z"/>
+  </g>
+
+  <!-- 4 -->
+  <g transform="translate(1100 60)">
+    <path class="ink" d="M28 44h144v144H28z"/>
+    <path class="ink3" d="M28 44h144L130 2H70z"/>
+    <path class="navy" d="M28 44 70 2h60l42 42H28z"/>
+    <path class="black" d="M67 81h66v68H67z"/>
+    <path class="amber" d="M91 108h18v41H91z"/>
+    <path class="steel" d="M67 81h66l-33 25z"/>
+  </g>
+
+  <!-- 5 -->
+  <g transform="translate(1440 60)">
+    <path class="navy" d="M100 5 184 52v96l-84 48-84-48V52z"/>
+    <path class="ink3" d="M100 5 184 52v96l-84-48z"/>
+    <path class="line" d="M48 67c36-23 78-27 124-10" stroke="#87a5c7" stroke-width="9" opacity=".52"/>
+    <path class="line" d="M37 102c47-30 100-33 158-8" stroke="#87a5c7" stroke-width="8" opacity=".42"/>
+    <path class="line" d="M48 139c39-17 82-17 129 1" stroke="#87a5c7" stroke-width="8" opacity=".35"/>
+    <path class="black" d="M71 85h73l-35 39h45l-43 41H61l34-40H58z"/>
+  </g>
+
+  <!-- 6 -->
+  <g transform="translate(80 390)">
+    <path class="navy" d="M25 41 98 3l77 42v112l-78 42-72-42z"/>
+    <path class="cyan" d="M98 3 175 45l-77 43z"/>
+    <path class="ink" d="M25 41 98 88v111l-72-42z"/>
+    <path class="ink3" d="M98 88 175 45v112l-78 42z"/>
+    <path class="bone" d="M61 80h76v40H61z" opacity=".85"/>
+    <path class="amber" d="M78 99h43v20H78z"/>
+  </g>
+
+  <!-- 7 -->
+  <g transform="translate(420 390)">
+    <path class="ink" d="M100 4 187 101 100 196 13 101z"/>
+    <path class="ink3" d="M100 4 187 101 100 196z"/>
+    <path class="steel" d="M100 38 155 101 100 162 45 101z"/>
+    <path class="black" d="M100 69 128 101 100 132 72 101z"/>
+    <path class="cyan" d="M100 38 155 101h-27l-28-32z"/>
+  </g>
+
+  <!-- 8 -->
+  <g transform="translate(760 390)">
+    <path class="navy" d="M100 4 178 39v68c0 63-78 94-78 94S22 170 22 107V39z"/>
+    <path class="ink3" d="M100 4 178 39v68c0 63-78 94-78 94z"/>
+    <path class="black" d="M60 69h80v73H60z"/>
+    <path class="mint" d="M76 85h48v27H76z"/>
+    <path class="amber" d="M124 85h16v57h-16z"/>
+  </g>
+
+  <!-- 9 -->
+  <g transform="translate(1100 390)">
+    <rect class="navy" x="24" y="24" width="152" height="152" rx="34"/>
+    <rect class="ink" x="54" y="54" width="44" height="44" rx="10"/>
+    <rect class="ink3" x="98" y="54" width="44" height="44" rx="10"/>
+    <rect class="steel" x="54" y="98" width="44" height="44" rx="10"/>
+    <rect class="cyan" x="98" y="98" width="44" height="44" rx="10"/>
+    <path class="black" d="M72 72h56v56H72z" opacity=".42"/>
+  </g>
+
+  <!-- 10 -->
+  <g transform="translate(1440 390)">
+    <path class="navy" d="M44 13h112l31 62-87 112L13 75z"/>
+    <path class="ink3" d="M156 13 187 75l-87 112V76z"/>
+    <path class="black" d="M44 13h112L100 76 13 75z"/>
+    <path class="rose" d="M100 76 187 75l-87 112z"/>
+    <path class="bone" d="M62 57h76l-38 43z" opacity=".85"/>
+  </g>
+
+  <!-- 11 -->
+  <g transform="translate(80 720)">
+    <path class="ink" d="M100 3c52 0 94 42 94 94 0 60-94 103-94 103S6 157 6 97C6 45 48 3 100 3z"/>
+    <path class="mint" d="M100 28c37 0 67 30 67 67 0 42-67 76-67 76z"/>
+    <path class="black" d="M63 71h74v57H63z"/>
+    <circle class="bone" cx="100" cy="146" r="12"/>
+  </g>
+
+  <!-- 12 -->
+  <g transform="translate(420 720)">
+    <path class="navy" d="M25 50 100 8l75 42v100l-75 42-75-42z"/>
+    <path class="ink" d="M59 71h82v82H59z"/>
+    <path class="steel" d="M59 71h82l-41 31z"/>
+    <path class="cyan" d="M100 102h41v51h-41z"/>
+    <path class="amber" d="M59 153h82l-41 23z"/>
+  </g>
+
+  <!-- 13 -->
+  <g transform="translate(760 720)">
+    <path class="navy" d="M100 3 194 172H6z"/>
+    <path class="ink3" d="M100 3 194 172H100z"/>
+    <path class="black" d="M100 48 151 142H49z"/>
+    <path class="violet" d="M100 48 151 142h-51z"/>
+    <path class="cyan" d="M49 142h102l-26 32H75z"/>
+  </g>
+
+  <!-- 14 -->
+  <g transform="translate(1100 720)">
+    <path class="navy" d="M100 5 184 52v96l-84 48-84-48V52z"/>
+    <path class="ink3" d="M100 5 184 52v96l-84-48z"/>
+    <path class="ink2" d="M16 148 100 100l84 48-84 48z"/>
+    <path class="black" d="M60 99c0-34 18-59 40-59s40 25 40 59v52H60z"/>
+    <path class="steel" d="M79 99c0-18 10-31 21-31s21 13 21 31v31H79z"/>
+    <path class="cyan" d="M100 68c11 0 21 13 21 31v31h-21z"/>
+  </g>
+
+  <!-- 15 -->
+  <g transform="translate(1440 720)">
+    <path class="ink" d="M18 52 100 6l82 46v96l-82 46-82-46z"/>
+    <path class="steel" d="M100 6 182 52l-82 45z"/>
+    <path class="ink3" d="M100 97 182 52v96l-82 46z"/>
+    <path class="black" d="M18 52 100 97v97l-82-46z"/>
+    <path class="rose" d="M62 73 100 52l38 21-38 21z"/>
+  </g>
+
+  <!-- 16 -->
+  <g transform="translate(80 1050)">
+    <path class="navy" d="M100 5 184 52v96l-84 48-84-48V52z"/>
+    <path class="ink3" d="M100 5 184 52v96l-84-48z"/>
+    <path class="ink2" d="M16 148 100 100l84 48-84 48z"/>
+    <path d="M16 52h168v96l-84 48-84-48z" fill="url(#grain)"/>
+    <path class="black" d="M55 91h96l-30 34h43l-43 41H58l29-35H44z"/>
+    <path class="cyan" d="M87 131h77l-43 41H58z" opacity=".82"/>
+  </g>
+
+  <!-- 17 -->
+  <g transform="translate(420 1050)">
+    <path class="ink" d="M45 18h110l38 80-93 97L7 98z"/>
+    <path class="violet" d="M155 18 193 98l-93 97V97z"/>
+    <path class="steel" d="M45 18h110l-55 79L7 98z"/>
+    <path class="black" d="M69 65h62l-31 42z"/>
+    <path class="amber" d="M100 107h45l-45 48z"/>
+  </g>
+
+  <!-- 18 -->
+  <g transform="translate(760 1050)">
+    <path class="navy" d="M34 34h132v132H34z" rx="0"/>
+    <path class="ink3" d="M100 34h66v132h-66z"/>
+    <path class="mint" d="M34 34h132v36H34z"/>
+    <path class="black" d="M63 86h74v62H63z"/>
+    <path class="bone" d="M80 104h40v20H80z"/>
+  </g>
+
+  <!-- 19 -->
+  <g transform="translate(1100 1050)">
+    <circle class="navy" cx="100" cy="100" r="92"/>
+    <path class="ink3" d="M100 8a92 92 0 0 1 0 184z"/>
+    <path class="line" d="M51 100h98" stroke="#8aa8ca" stroke-width="16"/>
+    <path class="line" d="M100 51v98" stroke="#8aa8ca" stroke-width="16"/>
+    <circle class="black" cx="100" cy="100" r="28"/>
+    <circle class="amber" cx="100" cy="100" r="12"/>
+  </g>
+
+  <!-- 20 -->
+  <g transform="translate(1440 1050)">
+    <path class="navy" d="M100 7c58 0 96 45 88 101-6 42-43 78-88 85-45-7-82-43-88-85C4 52 42 7 100 7z"/>
+    <path class="cyan" d="M100 7c58 0 96 45 88 101-6 42-43 78-88 85z"/>
+    <path class="ink" d="M50 98c28-54 79-78 148-67-19 59-67 96-142 111z"/>
+    <path class="bone" d="M68 94h69l-36 43z"/>
+  </g>
+</svg>

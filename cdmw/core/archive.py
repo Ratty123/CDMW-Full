@@ -98,6 +98,7 @@ _ARCHIVE_SIDECAR_CACHE_VERSION = 9
 _ARCHIVE_SIDECAR_ENTRY_SIGNATURE_FORMAT = 1
 _ARCHIVE_DERIVED_INDEX_CACHE_MAGIC = b"CTFDERI1"
 _ARCHIVE_DERIVED_INDEX_CACHE_VERSION = 10
+_ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_VERSION = 1
 _ARCHIVE_BASIC_INDEX_CACHE_MAGIC = b"CTFBASI1"
 _ARCHIVE_BASIC_INDEX_CACHE_VERSION = 2
 _ARCHIVE_BASIC_INDEX_SHARD_CACHE_MAGIC = b"CTFSHBI1"
@@ -113,11 +114,14 @@ _ARCHIVE_CACHE_ROOT_PREFIXES: Tuple[str, ...] = (
     "archive_scan_shards_",
     "archive_sidecars_",
     "archive_derived_indexes_",
+    "archive_item_icon_thumbnails_",
     "archive_basic_indexes_",
     "archive_basic_index_shards_",
     "archive_name_search_",
     "archive_name_search_shards_",
 )
+_ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_LOCK = threading.Lock()
+_ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE: Dict[str, Tuple[Tuple[int, int], Dict[str, object]]] = {}
 _INITIAL_MODEL_PREVIEW_RENDER_SETTINGS = clamp_model_preview_render_settings()
 # Keep visible base textures closer to their source resolution in the 3D preview.
 # Support maps are only sampled for lighting/material approximation. Keep them
@@ -2342,6 +2346,10 @@ def resolve_archive_derived_index_cache_path(package_root: Path, cache_root: Pat
     return cache_root / f"archive_derived_indexes_{_archive_cache_root_digest(package_root)}.bin"
 
 
+def resolve_archive_item_icon_thumbnail_cache_dir(package_root: Path, cache_root: Path) -> Path:
+    return cache_root / f"archive_item_icon_thumbnails_{_archive_cache_root_digest(package_root)}"
+
+
 def resolve_archive_basic_index_cache_path(package_root: Path, cache_root: Path) -> Path:
     return cache_root / f"archive_basic_indexes_{_archive_cache_root_digest(package_root)}.bin"
 
@@ -2406,6 +2414,7 @@ def invalidate_archive_browser_cache(
             resolve_archive_sidecar_cache_path(package_root, candidate_root),
             resolve_archive_sidecar_cache_metadata_path(package_root, candidate_root),
             resolve_archive_derived_index_cache_path(package_root, candidate_root),
+            resolve_archive_item_icon_thumbnail_cache_dir(package_root, candidate_root),
             resolve_archive_basic_index_cache_path(package_root, candidate_root),
             resolve_archive_basic_index_shard_cache_dir(package_root, candidate_root),
             resolve_archive_name_search_index_cache_path(package_root, candidate_root),
@@ -2939,6 +2948,186 @@ def _archive_entry_cache_signature(package_root: Path, entry: ArchiveEntry) -> T
         int(getattr(entry, "flags", 0)),
         int(getattr(entry, "paz_index", 0)),
     )
+
+
+def archive_item_icon_thumbnail_cache_key(
+    package_root: Path,
+    icon_paths: Sequence[object],
+    source_entry: ArchiveEntry,
+    *,
+    size: int,
+    converter_key: str = "",
+) -> str:
+    normalized_icon_paths = tuple(
+        str(value or "").replace("\\", "/").strip()
+        for value in icon_paths
+        if str(value or "").strip()
+    )
+    payload = {
+        "version": _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_VERSION,
+        "icon_paths": normalized_icon_paths,
+        "source_entry": _archive_entry_cache_signature(package_root, source_entry),
+        "size": max(1, int(size or 120)),
+        "converter_key": str(converter_key or ""),
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+
+def _archive_item_icon_thumbnail_manifest_path(cache_dir: Path) -> Path:
+    return cache_dir / "manifest.json"
+
+
+def _archive_item_icon_thumbnail_manifest_cache_key(cache_dir: Path) -> str:
+    try:
+        return str(cache_dir.expanduser().resolve()).casefold()
+    except OSError:
+        return str(cache_dir.expanduser()).casefold()
+
+
+def _read_archive_item_icon_thumbnail_manifest(cache_dir: Path) -> Dict[str, object]:
+    manifest_path = _archive_item_icon_thumbnail_manifest_path(cache_dir)
+    manifest_cache_key = _archive_item_icon_thumbnail_manifest_cache_key(cache_dir)
+    try:
+        stat = manifest_path.stat()
+    except OSError:
+        _ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE.pop(manifest_cache_key, None)
+        return {
+            "version": _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_VERSION,
+            "entries": {},
+        }
+    manifest_stamp = (
+        int(stat.st_size),
+        int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))),
+    )
+    cached = _ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE.get(manifest_cache_key)
+    if cached is not None and cached[0] == manifest_stamp:
+        return cached[1]
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        _ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE.pop(manifest_cache_key, None)
+        return {
+            "version": _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_VERSION,
+            "entries": {},
+        }
+    if not isinstance(manifest, dict) or int(manifest.get("version", 0) or 0) != _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_VERSION:
+        _ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE.pop(manifest_cache_key, None)
+        return {
+            "version": _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_VERSION,
+            "entries": {},
+        }
+    if not isinstance(manifest.get("entries"), dict):
+        manifest["entries"] = {}
+    _ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE[manifest_cache_key] = (manifest_stamp, manifest)
+    return manifest
+
+
+def _write_archive_item_icon_thumbnail_manifest(cache_dir: Path, manifest: Mapping[str, object]) -> None:
+    manifest_path = _archive_item_icon_thumbnail_manifest_path(cache_dir)
+    temp_path = manifest_path.with_suffix(".json.tmp")
+    temp_path.write_text(json.dumps(dict(manifest), ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    temp_path.replace(manifest_path)
+    try:
+        stat = manifest_path.stat()
+        manifest_stamp = (
+            int(stat.st_size),
+            int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))),
+        )
+        _ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE[
+            _archive_item_icon_thumbnail_manifest_cache_key(cache_dir)
+        ] = (manifest_stamp, dict(manifest))
+    except OSError:
+        _ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE.pop(_archive_item_icon_thumbnail_manifest_cache_key(cache_dir), None)
+
+
+def load_archive_item_icon_thumbnail_cache(
+    package_root: Path,
+    cache_root: Path,
+    icon_paths: Sequence[object],
+    source_entry: ArchiveEntry,
+    *,
+    size: int,
+    converter_key: str = "",
+) -> Optional[Tuple[Path, str]]:
+    cache_dir = resolve_archive_item_icon_thumbnail_cache_dir(package_root, cache_root)
+    cache_key = archive_item_icon_thumbnail_cache_key(
+        package_root,
+        icon_paths,
+        source_entry,
+        size=size,
+        converter_key=converter_key,
+    )
+    thumbnail_path = cache_dir / f"{cache_key}.png"
+    try:
+        if not thumbnail_path.is_file() or thumbnail_path.stat().st_size <= 0:
+            return None
+    except OSError:
+        return None
+    with _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_LOCK:
+        manifest = _read_archive_item_icon_thumbnail_manifest(cache_dir)
+        entries = manifest.get("entries")
+        row = entries.get(cache_key) if isinstance(entries, dict) else None
+        if not isinstance(row, Mapping):
+            return None
+        if int(row.get("version", 0) or 0) != _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_VERSION:
+            return None
+        if str(row.get("filename", "") or "") != thumbnail_path.name:
+            return None
+        note = str(row.get("note", "") or "Recovered inventory icon")
+    return thumbnail_path, note
+
+
+def save_archive_item_icon_thumbnail_cache(
+    package_root: Path,
+    cache_root: Path,
+    icon_paths: Sequence[object],
+    source_entry: ArchiveEntry,
+    thumbnail_path: Path,
+    *,
+    size: int,
+    converter_key: str = "",
+    note: str = "",
+) -> Path:
+    source_path = Path(thumbnail_path)
+    if not source_path.is_file():
+        raise FileNotFoundError(f"Item icon thumbnail source was not found: {source_path}")
+    cache_dir = resolve_archive_item_icon_thumbnail_cache_dir(package_root, cache_root)
+    cache_key = archive_item_icon_thumbnail_cache_key(
+        package_root,
+        icon_paths,
+        source_entry,
+        size=size,
+        converter_key=converter_key,
+    )
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    destination = cache_dir / f"{cache_key}.png"
+    temp_path = cache_dir / f"{cache_key}.png.tmp"
+    shutil.copy2(source_path, temp_path)
+    temp_path.replace(destination)
+    with _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_LOCK:
+        manifest = _read_archive_item_icon_thumbnail_manifest(cache_dir)
+        entries = manifest.setdefault("entries", {})
+        if not isinstance(entries, dict):
+            entries = {}
+            manifest["entries"] = entries
+        entries[cache_key] = {
+            "version": _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_VERSION,
+            "filename": destination.name,
+            "size": max(1, int(size or 120)),
+            "converter_key": str(converter_key or ""),
+            "icon_paths": [
+                str(value or "").replace("\\", "/").strip()
+                for value in icon_paths
+                if str(value or "").strip()
+            ],
+            "source_path": str(getattr(source_entry, "path", "") or "").replace("\\", "/"),
+            "note": str(note or "Recovered inventory icon"),
+            "created_at": time.time(),
+            "last_used_at": time.time(),
+        }
+        _write_archive_item_icon_thumbnail_manifest(cache_dir, manifest)
+    prune_archive_cache_root(cache_root)
+    return destination
 
 
 def _build_archive_entry_cache_signatures(

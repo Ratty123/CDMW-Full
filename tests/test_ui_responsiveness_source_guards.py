@@ -116,8 +116,9 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("def _catalog_row_prepared_icon_available(row: Mapping[str, object]) -> bool:", source)
         self.assertIn("def _apply_catalog_item_cached_icon(item: QListWidgetItem, row: Mapping[str, object]) -> Tuple[bool, str]:", source)
         self.assertIn('if state == "thumb_pending" and not _catalog_row_prepared_icon_available(row):', source)
-        self.assertIn("QTimer.singleShot(90, _queue_catalog_row_icons_for_visible_rows)", source)
-        self.assertIn("QTimer.singleShot(300, _queue_catalog_row_icons_for_visible_rows)", source)
+        self.assertIn("QTimer.singleShot(140, _queue_catalog_row_icons_for_visible_rows)", source)
+        self.assertIn("QTimer.singleShot(360, _queue_catalog_row_icons_for_visible_rows)", source)
+        self.assertIn("QTimer.singleShot(900, _queue_catalog_row_icons_for_visible_rows)", source)
         self.assertIn("def _forget_archive_item_icon_pixmap_cache", source)
         self.assertIn("self._forget_archive_item_icon_pixmap_cache(prepared_key)", source)
         self.assertIn("self._forget_archive_item_icon_pixmap_cache(cache_key)", source)
@@ -409,9 +410,36 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("if self._archive_item_icon_lookup_index_missing():", icon_body)
         self.assertIn("self._ensure_archive_basic_index_worker_started()", icon_body)
 
+    def test_startup_archive_autoload_warms_missing_indexes_before_splash_release(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        autoload_start = source.index("        def _maybe_autoload_archive_on_startup(self) -> None:")
+        autoload_body = source[autoload_start: source.index("        def _load_game_executable_fingerprints", autoload_start)]
+        scan_start = source.index("        def scan_archives(")
+        scan_body = source[scan_start: source.index("        def _set_archive_warmup_overlay", scan_start)]
+        complete_start = source.index("        def _handle_archive_scan_complete(self, result: object) -> None:")
+        complete_body = source[complete_start: source.index("        def _finalize_archive_scan_complete", complete_start)]
+        ready_start = source.index("        def _startup_archive_core_ready(self) -> bool:")
+        ready_body = source[ready_start: source.index("        def _maybe_release_startup_after_archive_ready", ready_start)]
+        release_start = source.index("        def _release_startup_splash(self) -> None:")
+        release_body = source[release_start: source.index("        def _maybe_autoload_archive_on_startup", release_start)]
+
+        self.assertIn("self.archive_startup_index_warmup_required = True", autoload_body)
+        self.assertIn("startup_index_warmup = bool(", scan_body)
+        self.assertIn("load_basic_index_cache=bool(\n                    startup_index_warmup", scan_body)
+        self.assertIn("load_name_search_index_cache=startup_index_warmup", scan_body)
+        self.assertIn("startup_index_warmup = bool(", complete_body)
+        self.assertIn("startup_index_warmup\n                    or\n                    priority_prewarm_indexes", complete_body)
+        self.assertIn("and self._startup_archive_browser_render_ready()", ready_body)
+        self.assertIn("def _startup_archive_browser_render_ready(self) -> bool:", ready_body)
+        self.assertIn("self.archive_startup_index_warmup_required = False", release_body)
+
     def test_startup_splash_progress_uses_single_text_source(self) -> None:
         source = _read("cdmw/ui/startup_splash_host.py")
         self.assertIn("self.detail_label.setMaximumHeight(34)", source)
+        self.assertIn('self._theme_key = _resolved_theme_key(_command_payload().get("theme_key", DEFAULT_UI_THEME))', source)
+        self.assertIn('_theme_value(self._theme_key, "text_strong"', source)
+        self.assertIn("_theme_color(self._theme_key, \"surface\"", source)
+        self.assertIn("_theme_color(self._theme_key, \"accent\"", source)
         self.assertNotIn("self.progress_label = QLabel", source)
         self.assertNotIn("self.progress_label.setText", source)
         self.assertNotIn('f"{self._current:,} / {self._total:,}"', source)
@@ -465,6 +493,86 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertNotIn('any(entry.extension == ".dds" for entry in self.archive_filtered_entries)', busy_body)
         self.assertNotIn("ArchiveEnhancedIndexWorker(tuple(self.archive_entries))", source)
         self.assertNotIn("ArchiveStructureFilterWorker(tuple(self.archive_entries))", source)
+
+    def test_theme_changes_show_busy_overlay_before_heavy_apply(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        self.assertIn("class ThemeChangeBusyOverlay(QFrame):", source)
+        self.assertIn("self.theme_change_overlay = ThemeChangeBusyOverlay(central)", source)
+        self.assertIn("self._theme_change_apply_timer = QTimer(self)", source)
+        self.assertIn("self._theme_change_apply_timer.timeout.connect(self._apply_pending_theme_change)", source)
+        self.assertIn("self._appearance_apply_step_timer = QTimer(self)", source)
+        self.assertIn("self._appearance_apply_step_timer.timeout.connect(self._run_next_appearance_apply_step)", source)
+        self.assertIn("self._appearance_apply_steps: deque[Tuple[str, Callable[[], None]]] = deque()", source)
+        self.assertNotIn("def _apply_theme_change_now(", source)
+        self.assertNotIn("def _apply_appearance_change_now(", source)
+
+        handler_start = source.index("        def _handle_theme_changed(")
+        handler_body = source[handler_start: source.index("        def _apply_pending_theme_change", handler_start)]
+        self.assertIn("self._pending_theme_key = resolved_theme_key", handler_body)
+        self.assertIn("self.theme_change_overlay.show_theme_change(resolved_theme_key)", handler_body)
+        self.assertIn("self._theme_change_apply_timer.start()", handler_body)
+        self.assertNotIn("apply_app_theme(", handler_body)
+
+        apply_start = source.index("        def _apply_pending_theme_change(")
+        apply_body = source[apply_start: source.index("        def _finish_appearance_apply_steps", apply_start)]
+        self.assertIn("self.theme_change_overlay.repaint()", apply_body)
+        self.assertIn("app.processEvents()", apply_body)
+        self.assertIn("self._prepare_appearance_apply_steps(payload, app)", apply_body)
+        self.assertIn("self._appearance_apply_step_timer.start()", apply_body)
+
+        step_start = source.index("        def _run_next_appearance_apply_step(self) -> None:")
+        step_body = source[step_start: source.index("        def _apply_theme_application_style", step_start)]
+        self.assertIn("app.processEvents()", step_body)
+        self.assertIn("callback()", step_body)
+        self.assertIn("self._appearance_apply_step_timer.start()", step_body)
+        self.assertIn("self._finish_appearance_apply_steps()", step_body)
+
+        finish_start = source.index("        def _finish_appearance_apply_steps(")
+        finish_body = source[finish_start: source.index("        def _queue_appearance_apply_step", finish_start)]
+        self.assertIn("self.theme_change_overlay.finish(delay_ms)", finish_body)
+        self.assertIn("QApplication.restoreOverrideCursor()", finish_body)
+
+    def test_text_color_scheme_changes_do_not_force_full_theme_apply(self) -> None:
+        main_source = _read("cdmw/ui/main_window.py")
+        settings_source = _read("cdmw/ui/settings_tab.py")
+        self.assertIn("appearance_change_started = Signal(object)", settings_source)
+        self.assertIn("appearance_changed = Signal(object)", settings_source)
+        self.assertIn("def _appearance_change_payload(", settings_source)
+        self.assertIn('"requires_text_colors": requires_text_colors', settings_source)
+        self.assertIn("def _save_appearance_settings(self, *, sync: bool = True) -> None:", settings_source)
+
+        settings_apply_start = settings_source.index("    def _apply_pending_appearance_change(self) -> None:")
+        settings_apply_body = settings_source[
+            settings_apply_start: settings_source.index("    def _handle_model_preview_changed", settings_apply_start)
+        ]
+        self.assertIn("self._save_appearance_settings()", settings_apply_body)
+        self.assertIn("self.appearance_changed.emit(payload)", settings_apply_body)
+        self.assertNotIn("self._save_settings()", settings_apply_body)
+
+        self.assertIn("self.settings_tab.appearance_change_started.connect(self._handle_appearance_change_started)", main_source)
+        self.assertIn("self.settings_tab.appearance_changed.connect(self._handle_appearance_changed)", main_source)
+        self.assertNotIn("self.settings_tab.theme_changed.connect(self._handle_theme_changed)", main_source)
+        self.assertIn("def _handle_appearance_change_started(self, payload: object) -> None:", main_source)
+        self.assertIn("def _handle_appearance_changed(self, payload: object) -> None:", main_source)
+        self.assertIn("self.theme_change_overlay.show_appearance_change(", main_source)
+
+        prepare_start = main_source.index("        def _prepare_appearance_apply_steps(")
+        prepare_body = main_source[prepare_start: main_source.index("        def _run_next_appearance_apply_step", prepare_start)]
+        self.assertIn('if data["requires_theme_apply"]:', prepare_body)
+        self.assertIn("self._queue_data_font_apply_steps(schedule_column_autofit=False)", prepare_body)
+        self.assertIn("self._queue_text_highlight_apply_steps()", prepare_body)
+        self.assertIn('elif data["requires_text_colors"]:', prepare_body)
+        self.assertNotIn("apply_app_theme(", prepare_body)
+        self.assertNotIn("apply_window_text_highlight_style(self)", prepare_body)
+
+        text_queue_start = main_source.index("        def _queue_text_highlight_apply_steps(self) -> None:")
+        text_queue_body = main_source[text_queue_start: main_source.index("        def _apply_single_highlighter_style", text_queue_start)]
+        self.assertIn("read_text_color_scheme(", text_queue_body)
+        self.assertIn("self._queue_appearance_apply_step(", text_queue_body)
+
+        highlight_start = main_source.index('    def apply_window_text_highlight_style(window: "MainWindow") -> None:')
+        highlight_body = main_source[highlight_start: main_source.index("    def apply_window_data_fonts", highlight_start)]
+        self.assertIn("research_tab._apply_archive_picker_preview_text_style()", highlight_body)
 
     def test_archive_search_preserves_left_controls_scroll_position(self) -> None:
         source = _read("cdmw/ui/main_window.py")

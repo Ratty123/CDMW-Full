@@ -808,7 +808,7 @@ def preview_material_texture_inputs_for_prepared_batch(
 
 def material_combiner_cache_dir(model: ModelPreviewData) -> Path:
     digest = hashlib.sha1()
-    digest.update(b"material-combiner-v6")
+    digest.update(b"material-combiner-v7")
     digest.update(str(getattr(model, "path", "") or "").encode("utf-8", errors="replace"))
     for mesh in tuple(getattr(model, "meshes", ()) or ()):
         for field_name in (
@@ -842,16 +842,27 @@ def material_combiner_cache_dir(model: ModelPreviewData) -> Path:
                 "slot_kind",
                 "parameter_name",
                 "source_texture_path",
+                "source_dds_path",
                 "texture_name",
                 "preview_texture_path",
                 "semantic_type",
                 "semantic_subtype",
+                "srgb_mode",
                 "shader_family",
+                "shader_rule",
                 "confidence",
+                "parameter_declared_by",
+                "material_output_quality",
+                "layer_role",
+                "layer_channel",
             ):
                 digest.update(str(getattr(texture_input, field_name, "") or "").encode("utf-8", errors="replace"))
+            for value in tuple(getattr(texture_input, "packed_channels", ()) or ()):
+                digest.update(str(value or "").encode("utf-8", errors="replace"))
+            for value in tuple(getattr(texture_input, "blend_flags", ()) or ()):
+                digest.update(str(value or "").encode("utf-8", errors="replace"))
             for parameter in tuple(getattr(texture_input, "material_parameters", ()) or ()):
-                for field_name in ("parameter_kind", "parameter_name", "value"):
+                for field_name in ("parameter_kind", "parameter_name", "value", "numeric_value", "color_value"):
                     digest.update(str(getattr(parameter, field_name, "") or "").encode("utf-8", errors="replace"))
     return Path(tempfile.gettempdir()) / "cdmw_material_combiner" / digest.hexdigest()[:20]
 

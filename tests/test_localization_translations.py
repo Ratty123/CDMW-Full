@@ -1,5 +1,7 @@
 ﻿from pathlib import Path
 
+import re
+
 from cdmw.ui.localization import UiLocalizer
 
 
@@ -151,3 +153,39 @@ def test_documentation_and_readme_cover_current_mesh_and_dds_workflows() -> None
     assert "DirectXTex/native helpers first" in readme_source
     assert "texconv.exe` remains an optional legacy fallback" in readme_source
     assert "Open DirectXTex / texconv Page" in readme_source
+
+
+def test_supported_documentation_languages_cover_all_topic_ids() -> None:
+    main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+    english_block = main_window_source[
+        main_window_source.index("        def _build_about_sections") :
+        main_window_source.index("        def _build_about_document_for_language")
+    ]
+    spanish_block = main_window_source[
+        main_window_source.index('            if normalized == "es"') :
+        main_window_source.index('            if normalized == "de"')
+    ]
+    german_block = main_window_source[
+        main_window_source.index('            if normalized == "de"') :
+        main_window_source.index('            return f"{APP_TITLE} Documentation"')
+    ]
+
+    english_ids = set(re.findall(r'"id"\s*:\s*"([^"]+)"', english_block))
+    assert set(re.findall(r'"id"\s*:\s*"([^"]+)"', spanish_block)) == english_ids
+    assert set(re.findall(r'"id"\s*:\s*"([^"]+)"', german_block)) == english_ids
+
+    for required in ("first_run_checklist", "texture_workflow_guides", "mod_packaging", "safety", "faq"):
+        assert required in english_ids
+
+
+def test_help_about_surfaces_have_localized_html_and_documentation_route() -> None:
+    main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+    widgets_source = Path("cdmw/ui/widgets.py").read_text(encoding="utf-8")
+
+    assert "def _build_about_overview_html_es" in main_window_source
+    assert "def _build_about_overview_html_de" in main_window_source
+    assert 'overview_browser.setProperty("_i18n_html_es"' in main_window_source
+    assert 'overview_browser.setProperty("_i18n_html_de"' in main_window_source
+    assert 'hasattr(parent_window, "show_documentation_dialog")' in widgets_source
+    assert 'parent_window.show_documentation_dialog(topic_id="overview")' in widgets_source
+    assert 'parent_window.show_about_dialog(topic_id="overview")' not in widgets_source

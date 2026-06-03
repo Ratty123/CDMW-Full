@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="720" viewBox="0 0 1400 720">
+  <defs>
+    <style>
+      .page { fill: #f3f0e8; }
+      .ink { fill: #111522; }
+      .ink2 { fill: #182133; }
+      .ink3 { fill: #223047; }
+      .white { fill: #ffffff; }
+      .bone { fill: #f2eadc; }
+      .orange { fill: #ff9f1c; }
+      .orange2 { fill: #f07a20; }
+      .blue { fill: #2f6fed; }
+      .teal { fill: #16a0a8; }
+      .green { fill: #2aa85a; }
+      .stroke { fill: none; stroke: #ffffff; stroke-width: 16; stroke-linecap: round; stroke-linejoin: round; }
+      .thin { fill: none; stroke: #ff9f1c; stroke-width: 13; stroke-linecap: round; stroke-linejoin: round; }
+      .shadow { fill: #000000; opacity: .14; }
+    </style>
+  </defs>
+
+  <rect class="page" width="1400" height="720"/>
+
+  <!-- 1: clipped seal, folded base -->
+  <g transform="translate(70 55)">
+    <path class="ink" d="M100 0c49 0 91 35 100 82 8 42-15 86-54 107-38 21-86 14-116-17-30-30-38-78-16-116C32 22 64 0 100 0z"/>
+    <path class="ink2" d="M100 0c49 0 91 35 100 82L100 100z"/>
+    <path class="white" d="M49 99 104 38h44L94 99l46 52h-44z"/>
+    <path class="orange" d="M64 136h98v29H64z"/>
+  </g>
+
+  <!-- 2: rounded hex, lower leg accent -->
+  <g transform="translate(330 55)">
+    <path class="ink" d="M100 3 178 46v108l-78 43-78-43V46z"/>
+    <path class="ink3" d="M100 3 178 46v108l-78-43z"/>
+    <path class="white" d="M50 100 103 45h39L94 100l49 55h-40z"/>
+    <path class="orange" d="M91 129h58l21 26H103z"/>
+  </g>
+
+  <!-- 3: ribbon mark -->
+  <g transform="translate(590 55)">
+    <path class="ink" d="M32 40c0-21 17-38 38-38h60c21 0 38 17 38 38v120c0 21-17 38-38 38H70c-21 0-38-17-38-38z"/>
+    <path class="ink3" d="M77 40h82v118H77z"/>
+    <path class="white" d="M55 100 112 38h41L98 100l55 62h-41z"/>
+    <path class="orange" d="M77 136h78v27H77z"/>
+  </g>
+
+  <!-- 4: shield cut -->
+  <g transform="translate(850 55)">
+    <path class="ink" d="M100 4 178 38v64c0 64-78 96-78 96S22 166 22 102V38z"/>
+    <path class="ink2" d="M100 4v194s78-32 78-96V38z"/>
+    <path class="white" d="M52 95 105 38h39L95 95l48 55h-40z"/>
+    <path class="orange2" d="M69 130h92v29H69z"/>
+  </g>
+
+  <!-- 5: aperture fold -->
+  <g transform="translate(1110 55)">
+    <path class="ink" d="M99 4 186 55v100l-87 51-87-51V55z"/>
+    <path class="blue" d="M99 4 186 55l-87 50z" opacity=".92"/>
+    <path class="teal" d="M186 55v100l-87-50z" opacity=".9"/>
+    <path class="white" d="M53 102 105 45h40l-49 57 49 55h-40z"/>
+    <path class="orange" d="M72 132h76v26H72z"/>
+  </g>
+
+  <!-- 6: notch disk, sharper custom glyph -->
+  <g transform="translate(70 395)">
+    <path class="ink" d="M100 0a100 100 0 1 1-1 0h1zm0 22a78 78 0 1 0 0 156 78 78 0 0 0 0-156z" fill-rule="evenodd"/>
+    <circle class="ink" cx="100" cy="100" r="78"/>
+    <path class="white" d="M54 101 105 43h40L98 95l53 62h-42z"/>
+    <path class="orange" d="M77 128h82v27H77z"/>
+  </g>
+
+  <!-- 7: slab corner -->
+  <g transform="translate(330 395)">
+    <path class="ink" d="M25 49 70 5h105v150l-45 45H25z"/>
+    <path class="ink3" d="M70 5h105l-45 44H25z"/>
+    <path class="white" d="M50 103 101 47h39L92 103l48 54h-39z"/>
+    <path class="orange2" d="M60 133h86v28H60z"/>
+  </g>
+
+  <!-- 8: folded triangle body -->
+  <g transform="translate(590 395)">
+    <path class="ink" d="M100 8 190 174H10z"/>
+    <path class="ink3" d="M100 8v166h90z"/>
+    <path class="white" d="M60 101 108 47h39l-46 54 44 52h-38z"/>
+    <path class="orange" d="M70 132h86v28H70z"/>
+  </g>
+
+  <!-- 9: interlock tile -->
+  <g transform="translate(850 395)">
+    <path class="ink" d="M28 28h145v145H28z" rx="0"/>
+    <path class="green" d="M28 28h145v47H28z" opacity=".92"/>
+    <path class="ink2" d="M28 75h145v98H28z"/>
+    <path class="white" d="M52 103 101 50h39l-46 53 47 53h-40z"/>
+    <path class="orange" d="M72 130h90v28H72z"/>
+  </g>
+
+  <!-- 10: monogram-free folded chevron -->
+  <g transform="translate(1110 395)">
+    <path class="ink" d="M101 2c43 0 80 27 94 65 15 42-2 90-41 113-42 25-95 14-124-25-26-35-25-83 2-117C51 15 75 2 101 2z"/>
+    <path class="shadow" d="M105 43h44L96 104l47 53h-42l-56-53z" transform="translate(8 8)"/>
+    <path class="bone" d="M49 100 105 38h44L96 100l48 54h-43z"/>
+    <path class="orange" d="M79 132h85l18 26H97z"/>
+  </g>
+</svg>

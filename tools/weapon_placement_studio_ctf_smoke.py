@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 from pathlib import Path
 import sys
 import time
@@ -23,7 +24,7 @@ from cdmw.core.archive_accelerator import scan_archive_entries_cached_accelerate
 from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh
 
 
-DEFAULT_CTF_ROOT = Path(r"C:\Users\Ratrider\Desktop\CTF")
+DEFAULT_CTF_ROOT = Path(os.environ.get("CDMW_CTF_ROOT", str(Path.home() / "Desktop" / "CTF")))
 DEFAULT_GAME_ROOT = Path(r"C:\games\Steam\steamapps\common\Crimson Desert")
 DEFAULT_TARGET = "cd_phm_02_sword_0015.pac"
 DEFAULT_BODY_BASENAMES = (

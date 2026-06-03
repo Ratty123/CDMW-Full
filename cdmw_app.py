@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import configparser
 import ctypes
 import json
 import os
@@ -22,6 +23,7 @@ PYINSTALLER_STALE_UNMARKED_MIN_AGE_SECONDS = 30 * 60
 APP_SINGLE_INSTANCE_MUTEX_NAME = "Local\\CrimsonDesertModWorkbench.SingleInstance"
 STARTUP_SPLASH_COMMAND_FILE_ENV = "CDMW_STARTUP_SPLASH_COMMAND_FILE"
 APP_ACTIVATION_REQUEST_FILE_NAME = "activate_existing.json"
+DEFAULT_STARTUP_THEME = "graphite"
 
 _single_instance_mutex_handle: Optional[int] = None
 _single_instance_lock_handle: Optional[object] = None
@@ -364,6 +366,18 @@ def _update_pyinstaller_boot_splash(text: str) -> None:
         pass
 
 
+def _read_startup_theme_key() -> str:
+    try:
+        config_path = _bootstrap_root() / "CrimsonDesertModWorkbench.cfg"
+        parser = configparser.ConfigParser()
+        if not parser.read(config_path, encoding="utf-8"):
+            return DEFAULT_STARTUP_THEME
+        theme_key = str(parser.get("appearance", "theme", fallback=DEFAULT_STARTUP_THEME) or DEFAULT_STARTUP_THEME)
+        return theme_key.strip() or DEFAULT_STARTUP_THEME
+    except Exception:
+        return DEFAULT_STARTUP_THEME
+
+
 def _write_startup_splash_command(
     path: Path,
     *,
@@ -371,6 +385,7 @@ def _write_startup_splash_command(
     current: int = 0,
     total: int = 0,
     closed: bool = False,
+    theme_key: str = "",
 ) -> None:
     try:
         payload = {
@@ -378,6 +393,7 @@ def _write_startup_splash_command(
             "current": max(0, int(current or 0)),
             "total": max(0, int(total or 0)),
             "closed": bool(closed),
+            "theme_key": str(theme_key or _read_startup_theme_key()),
             "updated_at": time.time(),
         }
         temp_path = path.with_suffix(path.suffix + ".tmp")
@@ -414,7 +430,8 @@ def _start_external_startup_splash() -> Optional[Path]:
         splash_dir = Path(tempfile.gettempdir()) / "CrimsonDesertModWorkbench" / "startup_splash"
         splash_dir.mkdir(parents=True, exist_ok=True)
         command_file = splash_dir / f"splash_{os.getpid()}_{int(time.time() * 1000)}.json"
-        _write_startup_splash_command(command_file, detail="Starting application...")
+        startup_theme_key = _read_startup_theme_key()
+        _write_startup_splash_command(command_file, detail="Starting application...", theme_key=startup_theme_key)
         creationflags = 0
         startupinfo = None
         if os.name == "nt":

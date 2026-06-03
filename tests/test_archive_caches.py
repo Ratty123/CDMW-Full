@@ -19,6 +19,7 @@ from cdmw.core.archive import (
     build_archive_entry_path_index,
     build_archive_entry_role_index,
     build_archive_name_search_index,
+    load_archive_item_icon_thumbnail_cache,
     load_or_update_archive_basic_index_shards,
     load_or_update_archive_scan_shards,
     load_archive_basic_index_cache,
@@ -34,9 +35,11 @@ from cdmw.core.archive import (
     resolve_archive_name_search_index_cache_path,
     resolve_archive_name_search_shard_cache_dir,
     resolve_archive_derived_index_cache_path,
+    resolve_archive_item_icon_thumbnail_cache_dir,
     resolve_archive_sidecar_cache_path,
     save_archive_basic_index_cache,
     save_archive_derived_index_cache,
+    save_archive_item_icon_thumbnail_cache,
     save_archive_scan_cache,
     save_archive_texture_sidecar_cache,
     scan_archive_entries,
@@ -80,6 +83,125 @@ def _sidecar_text(texture_path: str, *, extra: str = "") -> bytes:
 
 
 class ArchiveCacheTests(unittest.TestCase):
+    def test_item_icon_thumbnail_cache_round_trip_and_converter_miss(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"DDS icon"
+            pamt, paz = _write_entry_files(root, "0009", data)
+            entry = _entry("ui/itemicon/itemicon_test.dds", pamt, paz, data)
+            thumbnail = root / "thumb.png"
+            thumbnail.write_bytes(b"png")
+            icon_paths = ("ui/itemicon/itemicon_test.dds",)
+
+            saved = save_archive_item_icon_thumbnail_cache(
+                root,
+                cache_root,
+                icon_paths,
+                entry,
+                thumbnail,
+                size=120,
+                converter_key="native=v1",
+                note="Recovered inventory icon: ui/itemicon/itemicon_test.dds",
+            )
+
+            loaded = load_archive_item_icon_thumbnail_cache(
+                root,
+                cache_root,
+                icon_paths,
+                entry,
+                size=120,
+                converter_key="native=v1",
+            )
+            self.assertIsNotNone(loaded)
+            loaded_path, loaded_note = loaded or (Path(), "")
+            self.assertEqual(saved, loaded_path)
+            self.assertIn("Recovered inventory icon", loaded_note)
+            manifest = resolve_archive_item_icon_thumbnail_cache_dir(root, cache_root) / "manifest.json"
+            self.assertTrue(manifest.is_file())
+            with mock.patch("cdmw.core.archive._write_archive_item_icon_thumbnail_manifest") as write_manifest:
+                loaded_again = load_archive_item_icon_thumbnail_cache(
+                    root,
+                    cache_root,
+                    icon_paths,
+                    entry,
+                    size=120,
+                    converter_key="native=v1",
+                )
+            self.assertIsNotNone(loaded_again)
+            write_manifest.assert_not_called()
+
+            self.assertIsNone(
+                load_archive_item_icon_thumbnail_cache(
+                    root,
+                    cache_root,
+                    icon_paths,
+                    entry,
+                    size=120,
+                    converter_key="native=v2",
+                )
+            )
+
+    def test_item_icon_thumbnail_cache_misses_when_entry_identity_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"DDS icon"
+            pamt, paz = _write_entry_files(root, "0009", data)
+            entry = _entry("ui/itemicon/itemicon_test.dds", pamt, paz, data)
+            thumbnail = root / "thumb.png"
+            thumbnail.write_bytes(b"png")
+            icon_paths = ("ui/itemicon/itemicon_test.dds",)
+            save_archive_item_icon_thumbnail_cache(
+                root,
+                cache_root,
+                icon_paths,
+                entry,
+                thumbnail,
+                size=120,
+                converter_key="native=v1",
+            )
+
+            changed = _entry("ui/itemicon/itemicon_test.dds", pamt, paz, data)
+            changed.offset = 4
+
+            self.assertIsNone(
+                load_archive_item_icon_thumbnail_cache(
+                    root,
+                    cache_root,
+                    icon_paths,
+                    changed,
+                    size=120,
+                    converter_key="native=v1",
+                )
+            )
+
+    def test_archive_cache_invalidation_removes_item_icon_thumbnail_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"DDS icon"
+            pamt, paz = _write_entry_files(root, "0009", data)
+            entry = _entry("ui/itemicon/itemicon_test.dds", pamt, paz, data)
+            thumbnail = root / "thumb.png"
+            thumbnail.write_bytes(b"png")
+            save_archive_item_icon_thumbnail_cache(
+                root,
+                cache_root,
+                ("ui/itemicon/itemicon_test.dds",),
+                entry,
+                thumbnail,
+                size=120,
+                converter_key="native=v1",
+            )
+            cache_dir = resolve_archive_item_icon_thumbnail_cache_dir(root, cache_root)
+            self.assertTrue(cache_dir.is_dir())
+
+            deleted = invalidate_archive_browser_cache(root, cache_root)
+
+            self.assertIn(cache_dir, deleted)
+            self.assertFalse(cache_dir.exists())
+
     def test_missing_generated_pamt_source_is_skipped_for_cache_signatures(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

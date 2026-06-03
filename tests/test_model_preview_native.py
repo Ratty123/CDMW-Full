@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import struct
@@ -21,7 +22,11 @@ from cdmw.ui.model_preview_material_combiner import (
     combine_preview_material,
     decode_material_sample,
 )
-from cdmw.rendering.native_preview_package import _input_texture_kind, build_native_preview_payloads
+from cdmw.rendering.native_preview_package import (
+    _input_texture_kind,
+    build_native_preview_payloads,
+    write_isolated_d3d11_preview_package,
+)
 from cdmw.ui.model_preview_native import (
     ARCHIVE_MODEL_RENDERER_D3D11,
     ARCHIVE_MODEL_RENDERER_DEFAULT,
@@ -123,6 +128,170 @@ class NativePreviewPayloadTests(unittest.TestCase):
         self.assertAlmostEqual(1.0, ao)
         self.assertAlmostEqual(0.35, roughness)
         self.assertAlmostEqual(0.8, metalness)
+
+    def test_gltf_specular_glossiness_decodes_alpha_as_glossiness(self) -> None:
+        texture_input = PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_specularGlossinessTexture",
+            semantic_type="specular",
+            semantic_subtype="specular_glossiness",
+            packed_channels=("specular", "glossiness"),
+            texture_name="blade_specularGlossiness.png",
+        )
+
+        self.assertEqual("specular_glossiness", _decode_mode_for_input(texture_input))
+        self.assertEqual("specular_glossiness", _input_texture_kind(texture_input))
+        ao, roughness, metalness, specular = decode_material_sample(0.8, 0.5, 0.25, 0.75, "specular_glossiness")
+
+        self.assertAlmostEqual(1.0, ao)
+        self.assertAlmostEqual(0.25, roughness)
+        self.assertAlmostEqual(0.0, metalness)
+        self.assertAlmostEqual(0.8, specular)
+
+    def test_d3d11_package_splits_specular_glossiness_when_combiner_disabled(self) -> None:
+        from PySide6.QtGui import QColor, QImage
+
+        blob = b"".join(
+            (
+                _vertex(0.0, 0.0, 0.0),
+                _vertex(1.0, 0.0, 0.0),
+                _vertex(0.0, 1.0, 0.0),
+            )
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            base_path = temp / "blade_diffuse.png"
+            base_image = QImage(2, 2, QImage.Format_RGBA8888)
+            base_image.fill(QColor(160, 120, 80, 255))
+            self.assertTrue(base_image.save(str(base_path), "PNG"))
+            spec_gloss_path = temp / "blade_specularGlossiness.png"
+            spec_gloss_image = QImage(2, 2, QImage.Format_RGBA8888)
+            spec_gloss_image.fill(QColor(204, 128, 64, 64))
+            self.assertTrue(spec_gloss_image.save(str(spec_gloss_path), "PNG"))
+            texture_input = PreviewMaterialTextureInput(
+                slot_kind="material",
+                parameter_name="_specularGlossinessTexture",
+                source_texture_path=str(spec_gloss_path),
+                texture_name=spec_gloss_path.name,
+                preview_texture_path=str(spec_gloss_path),
+                semantic_type="specular",
+                semantic_subtype="specular_glossiness",
+                packed_channels=("specular", "glossiness"),
+            )
+            prepared = PreparedModelPreviewData(
+                source_path=str(temp / "scene.gltf"),
+                format="gltf",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base_path),
+                        preview_material_texture_path=str(spec_gloss_path),
+                        preview_material_texture_subtype="specular_glossiness",
+                        preview_material_texture_packed_channels=("specular", "glossiness"),
+                        preview_material_texture_inputs=(texture_input,),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path=str(temp / "scene.gltf")),
+                prepared,
+                output_root=temp / "package",
+                enable_material_combiner=False,
+                prefer_direct_dds=True,
+            )
+            manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
+            batch = manifest["batches"][0]
+            textures = batch["textures"]
+
+            self.assertTrue(textures["roughness"])
+            self.assertTrue(textures["specular"])
+            self.assertEqual("", textures["metalness"])
+            self.assertIn("specular_glossiness", batch["material_combiner_decode_modes"])
+            roughness_image = QImage(str(package_dir / textures["roughness"]))
+            specular_image = QImage(str(package_dir / textures["specular"]))
+            self.assertFalse(roughness_image.isNull())
+            self.assertFalse(specular_image.isNull())
+            self.assertEqual(191, roughness_image.pixelColor(0, 0).red())
+            self.assertEqual(204, specular_image.pixelColor(0, 0).red())
+
+    def test_d3d11_package_routes_occlusion_and_inverts_glossiness_when_combiner_disabled(self) -> None:
+        from PySide6.QtGui import QColor, QImage
+
+        blob = b"".join(
+            (
+                _vertex(0.0, 0.0, 0.0),
+                _vertex(1.0, 0.0, 0.0),
+                _vertex(0.0, 1.0, 0.0),
+            )
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            base_path = temp / "body_base.png"
+            base_image = QImage(2, 2, QImage.Format_RGBA8888)
+            base_image.fill(QColor(160, 120, 80, 255))
+            self.assertTrue(base_image.save(str(base_path), "PNG"))
+            ao_path = temp / "body_ao.png"
+            ao_image = QImage(2, 2, QImage.Format_RGBA8888)
+            ao_image.fill(QColor(64, 64, 64, 255))
+            self.assertTrue(ao_image.save(str(ao_path), "PNG"))
+            gloss_path = temp / "body_glossiness.png"
+            gloss_image = QImage(2, 2, QImage.Format_RGBA8888)
+            gloss_image.fill(QColor(64, 64, 64, 255))
+            self.assertTrue(gloss_image.save(str(gloss_path), "PNG"))
+            prepared = PreparedModelPreviewData(
+                source_path=str(temp / "scene.gltf"),
+                format="gltf",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base_path),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="occlusion",
+                                parameter_name="_occlusionTexture",
+                                source_texture_path=str(ao_path),
+                                texture_name=ao_path.name,
+                                preview_texture_path=str(ao_path),
+                                semantic_type="ao",
+                                semantic_subtype="ao",
+                                packed_channels=("ao",),
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="glossiness",
+                                parameter_name="_glossinessTexture",
+                                source_texture_path=str(gloss_path),
+                                texture_name=gloss_path.name,
+                                preview_texture_path=str(gloss_path),
+                                semantic_type="roughness",
+                                semantic_subtype="glossiness",
+                                packed_channels=("glossiness",),
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path=str(temp / "scene.gltf")),
+                prepared,
+                output_root=temp / "package",
+                enable_material_combiner=False,
+                prefer_direct_dds=True,
+            )
+            manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
+            textures = manifest["batches"][0]["textures"]
+
+            self.assertTrue(textures["occlusion"])
+            self.assertTrue(textures["roughness"])
+            self.assertEqual("", textures["metalness"])
+            roughness_image = QImage(str(package_dir / textures["roughness"]))
+            self.assertFalse(roughness_image.isNull())
+            self.assertEqual(191, roughness_image.pixelColor(0, 0).red())
 
     def test_preview_package_treats_gltf_metallic_roughness_as_packed_material(self) -> None:
         texture_input = PreviewMaterialTextureInput(
@@ -831,6 +1000,67 @@ class NativePreviewPayloadTests(unittest.TestCase):
 
         first = NativePreviewPanel._material_combiner_cache_dir(model_with_parameter("0"))
         second = NativePreviewPanel._material_combiner_cache_dir(model_with_parameter("16777215"))
+
+        self.assertNotEqual(first, second)
+
+    def test_legacy_combiner_cache_key_includes_input_packed_channels(self) -> None:
+        def model_with_channels(channels: tuple[str, ...]) -> ModelPreviewData:
+            return ModelPreviewData(
+                path="character/model/example.gltf",
+                meshes=[
+                    ModelPreviewMesh(
+                        material_name="blade",
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_materialTexture",
+                                preview_texture_path="shared.png",
+                                source_texture_path="shared.png",
+                                semantic_type="material",
+                                semantic_subtype="metallic_roughness",
+                                packed_channels=channels,
+                            ),
+                        ),
+                    )
+                ],
+            )
+
+        first = NativePreviewPanel._material_combiner_cache_dir(model_with_channels(("roughness", "metallic")))
+        second = NativePreviewPanel._material_combiner_cache_dir(model_with_channels(("specular", "glossiness")))
+
+        self.assertNotEqual(first, second)
+
+    def test_legacy_combiner_cache_key_includes_numeric_parameter_values(self) -> None:
+        def model_with_numeric(value: float) -> ModelPreviewData:
+            return ModelPreviewData(
+                path="character/model/example.gltf",
+                meshes=[
+                    ModelPreviewMesh(
+                        material_name="blade",
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_metallicRoughnessTexture",
+                                preview_texture_path="blade_mr.png",
+                                source_texture_path="blade_mr.png",
+                                semantic_type="material",
+                                semantic_subtype="metallic_roughness",
+                                packed_channels=("roughness", "metallic"),
+                                material_parameters=(
+                                    PreviewMaterialParameterInput(
+                                        parameter_kind="float",
+                                        parameter_name="_roughnessFactor",
+                                        numeric_value=value,
+                                    ),
+                                ),
+                            ),
+                        ),
+                    )
+                ],
+            )
+
+        first = NativePreviewPanel._material_combiner_cache_dir(model_with_numeric(0.2))
+        second = NativePreviewPanel._material_combiner_cache_dir(model_with_numeric(0.8))
 
         self.assertNotEqual(first, second)
 

@@ -45,6 +45,43 @@ BROWSABLE_MODEL_EXTENSIONS = IMPORTABLE_MODEL_EXTENSIONS | {
     ".zip",
 }
 
+_GENERIC_LOCAL_MODEL_FILE_STEMS = {
+    "asset",
+    "default",
+    "export",
+    "main",
+    "mesh",
+    "model",
+    "object",
+    "scene",
+    "source",
+    "untitled",
+}
+
+_GENERIC_LOCAL_MODEL_DIRECTORY_NAMES = _GENERIC_LOCAL_MODEL_FILE_STEMS | {
+    "3d",
+    "3dmodel",
+    "3dmodels",
+    "assets",
+    "catalogue",
+    "dae",
+    "download",
+    "downloads",
+    "files",
+    "glb",
+    "gltf",
+    "library",
+    "locallibrary",
+    "modelcatalog",
+    "modelcatalogue",
+    "models",
+    "scenes",
+    "sources",
+}
+
+_TRAILING_MODEL_CATALOGUE_UID_RE = re.compile(r"[-_\s]+[0-9a-fA-F]{24,64}$")
+_LOCAL_MODEL_SCAN_IGNORED_DIRECTORY_NAMES = {".cdmw_extracted"}
+
 
 @dataclass(frozen=True)
 class LocalModelFile:
@@ -163,6 +200,7 @@ def scan_local_model_files(
     normalized_extensions = {str(ext).lower() for ext in extensions}
     results: list[LocalModelFile] = []
     seen: set[str] = set()
+    metadata_name_cache: dict[str, str] = {}
     for root_value in roots:
         root = Path(root_value).expanduser()
         try:
@@ -185,6 +223,8 @@ def scan_local_model_files(
                     if suffix not in normalized_extensions:
                         continue
                     resolved = path.resolve()
+                    if any(part.casefold() in _LOCAL_MODEL_SCAN_IGNORED_DIRECTORY_NAMES for part in resolved.parts):
+                        continue
                     key = str(resolved).casefold()
                     if key in seen:
                         continue
@@ -199,7 +239,7 @@ def scan_local_model_files(
                     LocalModelFile(
                         path=resolved,
                         root=root,
-                        name=resolved.stem,
+                        name=_local_model_display_name(resolved, root, metadata_name_cache),
                         extension=suffix,
                         size=int(stat.st_size),
                         modified_at=float(stat.st_mtime),
@@ -210,6 +250,90 @@ def scan_local_model_files(
             continue
     results.sort(key=lambda item: (item.name.lower(), str(item.path).lower()))
     return tuple(results)
+
+
+def _local_model_display_name(path: Path, root: Path, metadata_name_cache: dict[str, str]) -> str:
+    metadata_name = _local_model_metadata_name(path, root, metadata_name_cache)
+    if metadata_name:
+        return metadata_name
+    stem = path.stem.strip()
+    if stem and not _is_generic_local_model_file_stem(stem):
+        return _clean_local_model_display_name(stem) or stem
+    parent_name = _nearest_descriptive_local_model_parent_name(path, root)
+    return parent_name or stem or path.name or "model"
+
+
+def _local_model_metadata_name(path: Path, root: Path, metadata_name_cache: dict[str, str]) -> str:
+    metadata_path = _nearest_local_model_metadata_path(path, root)
+    if metadata_path is None:
+        return ""
+    cache_key = str(metadata_path).casefold()
+    cached = metadata_name_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        metadata_name_cache[cache_key] = ""
+        return ""
+    name = ""
+    if isinstance(payload, Mapping):
+        name = str(payload.get("name", "") or payload.get("title", "") or "").strip()
+    metadata_name_cache[cache_key] = name
+    return name
+
+
+def _nearest_local_model_metadata_path(path: Path, root: Path) -> Optional[Path]:
+    current = path.parent
+    while True:
+        metadata_path = current / "model_metadata.json"
+        if metadata_path.is_file():
+            return metadata_path
+        if current == root:
+            break
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return None
+
+
+def _nearest_descriptive_local_model_parent_name(path: Path, root: Path) -> str:
+    current = path.parent
+    direct_parent = current
+    while True:
+        if current == root and direct_parent == root:
+            break
+        cleaned = _clean_local_model_display_name(current.name)
+        if cleaned and not _is_generic_local_model_directory_name(cleaned):
+            return cleaned
+        if current == root:
+            break
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return ""
+
+
+def _clean_local_model_display_name(value: str) -> str:
+    name = unquote(str(value or "")).strip()
+    name = _TRAILING_MODEL_CATALOGUE_UID_RE.sub("", name).strip(" .-_")
+    name = re.sub(r"[_-]+", " ", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name
+
+
+def _is_generic_local_model_file_stem(value: str) -> bool:
+    return _local_model_name_token(value) in _GENERIC_LOCAL_MODEL_FILE_STEMS
+
+
+def _is_generic_local_model_directory_name(value: str) -> bool:
+    return _local_model_name_token(value) in _GENERIC_LOCAL_MODEL_DIRECTORY_NAMES
+
+
+def _local_model_name_token(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
 
 
 def is_importable_model_path(path: Path | str) -> bool:

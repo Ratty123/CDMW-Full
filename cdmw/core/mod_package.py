@@ -509,6 +509,17 @@ def _effective_export_options_for_kind(
             create_info_json=False,
             create_no_encrypt_file=False,
         )
+    if "dmm" in set(manager_targets) and normalized_kind == "mesh_loose_mod":
+        return dataclasses.replace(
+            options,
+            manager_targets=manager_targets,
+            structure="game_relative",
+            create_manifest_json=True,
+            create_mod_json=False,
+            create_modinfo_json=True,
+            create_info_json=False,
+            create_no_encrypt_file=False,
+        )
     if normalized_kind == "mesh_loose_mod" and str(options.structure or "").strip().lower() == "dmm_texture":
         return dataclasses.replace(options, manager_targets=manager_targets, structure="game_relative")
     return dataclasses.replace(options, manager_targets=manager_targets)

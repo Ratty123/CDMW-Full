@@ -2151,6 +2151,58 @@ for _language_code, _translations in _REVIEWED_UI_TRANSLATIONS.items():
     if isinstance(_payload, dict) and isinstance(_payload.get("translations"), dict):
         _payload["translations"].update(_translations)
 
+_HELP_ABOUT_TRANSLATIONS: Dict[str, Dict[str, str]] = {
+    "es": {
+        "About": "Acerca de",
+        "About Crimson Desert Mod Workbench": "Acerca de Crimson Desert Mod Workbench",
+        "Overview": "Vista general",
+        "License": "Licencia",
+        "Third-Party Notices": "Avisos de terceros",
+        "Application Areas": "Areas de la aplicacion",
+        "Model Library and Icon Creator": "Biblioteca de modelos y creador de iconos",
+        "Profile, Settings, and Window": "Perfil, configuracion y ventana",
+        "Research and Text Search": "Investigacion y busqueda de texto",
+        "Crimson Desert archive browsing, texture workflows, mesh preview/import tools, item/icon helpers, research, app profiles, and safe mod packaging.": "Exploracion de archivos de Crimson Desert, flujos de texturas, vista/importacion de mallas, iconos de items, investigacion, perfiles de app y empaquetado mod seguro.",
+        "Search or choose a topic on the left. The reader shows one topic at a time so longer documentation stays navigable.": "Busca o elige un tema a la izquierda. El lector muestra un tema a la vez para que la documentacion larga siga siendo navegable.",
+        "Choose a documentation topic or search by feature name.": "Elige un tema de documentacion o busca por nombre de funcion.",
+        "High-level tour of the app and its main surfaces.": "Recorrido general de la app y sus superficies principales.",
+        "Setup checklist for paths, tools, policy, and first test output.": "Checklist de rutas, herramientas, politica y primera salida de prueba.",
+        "Recipes for common DDS rebuild, upscale, and profile tasks.": "Recetas para reconstruccion DDS, escalado y perfiles.",
+        "First Run Checklist": "Lista de primera ejecucion",
+        "Texture Workflow Guides": "Guias del flujo de texturas",
+        "Mod Packaging & Output": "Empaquetado mod-ready y salida",
+        "Safety Model": "Modelo de seguridad",
+        "Settings, Files & Dependencies": "Configuracion, archivos y dependencias",
+    },
+    "de": {
+        "About": "Ueber",
+        "About Crimson Desert Mod Workbench": "Ueber Crimson Desert Mod Workbench",
+        "Overview": "Uebersicht",
+        "License": "Lizenz",
+        "Third-Party Notices": "Drittanbieterhinweise",
+        "Application Areas": "Anwendungsbereiche",
+        "Model Library and Icon Creator": "Modellbibliothek und Icon Creator",
+        "Profile, Settings, and Window": "Profil, Einstellungen und Fenster",
+        "Research and Text Search": "Recherche und Textsuche",
+        "Crimson Desert archive browsing, texture workflows, mesh preview/import tools, item/icon helpers, research, app profiles, and safe mod packaging.": "Archivsuche fuer Crimson Desert, Textur-Workflows, Mesh-Vorschau/Import, Item-Icon-Helfer, Recherche, App-Profile und sichere Mod-Paketierung.",
+        "Search or choose a topic on the left. The reader shows one topic at a time so longer documentation stays navigable.": "Suche oder waehle links ein Thema. Der Leser zeigt jeweils ein Thema, damit lange Dokumentation navigierbar bleibt.",
+        "Choose a documentation topic or search by feature name.": "Waehle ein Dokumentationsthema oder suche nach Funktionsnamen.",
+        "High-level tour of the app and its main surfaces.": "Ueberblick ueber die App und ihre wichtigsten Oberflaechen.",
+        "Setup checklist for paths, tools, policy, and first test output.": "Checkliste fuer Pfade, Werkzeuge, Richtlinie und erste Testausgabe.",
+        "Recipes for common DDS rebuild, upscale, and profile tasks.": "Rezepte fuer DDS-Neuaufbau, Upscaling und Profile.",
+        "First Run Checklist": "Erster-Lauf-Checkliste",
+        "Texture Workflow Guides": "Textur-Workflow-Anleitungen",
+        "Mod Packaging & Output": "Mod-fertige Pakete und Ausgabe",
+        "Safety Model": "Sicherheitsmodell",
+        "Settings, Files & Dependencies": "Einstellungen, Dateien und Abhaengigkeiten",
+    },
+}
+
+for _language_code, _translations in _HELP_ABOUT_TRANSLATIONS.items():
+    _payload = BUILTIN_LANGUAGES.get(_language_code)
+    if isinstance(_payload, dict) and isinstance(_payload.get("translations"), dict):
+        _payload["translations"].update(_translations)
+
 _FALLBACK_EXACT_TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "es": {
         "A+": "A+",

@@ -637,6 +637,225 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 self.assertEqual((255, 56, 0, 0), image.convert("RGBA").getpixel((0, 0)))
             self.assertIn("probe_arm_standard", {variant.name for variant in complete_swap_material_probe_variants()})
 
+    def test_material_authority_runtime_mask_uses_specular_glossiness_channels(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            spec_gloss = root / "image0.png"
+            Image.new("RGBA", (2, 2), (200, 100, 50, 220)).save(spec_gloss)
+            submesh = SubMesh(
+                name="AxeHead",
+                material="AxeHead",
+                vertices=[(0.0, 0.0, 0.0)],
+                faces=[(0, 0, 0)],
+            )
+            submesh.preview_material_texture_inputs = (
+                PreviewMaterialTextureInput(
+                    slot_kind="material",
+                    parameter_name="_specularGlossinessTexture",
+                    source_texture_path=str(spec_gloss),
+                    preview_texture_path=str(spec_gloss),
+                    semantic_type="specular",
+                    semantic_subtype="specular_glossiness",
+                    packed_channels=("specular", "glossiness"),
+                    material_name="AxeHead",
+                    confidence="gltf",
+                ),
+            )
+
+            texture_sets = group_replacement_texture_sets((spec_gloss,), obj_mesh=ParsedMesh(submeshes=[submesh]))
+            runtime_mask = _complete_swap_runtime_material_mask_png_path(
+                texture_sets["axehead"],
+                get_complete_swap_material_profile("arm_standard"),
+            )
+
+            with Image.open(runtime_mask) as image:
+                pixel = image.convert("RGBA").getpixel((0, 0))
+            self.assertEqual(255, pixel[0])
+            self.assertEqual(35, pixel[1])
+            self.assertEqual(124, pixel[2])
+            self.assertEqual(0, pixel[3])
+
+    def test_material_authority_runtime_mask_multiplies_gltf_pbr_factors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            pbr = root / "image0.png"
+            Image.new("RGBA", (2, 2), (80, 200, 120, 255)).save(pbr)
+            submesh = SubMesh(
+                name="Blade",
+                material="Blade",
+                vertices=[(0.0, 0.0, 0.0)],
+                faces=[(0, 0, 0)],
+            )
+            submesh.preview_material_parameters = (
+                PreviewMaterialParameterInput(parameter_kind="float", parameter_name="_roughnessFactor", numeric_value=0.5),
+                PreviewMaterialParameterInput(parameter_kind="float", parameter_name="_metallicFactor", numeric_value=0.25),
+                PreviewMaterialParameterInput(parameter_kind="float", parameter_name="_gltfTextureStrength_occlusion", numeric_value=0.25),
+            )
+            submesh.preview_material_texture_inputs = (
+                PreviewMaterialTextureInput(
+                    slot_kind="material",
+                    parameter_name="_metallicRoughnessTexture",
+                    source_texture_path=str(pbr),
+                    preview_texture_path=str(pbr),
+                    semantic_type="material",
+                    semantic_subtype="metallic_roughness",
+                    packed_channels=("occlusion", "roughness", "metallic"),
+                    material_name="Blade",
+                    confidence="gltf",
+                ),
+            )
+
+            texture_sets = group_replacement_texture_sets((pbr,), obj_mesh=ParsedMesh(submeshes=[submesh]))
+            runtime_mask = _complete_swap_runtime_material_mask_png_path(
+                texture_sets["blade"],
+                get_complete_swap_material_profile("arm_standard"),
+            )
+
+            with Image.open(runtime_mask) as image:
+                self.assertEqual((211, 100, 30, 0), image.convert("RGBA").getpixel((0, 0)))
+
+    def test_material_authority_runtime_mask_multiplies_specular_glossiness_factors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            spec_gloss = root / "image0.png"
+            Image.new("RGBA", (2, 2), (200, 100, 50, 220)).save(spec_gloss)
+            submesh = SubMesh(
+                name="AxeHead",
+                material="AxeHead",
+                vertices=[(0.0, 0.0, 0.0)],
+                faces=[(0, 0, 0)],
+            )
+            submesh.preview_material_parameters = (
+                PreviewMaterialParameterInput(parameter_kind="float", parameter_name="_glossinessFactor", numeric_value=0.5),
+                PreviewMaterialParameterInput(parameter_kind="float", parameter_name="_specularFactor", numeric_value=0.5),
+            )
+            submesh.preview_material_texture_inputs = (
+                PreviewMaterialTextureInput(
+                    slot_kind="material",
+                    parameter_name="_specularGlossinessTexture",
+                    source_texture_path=str(spec_gloss),
+                    preview_texture_path=str(spec_gloss),
+                    semantic_type="specular",
+                    semantic_subtype="specular_glossiness",
+                    packed_channels=("specular", "glossiness"),
+                    material_name="AxeHead",
+                    confidence="gltf",
+                ),
+            )
+
+            texture_sets = group_replacement_texture_sets((spec_gloss,), obj_mesh=ParsedMesh(submeshes=[submesh]))
+            runtime_mask = _complete_swap_runtime_material_mask_png_path(
+                texture_sets["axehead"],
+                get_complete_swap_material_profile("arm_standard"),
+            )
+
+            with Image.open(runtime_mask) as image:
+                self.assertEqual((255, 145, 62, 0), image.convert("RGBA").getpixel((0, 0)))
+
+    def test_material_authority_runtime_mask_uses_separate_specular_and_glossiness_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            specular = root / "tex_spec.png"
+            glossiness = root / "tex_gloss.png"
+            Image.new("RGBA", (2, 2), (180, 180, 180, 255)).save(specular)
+            Image.new("RGBA", (2, 2), (200, 200, 200, 255)).save(glossiness)
+            submesh = SubMesh(
+                name="Trim",
+                material="Trim",
+                vertices=[(0.0, 0.0, 0.0)],
+                faces=[(0, 0, 0)],
+            )
+            submesh.preview_material_texture_inputs = (
+                PreviewMaterialTextureInput(
+                    slot_kind="specular",
+                    source_texture_path=str(specular),
+                    preview_texture_path=str(specular),
+                    semantic_subtype="specular",
+                    material_name="Trim",
+                    confidence="dae",
+                ),
+                PreviewMaterialTextureInput(
+                    slot_kind="glossiness",
+                    source_texture_path=str(glossiness),
+                    preview_texture_path=str(glossiness),
+                    semantic_subtype="glossiness",
+                    material_name="Trim",
+                    confidence="dae",
+                ),
+            )
+
+            texture_sets = group_replacement_texture_sets((specular, glossiness), obj_mesh=ParsedMesh(submeshes=[submesh]))
+            runtime_mask = _complete_swap_runtime_material_mask_png_path(
+                texture_sets["trim"],
+                get_complete_swap_material_profile("arm_standard"),
+            )
+
+            with Image.open(runtime_mask) as image:
+                self.assertEqual((255, 55, 180, 0), image.convert("RGBA").getpixel((0, 0)))
+
+    def test_material_authority_accepts_webp_scene_texture_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            base = root / "tex_0.webp"
+            base.write_bytes(b"webp placeholder")
+            submesh = SubMesh(
+                name="ClothPanel",
+                material="ClothPanel",
+                vertices=[(0.0, 0.0, 0.0)],
+                faces=[(0, 0, 0)],
+            )
+            submesh.preview_material_texture_inputs = (
+                PreviewMaterialTextureInput(
+                    slot_kind="base",
+                    source_texture_path=str(base),
+                    preview_texture_path=str(base),
+                    semantic_subtype="albedo",
+                    material_name="ClothPanel",
+                    confidence="gltf",
+                ),
+            )
+
+            texture_sets = group_replacement_texture_sets((base,), obj_mesh=ParsedMesh(submeshes=[submesh]))
+
+            self.assertEqual(base, texture_sets["clothpanel"].slots["base"].source_path)
+
+    def test_material_authority_derives_source_role_tags_from_scene_material(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            base = root / "oak_base.png"
+            base.write_bytes(b"")
+            submesh = SubMesh(
+                name="PolishedOakClothGlow",
+                material="PolishedOakClothGlow",
+                texture=str(base),
+                vertices=[(0.0, 0.0, 0.0)],
+                faces=[(0, 0, 0)],
+            )
+            submesh.preview_material_parameters = (
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_roughnessFactor",
+                    numeric_value=0.2,
+                ),
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_emissiveIntensity",
+                    numeric_value=1.0,
+                ),
+            )
+            texture_sets = group_replacement_texture_sets((base,), obj_mesh=ParsedMesh(submeshes=[submesh]))
+
+            tags = set(texture_sets["polishedoakclothglow"].source_role_tags)
+            self.assertTrue({"wood", "cloth", "glow", "shiny"} <= tags)
+
     def test_global_gloss_reduction_profile_overlay_is_noop_at_zero(self) -> None:
         profile = get_complete_swap_material_profile("material_authority_true_source")
 
@@ -1346,6 +1565,33 @@ class StaticTextureReplacementTests(unittest.TestCase):
 
             with Image.open(mask) as image:
                 self.assertEqual((24, 56, 235, 0), image.convert("RGBA").getpixel((0, 0)))
+
+    def test_complete_swap_runtime_mask_reads_direct_occlusion_slot_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            occlusion = root / "occlusion.png"
+            Image.new("RGBA", (1, 1), (41, 41, 41, 255)).save(occlusion)
+            texture_set = ReplacementTextureSet(
+                material_name="Blade",
+                slots={
+                    "occlusion": ReplacementTextureSlot(
+                        material_name="Blade",
+                        slot_kind="occlusion",
+                        source_path=occlusion,
+                        source_authority="gltf",
+                    )
+                },
+            )
+
+            mask = _complete_swap_runtime_material_mask_png_path(
+                texture_set,
+                get_complete_swap_material_profile("arm_standard"),
+            )
+
+            with Image.open(mask) as image:
+                self.assertEqual((41, 192, 0, 0), image.convert("RGBA").getpixel((0, 0)))
 
     def test_profile_scalars_insert_scratch_and_sheen_parameters(self) -> None:
         sidecar_text = """
@@ -5881,8 +6127,10 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertTrue((result.package_root / "character" / "texture" / "generated.dds").exists())
             self.assertTrue((result.package_root / "character" / "modelproperty" / "test_weapon.pac_xml").exists())
             self.assertFalse((result.package_root / "character" / "model" / "test_skeleton.pab").exists())
-            self.assertTrue((result.package_root / "cdmw_active_file_authority_audit.json").exists())
             self.assertIsNotNone(result.authority_audit_path)
+            self.assertFalse((result.package_root / "cdmw_active_file_authority_audit.json").exists())
+            self.assertTrue(result.authority_audit_path.is_file())
+            self.assertEqual(result.package_root.parent, result.authority_audit_path.parent)
             manifest = json.loads((result.package_root / "manifest.json").read_text(encoding="utf-8"))
             files = {item["path"]: item for item in manifest["files"]}
             self.assertIn("Generated replacement texture", files["character/texture/generated.dds"]["note"])

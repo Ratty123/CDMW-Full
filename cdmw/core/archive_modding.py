@@ -2895,14 +2895,18 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
             game_root=_package_root_from_entry(primary_entry),
             payload_files=written_files,
             write_audit_file=True,
+            audit_output_path=package_root.with_name(f"{package_root.name}_cdmw_active_file_authority_audit.json"),
             on_log=on_log,
         )
         if authority_audit.audit_path is not None:
-            metadata_files.append(authority_audit.audit_path)
+            try:
+                audit_display = authority_audit.audit_path.relative_to(package_root.parent).as_posix()
+            except ValueError:
+                audit_display = authority_audit.audit_path.as_posix()
             _safe_log(
                 on_log,
-                "Active file authority audit written: "
-                f"{authority_audit.audit_path.relative_to(package_root).as_posix()}",
+                "Active file authority audit report written outside package: "
+                f"{audit_display}",
             )
         for row in authority_audit.rows[:8]:
             _safe_log(
@@ -3005,6 +3009,7 @@ def audit_loose_package_active_file_authority(
     game_root: Path,
     payload_files: Sequence[Path],
     write_audit_file: bool = True,
+    audit_output_path: Optional[Path] = None,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> ActiveFileAuthorityAuditResult:
     """Compare loose package payload hashes with active archive entries.
@@ -3171,8 +3176,13 @@ def audit_loose_package_active_file_authority(
             ],
             "rows": [dataclasses.asdict(row) for row in result.rows],
         }
-        audit_path = root / "cdmw_active_file_authority_audit.json"
+        audit_path = (
+            Path(audit_output_path).expanduser().resolve()
+            if audit_output_path is not None
+            else root / "cdmw_active_file_authority_audit.json"
+        )
         try:
+            audit_path.parent.mkdir(parents=True, exist_ok=True)
             audit_path.write_text(json.dumps(audit_doc, indent=2, sort_keys=True), encoding="utf-8")
             result.audit_path = audit_path
         except OSError as exc:
@@ -3820,6 +3830,25 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
         preview_color = tuple(getattr(submesh, "preview_color", ()) or ())
         if len(preview_color) >= 3:
             preview_mesh.preview_color = tuple(float(component) for component in preview_color[:3])
+        preview_texture_path = str(getattr(submesh, "preview_texture_path", "") or "").strip()
+        if preview_texture_path:
+            preview_mesh.preview_texture_path = preview_texture_path
+            preview_mesh.preview_texture_image = None
+        preview_texture_tint = tuple(getattr(submesh, "preview_texture_tint", ()) or ())
+        if len(preview_texture_tint) >= 3:
+            preview_mesh.preview_texture_tint = tuple(float(component) for component in preview_texture_tint[:3])
+        preview_texture_uv_scale = tuple(getattr(submesh, "preview_texture_uv_scale", ()) or ())
+        if len(preview_texture_uv_scale) >= 2:
+            preview_mesh.preview_texture_uv_scale = tuple(float(component) for component in preview_texture_uv_scale[:2])
+        preview_texture_brightness = getattr(submesh, "preview_texture_brightness", None)
+        if preview_texture_brightness is not None:
+            try:
+                preview_mesh.preview_texture_brightness = float(preview_texture_brightness)
+            except (TypeError, ValueError, OverflowError):
+                pass
+        preview_native_material_overrides = getattr(submesh, "preview_native_material_overrides", None)
+        if isinstance(preview_native_material_overrides, dict):
+            preview_mesh.preview_native_material_overrides = dict(preview_native_material_overrides)
         preview_mesh.preview_alpha_mode = str(getattr(submesh, "preview_alpha_mode", "") or "").strip()
         preview_mesh.preview_double_sided = bool(getattr(submesh, "preview_double_sided", False))
         preview_normal_texture_path = str(getattr(submesh, "preview_normal_texture_path", "") or "").strip()

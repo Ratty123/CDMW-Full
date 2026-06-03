@@ -128,7 +128,10 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn('tab_widget.addTab(byte_map_page, "Byte Map")', source)
         self.assertIn('tab_widget.addTab(connected_page, "Connected Physics")', source)
         self.assertIn('tab_widget.addTab(decoder_page, "Decoder Evidence")', source)
-        self.assertIn('placement_tab_index = tab_widget.addTab(placement_page, "Placement")', source)
+        self.assertIn('placement_tab_index = tab_widget.addTab(placement_page, "Placement (Disabled - WIP)")', source)
+        self.assertIn('tab_widget.setTabToolTip(placement_tab_index, "Disabled - WIP. Placement swap/package flow is paused.")', source)
+        self.assertIn("tab_widget.setTabEnabled(placement_tab_index, False)", source)
+        self.assertIn("placement_page.setEnabled(False)", source)
         self.assertIn('self._edit_archive_hkx_entry(selected, initial_section="Placement")', source)
         self.assertIn("requested_initial_section = str(initial_section", source)
         self.assertIn("tab_widget.tabText(section_index).strip().casefold() == requested_initial_section", source)
@@ -229,11 +232,12 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("hkx_preview_skeleton_checkbox.setVisible(False)", source)
         self.assertIn("hkx_preview_skeleton_checkbox.setVisible(bone_count > 0 and skeleton_link_count > 0)", source)
         self.assertNotIn('hkx_preview_placement_button = QPushButton("Placement")', source)
-        self.assertIn("Prefab/socket placement workspace for this HKX", source)
-        self.assertIn('placement_swap_title = QLabel("Placement Swap")', source)
+        self.assertIn("Disabled - WIP. Prefab/socket placement workflow is paused here", source)
+        self.assertIn('placement_swap_title = QLabel("Placement Swap (Disabled - WIP)")', source)
         self.assertIn("placement_swap_steps = QTreeWidget()", source)
-        self.assertIn("Automated swap copies placement-source files", source)
-        self.assertIn('placement_swap_copy_button = QPushButton("Choose Placement Source...")', source)
+        self.assertIn("Disabled - WIP. Placement swap/package flow is paused", source)
+        self.assertIn('placement_swap_copy_button = QPushButton("Choose Placement Source (Disabled - WIP)")', source)
+        self.assertIn("placement_swap_copy_button.setEnabled(False)", source)
         self.assertNotIn('self.archive_bulk_placement_swap_button = QPushButton("Bulk Placement Swap...")', source)
         self.assertIn("def _selected_archive_bulk_placement_targets", source)
         self.assertIn("def _open_archive_bulk_attachment_placement_from_selection", source)
@@ -252,8 +256,8 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn('placement_context_tabs.addTab(placement_related_tree, "Related Files")', source)
         self.assertNotIn('placement_copy_button = QPushButton("Copy Placement From Weapon...")', source)
         self.assertIn('placement_edit_socket_button = QPushButton("Edit Socket Values...")', source)
-        self.assertIn("Swap placement workflow: this opened HKX/model is the target to change", source)
-        self.assertIn("open 2H, choose 1H", source)
+        self.assertIn("This opened asset is the target that changes.", source)
+        self.assertIn("Use Choose Placement Source to compare actual socket/prefab values", source)
         self.assertIn("def _open_archive_attachment_donor_picker_dialog", source)
         self.assertIn("Search uses the already-built Archive Browser indexes", source)
         self.assertIn("donor_search_progress = QProgressBar()", source)
@@ -289,6 +293,13 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn('use_recommended_button = QPushButton("Use Recommended Source")', source)
         self.assertIn("finder_icon_timer = QTimer(finder)", source)
         self.assertIn("def _queue_item_finder_donor_icons_for_visible_rows() -> None:", source)
+        self.assertIn("QTimer.singleShot(140, _queue_item_finder_donor_icons_for_visible_rows)", source)
+        self.assertIn("def _first_item_finder_donor_icon_rows(", source)
+        self.assertIn(
+            "self._warm_item_finder_icon_rows_before_exec(\n"
+            "                    _first_item_finder_donor_icon_rows(),",
+            source,
+        )
         self.assertIn(
             "self._cached_archive_asset_catalog_inventory_icon_pixmap(\n"
             "                            row,\n"

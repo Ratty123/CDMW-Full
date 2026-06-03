@@ -73,7 +73,7 @@ from cdmw.modding.scene_importer import SceneImportResult
 from cdmw.rendering.material_channels import resolve_preview_batch_material_channels
 from cdmw.rendering.native_preview_package import write_isolated_d3d11_preview_package
 from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame, native_d3d11_renderer_command
-from cdmw.ui.themes import get_theme
+from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_COLOR
 from cdmw.ui.widgets import responsive_sidebar_bounds
 from cdmw.ui.widgets import NativePreviewPanel
 
@@ -1357,10 +1357,9 @@ class ModelLibraryTab(QWidget):
         return "native_d3d11"
 
     def _inline_d3d11_theme_payload(self) -> dict[str, str]:
-        theme = get_theme(self.theme_key)
         return {
-            "background": str(theme.get("preview_bg", "#0d0f11")),
-            "text": str(theme.get("text_muted", theme.get("text", "#c8d3df"))),
+            "background": MODEL_PREVIEW_BACKGROUND_COLOR,
+            "text": MODEL_PREVIEW_TEXT_COLOR,
         }
 
     def _inline_d3d11_process_running(self) -> bool:
@@ -2968,7 +2967,7 @@ class ModelLibraryTab(QWidget):
 
         for row in rows:
             path = Path(str(row.get("path", "") or ""))
-            metadata_path = self._download_metadata_path_for_local_path(path, resolved_download_root)
+            metadata_path = self._metadata_path_for_local_row(row, resolved_download_root)
             if metadata_path is None:
                 passthrough.append(row)
                 continue
@@ -2985,10 +2984,20 @@ class ModelLibraryTab(QWidget):
             if metadata_path is None:
                 normalized.extend(group_rows)
                 continue
-            normalized.append(self._download_group_local_row(metadata_path.parent, metadata, group_rows, resolved_download_root))
+            display_root = self._display_root_for_metadata_group(metadata_path, group_rows, resolved_download_root)
+            normalized.append(self._download_group_local_row(metadata_path.parent, metadata, group_rows, display_root))
 
         normalized.sort(key=lambda item: (str(item.get("name", "") or "").lower(), str(item.get("path", "") or "").lower()))
         return normalized
+
+    def _metadata_path_for_local_row(self, row: dict[str, object], download_root: Path) -> Optional[Path]:
+        path = Path(str(row.get("path", "") or ""))
+        metadata_path = self._download_metadata_path_for_local_path(path, download_root)
+        if metadata_path is not None:
+            return metadata_path
+        root_text = str(row.get("root", "") or "").strip()
+        root = Path(root_text) if root_text else None
+        return self._nearest_local_model_metadata_path(path, root)
 
     def _download_metadata_path_for_local_path(self, path: Path, download_root: Path) -> Optional[Path]:
         try:
@@ -3008,6 +3017,28 @@ class ModelLibraryTab(QWidget):
                 break
         return None
 
+    def _nearest_local_model_metadata_path(self, path: Path, root: Optional[Path]) -> Optional[Path]:
+        try:
+            resolved_path = path.resolve()
+        except OSError:
+            resolved_path = path.absolute()
+        resolved_root: Optional[Path] = None
+        if root is not None:
+            try:
+                resolved_root = root.resolve()
+            except OSError:
+                resolved_root = root.absolute()
+            if resolved_root != resolved_path and resolved_root not in resolved_path.parents:
+                return None
+        start = resolved_path.parent if resolved_path.is_file() else resolved_path
+        for candidate_dir in (start, *start.parents):
+            metadata_path = candidate_dir / "model_metadata.json"
+            if metadata_path.is_file():
+                return metadata_path
+            if resolved_root is not None and candidate_dir == resolved_root:
+                break
+        return None
+
     def _read_download_metadata(self, metadata_path: Path) -> dict[str, object]:
         try:
             payload = json.loads(metadata_path.read_text(encoding="utf-8"))
@@ -3017,23 +3048,43 @@ class ModelLibraryTab(QWidget):
 
     def _metadata_path_from_group(self, group_rows: list[dict[str, object]], download_root: Path) -> Optional[Path]:
         for row in group_rows:
-            metadata_path = self._download_metadata_path_for_local_path(Path(str(row.get("path", "") or "")), download_root)
+            metadata_path = self._metadata_path_for_local_row(row, download_root)
             if metadata_path is not None:
                 return metadata_path
         return None
+
+    def _display_root_for_metadata_group(self, metadata_path: Path, group_rows: list[dict[str, object]], download_root: Path) -> Path:
+        try:
+            resolved_metadata_path = metadata_path.resolve()
+        except OSError:
+            resolved_metadata_path = metadata_path.absolute()
+        if download_root == resolved_metadata_path or download_root in resolved_metadata_path.parents:
+            return download_root
+        for row in group_rows:
+            root_text = str(row.get("root", "") or "").strip()
+            if not root_text:
+                continue
+            root = Path(root_text)
+            try:
+                resolved_root = root.resolve()
+            except OSError:
+                resolved_root = root.absolute()
+            if resolved_root == resolved_metadata_path or resolved_root in resolved_metadata_path.parents:
+                return resolved_root
+        return metadata_path.parent
 
     def _download_group_local_row(
         self,
         asset_dir: Path,
         metadata: dict[str, object],
         group_rows: list[dict[str, object]],
-        download_root: Path,
+        display_root: Path,
     ) -> dict[str, object]:
         import_path = self._find_importable_file_under(asset_dir)
         archive_path = self._preferred_download_archive_path(asset_dir, metadata, group_rows)
         display_path = import_path or archive_path or Path(str(group_rows[0].get("path", "") or asset_dir))
         try:
-            relative_path = str(display_path.relative_to(download_root))
+            relative_path = str(display_path.relative_to(display_root))
         except ValueError:
             relative_path = str(display_path)
         size = 0
@@ -3062,7 +3113,7 @@ class ModelLibraryTab(QWidget):
             "kind": "local",
             "name": str(metadata.get("name", "") or display_path.stem),
             "path": str(display_path),
-            "root": str(download_root),
+            "root": str(display_root),
             "relative_path": relative_path,
             "extension": display_path.suffix.lower(),
             "size": size,

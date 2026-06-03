@@ -92,12 +92,16 @@ class CrashReportingGuardTests(unittest.TestCase):
 
     def test_app_icon_is_loaded_from_packaged_and_internal_paths(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
-        self.assertIn("def iter_app_icon_candidate_paths() -> Tuple[Path, ...]:", source)
+        self.assertIn("def iter_app_icon_candidate_paths(theme_key: Optional[str] = None) -> Tuple[Path, ...]:", source)
         self.assertIn('Path("_internal") / "assets" / "cdmw.ico"', source)
-        self.assertIn("def load_app_icon() -> Tuple[QIcon, Optional[Path]]:", source)
+        self.assertIn('Path("assets") / "theme_icons" / f"cdmw_{theme_stem}.ico"', source)
+        self.assertIn("def load_app_icon(theme_key: Optional[str] = None) -> Tuple[QIcon, Optional[Path]]:", source)
         self.assertIn("if not icon.isNull():", source)
         self.assertIn("class AppWindowIconEventFilter(QObject):", source)
-        self.assertIn("app_icon, _icon_path = load_app_icon()", source)
+        self.assertIn("def set_app_icon(self, app_icon: QIcon) -> None:", source)
+        self.assertIn("app_icon, _icon_path = load_app_icon(startup_theme)", source)
+        self.assertIn("app_icon, _icon_path = load_app_icon(self.current_theme_key)", source)
+        self.assertIn("def _apply_theme_window_icon(self, theme_key: str) -> None:", source)
         self.assertIn("self.setWindowIcon(app_icon)", source)
         self.assertIn("app.setWindowIcon(app_icon)", source)
         self.assertIn("QSystemTrayIcon", source)
@@ -108,6 +112,8 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("startup_splash.setWindowIcon(app.windowIcon())", source)
         self.assertIn("external_splash_file is not None and external_splash_file.is_file()", source)
         self.assertIn("close_pyinstaller_boot_splash()", source)
+        spec_source = ROOT.joinpath("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
+        self.assertIn('_add_data_tree_if_exists(datas, "assets/theme_icons", "assets/theme_icons"', spec_source)
         self.assertLess(
             source.index("apply_windows_app_user_model_id()"),
             source.index("app = QApplication(sys.argv)"),
@@ -122,6 +128,8 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("QIcon", source)
         self.assertIn("app.setWindowIcon(app_icon)", source)
         self.assertIn("dialog.setWindowIcon(app_icon)", source)
+        self.assertIn("icon_path = resolve_app_icon_path(initial_theme_key)", source)
+        self.assertIn("icon_path = resolve_app_icon_path(resolved_theme_key)", source)
         self.assertLess(
             source.index("    _apply_windows_app_user_model_id()"),
             source.index("app = QApplication(sys.argv[:1])"),
@@ -131,12 +139,24 @@ class CrashReportingGuardTests(unittest.TestCase):
             source.index("dialog.show()"),
         )
         self.assertIn('Path("_internal") / "assets" / "cdmw.ico"', app_icon_source)
-        self.assertIn("def resolve_app_icon_path() -> Optional[Path]:", app_icon_source)
+        self.assertIn('Path("assets") / "theme_icons" / f"cdmw_{theme_stem}.ico"', app_icon_source)
+        self.assertIn("def resolve_app_icon_path(theme_key: Optional[str] = None) -> Optional[Path]:", app_icon_source)
+
+    def test_external_startup_splash_reads_saved_theme(self) -> None:
+        app_source = ROOT.joinpath("cdmw_app.py").read_text(encoding="utf-8")
+        host_source = STARTUP_SPLASH_HOST.read_text(encoding="utf-8")
+        self.assertIn("def _read_startup_theme_key() -> str:", app_source)
+        self.assertIn('"theme_key": str(theme_key or _read_startup_theme_key())', app_source)
+        self.assertIn("startup_theme_key = _read_startup_theme_key()", app_source)
+        self.assertIn("from cdmw.ui.themes import UI_THEME_SCHEMES", host_source)
+        self.assertIn("def _set_theme(self, theme_key: object) -> None:", host_source)
+        self.assertIn('self._set_theme(payload.get("theme_key", self._theme_key))', host_source)
 
     def test_app_icon_resolver_finds_repo_asset(self) -> None:
         from cdmw.ui.app_icon import resolve_app_icon_path
 
         self.assertEqual(resolve_app_icon_path(), ROOT / "assets" / "cdmw.ico")
+        self.assertEqual(resolve_app_icon_path("graphite"), ROOT / "assets" / "theme_icons" / "cdmw_graphite.ico")
 
     def test_background_crash_context_does_not_read_live_qt_widgets(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -358,14 +378,20 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def pump_animation_frame", source)
         self.assertIn("MainWindow(startup_splash=startup_splash)", source)
         self.assertIn('pump_startup_splash("Preparing archive browser...")', source)
-        self.assertIn("#c56d43", source)
-        self.assertIn("#d57d4f", source)
-        self.assertIn("#f0b083", source)
-        self.assertIn("#6d3024", source)
+        self.assertIn("def _splash_theme_color", source)
+        self.assertIn("def _splash_accent_block_colors", source)
+        self.assertIn("self._theme_key = _splash_resolved_theme_key(theme_key)", source)
+        self.assertIn("StartupProgressCard(self, theme_key=self._theme_key)", source)
+        self.assertIn("StartupSignalMark(self.progress_card, theme_key=self._theme_key)", source)
+        self.assertIn("StartupSplashDialog(theme_key=startup_theme)", source)
+        self.assertIn("ExternalStartupSplashAdapter(external_splash_file, theme_key=startup_theme)", source)
         self.assertNotIn("build_speed = 1.62", source)
         self.assertNotIn("compass_radius", source)
         self.assertNotIn("platform_y", source)
-        self.assertNotIn("painter.drawArc", source)
+        splash_animation_source = source[
+            source.index("class StartupSignalMark") : source.index("class ThemeChangeBusyOverlay")
+        ]
+        self.assertNotIn("painter.drawArc", splash_animation_source)
         self.assertNotIn("dot_angle = (self._phase * math.tau)", source)
         self.assertNotIn("route = QPainterPath()", source)
         self.assertNotIn("Qt.DashLine", source)
@@ -524,6 +550,61 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('self.archive_texture_scope_all_button = QPushButton("Filter to Family")', source)
         self.assertIn("def _scope_all_archive_texture_references(self) -> None:", source)
         self.assertIn("Referenced file set scoped Archive Browser to:", source)
+
+    def test_missing_archive_package_root_prompts_on_startup_and_scan(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        self.assertIn("class StartupArchivePathDialog(QDialog):", source)
+        startup_dialog_start = source.index("class StartupArchivePathDialog(QDialog):")
+        startup_dialog_body = source[startup_dialog_start : source.index("class ThemeChangeBusyOverlay", startup_dialog_start)]
+        self.assertIn("self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint", startup_dialog_body)
+        self.assertIn("QTimer.singleShot(80, self._run_initial_autodetect)", startup_dialog_body)
+        self.assertIn("autodetect_archive_package_roots(on_log=logs.append)", startup_dialog_body)
+        self.assertIn("looks_like_archive_package_root(Path(path_text).expanduser())", startup_dialog_body)
+        self.assertIn("After you continue, CDMW will build the archive cache", startup_dialog_body)
+
+        self.assertIn("def _show_startup_archive_path_prompt_if_needed(", source)
+        prompt_start = source.index("        def _show_startup_archive_path_prompt_if_needed(")
+        prompt_body = source[prompt_start : source.index("        def _add_path_row(", prompt_start)]
+        self.assertIn("StartupArchivePathDialog(", prompt_body)
+        self.assertIn("self.show_quick_start_on_launch = False", prompt_body)
+        self.assertIn('self.settings.setValue("archive/package_root", selected_path)', prompt_body)
+        self.assertIn('os.environ["CDMW_DEFER_TEXTURE_PREVIEW"] = "1"', prompt_body)
+        self.assertIn("startup_path_prompt_accepted", prompt_body)
+        self.assertIn("Building archive cache. First load can take a while; let it finish.", prompt_body)
+        self.assertIn("window._show_startup_archive_path_prompt_if_needed(startup_splash)", source)
+        self.assertLess(
+            source.index("window._show_startup_archive_path_prompt_if_needed(startup_splash)"),
+            source.index("        if window._startup_archive_autoload_expected():"),
+        )
+
+        self.assertIn("def _prompt_for_archive_package_root_if_missing(", source)
+        self.assertIn('box.setWindowTitle("Crimson Desert Path Required")', source)
+        self.assertIn('box.addButton("Auto-detect", QMessageBox.AcceptRole)', source)
+        self.assertIn('box.addButton("Browse...", QMessageBox.ActionRole)', source)
+        self.assertIn(
+            "self.autodetect_archive_package_root(after_success=after_autodetect)",
+            source,
+        )
+        self.assertIn("def _run_when_background_idle(", source)
+        self.assertIn(
+            'self._run_when_background_idle(after_success, label="continuing archive package setup")',
+            source,
+        )
+
+        startup_start = source.index("        def _show_first_run_guide_if_needed(self) -> None:")
+        startup_body = source[startup_start : source.index("        def _add_path_row(", startup_start)]
+        self.assertIn('reason="startup"', startup_body)
+        self.assertIn("after_autodetect=self._show_first_run_guide_if_needed", startup_body)
+        self.assertLess(
+            startup_body.index("self._prompt_for_archive_package_root_if_missing("),
+            startup_body.index("self.show_quick_start_dialog()"),
+        )
+
+        scan_start = source.index("        def scan_archives(")
+        scan_body = source[scan_start : source.index("        def _handle_archive_scan_progress", scan_start)]
+        self.assertIn("self._prompt_for_archive_package_root_if_missing(", scan_body)
+        self.assertIn('reason="refresh" if force_refresh else "scan"', scan_body)
+        self.assertIn("after_autodetect=lambda: self.scan_archives(", scan_body)
 
     def test_archive_extension_filter_is_searchable_for_rare_extensions(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")

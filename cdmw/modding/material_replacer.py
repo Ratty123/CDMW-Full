@@ -29,6 +29,7 @@ from .static_mesh_replacer import StaticOutputDrawSection, StaticSubmeshMapping,
 
 MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME = "material_authority_manual"
 _MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_PREFIX = f"{MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME}:"
+_SOURCE_TEXTURE_IMAGE_EXTENSIONS = {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp"}
 
 
 @dataclass(slots=True)
@@ -58,6 +59,9 @@ class ReplacementTextureSet:
     source_face_count: int = 0
     roughness_factor: Optional[float] = None
     metallic_factor: Optional[float] = None
+    specular_factor: Optional[float] = None
+    glossiness_factor: Optional[float] = None
+    occlusion_strength: Optional[float] = None
     base_color_factor: Optional[tuple[float, float, float]] = None
     source_role_tags: tuple[str, ...] = ()
 
@@ -1674,7 +1678,6 @@ def _with_source_material_reference_textures(
 ) -> tuple[Path, ...]:
     """Include texture paths carried by imported material metadata."""
 
-    supported_suffixes = {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff"}
     paths: list[Path] = []
     seen: set[str] = set()
 
@@ -1687,7 +1690,7 @@ def _with_source_material_reference_textures(
             path = path.resolve()
         except Exception:
             pass
-        if path.suffix.lower() not in supported_suffixes or not path.is_file():
+        if path.suffix.lower() not in _SOURCE_TEXTURE_IMAGE_EXTENSIONS or not path.is_file():
             return
         key = str(path).lower()
         if key in seen:
@@ -3876,6 +3879,8 @@ def _source_driven_slots(
         if slot_kind == "emissive" and include_complete_support_fallbacks and profile.emissive_mode != "intensity":
             continue
         source_slot = texture_set.slots.get(slot_kind)
+        if source_slot is None and slot_kind == "ao":
+            source_slot = texture_set.slots.get("occlusion")
         if source_slot is None:
             continue
         if source_only and not _source_slot_is_real_texture(source_slot):
@@ -4266,11 +4271,16 @@ def _complete_swap_material_divergence_reasons(
     pbr_slot = texture_set.slots.get("material") or texture_set.slots.get("roughness")
     has_explicit_pbr = _source_slot_is_explicit_pbr(pbr_slot)
     if not has_explicit_pbr:
-        if texture_set.roughness_factor is None and "roughness" not in texture_set.slots:
+        if texture_set.roughness_factor is None and "roughness" not in texture_set.slots and "glossiness" not in texture_set.slots:
             reasons.append("missing source roughness map uses factor/profile fallback")
-        if texture_set.metallic_factor is None and "metallic" not in texture_set.slots and "metalness" not in texture_set.slots:
-            reasons.append("missing source metallic map uses factor/profile fallback")
-    if "ao" not in texture_set.slots and not (
+        if (
+            texture_set.metallic_factor is None
+            and "metallic" not in texture_set.slots
+            and "metalness" not in texture_set.slots
+            and "specular" not in texture_set.slots
+        ):
+            reasons.append("missing source metallic/specular map uses factor/profile fallback")
+    if "ao" not in texture_set.slots and "occlusion" not in texture_set.slots and not (
         has_explicit_pbr
         and any(_sanitize_texture_component(channel) in {"ao", "occlusion", "ambientocclusion"} for channel in tuple(getattr(pbr_slot, "packed_channels", ()) or ()))
     ):
@@ -4311,14 +4321,17 @@ def _texture_set_has_source_authority_data(texture_set: ReplacementTextureSet) -
 
 
 def _texture_set_has_explicit_source_pbr(texture_set: ReplacementTextureSet) -> bool:
-    return any(
-        _source_slot_is_real_texture(slot) and _source_slot_is_explicit_pbr(slot)
-        for slot in (
-            (getattr(texture_set, "slots", {}) or {}).get("material"),
-            (getattr(texture_set, "slots", {}) or {}).get("roughness"),
-        )
-        if slot is not None
-    )
+    slots = getattr(texture_set, "slots", {}) or {}
+    material_slot = slots.get("material") or slots.get("roughness")
+    if material_slot is not None and _source_slot_is_real_texture(material_slot) and _source_slot_is_explicit_pbr(material_slot):
+        return True
+    for slot_kind in ("roughness", "glossiness", "metallic", "metalness", "specular", "ao", "occlusion"):
+        slot = slots.get(slot_kind)
+        if slot is None:
+            continue
+        if _source_slot_is_real_texture(slot) and str(getattr(slot, "source_authority", "") or "").strip().lower() != "filename":
+            return True
+    return False
 
 
 def _complete_swap_neutral_support_slot(
@@ -4431,7 +4444,22 @@ def _source_slot_is_explicit_pbr(source_slot: Optional[ReplacementTextureSlot]) 
         return authority != "filename"
     if {"roughness", "metallic"} <= set(channels):
         return authority != "filename"
+    if subtype in {"specular_glossiness", "specularglossiness", "specular_gloss", "specgloss"}:
+        return authority != "filename"
+    if {"specular", "glossiness"} <= set(channels):
+        return authority != "filename"
     return False
+
+
+def _source_slot_is_specular_glossiness(source_slot: Optional[ReplacementTextureSlot]) -> bool:
+    if source_slot is None:
+        return False
+    subtype = _sanitize_texture_component(str(getattr(source_slot, "semantic_subtype", "") or ""))
+    channels = {_sanitize_texture_component(channel) for channel in tuple(getattr(source_slot, "packed_channels", ()) or ())}
+    return subtype in {"specular_glossiness", "specularglossiness", "specular_gloss", "specgloss"} or {
+        "specular",
+        "glossiness",
+    } <= channels
 
 
 def _source_slot_channel_index(source_slot: ReplacementTextureSlot, role: str, default_index: int) -> int:
@@ -4462,10 +4490,17 @@ def _source_slot_channel_index(source_slot: ReplacementTextureSlot, role: str, d
             parsed["roughness"] = index
         elif normalized in {"metallic", "metalness", "metal"}:
             parsed["metallic"] = index
+        elif normalized in {"specular", "spec"}:
+            parsed["specular"] = index
+        elif normalized in {"glossiness", "gloss", "smoothness"}:
+            parsed["glossiness"] = index
     compact_channels = tuple(_sanitize_texture_component(channel) for channel in raw_channels)
     if subtype in {"metallic_roughness", "metallicroughness"} and compact_channels == ("roughness", "metallic"):
         parsed["roughness"] = 1
         parsed["metallic"] = 2
+    if subtype in {"specular_glossiness", "specularglossiness", "specular_gloss", "specgloss"}:
+        parsed.setdefault("specular", 0)
+        parsed["glossiness"] = 3
     if compact_channels[:3] in {
         ("ao", "roughness", "metallic"),
         ("occlusion", "roughness", "metallic"),
@@ -4495,13 +4530,21 @@ def _complete_swap_runtime_material_mask_png_path(
     pbr_slot = texture_set.slots.get("material") or texture_set.slots.get("roughness")
     if pbr_slot is not None and not _source_slot_is_explicit_pbr(pbr_slot):
         pbr_slot = None
+    pbr_is_specular_glossiness = _source_slot_is_specular_glossiness(pbr_slot)
     roughness_slot = texture_set.slots.get("roughness")
     if roughness_slot is pbr_slot:
         roughness_slot = None
+    glossiness_slot = texture_set.slots.get("glossiness")
     metallic_slot = texture_set.slots.get("metallic") or texture_set.slots.get("metalness")
-    ao_slot = texture_set.slots.get("ao")
+    specular_slot = texture_set.slots.get("specular")
+    ao_slot = texture_set.slots.get("ao") or texture_set.slots.get("occlusion")
     factor_roughness = _factor_byte(getattr(texture_set, "roughness_factor", None), material_profile.roughness_default)
     factor_metallic = _factor_byte(getattr(texture_set, "metallic_factor", None), material_profile.metallic_default)
+    roughness_scalar = _optional_factor(getattr(texture_set, "roughness_factor", None))
+    metallic_scalar = _optional_factor(getattr(texture_set, "metallic_factor", None))
+    specular_scalar = _optional_factor(getattr(texture_set, "specular_factor", None))
+    glossiness_scalar = _optional_factor(getattr(texture_set, "glossiness_factor", None))
+    occlusion_strength = _optional_factor(getattr(texture_set, "occlusion_strength", None))
     source_key_parts = [
         material_name,
         material_profile.name,
@@ -4515,6 +4558,11 @@ def _complete_swap_runtime_material_mask_png_path(
         str(int(bool(material_profile.force_nonmetal))),
         str(factor_roughness),
         str(factor_metallic),
+        str(roughness_scalar),
+        str(metallic_scalar),
+        str(specular_scalar),
+        str(glossiness_scalar),
+        str(occlusion_strength),
         str(_profile_optional_byte(material_profile, "roughness_min")),
         str(_profile_optional_scale(material_profile, "roughness_scale")),
         str(_profile_optional_byte(material_profile, "roughness_max")),
@@ -4524,7 +4572,7 @@ def _complete_swap_runtime_material_mask_png_path(
         str(_profile_gloss_reduction_mode(material_profile)),
         str(_profile_global_gloss_reduction(material_profile)),
     ]
-    for slot in (pbr_slot, roughness_slot, metallic_slot, ao_slot):
+    for slot in (pbr_slot, roughness_slot, glossiness_slot, metallic_slot, specular_slot, ao_slot):
         if slot is not None:
             source_key_parts.append(str(slot.source_path))
             source_key_parts.append(str(getattr(slot, "semantic_subtype", "") or ""))
@@ -4547,7 +4595,7 @@ def _complete_swap_runtime_material_mask_png_path(
     size = _first_readable_image_size(
         tuple(
             slot.source_path
-            for slot in (pbr_slot, roughness_slot, metallic_slot, ao_slot)
+            for slot in (pbr_slot, roughness_slot, glossiness_slot, metallic_slot, specular_slot, ao_slot)
             if slot is not None
         )
     )
@@ -4571,18 +4619,55 @@ def _complete_swap_runtime_material_mask_png_path(
     )
     if str(material_profile.ao_mode or "").strip().lower() == "white":
         ao = Image.new("L", size, 255)
-    roughness = _load_grayscale_channel(
-        pbr_slot.source_path if pbr_slot is not None else (roughness_slot.source_path if roughness_slot is not None else None),
-        size,
-        channel_index=_source_slot_channel_index(pbr_slot, "roughness", 1) if pbr_slot is not None else 0,
-        default_value=factor_roughness,
-    )
-    metallic = _load_grayscale_channel(
-        pbr_slot.source_path if pbr_slot is not None else (metallic_slot.source_path if metallic_slot is not None else None),
-        size,
-        channel_index=_source_slot_channel_index(pbr_slot, "metallic", 2) if pbr_slot is not None else 0,
-        default_value=factor_metallic,
-    )
+    elif occlusion_strength is not None:
+        ao = _apply_occlusion_strength(ao, occlusion_strength)
+    if pbr_is_specular_glossiness and pbr_slot is not None:
+        glossiness = _load_grayscale_channel(
+            pbr_slot.source_path,
+            size,
+            channel_index=_source_slot_channel_index(pbr_slot, "glossiness", 3),
+            default_value=255 - factor_roughness,
+        )
+        if glossiness_scalar is not None:
+            glossiness = _multiply_grayscale_channel(glossiness, glossiness_scalar)
+        roughness = Image.eval(glossiness, lambda value: 255 - int(value))
+        metallic = _load_rgb_luminance_channel(pbr_slot.source_path, size, default_value=factor_metallic)
+        if specular_scalar is not None:
+            metallic = _multiply_grayscale_channel(metallic, specular_scalar)
+    elif glossiness_slot is not None and roughness_slot is None:
+        glossiness = _load_grayscale_channel(
+            glossiness_slot.source_path,
+            size,
+            channel_index=0,
+            default_value=255 - factor_roughness,
+        )
+        if glossiness_scalar is not None:
+            glossiness = _multiply_grayscale_channel(glossiness, glossiness_scalar)
+        roughness = Image.eval(glossiness, lambda value: 255 - int(value))
+        metallic = _load_rgb_luminance_channel(specular_slot.source_path, size, default_value=factor_metallic) if specular_slot is not None else Image.new("L", size, factor_metallic)
+        if specular_slot is not None and specular_scalar is not None:
+            metallic = _multiply_grayscale_channel(metallic, specular_scalar)
+    else:
+        roughness = _load_grayscale_channel(
+            pbr_slot.source_path if pbr_slot is not None else (roughness_slot.source_path if roughness_slot is not None else None),
+            size,
+            channel_index=_source_slot_channel_index(pbr_slot, "roughness", 1) if pbr_slot is not None else 0,
+            default_value=factor_roughness,
+        )
+        if (pbr_slot is not None or roughness_slot is not None) and roughness_scalar is not None:
+            roughness = _multiply_grayscale_channel(roughness, roughness_scalar)
+        metallic = _load_grayscale_channel(
+            pbr_slot.source_path if pbr_slot is not None else (metallic_slot.source_path if metallic_slot is not None else None),
+            size,
+            channel_index=_source_slot_channel_index(pbr_slot, "metallic", 2) if pbr_slot is not None else 0,
+            default_value=factor_metallic,
+        )
+        if (pbr_slot is not None or metallic_slot is not None) and metallic_scalar is not None:
+            metallic = _multiply_grayscale_channel(metallic, metallic_scalar)
+        if metallic_slot is None and specular_slot is not None and pbr_slot is None:
+            metallic = _load_rgb_luminance_channel(specular_slot.source_path, size, default_value=factor_metallic)
+            if specular_scalar is not None:
+                metallic = _multiply_grayscale_channel(metallic, specular_scalar)
     if _profile_roughness_inverted(material_profile):
         roughness = Image.eval(roughness, lambda value: 255 - int(value))
     roughness = _apply_profile_channel_adjustments(
@@ -4660,6 +4745,29 @@ def _apply_profile_channel_adjustments(
     return adjusted
 
 
+def _optional_factor(value: object) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _multiply_grayscale_channel(image: object, factor: float):
+    from PIL import Image
+
+    scalar = max(0.0, min(1.0, float(factor)))
+    return Image.eval(image, lambda value: max(0, min(255, int(round(int(value) * scalar)))))
+
+
+def _apply_occlusion_strength(image: object, strength: float):
+    from PIL import Image
+
+    scalar = max(0.0, min(1.0, float(strength)))
+    return Image.eval(image, lambda value: max(0, min(255, int(round(255 - ((255 - int(value)) * scalar))))))
+
+
 def _factor_byte(value: Optional[float], fallback: int) -> int:
     if value is None:
         return max(0, min(255, int(fallback)))
@@ -4707,6 +4815,28 @@ def _load_grayscale_channel(
             channels = rgba.split()
             index = max(0, min(len(channels) - 1, int(channel_index)))
             return channels[index]
+    except Exception:
+        return Image.new("L", size, value)
+
+
+def _load_rgb_luminance_channel(
+    path: Optional[Path],
+    size: tuple[int, int],
+    *,
+    default_value: int,
+):
+    from PIL import Image
+
+    value = max(0, min(255, int(default_value)))
+    if path is None:
+        return Image.new("L", size, value)
+    try:
+        with Image.open(path) as image:
+            rgba = image.convert("RGBA")
+            if rgba.size != size:
+                resampling = getattr(Image, "Resampling", Image).LANCZOS
+                rgba = rgba.resize(size, resampling)
+            return rgba.convert("L")
     except Exception:
         return Image.new("L", size, value)
 
@@ -4880,6 +5010,22 @@ def _mean_image_channel(path: Path, channel_index: int) -> Optional[float]:
         return None
 
 
+def _mean_image_rgb_luminance(path: Path) -> Optional[float]:
+    try:
+        from PIL import Image, ImageStat
+
+        with Image.open(path) as image:
+            rgba = image.convert("RGBA")
+            if max(rgba.size) > 512:
+                rgba.thumbnail((512, 512))
+            stat = ImageStat.Stat(rgba.convert("L"))
+            if not stat.mean:
+                return None
+            return max(0.0, min(255.0, float(stat.mean[0])))
+    except Exception:
+        return None
+
+
 def _looks_like_gltf_metallic_roughness(path: Path) -> bool:
     normalized_name = re.sub(r"[^a-z0-9]+", "", path.name.lower())
     return any(
@@ -4889,10 +5035,27 @@ def _looks_like_gltf_metallic_roughness(path: Path) -> bool:
 
 
 def _source_pbr_scalar_values(texture_set: ReplacementTextureSet) -> Optional[tuple[int, int, str]]:
+    roughness_scalar = _optional_factor(getattr(texture_set, "roughness_factor", None))
+    metallic_scalar = _optional_factor(getattr(texture_set, "metallic_factor", None))
+    specular_scalar = _optional_factor(getattr(texture_set, "specular_factor", None))
+    glossiness_scalar = _optional_factor(getattr(texture_set, "glossiness_factor", None))
     material_slot = texture_set.slots.get("material") or texture_set.slots.get("roughness")
     if material_slot is not None and _source_slot_is_explicit_pbr(material_slot):
-        roughness = _mean_image_channel(material_slot.source_path, _source_slot_channel_index(material_slot, "roughness", 1))
-        metalness = _mean_image_channel(material_slot.source_path, _source_slot_channel_index(material_slot, "metallic", 2))
+        if _source_slot_is_specular_glossiness(material_slot):
+            glossiness = _mean_image_channel(material_slot.source_path, _source_slot_channel_index(material_slot, "glossiness", 3))
+            if glossiness is not None and glossiness_scalar is not None:
+                glossiness *= glossiness_scalar
+            roughness = 255.0 - glossiness if glossiness is not None else None
+            metalness = _mean_image_rgb_luminance(material_slot.source_path)
+            if metalness is not None and specular_scalar is not None:
+                metalness *= specular_scalar
+        else:
+            roughness = _mean_image_channel(material_slot.source_path, _source_slot_channel_index(material_slot, "roughness", 1))
+            metalness = _mean_image_channel(material_slot.source_path, _source_slot_channel_index(material_slot, "metallic", 2))
+            if roughness is not None and roughness_scalar is not None:
+                roughness *= roughness_scalar
+            if metalness is not None and metallic_scalar is not None:
+                metalness *= metallic_scalar
         if roughness is not None or metalness is not None:
             rough_byte = int(round(roughness if roughness is not None else 127.0))
             metal_byte = int(round(metalness if metalness is not None else 0.0))
@@ -4902,18 +5065,43 @@ def _source_pbr_scalar_values(texture_set: ReplacementTextureSet) -> Optional[tu
                 material_slot.source_path.name,
             )
     roughness_slot = texture_set.slots.get("roughness")
+    glossiness_slot = texture_set.slots.get("glossiness")
     metallic_slot = texture_set.slots.get("metallic") or texture_set.slots.get("metalness")
-    if roughness_slot is None and metallic_slot is None:
+    specular_slot = texture_set.slots.get("specular")
+    if roughness_slot is None and glossiness_slot is None and metallic_slot is None and specular_slot is None:
         return None
-    roughness = _mean_image_channel(roughness_slot.source_path, 0) if roughness_slot is not None else None
-    metalness = _mean_image_channel(metallic_slot.source_path, 0) if metallic_slot is not None else None
+    if roughness_slot is not None:
+        roughness = _mean_image_channel(roughness_slot.source_path, 0)
+        if roughness is not None and roughness_scalar is not None:
+            roughness *= roughness_scalar
+    elif glossiness_slot is not None:
+        glossiness = _mean_image_channel(glossiness_slot.source_path, 0)
+        if glossiness is not None and glossiness_scalar is not None:
+            glossiness *= glossiness_scalar
+        roughness = 255.0 - glossiness if glossiness is not None else None
+    else:
+        roughness = None
+    if metallic_slot is not None:
+        metalness = _mean_image_channel(metallic_slot.source_path, 0)
+        if metalness is not None and metallic_scalar is not None:
+            metalness *= metallic_scalar
+    elif specular_slot is not None:
+        metalness = _mean_image_rgb_luminance(specular_slot.source_path)
+        if metalness is not None and specular_scalar is not None:
+            metalness *= specular_scalar
+    else:
+        metalness = None
     if roughness is None and metalness is None:
         return None
     source_name = (
         roughness_slot.source_path.name
         if roughness_slot is not None
+        else glossiness_slot.source_path.name
+        if glossiness_slot is not None
         else metallic_slot.source_path.name
         if metallic_slot is not None
+        else specular_slot.source_path.name
+        if specular_slot is not None
         else "source PBR"
     )
     return (
@@ -7082,6 +7270,15 @@ _SOURCE_MATERIAL_OVERRIDE_SLOT_ALIASES = {
     "ambient_occlusion": "ao",
     "specularglossiness": "material",
     "specular_glossiness": "material",
+    "specular": "specular",
+    "glossiness": "glossiness",
+    "gloss": "glossiness",
+    "smoothness": "glossiness",
+    "metalness": "metalness",
+    "metallic": "metallic",
+    "roughness": "roughness",
+    "opacity": "opacity",
+    "alpha": "opacity",
     "specgloss": "material",
     "clearcoat": "material",
     "clear_coat": "material",
@@ -7119,7 +7316,7 @@ def _apply_source_material_texture_overrides(
         if not source_path.is_absolute():
             source_path = Path.cwd() / source_path
         source_path = source_path.resolve()
-        if source_path.suffix.lower() not in {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff"}:
+        if source_path.suffix.lower() not in _SOURCE_TEXTURE_IMAGE_EXTENSIONS:
             _warn_once(report, f"Source-material texture override is not a supported image file: {source_path_text}")
             continue
         if not source_path.is_file():
@@ -7424,7 +7621,7 @@ def group_replacement_texture_sets(
         path = raw_path.expanduser()
         if not path.is_absolute():
             path = Path.cwd() / path
-        if path.suffix.lower() not in {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff"}:
+        if path.suffix.lower() not in _SOURCE_TEXTURE_IMAGE_EXTENSIONS:
             continue
         parsed = _parse_replacement_texture_filename(path, known_materials, default_material=default_material)
         if parsed is None:
@@ -7523,7 +7720,7 @@ def _attach_source_texture_reference_base_slots(
         path = raw_path.expanduser()
         if not path.is_absolute():
             path = Path.cwd() / path
-        if path.suffix.lower() not in {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff"}:
+        if path.suffix.lower() not in _SOURCE_TEXTURE_IMAGE_EXTENSIONS:
             continue
         for key in _texture_reference_keys(path):
             texture_files_by_key.setdefault(key, path)
@@ -7539,7 +7736,7 @@ def _attach_source_texture_reference_base_slots(
             path = Path(text).expanduser()
             if not path.is_absolute():
                 path = Path.cwd() / path
-            if path.suffix.lower() not in {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff"} or not path.is_file():
+            if path.suffix.lower() not in _SOURCE_TEXTURE_IMAGE_EXTENSIONS or not path.is_file():
                 continue
             for key in _texture_reference_keys(path):
                 texture_files_by_key.setdefault(key, path)
@@ -7647,6 +7844,15 @@ def _attach_source_texture_reference_base_slots(
                     packed_channels=("roughness", "metallic"),
                     source_authority="gltf",
                 )
+            elif normalized_raw_slot in {"specularglossiness", "specular_glossiness", "speculargloss"}:
+                attach_slot(
+                    material_name,
+                    raw_slot_kind,
+                    slot_path,
+                    semantic_subtype="specular_glossiness",
+                    packed_channels=("specular", "glossiness"),
+                    source_authority="gltf",
+                )
             else:
                 attach_slot(material_name, raw_slot_kind, slot_path, source_authority="metadata")
         for texture_input in tuple(getattr(source_submesh, "preview_material_texture_inputs", ()) or ()):
@@ -7677,28 +7883,50 @@ def _attach_source_material_factor_slots(
     grouped: dict[str, ReplacementTextureSet],
     source_submeshes: Sequence[object],
 ) -> None:
-    """Promote glTF material constants into source-owned solid texture slots."""
+    """Promote scene material constants and role hints into source-owned slots."""
 
     for source_submesh in tuple(source_submeshes or ()):
         material_name = str(getattr(source_submesh, "material", "") or getattr(source_submesh, "name", "") or "").strip()
         if not material_name:
             continue
+        role_tags = _source_material_role_tags(source_submesh)
+        existing_texture_set = grouped.get(material_name.lower())
+        if existing_texture_set is not None and role_tags:
+            _merge_source_role_tags(existing_texture_set, role_tags)
         preview_color = _source_preview_rgb(source_submesh)
         emissive_color = _source_emissive_rgb(source_submesh)
         roughness_factor = _source_material_numeric_parameter(source_submesh, "_roughnessFactor")
         metallic_factor = _source_material_numeric_parameter(source_submesh, "_metallicFactor")
+        specular_factor = _source_material_specular_factor(source_submesh)
+        glossiness_factor = _source_material_numeric_parameter(source_submesh, "_glossinessFactor")
+        occlusion_strength = _source_material_numeric_parameter(
+            source_submesh,
+            "_gltfTextureStrength_occlusion",
+            "_occlusionStrength",
+        )
         if (
             preview_color is None
             and emissive_color is None
             and roughness_factor is None
             and metallic_factor is None
+            and specular_factor is None
+            and glossiness_factor is None
+            and occlusion_strength is None
         ):
             continue
         texture_set = grouped.setdefault(material_name.lower(), ReplacementTextureSet(material_name=material_name))
+        if role_tags:
+            _merge_source_role_tags(texture_set, role_tags)
         if roughness_factor is not None:
             texture_set.roughness_factor = roughness_factor
         if metallic_factor is not None:
             texture_set.metallic_factor = metallic_factor
+        if specular_factor is not None:
+            texture_set.specular_factor = specular_factor
+        if glossiness_factor is not None:
+            texture_set.glossiness_factor = glossiness_factor
+        if occlusion_strength is not None:
+            texture_set.occlusion_strength = occlusion_strength
         if preview_color is not None:
             texture_set.base_color_factor = preview_color
             existing_base = texture_set.slots.get("base")
@@ -7727,19 +7955,163 @@ def _attach_source_material_factor_slots(
             )
 
 
-def _source_material_numeric_parameter(source_submesh: object, parameter_name: str) -> Optional[float]:
-    wanted = str(parameter_name or "").strip().lower()
-    if not wanted:
+def _merge_source_role_tags(texture_set: ReplacementTextureSet, role_tags: Sequence[str]) -> None:
+    existing = tuple(
+        str(tag or "").strip().lower()
+        for tag in tuple(getattr(texture_set, "source_role_tags", ()) or ())
+        if str(tag or "").strip()
+    )
+    merged = list(existing)
+    for tag in tuple(role_tags or ()):
+        normalized = _normalized_source_part_material_role(tag)
+        if normalized and normalized not in merged:
+            merged.append(normalized)
+    texture_set.source_role_tags = tuple(merged)
+
+
+def _source_material_role_tags(source_submesh: object) -> tuple[str, ...]:
+    text_parts: list[str] = [
+        str(getattr(source_submesh, "name", "") or ""),
+        str(getattr(source_submesh, "material", "") or ""),
+        str(getattr(source_submesh, "texture", "") or ""),
+        str(getattr(source_submesh, "preview_sidecar_shader_family", "") or ""),
+    ]
+    slot_kinds: set[str] = set()
+    for slot_kind, slot_path in tuple(getattr(source_submesh, "texture_slots", ()) or ()):
+        slot_text = str(slot_kind or "")
+        slot_kinds.add(_normalize_source_texture_slot_kind(slot_text) or _sanitize_texture_component(slot_text))
+        text_parts.extend((slot_text, str(slot_path or "")))
+    for texture_input in tuple(getattr(source_submesh, "preview_material_texture_inputs", ()) or ()):
+        for attr_name in (
+            "slot_kind",
+            "parameter_name",
+            "semantic_type",
+            "semantic_subtype",
+            "shader_family",
+            "source_texture_path",
+            "texture_name",
+            "preview_texture_path",
+        ):
+            text_parts.append(str(getattr(texture_input, attr_name, "") or ""))
+        slot_kinds.add(
+            _normalize_source_texture_slot_kind(str(getattr(texture_input, "slot_kind", "") or ""))
+            or _sanitize_texture_component(str(getattr(texture_input, "slot_kind", "") or ""))
+        )
+    parameters = _source_material_parameters(source_submesh)
+    for parameter in parameters:
+        text_parts.extend(
+            (
+                str(getattr(parameter, "parameter_name", "") or ""),
+                str(getattr(parameter, "tag_name", "") or ""),
+                str(getattr(parameter, "value", "") or ""),
+            )
+        )
+    compact = _sanitize_texture_component(" ".join(text_parts))
+    tokens = {token for token in re.split(r"[^a-z0-9]+", " ".join(text_parts).lower()) if token}
+    tags: list[str] = []
+
+    def add(tag: str) -> None:
+        normalized = _normalized_source_part_material_role(tag)
+        if normalized and normalized not in tags:
+            tags.append(normalized)
+
+    if (
+        tokens & {"glow", "emissive", "emission", "illum", "light", "lamp", "rune"}
+        or "emissive" in slot_kinds
+        or any(marker in compact for marker in ("glow", "emissive", "emission", "illumination"))
+    ):
+        add("glow")
+    if tokens & {"cloth", "fabric", "cape", "cloak", "flag", "velvet", "linen", "cotton", "silk", "torncloth"} or any(
+        marker in compact for marker in ("cloth", "fabric", "cloak", "cape", "velvet", "linen", "cotton", "silk")
+    ):
+        add("cloth")
+    if tokens & {"wood", "oak", "pine", "bark", "timber", "plank"} or any(
+        marker in compact for marker in ("wood", "oak", "pine", "bark", "timber", "plank")
+    ):
+        add("wood")
+    if tokens & {"leather", "hide", "strap", "belt"} or any(marker in compact for marker in ("leather", "hide", "strap", "belt")):
+        add("leather")
+    if tokens & {"stone", "rock", "granite", "marble", "slate"} or any(
+        marker in compact for marker in ("stone", "rock", "granite", "marble", "slate")
+    ):
+        add("stone")
+    if tokens & {"glass", "crystal", "lens", "gem", "jewel"} or any(marker in compact for marker in ("glass", "crystal", "lens", "gem", "jewel")):
+        add("glass")
+    if (
+        tokens & {"metal", "metallic", "metalness", "steel", "iron", "gold", "silver", "bronze", "copper"}
+        or any(marker in compact for marker in ("metal", "steel", "iron", "gold", "silver", "bronze", "copper"))
+        or slot_kinds & {"metallic", "metalness", "material"}
+    ):
+        add("metal")
+    roughness_factor = _source_material_numeric_parameter(source_submesh, "_roughnessFactor")
+    metallic_factor = _source_material_numeric_parameter(source_submesh, "_metallicFactor")
+    glossiness_factor = _source_material_numeric_parameter(source_submesh, "_glossinessFactor")
+    specular_factor = _source_material_numeric_parameter(source_submesh, "_specularFactor")
+    clearcoat_factor = _source_material_numeric_parameter(source_submesh, "_clearcoatFactor")
+    if (
+        (roughness_factor is not None and roughness_factor <= 0.35)
+        or (glossiness_factor is not None and glossiness_factor >= 0.55)
+        or (specular_factor is not None and specular_factor >= 0.5)
+        or (clearcoat_factor is not None and clearcoat_factor > 0.0)
+        or slot_kinds & {"specular", "glossiness", "clearcoat"}
+        or any(token in compact for token in ("shiny", "glossy", "polished", "mirror"))
+    ):
+        add("shiny")
+    if metallic_factor is not None and metallic_factor >= 0.45:
+        add("metal")
+    return tuple(tags)
+
+
+def _source_material_numeric_parameter(source_submesh: object, parameter_name: str, *alternate_names: str) -> Optional[float]:
+    wanted_names = {
+        str(name or "").strip().lower()
+        for name in (parameter_name, *alternate_names)
+        if str(name or "").strip()
+    }
+    if not wanted_names:
         return None
     for parameter in _source_material_parameters(source_submesh):
         current = str(getattr(parameter, "parameter_name", "") or "").strip().lower()
-        if current != wanted:
+        if current not in wanted_names:
             continue
         try:
             return max(0.0, min(1.0, float(getattr(parameter, "numeric_value", 0.0) or 0.0)))
         except (TypeError, ValueError, OverflowError):
             return None
     return None
+
+
+def _source_material_color_luminance_parameter(source_submesh: object, *parameter_names: str) -> Optional[float]:
+    wanted_names = {
+        str(name or "").strip().lower()
+        for name in tuple(parameter_names or ())
+        if str(name or "").strip()
+    }
+    if not wanted_names:
+        return None
+    for parameter in _source_material_parameters(source_submesh):
+        current = str(getattr(parameter, "parameter_name", "") or "").strip().lower()
+        if current not in wanted_names:
+            continue
+        color = tuple(getattr(parameter, "color_value", ()) or ())
+        if len(color) < 3:
+            continue
+        try:
+            r, g, b = (max(0.0, min(1.0, float(component))) for component in color[:3])
+        except (TypeError, ValueError, OverflowError):
+            continue
+        return max(0.0, min(1.0, (0.299 * r) + (0.587 * g) + (0.114 * b)))
+    return None
+
+
+def _source_material_specular_factor(source_submesh: object) -> Optional[float]:
+    scalar = _source_material_numeric_parameter(source_submesh, "_specularFactor")
+    color = _source_material_color_luminance_parameter(source_submesh, "_specularFactor", "_specularColorFactor")
+    if scalar is None:
+        return color
+    if color is None:
+        return scalar
+    return max(0.0, min(1.0, scalar * color))
 
 
 def _source_preview_rgb(source_submesh: object) -> Optional[tuple[float, float, float]]:
@@ -7822,6 +8194,12 @@ def _normalize_source_texture_slot_kind(slot_kind: str) -> str:
         "specularglossiness": "material",
         "specular_gloss": "material",
         "specgloss": "material",
+        "metallic": "metallic",
+        "metalness": "metalness",
+        "specular": "specular",
+        "gloss": "glossiness",
+        "glossiness": "glossiness",
+        "smoothness": "glossiness",
         "occlusion": "ao",
         "ambient_occlusion": "ao",
         "ambientocclusion": "ao",
@@ -7839,9 +8217,13 @@ def _normalize_source_texture_slot_kind(slot_kind: str) -> str:
         "material_mask",
         "detail_mask",
         "metallic",
+        "metalness",
         "roughness",
+        "specular",
+        "glossiness",
         "ao",
         "emissive",
+        "opacity",
     }:
         return normalized
     return ""
@@ -7988,6 +8370,7 @@ def _texture_slot_priority(path: Path, slot_kind: str) -> tuple[int, int, int]:
         ".bmp": 30,
         ".jpg": 20,
         ".jpeg": 20,
+        ".webp": 20,
     }.get(path.suffix.lower(), 0)
     return (
         _texture_slot_semantic_priority(path, slot_kind),
@@ -8113,6 +8496,18 @@ def _normalized_source_part_material_role(raw_role: object) -> str:
         return "guard"
     if tokens & {"cloth", "fabric"}:
         return "cloth"
+    if tokens & {"wood", "oak", "pine", "bark", "timber", "plank"}:
+        return "wood"
+    if tokens & {"leather", "hide"}:
+        return "leather"
+    if tokens & {"stone", "rock", "granite", "marble", "slate"}:
+        return "stone"
+    if tokens & {"metal", "metallic", "metalness", "steel", "iron", "gold", "silver", "bronze", "copper"}:
+        return "metal"
+    if tokens & {"shiny", "glossy", "polished", "mirror", "clearcoat"}:
+        return "shiny"
+    if tokens & {"glass", "crystal", "lens", "gem", "jewel"}:
+        return "glass"
     return value.replace(" ", "/")
 
 
@@ -8493,7 +8888,22 @@ def _source_submesh_display_name(source_submesh: object, source_index: int) -> s
 
 
 def _texture_set_detected_roles(texture_set: ReplacementTextureSet) -> tuple[str, ...]:
-    order = ("base", "normal", "height", "material_mask", "detail_mask", "emissive", "material", "metallic", "roughness", "ao")
+    order = (
+        "base",
+        "normal",
+        "height",
+        "material_mask",
+        "detail_mask",
+        "emissive",
+        "material",
+        "metallic",
+        "metalness",
+        "roughness",
+        "glossiness",
+        "specular",
+        "ao",
+        "opacity",
+    )
     slots = getattr(texture_set, "slots", {}) or {}
     roles = [role for role in order if role in slots]
     roles.extend(sorted(str(role) for role in slots if str(role) not in set(order)))
@@ -10619,14 +11029,14 @@ def _append_unused_texture_warnings(
             not in used
             and not (
                 material_key in materials_with_generated_runtime_mask
-                and str(slot.slot_kind or "").strip().lower() in {"material", "metallic", "roughness", "ao"}
+                and str(slot.slot_kind or "").strip().lower() in {"material", "metallic", "metalness", "roughness", "glossiness", "specular", "ao", "occlusion"}
             )
         ]
         if unused_slots:
             pbr_slots = [
                 slot
                 for slot in unused_slots
-                if str(slot.slot_kind or "").strip().lower() in {"metallic", "roughness", "ao"}
+                if str(slot.slot_kind or "").strip().lower() in {"metallic", "metalness", "roughness", "glossiness", "specular", "ao", "occlusion"}
             ]
             if pbr_slots and len(pbr_slots) == len(unused_slots):
                 report.warnings.append(

@@ -84,10 +84,54 @@ class ModelCatalogueTests(unittest.TestCase):
         self.assertIn("model.dae", by_name)
         self.assertIn("source.fbx", by_name)
         self.assertIn("packed.zip", by_name)
+        self.assertEqual(by_name["model.glb"].name, "model")
         self.assertTrue(by_name["model.glb"].import_supported)
         self.assertTrue(by_name["model.dae"].import_supported)
         self.assertTrue(by_name["packed.zip"].import_supported)
         self.assertFalse(by_name["source.fbx"].import_supported)
+
+    def test_scan_local_model_files_uses_metadata_name_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            asset_dir = root / "downloads" / "Windum--Low-c8a2cbf0faf84720938402558e574c40"
+            scene_dir = asset_dir / "gltf"
+            scene_dir.mkdir(parents=True)
+            (asset_dir / "model_metadata.json").write_text(json.dumps({"name": "Windum - Low"}), encoding="utf-8")
+            (scene_dir / "scene.gltf").write_text("{}", encoding="utf-8")
+            (asset_dir / "c8a2cbf0faf84720938402558e574c40.zip").write_bytes(b"zip")
+
+            rows = scan_local_model_files([root])
+
+        by_file = {row.path.name: row for row in rows}
+        self.assertEqual(by_file["scene.gltf"].name, "Windum - Low")
+        self.assertEqual(by_file["c8a2cbf0faf84720938402558e574c40.zip"].name, "Windum - Low")
+
+    def test_scan_local_model_files_uses_parent_name_for_generic_scene_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            scene_dir = root / "Swordfish-2-15df20021f74133b75868ee00ea7207" / "gltf"
+            scene_dir.mkdir(parents=True)
+            (scene_dir / "scene.gltf").write_text("{}", encoding="utf-8")
+            (scene_dir / "blade.gltf").write_text("{}", encoding="utf-8")
+
+            rows = scan_local_model_files([root])
+
+        by_file = {row.path.name: row for row in rows}
+        self.assertEqual(by_file["scene.gltf"].name, "Swordfish 2")
+        self.assertEqual(by_file["blade.gltf"].name, "blade")
+
+    def test_scan_local_model_files_ignores_internal_zip_extract_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "escanor axe rhitta.zip").write_bytes(b"zip")
+            extracted_dir = root / ".cdmw_extracted" / "escanor_axe_rhitta"
+            extracted_dir.mkdir(parents=True)
+            (extracted_dir / "scene.gltf").write_text("{}", encoding="utf-8")
+
+            rows = scan_local_model_files([root])
+
+        self.assertEqual([row.path.name for row in rows], ["escanor axe rhitta.zip"])
+        self.assertEqual([row.name for row in rows], ["escanor axe rhitta"])
 
     def test_resolve_importable_model_path_extracts_zip_contents(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

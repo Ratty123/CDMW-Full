@@ -3,6 +3,7 @@ import json
 import struct
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from cdmw.core.archive_modding import attach_scene_preview_textures, parsed_mesh_to_preview_model
@@ -179,6 +180,24 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertTrue(result.mesh.has_uvs)
             self.assertIs(False, preview_model.meshes[0].preview_texture_flip_vertical)
 
+    def test_zip_containing_gltf_imports_via_safe_extract_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            document["buffers"][0]["uri"] = "triangle.bin"
+            archive = root / "packed.zip"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("scene/triangle.bin", bin_chunk)
+                zip_file.writestr("scene/model.gltf", json.dumps(document))
+
+            result = import_scene_mesh_with_report(archive)
+
+            self.assertIn(".zip", SCENE_IMPORT_EXTENSIONS)
+            self.assertEqual("gltf", result.mesh.format)
+            self.assertEqual(3, result.mesh.total_vertices)
+            self.assertEqual(1, result.mesh.total_faces)
+            self.assertIn("Resolved ZIP archive packed.zip", " ".join(result.diagnostics))
+
     def test_gltf_external_buffer_and_texture_discovery(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -247,6 +266,191 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertIn("base", result.external_audit.texture_slots)
             self.assertIn("normal", result.external_audit.texture_slots)
 
+    def test_gltf_material_extensions_webp_ao_factors_and_uv1_are_recorded(self) -> None:
+        from PySide6.QtGui import QColor, QImage
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            uv1_offset = len(bin_chunk)
+            uv1_bytes = struct.pack("<6f", 0.2, 0.3, 0.8, 0.3, 0.2, 0.9)
+            bin_chunk += _pad4(uv1_bytes)
+            uv1_view = len(document["bufferViews"])
+            document["bufferViews"].append({"buffer": 0, "byteOffset": uv1_offset, "byteLength": len(uv1_bytes), "target": 34962})
+            uv1_accessor = len(document["accessors"])
+            document["accessors"].append({"bufferView": uv1_view, "componentType": 5126, "count": 3, "type": "VEC2"})
+            document["buffers"][0]["byteLength"] = len(bin_chunk)
+            document["meshes"][0]["primitives"][0]["attributes"]["TEXCOORD_1"] = uv1_accessor
+            (root / "triangle.bin").write_bytes(bin_chunk)
+            base = root / "body_base.webp"
+            base_image = QImage(2, 2, QImage.Format_RGBA8888)
+            base_image.fill(QColor(128, 64, 255, 255))
+            self.assertTrue(base_image.save(str(base), "WEBP"))
+            for name in (
+                "body_metallicRoughness.png",
+                "body_normal.png",
+                "body_ao.png",
+                "body_emissive.png",
+                "body_specular.png",
+                "body_clearcoat.png",
+                "body_sheen.png",
+                "body_transmission.png",
+            ):
+                image = QImage(2, 2, QImage.Format_RGBA8888)
+                image.fill(QColor(96, 128, 160, 255))
+                self.assertTrue(image.save(str(root / name), "PNG"))
+            document["buffers"][0]["uri"] = "triangle.bin"
+            document["materials"][0] = {
+                "name": "Layered",
+                "alphaMode": "MASK",
+                "alphaCutoff": 0.42,
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.5, 0.25, 1.0, 1.0],
+                    "baseColorTexture": {
+                        "index": 0,
+                        "texCoord": 1,
+                        "extensions": {"KHR_texture_transform": {"scale": [2.0, 3.0]}},
+                    },
+                    "metallicRoughnessTexture": {"index": 1},
+                    "metallicFactor": 0.25,
+                    "roughnessFactor": 0.5,
+                },
+                "normalTexture": {"index": 2, "scale": 0.4},
+                "occlusionTexture": {"index": 3, "strength": 0.6},
+                "emissiveTexture": {"index": 4},
+                "emissiveFactor": [0.1, 0.2, 0.3],
+                "extensions": {
+                    "KHR_materials_unlit": {},
+                    "KHR_materials_specular": {
+                        "specularFactor": 0.75,
+                        "specularTexture": {"index": 5},
+                    },
+                    "KHR_materials_clearcoat": {
+                        "clearcoatFactor": 0.5,
+                        "clearcoatTexture": {"index": 6},
+                    },
+                    "KHR_materials_sheen": {
+                        "sheenColorTexture": {"index": 7},
+                    },
+                    "KHR_materials_transmission": {
+                        "transmissionFactor": 0.2,
+                        "transmissionTexture": {"index": 8},
+                    },
+                },
+            }
+            document["textures"] = [{"source": index} for index in range(9)]
+            document["images"] = [
+                {"uri": "body_base.webp"},
+                {"uri": "body_metallicRoughness.png"},
+                {"uri": "body_normal.png"},
+                {"uri": "body_ao.png"},
+                {"uri": "body_emissive.png"},
+                {"uri": "body_specular.png"},
+                {"uri": "body_clearcoat.png"},
+                {"uri": "body_sheen.png"},
+                {"uri": "body_transmission.png"},
+            ]
+            path = root / "layered.gltf"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+            mesh = preview_model.meshes[0]
+            inputs = tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())
+            slot_subtypes = {(item.slot_kind, item.semantic_subtype) for item in inputs}
+            parameter_names = {
+                parameter.parameter_name
+                for item in inputs
+                for parameter in tuple(getattr(item, "material_parameters", ()) or ())
+            }
+
+            self.assertIn((root / "body_base.webp").resolve(), result.discovered_texture_files)
+            self.assertEqual("body_base.webp", Path(mesh.preview_texture_path).name)
+            self.assertEqual((0.5, 0.25, 1.0), mesh.preview_texture_tint)
+            self.assertEqual((2.0, 3.0), mesh.preview_texture_uv_scale)
+            self.assertEqual(0.4, mesh.preview_normal_texture_strength)
+            self.assertEqual(0.42, mesh.preview_native_material_overrides["alpha_threshold"])
+            self.assertEqual("gltf_unlit", mesh.preview_native_material_overrides["material_shader_family"])
+            self.assertIn(("occlusion", "ao"), slot_subtypes)
+            self.assertIn(("specular", "specular"), slot_subtypes)
+            self.assertIn(("specular", "clearcoat"), slot_subtypes)
+            self.assertIn(("specular", "sheen"), slot_subtypes)
+            self.assertIn(("material", "transmission"), slot_subtypes)
+            self.assertIn("_metallicFactor", parameter_names)
+            self.assertIn("_roughnessFactor", parameter_names)
+            self.assertIn("_gltfTextureStrength_occlusion", parameter_names)
+            self.assertIn("_gltfTexCoord_base", parameter_names)
+            self.assertIn("occlusion", {slot for slot, _path in result.material_bindings[0].texture_slots})
+            self.assertIn("unlit", result.material_bindings[0].pbr_workflow)
+            self.assertIn("TEXCOORD_1", " ".join(result.diagnostics))
+            self.assertIn("KHR_materials_clearcoat", " ".join(result.diagnostics))
+
+    def test_gltf_textureless_unlit_material_metadata_is_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            document["buffers"][0]["uri"] = "triangle.bin"
+            (root / "triangle.bin").write_bytes(bin_chunk)
+            document["materials"][0] = {
+                "name": "FlatPaint",
+                "alphaMode": "MASK",
+                "alphaCutoff": 0.35,
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.25, 0.5, 0.75, 1.0],
+                    "roughnessFactor": 0.9,
+                    "metallicFactor": 0.0,
+                },
+                "extensions": {"KHR_materials_unlit": {}},
+            }
+            path = root / "flat.gltf"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+            mesh = preview_model.meshes[0]
+
+            self.assertEqual("MASK", mesh.preview_alpha_mode)
+            self.assertEqual((0.25, 0.5, 0.75), mesh.preview_texture_tint)
+            self.assertEqual("gltf_unlit", mesh.preview_native_material_overrides["material_shader_family"])
+            self.assertEqual(1.0, mesh.preview_native_material_overrides["roughness"])
+            self.assertEqual(0.0, mesh.preview_native_material_overrides["specular"])
+            self.assertEqual(0.35, mesh.preview_native_material_overrides["alpha_threshold"])
+
+    def test_gltf_textureless_pbr_factors_become_native_material_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            document["buffers"][0]["uri"] = "triangle.bin"
+            (root / "triangle.bin").write_bytes(bin_chunk)
+            document["materials"][0] = {
+                "name": "ScalarOnly",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.3, 0.4, 0.5, 1.0],
+                    "roughnessFactor": 0.35,
+                    "metallicFactor": 0.8,
+                },
+                "emissiveFactor": [0.2, 0.1, 0.0],
+                "extensions": {
+                    "KHR_materials_specular": {
+                        "specularFactor": 0.5,
+                        "specularColorFactor": [0.5, 1.0, 0.5],
+                    }
+                },
+            }
+            path = root / "scalar.gltf"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+            mesh = preview_model.meshes[0]
+
+            self.assertEqual((0.3, 0.4, 0.5), mesh.preview_texture_tint)
+            self.assertAlmostEqual(0.35, mesh.preview_native_material_overrides["roughness"])
+            self.assertAlmostEqual(0.8, mesh.preview_native_material_overrides["metalness"])
+            self.assertAlmostEqual(0.39675, mesh.preview_native_material_overrides["specular"])
+            self.assertEqual(1.0, mesh.preview_native_material_overrides["emissive_intensity"])
+            self.assertEqual("#331a00", mesh.preview_native_material_overrides["emissive_color"])
+
     def test_obj_scene_preview_defaults_to_unflipped_texture_v(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -280,6 +484,255 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertEqual("obj", result.mesh.format)
             self.assertTrue(result.mesh.has_uvs)
             self.assertIs(False, preview_model.meshes[0].preview_texture_flip_vertical)
+
+    def test_obj_mtl_common_maps_become_preview_material_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in (
+                "body_base.png",
+                "body_normal.png",
+                "body_specular.png",
+                "body_glossiness.png",
+                "body_roughness.png",
+                "body_metallic.png",
+                "body_emissive.png",
+                "body_opacity.png",
+                "body_height.png",
+            ):
+                (root / name).write_bytes(b"png")
+            (root / "triangle.mtl").write_text(
+                "\n".join(
+                    (
+                        "newmtl Body",
+                        "map_Kd body_base.png",
+                        "norm body_normal.png",
+                        "map_Ks body_specular.png",
+                        "map_Ns body_glossiness.png",
+                        "map_Pr body_roughness.png",
+                        "map_Pm body_metallic.png",
+                        "map_Ke body_emissive.png",
+                        "map_d body_opacity.png",
+                        "disp body_height.png",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            path = root / "triangle.obj"
+            path.write_text(
+                "\n".join(
+                    (
+                        "mtllib triangle.mtl",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "vt 0 0",
+                        "vt 1 0",
+                        "vt 0 1",
+                        "vn 0 0 1",
+                        "usemtl Body",
+                        "f 1/1/1 2/2/1 3/3/1",
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+            mesh = preview_model.meshes[0]
+            inputs = tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())
+            slot_subtypes = {(item.slot_kind, item.semantic_subtype) for item in inputs}
+
+            self.assertEqual("body_base.png", Path(mesh.preview_texture_path).name)
+            self.assertEqual("body_normal.png", Path(mesh.preview_normal_texture_path).name)
+            self.assertEqual("body_height.png", Path(mesh.preview_height_texture_path).name)
+            self.assertIn(("specular", "specular"), slot_subtypes)
+            self.assertIn(("glossiness", "glossiness"), slot_subtypes)
+            self.assertIn(("roughness", "roughness"), slot_subtypes)
+            self.assertIn(("metalness", "metallic"), slot_subtypes)
+            self.assertIn(("emissive", "emissive"), slot_subtypes)
+            self.assertIn(("opacity", "opacity"), slot_subtypes)
+
+    def test_obj_base_texture_attaches_sibling_support_maps_by_filename_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in (
+                "blade_BaseColor.png",
+                "blade_Normal.png",
+                "blade_Roughness.png",
+                "blade_Metallic.png",
+                "blade_AO.png",
+                "blade_Emissive.png",
+                "blade_Height.png",
+            ):
+                (root / name).write_bytes(b"png")
+            (root / "triangle.mtl").write_text("newmtl Blade\nmap_Kd blade_BaseColor.png\n", encoding="utf-8")
+            path = root / "triangle.obj"
+            path.write_text(
+                "\n".join(
+                    (
+                        "mtllib triangle.mtl",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "vt 0 0",
+                        "vt 1 0",
+                        "vt 0 1",
+                        "vn 0 0 1",
+                        "usemtl Blade",
+                        "f 1/1/1 2/2/1 3/3/1",
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+            mesh = preview_model.meshes[0]
+            inputs = tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())
+            slot_subtypes = {(item.slot_kind, item.semantic_subtype) for item in inputs}
+
+            self.assertEqual("blade_BaseColor.png", Path(mesh.preview_texture_path).name)
+            self.assertEqual("blade_Normal.png", Path(mesh.preview_normal_texture_path).name)
+            self.assertEqual("blade_Height.png", Path(mesh.preview_height_texture_path).name)
+            self.assertIn(("occlusion", "ao"), slot_subtypes)
+            self.assertIn(("roughness", "roughness"), slot_subtypes)
+            self.assertIn(("metalness", "metallic"), slot_subtypes)
+            self.assertIn(("emissive", "emissive"), slot_subtypes)
+            self.assertIn("filename fallback", " ".join(result.diagnostics))
+
+    def test_dae_common_effect_textures_become_preview_material_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ("base.png", "normal.png", "emissive.png", "specular.png", "opacity.png"):
+                (root / name).write_bytes(b"png")
+            path = root / "triangle.dae"
+            path.write_text(
+                """<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <library_images>
+    <image id="baseImg"><init_from>base.png</init_from></image>
+    <image id="normalImg"><init_from>normal.png</init_from></image>
+    <image id="emissiveImg"><init_from>emissive.png</init_from></image>
+    <image id="specularImg"><init_from>specular.png</init_from></image>
+    <image id="opacityImg"><init_from>opacity.png</init_from></image>
+  </library_images>
+  <library_effects>
+    <effect id="matFx"><profile_COMMON>
+      <newparam sid="baseSurface"><surface type="2D"><init_from>baseImg</init_from></surface></newparam>
+      <newparam sid="baseSampler"><sampler2D><source>baseSurface</source></sampler2D></newparam>
+      <newparam sid="normalSurface"><surface type="2D"><init_from>normalImg</init_from></surface></newparam>
+      <newparam sid="normalSampler"><sampler2D><source>normalSurface</source></sampler2D></newparam>
+      <newparam sid="emissiveSurface"><surface type="2D"><init_from>emissiveImg</init_from></surface></newparam>
+      <newparam sid="emissiveSampler"><sampler2D><source>emissiveSurface</source></sampler2D></newparam>
+      <newparam sid="specularSurface"><surface type="2D"><init_from>specularImg</init_from></surface></newparam>
+      <newparam sid="specularSampler"><sampler2D><source>specularSurface</source></sampler2D></newparam>
+      <newparam sid="opacitySurface"><surface type="2D"><init_from>opacityImg</init_from></surface></newparam>
+      <newparam sid="opacitySampler"><sampler2D><source>opacitySurface</source></sampler2D></newparam>
+      <technique sid="common"><phong>
+        <diffuse><texture texture="baseSampler" texcoord="UVSET0"/></diffuse>
+        <emission><texture texture="emissiveSampler" texcoord="UVSET0"/></emission>
+        <specular><texture texture="specularSampler" texcoord="UVSET0"/></specular>
+        <transparent><texture texture="opacitySampler" texcoord="UVSET0"/></transparent>
+      </phong></technique>
+      <extra><technique profile="MAYA"><bump><texture texture="normalSampler" texcoord="UVSET0"/></bump></technique></extra>
+    </profile_COMMON></effect>
+  </library_effects>
+  <library_materials><material id="Mat" name="Mat"><instance_effect url="#matFx"/></material></library_materials>
+  <library_geometries><geometry id="geo" name="Triangle"><mesh>
+    <source id="geo-pos"><float_array id="geo-pos-array" count="9">0 0 0 1 0 0 0 1 0</float_array><technique_common><accessor source="#geo-pos-array" count="3" stride="3"/></technique_common></source>
+    <source id="geo-norm"><float_array id="geo-norm-array" count="9">0 0 1 0 0 1 0 0 1</float_array><technique_common><accessor source="#geo-norm-array" count="3" stride="3"/></technique_common></source>
+    <source id="geo-uv"><float_array id="geo-uv-array" count="6">0 0 1 0 0 1</float_array><technique_common><accessor source="#geo-uv-array" count="3" stride="2"/></technique_common></source>
+    <vertices id="geo-verts"><input semantic="POSITION" source="#geo-pos"/></vertices>
+    <triangles material="Mat" count="1">
+      <input semantic="VERTEX" source="#geo-verts" offset="0"/>
+      <input semantic="NORMAL" source="#geo-norm" offset="1"/>
+      <input semantic="TEXCOORD" source="#geo-uv" offset="2"/>
+      <p>0 0 0 1 1 1 2 2 2</p>
+    </triangles>
+  </mesh></geometry></library_geometries>
+  <library_visual_scenes><visual_scene id="Scene"><node id="Node"><instance_geometry url="#geo"><bind_material><technique_common><instance_material symbol="Mat" target="#Mat"/></technique_common></bind_material></instance_geometry></node></visual_scene></library_visual_scenes>
+  <scene><instance_visual_scene url="#Scene"/></scene>
+</COLLADA>
+""",
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+            mesh = preview_model.meshes[0]
+            inputs = tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())
+            slot_subtypes = {(item.slot_kind, item.semantic_subtype) for item in inputs}
+
+            self.assertEqual("dae", result.mesh.format)
+            self.assertEqual("base.png", Path(mesh.preview_texture_path).name)
+            self.assertEqual("normal.png", Path(mesh.preview_normal_texture_path).name)
+            self.assertIn(("emissive", "emissive"), slot_subtypes)
+            self.assertIn(("specular", "specular"), slot_subtypes)
+            self.assertIn(("opacity", "opacity"), slot_subtypes)
+
+    def test_dae_base_texture_attaches_sibling_support_maps_by_filename_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in (
+                "blade_BaseColor.png",
+                "blade_Normal.png",
+                "blade_Roughness.png",
+                "blade_Metallic.png",
+                "blade_AO.png",
+                "blade_Emissive.png",
+            ):
+                (root / name).write_bytes(b"png")
+            path = root / "triangle.dae"
+            path.write_text(
+                """<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <library_images><image id="baseImg"><init_from>blade_BaseColor.png</init_from></image></library_images>
+  <library_effects><effect id="matFx"><profile_COMMON>
+    <newparam sid="baseSurface"><surface type="2D"><init_from>baseImg</init_from></surface></newparam>
+    <newparam sid="baseSampler"><sampler2D><source>baseSurface</source></sampler2D></newparam>
+    <technique sid="common"><phong><diffuse><texture texture="baseSampler" texcoord="UVSET0"/></diffuse></phong></technique>
+  </profile_COMMON></effect></library_effects>
+  <library_materials><material id="Mat" name="Mat"><instance_effect url="#matFx"/></material></library_materials>
+  <library_geometries><geometry id="geo" name="Triangle"><mesh>
+    <source id="geo-pos"><float_array id="geo-pos-array" count="9">0 0 0 1 0 0 0 1 0</float_array><technique_common><accessor source="#geo-pos-array" count="3" stride="3"/></technique_common></source>
+    <source id="geo-norm"><float_array id="geo-norm-array" count="9">0 0 1 0 0 1 0 0 1</float_array><technique_common><accessor source="#geo-norm-array" count="3" stride="3"/></technique_common></source>
+    <source id="geo-uv"><float_array id="geo-uv-array" count="6">0 0 1 0 0 1</float_array><technique_common><accessor source="#geo-uv-array" count="3" stride="2"/></technique_common></source>
+    <vertices id="geo-verts"><input semantic="POSITION" source="#geo-pos"/></vertices>
+    <triangles material="Mat" count="1">
+      <input semantic="VERTEX" source="#geo-verts" offset="0"/>
+      <input semantic="NORMAL" source="#geo-norm" offset="1"/>
+      <input semantic="TEXCOORD" source="#geo-uv" offset="2"/>
+      <p>0 0 0 1 1 1 2 2 2</p>
+    </triangles>
+  </mesh></geometry></library_geometries>
+  <library_visual_scenes><visual_scene id="Scene"><node id="Node"><instance_geometry url="#geo"><bind_material><technique_common><instance_material symbol="Mat" target="#Mat"/></technique_common></bind_material></instance_geometry></node></visual_scene></library_visual_scenes>
+  <scene><instance_visual_scene url="#Scene"/></scene>
+</COLLADA>
+""",
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+            mesh = preview_model.meshes[0]
+            inputs = tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())
+            slot_subtypes = {(item.slot_kind, item.semantic_subtype) for item in inputs}
+
+            self.assertEqual("blade_BaseColor.png", Path(mesh.preview_texture_path).name)
+            self.assertEqual("blade_Normal.png", Path(mesh.preview_normal_texture_path).name)
+            self.assertIn(("occlusion", "ao"), slot_subtypes)
+            self.assertIn(("roughness", "roughness"), slot_subtypes)
+            self.assertIn(("metalness", "metallic"), slot_subtypes)
+            self.assertIn(("emissive", "emissive"), slot_subtypes)
+            self.assertIn("filename fallback", " ".join(result.diagnostics))
+
+    def test_browsable_external_formats_get_clear_no_dependency_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "model.usdz"
+            path.write_bytes(b"PK\x03\x04")
+
+            with self.assertRaisesRegex(ValueError, "browsable but not preview-importable"):
+                import_scene_mesh_with_report(path)
 
     def test_gltf_specular_glossiness_diffuse_texture_is_base_texture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -468,6 +921,30 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertEqual(len(result.extracted_embedded_files), 1)
             self.assertTrue(result.extracted_embedded_files[0].is_file())
             self.assertEqual(result.extracted_embedded_files[0].read_bytes(), png_bytes)
+
+    def test_glb_embedded_webp_image_is_extracted_and_bound(self) -> None:
+        from PySide6.QtGui import QColor, QImage
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            webp_path = root / "source.webp"
+            image = QImage(2, 2, QImage.Format_RGBA8888)
+            image.fill(QColor(12, 34, 56, 255))
+            self.assertTrue(image.save(str(webp_path), "WEBP"))
+            webp_bytes = webp_path.read_bytes()
+            bin_chunk, document = _triangle_payload(image_bytes=webp_bytes, image_mime="image/webp")
+            path = root / "embedded_webp.glb"
+            _write_glb(path, document, bin_chunk)
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+
+            self.assertEqual(1, len(result.extracted_embedded_files))
+            self.assertEqual(".webp", result.extracted_embedded_files[0].suffix.lower())
+            self.assertTrue(result.extracted_embedded_files[0].is_file())
+            self.assertEqual(result.extracted_embedded_files[0].read_bytes(), webp_bytes)
+            self.assertEqual(result.extracted_embedded_files[0].resolve().as_posix(), result.mesh.submeshes[0].texture)
+            self.assertEqual(result.extracted_embedded_files[0].resolve().as_posix(), preview_model.meshes[0].preview_texture_path)
 
     def test_compressed_gltf_is_rejected_with_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

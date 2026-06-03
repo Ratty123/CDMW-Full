@@ -9,6 +9,7 @@ from cdmw.constants import (
     DEFAULT_UI_DENSITY,
     DEFAULT_UI_FONT_SIZE,
     DEFAULT_UI_THEME,
+    MODEL_PREVIEW_BACKGROUND_COLOR,
 )
 
 UI_THEME_SCHEMES: Dict[str, Dict[str, str]] = {
@@ -1010,6 +1011,24 @@ def build_app_stylesheet(
         color: {theme["text_muted"]};
         background: transparent;
     }}
+    QLabel#SettingsPerformanceOverview {{
+        color: {theme["text_strong"]};
+        background: {theme["field_alt"]};
+        border: 1px solid {theme["border"]};
+        border-radius: 4px;
+        padding: 6px 8px;
+        font-weight: 600;
+    }}
+    QLabel#SettingsPerformanceField {{
+        color: {theme["text_strong"]};
+        background: transparent;
+        font-weight: 600;
+    }}
+    QLabel#SettingsPerformanceNote {{
+        font-size: {hint_size}px;
+        color: {theme["text"]};
+        background: transparent;
+    }}
     QLabel#ArchivePreviewHealthLabel {{
         font-size: {hint_size}px;
         color: {theme["text_muted"]};
@@ -1045,7 +1064,7 @@ def build_app_stylesheet(
     QLabel#PreviewLabel {{
         border: 1px solid {theme["border_strong"]};
         border-radius: 5px;
-        background: {theme["preview_bg"]};
+        background: {MODEL_PREVIEW_BACKGROUND_COLOR};
         color: {theme["text_muted"]};
         padding: 8px;
     }}

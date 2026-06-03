@@ -601,6 +601,27 @@ def _material_parameter_hint(input_item: PreviewMaterialTextureInput, *tokens: s
     return _clamp(best)
 
 
+def _material_parameter_numeric(input_item: PreviewMaterialTextureInput, *tokens: str) -> Optional[float]:
+    wanted = tuple(_normalized_key(token) for token in tokens if str(token or "").strip())
+    if not wanted:
+        return None
+    for parameter in _material_parameters(input_item):
+        key = _normalized_key(getattr(parameter, "parameter_name", ""))
+        if not key or not any(token in key for token in wanted):
+            continue
+        numeric_value = getattr(parameter, "numeric_value", None)
+        if numeric_value is not None:
+            try:
+                return float(numeric_value)
+            except (TypeError, ValueError, OverflowError):
+                pass
+        try:
+            return float(str(getattr(parameter, "value", "") or ""))
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return None
+
+
 def _material_parameter_channel_hint(input_item: PreviewMaterialTextureInput, channel: str, *tokens: str) -> float:
     channel_index = _LAYER_CHANNEL_INDEX.get(str(channel or "").strip().lower(), -1)
     if channel_index < 0:
@@ -1310,11 +1331,30 @@ def _decode_mode_for_input(input_item: PreviewMaterialTextureInput) -> str:
         return "skin_material" if "skin" in shader_key or "skin" in parameter_key else "detail_mask"
     if any(marker in parameter_key for marker in ("grimematerial", "detailmaterial", "detailmask")):
         return "detail_mask"
+    if (
+        subtype in {"specular_glossiness", "specularglossiness", "gltf_specular_glossiness"}
+        or channels[:2] == ("specular", "glossiness")
+        or parameter_key in {"specularglossinesstexture", "specularglosstexture"}
+        or last_token in {"specularglossiness", "specgloss", "speculargloss"}
+    ):
+        return "specular_glossiness"
+    if subtype in {"glossiness", "gloss", "smoothness", "smooth"} or channels[:1] == ("glossiness",) or last_token in {"gloss", "glossiness", "smooth", "smoothness"}:
+        return "glossiness"
+    if subtype in {"clearcoat", "clearcoat_factor"}:
+        return "clearcoat"
+    if subtype == "clearcoat_roughness":
+        return "roughness"
+    if subtype in {"sheen", "sheen_color"}:
+        return "sheen"
+    if subtype == "sheen_roughness":
+        return "roughness"
+    if subtype in {"transmission", "volume", "anisotropy", "iridescence"}:
+        return "diagnostic"
     if parameter_key in {"materialtexture", "materialmap"} and last_token in {"sp", "spec", "specular"}:
         return "skin_material" if "skin" in shader_key else "material_response"
     if last_token in {"sp", "spec", "specular"}:
         return "specular"
-    if last_token in {"rough", "roughness", "gloss", "smooth", "smoothness"}:
+    if last_token in {"rough", "roughness"}:
         return "roughness"
     if last_token in {"metal", "metallic", "metalness"}:
         return "metallic"
@@ -1338,7 +1378,7 @@ def _decode_mode_for_input(input_item: PreviewMaterialTextureInput) -> str:
         if channels[0] in {"specular", "spec"}:
             return "specular"
         if channels[0] in {"roughness", "gloss", "smoothness", "gloss_or_smoothness"}:
-            return "roughness"
+            return "glossiness" if channels[0] in {"gloss", "smoothness", "gloss_or_smoothness"} else "roughness"
         if channels[0] in {"metallic", "metalness"}:
             return "metallic"
         if channels[0] in {"ao", "ambient_occlusion", "occlusion"}:
@@ -1370,6 +1410,16 @@ def _material_decode_output_flags(decode_mode: str) -> Tuple[bool, bool, bool, b
         return True, False, False, False
     if mode == "specular":
         return False, False, False, True
+    if mode == "specular_glossiness":
+        return False, True, False, True
+    if mode == "glossiness":
+        return False, True, False, False
+    if mode == "clearcoat":
+        return False, True, False, True
+    if mode == "sheen":
+        return False, False, False, True
+    if mode == "diagnostic":
+        return False, False, False, False
     if mode == "skin_material":
         return False, True, False, True
     if mode == "skin_detail_mask":
@@ -1429,6 +1479,9 @@ def _material_slot_priority(decode_mode: str, slot_name: str) -> int:
             "material_mask": 86,
             "material_response": 76,
             "metallic": 66,
+            "specular_glossiness": 96,
+            "glossiness": 95,
+            "clearcoat": 58,
             "specular": 42,
             "skin_material": 58,
             "skin_detail_mask": 44,
@@ -1451,12 +1504,19 @@ def _material_slot_priority(decode_mode: str, slot_name: str) -> int:
             "static_multitextured_material": 58,
             "material_mask": 78,
             "material_response": 52,
+            "specular_glossiness": 0,
+            "glossiness": 0,
+            "clearcoat": 0,
+            "sheen": 0,
             "specular": 38,
         },
         "specular": {
             "specular": 100,
             "standard_v2_specular": 96,
             "standard_v2_material": 88,
+            "specular_glossiness": 100,
+            "clearcoat": 78,
+            "sheen": 64,
             "static_multitextured_material": 82,
             "material_response": 82,
             "material_mask": 68,
@@ -1533,7 +1593,7 @@ def _material_candidate_group(decode_mode: str) -> str:
     mode = str(decode_mode or "generic").strip().lower()
     if mode == "visible_color":
         return "albedo"
-    if mode in {"specular", "standard_v2_specular"}:
+    if mode in {"specular", "specular_glossiness", "clearcoat", "sheen", "standard_v2_specular"}:
         return "specular"
     if mode in {"detail_mask", "skin_detail_mask", "standard_v2_detail", "packed_mask", "generic", "blend_mask"}:
         return "detail"
@@ -1617,6 +1677,23 @@ def decode_material_sample(
     if mode == "specular":
         specular = _clamp(max(r, g, b), 0.06, 1.0)
         roughness = _clamp(1.0 - max(g, average), 0.08, 0.92)
+    elif mode == "specular_glossiness":
+        specular = _clamp(max(r, g, b), 0.0, 1.0)
+        roughness = _clamp(1.0 - a, 0.04, 0.98)
+        metalness = 0.0
+    elif mode == "glossiness":
+        roughness = _clamp(1.0 - max(r, g, b), 0.04, 0.98)
+        specular = _clamp(0.18 + ((1.0 - roughness) * 0.22), 0.05, 0.42)
+        metalness = 0.0
+    elif mode == "clearcoat":
+        coat = max(r, g, b, a)
+        roughness = _clamp(0.08 + ((1.0 - max(g, a, average)) * 0.42), 0.04, 0.72)
+        specular = _clamp(0.18 + (coat * 0.62), 0.08, 0.86)
+        metalness = 0.0
+    elif mode == "sheen":
+        specular = _clamp(0.08 + (max(r, g, b) * 0.34), 0.04, 0.48)
+        roughness = _clamp(0.42 + ((1.0 - average) * 0.32), 0.22, 0.94)
+        metalness = 0.0
     elif mode == "ao":
         ao = _clamp(r, 0.45, 1.0)
         roughness = 0.74
@@ -1705,6 +1782,47 @@ def decode_material_sample(
         roughness = _clamp(0.22 + (g * 0.54), 0.10, 0.96)
         metalness = _clamp(max(0.0, b - (r * 0.30)) * 0.42, 0.0, 0.55)
         specular = _clamp(0.10 + (b * 0.22) + (a * 0.18) + (variance * 0.12), 0.04, 0.55)
+    return _clamp(ao, 0.45, 1.0), _clamp(roughness, 0.04, 1.0), _clamp(metalness), _clamp(specular)
+
+
+def _apply_external_material_factors(
+    input_item: Optional[PreviewMaterialTextureInput],
+    decode_mode: str,
+    ao: float,
+    roughness: float,
+    metalness: float,
+    specular: float,
+) -> Tuple[float, float, float, float]:
+    if input_item is None:
+        return ao, roughness, metalness, specular
+    mode = str(decode_mode or "").strip().lower()
+    roughness_factor = _material_parameter_numeric(input_item, "roughnessfactor")
+    metallic_factor = _material_parameter_numeric(input_item, "metallicfactor", "metalnessfactor")
+    glossiness_factor = _material_parameter_numeric(input_item, "glossinessfactor")
+    specular_factor = _material_parameter_numeric(input_item, "specularfactor")
+    specular_color = _material_parameter_hint(input_item, "specularcolorfactor")
+    occlusion_strength = _material_parameter_numeric(input_item, "texturestrengthocclusion", "occlusionstrength")
+    if mode == "metallic_roughness":
+        if roughness_factor is not None:
+            roughness = _clamp(roughness * _clamp(roughness_factor))
+        if metallic_factor is not None:
+            metalness = _clamp(metalness * _clamp(metallic_factor))
+    elif mode in {"specular_glossiness", "glossiness"}:
+        if glossiness_factor is not None:
+            glossiness = _clamp((1.0 - roughness) * _clamp(glossiness_factor))
+            roughness = _clamp(1.0 - glossiness, 0.04, 0.98)
+        if specular_factor is not None:
+            specular = _clamp(specular * _clamp(specular_factor))
+        if specular_color > 0.0:
+            specular = _clamp(specular * specular_color)
+    elif mode in {"specular", "clearcoat", "sheen"}:
+        if specular_factor is not None:
+            specular = _clamp(specular * _clamp(specular_factor))
+        if specular_color > 0.0:
+            specular = _clamp(specular * specular_color)
+    if occlusion_strength is not None:
+        strength = _clamp(occlusion_strength)
+        ao = _clamp(1.0 + (ao - 1.0) * strength, 0.45, 1.0)
     return _clamp(ao, 0.45, 1.0), _clamp(roughness, 0.04, 1.0), _clamp(metalness), _clamp(specular)
 
 
@@ -1814,6 +1932,14 @@ def _generate_material_maps(
                 float(source_view[source_offset + 2]) / 255.0,
                 float(source_view[source_offset + 3]) / 255.0,
                 decode_mode,
+            )
+            ao, roughness, metalness, specular = _apply_external_material_factors(
+                input_item,
+                decode_mode,
+                ao,
+                roughness,
+                metalness,
+                specular,
             )
             if force_nonmetal_skin:
                 metalness = 0.0
@@ -2396,7 +2522,10 @@ def combine_preview_material(
     raw_material_candidates = [
         item
         for item in inputs
-        if str(item.slot_kind or "").strip().lower() in {"material", "material_mask", "detail_mask"}
+        if (
+            str(item.slot_kind or "").strip().lower()
+            in {"material", "material_mask", "detail_mask", "occlusion", "ao", "roughness", "metalness", "specular", "glossiness"}
+        )
         and not _is_visible_color_input(item)
     ]
     material_candidates, culled_material_count = _select_material_candidates_for_payload(raw_material_candidates, payload)

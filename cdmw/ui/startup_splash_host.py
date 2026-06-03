@@ -72,12 +72,63 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
     except ImportError:
         return 1
     try:
-        from cdmw.constants import APP_NAME, APP_ORGANIZATION
+        from cdmw.constants import APP_NAME, APP_ORGANIZATION, DEFAULT_UI_THEME
         from cdmw.ui.app_icon import resolve_app_icon_path
+        from cdmw.ui.themes import UI_THEME_SCHEMES
     except Exception:
         APP_NAME = "CrimsonDesertModWorkbench"
         APP_ORGANIZATION = "Ratrider"
+        DEFAULT_UI_THEME = "graphite"
+        UI_THEME_SCHEMES = {
+            "graphite": {
+                "window": "#1e1e1e",
+                "surface": "#252526",
+                "border": "#2a2d2e",
+                "border_strong": "#3c3c3c",
+                "text_strong": "#f3f3f3",
+                "text_muted": "#9da0a6",
+                "accent": "#007acc",
+            }
+        }
         resolve_app_icon_path = None  # type: ignore[assignment]
+
+    def _command_payload() -> dict:
+        try:
+            payload = json.loads(command_file.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {"closed": True}
+        except Exception:
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    def _resolved_theme_key(theme_key: object) -> str:
+        key = str(theme_key or "").strip()
+        return key if key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
+
+    def _theme_value(theme_key: str, role: str, fallback: str) -> str:
+        theme = UI_THEME_SCHEMES.get(_resolved_theme_key(theme_key), UI_THEME_SCHEMES.get(DEFAULT_UI_THEME, {}))
+        return str(theme.get(role, fallback) or fallback)
+
+    def _theme_color(theme_key: str, role: str, fallback: str) -> QColor:
+        color = QColor(_theme_value(theme_key, role, fallback))
+        return color if color.isValid() else QColor(fallback)
+
+    def _with_alpha(color: QColor, alpha: int) -> QColor:
+        result = QColor(color)
+        result.setAlpha(max(0, min(255, int(alpha))))
+        return result
+
+    def _accent_block_colors(theme_key: str, alpha: int) -> tuple[QColor, QColor, QColor, QColor, QColor, QColor]:
+        accent = _theme_color(theme_key, "accent", "#c56d43")
+        colors = (
+            accent.lighter(135),
+            accent.darker(112),
+            accent.lighter(165),
+            accent.lighter(108),
+            accent.darker(150),
+            accent.darker(230),
+        )
+        return tuple(_with_alpha(color, alpha) for color in colors)  # type: ignore[return-value]
 
     class StartupSplashHost(QDialog):
         def __init__(self) -> None:
@@ -92,6 +143,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             self._detail = "Starting application..."
             self._current = 0
             self._total = 0
+            self._theme_key = _resolved_theme_key(_command_payload().get("theme_key", DEFAULT_UI_THEME))
             self._display_progress = 0.0
             self._target_progress = 0.0
             self._has_determinate_progress = False
@@ -132,17 +184,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
 
             layout.addSpacing(30)
 
-            self.setStyleSheet(
-                """
-                QLabel {
-                    background: transparent;
-                }
-                QLabel {
-                    color: #f1e8de;
-                }
-                """
-            )
-            self.detail_label.setStyleSheet("color: #9f938c;")
+            self._apply_theme_styles()
 
             self._frame_timer = QTimer(self)
             self._frame_timer.setTimerType(Qt.PreciseTimer)
@@ -162,6 +204,35 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             frame = self.frameGeometry()
             frame.moveCenter(screen.availableGeometry().center())
             self.move(frame.topLeft())
+
+        def _apply_theme_styles(self) -> None:
+            self.setStyleSheet(
+                f"""
+                QLabel {{
+                    background: transparent;
+                    color: {_theme_value(self._theme_key, "text_strong", "#f1e8de")};
+                }}
+                """
+            )
+            self.detail_label.setStyleSheet(f"color: {_theme_value(self._theme_key, 'text_muted', '#9f938c')};")
+
+        def _set_theme(self, theme_key: object) -> None:
+            resolved_theme_key = _resolved_theme_key(theme_key)
+            if resolved_theme_key == self._theme_key:
+                return
+            self._theme_key = resolved_theme_key
+            if resolve_app_icon_path is not None:
+                try:
+                    icon_path = resolve_app_icon_path(resolved_theme_key)
+                    if icon_path is not None:
+                        icon = QIcon(str(icon_path))
+                        if not icon.isNull():
+                            QApplication.instance().setWindowIcon(icon)
+                            self.setWindowIcon(icon)
+                except Exception:
+                    pass
+            self._apply_theme_styles()
+            self.update()
 
         def _set_detail(self, detail: str) -> None:
             text = _format_startup_splash_detail(detail)
@@ -208,17 +279,14 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             if parent_pid and not _pid_is_alive(parent_pid):
                 self.close()
                 return
-            try:
-                payload = json.loads(command_file.read_text(encoding="utf-8"))
-            except FileNotFoundError:
+            payload = _command_payload()
+            if payload.get("closed"):
                 self.close()
                 return
-            except Exception:
+            if not payload:
                 return
             if isinstance(payload, dict):
-                if payload.get("closed"):
-                    self.close()
-                    return
+                self._set_theme(payload.get("theme_key", self._theme_key))
                 self._set_detail(str(payload.get("detail", "") or "Starting application..."))
                 self._set_progress(
                     self._payload_int(payload, "current"),
@@ -241,7 +309,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                 x = rect.left() + rect.width() * x_factor
                 travel = rect.height() + 28.0
                 y = rect.top() - 18.0 + (((elapsed * speed) + seed) % 1.0) * travel
-                painter.setBrush(QColor(197, 109, 67, int(38 * alpha_factor)))
+                painter.setBrush(_with_alpha(_theme_color(self._theme_key, "accent", "#c56d43"), int(38 * alpha_factor)))
                 painter.drawRect(QRectF(x, y, size, size))
             painter.restore()
 
@@ -287,14 +355,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                     QPointF(center_x + half_width, top_y + block_height),
                 ]
             )
-            top_a = QColor("#d57d4f")
-            top_b = QColor("#a95032")
-            left_a = QColor("#f0b083")
-            left_b = QColor("#9b5a39")
-            right_a = QColor("#6d3024")
-            right_b = QColor("#2b1512")
-            for color in (top_a, top_b, left_a, left_b, right_a, right_b):
-                color.setAlpha(alpha)
+            top_a, top_b, left_a, left_b, right_a, right_b = _accent_block_colors(self._theme_key, alpha)
 
             painter.setPen(Qt.NoPen)
             painter.setBrush(self._face_gradient(left, left_a, left_b))
@@ -303,7 +364,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             painter.drawPolygon(right)
             painter.setBrush(self._face_gradient(top, top_a, top_b))
             painter.drawPolygon(top)
-            painter.setPen(QPen(QColor(197, 109, 67, int(46 * opacity)), 0.7))
+            painter.setPen(QPen(_with_alpha(_theme_color(self._theme_key, "accent", "#c56d43"), int(46 * opacity)), 0.7))
             painter.setBrush(Qt.NoBrush)
             painter.drawPolyline(top)
 
@@ -349,22 +410,22 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             painter = QPainter(self)
             painter.setRenderHint(QPainter.Antialiasing, True)
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor("#11100f"))
+            painter.setBrush(_theme_color(self._theme_key, "surface", "#252526"))
             painter.drawRoundedRect(card, 10, 10)
 
             rect = QRectF(card.adjusted(1, 1, -1, -1))
             self._draw_falling_blocks(painter, rect.adjusted(16, 10, -16, -32))
             painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(QColor(62, 52, 47, 190), 1.0))
+            painter.setPen(QPen(_with_alpha(_theme_color(self._theme_key, "border_strong", "#3c3c3c"), 190), 1.0))
             painter.drawRoundedRect(rect, 10, 10)
 
             self._draw_block_wave_mark(painter, QRectF(rect.left() + 52, rect.top() + 14, rect.width() - 104, 70))
 
             rail = QRectF(rect.left() + 72, rect.bottom() - 42, rect.width() - 144, 3)
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(197, 109, 67, 42))
+            painter.setBrush(_with_alpha(_theme_color(self._theme_key, "accent", "#c56d43"), 42))
             painter.drawRoundedRect(rail, 1.5, 1.5)
-            painter.setBrush(QColor("#c56d43"))
+            painter.setBrush(_theme_color(self._theme_key, "accent", "#c56d43"))
             if self._has_determinate_progress:
                 progress = min(max(self._display_progress, 0.0), 1.0)
                 if progress > 0.01:
@@ -379,9 +440,10 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
     app.setOrganizationName(APP_ORGANIZATION)
     app.setApplicationName(APP_NAME)
     app_icon = QIcon()
+    initial_theme_key = _resolved_theme_key(_command_payload().get("theme_key", DEFAULT_UI_THEME))
     if resolve_app_icon_path is not None:
         try:
-            icon_path = resolve_app_icon_path()
+            icon_path = resolve_app_icon_path(initial_theme_key)
             if icon_path is not None:
                 app_icon = QIcon(str(icon_path))
                 if not app_icon.isNull():

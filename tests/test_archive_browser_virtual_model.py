@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import sys
+import tempfile
 import unittest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -10,7 +11,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from cdmw.models import ArchiveEntry, ArchivePerformanceSettings, clamp_archive_performance_settings
 from cdmw.ui.archive_browser_model import ArchiveBrowserModel, ArchiveBrowserRowPayload, ArchiveBrowserTreeView
-from PySide6.QtCore import Qt
+from cdmw.ui.settings_tab import SettingsTab
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QApplication
 
 
@@ -212,6 +214,45 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         self.assertGreaterEqual(header.visualIndex(6), len(visible_order))
 
 
+class ArchivePerformanceSettingsTabTests(unittest.TestCase):
+    def _settings_tab(self) -> SettingsTab:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        settings = QSettings(str(Path(temp_dir.name) / "settings.ini"), QSettings.IniFormat)
+        tab = SettingsTab(settings=settings, theme_key="crimson_desert")
+        self.addCleanup(tab.deleteLater)
+        return tab
+
+    def test_numeric_performance_presets_keep_auto_and_custom_values_clear(self) -> None:
+        tab = self._settings_tab()
+        tab.sync_archive_performance_controls(
+            ArchivePerformanceSettings(archive_fetch_batch_size=0, preview_cache_limit=64)
+        )
+        self.assertEqual(0, tab.archive_fetch_batch_mode_combo.currentData())
+        self.assertTrue(tab.archive_fetch_batch_spin.isHidden())
+        self.assertEqual(64, tab.archive_preview_cache_limit_mode_combo.currentData())
+        self.assertTrue(tab.archive_preview_cache_limit_spin.isHidden())
+
+        batch_index = tab.archive_fetch_batch_mode_combo.findData(600)
+        self.assertGreaterEqual(batch_index, 0)
+        tab.archive_fetch_batch_mode_combo.setCurrentIndex(batch_index)
+        self.assertEqual(600, tab.current_archive_performance_settings().archive_fetch_batch_size)
+
+        custom_batch_index = tab.archive_fetch_batch_mode_combo.findData(-1)
+        self.assertGreaterEqual(custom_batch_index, 0)
+        tab.archive_fetch_batch_mode_combo.setCurrentIndex(custom_batch_index)
+        tab.archive_fetch_batch_spin.setValue(2400)
+        self.assertEqual(2400, tab.current_archive_performance_settings().archive_fetch_batch_size)
+
+        tab.sync_archive_performance_controls(
+            ArchivePerformanceSettings(archive_fetch_batch_size=2400, preview_cache_limit=96)
+        )
+        self.assertEqual(-1, tab.archive_fetch_batch_mode_combo.currentData())
+        self.assertEqual(2400, tab.archive_fetch_batch_spin.value())
+        self.assertEqual(-1, tab.archive_preview_cache_limit_mode_combo.currentData())
+        self.assertEqual(96, tab.archive_preview_cache_limit_spin.value())
+
+
 class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
     def test_main_archive_view_uses_virtual_tree_view(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
@@ -306,14 +347,14 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("Folder filters warming...", structure_body)
         self.assertIn("self._start_archive_structure_filter_worker", source)
 
-    def test_pending_enhanced_filter_refresh_waits_for_visible_ready_browser(self) -> None:
+    def test_pending_enhanced_filter_refresh_waits_for_visible_browser_without_render_deadlock(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
         refresh_start = source.index("        def _apply_pending_archive_enhanced_filter_refresh")
         refresh_end = source.index("        def _mark_archive_filters_dirty", refresh_start)
         refresh_body = source[refresh_start:refresh_end]
         self.assertIn("not self._is_tool_visible_or_current(self.archive_browser_tab)", refresh_body)
-        self.assertIn("self.archive_browser_preload_state != \"ready\"", refresh_body)
-        self.assertIn("not self.archive_browser_first_visible_paint_done", refresh_body)
+        self.assertNotIn("self.archive_browser_preload_state != \"ready\"", refresh_body)
+        self.assertNotIn("not self.archive_browser_first_visible_paint_done", refresh_body)
         self.assertIn("cause=item_search_filter_refresh | state=applied", refresh_body)
 
     def test_archive_preview_loading_state_is_debounced(self) -> None:
@@ -403,13 +444,66 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         source = Path("cdmw/ui/settings_tab.py").read_text(encoding="utf-8")
         dialog_source = Path("cdmw/ui/model_preview_settings_dialog.py").read_text(encoding="utf-8")
         self.assertIn('"Performance"', source)
-        self.assertIn('QGroupBox("Workload Preset")', source)
-        self.assertIn('QGroupBox("Archive List")', source)
-        self.assertIn('QGroupBox("Related-File Indexing")', source)
-        self.assertIn('QGroupBox("Preview Cache")', source)
+        self.assertIn('workload_group, workload_layout = _performance_group("Overall Workload")', source)
+        self.assertIn('archive_list_group, archive_list_layout = _performance_group("Archive List Loading")', source)
+        self.assertIn('related_index_group, related_index_layout = _performance_group("Related-File Indexing")', source)
+        self.assertIn('preview_cache_group, preview_cache_layout = _performance_group("Preview Caches")', source)
+        self.assertIn("def _add_performance_row(", source)
+        self.assertIn("SettingsPerformanceOverview", source)
+        self.assertIn("SettingsPerformanceField", source)
+        self.assertIn("SettingsPerformanceNote", source)
+        self.assertIn("note.setMinimumWidth(260)", source)
+        self.assertIn("note.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)", source)
+        self.assertNotIn("wrapped_height = note.fontMetrics().boundingRect", source)
+        self.assertNotIn("note.setMaximumWidth(430)", source)
+        self.assertIn("group.setMinimumWidth(520)", source)
+        self.assertIn("group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)", source)
+        self.assertNotIn("group.setMaximumWidth(600)", source)
+        self.assertIn("grid.setColumnStretch(1, 1)", source)
+        self.assertIn("performance_overview.setMinimumWidth(720)", source)
+        self.assertIn("performance_overview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)", source)
+        self.assertIn("performance_grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)", source)
+        self.assertNotIn("performance_grid_widget.setMaximumWidth(1212)", source)
+        self.assertIn("field_layout.addWidget(control, alignment=Qt.AlignLeft | Qt.AlignTop)", source)
+        self.assertIn("field_layout.addWidget(note_widget)", source)
+        self.assertIn("grid.addWidget(field_body, row, 1)", source)
+        self.assertIn("grid.setRowMinimumHeight(row, 72)", source)
+        self.assertIn("performance_columns = QHBoxLayout(performance_grid_widget)", source)
+        self.assertIn("left_performance_column = QVBoxLayout()", source)
+        self.assertIn("right_performance_column = QVBoxLayout()", source)
+        self.assertIn("left_performance_column.setAlignment(Qt.AlignTop)", source)
+        self.assertIn("right_performance_column.setAlignment(Qt.AlignTop)", source)
+        self.assertIn("performance_columns.addLayout(left_performance_column, 1)", source)
+        self.assertIn("performance_columns.addLayout(right_performance_column, 1)", source)
+        self.assertIn("left_performance_column.addWidget(workload_group)", source)
+        self.assertIn("right_performance_column.addWidget(archive_list_group)", source)
+        self.assertIn("left_performance_column.addWidget(related_index_group)", source)
+        self.assertIn("right_performance_column.addWidget(preview_cache_group)", source)
+        self.assertIn("Recommended start: Balanced preset", source)
+        self.assertIn("Balanced (recommended)", source)
+        self.assertIn("Faster indexing (more CPU / possible lag)", source)
+        self.assertIn("Low impact (slower / smoother)", source)
+        self.assertIn("Native helper", source)
+        self.assertIn("Rows per update", source)
+        self.assertIn("archive_fetch_batch_mode_combo", source)
+        self.assertIn("Auto (preset)", source)
+        self.assertIn("100 rows (smooth)", source)
+        self.assertIn("Custom...", source)
+        self.assertIn("Sidecar index", source)
+        self.assertIn('self.archive_sidecar_worker_mode_combo.addItem("Auto from preset (recommended)", 0)', source)
+        self.assertIn("self.archive_sidecar_worker_mode_combo.setMinimumContentsLength(28)", source)
+        self.assertIn("self.archive_sidecar_worker_mode_combo.setMinimumWidth(360)", source)
+        self.assertIn("self.archive_sidecar_worker_mode_combo.setMaximumWidth(420)", source)
+        self.assertIn("self.archive_sidecar_worker_spin.setVisible(manual)", source)
+        self.assertIn("Cache warmup", source)
+        self.assertIn("archive_preview_cache_limit_mode_combo", source)
+        self.assertIn("Balanced 64 (recommended)", source)
+        self.assertIn("High 128 (faster)", source)
+        self.assertIn("D3D11 disk cache", source)
         self.assertIn("archive_resource_profile_combo", source)
         self.assertIn("archive_native_acceleration_checkbox", source)
         self.assertIn("archive_native_preview_cache_mode_combo", source)
+        self.assertIn("self.archive_native_preview_cache_mode_combo.setMinimumWidth(360)", source)
         self.assertIn("archive/native_preview_cache_mode", source)
         self.assertIn("performance/archive_fetch_batch_size", source)
         self.assertNotIn("archive_view_backend_combo", source)
@@ -419,6 +513,31 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn('QGroupBox("Related-File Indexing")', dialog_source)
         self.assertIn('QGroupBox("Preview Cache")', dialog_source)
         self.assertNotIn('self.tabs.addTab(performance_tab, "Archive Performance")', dialog_source)
+
+    def test_disabling_sidecar_index_cancels_active_and_pending_work(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        worker_start = source.index("    class ArchiveSidecarIndexWorker")
+        worker_end = source.index("    class ArchiveFilterWorker", worker_start)
+        worker_source = source[worker_start:worker_end]
+        handler_start = source.index("        def _handle_archive_performance_settings_changed")
+        handler_end = source.index("        def _quick_archive_model_preview_result", handler_start)
+        handler_source = source[handler_start:handler_end]
+
+        self.assertIn("sidecar_indexing_work_active = bool(", handler_source)
+        self.assertIn("self.archive_sidecar_thread is not None", handler_source)
+        self.assertIn("self.archive_sidecar_pending_start", handler_source)
+        self.assertIn("not performance_settings.enable_sidecar_indexing", handler_source)
+        self.assertIn("self.archive_sidecar_request_id += 1", handler_source)
+        self.assertIn("self.archive_sidecar_pending_start = False", handler_source)
+        self.assertIn("self.archive_browser_warmup_pending = False", handler_source)
+        self.assertIn("self.archive_sidecar_worker.stop()", handler_source)
+        self.assertIn(
+            'self._finish_archive_sidecar_status("Texture sidecar indexing stopped.", success=False)',
+            handler_source,
+        )
+        self.assertIn("if self.stop_event.is_set():\n                        return", worker_source)
+        self.assertIn("if not self.stop_event.is_set():\n                        self.completed.emit", worker_source)
+        self.assertIn("if self.stop_event.is_set():\n                    return\n                self.progress_changed.emit", worker_source)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ import struct
 import zlib
 import math
 from pathlib import Path, PurePath
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Optional
 
 from .mesh_parser import ParsedMesh, SubMesh
@@ -55,7 +55,7 @@ def _build_roundtrip_manifest_payload(
         "source_format": str(mesh.format or "").strip(),
         "export_path": Path(export_path).name,
         "companion_filename": Path(companion_path).name if companion_path else "",
-        "exported_utc": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "exported_utc": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
         "roundtrip_policy": {
             "primary_workflow": "obj_first",
             "default_import_policy": "auto-fix safe, warn risky",

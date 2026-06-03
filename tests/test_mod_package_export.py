@@ -298,6 +298,42 @@ class ModPackageExportTests(unittest.TestCase):
             self.assertEqual(manifest.get("structure"), "game_relative")
             self.assertEqual(manifest.get("files_dir"), ".")
 
+    def test_dmm_mesh_profile_writes_manifest_and_modinfo(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "MeshDmm"
+            payload = root / "character" / "model" / "sample.pac"
+            payload.parent.mkdir(parents=True)
+            payload.write_bytes(b"PAC ")
+
+            write_mesh_loose_mod_package_metadata(
+                root,
+                ModPackageInfo(title="Mesh DMM", version="1.0", author="Author"),
+                assets=(
+                    MeshLooseModAsset(
+                        entry_path="character/model/sample.pac",
+                        package_group="0009",
+                        format="pac",
+                    ),
+                ),
+                files=(
+                    MeshLooseModFile(
+                        path="character/model/sample.pac",
+                        package_group="0009",
+                        format="pac",
+                    ),
+                ),
+                include_paired_lod=False,
+                export_options=mod_package_export_options_for_profiles(("dmm",)),
+            )
+
+            manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+            modinfo = json.loads((root / "modinfo.json").read_text(encoding="utf-8"))
+            self.assertEqual("mesh_loose_mod", manifest["kind"])
+            self.assertEqual("game_relative", manifest["structure"])
+            self.assertEqual(["dmm"], manifest["manager_targets"])
+            self.assertEqual("Mesh DMM", modinfo["name"])
+            self.assertFalse((root / ".no_encrypt").exists())
+
     def test_no_encrypt_toggle_and_ready_zip(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "ZipMod"

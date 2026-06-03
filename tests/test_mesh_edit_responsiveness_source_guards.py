@@ -151,6 +151,42 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('filename.rfind(L"cdmw_mesh_edit_triangles_", 0) == 0', native_source)
         self.assertIn('"command": "replace_mesh_edit_triangles_file"', bridge_source)
 
+    def test_mesh_edit_tool_controls_are_capability_scoped(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+
+        self.assertNotIn('("Selection only", "selection")', source)
+        self.assertIn("mesh_edit_field_rows: Dict[str, Tuple[QLabel, QWidget]] = {}", source)
+        self.assertIn('mesh_edit_select_part_button = QPushButton("Select Whole Part")', source)
+        self.assertIn('mesh_edit_invert_selection_button = QPushButton("Invert Selection")', source)
+        self.assertIn('selection_actions_visible = select_tool or selected_count > 0', source)
+        self.assertIn('_set_mesh_edit_row_visible("radius", sculpt_tool or remove_tool or brush_selection_tool)', source)
+        self.assertIn('_set_mesh_edit_row_visible("strength", sculpt_tool)', source)
+        self.assertIn('_set_mesh_edit_row_visible("falloff", sculpt_tool)', source)
+        self.assertIn('_set_mesh_edit_row_visible("iterations", current_tool == "smooth")', source)
+        self.assertIn('_set_mesh_edit_row_visible("selection", select_tool)', source)
+        self.assertIn('_set_mesh_edit_row_visible("depth", select_tool)', source)
+        self.assertIn("mesh_edit_mirror_checkbox.setVisible(sculpt_tool)", source)
+        self.assertIn("mesh_edit_select_part_button.setVisible(select_tool)", source)
+        self.assertIn("mesh_edit_invert_selection_button.setVisible(select_tool)", source)
+        self.assertIn("mesh_edit_subdivide_selection_button.setVisible(select_tool)", source)
+        self.assertIn("mesh_edit_delete_faces_button.setVisible(select_tool)", source)
+        self.assertIn("def _mesh_edit_all_vertices_in_scope() -> Dict[int, set[int]]:", source)
+        self.assertIn("def _mesh_edit_select_whole_part() -> None:", source)
+        self.assertIn("def _mesh_edit_invert_selection() -> None:", source)
+        self.assertIn("mesh_edit_select_part_button.clicked.connect", source)
+        self.assertIn("mesh_edit_invert_selection_button.clicked.connect", source)
+
+    def test_mesh_edit_sculpt_payloads_map_d3d11_editor_ids_to_source_ids(self) -> None:
+        source = _read("cdmw/ui/main_window.py")
+        apply_start = source.index("def _mesh_edit_apply_preview_payload(payload: object) -> None:")
+        apply_body = source[apply_start: source.index("def _mesh_edit_finish_stroke", apply_start)]
+
+        self.assertIn("allowed_indices = set(_mesh_edit_allowed_source_indices())", apply_body)
+        self.assertIn("editor_submesh_index = int(group.get(\"source_submesh_index\", -1))", apply_body)
+        self.assertIn("_alignment_d3d11_source_indices_for_editor_id(editor_submesh_index)", apply_body)
+        self.assertIn("for source_submesh_index in source_indices:", apply_body)
+        self.assertIn("if source_submesh_index not in allowed_indices:", apply_body)
+
     def test_mesh_edit_loading_watchdog_clears_stale_d3d11_state(self) -> None:
         source = _read("cdmw/ui/main_window.py")
         package_source = _read("cdmw/rendering/native_preview_package.py")
@@ -178,7 +214,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("on_progress=_emit_package_progress", source)
         self.assertIn('\\"percent\\":85', native_source)
         self.assertIn('\\"percent\\":90', native_source)
-        self.assertIn('\\"percent\\":98', native_source)
+        self.assertIn("resources_loaded_payload", native_source)
+        self.assertIn('loaded_payload_for_event(stats, "resources_loaded")', native_source)
+        self.assertIn('\\"render_suppressed_reason\\"', native_source)
+        self.assertIn('\\"parent_renderable\\"', native_source)
 
     def test_mesh_edit_raw_package_and_live_restore_paths_exist(self) -> None:
         source = _read("cdmw/ui/main_window.py")
@@ -195,10 +234,18 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('("package_quality", "normal")', source)
         self.assertIn("_queue_texture_preview_refresh()", source)
         self.assertIn('_mesh_edit_apply_preview_mode_transition("left_mesh_edit_tab")', source)
-        self.assertIn('return clamp_model_preview_render_settings(raw_settings), False, False, "mesh_edit_raw"', source)
+        self.assertNotIn('return _alignment_d3d11_fast_render_settings(settings), False, False, "fast_geometry"', source)
+        self.assertIn('return clamp_model_preview_render_settings(settings), True, True, "material_refresh"', source)
+        self.assertIn('return clamp_model_preview_render_settings(settings), True, True, "mesh_edit_raw"', source)
+        self.assertNotIn("fast_settings.disable_all_support_maps = True", source)
+        self.assertNotIn("fast_settings.disable_normal_map = True", source)
+        self.assertNotIn("fast_settings.disable_material_map = True", source)
+        self.assertNotIn("fast_settings.disable_height_map = True", source)
         self.assertIn("mesh_edit_raw_package = _mesh_edit_raw_preview_active()", source)
-        self.assertIn("use_textures=not mesh_edit_raw_package", source)
-        self.assertIn("original_reference_material_parity=not mesh_edit_raw_package", source)
+        self.assertIn("worker_use_textures = True", source)
+        self.assertIn("original_reference_material_parity=worker_original_reference_material_parity", source)
+        self.assertIn('reuse_prepared_geometry=package_quality_key == "material_refresh"', source)
+        self.assertIn("def _mesh_by_source_identity", source)
         poll_start = source.index("def _poll_alignment_d3d11_status() -> None:")
         loaded_start = source.index('if event == "loaded":', poll_start)
         loaded_block = source[loaded_start: source.index('elif event == "loading":', loaded_start)]

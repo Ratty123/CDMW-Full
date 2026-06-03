@@ -1301,6 +1301,166 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertIn("occlusion", batch["material_combiner_outputs"])
             self.assertFalse(batch["texture_flip_vertical"])
 
+    def test_material_contract_reports_normalized_input_only_source_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "base.png"
+            clearcoat = temp_path / "clearcoat.png"
+            sheen = temp_path / "sheen.png"
+            transmission = temp_path / "transmission.png"
+            opacity = temp_path / "opacity.png"
+            for path, color in (
+                (base, QColor(180, 150, 120, 255)),
+                (clearcoat, QColor(210, 210, 210, 255)),
+                (sheen, QColor(80, 120, 180, 255)),
+                (transmission, QColor(120, 120, 160, 128)),
+                (opacity, QColor(255, 255, 255, 64)),
+            ):
+                image = QImage(4, 4, QImage.Format_RGBA8888)
+                image.fill(color)
+                self.assertTrue(image.save(str(path), "PNG"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="layered.gltf",
+                format="gltf",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="Layered",
+                        texture_name="Layered",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_native_material_overrides={
+                            "material_shader_family": "gltf_unlit",
+                            "roughness": 1.0,
+                            "specular": 0.0,
+                        },
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="specular",
+                                parameter_name="_clearcoatTexture",
+                                source_texture_path=str(clearcoat),
+                                preview_texture_path=str(clearcoat),
+                                semantic_type="specular",
+                                semantic_subtype="clearcoat",
+                                packed_channels=("clearcoat",),
+                                confidence="gltf",
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="specular",
+                                parameter_name="_sheenColorTexture",
+                                source_texture_path=str(sheen),
+                                preview_texture_path=str(sheen),
+                                semantic_type="specular",
+                                semantic_subtype="sheen",
+                                packed_channels=("sheen",),
+                                confidence="gltf",
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_transmissionTexture",
+                                source_texture_path=str(transmission),
+                                preview_texture_path=str(transmission),
+                                semantic_type="material",
+                                semantic_subtype="transmission",
+                                packed_channels=("transmission",),
+                                confidence="gltf",
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="opacity",
+                                parameter_name="_opacityTexture",
+                                source_texture_path=str(opacity),
+                                preview_texture_path=str(opacity),
+                                semantic_type="opacity",
+                                semantic_subtype="opacity",
+                                packed_channels=("alpha",),
+                                confidence="gltf",
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="layered.gltf"),
+                prepared,
+                output_root=temp_path / "package",
+                enable_material_combiner=False,
+            )
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+            contract = batch["material_contract"]
+            normalized_slots = contract["normalized_texture_slots"]
+            diagnostic_slots = {item["slot"]: item for item in batch["material_diagnostics"]}
+
+            self.assertTrue(batch["textures"]["specular"])
+            self.assertEqual("input_only", normalized_slots["clearcoat"]["status"])
+            self.assertEqual("input_only", normalized_slots["sheen"]["status"])
+            self.assertEqual("input_only", normalized_slots["transmission"]["status"])
+            self.assertEqual("input_only", normalized_slots["opacity"]["status"])
+            self.assertEqual("recorded", normalized_slots["unlit"]["status"])
+            for slot in ("clearcoat", "sheen", "transmission", "opacity", "unlit"):
+                self.assertIn(slot, diagnostic_slots)
+            self.assertIn("transmission/volume recorded", " ".join(contract["preview_divergence_reasons"]))
+            self.assertIn("opacity texture recorded", " ".join(contract["preview_divergence_reasons"]))
+
+    def test_native_material_contract_uses_textureless_scalar_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="scalar.gltf",
+                format="gltf",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="ScalarOnly",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_native_material_overrides={
+                            "roughness": 0.35,
+                            "metalness": 0.8,
+                            "specular": 0.42,
+                            "emissive_intensity": 2.0,
+                            "emissive_color": "#123456",
+                        },
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="scalar.gltf"),
+                prepared,
+                output_root=temp_path / "package",
+                enable_material_combiner=False,
+            )
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+            hints = batch["material_contract"]["pbr_scalar_hints"]
+            profile_hints = batch["material_contract"]["decode_profile"]["pbr_scalar_hints"]
+
+            self.assertEqual(0.35, batch["roughness"])
+            self.assertEqual(0.8, batch["metalness"])
+            self.assertEqual(0.42, batch["specular"])
+            self.assertEqual(2.0, batch["emissive_intensity"])
+            self.assertEqual([18 / 255.0, 52 / 255.0, 86 / 255.0], batch["emissive_color"])
+            self.assertEqual(0.35, hints["roughness"])
+            self.assertEqual(0.8, hints["metalness"])
+            self.assertEqual(0.42, hints["specular"])
+            self.assertEqual(2.0, hints["emissive_intensity"])
+            self.assertEqual(2.0, profile_hints["emissive_intensity"])
+
     def test_specular_material_combiner_promotes_blade_metal_response(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -2045,16 +2205,16 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
             source.index("if (reset_view_state) {")
             : source.index('cdmw_native_diag::event(\n            "package_loaded"', source.index("if (reset_view_state) {"))
         ]
-        self.assertIn('\\"stage\\":\\"first_frame\\"', reload_success_block)
+        self.assertIn("resources_loaded_payload(stats_)", reload_success_block)
         self.assertIn("request_render();", reload_success_block)
-        self.assertNotIn("loaded_payload(stats_)", reload_success_block)
+        self.assertNotIn("write_status(args_.status_file, loaded_payload(stats_));", reload_success_block)
         startup_success_block = source[
             source.index("if (!renderer.initialize()) {")
             : source.index("MSG msg{}", source.index("if (!renderer.initialize()) {"))
         ]
-        self.assertIn('\\"stage\\":\\"first_frame\\"', startup_success_block)
+        self.assertIn("resources_loaded_payload(stats)", startup_success_block)
         self.assertIn("renderer.request_render();", startup_success_block)
-        self.assertNotIn("loaded_payload(stats)", startup_success_block)
+        self.assertNotIn("write_status(args.status_file, loaded_payload(stats));", startup_success_block)
         render_block = source[
             source.index("void render() {") : source.index("bool process_pending_commands", source.index("void render() {"))
         ]
